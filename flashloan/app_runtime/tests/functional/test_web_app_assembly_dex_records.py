@@ -241,7 +241,7 @@ def test_dex_submissions_page_exposes_route_framework_panel():
     ).get_json()
 
     assert 'id="routeFrameworkPanel"' in body
-    assert payload["routeFramework"]["routeFrameworkSource"] in {"market_observation", "candidate_pool_fallback"}
+    assert payload["routeFramework"]["routeFrameworkSource"] == "market_observation"
     assert payload["routeFramework"]["topRouteText"]
 
 

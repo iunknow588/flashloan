@@ -41,6 +41,12 @@ def _route_step_row(
     to_address = _token_address(to_token.get("address"))
     route_symbols = [from_symbol, to_symbol]
     route_addresses = [from_address, to_address]
+    try:
+        _fee_int = int(str(pool.get("fee") or "").strip() or 0)
+    except (TypeError, ValueError):
+        _fee_int = 0
+    _dynamic_fee = bool(_fee_int & 8388608)
+    _special_fee = _dynamic_fee or _fee_int > 100_000
     return {
         "pool": _pool_address(pool),
         "direction": direction,
@@ -55,6 +61,10 @@ def _route_step_row(
         "protocol": pool.get("protocol") or pool.get("dex") or "",
         "dex": pool.get("dex") or pool.get("protocol") or "",
         "fee": pool.get("fee"),
+        "dynamicFee": pool.get("dynamicFee", _dynamic_fee),
+        "specialFee": pool.get("specialFee", _special_fee),
+        "feeLabel": pool.get("feeLabel") or ("dynamic" if _dynamic_fee else "special" if _special_fee else pool.get("fee")),
+        "usableForObservation": pool.get("usableForObservation"),
         "quality": pool.get("quality"),
         "classification": pool.get("classification") or {},
         "balances": pool.get("balances") or {},
@@ -77,6 +87,15 @@ def _route_step_row(
         "pairAddress": pool.get("addressPair") or "",
         "source": pool.get("source") or "",
         "evidence": pool.get("evidence") or {},
+        "recentSwapActive": pool.get("recentSwapActive"),
+        "liquidity": pool.get("liquidity") or "",
+        "liquidityIndex": pool.get("liquidityIndex"),
+        "hasLiquidity": pool.get("hasLiquidity"),
+        "estimatedTvlUsd": pool.get("estimatedTvlUsd"),
+        "token0Reserve": pool.get("token0Reserve"),
+        "token1Reserve": pool.get("token1Reserve"),
+        "depthStatus": pool.get("depthStatus") or "",
+        "depthBand": pool.get("depthBand") or {},
     }
 
 
@@ -248,6 +267,8 @@ def _candidate_observation_groups(
     anchor_groups: list[dict[str, Any]],
     observation_sequences: list[dict[str, Any]],
     closed_routes: list[dict[str, Any]],
+    *,
+    judge_observation_state: bool = True,
 ) -> list[dict[str, Any]]:
     sequences_by_anchor: dict[str, list[dict[str, Any]]] = {}
     bridge_routes_by_anchor: dict[str, list[dict[str, Any]]] = {}
@@ -295,6 +316,9 @@ def _candidate_observation_groups(
         zc_token_count = _int(group.get("zcTokenCount"))
         if sequences:
             observation_status = "reachable"
+            empty_reason = None
+        elif not judge_observation_state:
+            observation_status = "yc_zc_candidate_set"
             empty_reason = None
         elif not yc_token_count or not zc_token_count:
             observation_status = "missing_yc_or_zc"

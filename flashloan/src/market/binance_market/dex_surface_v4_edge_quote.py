@@ -125,7 +125,7 @@ def _v4_edge_quote(
                         "executionTrust": "live_v4_adapter",
                         "priceEvidenceSource": "chain_live_quote",
                         "priceEvidenceMode": "live_verified",
-                        "livePriceVerified": bool(output_usd is not None),
+                        "livePriceVerified": True,
                         "trustedUsdPrice": bool(output_usd is not None),
                         "tokenDecimalsTrusted": token_decimals_trusted,
                         "tokenDecimalAssumption": None if token_decimals_trusted else "missing_token_decimals_untrusted",

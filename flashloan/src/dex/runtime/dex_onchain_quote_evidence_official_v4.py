@@ -262,8 +262,12 @@ def _manifest_official_v4_address(field: str, chain_id: int | None = None) -> st
 
         row = chain_data_by_chain_id(int(chain_id)) or {}
         network = str(row.get("network") or "robinhood-testnet").strip().lower()
+    manifest_network = {
+        "robinhood": "mainnet",
+        "robinhood-testnet": "testnet",
+    }.get(network, network)
     for base in (Path(__file__).resolve().parents[4], Path.cwd()):
-        manifest_path = base / "test-token_create" / "config" / f"{network}-v4-amm" / "manifest.json"
+        manifest_path = base / "test-token_create" / "config" / f"{manifest_network}-v4-amm" / "manifest.json"
         if not manifest_path.exists():
             continue
         try:

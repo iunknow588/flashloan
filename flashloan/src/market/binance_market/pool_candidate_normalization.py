@@ -90,7 +90,15 @@ def _depth_band(tvl_usd: object) -> dict[str, str]:
     return {"level": "unavailable", "label": "不可用"}
 
 def _pool_address(row: dict) -> str:
-    return str(row.get("pool") or row.get("pool_address") or row.get("address") or "").strip()
+    pool_key = row.get("poolKey") if isinstance(row.get("poolKey"), dict) else {}
+    return str(
+        row.get("pool")
+        or row.get("pool_address")
+        or row.get("poolId")
+        or row.get("address")
+        or pool_key.get("poolId")
+        or ""
+    ).strip()
 
 def _token_address(value: object) -> str:
     text = str(value or "").strip()

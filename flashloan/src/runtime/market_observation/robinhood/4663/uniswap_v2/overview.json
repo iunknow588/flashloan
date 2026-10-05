@@ -1,30 +1,38 @@
 {
+  "anchorGroups": [],
   "borrowableSymbols": [],
+  "bridgePairs": [],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
   "chain_key": "robinhood:4663:uniswap_v2",
   "closedLoopRouteSummaries": [],
   "exists": true,
   "flow_name": "dex_market_observation",
-  "generated_at": "2026-10-03T04:24:16.640215Z",
+  "generated_at": "2026-10-05T10:37:11.950639Z",
   "handler": null,
   "list_counts": {
+    "anchorGroups": 0,
     "borrowableSymbols": 0,
+    "bridgePairs": 0,
     "chainSpecificObservationPairs": 0,
     "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 0
+    "observationAnchorSymbols": 0,
+    "pairs": 0
   },
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\observation.json",
   "ok": true,
+  "pairs": [],
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\overview.json",
+  "poolIndexVersion": {},
   "poolRegistry": {},
   "protocol_key": "uniswap_v2",
   "protocols": [
     "uniswap_v2"
   ],
+  "referencedTable": "ch_table",
   "refresh_mode": "full",
   "schema_version": "market-observation-static-store-v3",
   "scope_key": "robinhood:4663:uniswap_v2",
@@ -35,5 +43,6 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {},
-  "surface": "dex_market_observation"
+  "surface": "dex_market_observation",
+  "tableSource": "ob_table"
 }

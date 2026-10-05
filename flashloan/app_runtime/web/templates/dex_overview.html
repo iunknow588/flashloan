@@ -49,6 +49,7 @@
   <main>
     <div class="toolbar">
       <button id="refreshBtn">刷新总览</button>
+      <button id="rebuildBtn">重新生成总览</button>
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
@@ -95,6 +96,7 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits}) : "-";
     };
+    const fmtTime = value => value ? new Date(value).toLocaleString([], { hour12: false }) : "-";
     const money = value => {
       if (value === null || value === undefined || value === "") return "-";
       const parsed = Number(value);
@@ -104,6 +106,23 @@
       if (value === null || value === undefined || value === "") return "-";
       const parsed = Number(value);
       return Number.isFinite(parsed) ? `${parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits})} ${symbol || ""}`.trim() : "-";
+    };
+    const overviewPoolFeeText = pool => {
+      if (pool?.dynamicFee || String(pool?.feeLabel || "").toLowerCase() === "dynamic") {
+        return '<span class="badge warn" title="动态费率池的费率由 Hook 在执行时决定，不按固定费率进入可用市场观察">动态费率</span>';
+      }
+      if (pool?.specialFee || String(pool?.feeLabel || "").toLowerCase() === "special") {
+        return '<span class="badge warn" title="特殊费率池通常由 Hook 控制，需要本地 fork 模拟验证后才可用于套利">特殊费率</span>';
+      }
+      return esc(pool?.fee ?? pool?.feeLabel ?? "-");
+    };
+    const overviewPoolLiquidity = pool => {
+      const depth = pool?.depthBand || {};
+      const label = depth.label || pool?.depthStatus || "-";
+      const liq = Number(pool?.liquidityIndex ?? pool?.liquidity ?? 0);
+      const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
+      const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
+      return `${usable === false ? '<span class="badge warn">无流动性</span> ' : ''}${esc(label)}${liq > 0 ? ` / L=${num(liq)}` : ""}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
     };
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
@@ -165,6 +184,13 @@
       const livePriceVerified = Boolean(profit?.priceEvidenceMode === "live_verified" || profit?.livePriceVerified);
       const priceEvidenceText = pair.priceEvidenceSourceLabel || profit.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
       const routeLabel = "X-Y-Z-X 闭环";
+      const routeUsable = pair.routeUsableForObservation;
+      const routeUsableText = routeUsable === false
+        ? "无可用流动性"
+        : routeUsable === true
+          ? "可进入报价"
+          : "流动性未标注";
+      const routeUsableClass = routeUsable === true ? "good" : "warn";
       const rec = profit.recommendation || {};
       const recClass = profit.executableCandidate ? "good" : (profit.requiresLiveQuoter ? "warn" : (profit.profitable ? "warn" : ""));
       const tokenBasis = profit.referenceReturnBasis === "borrow_token";
@@ -178,6 +204,7 @@
               <span class="badge good">${esc(frameworkLabel(routeFrameworkSource))}</span>
               <span class="badge">${esc(`观察阶段 ${marketObservationSourceStageLabel(routeFrameworkStage)}`)}</span>
               <span class="badge">${esc(routeLabel)}</span>
+              <span class="badge ${routeUsableClass}">${esc(routeUsableText)}</span>
               <span class="badge">${esc(`价格证据 ${priceEvidenceText}`)}</span>
               <span class="badge ${livePriceVerified ? "good" : "warn"}">${esc(livePriceVerified ? "实时价格已验证" : "实时价格未接入")}</span>
               ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((route.bridgeSymbols || []).join(" -> "))}</span>` : ''}
@@ -209,9 +236,9 @@
         <div class="table-wrap"><table>
           <thead><tr><th>路径池</th><th>协议</th><th>费率</th><th>方向</th><th>TVL</th><th>深度等级</th></tr></thead>
           <tbody>${pools.slice(0, 5).map(pool => `<tr>
-            <td>${esc(pool.pool)}</td><td>${esc(pool.dex || pool.protocol || "-")}</td><td>${esc(pool.fee)}</td>
+            <td>${esc(pool.pool)}</td><td>${esc(pool.dex || pool.protocol || "-")}</td><td>${overviewPoolFeeText(pool)}</td>
             <td>${esc(pool.routeText || (pool.routeSymbols || []).join(" -> ") || "-")}</td>
-            <td>${esc((pool.balances || {}).tvlUsd ?? "-")}</td><td>${esc((pool.depthBand || {}).label || "-")}</td>
+            <td>${esc((pool.balances || {}).tvlUsd ?? pool.estimatedTvlUsd ?? "-")}</td><td>${overviewPoolLiquidity(pool)}</td>
           </tr>`).join("") || '<tr><td colspan="6">暂无候选池</td></tr>'}</tbody>
         </table></div>
       </article>`;
@@ -268,7 +295,9 @@
     let refreshController = null;
     let renderedScopeSignature = "";
     function requestedScope() {
-      const query = new URLSearchParams(window.location.search);
+      const query = window.ChainSelector?.normalizeScopeQuery
+        ? window.ChainSelector.normalizeScopeQuery(new URLSearchParams(window.location.search))
+        : normalizeScopeQuery(new URLSearchParams(window.location.search));
       const protocols = (query.get("protocols") || "")
         .split(",")
         .map(value => value.trim().toLowerCase())
@@ -295,11 +324,13 @@
       if (flashChainId != null && responseChainId != null && String(flashChainId) !== String(responseChainId)) return false;
       if (scope.protocols.length) {
         const responseProtocols = list(data?.selected_protocols).map(value => String(value).trim().toLowerCase()).filter(Boolean).sort();
-        if (responseProtocols.join(",") !== scope.protocols.join(",")) return false;
+        // The backend can narrow a stale multi-protocol URL to this chain's
+        // actual DEX protocols (for example mainnet is uniswap_v4 only).
+        if (!scope.protocols.some(protocol => responseProtocols.includes(protocol))) return false;
       }
       return true;
     }
-    async function refresh() {
+    async function refresh(forceRefresh = false) {
       const generation = ++refreshGeneration;
       const scope = requestedScope();
       if (renderedScopeSignature && renderedScopeSignature !== scope.signature) clearOverview();
@@ -308,7 +339,11 @@
       refreshController = new AbortController();
       $("message").textContent = "正在加载 DEX 总览...";
       try {
-        const data = await fetchJson("/api/dex/overview", refreshController.signal);
+        const basePath = apiPath("/api/dex/overview");
+        const path = forceRefresh
+          ? (basePath.includes("?") ? `${basePath}&refresh=1` : `${basePath}?refresh=1`)
+          : basePath;
+        const data = await fetchJson(path, refreshController.signal);
         if (generation !== refreshGeneration) return;
         if (!responseMatchesScope(data, scope)) {
           clearOverview();
@@ -330,7 +365,10 @@
         $("flashCount").textContent = (flash.available_protocols || []).length;
         $("flashNames").textContent = (flash.available_protocols || []).join(", ") || "-";
         $("sourceNetwork").textContent = source.network || "-";
-        $("sourceMeta").textContent = source.exists === false ? "当前链没有静态池表" : (source.generatedAt || "-");
+        const cacheTime = data.summary?.candidateCacheRefreshedAt || source.generatedAt || source.generated_at || data.generatedAt;
+        $("sourceMeta").textContent = source.exists === false
+          ? "当前链没有静态池表"
+          : `缓存时间 ${cacheTime ? fmtTime(cacheTime) : "-"}`;
         $("watchList").innerHTML = list(data.watchPairs).map(watchHtml).join("") || '<span class="badge">暂无关联 Y-Z 交易对</span>';
         const groups = list(data.arbitragePathGroups || buildOverviewGroups(data.arbitragePaths || []));
         $("pathList").innerHTML = renderOverviewGroups(groups);
@@ -341,6 +379,7 @@
       }
     }
     $("refreshBtn").onclick = refresh;
+    $("rebuildBtn").onclick = () => refresh(true);
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
     });

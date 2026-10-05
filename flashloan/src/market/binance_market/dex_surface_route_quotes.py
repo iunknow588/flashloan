@@ -418,9 +418,16 @@ def _route_quote_analysis(
         net_profit_usd = None
         net_profit_bps = None
         non_stable_chain_submission_candidate = False
-    live_price_verified = bool(steps) and all(
-        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter" and step.get("trustedUsdPrice") is True
+    all_live_adapter_steps = bool(steps) and all(
+        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter"
         for step in steps
+    )
+    live_price_verified = bool(
+        all_live_adapter_steps
+        and (
+            (token_basis_complete and token_basis_trusted)
+            or all(step.get("trustedUsdPrice") is True for step in steps)
+        )
     )
     live_quote_failures = [
         f"第 {step.get('hop') or '?'} 跳链上报价失败（{step.get('executionTrust') or 'live_quote_failed'}）：{step.get('liveQuoteError')}"

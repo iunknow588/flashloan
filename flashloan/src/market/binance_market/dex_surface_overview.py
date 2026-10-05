@@ -10,6 +10,8 @@ from market.binance_market.dex_surface_analysis import (
     build_overview_profit_payload,
     build_route_size_analysis,
 )
+from market.binance_market.dex_surface_edge_quotes import _best_edge_quote
+from market.binance_market.dex_surface_graph import _route_pools
 from market.binance_market.dex_surface_quotes import _route_quote_analysis as _default_route_quote_analysis
 from market.binance_market.dex_surface_types import (
     _int,
@@ -17,11 +19,16 @@ from market.binance_market.dex_surface_types import (
     _number,
     _raw_from_human,
 )
+from market.binance_market.dex_surface_route_quotes import (
+    DEFAULT_FLASH_LOAN_FEE_BPS,
+    DEFAULT_GAS_RESERVE_USD,
+)
 from market.binance_market.dex_surface_observation_chain import (
     ROBINHOOD_TESTNET_CHAIN_ID,
     _chain_network_name,
 )
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
+from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 
 
@@ -146,6 +153,46 @@ def group_overview_paths_by_flash_loan_token(
 
 
 def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: int | None) -> list[dict[str, Any]]:
+    def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+        if pool.get("usableForObservation") is not None:
+            return bool(pool.get("usableForObservation"))
+        if pool.get("specialFee") or pool.get("dynamicFee"):
+            return False
+        has_liquidity = pool.get("hasLiquidity")
+        if has_liquidity is not None:
+            return bool(has_liquidity)
+        try:
+            return float(pool.get("liquidityIndex") or pool.get("liquidity") or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
+    def _pool_has_explicit_observation_quality(pool: dict[str, Any]) -> bool:
+        return any(
+            pool.get(key) is not None
+            for key in (
+                "usableForObservation",
+                "specialFee",
+                "dynamicFee",
+                "hasLiquidity",
+                "liquidityIndex",
+                "liquidity",
+            )
+        )
+
+    def _route_usability_from_pools(pools: list[dict[str, Any]]) -> tuple[bool | None, bool]:
+        if not pools:
+            return False, True
+        any_explicit = False
+        all_usable = True
+        for pool in pools:
+            if not isinstance(pool, dict):
+                return False, True
+            if _pool_has_explicit_observation_quality(pool):
+                any_explicit = True
+                if not _pool_usable_for_observation(pool):
+                    all_usable = False
+        return (all_usable if any_explicit else None, any_explicit)
+
     paths: list[dict[str, Any]] = []
     seen_routes: set[tuple[str, tuple[str, ...]]] = set()
     for summary in snapshot.get("closedLoopRouteSummaries") or []:
@@ -182,6 +229,7 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
             }
             for index, symbol in enumerate(path_symbols)
         ]
+        route_usable, route_has_explicit = _route_usability_from_pools(route_pools)
         kind = "bridge_pair"
         paths.append(
             {
@@ -195,6 +243,8 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                 "preferredPools": route_pools,
                 "strictQualityPools": route_pools,
                 "routePools": route_pools,
+                "routeUsableForObservation": route_usable,
+                "routeHasLiquidityEvidence": route_has_explicit,
                 "overviewRoute": {
                     "kind": kind,
                     "anchorBorrowSymbol": anchor,
@@ -210,6 +260,14 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                     "observationSource": summary.get("source") or "market_observation",
                     "marketObservationRoute": True,
                     "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
+                    "routeUsableForObservation": route_usable,
+                    "hopLiquidityEvidence": [
+                        {
+                            "pool": pool.get("pool") or pool.get("poolId"),
+                            "usableForObservation": _pool_usable_for_observation(pool),
+                        }
+                        for pool in route_pools
+                    ],
                 },
                 "flashLoanLinkage": {
                     "strategy": (
@@ -264,6 +322,145 @@ def _route_with_overview_profit(
         chain_id=chain_id,
         route_quote_analysis_fn=_route_quote_analysis,
     )
+
+
+def _candidate_pool_overview_profit(
+    route: dict[str, Any],
+    *,
+    chain_id: int | None = None,
+    price_map: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Attach a static, live-requiring profit summary for candidate-pool routes.
+
+    Candidate-pool overview paths are lightweight signposts; actual profit must
+    be verified by the quote/routing stage and live quoter.  The static
+    reference numbers here come from pool reserves / price-map evidence only,
+    so the overview or quote page does not trigger a live RPC just to render a
+    "requires live quote" card.
+    """
+    updated = dict(route)
+    overview_route = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+    route_symbols = list(route.get("routeSymbols") or overview_route.get("pathSymbols") or [])
+    route_addresses = list(route.get("routeAddresses") or overview_route.get("pathAddresses") or [])
+    pools = _route_pools(route)
+    price_map = price_map or {}
+    steps: list[dict[str, Any]] = []
+    reference_final_output_usd = None
+    input_usd = QUOTE_PROBE_NOTIONAL_USD
+    reference_route_complete = False
+    if len(route_symbols) >= 2 and pools:
+        reference_values: list[float] = []
+        route_complete = True
+        for index in range(len(route_symbols) - 1):
+            from_symbol = route_symbols[index]
+            to_symbol = route_symbols[index + 1]
+            from_address = route_addresses[index] if index < len(route_addresses) else ""
+            to_address = route_addresses[index + 1] if index + 1 < len(route_addresses) else ""
+            quote = _best_edge_quote(
+                pools=pools,
+                from_symbol=from_symbol,
+                to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
+                input_amount=None,
+                input_usd=input_usd,
+                price_map=price_map,
+                chain_id=chain_id,
+            )
+            if quote is None:
+                route_complete = False
+                break
+            reference_output_usd = quote.get("referenceOutputUsd")
+            if reference_output_usd is None and quote.get("outputUsd") is not None:
+                reference_output_usd = quote.get("outputUsd")
+            if reference_output_usd is None:
+                route_complete = False
+                break
+            reference_values.append(float(reference_output_usd))
+            input_usd = float(reference_output_usd)
+            steps.append(
+                {
+                    "hop": index + 1,
+                    "fromSymbol": from_symbol,
+                    "toSymbol": to_symbol,
+                    "fromAddress": from_address,
+                    "toAddress": to_address,
+                    "tokenIn": from_address,
+                    "tokenOut": to_address,
+                    "pool": quote.get("pool"),
+                    "protocol": quote.get("protocol") or quote.get("dex") or "uniswap_v4",
+                    "feeBps": quote.get("feeBps"),
+                    "priceImpactBps": quote.get("priceImpactBps"),
+                    "status": "reference_price_requires_live_quoter",
+                    "quoteSource": "reference_price_requires_live_quoter",
+                    "inputAmount": None,
+                    "outputAmount": None,
+                    "outputUsd": None,
+                    "referenceOutputAmount": quote.get("referenceOutputAmount"),
+                    "referenceOutputUsd": quote.get("referenceOutputUsd"),
+                    "effectiveRate": quote.get("referenceEffectiveRate") or quote.get("effectiveRate"),
+                }
+            )
+        if route_complete and reference_values:
+            reference_final_output_usd = reference_values[-1]
+            reference_route_complete = route_complete
+    flash_loan_fee_usd = QUOTE_PROBE_NOTIONAL_USD * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    reference_net_profit_usd = (
+        reference_final_output_usd - QUOTE_PROBE_NOTIONAL_USD - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD
+        if reference_final_output_usd is not None
+        else None
+    )
+    updated["overviewProfit"] = {
+        "method": "candidate_pool_overview_summary",
+        "notionalUsd": QUOTE_PROBE_NOTIONAL_USD,
+        "complete": reference_route_complete,
+        "requiresLiveQuoter": True,
+        "adapterRequired": True,
+        "flashLoanFeeUsd": flash_loan_fee_usd,
+        "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
+        "offchainMinProfitUsd": DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
+        "submissionMinProfitUsd": flash_loan_fee_usd,
+        "referenceFinalOutputUsd": reference_final_output_usd,
+        "referenceNetProfitUsd": reference_net_profit_usd,
+        "referenceGrossProfitUsd": (
+            reference_final_output_usd - QUOTE_PROBE_NOTIONAL_USD
+            if reference_final_output_usd is not None
+            else None
+        ),
+        "referenceNetReturnBps": (
+            (reference_net_profit_usd / QUOTE_PROBE_NOTIONAL_USD) * 10_000.0
+            if reference_net_profit_usd is not None and QUOTE_PROBE_NOTIONAL_USD
+            else None
+        ),
+        "observedNetProfitUsd": None,
+        "observedNetProfitBps": None,
+        "profitable": bool(reference_net_profit_usd is not None and reference_net_profit_usd > 0),
+        "executableCandidate": False,
+        "chainSubmissionCandidate": False,
+        "referenceReturnBasis": "borrow_token",
+        "referenceReturnTrusted": bool(reference_final_output_usd is not None),
+        "recommendationLevel": "requires_live_quote",
+        "recommendationAction": "requires live quoter verification",
+        "recommendation": {
+            "level": "requires_live_quote",
+            "action": "参考测算完成，待链上复核" if reference_final_output_usd is not None else "等待链上实时价格复核",
+            "reasons": [
+                "候选池概览给出的是储备/参考价静态测算，不代替实时 Quoter 结果",
+                "报价与路由页会基于已有流动性判断承接后续验证",
+            ],
+        },
+        "warnings": ["candidate_pool_overview_without_live_quote"] + ([] if reference_final_output_usd is not None else ["candidate_pool_static_reference_missing"]),
+        "steps": steps,
+        "stepCount": len(steps),
+        "priceEvidenceSource": "chain_live_quote_required",
+        "priceEvidenceMode": "live_required",
+    }
+    updated["routeFrameworkSource"] = route.get("routeFrameworkSource") or "candidate_pool_fallback"
+    updated["pathSource"] = "candidate_pool_fallback"
+    updated["marketObservationSourceStage"] = route.get("marketObservationSourceStage") or "cached_snapshot"
+    updated["priceEvidenceSource"] = "chain_live_quote_required"
+    updated["priceEvidenceMode"] = "live_required"
+    return updated
 
 
 def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int | None = None) -> dict[str, Any] | None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery as _default_query_flash_loan_pool_discovery
+from core.market_profiles import DEFAULT_ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID
 from market.binance_market.dex_surface_graph import (
     _pair_token_entry,
     _pool_count,
@@ -20,6 +21,7 @@ from market.binance_market.dex_surface_quotes import _route_quote_analysis as _d
 from market.binance_market.dex_surface_types import (
     _is_stable_anchor,
     _norm_symbol,
+    _pool_address,
     _pool_protocol,
     _pool_symbols,
     _pool_tokens,
@@ -174,6 +176,91 @@ def _reentry_route_has_reference_profit(
     reference_net_profit_usd = analysis.get("referenceNetProfitUsd")
     return reference_net_profit_usd is not None and float(reference_net_profit_usd) > 0.0
 
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    if pool.get("usableForObservation") is not None:
+        return bool(pool.get("usableForObservation"))
+    if pool.get("specialFee") or pool.get("dynamicFee"):
+        return False
+    has_liquidity = pool.get("hasLiquidity")
+    if has_liquidity is not None:
+        return bool(has_liquidity)
+    try:
+        return float(pool.get("liquidityIndex") or pool.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _pool_has_explicit_observation_quality(pool: dict[str, Any]) -> bool:
+    return any(
+        pool.get(key) is not None
+        for key in (
+            "usableForObservation",
+            "specialFee",
+            "dynamicFee",
+            "hasLiquidity",
+            "liquidityIndex",
+            "liquidity",
+        )
+    )
+
+
+def _route_usability_from_pairs(pairs: list[dict[str, Any]]) -> tuple[bool | None, bool]:
+    """Return ``(route_usable, has_explicit_liquidity_evidence)`` for a route.
+
+    Pools without explicit liquidity/special-fee flags are treated as usable for
+    compatibility with legacy candidate tables. Routes that have explicit
+    liquidity evidence must pass every hop to be considered usable.
+    """
+    any_explicit = False
+    all_usable = True
+    for pair in pairs:
+        pools = _pools_for_pair(pair)
+        if not pools:
+            return False, True
+        explicit_pools = [pool for pool in pools if _pool_has_explicit_observation_quality(pool)]
+        if not explicit_pools:
+            continue
+        any_explicit = True
+        if not any(_pool_usable_for_observation(pool) for pool in explicit_pools):
+            all_usable = False
+    return (all_usable if any_explicit else None, any_explicit)
+
+
+def _route_usability_from_pools(pools: list[dict[str, Any]]) -> tuple[bool | None, bool]:
+    """Return ``(route_usable, has_explicit_liquidity_evidence)`` for a pool list.
+
+    Each pool represents one hop on the route.  Pools without explicit
+    liquidity/special-fee flags are treated as usable for compatibility; once a
+    route has explicit liquidity evidence, every hop must be usable.
+    """
+    if not pools:
+        return False, True
+    any_explicit = False
+    all_usable = True
+    for pool in pools:
+        if not isinstance(pool, dict):
+            return False, True
+        if _pool_has_explicit_observation_quality(pool):
+            any_explicit = True
+            if not _pool_usable_for_observation(pool):
+                all_usable = False
+    return (all_usable if any_explicit else None, any_explicit)
+
+
+def _pair_liquidity_evidence(pair: dict[str, Any]) -> dict[str, Any]:
+    explicit_pools = [pool for pool in _pools_for_pair(pair) if _pool_has_explicit_observation_quality(pool)]
+    if not explicit_pools:
+        return {
+            "pairSymbol": pair.get("symbolPair") or "",
+            "pairAddress": pair.get("addressPair") or "",
+            "usableForObservation": None,
+        }
+    return {
+        "pairSymbol": pair.get("symbolPair") or "",
+        "pairAddress": pair.get("addressPair") or "",
+        "usableForObservation": any(_pool_usable_for_observation(pool) for pool in explicit_pools),
+    }
+
 def _route_candidate(
     *,
     kind: str,
@@ -185,6 +272,7 @@ def _route_candidate(
     path_tokens: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     pools = [pool for pair in pairs for pool in _pools_for_pair(pair)]
+    route_usable, route_has_explicit = _route_usability_from_pairs(pairs)
     primary = pairs[-1] if pairs else {}
     route_tokens = path_tokens or [{"symbol": symbol, "address": ""} for symbol in path_symbols if symbol]
     route_symbols = _route_symbols_from_tokens(route_tokens)
@@ -211,6 +299,8 @@ def _route_candidate(
         "executionPools": pools[:5],
         "rejectedPools": [],
         "rejectReasonCounts": {},
+        "routeUsableForObservation": route_usable,
+        "routeHasLiquidityEvidence": route_has_explicit,
         "flashLoanLinkage": {
             "strategy": "stable_anchor_bridge_candidate_path",
             "borrow_symbols": [anchor],
@@ -238,6 +328,11 @@ def _route_candidate(
             "candidatePairAddresses": [pair.get("addressPair") for pair in pairs],
             "analysisStage": "overview_candidate_only",
             "nextStep": "quotes_and_route_analysis",
+            "routeUsableForObservation": route_usable,
+            "hopLiquidityEvidence": [
+                _pair_liquidity_evidence(pair)
+                for pair in pairs
+            ],
         },
     }
 
@@ -313,6 +408,7 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
     route_symbols = _route_symbols_from_tokens(route_tokens) or [_norm_symbol(symbol) for symbol in route.get("pathSymbols") or [] if _norm_symbol(symbol)]
     route_addresses = _route_addresses_from_tokens(route_tokens)
     pools = _route_pools(route)
+    route_usable, route_has_explicit = _route_usability_from_pools(pools)
     anchor = _norm_symbol(route.get("anchorSymbol") or route.get("borrowSymbol") or (route_symbols[0] if route_symbols else ""))
     target = _norm_symbol(route.get("targetSymbol") or route.get("counterSymbol") or (route_symbols[-2] if len(route_symbols) > 2 else ""))
     kind = "bridge_pair"
@@ -345,6 +441,8 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
         "executionPools": pools,
         "rejectedPools": [],
         "rejectReasonCounts": {},
+        "routeUsableForObservation": route_usable,
+        "routeHasLiquidityEvidence": route_has_explicit,
         "marketObservationRoute": route,
         "flashLoanLinkage": {
             "strategy": strategy,
@@ -379,6 +477,14 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
             "nextStep": "quotes_and_route_analysis",
             "observationSource": route.get("source") or route.get("kind") or "dex_market_observation",
             "marketObservationRoute": True,
+            "routeUsableForObservation": route_usable,
+            "hopLiquidityEvidence": [
+                {
+                    "pool": pool.get("pool") or pool.get("poolId"),
+                    "usableForObservation": _pool_usable_for_observation(pool),
+                }
+                for pool in pools
+            ],
         },
     }
 
@@ -420,29 +526,61 @@ def _route_candidate_dedup_key(candidate: dict[str, Any]) -> tuple[str, tuple[st
 
 def _route_framework_context_from_observation(
     observation: dict[str, Any],
-    pool_payload: dict[str, Any],
+    pool_payload: dict[str, Any] | None = None,
     *,
     chain_id: int | None,
     protocols: list[str] | None,
 ) -> dict[str, Any]:
-    overview_paths = _path_candidates_from_market_observation(observation, chain_id=chain_id)
+    overview_paths, candidate_watch, candidate_anchors = _overview_path_candidates_from_observation_sets(
+        observation,
+        None,
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    active_filter_applied, active_pool_ids = _observation_active_pool_filter(
+        observation,
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    if active_filter_applied:
+        overview_paths = [
+            path
+            for path in overview_paths
+            if _candidate_path_uses_active_pools(path, active_pool_ids)
+        ]
     path_source = "market_observation"
     watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
-    if not overview_paths:
-        overview_paths, watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id, protocols=protocols)
-        closed_loop_anchor_symbols = _observation_anchor_symbols(pool_payload, chain_id=chain_id, protocols=protocols)
-        used_market_observation = False
-        path_source = "candidate_pool_fallback"
-    else:
-        anchor_symbols = sorted(
-            {
-                str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
-                for path in overview_paths
-                if str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip()
-            }
-        )
-        closed_loop_anchor_symbols = anchor_symbols
-        used_market_observation = True
+    watch_pair_symbols = {str(pair.get("symbolPair") or "").strip() for pair in watch_pairs}
+    for pair in candidate_watch:
+        symbol = str(pair.get("symbolPair") or "").strip()
+        if symbol and symbol not in watch_pair_symbols:
+            watch_pair_symbols.add(symbol)
+            watch_pairs.append(pair)
+    path_anchor_symbols = {
+        str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
+        for path in overview_paths
+        if str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip()
+    }
+    path_source = "market_observation"
+    used_market_observation = bool(
+        observation.get("candidateObservationGroups")
+        or observation.get("observationAnchorSymbols")
+    )
+    observed_anchors = {
+        str(value).strip().upper()
+        for value in observation.get("observationAnchorSymbols") or []
+        if str(value or "").strip()
+    }
+    anchor_symbols = sorted(path_anchor_symbols | observed_anchors | set(candidate_anchors))
+    closed_loop_anchor_symbols = sorted(
+        {
+            str(group.get("anchorSymbol") or "").strip().upper()
+            for group in observation.get("anchorGroups") or []
+            if isinstance(group, dict) and str(group.get("anchorSymbol") or "").strip()
+        }
+    )
+    if not closed_loop_anchor_symbols:
+        closed_loop_anchor_symbols = sorted(observed_anchors)
     observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
     return {
         "overview_paths": overview_paths,
@@ -454,6 +592,145 @@ def _route_framework_context_from_observation(
         "used_market_observation": used_market_observation,
     }
 
+
+def _observation_active_pool_filter(
+    observation: dict[str, Any],
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> tuple[bool, set[str]]:
+    liquidity_filter = observation.get("liquidityPoolFilter") or {}
+    recent_swap_filter = observation.get("recentSwapPoolFilter") or {}
+    summary = observation.get("summary") or {}
+    applied = bool(
+        liquidity_filter.get("liquidityFilterApplied")
+        or liquidity_filter.get("recentSwapFilterApplied")
+        or recent_swap_filter.get("recentSwapFilterApplied")
+        or recent_swap_filter.get("liquidityFilterApplied")
+        or summary.get("liquidityFilterApplied")
+        or summary.get("recentSwapFilterApplied")
+    )
+    active_pool_ids = {
+        str(pool_id).lower()
+        for pool_id in (
+            liquidity_filter.get("activePoolIds")
+            or recent_swap_filter.get("activePoolIds")
+            or []
+        )
+        if str(pool_id).strip()
+    }
+    if not active_pool_ids:
+        active_pool_ids = {
+            str(pool_id).lower()
+            for pool_id in summary.get("activePoolIds") or []
+            if str(pool_id).strip()
+        }
+    if applied and not active_pool_ids:
+        chain_function = _chain_observation_function(chain_id, "fund_anchor_pair_observation")
+        if chain_function is not None:
+            chain_observation = chain_function(chain_id=chain_id, protocols=protocols) or {}
+            active_pool_ids = {
+                str(pool_id).lower()
+                for pool_id in chain_observation.get("activePoolIds")
+                or chain_observation.get("liquidPoolIds")
+                or []
+                if str(pool_id).strip()
+            }
+    return applied, active_pool_ids
+
+
+def _overview_path_candidates_from_observation_sets(
+    observation: dict[str, Any],
+    pool_payload: dict[str, Any] | None = None,
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    compact_groups = observation.get("candidateObservationGroups") or []
+    # The observation snapshot (OB_TABLE) is the only upstream graph source.
+    anchor_groups = observation.get("anchorGroups") or compact_groups
+    if not isinstance(anchor_groups, list):
+        anchor_groups = []
+    pairs = _candidate_pairs(observation.get("pairs") or [])
+    bridge_pairs = list(observation.get("bridgePairs") or [])
+    if not bridge_pairs and anchor_groups:
+        bridge_pairs, _bridge_index = _v4_index_bridge_pairs_for_anchor_groups(
+            anchor_groups,
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+    sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for sequence in sequences:
+        route = _closed_route_from_sequence(sequence)
+        candidate = _observation_route_to_path_candidate(route, chain_id=chain_id)
+        if not candidate.get("routeTokenPath") or not _route_pools(candidate):
+            continue
+        key = _route_candidate_dedup_key(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(candidate)
+    if not candidates and pairs:
+        observation_payload = {
+            **observation,
+            "pairs": pairs,
+            "anchorGroups": anchor_groups or observation.get("candidateObservationGroups") or [],
+        }
+        candidates, watch_pairs, anchors = _overview_path_candidates(
+            observation_payload,
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+    candidates.sort(key=_route_score, reverse=True)
+    watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
+    used_pair_symbols = {
+        pair_symbol
+        for candidate in candidates
+        for pair_symbol in (candidate.get("overviewRoute") or {}).get("candidatePairSymbols") or []
+        if pair_symbol
+    }
+    for pair in pairs:
+        symbol = str(pair.get("symbolPair") or "").strip()
+        if symbol and symbol not in used_pair_symbols:
+            watch_pairs.append(pair)
+    watch_pairs = watch_pairs[:12]
+    anchors = sorted(
+        {
+            _norm_symbol(group.get("anchorSymbol"))
+            for group in anchor_groups
+            if isinstance(group, dict) and _norm_symbol(group.get("anchorSymbol"))
+        }
+    )
+    return candidates, watch_pairs, anchors
+
+
+def _candidate_path_pool_ids(path: dict[str, Any]) -> set[str]:
+    pool_ids: set[str] = set()
+    for pool in (
+        path.get("strictQualityPools")
+        or path.get("preferredPools")
+        or path.get("executionPools")
+        or []
+    ):
+        if not isinstance(pool, dict):
+            continue
+        pool_id = _pool_address(pool)
+        if pool_id:
+            pool_ids.add(pool_id.lower())
+    return pool_ids
+
+
+def _candidate_path_uses_active_pools(
+    path: dict[str, Any],
+    active_pool_ids: set[str],
+) -> bool:
+    pool_ids = _candidate_path_pool_ids(path)
+    if not pool_ids:
+        return False
+    return pool_ids <= active_pool_ids
+
 def _overview_path_candidates(
     pool_payload: dict[str, Any],
     chain_id: int | None,
@@ -462,6 +739,54 @@ def _overview_path_candidates(
     pairs = _candidate_pairs(pool_payload.get("pairs") or [])
     anchors = _borrow_anchor_symbols(pool_payload, chain_id, protocols=protocols)
     _, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
+    chain_anchors = [
+        symbol
+        for symbol in anchors
+        if symbol_to_keys.get(symbol)
+    ]
+    discovered_anchors = [
+        symbol
+        for symbol in _borrowable_symbols_from_discovery(chain_id)
+        if symbol not in chain_anchors and symbol_to_keys.get(symbol)
+    ]
+    extended_borrow_symbols = [
+        symbol
+        for symbol in _borrowable_symbols(pool_payload, chain_id, protocols=protocols)
+        if symbol not in chain_anchors and symbol not in discovered_anchors and symbol_to_keys.get(symbol)
+    ]
+    if chain_id == _ROBINHOOD_CHAIN_ID:
+        if any(symbol == "ETH" for symbol in chain_anchors):
+            discovered_anchors = [
+                symbol
+                for symbol in discovered_anchors
+                if symbol not in {"WETH", "WETH.E"}
+            ]
+        native_chain_anchors = [
+            symbol
+            for symbol in chain_anchors
+            if symbol in {"ETH", "WETH", "WETH.E"}
+        ]
+        stable_chain_anchors = [
+            symbol
+            for symbol in chain_anchors
+            if symbol not in native_chain_anchors
+        ]
+        anchors = [*native_chain_anchors, *discovered_anchors, *stable_chain_anchors, *extended_borrow_symbols]
+    else:
+        anchors = [*chain_anchors, *discovered_anchors, *extended_borrow_symbols]
+    group_anchor_symbols = {
+        _norm_symbol(group.get("anchorSymbol"))
+        for group in pool_payload.get("anchorGroups") or []
+        if isinstance(group, dict) and _norm_symbol(group.get("anchorSymbol")) and _route_symbol_allowed(group.get("anchorSymbol"))
+    }
+    anchors = sorted(
+        {
+            symbol
+            for symbol in [*anchors, *group_anchor_symbols]
+            if _route_symbol_allowed(symbol)
+        },
+        key=lambda symbol: (symbol_to_keys.get(symbol) is None, symbol),
+    )
     routes: list[dict[str, Any]] = []
     route_keys: set[tuple[str, ...]] = set()
     seen_loop_keys: set[tuple[str, tuple[str, ...]]] = set()

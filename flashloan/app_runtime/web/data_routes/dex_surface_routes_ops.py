@@ -13,6 +13,7 @@ from dex.runtime.dex_closed_loop_review_queue import (
     normalize_closed_loop_group_key,
 )
 from web.data_routes import dex_surfaces as _root
+from web.data_routes.dex_surface_routes_quotes import filter_quote_routes_with_complete_v4_pool_identity
 
 _SUBMISSION_RESPONSE_CACHE: dict[str, tuple[float, dict]] = {}
 _SUBMISSION_RESPONSE_CACHE_LOCK = threading.Lock()
@@ -20,7 +21,8 @@ _SUBMISSION_RESPONSE_CACHE_TTL_SECONDS = 2.0
 
 
 def _submission_response_cache_key() -> str:
-    return request.path + "?" + request.query_string.decode("utf-8", errors="replace")
+    log_root = str(_root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT or "")
+    return request.path + "?" + request.query_string.decode("utf-8", errors="replace") + "#" + log_root
 
 
 def _cached_submission_response_payload(key: str) -> dict | None:
@@ -499,6 +501,11 @@ def _merge_failed_submission_rows_into_payload(
 
 
 def register_dex_scanner_routes(app) -> None:
+    def _filter_scanner_payload(payload):
+        if not isinstance(payload, dict):
+            return payload
+        return filter_quote_routes_with_complete_v4_pool_identity(payload)
+
     @app.get("/api/dex/opportunity-scanner/start")
     def dex_opportunity_scanner_start():
         try:
@@ -509,6 +516,7 @@ def register_dex_scanner_routes(app) -> None:
         scanner = _root.get_dex_opportunity_scanner()
         scanner.start(chain_id=selected_chain_id, protocols=protocols)
         payload = _root.dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
+        payload = _filter_scanner_payload(payload)
         payload["chain_selection"] = chain_selection
         return jsonify(_root._attach_dex_strategy(payload))
 
@@ -520,6 +528,7 @@ def register_dex_scanner_routes(app) -> None:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
         payload = _root.dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
+        payload = _filter_scanner_payload(payload)
         payload["chain_selection"] = chain_selection
         return jsonify(_root._attach_dex_strategy(payload))
 
@@ -536,6 +545,7 @@ def register_dex_scanner_routes(app) -> None:
             payload = scanner.scan_now(chain_id=selected_chain_id, protocols=protocols)
         else:
             payload = _root.run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
+        payload = _filter_scanner_payload(payload)
         payload["chain_selection"] = chain_selection
         return jsonify(_root._attach_dex_strategy(payload))
 

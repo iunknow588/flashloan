@@ -109,6 +109,7 @@ API_RESPONSE_REQUIRED_KEYS = {
     "/api/dex/market-observation/refresh": ("refresh_state",),
     "/api/dex/opportunity-scanner/start": ("chain_selection",),
     "/api/dex/opportunity-scanner/snapshot": ("chain_selection",),
+    "/api/dex/opportunity-scanner/stats/reset": ("chain_selection",),
     "/api/dex/opportunity-scanner/scan-now": ("chain_selection",),
     "/api/dex/quote-request": ("chain_selection",),
     "/api/dex-costs": ("symbol",),

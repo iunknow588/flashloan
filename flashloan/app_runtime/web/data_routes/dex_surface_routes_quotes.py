@@ -8,6 +8,12 @@ from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from web.data_routes import dex_surfaces as _root
+from web.data_routes.dex_surface_helpers import (
+    _has_live_verified_evidence,
+    _has_preserved_manifest_evidence,
+    _infer_route_addresses_from_pools,
+    _merge_manifest_live_evidence_into_routes,
+)
 
 
 _STATIC_ROUTE_PAYLOAD_CACHE: dict[tuple[str, tuple[str, ...], str, float], dict[str, Any]] = {}
@@ -34,6 +40,120 @@ def _route_has_zero_address(route: dict) -> bool:
 def _protocols_include_uniswap_v4(protocols: list[str] | None) -> bool:
     lowered = {str(protocol or "").strip().lower() for protocol in (protocols or [])}
     return bool(lowered & {"uniswap_v4", "v4"})
+
+
+def _active_v4_pool_ids_from_overview(overview: dict[str, Any]) -> set[str]:
+    active: set[str] = set()
+    registry = overview.get("poolRegistry") or {}
+    if isinstance(registry, dict):
+        for pool in registry.values():
+            if isinstance(pool, dict) and _pool_has_liquidity(pool):
+                raw = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+                if raw:
+                    active.add(raw)
+    for summary in overview.get("closedLoopRouteSummaries") or []:
+        if not isinstance(summary, dict):
+            continue
+        for pool in summary.get("routePools") or []:
+            if isinstance(pool, dict) and _pool_has_liquidity(pool):
+                raw = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+                if raw:
+                    active.add(raw)
+    return active
+
+
+def _pool_has_liquidity(pool: dict[str, Any]) -> bool:
+    if pool.get("dynamicFee") or pool.get("specialFee"):
+        return False
+    try:
+        if int(str(pool.get("fee") or "").strip() or 0) & 8388608:
+            return False
+        if int(str(pool.get("fee") or "").strip() or 0) > 100_000:
+            return False
+    except (TypeError, ValueError):
+        pass
+    if bool(pool.get("hasLiquidity")):
+        return True
+    try:
+        liquidity = float(str(pool.get("liquidity") or pool.get("liquidityIndex") or "0"))
+    except (TypeError, ValueError):
+        liquidity = 0.0
+    return liquidity > 0
+
+
+def _route_pool_ids(route_pools: list[dict[str, Any]]) -> list[str]:
+    pool_ids: list[str] = []
+    for pool in route_pools:
+        if not isinstance(pool, dict):
+            continue
+        raw = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+        if raw and raw not in pool_ids:
+            pool_ids.append(raw)
+    return pool_ids
+
+
+def _route_pool_has_complete_v4_identity(pool: dict[str, Any]) -> bool:
+    pool_key = pool.get("poolKey")
+    if not isinstance(pool_key, dict):
+        return False
+    currency0 = str(pool_key.get("currency0") or pool_key.get("token0") or "").strip()
+    currency1 = str(pool_key.get("currency1") or pool_key.get("token1") or "").strip()
+    fee = pool_key.get("fee")
+    tick_spacing = pool_key.get("tickSpacing")
+    hooks = str(pool_key.get("hooks") or "").strip()
+    return bool(currency0 and currency1 and fee is not None and tick_spacing is not None and hooks)
+
+
+def _route_has_complete_v4_pool_identity(route: dict[str, Any]) -> bool:
+    route_pools = [pool for pool in (route.get("routePools") or []) if isinstance(pool, dict)]
+    if not route_pools:
+        return False
+    symbols = [
+        str(item or "").strip().upper()
+        for item in route.get("routeSymbols") or []
+        if str(item or "").strip()
+    ]
+    if symbols:
+        route_pools = route_pools[:len(symbols) - 1]
+    return bool(route_pools) and all(_route_pool_has_complete_v4_identity(pool) for pool in route_pools)
+
+
+def filter_quote_routes_with_complete_v4_pool_identity(payload: dict[str, Any]) -> dict[str, Any]:
+    """Drop routes that lack a complete V4 pool identity from quote surfaces."""
+    containers = []
+    if isinstance(payload.get("routes"), list):
+        containers.append(payload)
+    snapshot = payload.get("snapshot")
+    if isinstance(snapshot, dict):
+        snapshot_payload = snapshot.get("payload")
+        if isinstance(snapshot_payload, dict):
+            containers.append(snapshot_payload)
+    for container in containers:
+        routes = container.get("routes")
+        if not isinstance(routes, list):
+            continue
+        filtered = [
+            _infer_route_addresses_from_pools(route)
+            for route in routes
+            if isinstance(route, dict) and _route_has_complete_v4_pool_identity(route)
+        ]
+        container["routes"] = filtered
+        summary = container.get("summary")
+        if isinstance(summary, dict):
+            for key in ("routeCount", "candidateRouteCount", "chainReviewEligiblePathCount"):
+                if key in summary:
+                    summary[key] = len(filtered)
+    return payload
+
+
+def _route_uses_active_v4_pools(route_pools: list[dict[str, Any]], overview: dict[str, Any]) -> bool:
+    active = _active_v4_pool_ids_from_overview(overview)
+    if not active:
+        return True
+    pool_ids = _route_pool_ids(route_pools)
+    if not pool_ids:
+        return False
+    return all(pool_id in active for pool_id in pool_ids)
 
 
 def _explicit_chain_id_is_robinhood_supported() -> bool:
@@ -160,6 +280,10 @@ def register_dex_quote_routes(app) -> None:
             route_pools = [pool for pool in route_pools if pool]
             if len(route_pools) < 3:
                 continue
+            if not _route_has_complete_v4_pool_identity({"routeSymbols": path_symbols, "routePools": route_pools}):
+                continue
+            if not _route_uses_active_v4_pools(route_pools, overview):
+                continue
             steps = [
                 {
                     "hop": index + 1,
@@ -178,6 +302,11 @@ def register_dex_quote_routes(app) -> None:
                     "routeAddresses": route_addresses,
                     "routePools": route_pools,
                     "poolIds": list(summary.get("poolIds") or []),
+                    "tableSource": "dex_table",
+                    "referencedTable": "ob_table",
+                    "pathSource": "market_observation",
+                    "diagnosticOnly": False,
+                    "chainReviewEligible": True,
                     "overviewRoute": {
                         "anchorBorrowSymbol": str(summary.get("anchorSymbol") or path_symbols[0]),
                         "targetSymbol": str(summary.get("counterSymbol") or path_symbols[-2]),
@@ -205,17 +334,24 @@ def register_dex_quote_routes(app) -> None:
                     "__offchainReviewed": False,
                 }
             )
+        routes = [_infer_route_addresses_from_pools(route) for route in routes]
+        _merge_manifest_live_evidence_into_routes(routes, chain_id=int(selected_chain_id))
         overview_summary = overview.get("summary") or {}
         payload = {
             "ok": True,
             "mode": "dex_quote_routes_static",
             "chain_id": selected_chain_id,
             "selected_protocols": protocols,
+            "tableSource": "dex_table",
+            "referencedTable": "ob_table",
+            "poolIndexVersion": overview.get("poolIndexVersion") or {},
             "marketObservationSource": "cached_snapshot",
             "marketObservationSourceStage": "cached_snapshot",
             "summary": {
                 "routeCount": len(routes),
                 "candidateRouteCount": len(routes),
+                "chainReviewEligiblePathCount": len(routes),
+                "diagnosticOnlyPathCount": 0,
                 "marketObservationRouteCount": int(
                     overview_summary.get("closedLoopRouteCount")
                     or len(routes)
@@ -270,6 +406,8 @@ def register_dex_quote_routes(app) -> None:
         snapshot_routes = [route for route in (snapshot_data.get("routes") or []) if isinstance(route, dict)]
         top_routes = [route for route in (payload.get("routes") or []) if isinstance(route, dict)]
         base_routes = top_routes or snapshot_routes
+        base_routes = [_infer_route_addresses_from_pools(route) for route in base_routes]
+        _merge_manifest_live_evidence_into_routes(base_routes, chain_id=int(selected_chain_id))
         try:
             scanner_payload = _root.dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
             scanner_snapshot = scanner_payload.get("snapshot") if isinstance(scanner_payload.get("snapshot"), dict) else {}
@@ -289,7 +427,8 @@ def register_dex_quote_routes(app) -> None:
                         scanner_snapshot = {}
                 else:
                     try:
-                        _root.run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
+                        if not any(_has_preserved_manifest_evidence(route) for route in base_routes):
+                            _root.run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
                     except Exception as exc:
                         _root.logger.warning("scan-now refresh failed for dex quote routes: %s", exc)
                 if isinstance(scanner_payload, dict) and not _root._scanner_snapshot_is_stale(scanner_payload):
@@ -318,7 +457,9 @@ def register_dex_quote_routes(app) -> None:
                         "message": "scanner snapshot was stale; queued real-time scan; old scanner evidence was not merged",
                     }
                     scanner_by_key = {}
-                    _root.evict_stale_evidence_from_routes(base_routes)
+                    _root.evict_stale_evidence_from_routes(
+                        [route for route in base_routes if not _has_preserved_manifest_evidence(route)]
+                    )
             else:
                 scanner_container = scanner_snapshot
                 scanner_data = scanner_container.get("payload") if isinstance(scanner_container.get("payload"), dict) else {}
@@ -353,13 +494,15 @@ def register_dex_quote_routes(app) -> None:
                 exc,
             )
         scanner_state = payload.get("scannerState") if isinstance(payload.get("scannerState"), dict) else {}
-        if not use_live_estimate_fallback and str(scanner_state.get("status") or "") != "stale_refresh_queued":
+        if not use_live_estimate_fallback:
             _root._merge_recent_attempt_evidence_into_routes(
                 base_routes,
                 chain_id=selected_chain_id,
             )
         if use_live_estimate_fallback and (snapshot_routes or top_routes):
-            _root.evict_stale_evidence_from_routes(base_routes)
+            _root.evict_stale_evidence_from_routes(
+                [route for route in base_routes if not _has_preserved_manifest_evidence(route)]
+            )
             scanner_routes = base_routes
             merged_by_key = {
                 _root._route_dedup_key(route): route
@@ -412,11 +555,17 @@ def register_dex_quote_routes(app) -> None:
         payload.setdefault("routes", [])
         payload.setdefault("mode", "dex_quote_routes")
         if isinstance(payload.get("routes"), list):
+            overview = _root.load_market_observation_overview_static(
+                chain_id=selected_chain_id,
+                protocols=protocols,
+            )
             filtered_routes = [
-                route
+                _infer_route_addresses_from_pools(route)
                 for route in payload["routes"]
                 if isinstance(route, dict)
                 and not _route_has_unresolved_zero_address(route, protocols)
+                and _route_has_complete_v4_pool_identity(route)
+                and _route_uses_active_v4_pools(route.get("routePools") or [], overview)
             ]
             payload["routes"] = filtered_routes
             summary = payload.get("summary")
@@ -449,17 +598,53 @@ def register_dex_quote_routes(app) -> None:
 
 
 def _compact_static_route_pool(pool: dict) -> dict:
-    compact = {
-        "pool": str(pool.get("pool") or pool.get("poolId") or "").strip(),
-        "poolId": str(pool.get("poolId") or pool.get("pool") or "").strip(),
-        "pairSymbol": str(pool.get("pairSymbol") or pool.get("symbolPair") or "").strip(),
-        "symbolPair": str(pool.get("symbolPair") or pool.get("pairSymbol") or "").strip(),
-        "routeSymbols": list(pool.get("routeSymbols") or []),
-        "routeText": str(pool.get("routeText") or "").strip(),
-        "fee": pool.get("fee"),
-        "status": str(pool.get("status") or pool.get("depthStatus") or "").strip(),
-        "depthStatus": str(pool.get("depthStatus") or "").strip(),
-    }
+    try:
+        _fee_int = int(str(pool.get("fee") or "").strip() or 0)
+    except (TypeError, ValueError):
+        _fee_int = 0
+    _dynamic_fee = bool(_fee_int & 8388608)
+    _special_fee = _dynamic_fee or _fee_int > 100_000
+    compact = dict(pool)
+    compact.update(
+        {
+            "pool": str(pool.get("pool") or pool.get("poolId") or "").strip(),
+            "poolId": str(pool.get("poolId") or pool.get("pool") or "").strip(),
+            "pairSymbol": str(pool.get("pairSymbol") or pool.get("symbolPair") or "").strip(),
+            "symbolPair": str(pool.get("symbolPair") or pool.get("pairSymbol") or "").strip(),
+            "routeSymbols": list(pool.get("routeSymbols") or []),
+            "routeText": str(pool.get("routeText") or "").strip(),
+            "fee": pool.get("fee"),
+            "dynamicFee": pool.get("dynamicFee", _dynamic_fee),
+            "specialFee": pool.get("specialFee", _special_fee),
+            "feeLabel": pool.get("feeLabel") or ("dynamic" if _dynamic_fee else "special" if _special_fee else pool.get("fee")),
+            "usableForObservation": pool.get("usableForObservation"),
+            "status": str(pool.get("status") or pool.get("depthStatus") or "").strip(),
+            "depthStatus": str(pool.get("depthStatus") or "").strip(),
+        }
+    )
+    if isinstance(pool.get("poolKey"), dict):
+        compact["poolKey"] = pool.get("poolKey")
+    for key in (
+        "routeAddresses",
+        "token0",
+        "token1",
+        "token0Symbol",
+        "token1Symbol",
+        "token0Decimals",
+        "token1Decimals",
+        "tokens",
+        "tick",
+        "tickSpacing",
+        "hooks",
+        "sqrtPriceX96",
+        "hasLiquidity",
+        "liquidity",
+        "liquidityIndex",
+        "protocol",
+        "dex",
+    ):
+        if pool.get(key) not in (None, ""):
+            compact[key] = pool.get(key)
     return compact
 
 

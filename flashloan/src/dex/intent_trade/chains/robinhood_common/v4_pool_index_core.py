@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import sys
 import time
 from typing import Any
 
@@ -216,9 +217,14 @@ def _get_logs_chunked(
             )
             cursor = end + 1
         except Exception:
-            if step <= min_chunk_size:
+            exc_type, exc_value, _ = sys.exc_info()
+            message = str(exc_value or "").lower()
+            if step <= min_chunk_size and "exceeds limit" not in message and "limit" not in message:
                 raise
-            step = max(min_chunk_size, step // 2)
+            if "exceeds limit" in message or "limit" in message:
+                step = max(1, step // 2)
+            else:
+                step = max(min_chunk_size, step // 2)
     return logs
 
 

@@ -322,11 +322,23 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
     quality = str(row.get("quality") or "").strip().lower()
     if not quality:
         quality = "pass" if status in {"observable", "recommended", "active"} else status or "observed"
+    raw_fee_text = str(row.get("fee") or "").strip()
+    try:
+        raw_fee_int = int(raw_fee_text) if raw_fee_text else 0
+    except (TypeError, ValueError):
+        raw_fee_int = 0
+    dynamic_fee = bool(raw_fee_int & 8388608)
+    special_fee = dynamic_fee or raw_fee_int > 100_000
+    liquidity_index = _string_number(row.get("liquidityIndex") or row.get("liquidity") or 0)
     result = {
         "pool": _pool_address(row),
         "dex": row.get("dex") or row.get("protocol") or "uniswap_v3",
         "protocol": _protocol_key(row.get("protocol") or row.get("dex") or "uniswap_v3"),
         "fee": str(row.get("fee") or ""),
+        "dynamicFee": dynamic_fee,
+        "specialFee": special_fee,
+        "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else raw_fee_text,
+        "usableForObservation": (not special_fee) and (bool(row.get("hasLiquidity")) or (liquidity_index is not None and liquidity_index > 0)),
         "quality": quality,
         "rejectReasons": row.get("rejectReasons") or row.get("reject_reasons") or [],
         "token0": row.get("token0") or row.get("baseToken"),
@@ -334,6 +346,10 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         "token0Symbol": row.get("token0Symbol") or row.get("baseTokenSymbol"),
         "token1Symbol": row.get("token1Symbol") or row.get("quoteTokenSymbol"),
         "liquidity": str(row.get("liquidity") or ""),
+        "liquidityIndex": row.get("liquidityIndex"),
+        "hasLiquidity": row.get("hasLiquidity"),
+        "estimatedTvlUsd": row.get("estimatedTvlUsd") or (balances.get("tvlUsd") if balances else row.get("tvlUsd")),
+        "depthStatus": row.get("depthStatus") or "",
         "tick": str(row.get("tick") or ((row.get("slot0") or {}).get("tick") if isinstance(row.get("slot0"), dict) else "")),
         "sqrtPriceX96": str(
             row.get("sqrtPriceX96") or ((row.get("slot0") or {}).get("sqrtPriceX96") if isinstance(row.get("slot0"), dict) else "")
@@ -351,11 +367,22 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         "_sortTvlUsd": tvl if tvl is not None else -1.0,
     }
     result.update(_pair_classification(result.get("token0Symbol"), result.get("token1Symbol")))
-    result["depthBand"] = (
-        {"level": "observed", "label": "链上流动性已观察"}
-        if result.get("liquidity") and _string_number(result["balances"].get("tvlUsd")) is None
-        else _depth_band(result["balances"].get("tvlUsd"))
-    )
+    if isinstance(row.get("depthBand"), dict):
+        result["depthBand"] = row.get("depthBand")
+    elif result.get("depthStatus") and result.get("depthStatus") != "initialized_unpriced":
+        result["depthBand"] = {"level": result.get("depthStatus"), "label": result.get("depthStatus")}
+    elif bool(row.get("hasLiquidity")) or (liquidity_index is not None and liquidity_index > 0):
+        result["depthBand"] = {
+            "level": "liquidity-index",
+            "label": f"liquidity-index {liquidity_index:.6g}",
+            "liquidityIndex": liquidity_index,
+        }
+    else:
+        result["depthBand"] = (
+            {"level": "observed", "label": "链上流动性已观察"}
+            if result.get("liquidity") and _string_number(result["balances"].get("tvlUsd")) is None
+            else _depth_band(result["balances"].get("tvlUsd"))
+        )
     return result
 
 
@@ -735,8 +762,15 @@ def dex_pool_candidates_payload(
                         "filters": {},
                         "summary": {"pairTableCount": "0", "pairsWithStrictQualityPools": "0", "pairsWithPreferredPools": "0"},
                         "pairs": [],
-                    }
-                    return _attach_execution_context(payload, int(chain_id))
+                }
+                return _attach_execution_context(payload, int(chain_id))
+            cached_payload = None
+            if not refresh and not force_full:
+                cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
+            if cached_payload is not None:
+                filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
+                filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
+                return _attach_execution_context(filtered, int(chain_id))
             if not _candidate_pool_source_available(int(chain_id)):
                 payload = {
                     "mode": "dex_pool_candidates",
@@ -747,13 +781,6 @@ def dex_pool_candidates_payload(
                     "pairs": [],
                 }
                 return _attach_execution_context(payload, int(chain_id))
-            cached_payload = None
-            if not refresh and not force_full:
-                cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
-            if cached_payload is not None:
-                filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
-                filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
-                return _attach_execution_context(filtered, int(chain_id))
             try:
                 payload = dispatch_chain_flow(
                     chain_id=int(chain_id),

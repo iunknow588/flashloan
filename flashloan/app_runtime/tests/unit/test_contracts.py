@@ -22,7 +22,7 @@ def test_market_scope_and_execution_gate_have_stable_wire_shapes():
         evidence_refs=("evidence/readiness.json",),
     )
 
-    assert scope.as_dict()["market_id"] == "dex-arbitrage-4663-uniswap-v3"
+    assert scope.as_dict()["market_id"] == "dex-arbitrage-4663-uniswap-v4"
     assert scope.as_dict()["legacy_market_id"] == "robinhood-dex-shadow"
     assert scope.as_dict()["global_chain_id"] == "chain:4663"
     assert scope.as_dict()["chain_key"] == "chain:4663"

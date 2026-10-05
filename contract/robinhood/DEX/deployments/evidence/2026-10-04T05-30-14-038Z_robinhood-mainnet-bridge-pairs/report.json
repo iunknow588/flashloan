@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "robinhood-mainnet-bridge-pairs-readonly-v1",
+  "chainId": 4663,
+  "route": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
+  "addresses": [
+    "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+    "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+    "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+    "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb"
+  ],
+  "amountInRaw": "1000000000000000000",
+  "finalAmountRaw": "9895161036491206041",
+  "profitRaw": "8895161036491206041",
+  "profitable": true,
+  "steps": [
+    {
+      "hop": 1,
+      "amountInRaw": "1000000000000000000",
+      "amountOutRaw": "9964930420839512833",
+      "gasEstimateRaw": "59434",
+      "poolKey": {
+        "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "currency1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x0000000000000000000000000000000000000000"
+      },
+      "zeroForOne": false
+    },
+    {
+      "hop": 2,
+      "amountInRaw": "9964930420839512833",
+      "amountOutRaw": "992998424515440903",
+      "gasEstimateRaw": "59920",
+      "poolKey": {
+        "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x0000000000000000000000000000000000000000"
+      },
+      "zeroForOne": true
+    },
+    {
+      "hop": 3,
+      "amountInRaw": "992998424515440903",
+      "amountOutRaw": "9895161036491206041",
+      "gasEstimateRaw": "59434",
+      "poolKey": {
+        "currency0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x0000000000000000000000000000000000000000"
+      },
+      "zeroForOne": false
+    }
+  ],
+  "broadcast": false,
+  "note": "read-only V4 Quoter preflight; no broadcast attempted"
+}

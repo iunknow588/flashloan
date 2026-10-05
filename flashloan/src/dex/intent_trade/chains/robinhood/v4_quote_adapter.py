@@ -271,8 +271,21 @@ def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[
     if path is None:
         return []
     payload = _read_json(path)
-    rows = payload.get("poolKeys")
-    return [item for item in rows if isinstance(item, dict)] if isinstance(rows, list) else []
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for section_name in ("poolKeys", "pools"):
+        section = payload.get(section_name)
+        if not isinstance(section, list):
+            continue
+        for item in section:
+            if not isinstance(item, dict):
+                continue
+            pool_id = _normalize_pool_id(item.get("pool") or item.get("poolId"))
+            if not pool_id or pool_id in seen:
+                continue
+            seen.add(pool_id)
+            rows.append(item)
+    return rows
 
 
 def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
@@ -311,12 +324,61 @@ def _pool_lookup_by_tokens(
     wanted = {_normalize_address(token_in), _normalize_address(token_out)}
     if not all(wanted):
         return {}
-    for pool in _pool_rows(network, chain_id):
-        pool_token0 = _normalize_address(pool.get("token0"))
-        pool_token1 = _normalize_address(pool.get("token1"))
-        if pool_token0 and pool_token1 and {pool_token0, pool_token1} == wanted:
-            return pool
-    return {}
+    rows = [
+        pool
+        for pool in _pool_rows(network, chain_id)
+        if (
+            (pool_token0 := _normalize_address(pool.get("token0")))
+            and (pool_token1 := _normalize_address(pool.get("token1")))
+            and {pool_token0, pool_token1} == wanted
+        )
+    ]
+    if not rows:
+        return {}
+
+    zero_hooks = _normalize_address("0x0000000000000000000000000000000000000000")
+
+    def is_special_fee(pool: dict[str, Any]) -> bool:
+        try:
+            fee = int(str(pool.get("fee") or pool.get("poolKey", {}).get("fee") or "0"))
+        except (TypeError, ValueError):
+            return False
+        return bool(fee & 0x800000) or fee > 100_000
+
+    def has_liquidity(pool: dict[str, Any]) -> bool:
+        if pool.get("hasLiquidity") is not None:
+            return bool(pool.get("hasLiquidity"))
+        try:
+            return float(str(pool.get("liquidity") or pool.get("liquidityIndex") or "0")) > 0
+        except (TypeError, ValueError):
+            return False
+
+    usable = [
+        pool
+        for pool in rows
+        if not is_special_fee(pool)
+    ]
+    if not usable:
+        return {}
+    preferred = [
+        pool
+        for pool in usable
+        if has_liquidity(pool)
+        and _normalize_address(pool.get("hooks") or pool.get("poolKey", {}).get("hooks")) == zero_hooks
+    ]
+    if preferred:
+        return preferred[0]
+    liquid_fallback = [pool for pool in usable if has_liquidity(pool)]
+    if liquid_fallback:
+        return liquid_fallback[0]
+    no_hook_fallback = [
+        pool
+        for pool in usable
+        if _normalize_address(pool.get("hooks") or pool.get("poolKey", {}).get("hooks")) == zero_hooks
+    ]
+    if no_hook_fallback:
+        return no_hook_fallback[0]
+    return usable[0]
 
 
 def _request_pool_state(request: dict[str, Any]) -> dict[str, Any]:

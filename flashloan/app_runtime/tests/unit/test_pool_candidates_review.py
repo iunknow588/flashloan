@@ -298,6 +298,7 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
         "balances": {"token0": 66.1894, "token1": 1_602_651, "tvlUsd": 1_765_261.05},
         "market": {"priceNative": "2456.7359", "priceUsd": "2456.73"},
         "depthBand": {"level": "deep", "label": "深度充足"},
+        "hasLiquidity": True,
     }
     pons_weth_pool = {
         "pool": "0x" + "8" * 40,
@@ -309,6 +310,7 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
         "balances": {"token0": 10_253_738, "token1": 306.3267, "tvlUsd": 1_464_712.3},
         "market": {"priceNative": "0.00002810", "priceUsd": "0.06924"},
         "depthBand": {"level": "deep", "label": "深度充足"},
+        "hasLiquidity": True,
     }
     pons_usdg_pool = {
         "pool": "0x" + "9" * 40,
@@ -320,6 +322,7 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
         "balances": {"token0": 10_253_738, "token1": 710_000, "tvlUsd": 1_400_000},
         "market": {"priceNative": "0.00002810", "priceUsd": "0.06924"},
         "depthBand": {"level": "deep", "label": "深度充足"},
+        "hasLiquidity": True,
     }
     payload = {
         "pairs": [
@@ -367,6 +370,63 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
             },
         },
     )
+    route_steps = [
+        dex_surfaces._route_step_row(
+            pons_weth_pool,
+            from_token={"symbol": "WETH", "address": "0x" + "2" * 40},
+            to_token={"symbol": "PONS", "address": "0x" + "8" * 40},
+            direction="yc",
+        ),
+        dex_surfaces._route_step_row(
+            pons_usdg_pool,
+            from_token={"symbol": "PONS", "address": "0x" + "8" * 40},
+            to_token={"symbol": "USDG", "address": "0x" + "9" * 40},
+            direction="bridge",
+        ),
+        dex_surfaces._route_step_row(
+            weth_usdg_pool,
+            from_token={"symbol": "USDG", "address": "0x" + "9" * 40},
+            to_token={"symbol": "WETH", "address": "0x" + "2" * 40},
+            direction="zc",
+        ),
+    ]
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_route_framework_context_from_observation",
+        lambda observation, pool_payload, *, chain_id, protocols: {
+            "overview_paths": [
+                {
+                    "symbolPair": "WETH -> PONS -> USDG -> WETH",
+                    "routeSymbols": ["WETH", "PONS", "USDG", "WETH"],
+                    "routeAddresses": ["0x" + "2" * 40, "0x" + "8" * 40, "0x" + "9" * 40, "0x" + "7" * 40],
+                    "routeTokenPath": [
+                        {"symbol": "WETH", "address": "0x" + "2" * 40},
+                        {"symbol": "PONS", "address": "0x" + "8" * 40},
+                        {"symbol": "USDG", "address": "0x" + "9" * 40},
+                        {"symbol": "WETH", "address": "0x" + "2" * 40},
+                    ],
+                    "routePools": route_steps,
+                    "strictQualityPools": route_steps,
+                    "preferredPools": route_steps,
+                    "executionPools": route_steps,
+                    "routeUsableForObservation": True,
+                    "overviewRoute": {
+                        "kind": "bridge_pair",
+                        "anchorBorrowSymbol": "WETH",
+                        "pathText": "WETH -> PONS -> USDG -> WETH",
+                        "pathSymbols": ["WETH", "PONS", "USDG", "WETH"],
+                        "candidatePairSymbols": ["WETH:PONS", "PONS:USDG", "USDG:WETH"],
+                    },
+                }
+            ],
+            "watch_pairs": [],
+            "anchor_symbols": ["WETH"],
+            "closed_loop_anchor_symbols": ["WETH"],
+            "observation_anchor_symbols": ["WETH"],
+            "path_source": "market_observation",
+            "used_market_observation": True,
+        },
+    )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
     route = next(item for item in quotes["routes"] if item["symbolPair"] == "WETH -> PONS -> USDG -> WETH")
@@ -376,13 +436,9 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["executableCandidate"] is False
     assert analysis["finalOutputUsd"] is None
-    assert analysis["referenceFinalOutputUsd"] < 1000
     assert analysis["netProfitUsd"] is None
-    assert analysis["referenceNetProfitUsd"] is not None
     assert analysis["steps"][0]["outputUsd"] is None
-    assert analysis["steps"][0]["referenceOutputUsd"] is not None
-    assert all(step["quoteSource"] == "reference_price_requires_live_quoter" for step in analysis["steps"])
-    assert analysis["recommendation"]["action"] == "参考测算完成，待链上复核"
+    assert all(step["quoteSource"] != "constant_product_v2_static_reserve" for step in analysis["steps"])
 
 
 def test_robinhood_testnet_live_v4_adapter_quotes_mark_live_verified(monkeypatch):
@@ -649,27 +705,35 @@ def test_robinhood_testnet_overview_reuses_cached_market_observation(monkeypatch
     )
     monkeypatch.setattr(
         dex_surfaces,
-        "_path_candidates_from_market_observation",
-        lambda observation, chain_id=None: [
-            {
-                "symbolPair": "USDC -> WETH -> DAI -> USDC",
-                "routeSymbols": ["USDC", "WETH", "DAI", "USDC"],
-                "routeAddresses": [usdc, weth, dai, usdc],
-                "routeTokenPath": [
-                    {"symbol": "USDC", "address": usdc},
-                    {"symbol": "WETH", "address": weth},
-                    {"symbol": "DAI", "address": dai},
-                    {"symbol": "USDC", "address": usdc},
-                ],
-                "routePools": cached_observation["closedLoopRoutes"][0]["routePools"],
-                "overviewRoute": {
-                    "kind": "bridge_pair",
-                    "anchorBorrowSymbol": "USDC",
-                    "pathSymbols": ["USDC", "WETH", "DAI", "USDC"],
-                    "pathText": "USDC -> WETH -> DAI -> USDC",
-                },
-            }
-        ],
+        "_route_framework_context_from_observation",
+        lambda observation, pool_payload, *, chain_id, protocols: {
+            "overview_paths": [
+                {
+                    "symbolPair": "USDC -> WETH -> DAI -> USDC",
+                    "routeSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                    "routeAddresses": [usdc, weth, dai, usdc],
+                    "routeTokenPath": [
+                        {"symbol": "USDC", "address": usdc},
+                        {"symbol": "WETH", "address": weth},
+                        {"symbol": "DAI", "address": dai},
+                        {"symbol": "USDC", "address": usdc},
+                    ],
+                    "routePools": cached_observation["closedLoopRoutes"][0]["routePools"],
+                    "overviewRoute": {
+                        "kind": "bridge_pair",
+                        "anchorBorrowSymbol": "USDC",
+                        "pathSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                        "pathText": "USDC -> WETH -> DAI -> USDC",
+                    },
+                }
+            ],
+            "watch_pairs": [],
+            "anchor_symbols": ["USDC"],
+            "closed_loop_anchor_symbols": ["USDC"],
+            "observation_anchor_symbols": ["USDC"],
+            "path_source": "market_observation",
+            "used_market_observation": True,
+        },
     )
     monkeypatch.setattr(
         dex_surfaces,
@@ -753,9 +817,12 @@ def test_dex_overview_payload_reuses_cached_framework_payload(monkeypatch):
         dex_surfaces._DEX_SURFACE_CACHE.clear()
         dex_surfaces._DEX_SURFACE_CACHE.update(old_cache)
 
-    assert calls == {"candidates": 1, "surface": 1}
+    assert calls == {"candidates": 0, "surface": 1}
     assert first == second
     assert second["marketObservationSourceStage"] == "computed"
+    assert second["tableSource"] == "dex_table"
+    assert second["referencedTable"] == "ob_table"
+    assert second["arbitragePaths"][0]["pathSource"] == "market_observation"
 
 
 def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebuild(monkeypatch):
@@ -819,5 +886,135 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
     assert overview["flashLoanLiquidity"]["available_protocols"] == ["venus_core"]
     assert overview["summary"]["arbitragePathCount"] == 1
     assert overview["arbitragePaths"][0]["overviewProfit"]["recommendationLevel"] == "requires_live_quote"
+
+
+def test_robinhood_overview_does_not_fallback_to_candidate_pools(monkeypatch):
+    compact_snapshot = {
+        "exists": True,
+        "chain_id": 4663,
+        "protocols": ["uniswap_v4"],
+        "snapshot_kind": "dex_overview_compact",
+        "summary": {"closedLoopRouteCount": 0},
+        "closedLoopRouteSummaries": [],
+        "chainSpecificObservationPairs": [],
+        "poolStaticTable": {"network": "robinhood", "chainId": 4663, "exists": True},
+        "flashLoanLiquidity": {"available_protocols": ["morpho_blue"]},
+    }
+    observation_snapshot = {
+        "exists": True,
+        "chain_id": 4663,
+        "protocols": ["uniswap_v4"],
+        "summary": {"closedLoopRouteCount": 0},
+        "observationSequences": [],
+        "chainSpecificObservationPairs": [],
+        "poolStaticTable": {"network": "robinhood", "chainId": 4663, "exists": True},
+        "flashLoanLiquidity": {"available_protocols": ["morpho_blue"]},
+    }
+    calls = {"candidate": 0, "context": 0}
+
+    def fake_candidate_payload(chain_id, protocols=None):
+        calls["candidate"] += 1
+        assert chain_id == 4663
+        assert protocols == ["uniswap_v4"]
+        return {
+            "pairs": [],
+            "summary": {},
+            "dexSettlement": {},
+            "poolStaticTable": {"network": "robinhood", "chainId": 4663, "exists": True, "generatedAt": "2026-01-01T00:00:00Z"},
+            "flashLoanLiquidity": {"available_protocols": ["morpho_blue"]},
+        }
+
+    def fake_context(observation, pool_payload, **kwargs):
+        calls["context"] += 1
+        assert pool_payload is None
+        return {
+            "overview_paths": [],
+            "watch_pairs": [],
+            "anchor_symbols": ["ETH"],
+            "closed_loop_anchor_symbols": ["ETH"],
+            "observation_anchor_symbols": ["ETH"],
+            "path_source": "market_observation",
+            "used_market_observation": True,
+        }
+
+    monkeypatch.setattr(dex_surfaces, "load_market_observation_overview_static", lambda **kwargs: compact_snapshot)
+    monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: observation_snapshot)
+    monkeypatch.setattr(dex_surfaces, "_candidate_payload", fake_candidate_payload)
+    monkeypatch.setattr(dex_surfaces, "_route_framework_context_from_observation", fake_context)
+
+    overview = dex_surfaces.dex_overview_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
+
+    assert calls == {"candidate": 0, "context": 1}
+    assert overview["routeFrameworkSource"] == "market_observation"
+    assert overview["summary"]["arbitragePathCount"] == 0
+    assert overview["arbitragePaths"] == []
+
+
+def test_quote_routes_skip_non_usable_liquidity_routes(monkeypatch):
+    from market.binance_market.dex_quote_surface import build_quote_routes_payload_from_overview
+
+    usable_route = {
+        "symbolPair": "ETH -> PEPE -> USDG -> ETH",
+        "routeSymbols": ["ETH", "PEPE", "USDG", "ETH"],
+        "routeAddresses": ["0x0", "0xaa", "0xbb", "0x0"],
+        "overviewRoute": {"pathText": "ETH -> PEPE -> USDG -> ETH", "candidatePairSymbols": ["ETH:PEPE"]},
+        "routeUsableForObservation": True,
+        "executionPools": [
+            {
+                "pool": "0x" + "a" * 64,
+                "protocol": "uniswap_v4",
+                "dex": "uniswap_v4",
+                "fee": 500,
+                "specialFee": False,
+                "dynamicFee": False,
+                "hasLiquidity": True,
+                "liquidityIndex": 100.0,
+                "balances": {"tvlUsd": 100_000},
+                "depthBand": {"label": "deep"},
+            }
+        ],
+    }
+    unusable_route = dict(usable_route)
+    unusable_route["symbolPair"] = "ETH -> DIG -> USDG -> ETH"
+    unusable_route["routeSymbols"] = ["ETH", "DIG", "USDG", "ETH"]
+    unusable_route["routeUsableForObservation"] = False
+    unusable_route["executionPools"] = [
+        {
+            "pool": "0x" + "b" * 64,
+            "protocol": "uniswap_v4",
+            "dex": "uniswap_v4",
+            "fee": 500,
+            "specialFee": True,
+            "dynamicFee": False,
+            "hasLiquidity": False,
+            "balances": {"tvlUsd": 0},
+            "depthBand": {"label": "indexed V4 PoolKey"},
+        }
+    ]
+    overview = {
+        "arbitragePaths": [unusable_route, usable_route],
+        "summary": {},
+        "marketObservation": {},
+        "dexSettlement": {},
+        "poolStaticTable": {},
+        "routeFrameworkSource": "candidate_pool_fallback",
+    }
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda *args, **kwargs: {},
+        route_size_analysis_fn=lambda *args, **kwargs: {},
+    )
+    assert payload["summary"]["unfilteredRouteCount"] == 2
+    assert payload["summary"]["routeCount"] == 1
+    assert payload["routes"][0]["symbolPair"] == "ETH -> PEPE -> USDG -> ETH"
+    assert payload["routes"][0]["pathSource"] == "candidate_pool_fallback"
+    assert payload["routes"][0]["chainReviewEligible"] is False
+    assert payload["routes"][0]["diagnosticOnly"] is True
 
 

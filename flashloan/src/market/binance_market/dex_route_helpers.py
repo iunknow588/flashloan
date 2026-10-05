@@ -47,7 +47,10 @@ def _chain_official_v4_manifest_path(chain_id: int | None) -> Path:
     if chain_id is not None:
         row = chain_data_by_chain_id(chain_id) or {}
         network = str(row.get("network") or network).strip().lower()
-    manifest_network = "testnet" if network == "robinhood-testnet" else network
+    manifest_network = {
+        "robinhood": "mainnet",
+        "robinhood-testnet": "testnet",
+    }.get(network, network)
     return ROOT / "test-token_create" / "config" / f"{manifest_network}-v4-amm" / "manifest.json"
 
 
@@ -201,6 +204,52 @@ def _match_route(routes: list[dict[str, Any]], requested_symbols: list[str]) -> 
     return None
 
 
+def _route_addresses_from_route(route: dict[str, Any]) -> list[str]:
+    """Return closed token-address lists carried by a market observation route."""
+    if not isinstance(route, dict):
+        return []
+    candidates: list[list[str]] = []
+    for key in ("routeAddresses", "route_addresses", "pathAddresses", "path_addresses"):
+        raw = route.get(key)
+        if isinstance(raw, list):
+            candidates.append([str(item or "").strip() for item in raw if str(item or "").strip()])
+    overview = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+    for key in ("pathAddresses", "routeAddresses"):
+        raw = overview.get(key)
+        if isinstance(raw, list):
+            candidates.append([str(item or "").strip() for item in raw if str(item or "").strip()])
+    raw_tokens = route.get("routeTokenPath") or overview.get("pathTokens") or []
+    if isinstance(raw_tokens, list):
+        token_addresses: list[str] = []
+        for item in raw_tokens:
+            if isinstance(item, dict):
+                address = str(item.get("address") or "").strip()
+                if address:
+                    token_addresses.append(address)
+        if token_addresses:
+            candidates.append(token_addresses)
+    for addresses in candidates:
+        if addresses and addresses[0].lower() == addresses[-1].lower():
+            return addresses
+    return []
+
+
+def _match_route_by_addresses(
+    routes: list[dict[str, Any]],
+    route_addresses: list[str],
+) -> dict[str, Any] | None:
+    if not routes or not route_addresses:
+        return None
+    normalized = [str(address or "").strip().lower() for address in route_addresses]
+    if not normalized or normalized[0] != normalized[-1]:
+        return None
+    for route in routes:
+        existing = _route_addresses_from_route(route)
+        if existing and [str(address or "").strip().lower() for address in existing] == normalized:
+            return route
+    return None
+
+
 def _recommended_route_test_amount(
     route: dict[str, Any] | None,
 ) -> float | None:
@@ -320,52 +369,52 @@ def _official_v4_route_pool_keys(
     route_symbols: list[str],
     chain_id: int,
     protocols: list[str],
+    route_addresses: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the exact 3 Uniswap V4 PoolKeys used by an official triangle route.
 
-    For the TZ/TA/TB testnet manifest route the configured PoolKeys are the
-    repeatable source of truth; observation can silently pick a different
-    hook pool for the same token pair and change the tested route. For other
-    routes the market observation bridge pool identities are used so hooks are
-    not lost.
+    The quote and route page displays only closed loops that came from the DEX
+    overview market observation with enough pool depth and complete PoolKeys.
+    On-chain review must therefore prefer those same observed bridge PoolKeys
+    instead of guessing global default hooks.  Manifest keys are only a
+    fallback for routes that did not carry complete market-observation pool
+    identities yet.
     """
-    manifest_pool_keys = _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
-    if manifest_pool_keys:
-        return manifest_pool_keys
-    routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
-    route = _match_route(routes_payload.get("routes") or [], route_symbols)
-    if not isinstance(route, dict):
-        return []
-    pool_keys: list[dict[str, Any]] = []
-    for pool in route.get("routePools") or []:
-        if not isinstance(pool, dict):
-            continue
-        pool_key = pool.get("poolKey")
-        currency0 = str(pool_key.get("currency0") or "") if isinstance(pool_key, dict) else ""
-        currency1 = str(pool_key.get("currency1") or "") if isinstance(pool_key, dict) else ""
-        fee = pool_key.get("fee") if isinstance(pool_key, dict) else pool.get("fee")
-        tickSpacing = pool_key.get("tickSpacing") if isinstance(pool_key, dict) else pool.get("tickSpacing")
-        hooks = (
-            str(pool_key.get("hooks") or pool.get("hooks") or "0x0000000000000000000000000000000000000000")
-            if isinstance(pool_key, dict)
-            else str(pool.get("hooks") or "0x0000000000000000000000000000000000000000")
-        )
-        if (not currency0 or not currency1) and isinstance(pool.get("routeAddresses"), list):
-            addresses = [str(item).strip() for item in pool["routeAddresses"] if str(item).strip()]
-            if len(addresses) >= 2:
-                currency0, currency1 = addresses[0], addresses[1]
-        if not currency0 or not currency1 or fee is None or tickSpacing is None:
-            continue
-        pool_keys.append(
-            {
-                "currency0": currency0,
-                "currency1": currency1,
-                "fee": int(fee),
-                "tickSpacing": int(tickSpacing),
-                "hooks": hooks,
-            }
-        )
-    return pool_keys
+    try:
+        routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+        route = _match_route(routes_payload.get("routes") or [], route_symbols)
+        if not isinstance(route, dict) and route_addresses:
+            route = _match_route_by_addresses(routes_payload.get("routes") or [], route_addresses)
+        if isinstance(route, dict):
+            hop_count = max(1, len(route_symbols) - 1)
+            pool_keys: list[dict[str, Any]] = []
+            for pool in (route.get("routePools") or [])[:hop_count]:
+                if not isinstance(pool, dict):
+                    continue
+                pool_key = pool.get("poolKey")
+                if not isinstance(pool_key, dict):
+                    continue
+                currency0 = str(pool_key.get("currency0") or pool_key.get("token0") or "").strip()
+                currency1 = str(pool_key.get("currency1") or pool_key.get("token1") or "").strip()
+                fee = pool_key.get("fee")
+                tick_spacing = pool_key.get("tickSpacing")
+                hooks = str(pool_key.get("hooks") or "").strip()
+                if not currency0 or not currency1 or fee is None or tick_spacing is None or not hooks:
+                    continue
+                pool_keys.append(
+                    {
+                        "currency0": currency0,
+                        "currency1": currency1,
+                        "fee": int(fee),
+                        "tickSpacing": int(tick_spacing),
+                        "hooks": hooks,
+                    }
+                )
+            if len(pool_keys) == hop_count:
+                return pool_keys
+    except Exception:
+        pass
+    return _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
 
 
 def _official_v4_manifest_route_pool_keys(

@@ -1,5 +1,6 @@
 import time
 from types import SimpleNamespace
+import time
 
 import pytest
 

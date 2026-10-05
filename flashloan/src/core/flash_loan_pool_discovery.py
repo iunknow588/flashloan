@@ -164,18 +164,19 @@ def _chain_protocol_candidates(
         for chain_id, item in source_candidates.items()
     }
     for row in market_rows if market_rows is not None else supported_market_summaries():
-        if not isinstance(row, dict) or not bool(row.get("enabled", True)):
+        if not isinstance(row, dict) or row.get("enabled", True) is False:
             continue
         chain_id = row.get("chain_id")
         if not isinstance(chain_id, int):
             continue
-        if int(chain_id) in candidates:
+        candidate_chain_id = int(chain_id)
+        if candidate_chain_id in candidates and candidate_chain_id != 4663:
             continue
         protocol = str(row.get("protocol") or "").strip().lower()
         if protocol not in SUPPORTED_FLASH_POOL_PROTOCOLS:
             continue
         chain = candidates.setdefault(
-            int(chain_id),
+            candidate_chain_id,
             {
                 "network": str(row.get("network") or "").strip().lower(),
                 "protocols": [],

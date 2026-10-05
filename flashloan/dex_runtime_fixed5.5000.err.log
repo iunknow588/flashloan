@@ -1,0 +1,18 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.4:5000
+Press CTRL+C to quit
+127.0.0.1 - - [05/Oct/2026 19:44:14] "GET /api/dex/quote-routes/static?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:44:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:45:27] "GET /api/dex/quote-routes?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:46:46] "GET /api/dex/quote-routes/static?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:46:54] "GET /api/dex/quote-routes?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:46:58] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:47:01] "GET /api/dex/quote-routes/static?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:47:31] "GET /api/dex/quote-routes?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:47:34] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:49:16] "GET /api/dex/quote-routes/static?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:49:23] "GET /api/dex/quote-routes?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 19:55:20] "GET /api/dex/quote-routes?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [05/Oct/2026 20:02:15] "GET /api/dex/quote-routes?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -

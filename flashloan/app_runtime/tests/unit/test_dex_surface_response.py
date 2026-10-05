@@ -106,3 +106,23 @@ def test_scoped_dex_quote_routes_keeps_requested_chain():
     assert chain_id == 56
     assert (chain_selection or {}).get("market_id") == "dex-arbitrage-56-pancakeswap-v3"
     assert protocols == ["pancakeswap_v3"]
+
+
+def test_robinhood_mainnet_drops_stale_multi_protocol_query():
+    app = Flask(__name__)
+    with app.test_request_context(
+        "/api/dex/quote-routes?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v2,uniswap_v4"
+    ):
+        protocols = response.request_dex_protocols_arg()
+
+    assert protocols == ["uniswap_v4"]
+
+
+def test_robinhood_mainnet_keeps_explicit_unsupported_protocol_for_rejection():
+    app = Flask(__name__)
+    with app.test_request_context(
+        "/api/dex/quote-routes?chain_id=4663&market_id=robinhood-dex-shadow&protocols=uniswap_v3"
+    ):
+        protocols = response.request_dex_protocols_arg()
+
+    assert protocols == ["uniswap_v3"]

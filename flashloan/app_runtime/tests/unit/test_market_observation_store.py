@@ -1,5 +1,6 @@
 import json
 
+from core.market_observation_compact import _compact_observation_pair
 from core.market_observation_store import (
     compact_market_observation_static,
     load_market_observation_static,
@@ -10,6 +11,38 @@ from core.market_observation_store import (
     static_snapshot_from_observation,
     write_market_observation_static,
 )
+
+
+def test_compact_observation_pair_keeps_direct_swap_pool_display_fields():
+    pair = {
+        "symbolPair": "AAA:BBB",
+        "addressPair": "0xaaa:0xbbb",
+        "directSwapPoolCount": 1,
+        "directSwapPools": [
+            {
+                "pool": "pool-1",
+                "poolId": "pool-1",
+                "protocol": "uniswap_v4",
+                "dex": "uniswap_v4",
+                "fee": 3000,
+                "token0": "0xaaa",
+                "token1": "0xbbb",
+                "token0Symbol": "AAA",
+                "token1Symbol": "BBB",
+                "symbolPair": "AAA:BBB",
+                "addressPair": "0xaaa:0xbbb",
+                "depthBand": {"label": "active"},
+            }
+        ],
+    }
+
+    compact = _compact_observation_pair(pair)
+
+    assert compact["directSwapPoolCount"] == 1
+    assert compact["directSwapPools"][0]["symbolPair"] == "AAA:BBB"
+    assert compact["directSwapPools"][0]["token0Symbol"] == "AAA"
+    assert compact["directSwapPools"][0]["token1Symbol"] == "BBB"
+    assert compact["directSwapPools"][0]["depthBand"] == {"label": "active"}
 
 
 def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
@@ -239,8 +272,9 @@ def test_market_observation_static_payload_backfills_anchor_lists():
         "chainId": 46630,
     }
     assert payload["summary"]["observationAnchorCount"] == 2
-    assert payload["summary"]["closedLoopRouteCount"] == 1
-    assert payload["closedLoopRoutes"][0]["pathText"] == "ETH -> A -> B -> ETH"
+    assert payload["summary"]["closedLoopRouteCount"] == 0
+    assert payload["closedLoopRoutes"] == []
+    assert payload["observationSequences"] == []
     assert payload["marketObservationStaticTable"]["surface"] == "dex_market_observation"
     assert payload["marketObservationStaticTable"]["chain_key"] == "robinhood-testnet:46630:uniswap_v4"
 
@@ -366,9 +400,9 @@ def test_observation_payload_from_static_hydrates_route_pools_from_registry():
 
     payload = observation_payload_from_static(snapshot)
 
-    assert payload["observationSequences"][0]["routePools"][0]["pool"] == "pool-a"
-    assert payload["observationSequences"][0]["routePools"][0]["poolManager"] == "0xmanager"
-    assert payload["observationSequences"][0]["routePools"][0]["protocol"] == "uniswap_v4"
+    assert payload["observationSequences"] == []
+    assert payload["closedLoopRoutes"] == []
+    assert payload["indirectRoutes"] == []
 
 
 def test_static_snapshot_keeps_only_route_handoff_fields():
@@ -419,7 +453,15 @@ def test_static_snapshot_keeps_only_route_handoff_fields():
         }
     )
 
-    assert "anchorGroups" not in snapshot
+    assert snapshot["anchorGroups"] == [
+        {
+            "anchorSymbol": "ETH",
+            "sharedPools": [{"pool": "candidate-only"}],
+            "sharedTokens": [{"symbol": "AAA", "pools": [{"pool": "candidate-only"}]}],
+            "ycPoolCount": "2",
+            "zcPoolCount": "2",
+        }
+    ]
     assert "closedLoopRoutes" not in snapshot
     assert "indirectRoutes" not in snapshot
     assert "directPools" not in snapshot
@@ -543,7 +585,8 @@ def test_compact_market_observation_static_migrates_legacy_snapshot(tmp_path):
     assert overview["snapshot_kind"] == "dex_overview_compact"
     assert "observationSequences" not in overview
     assert overview["closedLoopRouteSummaries"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
-    assert observation_payload_from_static(loaded)["closedLoopRoutes"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+    assert observation_payload_from_static(loaded)["closedLoopRoutes"] == []
+    assert observation_payload_from_static(loaded)["observationSequences"] == []
 
 
 def test_observation_payload_from_static_filters_two_hop_closed_loop():
@@ -568,10 +611,30 @@ def test_observation_payload_from_static_filters_two_hop_closed_loop():
 
     payload = observation_payload_from_static(snapshot)
 
-    assert [route["pathText"] for route in payload["closedLoopRoutes"]] == [
-        "ETH -> AAA -> BBB -> ETH"
-    ]
-    assert all(
-        route.get("routeSemantics") == "x_y_entry_y_z_bridge_z_x_exit"
-        for route in payload["closedLoopRoutes"]
+    assert payload["closedLoopRoutes"] == []
+    assert payload["observationSequences"] == []
+
+
+def test_static_snapshot_persists_ob_table_graph_and_provenance():
+    snapshot = static_snapshot_from_observation(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "tableSource": "ob_table",
+            "referencedTable": "ch_table",
+            "poolIndexVersion": {"path": "v4_pool_index/latest.json", "generatedAt": "2026-10-01T00:00:00Z"},
+            "anchorGroups": [{"anchorSymbol": "ETH"}],
+            "pairs": [{"symbolPair": "ETH:AAA"}],
+            "bridgePairs": [{"symbolPair": "AAA:BBB"}],
+        }
     )
+
+    assert snapshot["tableSource"] == "ob_table"
+    assert snapshot["referencedTable"] == "ch_table"
+    assert snapshot["poolIndexVersion"]["path"] == "v4_pool_index/latest.json"
+    assert snapshot["anchorGroups"] == [{"anchorSymbol": "ETH"}]
+    assert snapshot["pairs"] == [{"symbolPair": "ETH:AAA"}]
+    assert snapshot["bridgePairs"] == [{"symbolPair": "AAA:BBB"}]
+    payload = observation_payload_from_static(snapshot)
+    assert payload["pairs"] == [{"symbolPair": "ETH:AAA"}]
+    assert payload["bridgePairs"] == [{"symbolPair": "AAA:BBB"}]

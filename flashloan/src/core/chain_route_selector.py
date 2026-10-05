@@ -25,6 +25,13 @@ CHAIN_SELECTOR_ORDER = {
     "cow": 7,
 }
 ROUTE_ONLY_PROTOCOLS = {"hyperliquid_native"}
+DEX_ARBITRAGE_FLOW_NAMES = {
+    "dex_pool_candidates",
+    "market_observation",
+    "dex_overview",
+    "dex_quote_routes",
+    "dex_quote_request",
+}
 
 
 def feature_from_page_path(path: str | None) -> str | None:
@@ -79,6 +86,25 @@ def chain_display_name(selection: ChainSelection) -> str:
 def protocol_display_name(protocol: str) -> str:
     text = str(protocol or "").strip().replace("_", " ")
     return text.title() if text else "Protocol"
+
+
+def chain_dex_arbitrage_protocols(chain_id: int | None) -> list[str]:
+    """Return protocols enabled by the dex_arbitrage flows for a chain."""
+    if chain_id is None:
+        return []
+    from core.chain_data_registry import chain_flow_spec_by_chain_id
+
+    spec = chain_flow_spec_by_chain_id(int(chain_id)) or {}
+    flows = spec.get("flows") or {}
+    allowed: set[str] = set()
+    for flow_name, flow in flows.items():
+        if flow_name not in DEX_ARBITRAGE_FLOW_NAMES:
+            continue
+        for protocol in (flow or {}).get("allowed_protocols") or []:
+            normalized = str(protocol or "").strip().lower()
+            if normalized:
+                allowed.add(normalized)
+    return sorted(allowed)
 
 
 def is_route_only_protocol(protocol: str) -> bool:
@@ -151,7 +177,18 @@ def chain_scope_options(
             if chain_candidate
             else None
         )
-        if str(feature or "").strip().lower() == "dex_arbitrage" and candidate_protocols is not None:
+        dex_arbitrage_protocols = (
+            set(chain_dex_arbitrage_protocols(chain_id))
+            if str(feature or "").strip().lower() == "dex_arbitrage" and chain_id is not None
+            else None
+        )
+        if dex_arbitrage_protocols:
+            protocol_groups = {
+                protocol: entries
+                for protocol, entries in protocol_groups.items()
+                if str(protocol).strip().lower() in dex_arbitrage_protocols
+            }
+        elif str(feature or "").strip().lower() == "dex_arbitrage" and candidate_protocols is not None:
             protocol_groups = {
                 protocol: entries
                 for protocol, entries in protocol_groups.items()
@@ -182,14 +219,18 @@ def chain_scope_options(
         if chain_id is not None:
             candidate = protocol_candidates.get(int(chain_id))
             if candidate:
-                flash_loan_protocols = [
-                    {
-                        "protocol": str(protocol).strip().lower(),
-                        "protocol_id": str(protocol).strip().lower(),
-                        "display_name": protocol_display_name(protocol),
-                    }
+                source_protocols = dex_arbitrage_protocols or {
+                    str(protocol).strip().lower()
                     for protocol in candidate.get("protocols") or []
                     if str(protocol).strip()
+                }
+                flash_loan_protocols = [
+                    {
+                        "protocol": protocol,
+                        "protocol_id": protocol,
+                        "display_name": protocol_display_name(protocol),
+                    }
+                    for protocol in sorted(source_protocols)
                 ]
         payload = dict(selected.as_dict())
         payload.update(

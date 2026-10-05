@@ -58,6 +58,62 @@ def test_robinhood_testnet_candidate_pagination_defaults_to_20_rows(monkeypatch)
         assert quality == "all"
 
 
+def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
+    dynamic_row = pool_candidates._robinhood_pool_candidate_row(
+        {
+            "pool": "0x8274dc191747b879892ab245e7ed45e829b9244",
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token1": "0x5259fc...ce1e18",
+            "token0Symbol": "ETH",
+            "token1Symbol": "AIGYR",
+            "protocol": "uniswap_v4",
+            "fee": "8388608",
+            "hasLiquidity": False,
+            "liquidityIndex": 0,
+        }
+    )
+    assert dynamic_row["dynamicFee"] is True
+    assert dynamic_row["specialFee"] is True
+    assert dynamic_row["feeLabel"] == "dynamic"
+    assert dynamic_row["usableForObservation"] is False
+
+    special_row = pool_candidates._robinhood_pool_candidate_row(
+        {
+            "pool": "0xabc",
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token1": "0xdef",
+            "token0Symbol": "ETH",
+            "token1Symbol": "X",
+            "protocol": "uniswap_v4",
+            "fee": "899900",
+            "hasLiquidity": False,
+            "liquidityIndex": 0,
+        }
+    )
+    assert special_row["dynamicFee"] is False
+    assert special_row["specialFee"] is True
+    assert special_row["feeLabel"] == "special"
+    assert special_row["usableForObservation"] is False
+
+    liquid_row = pool_candidates._robinhood_pool_candidate_row(
+        {
+            "pool": "0xdef",
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token1": "0x123",
+            "token0Symbol": "ETH",
+            "token1Symbol": "Y",
+            "protocol": "uniswap_v4",
+            "fee": "3000",
+            "hasLiquidity": True,
+            "liquidityIndex": 12345,
+        }
+    )
+    assert liquid_row["specialFee"] is False
+    assert liquid_row["feeLabel"] == "3000"
+    assert liquid_row["usableForObservation"] is True
+    assert liquid_row["depthBand"]["level"] == "liquidity-index"
+
+
 def test_non_testnet_candidate_pagination_keeps_legacy_default(monkeypatch):
     app = Flask(__name__)
     with app.test_request_context("/api/dex-pools/candidates?chain_id=4663"):
@@ -128,6 +184,21 @@ def test_robinhood_mainnet_candidate_source_available_with_relative_data_file(mo
     monkeypatch.setattr(pool_candidate_filtering, "chain_data_file_path", fake_chain_data_file_path)
 
     assert _candidate_pool_source_available(4663) is True
+
+
+def test_robinhood_mainnet_candidates_use_cache_before_source_available(monkeypatch):
+    monkeypatch.setattr(
+        pool_candidates,
+        "_candidate_pool_source_available",
+        lambda _chain_id: False,
+    )
+
+    payload = pool_candidates.dex_pool_candidates_payload(chain_id=4663, protocols=["uniswap_v4"])
+
+    assert payload["poolStaticTable"]["exists"] is True
+    assert payload["poolStaticTable"]["network"] == "robinhood"
+    assert payload["poolStaticTable"]["chainId"] == 4663
+    assert int(payload["summary"].get("pairTableCount") or 0) > 0
 
 
 def test_robinhood_v4_pool_manager_address_is_same_on_mainnet_and_testnet():

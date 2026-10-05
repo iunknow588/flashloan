@@ -156,8 +156,8 @@
       return parsed.toLocaleString(undefined, { maximumFractionDigits: 8 });
     };
     const sortRows = rows => (Array.isArray(rows) ? rows.slice() : []).sort((a, b) => {
-      const aTvl = Number((a?.balances || {}).tvlUsd || 0);
-      const bTvl = Number((b?.balances || {}).tvlUsd || 0);
+      const aTvl = Number((a?.balances || {}).tvlUsd || a?.estimatedTvlUsd || 0);
+      const bTvl = Number((b?.balances || {}).tvlUsd || b?.estimatedTvlUsd || 0);
       if (bTvl !== aTvl) return bTvl - aTvl;
       return String(a?.routeText || a?.pool || "").localeCompare(String(b?.routeText || b?.pool || ""));
     });
@@ -277,6 +277,37 @@
       return '<span class="badge reject">待确认</span>';
     }
 
+    function poolFeeText(row) {
+      if (row.dynamicFee || String(row.feeLabel || "").toLowerCase() === "dynamic") {
+        return '<span class="badge warn" title="动态费率池的费率由 Hook 在执行时决定，不按固定费率进入可用市场观察">动态费率</span>';
+      }
+      if (row.specialFee || String(row.feeLabel || "").toLowerCase() === "special") {
+        return '<span class="badge warn" title="特殊费率池通常由 Hook 控制，需要本地 fork 模拟验证后才可用于套利">特殊费率</span>';
+      }
+      return esc(row.fee ?? row.feeLabel ?? "-");
+    }
+
+    function liquidityText(row) {
+      const depth = row.depthBand || {};
+      const label = depth.label || row.depthStatus || "-";
+      const liq = Number(row.liquidityIndex ?? row.liquidity ?? 0);
+      const tvl = Number((row.balances || {}).tvlUsd ?? row.estimatedTvlUsd ?? 0);
+      return `${esc(label)} / L=${num(liq)} ${tvl > 0 ? `/ $${num(tvl)}` : ""}`;
+    }
+
+    function poolCandidateBadge(row) {
+      if (row.dynamicFee || row.specialFee || String(row.feeLabel || "").toLowerCase() === "special") {
+        return '<span class="badge reject">特殊费率/不可用于市场观察</span>';
+      }
+      if (row.hasLiquidity === false || row.usableForObservation === false) {
+        return '<span class="badge reject">无流动性/不可候选</span>';
+      }
+      if (row.hasLiquidity === true || row.usableForObservation === true) {
+        return '<span class="badge good">可用市场观察</span>';
+      }
+      return statusBadge(row.quality || row.status);
+    }
+
     function groupPools(group, direction) {
       const key = `${direction}Pools`;
       const refKey = `${direction}PoolsRef`;
@@ -315,10 +346,10 @@
             <td class="addr" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
             <td title="${esc(counter)}">${esc(compact(counter, 30))}</td>
             <td>${esc(row.protocol || row.dex || "-")}</td>
-            <td>${esc(row.fee ?? "-")}</td>
+            <td>${poolFeeText(row)}</td>
             <td>${num(balances.tvlUsd)}</td>
-            <td>${esc(row.liquidity || "-")}</td>
-            <td>${statusBadge(row.quality || row.status)}</td>
+            <td title="${esc(liquidityText(row))}">${liquidityText(row)}</td>
+            <td>${poolCandidateBadge(row)}</td>
           </tr>`;
         }).join("")}</tbody>
       </table></div>`;
@@ -371,9 +402,9 @@
         ...groupTokens(group, "yc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
         ...groupTokens(group, "zc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
         ...(group.sharedTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
-        ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
-        ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+        ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
       ].join(" ").toLowerCase();
       return parts.includes(query);
     }
@@ -454,7 +485,8 @@
       $("blockNumber").textContent = source.generatedBlockNumber || "-";
       $("generatedAt").textContent = fmtTime(source.generatedAt);
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
-      $("refreshMeta").textContent = `刷新时间 ${fmtTime(new Date().toISOString())}`;
+      const cacheTime = payload.candidatePoolCache?.refreshedAt || source.generatedAt;
+      $("refreshMeta").textContent = cacheTime ? `缓存时间 ${fmtTime(cacheTime)}` : `最后更新 ${fmtTime(new Date().toISOString())}`;
       $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；部分协议底层 PoolKey 相同，页面会合并为 YC/ZC 双向候选，方向有区别时仍分开展示。`;
       renderPager(payload);
       renderGroups(payload);
@@ -531,12 +563,11 @@
       load();
     };
     window.addEventListener("chainselectionchanged", event => {
-      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") load();
     });
     window.addEventListener("chainselectionprotocolschanged", () => load());
     syncInitialControls();
     load();
-    setInterval(load, 30000);
   </script>
 </body>
 </html>

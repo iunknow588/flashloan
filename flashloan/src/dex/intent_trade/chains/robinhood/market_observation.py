@@ -8,6 +8,7 @@ branches in shared processing code. It never imports or reads testnet evidence.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,116 @@ _ROBINHOOD_ROW = chain_data_by_network("robinhood") or {}
 _ROBINHOOD_CONTRACTS = _ROBINHOOD_ROW.get("contracts") if isinstance(_ROBINHOOD_ROW.get("contracts"), dict) else {}
 
 _ETH_PAIR_TOKENS_META_CACHE: dict[str, Any] | None = None
+_MAINNET_V4_INDEX_CACHE: dict[str, Any] | None = None
+
+V4_DYNAMIC_FEE_FLAG = 8388608
+V4_SPECIAL_FEE_THRESHOLD = 100_000
+MAINNET_STABLE_ANCHOR_SYMBOLS = ("USDG", "USDE")
+
+_MAINNET_TEST_MANIFEST_PATH = Path(__file__).resolve().parents[6] / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+
+
+def _mainnet_test_token_addresses() -> dict[str, str]:
+    manifest: dict[str, Any] = {}
+    try:
+        payload = json.loads(_MAINNET_TEST_MANIFEST_PATH.read_text(encoding="utf-8"))
+        manifest = payload if isinstance(payload, dict) else {}
+    except (OSError, ValueError, json.JSONDecodeError):
+        manifest = {}
+    result: dict[str, str] = {}
+    for symbol, env_name in (
+        ("TZ", "ROBINHOOD_MAINNET_TZ_ADDRESS"),
+        ("TA", "ROBINHOOD_MAINNET_TA_ADDRESS"),
+        ("TB", "ROBINHOOD_MAINNET_TB_ADDRESS"),
+    ):
+        address = str(os.getenv(env_name) or "").strip().lower()
+        if not address:
+            address = str(manifest.get(symbol.lower()) or "").strip().lower()
+        if address:
+            result[symbol] = address
+    return result
+
+
+_MAINNET_TEST_ADDRESS_BY_SYMBOL = _mainnet_test_token_addresses()
+
+
+def _manifest_test_anchor_symbols() -> tuple[str, ...]:
+    tz = _MAINNET_TEST_ADDRESS_BY_SYMBOL.get("TZ")
+    if not tz:
+        return ()
+    return ("TZ",)
+
+
+MAINNET_TEST_ANCHOR_SYMBOLS = _manifest_test_anchor_symbols()
+
+
+def _recent_swap_required() -> bool:
+    raw = os.getenv("ROBINHOOD_REQUIRE_RECENT_SWAP_ACTIVE", "").strip().lower()
+    if raw:
+        return raw in {"1", "true", "yes", "on"}
+    return True
+
+
+def _pool_fee(pool: dict[str, Any]) -> int | None:
+    raw = pool.get("fee")
+    if raw in (None, ""):
+        return None
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _pool_dynamic_fee(pool: dict[str, Any]) -> bool:
+    fee = _pool_fee(pool)
+    return bool(fee) and bool(fee & V4_DYNAMIC_FEE_FLAG)
+
+
+def _pool_special_fee(pool: dict[str, Any]) -> bool:
+    fee = _pool_fee(pool)
+    if not fee:
+        return False
+    return bool(fee & V4_DYNAMIC_FEE_FLAG) or fee > V4_SPECIAL_FEE_THRESHOLD
+
+
+def _pool_fee_label(pool: dict[str, Any]) -> str | int | None:
+    if _pool_dynamic_fee(pool):
+        return "dynamic"
+    if _pool_special_fee(pool):
+        return "special"
+    return _pool_fee(pool)
+
+
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    if _pool_special_fee(pool):
+        return False
+    has_liquidity = pool.get("hasLiquidity")
+    if has_liquidity is not None:
+        return bool(has_liquidity) or _number_liquidity(pool) > 0
+    return _number_liquidity(pool) > 0
+
+
+def _pool_depth_label(pool: dict[str, Any]) -> str:
+    depth = pool.get("depthBand")
+    if isinstance(depth, dict):
+        return str(depth.get("label") or pool.get("depthStatus") or "-")
+    return str(pool.get("depthStatus") or "-")
+
+
+def _active_pool_ids(pools: list[dict[str, Any]]) -> set[str]:
+    return {
+        _pool_id(pool).lower()
+        for pool in pools
+        if _pool_id(pool)
+        and _pool_usable_for_observation(pool)
+    }
+
+
+def _number_liquidity(pool: dict[str, Any]) -> float:
+    try:
+        return float(str(pool.get("liquidity") or pool.get("liquidityIndex") or "0"))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def default_robinhood_eth_pair_tokens_path() -> Path | None:
@@ -119,6 +230,9 @@ def _known_symbol(address: str, fallback_symbol: str = "") -> str:
         return "WETH"
     if normalized == _address(_ROBINHOOD_CONTRACTS.get("usdg") or ""):
         return "USDG"
+    for symbol, configured_address in _MAINNET_TEST_ADDRESS_BY_SYMBOL.items():
+        if normalized == _address(configured_address):
+            return symbol
     symbol = _symbol(fallback_symbol)
     return symbol or (normalized[:10].upper() if normalized and normalized.startswith("0x") else "")
 
@@ -145,6 +259,10 @@ def _pool_row(pool: dict[str, Any], *, source: str) -> dict[str, Any] | None:
         "protocol": "uniswap_v4",
         "dex": "uniswap_v4",
         "fee": pool.get("fee"),
+        "dynamicFee": _pool_dynamic_fee(pool),
+        "specialFee": _pool_special_fee(pool),
+        "feeLabel": _pool_fee_label(pool),
+        "usableForObservation": _pool_usable_for_observation(pool),
         "tickSpacing": pool.get("tickSpacing"),
         "hooks": pool.get("hooks"),
         "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
@@ -158,7 +276,16 @@ def _pool_row(pool: dict[str, Any], *, source: str) -> dict[str, Any] | None:
         "sqrtPriceX96": pool.get("sqrtPriceX96"),
         "tick": pool.get("tick"),
         "liquidity": pool.get("liquidity") or "",
-        "balances": pool.get("balances") or {"tvlUsd": pool.get("tvlUsd") or 0},
+        "liquidityIndex": pool.get("liquidityIndex"),
+        "hasLiquidity": pool.get("hasLiquidity"),
+        "estimatedTvlUsd": pool.get("estimatedTvlUsd"),
+        "token0Reserve": pool.get("token0Reserve"),
+        "token1Reserve": pool.get("token1Reserve"),
+        "liquiditySource": pool.get("liquiditySource"),
+        "liquidityReadAt": pool.get("liquidityReadAt"),
+        "liquidityBlockNumber": pool.get("liquidityBlockNumber"),
+        "liquidityError": pool.get("liquidityError"),
+        "balances": pool.get("balances") or {"tvlUsd": pool.get("tvlUsd") or pool.get("estimatedTvlUsd") or 0},
         "depthBand": pool.get("depthBand") or {"level": "indexed", "label": "indexed V4 PoolKey"},
         "depthStatus": pool.get("depthStatus") or "",
         "symbolPair": f"{token0['symbol']}:{token1['symbol']}",
@@ -178,6 +305,11 @@ def _pool_row(pool: dict[str, Any], *, source: str) -> dict[str, Any] | None:
 
 
 def _load_mainnet_v4_index() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    global _MAINNET_V4_INDEX_CACHE
+    if _MAINNET_V4_INDEX_CACHE is not None:
+        cached = dict(_MAINNET_V4_INDEX_CACHE)
+        pools = list(cached.get("pools") or [])
+        return pools, cached
     path = default_v4_pool_index_path()
     try:
         payload = json.loads(Path(path).read_text(encoding="utf-8-sig")) if path else {}
@@ -188,9 +320,12 @@ def _load_mainnet_v4_index() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         or str(payload.get("network") or "").strip().lower() != "robinhood"
         or int(payload.get("chainId") or payload.get("chain_id") or 0) != ROBINHOOD_CHAIN_ID
     ):
+        _MAINNET_V4_INDEX_CACHE = {"pools": [], "payload": payload or {}}
         return [], payload or {}
     pools = [_pool_row(pool, source="robinhood_mainnet_v4_pool_index") for pool in payload.get("pools") or [] if isinstance(pool, dict)]
-    return [pool for pool in pools if pool is not None], payload
+    pools = [pool for pool in pools if pool is not None]
+    _MAINNET_V4_INDEX_CACHE = {"pools": pools, "payload": payload}
+    return pools, payload
 
 
 def _eth_anchor_neighbors(pools: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -223,7 +358,14 @@ def _pools_by_edge(pools: list[dict[str, Any]]) -> dict[tuple[str, str], list[di
 def _eth_to_token_pool(anchor_address: str, token_address: str, pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]]) -> dict[str, Any] | None:
     edge = tuple(sorted((anchor_address, token_address)))
     rows = pools_by_edge.get(edge) or []
-    rows.sort(key=lambda row: (bool(row.get("recentSwapActive")), float((row.get("balances") or {}).get("tvlUsd") or 0), str(_pool_id(row))), reverse=True)
+    rows.sort(
+        key=lambda row: (
+            _number_liquidity(row),
+            float((row.get("balances") or {}).get("tvlUsd") or row.get("estimatedTvlUsd") or 0),
+            str(_pool_id(row)),
+        ),
+        reverse=True,
+    )
     return rows[0] if rows else None
 
 
@@ -271,8 +413,24 @@ def _mainnet_eth_observation_sequences(
             "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
             "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
             "fee": pool.get("fee"),
+            "dynamicFee": _pool_dynamic_fee(pool),
+            "specialFee": _pool_special_fee(pool),
+            "feeLabel": _pool_fee_label(pool),
+            "usableForObservation": _pool_usable_for_observation(pool),
             "tickSpacing": pool.get("tickSpacing"),
             "hooks": pool.get("hooks") or "",
+            "liquidity": pool.get("liquidity") or "",
+            "liquidityIndex": pool.get("liquidityIndex"),
+            "hasLiquidity": pool.get("hasLiquidity"),
+            "estimatedTvlUsd": pool.get("estimatedTvlUsd"),
+            "token0Reserve": pool.get("token0Reserve"),
+            "token1Reserve": pool.get("token1Reserve"),
+            "liquiditySource": pool.get("liquiditySource"),
+            "liquidityReadAt": pool.get("liquidityReadAt"),
+            "liquidityBlockNumber": pool.get("liquidityBlockNumber"),
+            "liquidityError": pool.get("liquidityError"),
+            "depthStatus": pool.get("depthStatus") or "",
+            "depthBand": pool.get("depthBand") or {},
             "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
             "poolKey": pool.get("poolKey") or pool.get("pool_key"),
             "quality": pool.get("quality"),
@@ -294,6 +452,7 @@ def _mainnet_eth_observation_sequences(
             "pairAddress": pool.get("addressPair") or "",
             "source": pool.get("source") or "",
             "evidence": pool.get("evidence") or {},
+            "recentSwapActive": pool.get("recentSwapActive"),
         }
 
     for y_address, y_token in sorted(neighbors.items(), key=lambda item: (str(item[1].get("symbol") or ""), str(item[0] or ""))):
@@ -397,10 +556,22 @@ def _mainnet_eth_fund_anchor_observation(
             if _pool_id(pool)
         }
     )
+    active_pool_ids = sorted(
+        _active_pool_ids(pools)
+    )
+    index, _index_payload = _load_mainnet_v4_index()
+    indexed_pool_count = len(index)
     return {
         "enabled": True,
         "status": "robinhood_mainnet_v4_eth_anchor_observation",
         "source": "robinhood_mainnet_v4_pool_index",
+        "recentSwapFilterApplied": False,
+        "liquidityFilterApplied": True,
+        "recentSwapActivePoolCount": len(active_pool_ids),
+        "liquidPoolIdCount": len(active_pool_ids),
+        "recentSwapIndexedPoolCount": indexed_pool_count,
+        "activePoolIds": active_pool_ids,
+        "liquidPoolIds": active_pool_ids,
         "ethAnchor": "ETH",
         "routeCount": len(sequences),
         "associatedObservationPairCount": len(bridge_pairs),
@@ -439,10 +610,12 @@ def observation_anchor_symbols(
 ) -> list[str]:
     if not _chain_in_scope(chain_id) or not _protocol_in_scope(protocols):
         return []
-    # Mainnet observation is intentionally anchored to native ETH for now.
-    # YC/ZC are the real non-ETH currencies taken from the mainnet V4 pool
-    # index/on-chain Initialize logs; we do not pre-filter them to stablecoins.
-    return ["ETH"]
+    # Mainnet observation is anchored to native ETH, verified stable
+    # settlement assets, and any test-token anchors configured through env
+    # variables. The test-token entries are deliberately data-driven rather
+    # than route-specific so the same closed-loop logic handles them without
+    # hard-coding TZ/TA/TB in the graph builder.
+    return ["ETH", *MAINNET_STABLE_ANCHOR_SYMBOLS, *MAINNET_TEST_ANCHOR_SYMBOLS]
 
 
 def borrowable_symbols_from_pool_payload(
@@ -453,7 +626,7 @@ def borrowable_symbols_from_pool_payload(
 ) -> list[str]:
     if not _chain_in_scope(chain_id) or not _protocol_in_scope(protocols):
         return []
-    return ["ETH"]
+    return ["ETH", *MAINNET_STABLE_ANCHOR_SYMBOLS, *MAINNET_TEST_ANCHOR_SYMBOLS]
 
 
 def bridge_pairs_for_anchor_groups(
@@ -476,10 +649,17 @@ def bridge_pairs_for_anchor_groups(
             continue
         if _address(edge[0]) in neighbors and _address(edge[1]) in neighbors:
             verified_yz_pair_count += 1
+    active_pool_ids = sorted(_active_pool_ids(pools))
     return bridge_pairs, {
         "enabled": True,
         "status": "robinhood_mainnet_v4_eth_anchor_bridge_observation",
         "ethAnchor": "ETH",
+        "recentSwapFilterApplied": False,
+        "liquidityFilterApplied": True,
+        "recentSwapActivePoolCount": len(active_pool_ids),
+        "liquidPoolIdCount": len(active_pool_ids),
+        "activePoolIds": active_pool_ids,
+        "liquidPoolIds": active_pool_ids,
         "bridgeCount": len(bridge_pairs),
         "matchedPoolCount": sum(len(pair.get("preferredPools") or []) for pair in bridge_pairs),
         "candidateEthPairTokenCount": eth_pair_token_count,

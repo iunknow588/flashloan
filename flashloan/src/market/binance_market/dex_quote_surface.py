@@ -2,26 +2,16 @@ from __future__ import annotations
 
 import os
 from typing import Any, Callable
-from urllib.parse import quote
-
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
-from market.binance_market.dex_quote_route_builder import build_quote_route_payload
 from market.binance_market.dex_quote_surface_helpers import (
-    _enrich_route_pools_from_index,
-    _framework_route_pools,
-    _number,
-    _static_hop_steps,
     _v4_pool_index_by_id,
 )
 from market.binance_market.dex_quote_surface_routes_builder import _build_quote_routes_and_best
 from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 from dex.error_stack import route_error_stack
 from market.binance_market.dex_quote_route_common import (
-    build_quote_analysis_defaults,
-    build_quote_inputs_bundle,
-    build_quote_request_specs,
     build_quote_verification_payload,
     quote_route_status,
 )
@@ -134,12 +124,17 @@ def build_quote_routes_payload_from_overview(
             "unfilteredRouteCount": unfiltered_route_count,
             "anchorFilter": route_policy.anchor or None,
             "liveRouteLimit": route_policy.live_route_limit,
+            "chainReviewEligiblePathCount": sum(1 for route in routes if route.get("chainReviewEligible")),
+            "diagnosticOnlyPathCount": sum(1 for route in routes if route.get("diagnosticOnly")),
         }
     )
     return {
         "mode": "dex_quote_routes",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
+        "tableSource": overview.get("tableSource") or "dex_table",
+        "referencedTable": overview.get("referencedTable") or "ob_table",
+        "poolIndexVersion": overview.get("poolIndexVersion") or {},
         "marketObservationSource": overview.get("marketObservationSource") or "computed",
         "marketObservationSourceStage": overview.get("marketObservationSourceStage")
         or overview.get("marketObservationSource")

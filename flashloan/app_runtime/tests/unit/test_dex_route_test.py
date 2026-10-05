@@ -146,10 +146,10 @@ def test_estimate_route_live_quote_builds_best_amount_ladder(monkeypatch):
     assert result["bestAmountConfirmed"] is False
     assert result["readyForTransactionPreflight"] is False
     assert result["requestedAmount"] == 1.0
-    assert result["bestAmount"] == 131072.0
-    assert len(result["probeRecords"]) >= 7
+    assert result["bestAmount"] == 16.0
+    assert len(result["probeRecords"]) >= 5
     assert result["probeRecords"][-1]["isBest"] is True
-    assert result["probeRecords"][-1]["amount"] == 131072.0
+    assert result["probeRecords"][-1]["amount"] == 16.0
     assert result["analysis"]["probeRecords"][-1]["borrowSymbol"] == "TZ"
     assert result["bestAmountCalculation"]["method"] == "live_route_amount_ladder"
     assert result["bestAmountCalculation"]["requestedAmount"] == 1.0
@@ -1499,7 +1499,7 @@ def test_official_v4_manifest_route_pool_keys_uses_no_hook_middle_pool():
     assert keys[1]["currency0"].lower() == "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
 
 
-def test_official_v4_route_pool_keys_ignores_observed_hook_middle_pool(monkeypatch):
+def test_official_v4_route_pool_keys_prefers_observed_hook_middle_pool(monkeypatch):
     from market.binance_market import dex_route_helpers
     from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
 
@@ -1551,7 +1551,192 @@ def test_official_v4_route_pool_keys_ignores_observed_hook_middle_pool(monkeypat
         protocols=["uniswap_v4"],
     )
     assert len(keys) == 3
-    assert all(
-        str(key.get("hooks") or "").lower() == "0x0000000000000000000000000000000000000000"
-        for key in keys
+    assert all(str(key.get("hooks") or "").lower() == "0xe40667755994fa91d5f67e00eeb66ed90e4ac040" for key in keys)
+    assert keys[0]["currency0"].lower() == "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    assert keys[0]["currency1"].lower() == "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+
+
+def test_run_official_v4_arb_route_test_missing_pool_identity_uses_actual_route(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: [])
+    monkeypatch.setattr(route_test_module, "_attach_best_amount_calculation", lambda *args, **kwargs: None)
+
+    result = route_test_module.run_official_v4_arb_route_test(
+        route_symbols=["ETH", "0X102154", "0X1FBE1A", "ETH"],
+        amount=1.0,
+        broadcast=False,
+        chain_id=4663,
+        route_addresses=[
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000102154",
+            "0x00000000000000000000000000000000001FBE1A",
+            "0x0000000000000000000000000000000000000000",
+        ],
     )
+
+    assert result["ok"] is False
+    assert "ETH -> 0X102154 -> 0X1FBE1A -> ETH" in result["detail"]
+    assert "TZ/TB/TA" not in result["detail"]
+    assert "请先补全市场观察中的中间桥池身份后重试" in result["detail"]
+
+
+def test_attach_best_amount_calculation_writes_offchain_probe_reason_to_evidence(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_best_amount_calculation_for_route",
+        lambda **kwargs: {"initialProbeAmount": 1.0},
+    )
+
+    payload = {"evidence": {}}
+    result = route_test_module._attach_best_amount_calculation(
+        payload,
+        route_symbols=["ETH", "0X102154", "0X1FBE1A", "ETH"],
+        amount=1.0,
+        chain_id=4663,
+        requested_amount=1.0,
+    )
+
+    assert result["evidence"]["offchainInitialProbeReason"] == "requested_borrow_amount_fallback"
+
+
+def test_official_v4_route_pool_keys_matches_route_by_addresses(monkeypatch):
+    from market.binance_market import dex_route_helpers
+
+    addresses = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000102154",
+        "0x00000000000000000000000000000000001FBE1A",
+        "0x0000000000000000000000000000000000000000",
+    ]
+    route_pools = []
+    pairs = [addresses[0:2], addresses[1:3], [addresses[2], addresses[0]]]
+    for pair in pairs:
+        route_pools.append(
+            {
+                "routeAddresses": list(pair),
+                "poolKey": {
+                    "currency0": pair[0],
+                    "currency1": pair[1],
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            }
+        )
+
+    monkeypatch.setattr(
+        dex_route_helpers,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["ETH", "XYZ", "ABC", "ETH"],
+                    "routeAddresses": addresses,
+                    "routePools": route_pools,
+                }
+            ]
+        },
+    )
+
+    keys = dex_route_helpers._official_v4_route_pool_keys(
+        route_symbols=["ETH", "0X102154", "0X1FBE1A", "ETH"],
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        route_addresses=addresses,
+    )
+
+    assert len(keys) == 3
+    assert keys[0]["currency0"].lower() == addresses[0].lower()
+    assert keys[2]["currency1"].lower() == addresses[0].lower()
+
+
+def test_resolve_route_addresses_from_market_payload_matches_full_address_symbols(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    addresses = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000102154",
+        "0x00000000000000000000000000000000001FBE1A",
+        "0x0000000000000000000000000000000000000000",
+    ]
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["ETH", "XYZ", "ABC", "ETH"],
+                    "routeAddresses": addresses,
+                    "routePools": [],
+                }
+            ]
+        },
+    )
+
+    resolved = route_test_module._resolve_route_addresses_from_market_payload(
+        route_symbols=[address.upper() for address in addresses],
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+    )
+
+    assert resolved == addresses
+
+
+def test_official_v4_route_pool_keys_does_not_guess_pool_key_from_top_level_tokens(monkeypatch):
+    from market.binance_market import dex_route_helpers
+
+    addresses = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000102154",
+        "0x00000000000000000000000000000000001FBE1A",
+    ]
+    route_pools = [
+        {
+            "poolId": "0x" + "a" * 64,
+            "token0": addresses[0],
+            "token1": addresses[1],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "poolId": "0x" + "b" * 64,
+            "token0": addresses[1],
+            "token1": addresses[2],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "poolId": "0x" + "c" * 64,
+            "token0": addresses[2],
+            "token1": addresses[0],
+            "fee": 500,
+            "tickSpacing": 10,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+    ]
+    monkeypatch.setattr(
+        dex_route_helpers,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["ETH", "0X102154", "0X1FBE1A", "ETH"],
+                    "routeAddresses": addresses + [addresses[0]],
+                    "routePools": route_pools,
+                }
+            ]
+        },
+    )
+
+    keys = dex_route_helpers._official_v4_route_pool_keys(
+        route_symbols=["ETH", "0X102154", "0X1FBE1A", "ETH"],
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+    )
+
+    assert keys == []

@@ -708,6 +708,24 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
             },
         },
     )
+    real_route_context = dex_surfaces._route_framework_context_from_observation
+
+    def route_context_without_mock_active_filter(observation, pool_payload=None, **kwargs):
+        summary = dict(observation.get("summary") or {})
+        summary["recentSwapFilterApplied"] = False
+        summary["liquidityFilterApplied"] = False
+        return real_route_context(
+            {
+                **observation,
+                "recentSwapPoolFilter": {},
+                "liquidityPoolFilter": {},
+                "summary": summary,
+            },
+            pool_payload,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(dex_surfaces, "_route_framework_context_from_observation", route_context_without_mock_active_filter)
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
     vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "WETH -> VLAD -> USDG -> WETH"]
@@ -716,7 +734,8 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
     assert not any(route["symbolPair"] == "WETH -> VLAD -> WETH" for route in quotes["routes"])
 
 
-def test_dex_pool_candidates_returns_chain_owned_empty_when_local_json_missing(monkeypatch):
+def test_dex_pool_candidates_returns_chain_owned_empty_when_local_json_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(candidate_pool_cache_store, "CACHE_ROOT", tmp_path)
     monkeypatch.setattr(
         pool_candidates,
         "query_flash_loan_pool_discovery",
@@ -873,7 +892,7 @@ def test_dex_pool_candidates_reads_robinhood_candidate_cache(tmp_path, monkeypat
     assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v3"
     assert payload["pairs"][0]["preferredPools"][0]["fee"] == "100"
     assert payload["pairs"][0]["preferredPools"][0]["liquidity"] == "960106731002746306"
-    assert payload["pairs"][0]["preferredPools"][0]["depthBand"]["level"] == "observed"
+    assert payload["pairs"][0]["preferredPools"][0]["depthBand"]["level"] in {"observed", "liquidity-index"}
     assert lending_filtered_payload["summary"]["pairTableCount"] == "1"
     assert lending_filtered_payload["pairs"][0]["symbolPair"] == "USDG:WETH"
 

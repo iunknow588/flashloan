@@ -24,6 +24,7 @@ def build_quote_route_payload(
     size_analysis: dict[str, Any],
     chain_id: int | None,
     path_source: str,
+    chain_review_eligible: bool = True,
     settlement: dict[str, Any],
     price_evidence_source: str | None = None,
     price_evidence_mode: str | None = None,
@@ -94,7 +95,11 @@ def build_quote_route_payload(
         "borrowSymbols": linkage.get("borrow_symbols") or [],
         "strategy": route_strategy,
         "pathSource": path_source,
+        "tableSource": "dex_table",
+        "referencedTable": "ob_table",
         "routeFrameworkSource": route.get("routeFrameworkSource") or path_source,
+        "chainReviewEligible": bool(chain_review_eligible),
+        "diagnosticOnly": not bool(chain_review_eligible),
         "priceEvidenceSource": quote_analysis.get("priceEvidenceSource")
         or (
             "live_quoter_required"
@@ -107,6 +112,8 @@ def build_quote_route_payload(
             if quote_analysis.get("requiresLiveQuoter") or quote_analysis.get("adapterRequired")
             else "reference_only"
         ),
+        "routeUsableForObservation": route.get("routeUsableForObservation"),
+        "routeHasLiquidityEvidence": route.get("routeHasLiquidityEvidence"),
         "poolCount": len(pools),
         "routePools": pools,
         "executionPools": pools,

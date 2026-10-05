@@ -31,6 +31,9 @@
       adapter_required: "链上复核失败：缺少报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块",
       missing_effective_pool: "链上复核：缺少有效池，无法报价",
+      missing_route_pool_identity: "链上复核未通过：缺少中间桥池 PoolKey",
+      missing_route_identity: "链上复核未通过：缺少路线身份",
+      missing_configuration: "链上复核未通过：缺少链上配置",
       live_quote_failed: "链上报价失败",
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
@@ -80,7 +83,9 @@
         "pool_not_initialized",
         "pool_insufficient_for_profitable_execution",
         "missing_effective_pool",
+        "missing_route_pool_identity",
         "missing_route_identity",
+        "missing_configuration",
         "route_lacks_complete_token_address_identity",
         "rpc_verification_failed",
         "rpc_verification_timeout",
@@ -166,6 +171,9 @@
       if (lower === "pool_not_initialized") return "V4 池未初始化；无法完成链上复核";
       if (lower === "pool_insufficient_for_profitable_execution") return "池深度不足以盈利执行；禁止链上执行";
       if (lower === "missing_effective_pool") return "链上复核：池未初始化或缺少有效池；无法报价";
+      if (lower === "missing_route_pool_identity") return "链上复核未通过：缺少中间桥池 PoolKey；请先补全市场观察中的中间桥池身份后重试，禁止链上执行";
+      if (lower === "missing_route_identity") return "链上复核未通过：缺少路线身份；请先补全路由地址/池身份后重试，禁止链上执行";
+      if (lower === "missing_configuration") return "链上复核未通过：缺少链上配置；请检查官方 V4 仲裁合约和链级配置后重试";
       if (lower === "missing_trigger_block") return "链上复核未执行：缺少触发区块上下文；无法确认";
       if (lower === "adapter_required") return "链上复核失败：缺少 V4 报价适配器；无法完成链上复核";
       if (lower === "live_quote_failed" || lower === "quote_failed") return "链上报价失败，无法进入链上执行";
@@ -282,6 +290,31 @@
       const raw = route?.symbolPair || (symbolKey.length ? symbolKey.join(" -> ") : "") || "";
       return `path|${String(raw).toUpperCase()}`;
     };
+    const v4PoolHasCompleteIdentity = pool => {
+      const key = pool?.poolKey;
+      if (!key || typeof key !== "object") return false;
+      return Boolean(
+        String(key.currency0 || key.token0 || "").trim()
+        && String(key.currency1 || key.token1 || "").trim()
+        && key.fee != null
+        && key.tickSpacing != null
+        && String(key.hooks || "").trim()
+      );
+    };
+    const routeHasCompleteV4PoolIdentity = route => {
+      const pools = Array.isArray(route?.routePools)
+        ? route.routePools.filter(pool => pool && typeof pool === "object")
+        : [];
+      if (!pools.length) return false;
+      const symbols = Array.isArray(route?.routeSymbols)
+        ? route.routeSymbols.map(item => String(item || "").trim().toUpperCase()).filter(Boolean)
+        : [];
+      const effectivePools = symbols.length ? pools.slice(0, symbols.length - 1) : pools;
+      return effectivePools.length > 0 && effectivePools.every(v4PoolHasCompleteIdentity);
+    };
+    const filterCompleteV4Routes = routes => Array.isArray(routes)
+      ? routes.filter(route => route && typeof route === "object" && routeHasCompleteV4PoolIdentity(route))
+      : [];
     const routeQuality = route => {
       const evidence = routeEvidence(route);
       const status = String(evidence.status || route?.quoteStatus || "").toLowerCase();
@@ -294,12 +327,19 @@
     };
     const routesToRender = (scannerRoutes, quoteRoutesPayload) => {
       const quoteSnapshot = quoteRoutesPayload?.snapshot?.payload || {};
+      const normalizeSource = route => ({
+        ...route,
+        tableSource: route?.tableSource || "dex_table",
+        referencedTable: route?.referencedTable || "ob_table",
+        pathSource: route?.pathSource || "market_observation",
+      });
       const quoteList = Array.isArray(quoteRoutesPayload?.routes)
         ? quoteRoutesPayload.routes
         : Array.isArray(quoteSnapshot.routes)
           ? quoteSnapshot.routes
           : [];
-      const scannerList = Array.isArray(scannerRoutes) ? scannerRoutes : [];
+      const scannerList = filterCompleteV4Routes(scannerRoutes).map(normalizeSource);
+      const normalizedQuoteList = filterCompleteV4Routes(quoteList).map(normalizeSource);
       const dedupe = routes => {
         const dedupedRoutes = new Map();
         for (const route of routes) {
@@ -309,10 +349,10 @@
         }
         return Array.from(dedupedRoutes.values());
       };
-      if (!quoteList.length) return dedupe(scannerList);
+      if (!normalizedQuoteList.length) return dedupe(scannerList);
       const scannerByKey = new Map(scannerList.map(route => [routeKey(route), route]));
-      const quoteByKey = new Map(quoteList.map(route => [routeKey(route), route]));
-      const merged = quoteList.map(route => {
+      const quoteByKey = new Map(normalizedQuoteList.map(route => [routeKey(route), route]));
+      const merged = normalizedQuoteList.map(route => {
         const quoteStatus = route.live_onchain_evidence?.status;
         const quoteImproved = Boolean(quoteStatus) && !["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(quoteStatus).toLowerCase());
         const base = scannerByKey.get(routeKey(route));
@@ -437,6 +477,9 @@
       rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       adapter_required: "链上复核失败：缺少 V4 报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块上下文",
+      missing_route_pool_identity: "链上复核未通过：缺少中间桥池 PoolKey",
+      missing_route_identity: "链上复核未通过：缺少路线身份",
+      missing_configuration: "链上复核未通过：缺少链上配置",
     }[String(status || "").toLowerCase()] || "链上复核状态未确认");
     };
     const evidenceStatusEx = status => {
@@ -452,6 +495,9 @@
         adapter_required: "链上复核失败：缺少报价适配器",
         missing_trigger_block: "链上复核未执行：缺少触发区块",
         missing_effective_pool: "链上复核：缺少有效池，无法报价",
+        missing_route_pool_identity: "链上复核未通过：缺少中间桥池 PoolKey",
+        missing_route_identity: "链上复核未通过：缺少路线身份",
+        missing_configuration: "链上复核未通过：缺少链上配置",
         live_quote_failed: "链上单跳验证失败",
         live_verified: "链上验证通过",
       };
@@ -699,12 +745,19 @@
             ? "本轮未集中复核；可查看链下估算"
             : recommendationAction(recommendation.action || label(route.quoteStatus));
       const actionText = latestBroadcastForStage?.text || baseActionText;
+      const actionTextPlain = String(actionText || "").trim();
+      const recommendationRowsDeduped = recommendationRows.filter(item => {
+        const text = blockerText(item).trim();
+        return text && text !== actionTextPlain && !(actionTextPlain && (actionTextPlain.includes(text) || text.includes(actionTextPlain)));
+      });
       const referenceBadge = !live && !analysis.chainReviewed && analysis.requiresLiveQuoter ? `<span class="badge warn">静态候选（待链上报价）</span>` : "";
       const deferredReviewBadge = isDeferred ? `<span class="badge warn">可查看链下估算</span>` : "";
       const priceReviewBadge = reviewStage === "execution" || execPending || execFailed
         ? "链上执行报价"
         : reviewStage === "preflight" || preflightFailed
-          ? (negativeEvidence ? `链上复核失败：${evidenceStatusEx(evidence.status)}` : live ? "链上复核价格已验证" : "链上复核完成：等待逐 hop 证据确认")
+          ? (preflightFailed
+              ? `链上复核失败：${negativeEvidence ? evidenceStatusEx(evidence.status) : (route.__broadcastError ? route.__broadcastError : "后台未返回链上结果")}`
+              : negativeEvidence ? `链上复核失败：${evidenceStatusEx(evidence.status)}` : live ? "链上复核价格已验证" : "链上复核完成：等待逐 hop 证据确认")
           : routeNeedsLiveReview(route)
             ? "静态参考，待链上逐 hop 复核"
           : routeUiState === ROUTE_UI_STATE.OFFCHAIN_PENDING && !routeHasCompletedOffchainReview(route)
@@ -758,7 +811,7 @@
       ${analysisHtml}
       ${bestCalcHtml}
       <div class="table-wrap"><table><thead><tr><th>跳</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池</th><th>手续费 bps</th><th>输入</th><th>输出</th><th>汇率</th><th>价格影响 / 上限</th></tr></thead><tbody>${stepRows || '<tr><td colspan="10">暂无单跳报价数据</td></tr>'}</tbody></table></div>
-      <div class="recommendation" data-route-recommendation="${index}"><strong>建议：${esc(actionText)}</strong>${latestBroadcastForStage?.txHash ? `<div class="muted">最近已执行：${esc(latestBroadcastForStage.txHash)}${latestBroadcastForStage.txHashes?.length > 1 ? ` 等 ${latestBroadcastForStage.txHashes.length} 笔` : ""}</div>` : ""}<ol>${recommendationRows.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
+      <div class="recommendation" data-route-recommendation="${index}"><strong>建议：${esc(actionText)}</strong>${latestBroadcastForStage?.txHash ? `<div class="muted">最近已执行：${esc(latestBroadcastForStage.txHash)}${latestBroadcastForStage.txHashes?.length > 1 ? ` 等 ${latestBroadcastForStage.txHashes.length} 笔` : ""}</div>` : ""}<ol>${recommendationRowsDeduped.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
       <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div><div class="badges">${requests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div></article>`;
     }
     function routeHtmlSafe(route, index) {
@@ -846,6 +899,12 @@
       return window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(base) : base;
     };
     const routeActionHtml = (route, index) => {
+      const diagnosticOnly = route?.diagnosticOnly === true
+        || String(route?.pathSource || "").trim() === "candidate_pool_fallback"
+        || String(route?.tableSource || "").trim() !== "dex_table";
+      if (diagnosticOnly) {
+        return `<span class="muted">仅诊断展示</span><span class="muted">不在 DEX_TABLE 路由中，不进入链上复核</span>`;
+      }
       const broadcast = latestBroadcastAdvice(route);
       const activeExecutionRoute = Boolean(activeExecution?.routeKey && routeExecutionKey(route) === activeExecution.routeKey);
       if (activeExecutionRoute) {
@@ -958,7 +1017,9 @@
                 ? "链上复核未通过：最佳量未计算成功，不能作为已确认最佳量；请重新链上复核并完成最佳量计算后再执行。"
                 : "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。")
             : preflightFailed
-              ? "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。"
+              ? (route.__broadcastError && String(route.__broadcastError) !== "链上复核失败"
+                  ? route.__broadcastError
+                  : "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。")
             : pendingReview
               ? "链下估算完成：默认初始量已生成；链上复核可继续确认当前最佳量"
                 : liveSummary
@@ -1029,6 +1090,7 @@
             ? estimatedInitialAmount
             : (evidence.costModel?.requestedBorrowInputAmount ?? analysis.requestedAmount ?? analysis.amountOptimizedFrom ?? offchainProbe ?? route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0] ?? bestRouteAmount);
         const amountScaleHint = Number.isFinite(Number(bestRouteAmount))
+          && Number(bestRouteAmount) > 0
           && Number.isFinite(Number(initialProbeAmount))
           && Number(initialProbeAmount) > 0
           ? (Math.abs(Number(bestRouteAmount) - Number(initialProbeAmount)) / Number(initialProbeAmount) > 0.01
@@ -1131,12 +1193,15 @@
         });
         const poolRows = groupPools.map(pool => {
           const label = pool.symbolPair || pool.pairSymbol || pool.routeText || pool.pool || "-";
-          const fee = pool.fee == null ? "" : `fee ${numeric(pool.fee, 0)}`;
-          const depth = pool.depthStatus || pool.status || "";
-          return `<div class="pool-chip">${esc(label)}${fee ? `<small>${esc(fee)}</small>` : ""}${depth ? `<small>${esc(depth)}</small>` : ""}</div>`;
+          const dynamic = pool.dynamicFee || String(pool.feeLabel || "").toLowerCase() === "dynamic";
+          const special = pool.specialFee || String(pool.feeLabel || "").toLowerCase() === "special";
+          const fee = pool.fee == null && !dynamic && !special ? "" : `fee ${dynamic ? "dynamic" : special ? "special" : numeric(pool.fee, 0)}`;
+          const depth = pool.depthBand?.label || pool.depthStatus || pool.status || "";
+          const liquidity = pool.liquidityIndex == null ? "" : `L ${numeric(pool.liquidityIndex, 6)}`;
+          return `<div class="pool-chip">${esc(label)}${fee ? `<small>${esc(fee)}</small>` : ""}${depth ? `<small>${esc(depth)}</small>` : ""}${liquidity ? `<small>${esc(liquidity)}</small>` : ""}</div>`;
         }).join("");
         const routeHtml = group.routes.map(({route, index}) => routeSummaryHtml(route, index)).join("");
         return `<section class="pool-group"><header><h2>${esc(group.start)} 可借贷资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span><button class="copy-btn" type="button" data-closed-loop-refresh="${esc(group.start)}">定点刷新</button></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
       }).join("");
-      return html || '<div class="empty">暂无可供报价复核的路由。</div>';
+      return html || '<div class="empty">暂无同时具备可用流动性且非特殊费率的闭环路由。请先在候选池/总览确认中间桥池的流动性标记。</div>';
     };

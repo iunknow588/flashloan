@@ -141,6 +141,78 @@ def test_merge_recent_attempt_evidence_keeps_fresh_history(monkeypatch):
     assert routes[0]["live_onchain_evidence"]["status"] == "not_enough_liquidity"
 
 
+def test_merge_recent_attempt_evidence_replaces_static_manifest_with_live_verified(monkeypatch):
+    now = datetime.now(timezone.utc)
+    fresh = {
+        "chain_id": 4663,
+        "created_at": (now - timedelta(seconds=30)).isoformat(),
+        "observed_at": (now - timedelta(seconds=30)).isoformat(),
+        "route_path": ["TZ", "TB", "TA", "TZ"],
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "executionTrust": "live_quoter_verified_readonly",
+                "bestAmountConfirmed": True,
+                "bestAmountMissing": False,
+                "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+                "hops": [
+                    {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "status": "live_verified"},
+                    {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "status": "live_verified"},
+                    {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "status": "live_verified"},
+                ],
+                "costModel": {
+                    "borrowInputSymbol": "TZ",
+                    "borrowInputAmount": 16384.0,
+                    "selectedBorrowInputAmount": 16384.0,
+                    "netProfitAmount": 92565.84103581037,
+                    "bestAmountConfirmed": True,
+                    "bestAmountMissing": False,
+                },
+            }
+        },
+    }
+    routes = [
+        {
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "live_onchain_evidence": {
+                "status": "static_reference_pending_live_review",
+                "quoteBlockSource": "mainnet_v4_manifest_initial_probe",
+                "bestAmountConfirmed": False,
+                "bestAmountMissing": True,
+                "hops": [],
+                "costModel": {
+                    "borrowInputAmount": 1.0,
+                    "selectedBorrowInputAmount": 1.0,
+                    "bestAmountConfirmed": False,
+                    "bestAmountMissing": True,
+                },
+            },
+        }
+    ]
+    monkeypatch.setattr(
+        dex_surface_helpers,
+        "cow_execution_attempt_log_path",
+        lambda **kwargs: Path("unused/attempts.jsonl"),
+    )
+    monkeypatch.setattr(
+        dex_surface_helpers,
+        "load_recent_cow_execution_attempts_jsonl",
+        lambda *args, **kwargs: [fresh],
+    )
+
+    dex_surface_helpers._merge_recent_attempt_evidence_into_routes(
+        routes,
+        chain_id=4663,
+        max_age_seconds=600,
+    )
+
+    evidence = routes[0]["live_onchain_evidence"]
+    assert evidence["status"] == "live_verified"
+    assert evidence["bestAmountConfirmed"] is True
+    assert evidence["costModel"]["selectedBorrowInputAmount"] == 16384.0
+    assert evidence["costModel"]["netProfitAmount"] == 92565.84103581037
+
+
 def test_evict_stale_evidence_clears_old_live_evidence():
     routes = [
         {
@@ -439,3 +511,140 @@ def test_merge_evidence_uses_borrow_input_amount_when_selected_missing():
 
     assert route["quoteAnalysis"]["bestAmount"] == 8.0
     assert route["quoteAnalysis"]["steps"][0]["inputAmount"] == 1.0
+
+
+def test_route_has_complete_v4_pool_identity_accepts_full_pool_keys():
+    route = {
+        "routeSymbols": ["ETH", "0X102154", "0X5884AD", "ETH"],
+        "routePools": [
+            {
+                "poolId": "0x" + "a" * 64,
+                "poolKey": {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x" + "1" * 40,
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            },
+            {
+                "poolId": "0x" + "b" * 64,
+                "poolKey": {
+                    "currency0": "0x" + "1" * 40,
+                    "currency1": "0x" + "2" * 40,
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            },
+            {
+                "poolId": "0x" + "c" * 64,
+                "poolKey": {
+                    "currency0": "0x" + "2" * 40,
+                    "currency1": "0x0000000000000000000000000000000000000000",
+                    "fee": 500,
+                    "tickSpacing": 10,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            },
+        ],
+    }
+
+    assert dex_surface_routes_quotes._route_has_complete_v4_pool_identity(route) is True
+
+
+def test_route_has_complete_v4_pool_identity_rejects_missing_middle_pool_key():
+    route = {
+        "routeSymbols": ["ETH", "0X102154", "0X5884AD", "ETH"],
+        "routePools": [
+            {
+                "poolId": "0x" + "a" * 64,
+                "poolKey": {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x" + "1" * 40,
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            },
+            {"poolId": "0x" + "b" * 64},
+            {
+                "poolId": "0x" + "c" * 64,
+                "poolKey": {
+                    "currency0": "0x" + "2" * 40,
+                    "currency1": "0x0000000000000000000000000000000000000000",
+                    "fee": 500,
+                    "tickSpacing": 10,
+                    "hooks": "0x0000000000000000000000000000000000000000",
+                },
+            },
+        ],
+    }
+
+    assert dex_surface_routes_quotes._route_has_complete_v4_pool_identity(route) is False
+
+
+def test_compact_static_route_pool_preserves_pool_key():
+    pool = {
+        "pool": "0x" + "a" * 64,
+        "poolId": "0x" + "a" * 64,
+        "pairSymbol": "ETH:0X102154",
+        "fee": 3000,
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x" + "1" * 40,
+        "poolKey": {
+            "currency0": "0x0000000000000000000000000000000000000000",
+            "currency1": "0x" + "1" * 40,
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+    }
+
+    compact = dex_surface_routes_quotes._compact_static_route_pool(pool)
+
+    assert compact["poolKey"] == pool["poolKey"]
+    assert dex_surface_routes_quotes._route_pool_has_complete_v4_identity(compact) is True
+
+
+def test_filter_quote_routes_with_complete_v4_pool_identity_drops_scanner_snapshot_routes():
+    pool_key = {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x" + "1" * 40,
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x0000000000000000000000000000000000000000",
+    }
+    good_route = {
+        "routeSymbols": ["ETH", "0X102154", "0X5884AD", "ETH"],
+        "routePools": [
+            {"poolId": "0x" + "a" * 64, "poolKey": pool_key},
+            {"poolId": "0x" + "b" * 64, "poolKey": pool_key},
+            {"poolId": "0x" + "c" * 64, "poolKey": pool_key},
+        ],
+    }
+    bad_route = {
+        "routeSymbols": ["ETH", "0X102154", "0X1FBE1A", "ETH"],
+        "routePools": [
+            {"poolId": "0x" + "d" * 64, "poolKey": pool_key},
+            {"poolId": "0x" + "e" * 64},
+            {"poolId": "0x" + "f" * 64, "poolKey": pool_key},
+        ],
+    }
+    payload = {
+        "snapshot": {
+            "payload": {
+                "routes": [good_route, bad_route],
+                "summary": {"routeCount": 2, "candidateRouteCount": 2, "chainReviewEligiblePathCount": 2},
+            }
+        }
+    }
+
+    dex_surface_routes_quotes.filter_quote_routes_with_complete_v4_pool_identity(payload)
+
+    routes = payload["snapshot"]["payload"]["routes"]
+    assert routes == [good_route]
+    summary = payload["snapshot"]["payload"]["summary"]
+    assert summary["routeCount"] == 1
+    assert summary["candidateRouteCount"] == 1
+    assert summary["chainReviewEligiblePathCount"] == 1

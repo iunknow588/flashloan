@@ -768,7 +768,12 @@
     const availableProtocols = unique(protocolOptionsList.map(function (item) {
       return item && item.protocol;
     }));
-    const normalizedProtocols = unique(selectedList.length ? selectedList : availableProtocols);
+    const selectedProtocolsFiltered = availableProtocols.length
+      ? unique(selectedList).filter(function (item) { return availableProtocols.includes(item); })
+      : unique(selectedList);
+    const normalizedProtocols = selectedProtocolsFiltered.length
+      ? selectedProtocolsFiltered
+      : availableProtocols;
     window.__FLASHLOAN_MARKET_SCOPE__ = {
       ...selected,
       protocol_options: protocolOptionsList,

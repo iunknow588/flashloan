@@ -290,7 +290,9 @@ def _review_route_identity(row: dict[str, Any], quote: dict[str, Any], live_evid
     )
     hops = _review_hops_from_attempt(row, quote, live_evidence)
     route_addresses, address_source = _review_route_addresses_from_attempt(row, quote, live_evidence, hops)
-    if not route_addresses:
+    route_symbol_set = {str(symbol).upper() for symbol in route_symbols}
+    has_weth_eth_symbol_route = {"WETH", "ETH"}.issubset(route_symbol_set)
+    if not route_addresses and not has_weth_eth_symbol_route:
         symbol_addresses = _review_route_addresses_from_symbols(route_symbols)
         if symbol_addresses:
             route_addresses = symbol_addresses

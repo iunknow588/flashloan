@@ -150,6 +150,7 @@ from market.binance_market.dex_surface_types import (
 )
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 from market.binance_market.dex_surface_overview import (
+    _candidate_pool_overview_profit,
     group_overview_paths_by_flash_loan_token,
     _overview_paths_from_static_summary,
     _overview_pool_payload_from_static_observation,
@@ -203,6 +204,17 @@ def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int |
 def _candidate_payload(chain_id: int | None, protocols: list[str] | None = None) -> dict[str, Any]:
     """Compatibility entrypoint that keeps old dex_surfaces monkeypatches working."""
     return dex_pool_candidates_payload(chain_id=chain_id, protocols=protocols or [])
+
+
+def _dex_table_route(route: dict[str, Any], observation: dict[str, Any]) -> dict[str, Any]:
+    """Tag a route with the DEX_TABLE provenance contract used by quote pages."""
+    return {
+        **route,
+        "tableSource": "dex_table",
+        "referencedTable": "ob_table",
+        "poolIndexVersion": observation.get("poolIndexVersion") or {},
+        "pathSource": "market_observation",
+    }
 
 
 def dex_market_observation_surface_payload(
@@ -271,6 +283,7 @@ def dex_overview_payload(
     if compact_snapshot.get("exists"):
         if compact_snapshot.get("closedLoopRouteSummaries"):
             overview_paths = _overview_paths_from_static_summary(compact_snapshot, chain_id=chain_id)
+            overview_paths = [_dex_table_route(route, compact_snapshot) for route in overview_paths]
             overview_path_groups = group_overview_paths_by_flash_loan_token(
                 overview_paths,
                 borrowable_symbols=compact_snapshot.get("borrowableSymbols") or [],
@@ -280,6 +293,9 @@ def dex_overview_payload(
                 "mode": "dex_overview",
                 "chain_id": chain_id,
                 "selected_protocols": protocols or [],
+                "tableSource": "dex_table",
+                "referencedTable": "ob_table",
+                "poolIndexVersion": compact_snapshot.get("poolIndexVersion") or {},
                 "summary": {
                     **(compact_snapshot.get("summary") or {}),
                     "arbitragePathCount": len(overview_paths),
@@ -331,7 +347,6 @@ def dex_overview_payload(
             source="cached_snapshot",
         )
         observation["marketObservationSnapshotKind"] = "dex_overview_compact"
-        pool_payload = _overview_pool_payload_from_static_observation(observation)
     elif use_compact_static_overview:
         # A legacy full snapshot can exceed 100 MB because it retains every
         # observed V4 pool. Do not parse or rebuild it inside a page request.
@@ -351,18 +366,16 @@ def dex_overview_payload(
                 "source": "overview_snapshot_pending",
             },
         }
-        pool_payload = _overview_pool_payload_from_static_observation(observation)
     else:
         observation = dex_market_observation_surface_payload(
             chain_id=chain_id,
             protocols=protocols,
             use_static_observation=use_static_observation,
         )
-        pool_payload = _candidate_payload(chain_id, protocols)
-    price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
+    price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
     frame_context = _route_framework_context_from_observation(
         observation,
-        pool_payload,
+        None,
         chain_id=chain_id,
         protocols=protocols,
     )
@@ -373,6 +386,7 @@ def dex_overview_payload(
     closed_loop_anchor_symbols = list(frame_context["closed_loop_anchor_symbols"])
     observation_anchor_symbols = list(frame_context["observation_anchor_symbols"])
     ready_paths = [_route_with_overview_profit(route, price_map=price_map, chain_id=chain_id) for route in ready_paths]
+    ready_paths = [_dex_table_route(route, observation) for route in ready_paths]
     overview_path_groups = group_overview_paths_by_flash_loan_token(
         ready_paths,
         borrowable_symbols=anchor_symbols or observation_anchor_symbols or closed_loop_anchor_symbols,
@@ -402,18 +416,15 @@ def dex_overview_payload(
         if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
         else "market_observation_closed_loop"
     )
-    if not used_market_observation:
-        decision_basis = (
-            "symbol_anchor_to_non_anchor_candidate_path"
-            if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
-            else "borrow_anchor_to_non_anchor_candidate_path"
-        )
     payload = {
         "mode": "dex_overview",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
+        "tableSource": "dex_table",
+        "referencedTable": "ob_table",
+        "poolIndexVersion": observation.get("poolIndexVersion") or {},
         "summary": {
-            **(pool_payload.get("summary") or {}),
+            **(observation.get("summary") or {}),
             "anchorBorrowSymbols": anchor_symbols,
             "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
             "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
@@ -424,7 +435,7 @@ def dex_overview_payload(
             "bridgePathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
             "overviewPathGroupCount": len(overview_path_groups),
             "watchPairCount": len(watch_pairs),
-            "marketObservationRouteCount": len(observation.get("closedLoopRoutes") or []),
+            "marketObservationRouteCount": len(ready_paths),
             "marketObservationSequenceCount": _int((observation.get("summary") or {}).get("observationSequenceCount")),
             "chainSpecificObservationPairCount": len(observation.get("chainSpecificObservationPairs") or []),
             "overviewProbeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
@@ -448,16 +459,16 @@ def dex_overview_payload(
         "decisionBasis": decision_basis,
         "marketObservationSource": market_observation_source,
         "marketObservationSourceStage": market_observation_source_stage,
-        "routeFrameworkSource": "market_observation" if used_market_observation else "candidate_pool_fallback",
+        "routeFrameworkSource": "market_observation",
         "marketObservation": {
             "summary": observation.get("summary") or {},
             "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
             "chainSpecificObservationPools": observation.get("chainSpecificObservationPools") or [],
         },
         "marketObservationSnapshotKind": observation.get("marketObservationSnapshotKind"),
-        "poolStaticTable": pool_payload.get("poolStaticTable") or {},
-        "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
-        "dexSettlement": pool_payload.get("dexSettlement") or {},
+        "poolStaticTable": observation.get("poolStaticTable") or {},
+        "flashLoanLiquidity": observation.get("flashLoanLiquidity") or {},
+        "dexSettlement": observation.get("dexSettlement") or {},
         "arbitragePaths": ready_paths,
         "arbitragePathGroups": overview_path_groups,
         "watchPairs": watch_pairs,
@@ -505,15 +516,12 @@ def dex_quote_routes_payload(
         protocols=protocols,
         use_static_observation=use_static_observation,
     )
-    pool_payload = _candidate_payload(chain_id, scope_protocols)
-    settlement = pool_payload.get("dexSettlement") or {}
-    price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
     if chain_id in _ROBINHOOD_CHAIN_IDS:
         payload = _quote_routes_payload_for_robinhood_family(
             chain_id=chain_id,
             protocols=scope_protocols,
             use_static_observation=use_static_observation,
-            price_map=price_map,
+            price_map=None,
             anchor=anchor,
         )
         payload["selected_protocols"] = protocols or scope_protocols
@@ -532,15 +540,16 @@ def dex_quote_routes_payload(
         protocols=scope_protocols,
         use_static_observation=use_static_observation,
     )
+    settlement = observation.get("dexSettlement") or {}
+    price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
     frame_context = _route_framework_context_from_observation(
         observation,
-        pool_payload,
+        None,
         chain_id=chain_id,
         protocols=scope_protocols,
     )
     overview = _quote_routes_overview_payload(
         observation=observation,
-        pool_payload=pool_payload,
         frame_context=frame_context,
         settlement=settlement,
     )
@@ -595,35 +604,39 @@ def _quote_routes_payload_for_robinhood_family(
     chain_id: int | None,
     protocols: list[str] | None,
     use_static_observation: bool,
-    price_map: dict[str, float],
+    price_map: dict[str, float] | None = None,
     anchor: str | None = None,
+    observation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     overview = None
-    observation = _cached_framework_surface_payload(
-        "dex_market_observation",
-        chain_id=chain_id,
-        protocols=protocols,
-        use_static_observation=use_static_observation,
-    )
+    if observation is None:
+        observation = _cached_framework_surface_payload(
+            "dex_market_observation",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
     if observation is None and use_static_observation:
         observation = dex_market_observation_surface_payload(
             chain_id=chain_id,
             protocols=protocols,
             use_static_observation=True,
         )
+    if price_map is None and observation is not None:
+        price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
+    if price_map is None:
+        price_map = {}
     if overview is None and observation is not None:
-        pool_payload = _candidate_payload(chain_id, protocols)
         frame_context = _route_framework_context_from_observation(
             observation,
-            pool_payload,
+            None,
             chain_id=chain_id,
             protocols=protocols,
         )
         overview = _quote_routes_overview_payload(
             observation=observation,
-            pool_payload=pool_payload,
             frame_context=frame_context,
-            settlement=pool_payload.get("dexSettlement") or {},
+            settlement=observation.get("dexSettlement") or {},
         )
     else:
         overview = _cached_surface_payload(
@@ -645,6 +658,17 @@ def _quote_routes_payload_for_robinhood_family(
                 protocols=protocols,
                 use_static_observation=use_static_observation,
             )
+    if observation is None:
+        observation = _cached_framework_surface_payload(
+            "dex_market_observation",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
+    if price_map is None and observation is not None:
+        price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
+    if price_map is None:
+        price_map = {}
     payload = _quote_routes_payload_from_overview(
         overview,
         chain_id=chain_id,
@@ -683,17 +707,18 @@ def _quote_routes_payload_for_robinhood_family(
 def _quote_routes_overview_payload(
     *,
     observation: dict[str, Any],
-    pool_payload: dict[str, Any],
     frame_context: dict[str, Any],
     settlement: dict[str, Any],
 ) -> dict[str, Any]:
     observation_summary = observation.get("summary") if isinstance(observation.get("summary"), dict) else {}
-    closed_loop_route_count = len(observation.get("closedLoopRoutes") or []) or int(
-        observation_summary.get("closedLoopRouteCount") or 0
-    )
+    overview_paths = frame_context.get("overview_paths") or []
+    closed_loop_route_count = len(overview_paths) or int(observation_summary.get("closedLoopRouteCount") or 0)
     return {
-        "arbitragePaths": frame_context["overview_paths"],
+        "arbitragePaths": [_dex_table_route(path, observation) for path in frame_context["overview_paths"]],
         "summary": {
+            "tableSource": "dex_table",
+            "referencedTable": "ob_table",
+            "poolIndexVersion": observation.get("poolIndexVersion") or {},
             "probeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
             "anchorBorrowSymbols": frame_context["anchor_symbols"],
             "closedLoopAnchorSymbols": frame_context["closed_loop_anchor_symbols"],
@@ -714,8 +739,11 @@ def _quote_routes_overview_payload(
         "marketObservationSourceStage": observation.get("marketObservationSourceStage")
         or observation.get("marketObservationSource")
         or "computed",
+        "tableSource": "dex_table",
+        "referencedTable": "ob_table",
+        "poolIndexVersion": observation.get("poolIndexVersion") or {},
         "dexSettlement": settlement,
-        "poolStaticTable": pool_payload.get("poolStaticTable") or {},
+        "poolStaticTable": observation.get("poolStaticTable") or {},
     }
 
 

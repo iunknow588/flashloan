@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -84,7 +86,7 @@ def _robinhood_v4_token_symbol(address: str, fallback: str = "", contracts: dict
     else:
         contracts = contracts if isinstance(contracts, dict) else {}
     if normalized == str(contracts.get("wrapped_native") or "").strip().lower():
-        return "WETH"
+        return "ETH"
     if normalized == str(contracts.get("usdg") or "").strip().lower():
         return "USDG"
     fallback_symbol = str(fallback or "").strip()
@@ -95,12 +97,8 @@ def _robinhood_v4_token_symbol(address: str, fallback: str = "", contracts: dict
     return str(address or "").upper()
 
 
-def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
-    """Collapse ETH-anchored V4 pools into a single ETH borrowable token.
-
-    The pool discovery page currently only needs to show ETH as the borrowable
-    token. Partner token symbols are kept behind the scenes as supporting evidence.
-    """
+def _mainnet_v4_anchor_assets() -> list[dict[str, Any]]:
+    """Return configured Robinhood mainnet V4 borrow/anchor assets."""
     try:
         chain_row = chain_data_by_network("robinhood") or {}
         contracts = chain_row.get("contracts")
@@ -108,75 +106,168 @@ def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[d
     except Exception:
         contracts = {}
     zero_address = "0x0000000000000000000000000000000000000000"
-    eth_addresses = {
-        zero_address,
-        str(contracts.get("wrapped_native") or "").strip().lower(),
-    }
-    eth_addresses.discard("")
-    zero_address = str(zero_address)
-    eth_row: dict[str, Any] | None = None
+    wrapped_native = str(contracts.get("wrapped_native") or "").strip().lower()
+    usdg = str(contracts.get("usdg") or "").strip().lower()
+    manifest = {}
+    try:
+        manifest_path = Path(__file__).resolve().parents[6] / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError):
+        manifest = {}
+    assets = [
+        {
+            "symbol": "ETH",
+            "address": zero_address,
+            "decimals": 18,
+            "stable": False,
+            "source": "chain.json.native_symbol",
+        },
+    ]
+    if wrapped_native:
+        assets.append(
+            {
+                "symbol": "ETH",
+                "address": wrapped_native,
+                "decimals": 18,
+                "stable": False,
+                "source": "chain.json.contracts.wrapped_native",
+            }
+        )
+    seen = {zero_address.lower(), wrapped_native.lower()}
+    if usdg and usdg not in seen:
+        assets.append({"symbol": "USDG", "address": usdg, "decimals": 6, "stable": True, "source": "chain.json.contracts.usdg"})
+        seen.add(usdg)
+    for raw in manifest.get("stableTokens") or [] if isinstance(manifest, dict) else []:
+        if not isinstance(raw, dict):
+            continue
+        symbol = str(raw.get("symbol") or "").strip().upper()
+        address = str(raw.get("address") or "").strip().lower()
+        try:
+            decimals = int(raw.get("decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        if symbol and address and address not in seen:
+            assets.append(
+                {
+                    "symbol": symbol,
+                    "address": address,
+                    "decimals": decimals,
+                    "stable": True,
+                    "source": f"mainnet-v4-amm-manifest.stableTokens.{symbol}",
+                }
+            )
+            seen.add(address)
+    tz = str(os.getenv("ROBINHOOD_MAINNET_TZ_ADDRESS") or (manifest.get("tz") if isinstance(manifest, dict) else "") or "").strip().lower()
+    if tz and tz not in seen:
+        assets.append(
+            {
+                "symbol": "TZ",
+                "address": tz,
+                "decimals": 18,
+                "stable": False,
+                "source": "mainnet-v4-amm-manifest.tz",
+            }
+        )
+        seen.add(tz)
+    return assets
+
+
+def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Collapse configured-anchor V4 pools into borrowable token rows.
+
+    The pool discovery page is config-driven: ETH, USDG, USDE, and TZ are the
+    mainnet anchors configured through chain.json and the mainnet-v4-amm
+    manifest. TA/TB remain bridge/middle tokens and do not get standalone
+    borrow assets.
+    """
+    try:
+        chain_row = chain_data_by_network("robinhood") or {}
+        contracts = chain_row.get("contracts")
+        contracts = contracts if isinstance(contracts, dict) else {}
+    except Exception:
+        contracts = {}
+    anchors = _mainnet_v4_anchor_assets()
+    anchor_rows: dict[str, dict[str, Any]] = {}
     total_pool_count = 0
+    seen_pool_ids: set[str] = set()
     for pool in pools:
         if not isinstance(pool, dict):
             continue
         pool_key = pool.get("poolKey")
         pool_key = pool_key if isinstance(pool_key, dict) else {}
-        token0_address = str(pool.get("token0") or pool_key.get("token0") or pool_key.get("currency0") or "").strip()
-        token1_address = str(pool.get("token1") or pool_key.get("token1") or pool_key.get("currency1") or "").strip()
+        token0_address = str(pool.get("token0") or pool_key.get("token0") or pool_key.get("currency0") or "").strip().lower()
+        token1_address = str(pool.get("token1") or pool_key.get("token1") or pool_key.get("currency1") or "").strip().lower()
         token0_symbol = _robinhood_v4_token_symbol(token0_address, pool.get("token0Symbol"), contracts=contracts) if token0_address else ""
         token1_symbol = _robinhood_v4_token_symbol(token1_address, pool.get("token1Symbol"), contracts=contracts) if token1_address else ""
-        token0_is_eth = token0_address.lower() in eth_addresses or token0_symbol.upper() in {"ETH", "WETH"}
-        token1_is_eth = token1_address.lower() in eth_addresses or token1_symbol.upper() in {"ETH", "WETH"}
-        eth_side_count = int(token0_is_eth) + int(token1_is_eth)
-        if eth_side_count == 0 or eth_side_count == 2:
-            continue
-        total_pool_count += 1
         pool_id = str(pool.get("poolId") or pool.get("pool") or pool.get("pool_id") or "").strip()
-        if eth_row is None:
-            eth_row = _asset_row(
-                {
-                    "token_symbol": "ETH",
-                    "binance_symbol": "ETH",
-                    "is_stable": False,
-                    "anchor_symbol": "ETH",
-                    "paired_symbol": "ETH",
-                    "depth_score_usd": 0.0,
-                    "available_liquidity": 0,
-                    "pool_count": 0,
-                    "token_address": zero_address,
-                    "pool_manager_address": pool.get("poolManager") or "",
-                    "fee": pool.get("fee") if pool.get("fee") is not None else pool_key.get("fee"),
-                    "dex": "uniswap_v4",
-                    "flash_capable": True,
-                    "flash_borrowable": False,
-                    "borrowable": False,
-                    "pool_role": "eth_only_v4_borrow_token",
-                    "decimals": 18,
-                    "observed_block": pool.get("initializeBlockNumber"),
-                    "pool_ids": [],
-                }
-            )
-        row = eth_row
-        row["pool_count"] = int(row.get("pool_count") or 0) + 1
+        matched_anchors = [
+            anchor
+            for anchor in anchors
+            if token0_address == anchor["address"].lower() or token1_address == anchor["address"].lower()
+        ]
+        if not matched_anchors:
+            continue
         if pool_id:
-            pool_ids = row.setdefault("pool_ids", [])
-            if len(pool_ids) < 16 and pool_id not in pool_ids:
-                pool_ids.append(pool_id)
-        for address, symbol, is_eth, decimals in (
-            (token0_address, token0_symbol, token0_is_eth, pool.get("token0Decimals")),
-            (token1_address, token1_symbol, token1_is_eth, pool.get("token1Decimals")),
-        ):
-            if is_eth or not symbol or symbol.upper() in {"ETH", "WETH"}:
-                continue
-            paired_symbols = row.setdefault("paired_symbols", [])
-            if symbol.upper() not in paired_symbols:
-                paired_symbols.append(symbol.upper())
-    assets = [eth_row] if eth_row is not None else []
+            first_time = pool_id not in seen_pool_ids
+            seen_pool_ids.add(pool_id)
+        else:
+            first_time = True
+        if first_time:
+            total_pool_count += 1
+        for anchor in matched_anchors:
+            row = anchor_rows.get(anchor["symbol"])
+            if row is None:
+                row = _asset_row(
+                    {
+                        "token_symbol": anchor["symbol"],
+                        "binance_symbol": anchor["symbol"],
+                        "is_stable": bool(anchor["stable"]),
+                        "anchor_symbol": anchor["symbol"],
+                        "paired_symbol": anchor["symbol"],
+                        "depth_score_usd": 0.0,
+                        "available_liquidity": 0,
+                        "pool_count": 0,
+                        "token_address": anchor["address"],
+                        "pool_manager_address": pool.get("poolManager") or "",
+                        "fee": pool.get("fee") if pool.get("fee") is not None else pool_key.get("fee"),
+                        "dex": "uniswap_v4",
+                        "flash_capable": True,
+                        "flash_borrowable": False,
+                        "borrowable": False,
+                        "pool_role": "configured_anchor_v4_borrow_token",
+                        "decimals": anchor["decimals"],
+                        "observed_block": pool.get("initializeBlockNumber"),
+                        "pool_ids": [],
+                    }
+                )
+                anchor_rows[anchor["symbol"]] = row
+            row["pool_count"] = int(row.get("pool_count") or 0) + 1
+            if pool_id:
+                pool_ids = row.setdefault("pool_ids", [])
+                if len(pool_ids) < 16 and pool_id not in pool_ids:
+                    pool_ids.append(pool_id)
+            for address, symbol in (
+                (token0_address, token0_symbol),
+                (token1_address, token1_symbol),
+            ):
+                if not symbol or symbol.upper() == anchor["symbol"].upper():
+                    continue
+                paired_symbols = row.setdefault("paired_symbols", [])
+                if symbol.upper() not in paired_symbols:
+                    paired_symbols.append(symbol.upper())
+    seen_anchor_symbols: set[str] = set()
+    assets = []
+    for anchor in anchors:
+        symbol = anchor["symbol"]
+        if symbol not in anchor_rows or symbol in seen_anchor_symbols:
+            continue
+        seen_anchor_symbols.add(symbol)
+        assets.append(anchor_rows[symbol])
     for asset in assets:
         asset["available_liquidity"] = float(asset.get("pool_count") or 0)
         asset["reserve_data_liquidity"] = 0
-        asset["source"] = "robinhood_mainnet_v4_pool_index_eth_only_token"
-        asset["depth_status"] = "initialized_unpriced_eth_pool"
+        asset["source"] = "robinhood_mainnet_v4_pool_index_configured_anchor_token"
+        asset["depth_status"] = "initialized_unpriced_anchor_pool"
         paired_symbols = asset.pop("paired_symbols", [])
         asset["paired_symbol_count"] = len(paired_symbols) if isinstance(paired_symbols, list) else int(paired_symbols or 0)
         if not _as_float(asset.get("depth_score_usd")):

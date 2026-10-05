@@ -17,6 +17,20 @@ from market.binance_market.dex_quote_route_common import (
 from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 
 
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    if pool.get("usableForObservation") is not None:
+        return bool(pool.get("usableForObservation"))
+    if pool.get("specialFee") or pool.get("dynamicFee"):
+        return False
+    has_liquidity = pool.get("hasLiquidity")
+    if has_liquidity is not None:
+        return bool(has_liquidity)
+    try:
+        return float(pool.get("liquidityIndex") or pool.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def _build_quote_routes_and_best(
     *,
     paths: list[dict[str, Any]],
@@ -48,6 +62,8 @@ def _build_quote_routes_and_best(
 
     matched_route_index = 0
     for path in paths:
+        if path.get("routeUsableForObservation") is False:
+            continue
         if not route_live_test_policy.matches_anchor(path):
             continue
         matched_route_index += 1
@@ -60,6 +76,8 @@ def _build_quote_routes_and_best(
             _framework_route_pools(route),
             index_by_pool=v4_index_by_pool,
         )
+        if path.get("routeUsableForObservation") is True:
+            pools = [pool for pool in pools if _pool_usable_for_observation(pool)]
         base_quote_analysis = route.get("quoteAnalysis") or route.get("overviewProfit") or {}
         quote_analysis = build_quote_analysis_defaults(
             quote_analysis=base_quote_analysis,
@@ -106,8 +124,15 @@ def _build_quote_routes_and_best(
             )
         else:
             quote_inputs = dict(route.get("quoteInputs") or {})
+        path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
+        source_table = str(route.get("tableSource") or overview.get("tableSource") or "").strip()
+        chain_review_eligible = bool(
+            str(path_source or "").strip() == "market_observation"
+            and source_table in {"", "dex_table"}
+        )
         should_run_live_route = bool(
-            pools
+            chain_review_eligible
+            and pools
             and (
                 route_live_test_policy.force_live_refresh
                 or (
@@ -156,7 +181,6 @@ def _build_quote_routes_and_best(
                     price_evidence_mode=recommended_analysis.get("priceEvidenceMode"),
                     notional_usd=quote_probe_notional_usd,
                 )
-        path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
         route_payload = build_quote_route_payload(
             route=route,
             route_symbols=route_symbols,
@@ -167,10 +191,15 @@ def _build_quote_routes_and_best(
             size_analysis=size_analysis,
             chain_id=chain_id,
             path_source=path_source,
+            chain_review_eligible=chain_review_eligible,
             settlement=settlement,
             price_evidence_source=quote_analysis.get("priceEvidenceSource"),
             price_evidence_mode=quote_analysis.get("priceEvidenceMode"),
         )
+        route_payload["chainReviewEligible"] = bool(
+            chain_review_eligible and route_payload.get("tableSource") == "dex_table"
+        )
+        route_payload["diagnosticOnly"] = not route_payload["chainReviewEligible"]
         route_quote_analysis = route_payload.get("quoteAnalysis")
         if isinstance(route_quote_analysis, dict) and not route_quote_analysis.get("steps"):
             route_quote_analysis["steps"] = _static_hop_steps(

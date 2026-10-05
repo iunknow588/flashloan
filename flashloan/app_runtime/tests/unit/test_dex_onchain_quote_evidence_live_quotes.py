@@ -1,5 +1,6 @@
 import runtime.dex_onchain_quote_evidence as dex_onchain_quote_evidence
 import dex.runtime.dex_onchain_quote_evidence as dex_onchain_quote_evidence_runtime
+import dex.runtime.dex_opportunity_route_runner as dex_opportunity_route_runner
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, _unsupported_evidence
 from runtime.dex_opportunity_helpers import _merge_onchain_evidence_into_route
 from runtime.dex_opportunity_scanner import _scanner_onchain_evidence_provider
@@ -518,7 +519,7 @@ def test_scanner_liquidity_retry_uses_confirmed_cost_model_best_amount(monkeypat
             },
         }
 
-    monkeypatch.setattr(dex_opportunity_scanner, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
+    monkeypatch.setattr(dex_opportunity_route_runner, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
     route = {
         "routeSymbols": ["TSLA", "0X71178B", "0XF91173", "TSLA"],
         "quoteAnalysis": {"steps": []},

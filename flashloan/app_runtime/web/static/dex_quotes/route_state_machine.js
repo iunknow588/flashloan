@@ -307,19 +307,33 @@ const setRouteUiState = (route, nextState, meta = {}) => {
   return route;
 };
 
-const estimateBestAmountHint = ({amount, symbol, initialAmount, initialSymbol}) => {
-  if (Number.isFinite(Number(initialAmount)) && Math.abs(Number(amount) - Number(initialAmount)) / Number(initialAmount) > 0.01) {
-    return `量级提示=链下估算初始量 ${amount} ${symbol}；初始探测 ${initialAmount} ${initialSymbol} 只是起点，最终最佳量由链上复核确认`;
+const hintAmountText = value => {
+  const parsed = Number(value);
+  if (value === null || value === undefined || value === "" || String(value).trim() === "-" || !Number.isFinite(parsed)) {
+    return "未计算";
   }
-  return `量级提示=链下估算初始量 ${amount} ${symbol}；仅作为链上合约初始值，最佳量由链上复核确认`;
+  return parsed.toLocaleString("en-US", { maximumFractionDigits: 8 });
+};
+
+const hintAmountPart = (value, symbol) => {
+  const text = hintAmountText(value);
+  return text === "未计算" ? text : `${text} ${symbol || ""}`.trim();
+};
+
+const estimateBestAmountHint = ({amount, symbol, initialAmount, initialSymbol}) => {
+  if (Number.isFinite(Number(initialAmount)) && Number(initialAmount) > 0
+      && Math.abs(Number(amount) - Number(initialAmount)) / Number(initialAmount) > 0.01) {
+    return `量级提示=链下估算初始量 ${hintAmountPart(amount, symbol)}；初始探测 ${hintAmountPart(initialAmount, initialSymbol)} 只是起点，最终最佳量由链上复核确认`;
+  }
+  return `量级提示=链下估算初始量 ${hintAmountPart(amount, symbol)}；仅作为链上合约初始值，最佳量由链上复核确认`;
 };
 
 const preflightBestAmountHint = ({amount, symbol}) => {
-  return `量级提示=本次链上复核确认最佳交易量 ${amount} ${symbol}；当前未执行链上交易。`;
+  return `量级提示=本次链上复核确认最佳交易量 ${hintAmountPart(amount, symbol)}；当前未执行链上交易。`;
 };
 
 const executionBestAmountHint = ({amount, symbol}) => {
-  return `量级提示=本次链上执行选用金额为 ${amount} ${symbol}`;
+  return `量级提示=本次链上执行选用金额为 ${hintAmountPart(amount, symbol)}`;
 };
 
 const bestAmountHint = ({evidence, analysis, amount, symbol, initialAmount, initialSymbol, executionCount = 0, stage = "estimate"}) => {
@@ -366,7 +380,14 @@ const estimateStageQuoteStatus = ({pending, terminalStatus, evidenceStatus}) => 
 
 const preflightStageQuoteStatus = ({pending, terminalStatus, evidenceStatus}) => {
   if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
-  if (terminalStatus === "preflight_failed") return "链上复核失败";
+  if (terminalStatus === "preflight_failed") {
+    const evidenceValue = String(evidenceStatus || "").trim();
+    if (evidenceValue && String(evidenceValue).toLowerCase() !== "preflight_failed") {
+      const statusText = evidenceStatusEx(evidenceValue);
+      if (statusText !== "链上复核状态未确认") return statusText;
+    }
+    return "链上复核失败";
+  }
   if (pending) return "链上复核待开始";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);
   return "链上复核完成";
@@ -387,7 +408,14 @@ const estimateStageResultStatus = ({pending, terminalStatus, evidenceStatus}) =>
 
 const preflightStageResultStatus = ({pending, terminalStatus, evidenceStatus}) => {
   if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
-  if (terminalStatus === "preflight_failed") return "链上复核失败";
+  if (terminalStatus === "preflight_failed") {
+    const evidenceValue = String(evidenceStatus || "").trim();
+    if (evidenceValue && String(evidenceValue).toLowerCase() !== "preflight_failed") {
+      const statusText = evidenceStatusEx(evidenceValue);
+      if (statusText !== "链上复核状态未确认") return statusText;
+    }
+    return "链上复核失败";
+  }
   if (pending) return "待链上复核";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);
   return "链上复核完成";

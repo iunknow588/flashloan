@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlsplit
 
 from flask import request
@@ -7,6 +8,7 @@ from flask import request
 from core.chain_data_registry import default_flash_loan_pool_scope, default_market_id_for_feature
 from core.chain_route_selector import (
     build_chain_selection_payload,
+    chain_dex_arbitrage_protocols,
     feature_from_page_path,
 )
 from core.chain_selection import (
@@ -21,6 +23,8 @@ from market.binance_market.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _request_chain_id() -> int | None:
@@ -94,8 +98,8 @@ def validate_explicit_request_scope() -> dict[str, object] | None:
             values["chain_id"] = str(resolved.chain_id or "")
             values["network"] = str(resolved.network or "")
             values["protocol"] = str(resolved.protocol or "")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("failed to resolve market_id chain selection: %s", exc)
     # Without a chain selector there is no safe feature default to resolve
     # against. Keep the API boundary fail-closed for unknown/partial scopes;
     # chain-qualified requests may still be completed by the route registry.
@@ -115,11 +119,30 @@ def resolve_request_chain_selection(
     default_market_id: str | None = None,
     selections: list[ChainSelection] | None = None,
 ) -> ChainSelection:
+    def supported_dex_protocol_id(protocol_id: str | None) -> str | None:
+        if not protocol_id:
+            return protocol_id
+        requested_feature = str(feature or "").strip().lower()
+        if requested_feature != "dex_arbitrage":
+            return protocol_id
+        chain_id = _request_chain_id()
+        if chain_id is None:
+            return protocol_id
+        supported = set(chain_dex_arbitrage_protocols(chain_id))
+        if protocol_id in supported:
+            return protocol_id
+        requested_protocols = request.args.get("protocols", "").replace("|", ",")
+        for item in requested_protocols.split(","):
+            normalized = item.strip().lower()
+            if normalized in supported:
+                return normalized
+        return None
+
     return resolve_chain_selection(
         market_id=request.args.get("market_id", "").strip() or None,
         chain_id=_request_chain_id(),
         feature=feature or request.args.get("feature", "").strip() or None,
-        protocol_id=_request_protocol_id(),
+        protocol_id=supported_dex_protocol_id(_request_protocol_id()),
         database_url=database_url,
         default_market_id=default_market_id,
         selections=selections,

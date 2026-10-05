@@ -3,7 +3,7 @@ import pytest
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
-from market.binance_market import dex_quote_surface
+from market.binance_market import dex_quote_surface_helpers
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
@@ -1002,7 +1002,7 @@ def test_robinhood_testnet_route_step_preserves_pool_key_fields():
 
 
 def test_framework_route_pools_merges_shallow_candidate_with_full_route_pool():
-    merged = dex_quote_surface._framework_route_pools(
+    merged = dex_quote_surface_helpers._framework_route_pools(
         {
             "routePools": [
                 {
@@ -1035,7 +1035,7 @@ def test_framework_route_pools_merges_shallow_candidate_with_full_route_pool():
 
 
 def test_framework_route_pools_enriches_stale_shallow_pool_from_v4_index_lookup():
-    enriched = dex_quote_surface._enrich_route_pools_from_index(
+    enriched = dex_quote_surface_helpers._enrich_route_pools_from_index(
         [
             {
                 "pool": "0xabcd",

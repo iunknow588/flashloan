@@ -145,6 +145,12 @@ def static_snapshot_from_observation(
     )
     snapshot["borrowableSymbols"] = list(observation.get("borrowableSymbols") or anchors)
     snapshot["observationAnchorSymbols"] = list(observation.get("observationAnchorSymbols") or anchors)
+    snapshot["anchorGroups"] = list(observation.get("anchorGroups") or [])
+    snapshot["pairs"] = list(observation.get("pairs") or [])
+    snapshot["bridgePairs"] = list(observation.get("bridgePairs") or [])
+    snapshot["tableSource"] = observation.get("tableSource") or "ob_table"
+    snapshot["referencedTable"] = observation.get("referencedTable") or "ch_table"
+    snapshot["poolIndexVersion"] = observation.get("poolIndexVersion") or {}
     snapshot["chainSpecificObservationPairs"] = [
         _compact_observation_pair(pair)
         for pair in observation.get("chainSpecificObservationPairs") or []
@@ -167,10 +173,20 @@ def overview_snapshot_from_observation(snapshot: dict[str, Any]) -> dict[str, An
         for sequence in snapshot.get("observationSequences") or []
         if isinstance(sequence, dict)
     ]
-    for key in ("borrowableSymbols", "observationAnchorSymbols", "chainSpecificObservationPairs"):
+    for key in (
+        "borrowableSymbols",
+        "observationAnchorSymbols",
+        "anchorGroups",
+        "pairs",
+        "bridgePairs",
+        "chainSpecificObservationPairs",
+    ):
         value = snapshot.get(key)
         if isinstance(value, list):
             overview[key] = value
+    overview["tableSource"] = snapshot.get("tableSource") or "ob_table"
+    overview["referencedTable"] = snapshot.get("referencedTable") or "ch_table"
+    overview["poolIndexVersion"] = snapshot.get("poolIndexVersion") or {}
     for key in PERSISTED_DICT_KEYS:
         value = snapshot.get(key)
         if isinstance(value, dict):
@@ -388,20 +404,15 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
     for key in LIST_KEYS:
         if not isinstance(payload.get(key), list):
             payload[key] = []
-    payload["observationSequences"] = _observation_sequences_from_observation(payload)
-    payload["observationSequences"] = _hydrate_route_pools_from_registry(
-        payload["observationSequences"],
-        payload.get("poolRegistry") or snapshot.get("poolRegistry") or {},
-    )
-    payload["poolRegistry"] = _pool_registry_from_sequences(payload["observationSequences"])
-    payload["closedLoopRoutes"] = _closed_routes_from_sequences(payload["observationSequences"])
-    payload["indirectRoutes"] = [
-        route for route in payload["closedLoopRoutes"]
-        if route.get("kind") == "bridge_closed_loop"
-    ]
+    # Market observation only prepares YC/ZC candidate sets; closed-loop route
+    # reconstruction is owned by the DEX overview stage.
+    payload["observationSequences"] = []
+    payload["closedLoopRoutes"] = []
+    payload["indirectRoutes"] = []
+    payload["poolRegistry"] = {}
     payload["candidateObservationGroups"] = _candidate_groups_from_sequences(
         payload.get("candidateObservationGroups") or payload.get("anchorGroups") or [],
-        payload["observationSequences"],
+        [],
         [
             _text(symbol).upper()
             for symbol in (
@@ -420,9 +431,6 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
         for group in payload.get("candidateObservationGroups") or []:
             if isinstance(group, dict) and _text(group.get("anchorSymbol")):
                 anchor_set.add(_text(group.get("anchorSymbol")).upper())
-        for sequence in payload["observationSequences"]:
-            if isinstance(sequence, dict) and _text(sequence.get("anchorSymbol")):
-                anchor_set.add(_text(sequence.get("anchorSymbol")).upper())
         anchors = sorted(anchor_set)
         payload["observationAnchorSymbols"] = anchors
     if not payload.get("borrowableSymbols"):

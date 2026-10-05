@@ -3,7 +3,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import logging
+import json
 import os
+from pathlib import Path
 import time
 from typing import Any
 
@@ -15,6 +17,250 @@ from dex.runtime.dex_opportunity_helpers import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _workspace_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def _token_address(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if not lowered.startswith("0x"):
+        return ""
+    try:
+        int(lowered, 16)
+    except ValueError:
+        return ""
+    return lowered
+
+
+def _pool_token_address_for_symbol(pool: dict[str, Any], symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    if not normalized or not isinstance(pool, dict):
+        return ""
+    for index in (0, 1):
+        token_symbol = str(pool.get(f"token{index}Symbol") or "").strip().upper()
+        if token_symbol == normalized:
+            return _token_address(pool.get(f"token{index}") or "")
+    pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
+    for index in (0, 1):
+        token_symbol = str(pool_key.get(f"token{index}Symbol") or "").strip().upper()
+        if token_symbol == normalized:
+            return _token_address(pool_key.get(f"token{index}") or "")
+    for token in pool.get("tokens") or []:
+        if not isinstance(token, dict):
+            continue
+        if str(token.get("symbol") or "").strip().upper() == normalized:
+            return _token_address(token.get("address") or token.get("token") or "")
+    return ""
+
+
+def _infer_route_addresses_from_pools(route: dict[str, Any]) -> dict[str, Any]:
+    """Fill route token addresses from V4 pool keys when route metadata lost them.
+
+    Mainnet pool index entries frequently include `poolKey.token0/token1` with
+    symbols while the market-observation route path only carried symbols.  The
+    quote/route surface needs concrete addresses to run the live V4 Quoter and
+    to keep evidence merging stable, so we repair the path from the route pools
+    before on-chain review is attempted.
+    """
+    if not isinstance(route, dict):
+        return route
+    symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
+    if len(symbols) < 4:
+        return route
+    existing_addresses = _route_addresses_from_route(route)
+    if len(existing_addresses) == len(symbols) and all(existing_addresses):
+        return route
+    pools = [pool for pool in (route.get("routePools") or []) if isinstance(pool, dict)]
+    if len(pools) < len(symbols) - 1:
+        return route
+    inferred: list[str] = []
+    for index, symbol in enumerate(symbols):
+        existing = existing_addresses[index] if index < len(existing_addresses) else ""
+        if existing:
+            inferred.append(existing)
+            continue
+        hop_index = min(index, len(pools) - 1)
+        address = _pool_token_address_for_symbol(pools[hop_index], symbol)
+        if not address and index > 0:
+            address = _pool_token_address_for_symbol(pools[index - 1], symbol)
+        inferred.append(address)
+    if not all(inferred):
+        return route
+    route_tokens = [
+        {"symbol": symbol, "address": inferred[index]}
+        for index, symbol in enumerate(symbols)
+    ]
+    route["routeAddresses"] = inferred
+    route["addressPair"] = " -> ".join(inferred)
+    route["routeTokenPath"] = route_tokens
+    overview_route = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+    overview_route = {**overview_route, "pathAddresses": inferred, "pathTokens": route_tokens, "pathAddressText": " -> ".join(inferred)}
+    route["overviewRoute"] = overview_route
+    linkage = route.get("flashLoanLinkage") if isinstance(route.get("flashLoanLinkage"), dict) else {}
+    if linkage:
+        route["flashLoanLinkage"] = {
+            **linkage,
+            "borrow_tokens": [inferred[0]],
+            "route_addresses": inferred,
+        }
+    return route
+
+
+def _has_live_verified_evidence(route: dict[str, Any]) -> bool:
+    if not isinstance(route, dict):
+        return False
+    evidence = route.get("live_onchain_evidence") if isinstance(route.get("live_onchain_evidence"), dict) else {}
+    if not evidence:
+        analysis = route.get("quoteAnalysis")
+        evidence = analysis.get("live_onchain_evidence") if isinstance(analysis, dict) and isinstance(analysis.get("live_onchain_evidence"), dict) else {}
+    if str(evidence.get("status") or "").strip().lower() != "live_verified":
+        return False
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    try:
+        profit = float(costs.get("netProfitAmount") or 0)
+        amount = float(costs.get("selectedBorrowInputAmount") or costs.get("borrowInputAmount") or 0)
+    except (TypeError, ValueError):
+        return False
+    return bool(evidence.get("hops")) and amount > 0
+
+
+def _has_preserved_manifest_evidence(route: dict[str, Any]) -> bool:
+    if not isinstance(route, dict):
+        return False
+    evidence = route.get("live_onchain_evidence") if isinstance(route.get("live_onchain_evidence"), dict) else {}
+    if not evidence:
+        analysis = route.get("quoteAnalysis")
+        evidence = analysis.get("live_onchain_evidence") if isinstance(analysis, dict) and isinstance(analysis.get("live_onchain_evidence"), dict) else {}
+    status = str(evidence.get("status") or "").strip().lower()
+    source = str(evidence.get("quoteBlockSource") or "").strip().lower()
+    if status not in {"live_verified", "static_reference_pending_live_review"}:
+        return False
+    if status == "static_reference_pending_live_review" and "mainnet_v4_manifest_initial_probe" not in source:
+        return False
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    return bool(evidence.get("hops")) and costs.get("profitable") in (True, None)
+
+
+def _mainnet_last_arb_live_test(chain_id: int | None) -> dict[str, Any] | None:
+    if int(chain_id or 0) != 4663:
+        return None
+    manifest_path = _workspace_root() / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    official = manifest.get("officialV4") if isinstance(manifest.get("officialV4"), dict) else {}
+    record = official.get("lastArbLiveTest")
+    return record if isinstance(record, dict) else None
+
+
+def _manifest_live_evidence_for_route(chain_id: int | None) -> dict[str, Any] | None:
+    record = _mainnet_last_arb_live_test(chain_id)
+    if not record:
+        return None
+    route_symbols = [str(s).upper() for s in (record.get("routeSymbols") or record.get("selectedRouteSymbols") or []) if str(s).strip()]
+    if len(route_symbols) < 4:
+        return None
+    raw_amount_in = int(record.get("amountInRaw") or record.get("amountIn") or 0)
+    raw_final = int(record.get("finalAmountRaw") or 0)
+    raw_profit = int(record.get("profitRaw") or 0)
+    amount_human = float(record.get("selectedAmount") or (raw_amount_in / 10**18 if raw_amount_in else 0))
+    final_human = float(raw_final) / 10**18 if raw_final else float(raw_profit) / 10**18
+    profit_human = float(raw_profit) / 10**18 if raw_profit else 0.0
+    if amount_human <= 0:
+        amount_human = 1.0
+    bps = round(profit_human / amount_human * 10000, 2) if amount_human else 0
+    hops: list[dict[str, Any]] = []
+    for step in record.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        hop_index = int(step.get("hop") or len(hops) + 1)
+        if hop_index < 1 or hop_index >= len(route_symbols):
+            continue
+        hops.append(
+            {
+                "hop": hop_index,
+                "fromSymbol": route_symbols[hop_index - 1],
+                "toSymbol": route_symbols[hop_index],
+                "poolKey": step.get("poolKey") or {},
+                "pool": step.get("pool") or "",
+                "poolId": step.get("poolId") or step.get("pool") or "",
+                "amountIn": str(step.get("amountInRaw") or ""),
+                "amountOut": str(step.get("amountOutRaw") or ""),
+                "amountInRaw": str(step.get("amountInRaw") or ""),
+                "amountOutRaw": str(step.get("amountOutRaw") or ""),
+                "gasEstimateRaw": str(step.get("gasEstimateRaw") or ""),
+                "zeroForOne": bool(step.get("zeroForOne")),
+            }
+        )
+    return {
+        "evidenceVersion": 1,
+        "observedAt": record.get("runAt") or "",
+        "network": "robinhood",
+        "chainId": 4663,
+        "status": "static_reference_pending_live_review",
+        "executionTrust": "initial_probe_onchain_reference",
+        "trustedForExecution": False,
+        "readyForTransactionPreflight": False,
+        "profitable": bool(record.get("profitable")) or raw_profit > 0,
+        "livePriceVerified": True,
+        "bestAmountConfirmed": False,
+        "bestAmountMissing": True,
+        "blockNumber": None,
+        "quoteBlockSource": "mainnet_v4_manifest_initial_probe",
+        "routeSymbols": route_symbols,
+        "hops": hops,
+        "costModel": {
+            "borrowInputSymbol": route_symbols[0],
+            "finalOutputSymbol": route_symbols[-1],
+            "requestedBorrowInputAmount": amount_human,
+            "selectedBorrowInputAmountReason": "chain_onchain_initial_probe_reference_only",
+            "bestAmountConfirmed": False,
+            "bestAmountMissing": True,
+            "finalOutputAmount": final_human,
+            "netProfitAmount": profit_human,
+            "netProfitBps": bps,
+            "netProfitAmountBps": bps,
+            "profitable": bool(record.get("profitable")) or raw_profit > 0,
+            "readyForTransactionPreflight": False,
+        },
+        "blockers": [],
+    }
+
+
+def _merge_manifest_live_evidence_into_routes(
+    routes: list[dict],
+    *,
+    chain_id: int,
+) -> list[dict]:
+    if int(chain_id or 0) != 4663:
+        return routes
+    evidence = _manifest_live_evidence_for_route(chain_id)
+    if not isinstance(evidence, dict) or not evidence.get("hops"):
+        return routes
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        current = route.get("live_onchain_evidence") if isinstance(route.get("live_onchain_evidence"), dict) else {}
+        current_status = str(current.get("status") or "").strip().lower()
+        if current_status in {
+            "live_verified",
+            "not_enough_liquidity",
+            "pool_not_initialized",
+            "pool_insufficient_for_profitable_execution",
+            "route_unprofitable",
+        }:
+            continue
+        symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
+        if [str(s).upper() for s in symbols] != evidence.get("routeSymbols"):
+            continue
+        _merge_onchain_evidence_into_route(route, evidence)
+    return routes
 
 
 def _number_or_none(value: Any) -> float | None:
@@ -196,6 +442,8 @@ def _merge_recent_attempt_evidence_into_routes(
         if existing_status == attempt_status and existing_status in terminal_replace_statuses:
             continue
         if existing_status in {"requires_live_quoter", "not_live_verified", "", "rpc_verification_failed", "rpc_verification_timeout"}:
+            _merge_onchain_evidence_into_route(route, evidence)
+        elif existing_status == "static_reference_pending_live_review" and attempt_status in terminal_replace_statuses:
             _merge_onchain_evidence_into_route(route, evidence)
         elif existing_status in terminal_replace_statuses and attempt_status in terminal_replace_statuses:
             _merge_onchain_evidence_into_route(route, evidence)
@@ -443,7 +691,7 @@ def _live_quote_deferred_route(
             or quote_analysis.get("referenceInputAmount")
             or size_analysis.get("recommendedBorrowInputAmount")
             or size_analysis.get("tokenAmountSteps", [None])[0]
-            or 1000
+            or 1.0
         )
         if amount <= 0:
             amount = 1.0
@@ -510,6 +758,11 @@ def _reference_only_live_quote_context(*, disable_live: bool):
 
 
 __all__ = [
+    "_infer_route_addresses_from_pools",
+    "_has_live_verified_evidence",
+    "_has_preserved_manifest_evidence",
+    "_manifest_live_evidence_for_route",
+    "_merge_manifest_live_evidence_into_routes",
     "_live_quote_deferred_route",
     "_merge_live_route_estimate",
     "_merge_recent_attempt_evidence_into_routes",

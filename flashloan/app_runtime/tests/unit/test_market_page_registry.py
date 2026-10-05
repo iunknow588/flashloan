@@ -19,8 +19,8 @@ def test_generic_dex_page_defaults_to_registry_dex_scope():
     variant = resolve_market_page_variant("/dex")
 
     assert variant is not None
-    assert variant.market_id == CANONICAL_ROBINHOOD_DEX
-    assert variant.chain_id == 4663
+    assert variant.market_id == CANONICAL_ROBINHOOD_TESTNET_DEX
+    assert variant.chain_id == 46630
 
 
 def test_robinhood_dex_page_keeps_robinhood_shadow_default():

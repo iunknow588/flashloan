@@ -10,9 +10,23 @@ from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
 from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.error_registry import ErrorCode
 from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
 from dex.runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from dex.runtime.dex_onchain_quote_evidence import _complete_route_steps, _pool_map
+
+
+def _structured_dex_error(message: object, *, flow: str, node_id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "module": "DEX",
+            "code": int(ErrorCode.DEX_INTERNAL),
+            "flow": flow,
+            "nodeId": node_id,
+            "message": str(message or "")[:500],
+        }
+    ]
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

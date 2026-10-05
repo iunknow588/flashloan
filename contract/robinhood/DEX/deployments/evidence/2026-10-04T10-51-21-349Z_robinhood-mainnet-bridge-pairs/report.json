@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "robinhood-mainnet-bridge-pairs-readonly-v1",
+  "chainId": 4663,
+  "route": [
+    "ETH",
+    "USDE",
+    "USDG",
+    "ETH"
+  ],
+  "addresses": [
+    "0x0000000000000000000000000000000000000000",
+    "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+    "0x5fc5360d0400a0fd4f2af552add04d716f1d168",
+    "0x0000000000000000000000000000000000000000"
+  ],
+  "profitable": false,
+  "broadcast": false,
+  "ok": false,
+  "detail": "missing_route_pool_key",
+  "missingHops": "hops 2,3",
+  "note": "no V4 Quoter call attempted because one or more hops are absent from the mainnet v4_pool_index evidence"
+}

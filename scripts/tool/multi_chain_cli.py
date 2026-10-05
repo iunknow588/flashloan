@@ -105,6 +105,37 @@ def run_mainnet_refresh_v4_index(chain_id: int) -> int:
     return subprocess.run(cmd, cwd=str(ROOT), env=env, check=False).returncode
 
 
+def run_mainnet_make_arb(chain_id: int, *, amount: str | None = None, broadcast: bool = False) -> int:
+    """Create an imbalance on the Robinhood mainnet test triangle.
+
+    Uses the same OfficialV4ImbalanceMaker flow as the testnet tooling but
+    pointed at the mainnet manifest and chain config.  ``broadcast`` controls
+    whether an on-chain transaction is sent; without it the script only runs a
+    read-only staticCall preflight.
+    """
+    cfg = chain_config(chain_id)
+    env = set_chain_env(chain_id)
+    amount = amount or os.getenv("ROBINHOOD_MAINNET_MAKE_ARB_AMOUNT", "0.001")
+    node_args = [
+        str(TEST_TOKEN_TOOL_DIR / "testnet-v4-official-make-arb-opportunity-live.js"),
+        "--amount",
+        amount,
+    ]
+    if broadcast:
+        node_args.append("--broadcast")
+    env["ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST"] = "true" if broadcast else "false"
+    env["ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST"] = "true" if broadcast else "false"
+    env["ROBINHOOD_OFFICIAL_ARB_MAKER_ROUTE_ORDER"] = "ta,tb"
+    env["ROBINHOOD_OFFICIAL_ARB_MAKER_DIRECTIONS"] = "true,false,true"
+    print(f"\n>>> node {' '.join(map(str, node_args))}\n", flush=True)
+    return subprocess.run(
+        [os.environ.get("NODE", "node"), *node_args],
+        cwd=cfg["contract_project"],
+        env=env,
+        check=False,
+    ).returncode
+
+
 def run_testnet_menu(chain_id: int, *, rpc_url: str | None = None, choice: int | None = None) -> int:
     if chain_id != 46630:
         raise SystemExit(f"testnet V4 tool menu requires chain 46630; got {chain_id}")
@@ -395,12 +426,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="pass a menu choice directly to the testnet V4 menu when using --action testnet-menu",
     )
     parser.add_argument(
+        "--amount",
+        default=None,
+        help="TZ amount used by --action mainnet-make-arb",
+    )
+    parser.add_argument(
+        "--broadcast",
+        action="store_true",
+        help="allow --action mainnet-make-arb to send an on-chain transaction",
+    )
+    parser.add_argument(
         "--action",
         choices=[
             "web",
             "mainnet-preflight",
             "mainnet-bridge-pairs",
             "mainnet-refresh-v4-index",
+            "mainnet-make-arb",
             "testnet-menu",
             "local-menu",
             "tests",
@@ -429,6 +471,9 @@ def main() -> int:
     if args.action in {"mainnet-preflight", "mainnet-bridge-pairs", "mainnet-refresh-v4-index"} and args.chain != 4663:
         print(f"error: {args.action} requires chain 4663; got {args.chain}", file=sys.stderr)
         return 2
+    if args.action == "mainnet-make-arb" and args.chain != 4663:
+        print(f"error: mainnet-make-arb requires chain 4663; got {args.chain}", file=sys.stderr)
+        return 2
     if args.action == "testnet-menu" and args.chain != 46630:
         print(f"error: testnet-menu requires chain 46630; got {args.chain}", file=sys.stderr)
         return 2
@@ -444,6 +489,8 @@ def main() -> int:
             return run_mainnet_bridge_pairs(args.chain)
         if args.action == "mainnet-refresh-v4-index":
             return run_mainnet_refresh_v4_index(args.chain)
+        if args.action == "mainnet-make-arb":
+            return run_mainnet_make_arb(args.chain, amount=args.amount, broadcast=args.broadcast)
         if args.action == "testnet-menu":
             return run_testnet_menu(args.chain, rpc_url=args.rpc_url, choice=args.choice)
         if args.action == "local-menu":

@@ -56,7 +56,7 @@ def _candidate_group_matches(group: dict, query: str) -> bool:
             if isinstance(item, dict)
         ],
         *[
-            " ".join(str(part or "") for part in (row.get("pool"), row.get("routeText"), row.get("counterSymbol"), row.get("counterAddress"), row.get("protocol"), row.get("fee")))
+            " ".join(str(part or "") for part in (row.get("pool"), row.get("routeText"), row.get("counterSymbol"), row.get("counterAddress"), row.get("protocol"), row.get("fee"), row.get("feeLabel"), row.get("dynamicFee"), row.get("specialFee")))
             for row in [*(group.get("ycPools") or []), *(group.get("zcPools") or []), *(group.get("sharedPools") or [])]
             if isinstance(row, dict)
         ],
@@ -174,13 +174,21 @@ def request_protocols_arg() -> list[str]:
 
 
 def request_dex_protocols_arg() -> list[str]:
-    protocols = [protocol for protocol in request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
-    if protocols:
-        return protocols
-    chain_selection = _request_chain_selection_or_default()
+    from core.chain_route_selector import chain_dex_arbitrage_protocols
+
+    chain_selection, chain_id = selected_chain_id_from_request()
+    supported = set(chain_dex_arbitrage_protocols(chain_id))
+    requested_dex = [protocol for protocol in request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
+    protocols = [
+        protocol
+        for protocol in requested_dex
+        if not supported or protocol in supported
+    ]
+    if requested_dex:
+        return protocols or requested_dex
     if isinstance(chain_selection, dict):
         configured = str(chain_selection.get("protocol") or chain_selection.get("protocol_id") or "").strip().lower()
-        if configured and configured in DEX_QUOTE_PROTOCOLS:
+        if configured and configured in DEX_QUOTE_PROTOCOLS and (not supported or configured in supported):
             return [configured]
     return []
 

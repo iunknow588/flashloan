@@ -39,6 +39,7 @@
     "v2_factory": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
     "uniswap_v2_pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
     "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "usde": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
     "usdc": "",
     "unified_executor": "",
     "owner": ""
@@ -63,8 +64,8 @@
   },
   "flash_loan": {
     "default_protocols": ["uniswap_v4"],
-    "candidate_protocols": ["uniswap_v4"],
-    "supported_protocol_count": 1
+    "candidate_protocols": ["morpho_blue", "aave_v3", "uniswap_v2", "uniswap_v3", "uniswap_v4"],
+    "supported_protocol_count": 5
   },
   "data_files": {
     "flash_liquidity": "runtime/cache/robinhood/flash_loan_pool_discovery_snapshot.json",

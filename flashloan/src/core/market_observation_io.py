@@ -16,6 +16,8 @@ LIST_KEYS = (
     "anchorGroups",
     "candidateObservationGroups",
     "observationSequences",
+    "pairs",
+    "bridgePairs",
     "directPools",
     "closedLoopRoutes",
     "indirectRoutes",
@@ -31,6 +33,8 @@ PERSISTED_LIST_KEYS = (
     "observationAnchorSymbols",
     "candidateObservationGroups",
     "observationSequences",
+    "pairs",
+    "bridgePairs",
     "chainSpecificObservationPairs",
 )
 

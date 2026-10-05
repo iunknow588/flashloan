@@ -1,0 +1,198 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEX 报价与路由</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1420px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 8px; font-size: 16px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    button.copy-btn { min-height: 30px; border-color: #d0d5dd; background: #fff; color: #344054; font-size: 12px; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .route { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .group-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .group-card { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 12px; }
+    .group-card h3 { margin: 0 0 6px; font-size: 15px; }
+    .group-card small { color: #667085; }
+    .group-card strong { display: block; margin-top: 6px; font-size: 13px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .metric span, .muted { color: #667085; font-size: 13px; }
+    .route { margin-bottom: 12px; }
+    .route-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .route-test { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; padding: 10px; border: 1px solid #e4e7ec; border-radius: 6px; background: #fafafa; }
+    .route-test input { min-height: 36px; width: 160px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 0 10px; font-size: 13px; }
+    .route-test button { min-height: 32px; font-size: 12px; }
+    .route-test-result { flex: 1 1 100%; overflow-wrap: anywhere; color: #667085; font-size: 12px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
+    .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
+    .badge.bad { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .analysis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+    .analysis div { border: 1px solid #e4e7ec; border-radius: 6px; padding: 8px; background: #fafafa; }
+    .analysis small { display: block; color: #667085; margin-bottom: 4px; }
+    .analysis strong { font-size: 14px; }
+    .table-wrap { overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .recommendation, .onchain-evidence { margin-top: 10px; padding: 10px; border-radius: 6px; border: 1px solid #e4e7ec; background: #f8fafc; }
+    .onchain-evidence { display: grid; gap: 5px; border-color: #fecaca; background: #fff7f7; }
+    .onchain-evidence.good { border-color: #bbf7d0; background: #f0fdf4; }
+    .evidence-error { color: #b91c1c; font-weight: 700; overflow-wrap: anywhere; }
+    .error-chain { margin-top: 4px; padding-left: 4px; border-left: 3px solid #b91c1c; font-size: 12px; }
+    .error-chain ol { margin: 4px 0 0 0; padding-left: 18px; }
+    .error-chain li { margin: 2px 0; overflow-wrap: anywhere; }
+    ol { margin: 8px 0 0 18px; padding: 0; color: #344054; line-height: 1.55; }
+    .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
+    .pool-group { margin-bottom: 18px; border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 12px; }
+    .pool-group > header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .pool-group h2 { margin: 0; font-size: 15px; }
+    .pool-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .pool-chip { border: 1px solid #d9dee7; border-radius: 6px; background: #f8fafc; padding: 4px 8px; font-size: 12px; color: #344054; }
+    .pool-chip small { display: block; color: #667085; }
+    .route-in-group { border-top: 1px solid #e4e7ec; padding: 10px 0; }
+    .route-in-group + .route-in-group { margin-top: 8px; }
+    .route-in-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .route-in-summary .path-text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+    .route-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .route-actions input { min-height: 30px; width: 110px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+    .route-actions button { min-height: 30px; font-size: 12px; padding: 0 10px; }
+    .route-hop-line { margin-top: 6px; color: #344054; font-size: 12px; overflow-wrap: anywhere; }
+    .route-metric-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; color: #667085; font-size: 12px; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } .pool-group > header { display: block; } }
+  </style>
+</head>
+<body data-dex-surface-template="quotes" data-page-surface="quotes">
+<style id="flashloan-app-shell-style">
+  body:not(.embedded) { padding-top: 96px !important; padding-left: 246px !important; }
+  body:not(.embedded) > header { display: none !important; }
+  body.embedded { padding: 0 !important; }
+  body.app-shell-framed > :not([data-app-shell="true"]):not(.app-shell-content-frame):not(script):not(style) { display: none !important; }
+  [data-app-shell="true"] { position: fixed; inset: 0 0 auto 0; z-index: 1000; font-family: Arial, "Microsoft YaHei", sans-serif; }
+  .app-shell-content-frame { position: fixed; top: 96px; left: 246px; right: 0; bottom: 0; z-index: 1; width: calc(100% - 246px); height: calc(100vh - 96px); border: 0; background: #f6f7f9; }
+  .app-shell-topbar { min-height: 96px; display: grid; grid-template-columns: minmax(0, 20fr) minmax(0, 25fr) minmax(0, 25fr) minmax(0, 30fr); grid-template-rows: auto; align-items: start; gap: 8px 18px; padding: 10px 36px 12px; background: #101828; color: #fff; box-shadow: 0 1px 5px rgba(16,24,40,.2); }
+  .app-shell-selector { display: contents; }
+  .app-shell-feature-control { grid-column: 1; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }
+  .app-shell-dex-strategy-control { grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }
+  .app-shell-dex-strategy-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box; border: 1px solid #667085; border-radius: 5px; padding: 0 10px; background: #fff; color: #101828; font-weight: 700; }
+  .app-shell-dex-strategy-meta { width: 100%; min-width: 0; min-height: 18px; display: flex; align-items: center; gap: 6px; color: #f2f4f7; font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-dex-strategy-name { flex: 0 0 auto; min-width: 0; display: block; color: #f2f4f7; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-dex-strategy-desc { flex: 1 1 auto; min-width: 0; display: block; color: #d0d5dd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-chain-control { grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }
+  .app-shell-protocol-control { grid-column: 4; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; overflow: hidden; }
+  .app-shell-protocol-line { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 38px; }
+  .app-shell-protocol-label { flex: 0 0 auto; color: #98a2b3; font-size: 11px; line-height: 1; white-space: nowrap; }
+  .app-shell-control-line { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 38px; }
+  .app-shell-label { flex: 0 0 auto; color: #98a2b3; font-size: 11px; white-space: nowrap; }
+  .app-shell-feature-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box; border: 1px solid #667085; border-radius: 5px; padding: 0 10px; background: #fff; color: #101828; font-weight: 700; }
+  .app-shell-feature-meta { width: 100%; min-width: 0; min-height: 18px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-chain-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box; border: 1px solid #667085; border-radius: 5px; padding: 0 10px; background: #fff; color: #101828; font-weight: 700; }
+  .app-shell-selector-meta { width: 100%; min-width: 0; min-height: 18px; display: flex; justify-content: flex-start; align-items: center; gap: 8px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-selector-meta [data-chain-selection-meta] { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell-gate { color: #fdb022; font-size: 11px; white-space: nowrap; }
+  .app-shell-protocols { display: flex; flex-wrap: nowrap; justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .app-shell-protocols::-webkit-scrollbar { display: none; }
+  .app-shell-protocols-meta { width: 100%; min-width: 0; min-height: 18px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; height: 24px; min-height: 24px; box-sizing: border-box; line-height: 1; padding: 0 7px; border: 1px solid #5b6678; border-radius: 5px; background: #263244; color: #eef4ff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .app-shell-protocols .protocol-chip input { flex: 0 0 auto; width: 13px; height: 13px; margin: 0; }
+  .app-shell-protocols .cow-network-chip { gap: 3px; height: 20px; min-height: 20px; padding: 0 5px; font-size: 9px; line-height: 1; }
+  .app-shell-protocols .cow-network-chip input { width: 10px; height: 10px; }
+  .app-shell-protocols .protocol-chip.active { border-color: #7dd3a8; background: #2d6f66; color: #f4fffb; }
+  .app-shell-sidebar { position: fixed; top: 96px; bottom: 0; left: 0; width: 246px; overflow-y: auto; padding: 16px 12px 24px; background: #fff; border-right: 1px solid #d9dee7; }
+  .app-shell-group { margin-bottom: 18px; }
+  .app-shell-group-title { margin: 0 8px 6px; color: #667085; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .app-shell-link { display: block; padding: 9px 10px; border-radius: 5px; color: #344054; text-decoration: none; font-size: 13px; font-weight: 700; }
+  .app-shell-link:hover { background: #f2f4f7; color: #0f766e; }
+  .app-shell-link.active { background: #e6f4f1; color: #0f766e; }
+  .app-shell-subnav { margin: 3px 0 0 12px; padding-left: 9px; border-left: 1px solid #d9dee7; }
+  .app-shell-sublink { display: block; padding: 6px 8px; border-radius: 5px; color: #475467; text-decoration: none; font-size: 12px; font-weight: 700; }
+  .app-shell-sublink:hover { background: #f2f4f7; color: #0f766e; }
+  .app-shell-sublink.active { background: #e6f4f1; color: #0f766e; }
+  .app-shell-subnote { display: block; padding: 6px 8px; color: #98a2b3; font-size: 12px; }
+  @media (max-width: 900px) {
+    body:not(.embedded) { padding-left: 0 !important; padding-top: 280px !important; }
+    .app-shell-topbar { min-height: 280px; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 6px; padding-left: 18px; padding-right: 18px; }
+    .app-shell-selector { display: grid; grid-column: 1; grid-row: 1 / 4; grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; width: 100%; }
+    .app-shell-feature-control { grid-column: 1; grid-row: 1; justify-content: flex-start; }
+    .app-shell-dex-strategy-control { grid-column: 1; grid-row: 2; justify-content: flex-start; }
+    .app-shell-dex-strategy-control select { width: auto; min-width: 0; }
+    .app-shell-chain-control { grid-column: 1; grid-row: 3; justify-content: flex-start; }
+    .app-shell-protocol-control { grid-column: 1; grid-row: 4; justify-content: flex-start; }
+    .app-shell-protocol-line { min-height: 32px; }
+    .app-shell-selector-meta { justify-content: flex-start; }
+    .app-shell-feature-control select { width: auto; min-width: 0; }
+    .app-shell-chain-control select { width: auto; min-width: 0; }
+    .app-shell-sidebar { top: 280px; width: 100%; height: auto; max-height: 52px; padding: 5px 8px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }
+    .app-shell-content-frame { top: 332px; left: 0; width: 100%; height: calc(100vh - 332px); }
+    .app-shell-group { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 0 0; }
+    .app-shell-group-title { margin: 0 4px; }
+    .app-shell-link { display: inline-block; padding: 6px 8px; }
+    .app-shell-subnav { display: inline-flex; align-items: center; gap: 4px; margin: 0; padding-left: 0; border-left: 0; }
+    .app-shell-sublink { display: inline-block; padding: 6px 8px; }
+  }
+</style>
+
+<div data-app-shell="true" data-shell-path="/dex/quotes" data-shell-feature="dex_arbitrage">
+  <div class="app-shell-topbar">
+    <div class="app-shell-selector" data-chain-selector="true" data-global-chain-selector="true" data-chain-selector-component="true"><div class="app-shell-feature-control" data-feature-selector="true"><div class="app-shell-control-line"><span class="app-shell-label">功能域</span><select data-feature-selector-select="true" aria-label="切换功能域"><option value="liquidation">BOT</option><option value="dex_arbitrage" selected>DEX</option></select></div><div class="app-shell-feature-meta" data-feature-selection-meta>当前功能域 DEX</div></div><div class="app-shell-dex-strategy-control" data-dex-strategy-selector="true" data-dex-strategy-component="true"><div class="app-shell-control-line"><span class="app-shell-label">策略</span><select data-dex-strategy-select="true" aria-label="Select DEX strategy" aria-describedby="app-shell-dex-strategy-summary"><option value="binance_velocity" title="每 200ms 以币安行情涨跌幅筛选差异最大的代币池。 | /binance-market">Binance 速度策略</option><option value="closed_loop_routes" selected title="直接扫描所有闭环链路，实时复核可套利机会。 | /dex">闭环扫描策略</option></select></div><div class="app-shell-dex-strategy-meta" id="app-shell-dex-strategy-summary" data-dex-strategy-meta aria-live="polite" aria-atomic="true" title="closed_loop_routes | /dex"><span class="app-shell-dex-strategy-name" data-dex-strategy-name>闭环扫描策略</span><span class="app-shell-dex-strategy-desc" data-dex-strategy-description>直接扫描所有闭环链路，实时复核可套利机会。</span></div></div><div class="app-shell-chain-control"><div class="app-shell-control-line"><span class="app-shell-label">链路</span><select data-chain-selector-select="true" data-chain-selector-signature="chain:43114|chain:56|chain:137|chain:1|chain:4663|chain:46630|network:hyperliquid|chain:0" aria-label="Select chain"><option value="chain:43114" title="curve, traderjoe_v2, uniswap_v3 | dex-arbitrage-43114-uniswap-v3 | dex-arbitrage-43114-uniswap-v3">AVALANCHE Chain / ID 43114</option><option value="chain:56" title="biswap_v2, pancakeswap_v2, pancakeswap_v3 | dex-arbitrage-56-pancakeswap-v3 | dex-arbitrage-56-pancakeswap-v3">BNB Chain / ID 56</option><option value="chain:137" title="balancer_v2, quickswap_v2, uniswap_v3 | dex-arbitrage-137-uniswap-v3 | dex-arbitrage-137-uniswap-v3">POLYGON Chain / ID 137</option><option value="chain:1" title="balancer_v2, uniswap_v2, uniswap_v3 | dex-arbitrage-1-uniswap-v3 | dex-arbitrage-1-uniswap-v3">ETHEREUM Chain / ID 1</option><option value="chain:4663" selected title="uniswap_v4 | dex-arbitrage-4663-uniswap-v4 | dex-arbitrage-4663-uniswap-v4">Robinhood Chain / ID 4663</option><option value="chain:46630" title="uniswap_v4 | dex-arbitrage-46630-uniswap-v4 | dex-arbitrage-46630-uniswap-v4">Robinhood Testnet / ID 46630</option><option value="network:hyperliquid" title="链路 | dex-arbitrage-hyperliquid-hyperliquid-native | dex-arbitrage-hyperliquid-hyperliquid-native">HYPERLIQUID Chain</option><option value="chain:0" title="cow_protocol | dex-arbitrage-0-cow-protocol | dex-arbitrage-0-cow-protocol">CoW Rail / ID 0</option></select></div><div class="app-shell-selector-meta"><span data-chain-selection-meta>Loading</span><span class="app-shell-gate" data-shell-gate>Reading execution gate</span></div></div><div class="app-shell-protocol-control"><div class="app-shell-protocol-line"><div class="app-shell-protocol-label">资金协议</div><div class="app-shell-protocols" data-chain-selection-options="true" aria-live="polite"></div></div><div class="app-shell-protocols-meta" data-chain-selection-options-meta>Loading</div></div></div>
+  </div>
+  <aside class="app-shell-sidebar" aria-label="业务流程导航">
+    <section class="app-shell-group"><h2 class="app-shell-group-title">DEX 套利</h2><a class="app-shell-link active" href="/dex?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/dex">报价与路由</a><a class="app-shell-link" href="/dex/overview?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/dex/overview">DEX 总览</a><a class="app-shell-link" href="/dex/market-observation?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/dex/market-observation">市场观察</a><a class="app-shell-link" href="/dex/candidates?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/dex/candidates">候选池</a><a class="app-shell-link" href="/dex/submissions?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/dex/submissions">提交记录</a></section><section class="app-shell-group"><h2 class="app-shell-group-title">闪电贷</h2><a class="app-shell-link" href="/flash-loan/pools?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4" data-shell-link="/flash-loan/pools">资金池</a><div class="app-shell-subnav" data-flash-loan-protocol-nav="true"><a class="app-shell-sublink" href="/flash-loan/pools?chain_id=4663&protocols=uniswap_v4" data-flash-loan-protocol-link="uniswap_v4">Uniswap V4</a></div></section><section class="app-shell-group"><h2 class="app-shell-group-title">系统与分析</h2><a class="app-shell-link" href="/ops?chain_id=4663&feature=dex_arbitrage" data-shell-link="/ops">运行监控</a><a class="app-shell-link" href="/settings?chain_id=4663&feature=dex_arbitrage" data-shell-link="/settings">系统配置</a><a class="app-shell-link" href="/analytics/exchange-matrix?chain_id=4663&feature=dex_arbitrage" data-shell-link="/analytics/exchange-matrix">兑换矩阵</a><a class="app-shell-link" href="/analytics/opportunity-health?chain_id=4663&feature=dex_arbitrage" data-shell-link="/analytics/opportunity-health">机会健康诊断</a></section>
+  </aside>
+</div>
+<script>window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-4663-uniswap-v4",chain_id:"4663"};</script><script src="/static/chain-selector.js"></script><script>window.ChainSelector && window.ChainSelector.init({feature: "dex_arbitrage", defaultMarketId: "dex-arbitrage-4663-uniswap-v4", includeChainConfig: false}).catch(function(error){console.error("chain selector:", error);});</script><script>window.__DEX_STRATEGY_DEFAULT__={strategyKey:"closed_loop_routes",strategyPath:"/dex",currentStrategyKey:"closed_loop_routes"};</script><script src="/static/dex-strategy-selector.js"></script><script>window.DexStrategySelector && window.DexStrategySelector.init({feature:"dex_arbitrage",selectedStrategyKey:"closed_loop_routes",selectedStrategyPath:"/dex",currentStrategyKey:"closed_loop_routes"}).catch(function(error){console.error("dex strategy selector:", error);});</script><script>window.__DEX_PROVENANCE__={"staticFrameworkSources":["market_observation","cached_snapshot","generated_live_snapshot","refreshed_live_snapshot"],"staticFrameworkLabel":"静态框架","candidateFrameworkSource":"candidate_pool_fallback","candidateFrameworkLabel":"候选框架","computedFrameworkSource":"computed","computedFrameworkLabel":"链上重算","marketObservationSourceStageLabels":{"cached_snapshot":"缓存静态快照","generated_live_snapshot":"实时生成快照","refreshed_live_snapshot":"实时刷新快照","computed":"链上重算","dex_market_observation_payload":"观察载荷","market_observation":"市场观察框架"},"priceEvidenceSourceLabels":{"chain_live_quote":"链上实时报价","cached_framework_live_confirmation":"静态框架 + 实时复核","chain_live_quote_required":"链上实时复核","framework_reused_live_confirmation":"静态框架 + 实时复核","live_quoter_required":"需要链上 Quoter","reference_price_requires_live_quoter":"参考价需要链上 Quoter","static_reference_probe":"静态探针"},"priceEvidenceModeLabels":{"framework_reused_live_confirmation":"静态框架复核","live_required":"需要链上复核","live_verified":"实时价格已验证","reference_only":"参考价"}};</script><script src="/static/dex-provenance.js"></script><script src="/static/app-shell.js"></script><script src="/static/workflow-context.js"></script><script>(function(){window.addEventListener("workflowcontextready",function(event){var c=event.detail&&event.detail.context||{};var e=document.querySelector("[data-shell-gate]");if(e)e.textContent=(c.execution_gate&&c.execution_gate.broadcast_enabled)?"链上执行开关已开启":"链上执行开关未授权";});window.addEventListener("chainselectionready",function(event){var p=event.detail||{};var e=document.querySelector("[data-shell-gate]");if(e&&p.selected)e.title=(p.selected.market_id||"")+" / "+(p.selected.chain_id||"");});})();</script>
+  <header>
+    <h1>DEX 报价与路由</h1>
+    <nav>
+      <a data-surface-link href="/dex">报价</a>
+      <a data-surface-link href="/dex/overview">总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
+      <a data-surface-link href="/dex/submissions">提交记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn" type="button">刷新路由</button>
+      <button id="resetStatsBtn" type="button">清零统计</button>
+      <label for="refreshInterval">刷新间隔（秒）</label>
+      <input id="refreshInterval" type="number" min="10" max="3600" step="1" value="180" inputmode="numeric">
+      <label><input id="autoExecuteToggle" type="checkbox"> 自动扫描复核并进行链上广播</label>
+      <span id="message" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="metric"><small>路线数量</small><strong id="routeCount">-</strong><span id="routeSourceMeta">市场观察</span></div>
+      <div class="metric"><small>1000U 探测</small><strong id="completeCount">-</strong><span id="probeMeta">链上 AMM 验证</span></div>
+      <div class="metric"><small>链上复核候选</small><strong id="readyCount">-</strong><span id="profitMeta">已扣除闪电贷和 Gas 成本</span></div>
+      <div class="metric"><small>可自动执行闭环</small><strong id="autoExecutableCount">-</strong><span id="autoExecutableMeta">链上复核通过且可盈利</span></div>
+      <div class="metric"><small>链上复核总数</small><strong id="reviewedCount">-</strong><span id="reviewedMeta">本轮已完成链上复核</span></div>
+      <div class="metric"><small>闭环扫描</small><strong id="closedLoopScanCount">-</strong><span id="closedLoopScanMeta">累计已完成闭环刷新</span></div>
+      <div class="metric"><small>链上复核次数</small><strong id="closedLoopReviewCount">-</strong><span id="closedLoopReviewMeta">累计链上复核尝试</span></div>
+      <div class="metric"><small>正盈利空间</small><strong id="profitableCount">-</strong><span id="profitableMeta">链上复核正收益</span></div>
+      <div class="metric"><small>已自动执行</small><strong id="autoExecutedCount">-</strong><span id="autoExecutedMeta">已广播链上交易</span></div>
+      <div class="metric"><small>上链广播</small><strong id="autoBroadcastCount">-</strong><span id="autoBroadcastMeta">累计已广播链上交易</span></div>
+      <div class="metric"><small>正在排队</small><strong id="queueCount">-</strong><span id="queueMeta">待复核/待扫描</span></div>
+      <div class="metric"><small>结算</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
+    </section>
+    <section id="groupList" class="group-panel"></section>
+    <section id="routeList"></section>
+  </main>
+  <script src="/static/dex_quotes/route_state_machine.js"></script>
+  <script src="/static/dex_quotes/route_offchain.js"></script>
+  <script src="/static/dex_quotes/route_preflight.js"></script>
+  <script src="/static/dex_quotes/route_execution.js"></script>
+  <script src="/static/dex_quotes/quotes_render.js"></script>
+  <script src="/static/dex_quotes/quotes_app.js"></script>
+</body>
+</html>

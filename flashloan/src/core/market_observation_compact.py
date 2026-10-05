@@ -68,6 +68,10 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
         "protocol",
         "dex",
         "fee",
+        "dynamicFee",
+        "specialFee",
+        "feeLabel",
+        "usableForObservation",
         "quality",
         "classification",
         "balances",
@@ -76,6 +80,17 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
         "tick",
         "sqrtPriceX96",
         "liquidity",
+        "liquidityIndex",
+        "hasLiquidity",
+        "estimatedTvlUsd",
+        "token0Reserve",
+        "token1Reserve",
+        "liquiditySource",
+        "liquidityReadAt",
+        "liquidityBlockNumber",
+        "liquidityError",
+        "depthStatus",
+        "depthBand",
         "token0",
         "token1",
         "token0Decimals",
@@ -99,6 +114,7 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
         "hooks",
         "source",
         "evidence",
+        "recentSwapActive",
     )
     return {key: step[key] for key in keys if key in step}
 
@@ -192,7 +208,15 @@ def _compact_observation_pair(pair: dict[str, Any]) -> dict[str, Any]:
         "directSwapPoolCount",
         "closedLoopRoutePreviews",
     )
-    return {key: pair[key] for key in keep if key in pair}
+    compact = {key: pair[key] for key in keep if key in pair}
+    direct_swap_pools = [
+        _compact_direct_swap_pool(pool)
+        for pool in pair.get("directSwapPools") or pair.get("pools") or []
+        if isinstance(pool, dict)
+    ]
+    if direct_swap_pools:
+        compact["directSwapPools"] = direct_swap_pools
+    return compact
 
 
 def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
@@ -245,6 +269,41 @@ def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compact_direct_swap_pool(pool: dict[str, Any]) -> dict[str, Any]:
+    """Keep only pool identity and display fields for associated pairs."""
+    keys = (
+        "pool",
+        "poolId",
+        "poolIdentityMode",
+        "protocol",
+        "dex",
+        "fee",
+        "dynamicFee",
+        "specialFee",
+        "feeLabel",
+        "tickSpacing",
+        "hooks",
+        "tick",
+        "sqrtPriceX96",
+        "liquidity",
+        "balances",
+        "depthBand",
+        "depthStatus",
+        "recentSwapActive",
+        "closedLoopReady",
+        "role",
+        "token0",
+        "token1",
+        "token0Decimals",
+        "token1Decimals",
+        "token0Symbol",
+        "token1Symbol",
+        "symbolPair",
+        "addressPair",
+    )
+    return {key: pool[key] for key in keys if key in pool}
+
+
 def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
     route_pools = [
         _compact_route_pool(step)
@@ -293,6 +352,24 @@ def _is_closed_loop_sequence(sequence: dict[str, Any]) -> bool:
     return bool(symbols) and len(symbols) >= 4 and symbols[0] == symbols[-1]
 
 
+def _sequence_liquidity_score(sequence: dict[str, Any]) -> float:
+    """Prefer the route-pool variant that carries live liquidity evidence."""
+    score = 0.0
+    for step in sequence.get("routePools") or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("hasLiquidity") is True:
+            score += 1.0
+        try:
+            if float(str(step.get("liquidityIndex") or step.get("liquidity") or "0")) > 0:
+                score += 1.0
+        except (TypeError, ValueError):
+            pass
+        if step.get("depthStatus") in {"liquid", "thin", "deep", "no_liquidity"}:
+            score += 0.1
+    return score
+
+
 def _observation_sequences_from_observation(observation: dict[str, Any]) -> list[dict[str, Any]]:
     sequences = [
         _compact_observation_sequence(sequence)
@@ -306,18 +383,16 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         if isinstance(route, dict)
     ]
     if sequences:
-        seen: set[tuple[str, tuple[str, ...]]] = set()
-        deduped: list[dict[str, Any]] = []
+        best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
         for sequence in sequences:
             if not _is_closed_loop_sequence(sequence):
                 continue
             identity = _closed_loop_dedup_key(sequence)
             if not identity:
                 continue
-            if identity in seen:
-                continue
-            seen.add(identity)
-            deduped.append(sequence)
+            current = best.get(identity)
+            if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
+                best[identity] = sequence
         for route in route_sources:
             sequence = _sequence_from_route(route)
             if not _is_closed_loop_sequence(sequence):
@@ -325,13 +400,14 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
             if len(sequence.get("routePools") or []) < 3:
                 continue
             identity = _closed_loop_dedup_key(sequence)
-            if identity in seen:
+            if not identity:
                 continue
-            seen.add(identity)
-            deduped.append(sequence)
+            current = best.get(identity)
+            if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
+                best[identity] = sequence
+        deduped = list(best.values())
         return deduped
-    seen: set[tuple[str, tuple[str, ...]]] = set()
-    recovered: list[dict[str, Any]] = []
+    best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
     for route in route_sources:
         sequence = _sequence_from_route(route)
         if not _is_closed_loop_sequence(sequence):
@@ -339,10 +415,12 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         if len(sequence.get("routePools") or []) < 3:
             continue
         identity = _closed_loop_dedup_key(sequence)
-        if identity in seen:
+        if not identity:
             continue
-        seen.add(identity)
-        recovered.append(sequence)
+        current = best.get(identity)
+        if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
+            best[identity] = sequence
+    recovered = list(best.values())
     return recovered
 
 

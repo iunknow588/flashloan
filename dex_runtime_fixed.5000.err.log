@@ -1,0 +1,46 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.4:5000
+Press CTRL+C to quit
+127.0.0.1 - - [04/Oct/2026 21:48:27] "GET /dex/market-observation?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:48:34] "GET /api/dex/market-observation?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:51:48] "GET /api/dex/market-observation?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:32] "GET /dex/candidates?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:32] "GET /static/chain-selector.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:32] "GET /static/workflow-context.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:32] "GET /static/app-shell.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:33] "GET /static/dex-strategy-selector.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:33] "GET /static/dex-provenance.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:36] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [04/Oct/2026 21:55:39] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&default_market_id=dex-arbitrage-4663-uniswap-v4&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:39] "GET /api/dex/strategy?page_path=/dex/candidates&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:44] "GET /api/dex-pools/candidates?chain_id=4663&dex_strategy=closed_loop_routes&market_id=dex-arbitrage-4663-uniswap-v4&feature=dex_arbitrage&page=1&page_size=20&quality=all HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:46] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [04/Oct/2026 21:55:47] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [04/Oct/2026 21:55:50] "GET /dex/submissions?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:50] "GET /api/chain-selection?page_path=/dex/submissions&feature=dex_arbitrage&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:51] "GET /dex/candidates?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:51] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:51] "GET /static/dex-provenance.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:51] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:51] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:54] "GET /dex/candidates?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:54] "GET /static/dex-provenance.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:54] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:54] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:55:54] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:55] "GET /api/workflow-context?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1&page_path=/dex/candidates HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:56] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&default_market_id=dex-arbitrage-4663-uniswap-v4&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:55:59] "GET /api/dex-pools/candidates?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1&feature=dex_arbitrage&page=1&page_size=20&quality=all HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:56:06] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [04/Oct/2026 21:56:08] "GET /api/chain-selection?page_path=/dex/market-observation&feature=dex_arbitrage&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:56:08] "GET /dex/market-observation?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:56:08] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:56:08] "GET /static/dex-provenance.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:56:08] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [04/Oct/2026 21:56:09] "GET /api/workflow-context?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1&page_path=/dex/market-observation HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:56:11] "GET /api/chain-selection?page_path=/dex/market-observation&feature=dex_arbitrage&default_market_id=dex-arbitrage-4663-uniswap-v4&include_chain_config=false&market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 21:56:13] "GET /api/dex/market-observation?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4&embed=1 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 22:01:18] "GET /api/dex/market-observation?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Oct/2026 22:03:52] "GET /api/dex/market-observation?chain_id=4663&market_id=dex-arbitrage-4663-uniswap-v4&dex_strategy=closed_loop_routes&protocols=uniswap_v4 HTTP/1.1" 200 -

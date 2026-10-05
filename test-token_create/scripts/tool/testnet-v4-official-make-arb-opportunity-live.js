@@ -24,6 +24,12 @@ function readBoolArg(name, fallback) {
   return fallback;
 }
 
+function readDirections(value) {
+  return String(value || "true,false,false")
+    .split(",")
+    .map((item) => item.trim().toLowerCase() === "true");
+}
+
 function readManifest() {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
 }
@@ -93,7 +99,24 @@ async function main() {
   console.log(`  poolManager=${poolManagerAddress}`);
   console.log(`  amountIn=${ethers.formatUnits(amountIn, 18)} tz`);
 
-  const routeAddresses = [tz, ta, tb, tz];
+  const routeOrder = readArg(
+    "route-order",
+    process.env.ROBINHOOD_OFFICIAL_ARB_MAKER_ROUTE_ORDER || "ta,tb"
+  )
+    .split(",")
+    .map((item) => item.trim().toLowerCase());
+  const routeBySymbol = {
+    tz,
+    ta,
+    tb,
+  };
+  const midTokens = routeOrder.map((symbol) => {
+    if (!routeBySymbol[symbol]) {
+      throw new Error(`unknown route-order symbol ${symbol}; expected tz,ta,tb`);
+    }
+    return routeBySymbol[symbol];
+  });
+  const routeAddresses = [tz, midTokens[0], midTokens[1], tz];
   const explicitPoolKeysJson = readArg(
     "pool-keys-json",
     process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_POOL_KEYS_JSON || ""
@@ -103,8 +126,13 @@ async function main() {
     explicitPoolKeysJson,
     { fee, tickSpacing, hooks }
   );
-  const directions = [true, false, false];
-  console.log("reverse circular route (TZ -> TA -> TB -> TZ):");
+  const directions = readDirections(
+    readArg(
+      "directions",
+      process.env.ROBINHOOD_OFFICIAL_ARB_MAKER_DIRECTIONS || "true,false,false"
+    )
+  );
+  console.log(`circular route (TZ -> ${routeOrder[0].toUpperCase()} -> ${routeOrder[1].toUpperCase()} -> TZ):`);
   console.log(`  keys=${JSON.stringify(keys)}`);
   console.log(`  directions=${directions.join(",")}`);
 

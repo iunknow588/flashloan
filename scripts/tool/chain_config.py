@@ -19,6 +19,7 @@ CHAIN_DATA_ROOT = ROOT / "flashloan" / "src" / "chains"
 REGISTRY_PATH = CHAIN_DATA_ROOT / "registry.json"
 
 MANIFEST_BY_CHAIN = {
+    4663: ROOT / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json",
     31337: ROOT / "test-token_create" / "config" / "local-v4-amm" / "manifest.json",
     46630: ROOT / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json",
 }

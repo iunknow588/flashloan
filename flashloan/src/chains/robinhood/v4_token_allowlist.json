@@ -4,6 +4,27 @@
   "network": "robinhood",
   "schema_version": "robinhood-v4-token-allowlist-v1",
   "tokens": {
+    "tz": {
+      "address": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+      "category": "test_tokens",
+      "decimals": 18,
+      "source": "mainnet-v4-amm-create-tokens",
+      "symbol": "TZ"
+    },
+    "ta": {
+      "address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+      "category": "test_tokens",
+      "decimals": 18,
+      "source": "mainnet-v4-amm-create-tokens",
+      "symbol": "TA"
+    },
+    "tb": {
+      "address": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+      "category": "test_tokens",
+      "decimals": 18,
+      "source": "mainnet-v4-amm-create-tokens",
+      "symbol": "TB"
+    },
     "0x007d": {
       "address": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
       "category": "yc_zc",

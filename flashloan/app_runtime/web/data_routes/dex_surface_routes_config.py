@@ -10,7 +10,11 @@ from web.data_routes import dex_surfaces as _root
 def _protocol_not_supported_response(chain_id: int | None, protocols: list[str]):
     if chain_id is None:
         return None
-    supported = {str(item).strip().lower() for item in chain_supported_protocols(chain_id=chain_id)}
+    from core.chain_route_selector import chain_dex_arbitrage_protocols
+
+    supported = {str(item).strip().lower() for item in chain_dex_arbitrage_protocols(chain_id)}
+    if not supported:
+        supported = {str(item).strip().lower() for item in chain_supported_protocols(chain_id=chain_id)}
     unsupported = [
         str(protocol).strip().lower()
         for protocol in protocols
@@ -86,6 +90,16 @@ def register_dex_overview_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
+        force_refresh = str(request.args.get("refresh") or "").strip().lower() in {
+            "1", "true", "yes", "on", "refresh",
+        }
+        if force_refresh:
+            _root._clear_dex_surface_cache(
+                surface="dex_overview",
+                chain_id=selected_chain_id,
+                protocols=protocols,
+                use_static_observation=True,
+            )
         _root._bootstrap_dex_surface_dependencies(
             chain_id=selected_chain_id,
             protocols=protocols,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +9,7 @@ from core.chain_data_registry import chain_data_file_path
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
 from dex.intent_trade.chains.common.dex_candidate_tables import build_robinhood_pool_candidates, read_json_object
-from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
+from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups, pair_classification
 
 
 APP_ROOT = Path(__file__).resolve().parents[3]
@@ -32,6 +34,81 @@ _USDG_ADDRESS = str(_ROBINHOOD_CONTRACTS.get("usdg") or "").strip().lower()
 _ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 _ETH_SYMBOLS = {"ETH", "WETH"}
 _ETH_ADDRESSES = {_ZERO_ADDRESS, _WETH_ADDRESS}
+REPO_ROOT = Path(__file__).resolve().parents[6]
+MAINNET_V4_MANIFEST_PATH = (
+    REPO_ROOT / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+)
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_mainnet_v4_manifest() -> dict[str, Any]:
+    return _read_json_object(MAINNET_V4_MANIFEST_PATH)
+
+
+def _mainnet_test_token_addresses() -> dict[str, str]:
+    manifest = _load_mainnet_v4_manifest()
+    result: dict[str, str] = {}
+    for symbol, env_name in (
+        ("TZ", "ROBINHOOD_MAINNET_TZ_ADDRESS"),
+        ("TA", "ROBINHOOD_MAINNET_TA_ADDRESS"),
+        ("TB", "ROBINHOOD_MAINNET_TB_ADDRESS"),
+    ):
+        address = str(os.getenv(env_name) or "").strip().lower()
+        if not address:
+            address = str(manifest.get(symbol.lower()) or "").strip().lower()
+        if address:
+            result[symbol] = address
+    return result
+
+
+def _mainnet_stable_token_addresses() -> dict[str, tuple[str, int]]:
+    manifest = _load_mainnet_v4_manifest()
+    result: dict[str, tuple[str, int]] = {}
+    for raw in manifest.get("stableTokens") or []:
+        if not isinstance(raw, dict):
+            continue
+        symbol = str(raw.get("symbol") or "").strip().upper()
+        address = str(raw.get("address") or "").strip().lower()
+        try:
+            decimals = int(raw.get("decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        if symbol and address:
+            result[symbol] = (address, decimals)
+    if _USDG_ADDRESS and "USDG" not in result:
+        result["USDG"] = (_USDG_ADDRESS, 6)
+    if "USDE" not in result:
+        # Confirmed from the Robinhood mainnet V4 pool index and yc-zc token cache.
+        result["USDE"] = ("0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", 18)
+    return result
+
+
+_MAINNET_TEST_ADDRESS_BY_SYMBOL = _mainnet_test_token_addresses()
+_MAINNET_STABLE_TOKEN_DECIMALS_BY_SYMBOL = _mainnet_stable_token_addresses()
+_MAINNET_STABLE_ADDRESS_BY_SYMBOL = {
+    symbol: address for symbol, (address, _decimals) in _MAINNET_STABLE_TOKEN_DECIMALS_BY_SYMBOL.items()
+}
+
+
+def _mainnet_configured_anchor_symbols() -> list[str]:
+    """Return the configured Robinhood mainnet borrow anchors.
+
+    ETH, confirmed stable settlement assets, and the TZ test token are
+    configured anchors. TA/TB intentionally stay bridge/middle tokens so a
+    single closed loop is counted once instead of producing duplicate anchor
+    groups for every test token permutation.
+    """
+    symbols = ["ETH", *sorted(_MAINNET_STABLE_ADDRESS_BY_SYMBOL.keys())]
+    if "TZ" in _MAINNET_TEST_ADDRESS_BY_SYMBOL:
+        symbols.append("TZ")
+    return symbols
 
 
 def _known_v4_token_metadata(address: str) -> tuple[str, int | None] | None:
@@ -42,6 +119,12 @@ def _known_v4_token_metadata(address: str) -> tuple[str, int | None] | None:
         return "WETH", 18
     if normalized and normalized == _USDG_ADDRESS:
         return "USDG", 6
+    for symbol, address in _MAINNET_TEST_ADDRESS_BY_SYMBOL.items():
+        if normalized and normalized == address:
+            return symbol, 18
+    for symbol, (address, decimals) in _MAINNET_STABLE_TOKEN_DECIMALS_BY_SYMBOL.items():
+        if normalized and normalized == address:
+            return symbol, decimals
     return None
 
 
@@ -111,6 +194,23 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         decimals1 = 18
     if not pool_id or not token0 or not token1 or not symbol0 or not symbol1:
         return None
+    raw_fee = row.get("fee")
+    try:
+        raw_fee_int = int(raw_fee) if raw_fee not in (None, "") else 0
+    except (TypeError, ValueError):
+        raw_fee_int = 0
+    dynamic_fee = bool(raw_fee_int & 8388608)
+    special_fee = dynamic_fee or raw_fee_int > 100_000
+    liquidity_index = row.get("liquidityIndex")
+    if liquidity_index is None:
+        try:
+            liquidity_index = float(str(row.get("liquidity") or "0"))
+        except ValueError:
+            liquidity_index = 0
+    has_liquidity = bool(row.get("hasLiquidity")) or (liquidity_index is not None and liquidity_index > 0)
+    balances = row.get("balances")
+    if not isinstance(balances, dict):
+        balances = {"tvlUsd": row.get("estimatedTvlUsd") or row.get("tvlUsd") or 0}
     return {
         "pool": pool_id,
         "poolId": pool_id,
@@ -120,6 +220,14 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         "dex": "uniswap_v4",
         "protocol": "uniswap_v4",
         "fee": row.get("fee"),
+        "dynamicFee": dynamic_fee,
+        "specialFee": special_fee,
+        "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else (int(raw_fee_int) if raw_fee_int else row.get("fee")),
+        "usableForObservation": (not special_fee) and has_liquidity,
+        "hasLiquidity": row.get("hasLiquidity") if row.get("hasLiquidity") is not None else has_liquidity,
+        "liquidityIndex": liquidity_index,
+        "estimatedTvlUsd": row.get("estimatedTvlUsd") or balances.get("tvlUsd"),
+        "depthStatus": row.get("depthStatus") or "",
         "tickSpacing": row.get("tickSpacing"),
         "hooks": row.get("hooks"),
         "quality": "pass",
@@ -134,8 +242,8 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         "sqrtPriceX96": row.get("sqrtPriceX96"),
         "tick": row.get("tick"),
         "liquidity": row.get("liquidity") or "",
-        "balances": row.get("balances") or {"tvlUsd": row.get("tvlUsd") or 0},
-        "tvlUsd": row.get("tvlUsd") or 0,
+        "balances": balances,
+        "tvlUsd": row.get("estimatedTvlUsd") or row.get("tvlUsd") or 0,
         "depthBand": row.get("depthBand") or {"level": "indexed", "label": "indexed V4 PoolKey"},
         "symbolPair": row.get("symbolPair") or f"{symbol0}:{symbol1}",
         "source": "robinhood_mainnet_v4_pool_index",
@@ -337,6 +445,15 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
         if neighbor:
             eth_neighbor_tokens.setdefault(neighbor["token"].lower(), neighbor["symbol"])
     eth_token_set = {address for address in eth_neighbor_tokens if address}
+    known_anchor_addresses = {
+        address
+        for address in [
+            *_MAINNET_TEST_ADDRESS_BY_SYMBOL.values(),
+            *_MAINNET_STABLE_ADDRESS_BY_SYMBOL.values(),
+            _USDG_ADDRESS,
+        ]
+        if address
+    }
     candidates: list[dict[str, Any]] = []
     for candidate in all_candidates:
         token0 = str(candidate.get("token0") or "").strip().lower()
@@ -350,6 +467,8 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
         if eth0 or eth1:
             candidates.append(candidate)
         elif token0 in eth_token_set and token1 in eth_token_set:
+            candidates.append(candidate)
+        elif token0 in known_anchor_addresses and token1 in known_anchor_addresses:
             candidates.append(candidate)
     grouped: dict[str, dict[str, Any]] = {}
     for candidate in candidates:
@@ -365,7 +484,7 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
                 "tokenY": candidate.get("token1"),
                 "tokenXSymbol": candidate.get("token0Symbol"),
                 "tokenYSymbol": candidate.get("token1Symbol"),
-                "classification": {},
+                "classification": pair_classification(candidate.get("token0Symbol"), candidate.get("token1Symbol")),
                 "strictQualityPools": [],
                 "preferredPools": [],
                 "executionPools": [],
@@ -392,7 +511,7 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
     pairs.sort(key=lambda item: str(item.get("symbolPair") or ""))
     yc_zc_token_cache = _load_yc_zc_token_cache(request)
     anchor_groups = _mark_v4_shared_yc_zc_sets(
-        build_anchor_candidate_groups(pairs, anchor_symbols=["ETH"]),
+        build_anchor_candidate_groups(pairs, anchor_symbols=_mainnet_configured_anchor_symbols()),
         stable_token_cache=yc_zc_token_cache,
     )
     shared_group_count = sum(1 for group in anchor_groups if group.get("ycZcSameSet"))
@@ -401,6 +520,8 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
         "mode": "dex_pool_candidates",
         "source": "mainnet_v4_pool_index",
         "fallbackReason": None if candidates else "mainnet_v4_pool_index_has_no_decoded_pools",
+        "generatedAt": index_payload.get("generatedAt"),
+        "freshness": index_payload.get("generatedAt"),
         "poolStaticTable": {
             "path": str(path),
             "exists": bool(candidates),

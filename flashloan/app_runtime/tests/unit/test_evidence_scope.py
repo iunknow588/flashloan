@@ -30,7 +30,7 @@ def test_infer_evidence_scope_reads_nested_live_onchain_evidence():
 
     assert scope.network == "robinhood"
     assert scope.chain_id == 4663
-    assert scope.market_id == "dex-arbitrage-4663-uniswap-v3"
+    assert scope.market_id == "dex-arbitrage-4663-uniswap-v4"
 
 
 def test_evidence_scope_rejects_same_network_wrong_chain_id():

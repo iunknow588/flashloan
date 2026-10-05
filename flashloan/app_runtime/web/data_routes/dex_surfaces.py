@@ -68,6 +68,7 @@ from web.data_routes.dex_surface_response import (
     selected_chain_id_from_request,
     submission_networks_from_request,
 )
+from market.binance_market.dex_surface_cache import _clear_dex_surface_cache
 from core.dex_provenance import framework_label
 from web.data_routes.dex_surface_helpers import (
     _live_quote_deferred_route,

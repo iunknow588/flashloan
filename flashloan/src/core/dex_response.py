@@ -27,7 +27,8 @@ def _compact_overview_path(path: dict) -> dict:
         for key in (
             "symbolPair", "routeSymbols", "routeAddresses", "overviewRoute", "overviewProfit",
             "routeFrameworkSource", "pathSource", "marketObservationSourceStage",
-            "priceEvidenceSource", "priceEvidenceSourceLabel",
+            "priceEvidenceSource", "priceEvidenceSourceLabel", "routeUsableForObservation",
+            "routeHasLiquidityEvidence",
         )
         if key in path
     }
@@ -39,7 +40,12 @@ def _compact_overview_path(path: dict) -> dict:
     compact["executionPools"] = [
         {
             key: pool[key]
-            for key in ("pool", "protocol", "dex", "fee", "routeText", "balances", "depthBand")
+            for key in (
+                "pool", "protocol", "dex", "fee", "feeLabel", "routeText",
+                "balances", "depthBand", "dynamicFee", "specialFee",
+                "hasLiquidity", "liquidityIndex", "estimatedTvlUsd",
+                "usableForObservation",
+            )
             if key in pool
         }
         for pool in (path.get("executionPools") or path.get("preferredPools") or [])[:5]

@@ -218,8 +218,8 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[CANONICAL_AVALANCHE_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[CANONICAL_AVALANCHE_DEX]["is_default"] is False
     assert summaries[CANONICAL_ROBINHOOD_DEX]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["is_default"] is True
-    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is False
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["is_default"] is False
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is True
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["legacy_market_id"] == "hyperliquid-dex-shadow"
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["migration_type"] == "dex_native_protocol_placeholder"
 

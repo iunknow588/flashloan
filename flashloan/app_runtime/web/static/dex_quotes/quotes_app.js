@@ -173,7 +173,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const queueCount = (scanner.closed_loop_review_queue?.queued ?? 0) + (scanner.queued_scan_count ?? 0);
       $("queueCount").textContent = `${queueCount}`;
       $("queueMeta").textContent = `复核队列 ${scanner.closed_loop_review_queue?.queued ?? 0} | 扫描排队 ${scanner.queued_scan_count ?? 0}`;
-      $("routeSourceMeta").textContent = `${summary.pathSource || "market_observation"} | 观察路线 ${summary.marketObservationRouteCount ?? 0}`;
+      const pathSourceLabel = summary.pathSource === "candidate_pool_fallback"
+        ? "候选池诊断闭环（未纳入 DEX_TABLE）"
+        : (summary.pathSource || "market_observation");
+      $("routeSourceMeta").textContent = `${pathSourceLabel} | 观察路线 ${summary.marketObservationRouteCount ?? 0} | 可链上复核 ${summary.chainReviewEligiblePathCount ?? "-"} | 候选诊断 ${summary.diagnosticOnlyPathCount ?? 0}`;
       const reviewed = summary.onchainEvidenceReviewedRouteCount ?? 0;
       const deferred = summary.onchainEvidencePendingRouteCount ?? summary.liveQuoterRequiredCount ?? 0;
       const failed = summary.onchainEvidenceFailedRouteCount ?? 0;
@@ -220,7 +223,11 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       if (latestRoutes.length > scannerRoutes.length) {
         const quoteSummary = (quoteRoutesPayload && (quoteRoutesPayload.summary || quoteRoutesPayload.snapshot?.payload?.summary)) || {};
         $("routeCount").textContent = latestRoutes.length;
-        $("routeSourceMeta").textContent = `${quoteSummary.pathSource || summary.pathSource || "market_observation"} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0}`;
+        const quotePathSource = quoteSummary.pathSource || summary.pathSource || "market_observation";
+        const quotePathSourceLabel = quotePathSource === "candidate_pool_fallback"
+          ? "候选池诊断闭环（未纳入 DEX_TABLE）"
+          : quotePathSource;
+        $("routeSourceMeta").textContent = `${quotePathSourceLabel} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0} | 可链上复核 ${quoteSummary.chainReviewEligiblePathCount ?? summary.chainReviewEligiblePathCount ?? "-"} | 候选诊断 ${quoteSummary.diagnosticOnlyPathCount ?? summary.diagnosticOnlyPathCount ?? 0}`;
       }
       $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
       if (latestRoutes.length) scheduleReviewActiveRoute();
@@ -238,7 +245,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const signature = activeSelectionSignature;
       if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
       if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
-      const routes = Array.isArray(payload.routes) ? payload.routes : [];
+      const routes = Array.isArray(payload.routes) ? filterCompleteV4Routes(payload.routes) : [];
       latestRoutes = routes.filter(Boolean).map(route => ({...route, reviewMode: "pending_offchain_review", __uiState: ROUTE_UI_STATE.OFFCHAIN_PENDING, __offchainReviewed: false}));
       $("routeCount").textContent = latestRoutes.length;
       $("routeSourceMeta").textContent = "市场观察 | 静态闭环";
@@ -721,6 +728,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         : (costs.requestedBorrowInputAmount ?? offchainProbe ?? costs.selectedBorrowInputAmount ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.amountOptimizedFrom ?? referenceInputAmount ?? size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0]));
       const initialProbeSymbol = pendingCopy ? autoRouteAmountSymbol(route) : (executionQuote.initial_probe_symbol || executionAnalysis.referenceInputSymbol || costs.borrowInputSymbol || sourceAnalysis.referenceInputSymbol || size.recommendedBorrowInputAmountBasis || "token");
       const amountScaleHint = Number.isFinite(Number(bestAmountCopy))
+        && Number(bestAmountCopy) > 0
         && Number.isFinite(Number(initialProbeValue))
         && Number(initialProbeValue) > 0
         ? (Math.abs(Number(bestAmountCopy) - Number(initialProbeValue)) / Number(initialProbeValue) > 0.01
@@ -769,7 +777,14 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         if (execFailed) return route.__broadcastError ? `链上执行失败/未提交：${route.__broadcastError}` : "链上执行失败/未提交；请检查网络、RPC 或开关后重试。";
         if (execPending) return "链上执行正在提交；请稍候查看本次链上结果。";
         if (reviewStage === "execution") return "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果";
-        if (reviewStage === "preflight_failed") return "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。";
+        if (reviewStage === "preflight_failed") {
+          if (route?.__broadcastError && String(route.__broadcastError) !== "链上复核失败") return String(route.__broadcastError);
+          const preflightStatus = String(evidence.status || "").toLowerCase();
+          if (preflightStatus === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
+          if (preflightStatus === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
+          if (estimateFailed) return terminalFailureAdvice(evidence.status);
+          return "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。";
+        }
         if (staticReview && reviewStage === "estimate") return "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳量，不建议直接链上执行。";
         const status = String(evidence.status || "").toLowerCase();
         if (status === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
@@ -815,13 +830,27 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const initialProbeDisplay = display(initialProbeValue);
       const referenceOutputAmountDisplay = display(referenceOutputAmount);
       const referenceNetProfitAmountDisplay = display(referenceNetProfitAmount);
+      const evidenceStatusTextForCopy = evidence.status ? display(evidenceStatusEx(evidence.status)) : "";
+      const preflightFailedStatusText = evidenceStatusTextForCopy && evidenceStatusTextForCopy !== "链上复核状态未确认"
+        ? evidenceStatusTextForCopy
+        : "链上复核失败";
+      const cleanRecommendationForCopy = String(routeRecommendationText || recommendationText || "").trim();
+      const blockerLines = lines(evidence.blockers).map(item => errorChainText(item) || blockerText(item));
+      const deduplicatedBlockers = [];
+      for (const blockerLine of blockerLines) {
+        const text = String(blockerLine || "").trim();
+        if (!text) continue;
+        if (deduplicatedBlockers.some(existing => existing === text)) continue;
+        if (cleanRecommendationForCopy && (cleanRecommendationForCopy.includes(text) || text.includes(cleanRecommendationForCopy))) continue;
+        deduplicatedBlockers.push(text);
+      }
       const text = [
         `路线=${display(copyDirection || route.symbolPair || (route.routeSymbols || []).join(" -> "))}`,
         `路径=${display(copyDirection || (route.routeSymbols || []).join(" -> "))}`,
         `方向=${display(copyDirection)}`,
         `${bestAmountLabel}=${bestAmountCopyText}`,
-        `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
-        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（自动扫描复核并链上广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
+        `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? preflightFailedStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
+        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（自动扫描复核并链上广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? preflightFailedStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
         `区块=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
         `依据=${display(evidenceTrustText(evidence, sourceAnalysis))}`,
         [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${initialProbeDisplay}${initialProbeDisplay !== "-" ? ` ${display(initialProbeSymbol)}` : ""}`],
@@ -842,7 +871,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         ...hopLines,
         ...ladderLines,
         ...(routeTestResultLine ? [routeTestResultLine] : []),
-        ...(lines(evidence.blockers).map(item => errorChainText(item) || blockerText(item))),
+        ...deduplicatedBlockers,
         ...copiedWarnings,
       ].filter(Boolean).join("\n");
       try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
@@ -1079,6 +1108,13 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           : estimateRouteTestAdvice(result);
     }
     async function runRouteTest(route, button, mode, resultElement) {
+      if (route?.diagnosticOnly === true
+        || String(route?.pathSource || "").trim() === "candidate_pool_fallback"
+        || String(route?.tableSource || "").trim() !== "dex_table") {
+        if (resultElement) resultElement.textContent = "候选诊断路线不进入链上复核";
+        $("message").textContent = "候选诊断路线仅用于候选池侧展示，不进入链上复核或执行。";
+        return;
+      }
       const sizeAnalysis = route?.sizeAnalysis || {};
       const calcBest = route?.quoteAnalysis?.bestAmountCalculation || route?.bestAmountCalculation || {};
       const costModel = route?.live_onchain_evidence?.costModel || {};
@@ -1174,7 +1210,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           if (currentIndex >= 0) latestRoutes[currentIndex] = route;
           rerenderRouteList();
         }
-        if (mode === "static_call" && !payload?.ok && !payload?.txHash && !payload?.bestAmount && !payload?.bestAmountCalculation) {
+        if (mode === "static_call" && !payload?.ok && !payload?.txHash) {
           markPreflightFailed(
             route,
             String(payload?.detail || payload?.error || "链上复核失败"),
@@ -1216,8 +1252,16 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         if (broadcast && payload?.txHash) {
           await loadLatestSubmissions().catch(() => {});
         }
-        if (resultElement) resultElement.textContent = advice ? `${summary} | ${advice}` : summary;
-        $("message").textContent = advice ? `${summary} | ${advice}` : summary;
+        const payloadDetailForDedupe = String(payload?.detail || payload?.errorDetail || payload?.error || "");
+        const summaryAndAdviceCollide = Boolean(
+          payloadDetailForDedupe
+          && summary
+          && advice
+          && (String(summary).includes(payloadDetailForDedupe) || String(advice).includes(payloadDetailForDedupe))
+        );
+        const routeTestOutput = advice ? (summaryAndAdviceCollide ? advice : `${summary} | ${advice}`) : summary;
+        if (resultElement) resultElement.textContent = routeTestOutput;
+        $("message").textContent = routeTestOutput;
         if (Number.isFinite(routeIndex)) {
           const cleanAdvice = advice ? String(advice).replace(/^建议：/, "") : "已更新本次测试结果，请结合链上状态决定下一步";
           document.querySelectorAll(`[data-route-recommendation="${routeIndex}"]`).forEach(el => {
@@ -1300,6 +1344,9 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         const initialRoute = routes[index];
         if (!initialRoute) continue;
         if (!canAutoEstimate(initialRoute) || shouldPreserveRouteState(initialRoute)) continue;
+        if (initialRoute?.diagnosticOnly === true
+          || String(initialRoute?.pathSource || "").trim() === "candidate_pool_fallback"
+          || String(initialRoute?.tableSource || "").trim() !== "dex_table") continue;
         const key = routeKey(initialRoute);
         let currentIndex = latestRoutes.findIndex(candidate => routeKey(candidate) === key);
         if (currentIndex < 0) {

@@ -18,7 +18,10 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHO
 from dex.runtime.dex_route_rpc import _probe_robinhood_family_rpc, fetch_dex_tx_receipt
 from market.binance_market.dex_route_helpers import _match_route
 from market.binance_market.dex_route_helpers import _norm_symbols
-from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
+from market.binance_market.dex_route_helpers import (
+    _official_v4_route_pool_keys,
+    _route_addresses_from_route,
+)
 from market.binance_market.dex_route_helpers import _official_route_addresses
 from market.binance_market.dex_route_helpers import _optimize_amount_ladder
 from market.binance_market.dex_route_helpers import _probe_record_item
@@ -284,7 +287,7 @@ def estimate_route_live_quote(
     # ladder around the requested amount (plus any static size steps already
     # carried on the route) so "best amount" is a chosen point with adjacent
     # probe records, not just whatever amount the route scanner happened to use.
-    max_attempts = max(1, int(os.getenv("DEX_V4_LIVE_QUOTE_AMOUNT_OPTIMIZE_ATTEMPTS", "18") or 18))
+    max_attempts = max(1, int(os.getenv("DEX_V4_LIVE_QUOTE_AMOUNT_OPTIMIZE_ATTEMPTS", "5") or 5))
     best_analysis, best_amount, best_profit, probe_records, selection_meta = _optimize_amount_ladder(
         route=route,
         route_symbols=route_symbols,
@@ -332,6 +335,29 @@ def estimate_route_live_quote(
     full_steps = [int(step.get("hop") or 0) for step in steps]
     complete = bool(steps) and full_steps == list(range(1, max(1, len(route_symbols))))
     live_verified = _steps_have_live_onchain_evidence(steps, analysis)
+    ref_final_output_amount = analysis.get("referenceFinalOutputAmount")
+    ref_net_profit_amount = analysis.get("referenceNetProfitAmount")
+    ref_net_profit_bps = analysis.get("referenceNetReturnBps")
+    if (
+        ref_final_output_amount is None
+        and steps
+        and route_symbols
+        and route_symbols[0] == route_symbols[-1]
+        and amount is not None
+        and amount > 0
+    ):
+        last_step = steps[-1]
+        last_output = last_step.get("outputAmount")
+        if last_output is None:
+            last_output = last_step.get("referenceOutputAmount")
+        try:
+            last_output = float(last_output)
+            input_amount = float(amount)
+            ref_final_output_amount = last_output
+            ref_net_profit_amount = last_output - input_amount
+            ref_net_profit_bps = ref_net_profit_amount / input_amount * 10_000.0
+        except (TypeError, ValueError):
+            pass
     best_amount_confirmed_for_preflight = False
     failure_statuses = [_step_failure_status(step) for step in steps]
     liquidity_failed = "not_enough_liquidity" in failure_statuses
@@ -349,7 +375,7 @@ def estimate_route_live_quote(
     best_amount_confirmed_for_preflight = bool(best_amount_confirmed)
     quote_status = (
         "live_verified"
-        if live_verified and best_amount_confirmed_for_preflight
+        if live_verified
         else "not_enough_liquidity"
         if liquidity_failed
         else "pool_not_initialized"
@@ -370,6 +396,8 @@ def estimate_route_live_quote(
     ref_net_profit = analysis.get("referenceNetProfitAmount")
     if live_verified and ref_net_profit is not None and float(ref_net_profit) < 0:
         quote_status = "route_unprofitable"
+    if quote_status == "live_verified" and not best_amount_confirmed_for_preflight:
+        quote_status = "static_reference_pending_live_review"
     execution_trust = (
         "live_v4_adapter"
         if quote_status == "live_verified" or quote_status == "route_unprofitable"
@@ -385,9 +413,6 @@ def estimate_route_live_quote(
         if quote_status == "live_quote_failed"
         else "static_reference_pending_live_review"
     )
-    ref_final_output_amount = analysis.get("referenceFinalOutputAmount")
-    ref_net_profit_amount = analysis.get("referenceNetProfitAmount")
-    ref_net_profit_bps = analysis.get("referenceNetReturnBps")
     profitable = bool(ref_net_profit_amount is not None and float(ref_net_profit_amount) > 0)
     ready_for_transaction_preflight = bool(
         live_verified
@@ -761,6 +786,13 @@ def _resolve_route_addresses_from_market_payload(
     except Exception:
         return []
     if not isinstance(route, dict):
+        address_symbols = [symbol for symbol in route_symbols if re.fullmatch(r"0x[0-9a-fA-F]{40}", symbol, flags=re.IGNORECASE)]
+        if len(address_symbols) == len(route_symbols):
+            normalized = [symbol.lower() for symbol in address_symbols]
+            for observed_route in routes_payload.get("routes") or []:
+                observed_addresses = _route_addresses_from_route(observed_route)
+                if observed_addresses and [address.lower() for address in observed_addresses] == normalized:
+                    return observed_addresses
         return []
     candidates: list[list[str]] = []
     for key in ("routeAddresses", "route_addresses", "pathAddresses", "path_addresses"):
@@ -990,6 +1022,9 @@ def _official_v4_preview_python(
                     "staticCall": "reverted",
                     "method": "previewArbitrageBestAmount",
                     "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+                    "quoteStatus": "route_unprofitable",
+                    "evidenceStatus": "route_unprofitable",
+                    "executionTrust": "route_unprofitable",
                 },
                 "",
             )
@@ -1044,6 +1079,9 @@ def _official_v4_preview_python(
                         "staticCall": "reverted",
                         "method": "runArbitrageBest",
                         "bestAmountMethod": "fixed_amount_runArbitrageBest",
+                        "quoteStatus": "route_unprofitable",
+                        "evidenceStatus": "route_unprofitable",
+                        "executionTrust": "route_unprofitable",
                     },
                     "",
                 )
@@ -1084,7 +1122,7 @@ def _official_v4_preview_python(
                     {
                         "ok": False,
                         "error": "static_arb_call_reverted",
-                        "detail": "閾句笂澶嶆牳鏈€氳繃锛歂oProfitableRoute()",
+                        "detail": "链上复核未通过：NoProfitableRoute()",
                         "errorDetail": "NoProfitableRoute()",
                         "errorData": "0x4f422847",
                         "errorSelector": "0x4f422847",
@@ -1094,6 +1132,9 @@ def _official_v4_preview_python(
                         "staticCall": "reverted",
                         "method": "runArbitrageBest",
                         "bestAmountMethod": "fixed_amount_runArbitrageBest",
+                        "quoteStatus": "route_unprofitable",
+                        "evidenceStatus": "route_unprofitable",
+                        "executionTrust": "route_unprofitable",
                     },
                     "",
                 )
@@ -1471,6 +1512,15 @@ def _attach_best_amount_calculation(
             }
         )
         probe_records = best_calculation.get("probe_records") or best_calculation.get("probeRecords") or []
+        offchain_probe_reason = (
+            payload.get("evidence", {}).get("offchainInitialProbeReason")
+            if isinstance(payload.get("evidence"), dict)
+            else None
+        ) or best_calculation.get("offchainInitialProbeReason") or best_calculation.get("offchain_initial_probe_reason")
+        if offchain_probe_reason is None and user_requested_amount is not None:
+            offchain_probe_reason = "requested_borrow_amount_fallback"
+        if isinstance(payload.get("evidence"), dict):
+            payload["evidence"]["offchainInitialProbeReason"] = offchain_probe_reason
         payload["bestAmountCalculation"] = best_calculation
         payload["probeRecords"] = probe_records
         payload["probe_records"] = probe_records
@@ -1485,6 +1535,7 @@ def _attach_best_amount_calculation(
             best_calculation.get("initialProbeSymbol")
             or (route_symbols[0] if route_symbols else None)
         )
+        payload["offchainInitialProbeReason"] = offchain_probe_reason
         payload["analysis"] = {
             **payload.get("analysis", {}),
             "bestAmount": final_amount,
@@ -1513,11 +1564,7 @@ def _attach_best_amount_calculation(
                 or payload.get("final_delta_amount")
             ),
             "referenceNetReturnUsd": payload.get("profitUsd"),
-            "offchainInitialProbeReason": (
-                payload.get("evidence", {}).get("offchainInitialProbeReason")
-                if isinstance(payload.get("evidence"), dict)
-                else None
-            ),
+            "offchainInitialProbeReason": offchain_probe_reason,
             "initialProbeAmount": payload["initialProbeAmount"],
             "initialProbeSymbol": payload["initialProbeSymbol"],
             "requestedAmount": user_requested_amount,
@@ -1621,13 +1668,15 @@ def run_official_v4_arb_route_test(
         route_symbols=route_symbols,
         chain_id=int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID),
         protocols=["uniswap_v4"],
+        route_addresses=route_addresses or None,
     )
     if len(route_pool_keys) != 3:
+        route_text = " -> ".join(str(item) for item in route_symbols) if isinstance(route_symbols, list) else str(route_symbols or "-")
         payload = {
             "ok": False,
             "mode": "dex_route_broadcast_test",
             "error": "official_arb_broadcast_route_pool_identity_missing",
-            "detail": "链上复核需要精确的中间桥池 PoolKey；当前市场观察没有返回 TZ/TB/TA 这一跳的路由池身份，拒绝继续用全局默认 hook 猜测。",
+            "detail": f"链上复核失败：缺少中间桥池 PoolKey；当前市场观察没有返回 {route_text} 的路由池身份，已停止链上复核。请先补全市场观察中的中间桥池身份后重试；不会用全局默认 hook 猜测。",
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
             "broadcast": broadcast,

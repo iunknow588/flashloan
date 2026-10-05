@@ -11,7 +11,7 @@
   "flows": {
     "flash_loan_pools": {
       "handler": "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view",
-      "allowed_protocols": ["uniswap_v4"],
+      "allowed_protocols": ["morpho_blue", "aave_v3", "uniswap_v2", "uniswap_v3", "uniswap_v4"],
       "data_file_keys": ["flash_liquidity", "dex_discovery", "v4_pool_index"],
       "requires_scope_match": true,
       "testnet_evidence_allowed": false

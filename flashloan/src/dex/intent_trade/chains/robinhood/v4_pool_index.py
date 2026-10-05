@@ -8,8 +8,11 @@ ever writing testnet-scoped evidence.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from decimal import Decimal, getcontext
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
@@ -26,9 +29,19 @@ from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
     load_robinhood_v4_pool_index as _load_core,
     write_v4_pool_index_from_initialize_logs as _write_core,
 )
+from dex.intent_trade.chains.robinhood.v4_quote_adapter import (
+    _connect_chain_rpc,
+    _read_live_pool_state_with_w3,
+)
+
+
+getcontext().prec = 80
 
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+V4_DYNAMIC_FEE_FLAG = 8388608
+RECENT_SWAP_LOOKBACK_DAYS = 60
+ROBINHOOD_MAINNET_BLOCKS_PER_DAY = 43_200
 V4_INITIALIZE_TOPIC = event_signature_to_log_topic(
     "Initialize(bytes32,address,address,uint24,int24,address,uint160,int24)"
 ).hex()
@@ -40,6 +53,10 @@ ERC20_ABI = [
     {"inputs": [], "name": "decimals", "outputs": [{"type": "uint8"}], "stateMutability": "view", "type": "function"},
     {"inputs": [], "name": "symbol", "outputs": [{"type": "string"}], "stateMutability": "view", "type": "function"},
 ]
+
+
+Q96 = Decimal(2) ** 96
+DEFAULT_ETH_PRICE_USD = Decimal(str(os.getenv("ROBINHOOD_MAINNET_ETH_PRICE_USD", "3000")))
 
 
 NETWORK = "robinhood"
@@ -106,8 +123,9 @@ def _pool_row_from_initialize_log(w3: Web3, log: Any, *, pool_manager: str, incl
     metadata1 = _erc20_metadata(w3, currency1, metadata_cache) if include_metadata else {"address": currency1, "symbol": "ETH" if currency1.lower() == ZERO_ADDRESS.lower() else currency1[:10], "decimals": 18 if currency1.lower() == ZERO_ADDRESS.lower() else None, "metadataOk": currency1.lower() == ZERO_ADDRESS.lower()}
     tx_hash = log["transactionHash"].hex() if hasattr(log["transactionHash"], "hex") else str(log["transactionHash"])
     hooks_address = Web3.to_checksum_address(hooks) if int(str(hooks), 16) else ZERO_ADDRESS
+    dynamic_fee = bool(fee) and bool(int(fee) & V4_DYNAMIC_FEE_FLAG)
     key = {"poolId": pool_id, "poolKeyDecoded": True, "currency0": currency0, "currency1": currency1, "token0": currency0, "token1": currency1, "token0Symbol": metadata0["symbol"], "token1Symbol": metadata1["symbol"], "token0Decimals": metadata0["decimals"], "token1Decimals": metadata1["decimals"], "fee": int(fee), "tickSpacing": int(tick_spacing), "hooks": hooks_address, "sqrtPriceX96": str(sqrt_price_x96), "tick": int(tick), "initializeBlockNumber": int(log["blockNumber"]), "initializeTransactionHash": tx_hash}
-    return {"protocol": "uniswap_v4", "poolId": pool_id, "poolKeyDecoded": True, "poolKey": key, "poolManager": pool_manager, "symbolPair": f"{metadata0['symbol']}:{metadata1['symbol']}", "token0": currency0, "token1": currency1, "token0Symbol": metadata0["symbol"], "token1Symbol": metadata1["symbol"], "token0Decimals": metadata0["decimals"], "token1Decimals": metadata1["decimals"], "fee": int(fee), "tickSpacing": int(tick_spacing), "hooks": hooks_address, "sqrtPriceX96": str(sqrt_price_x96), "tick": int(tick), "initializeBlockNumber": int(log["blockNumber"]), "initializeTransactionHash": tx_hash, "liquidity": "", "tvlUsd": 0, "status": "initialized_pool", "depthStatus": "initialized_unpriced", "source": "poolmanager_initialize_logs"}
+    return {"protocol": "uniswap_v4", "poolId": pool_id, "poolKeyDecoded": True, "poolKey": key, "poolManager": pool_manager, "symbolPair": f"{metadata0['symbol']}:{metadata1['symbol']}", "token0": currency0, "token1": currency1, "token0Symbol": metadata0["symbol"], "token1Symbol": metadata1["symbol"], "token0Decimals": metadata0["decimals"], "token1Decimals": metadata1["decimals"], "fee": int(fee), "dynamicFee": dynamic_fee, "feeLabel": "dynamic" if dynamic_fee else int(fee), "usableForObservation": not dynamic_fee, "tickSpacing": int(tick_spacing), "hooks": hooks_address, "sqrtPriceX96": str(sqrt_price_x96), "tick": int(tick), "initializeBlockNumber": int(log["blockNumber"]), "initializeTransactionHash": tx_hash, "liquidity": "", "tvlUsd": 0, "status": "initialized_pool", "depthStatus": "initialized_unpriced", "source": "poolmanager_initialize_logs"}
 
 
 def _get_logs_chunked(w3: Web3, *, pool_manager: str, topic: str, from_block: int, to_block: int, chunk_size: int, min_chunk_size: int = 1_000) -> list[Any]:
@@ -119,9 +137,15 @@ def _get_logs_chunked(w3: Web3, *, pool_manager: str, topic: str, from_block: in
             logs.extend(w3.eth.get_logs({"address": pool_manager, "fromBlock": cursor, "toBlock": end, "topics": [topic]}))
             cursor = end + 1
         except Exception:
-            if step <= min_chunk_size:
+            import sys
+            exc_type, exc_value, _ = sys.exc_info()
+            message = str(exc_value or "").lower()
+            if step <= min_chunk_size and "exceeds limit" not in message and "limit" not in message:
                 raise
-            step = max(min_chunk_size, step // 2)
+            if "exceeds limit" in message or "limit" in message:
+                step = max(1, step // 2)
+            else:
+                step = max(min_chunk_size, step // 2)
     return logs
 
 
@@ -149,8 +173,16 @@ def _connect_rpc(resolved_rpc_url: str) -> Web3:
     raise RuntimeError("Robinhood mainnet RPC unavailable") from last_exc
 
 
-def _mark_recent_swap_activity(w3: Web3, pools: list[dict[str, Any]], *, pool_manager: str, latest_block: int, lookback_blocks: int) -> dict[str, Any]:
-    logs = w3.eth.get_logs({"address": pool_manager, "fromBlock": max(0, latest_block - lookback_blocks), "toBlock": latest_block, "topics": [V4_SWAP_TOPIC]})
+def _mark_recent_swap_activity(w3: Web3, pools: list[dict[str, Any]], *, pool_manager: str, latest_block: int, lookback_blocks: int, chunk_size: int = 50_000, min_chunk_size: int = 1_000) -> dict[str, Any]:
+    logs = _get_logs_chunked(
+        w3,
+        pool_manager=pool_manager,
+        topic=V4_SWAP_TOPIC,
+        from_block=max(0, int(latest_block) - max(1, int(lookback_blocks))),
+        to_block=int(latest_block),
+        chunk_size=max(1, int(chunk_size)),
+        min_chunk_size=max(1, int(min_chunk_size)),
+    )
     active = {log["topics"][1].hex() if hasattr(log["topics"][1], "hex") else str(log["topics"][1]) for log in logs if len(log.get("topics") or []) > 1}
     for pool in pools:
         if str(pool.get("poolId") or "") in active:
@@ -159,6 +191,392 @@ def _mark_recent_swap_activity(w3: Web3, pools: list[dict[str, Any]], *, pool_ma
         else:
             pool["recentSwapActive"] = False
     return {"recentSwapLookbackBlocks": int(lookback_blocks), "recentSwapLogCount": len(logs), "recentSwapPoolCount": len(active)}
+
+
+def _lookback_blocks_for_days(days: int) -> int:
+    days = max(1, int(days))
+    blocks_per_day = int(os.getenv("ROBINHOOD_MAINNET_BLOCKS_PER_DAY", str(ROBINHOOD_MAINNET_BLOCKS_PER_DAY)) or ROBINHOOD_MAINNET_BLOCKS_PER_DAY)
+    return days * max(1, int(blocks_per_day))
+
+
+def _binary_search_block_for_timestamp(w3: Web3, latest_block: int, target_timestamp: int) -> int:
+    lo, hi = 0, int(latest_block)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if int(w3.eth.get_block(mid)["timestamp"]) < target_timestamp:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _get_logs_for_pool_batch(
+    w3: Web3,
+    *,
+    pool_manager: str,
+    from_block: int,
+    to_block: int,
+    pool_ids: list[str],
+    min_batch_size: int = 1,
+) -> list[Any]:
+    if not pool_ids:
+        return []
+    try:
+        return list(
+            w3.eth.get_logs(
+                {
+                    "address": pool_manager,
+                    "fromBlock": int(from_block),
+                    "toBlock": int(to_block),
+                    "topics": [V4_SWAP_TOPIC, pool_ids],
+                }
+            )
+        )
+    except Exception:
+        if len(pool_ids) <= min_batch_size:
+            raise
+        midpoint = max(min_batch_size, len(pool_ids) // 2)
+        left = _get_logs_for_pool_batch(
+            w3,
+            pool_manager=pool_manager,
+            from_block=from_block,
+            to_block=to_block,
+            pool_ids=pool_ids[:midpoint],
+            min_batch_size=min_batch_size,
+        )
+        right = _get_logs_for_pool_batch(
+            w3,
+            pool_manager=pool_manager,
+            from_block=from_block,
+            to_block=to_block,
+            pool_ids=pool_ids[midpoint:],
+            min_batch_size=min_batch_size,
+        )
+        return left + right
+
+
+def _mark_recent_swap_activity_for_pool_ids(
+    w3: Web3,
+    pools: list[dict[str, Any]],
+    *,
+    pool_manager: str,
+    latest_block: int,
+    lookback_days: int,
+    lookback_blocks: int | None = None,
+    block_chunk_size: int = 50_000,
+    pool_batch_size: int = 200,
+) -> dict[str, Any]:
+    normalized_pools = [
+        pool
+        for pool in pools
+        if isinstance(pool, dict) and str(pool.get("poolId") or "").startswith("0x")
+    ]
+    all_pool_ids = sorted(
+        {
+            str(pool.get("poolId") or "").lower()
+            for pool in normalized_pools
+        }
+    )
+    if not all_pool_ids:
+        return {
+            "recentSwapLookbackDays": max(1, int(lookback_days)),
+            "recentSwapLogCount": 0,
+            "recentSwapPoolCount": 0,
+            "recentSwapScannedPoolCount": 0,
+        }
+    if lookback_blocks is not None:
+        start_block = max(0, int(latest_block) - max(1, int(lookback_blocks)))
+    else:
+        latest_timestamp = int(w3.eth.get_block(int(latest_block))["timestamp"])
+        target_timestamp = latest_timestamp - max(1, int(lookback_days)) * 86_400
+        start_block = _binary_search_block_for_timestamp(w3, int(latest_block), target_timestamp)
+
+    active: set[str] = set()
+    log_count = 0
+    remaining_pool_ids = list(all_pool_ids)
+    block_chunk_size = max(1, int(block_chunk_size))
+    pool_batch_size = max(1, int(pool_batch_size))
+    cursor = int(latest_block)
+    while cursor >= start_block and remaining_pool_ids:
+        chunk_start = max(start_block, cursor - block_chunk_size + 1)
+        for offset in range(0, len(remaining_pool_ids), pool_batch_size):
+            batch = remaining_pool_ids[offset : offset + pool_batch_size]
+            logs = _get_logs_for_pool_batch(
+                w3,
+                pool_manager=pool_manager,
+                from_block=chunk_start,
+                to_block=cursor,
+                pool_ids=batch,
+            )
+            log_count += len(logs)
+            for log in logs:
+                raw = log.get("topics") or []
+                if len(raw) > 1:
+                    topic = raw[1].hex() if hasattr(raw[1], "hex") else str(raw[1])
+                    active.add(topic.lower())
+        remaining_pool_ids = [
+            pool_id
+            for pool_id in remaining_pool_ids
+            if pool_id not in active
+        ]
+        cursor = chunk_start - 1
+
+    for pool in pools:
+        pool["recentSwapActive"] = str(pool.get("poolId") or "").lower() in active
+        if pool["recentSwapActive"]:
+            pool["status"] = "initialized_pool_recent_swap"
+
+    return {
+        "recentSwapLookbackDays": max(1, int(lookback_days)),
+        "recentSwapStartBlock": int(start_block),
+        "recentSwapLogCount": int(log_count),
+        "recentSwapPoolCount": len(active),
+        "recentSwapScannedPoolCount": len(all_pool_ids),
+    }
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(str(value or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _decimal_text(value: object) -> Decimal | None:
+    try:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        return Decimal(text)
+    except Exception:
+        return None
+
+
+def _liquidity_reserve_metrics(pool: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    """Estimate active-liquidity token reserves using current sqrtPrice.
+
+    Uniswap v4 stores active liquidity ``L`` in PoolManager storage. For a
+    given current sqrt price the full-range approximation is::
+
+        amount0 = L / sqrtPrice
+        amount1 = L * sqrtPrice
+
+    Concentrated positions inside tighter ranges hold less than this bound, so
+    the returned values are deliberately labelled as an index rather than an
+    exact on-chain balance. The raw liquidity number is authoritative.
+    """
+    sqrt_price_x96 = _int_or_none(state.get("sqrtPriceX96"))
+    liquidity = _int_or_none(state.get("liquidity"))
+    if not sqrt_price_x96 or sqrt_price_x96 <= 0 or liquidity is None or liquidity <= 0:
+        return {"liquidityIndex": 0, "hasLiquidity": False, "estimatedTvlUsd": 0}
+    decimals0 = _int_or_none(pool.get("token0Decimals") or pool.get("token0_decimals")) or 18
+    decimals1 = _int_or_none(pool.get("token1Decimals") or pool.get("token1_decimals")) or 18
+    sqrt_price = Decimal(sqrt_price_x96) / Q96
+    liquidity_dec = Decimal(liquidity)
+    amount0_raw = liquidity_dec / sqrt_price
+    amount1_raw = liquidity_dec * sqrt_price
+    amount0 = amount0_raw / (Decimal(10) ** decimals0)
+    amount1 = amount1_raw / (Decimal(10) ** decimals1)
+    token0 = str(pool.get("token0") or "").lower()
+    token1 = str(pool.get("token1") or "").lower()
+    usd_price0: Decimal | None = None
+    usd_price1: Decimal | None = None
+    if token0 == ZERO_ADDRESS.lower():
+        usd_price0 = DEFAULT_ETH_PRICE_USD
+    elif token1 == ZERO_ADDRESS.lower():
+        usd_price1 = DEFAULT_ETH_PRICE_USD
+    if usd_price0 is None and usd_price1 is None and amount1_raw > 0:
+        # For non-ETH pairs, infer an approximate price from the pool itself
+        # only when one side is a known USD stable proxy. This keeps TVL useful
+        # for ETH-anchored loops while avoiding unreliable generic token prices.
+        symbol0 = str(pool.get("token0Symbol") or "").upper()
+        symbol1 = str(pool.get("token1Symbol") or "").upper()
+        if symbol1 in {"USDC", "USDT", "USDG", "DAI", "FRAX"} and amount1_raw > 0:
+            usd_price1 = Decimal(1)
+        elif symbol0 in {"USDC", "USDT", "USDG", "DAI", "FRAX"} and amount0_raw > 0:
+            usd_price0 = Decimal(1)
+    estimated_tvl_usd = Decimal(0)
+    reserve_usd0: Decimal | None = amount0 * usd_price0 if usd_price0 is not None else None
+    reserve_usd1: Decimal | None = amount1 * usd_price1 if usd_price1 is not None else None
+    if reserve_usd0 is not None:
+        estimated_tvl_usd += reserve_usd0
+    if reserve_usd1 is not None:
+        estimated_tvl_usd += reserve_usd1
+    return {
+        "hasLiquidity": True,
+        "liquidityIndex": float((liquidity_dec / Decimal(10) ** 18).quantize(Decimal("0.00000001"))),
+        "token0Reserve": str(amount0.normalize()),
+        "token1Reserve": str(amount1.normalize()),
+        "token0ReserveUsd": str(reserve_usd0.normalize()) if reserve_usd0 is not None else None,
+        "token1ReserveUsd": str(reserve_usd1.normalize()) if reserve_usd1 is not None else None,
+        "estimatedTvlUsd": str(estimated_tvl_usd.normalize()) if estimated_tvl_usd > 0 else None,
+        "sqrtPriceX96": str(sqrt_price_x96),
+        "tick": state.get("tick"),
+        "lpFee": state.get("lpFee"),
+        "protocolFee": state.get("protocolFee"),
+    }
+
+
+def _liquidity_depth_status(pool: dict[str, Any]) -> dict[str, Any]:
+    try:
+        liquidity_index = float(str(pool.get("liquidityIndex") or "0"))
+        tvl_text = pool.get("estimatedTvlUsd")
+        tvl = float(tvl_text) if tvl_text not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        liquidity_index, tvl = 0.0, 0.0
+    if liquidity_index <= 0:
+        label, level, reason = "no_liquidity", "empty", "liquidity_is_zero"
+    elif tvl > 1_000_000:
+        label, level, reason = "deep", "deep", "liquidity_available"
+    elif tvl > 100_000:
+        label, level, reason = "liquid", "liquid", "liquidity_available"
+    elif tvl > 10_000:
+        label, level, reason = "thin", "thin", "liquidity_available"
+    elif tvl > 0:
+        label, level, reason = "thin", "thin", "liquidity_below_10k_usd"
+    elif liquidity_index > 0:
+        label, level, reason = "unpriced", "unpriced", "liquidity_present_but_no_usd_price"
+    else:
+        label, level, reason = "no_liquidity", "empty", "liquidity_is_zero"
+    return {
+        "label": label,
+        "level": level,
+        "reason": reason,
+        "liquidityIndex": float(liquidity_index),
+        "estimatedTvlUsd": tvl if tvl > 0 else None,
+    }
+
+
+def _enrich_pool_liquidity(
+    w3: Web3,
+    pools: list[dict[str, Any]],
+    *,
+    pool_manager: str,
+    rpc_url: str | None = None,
+    pool_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    selected = [
+        pool
+        for pool in pools
+        if isinstance(pool, dict)
+        and str(pool.get("poolId") or "").startswith("0x")
+        and (
+            not pool_ids
+            or str(pool.get("poolId") or "").lower()
+            in {str(item).strip().lower() for item in pool_ids}
+        )
+    ]
+    errors: list[str] = []
+    errors_lock = None
+
+    def enrich_one(pool: dict[str, Any]) -> None:
+        try:
+            state = _read_live_pool_state_with_w3(
+                w3=w3,
+                rpc_url=rpc_url,
+                pool_manager=pool_manager,
+                pool_id=str(pool.get("poolId") or ""),
+                network=NETWORK,
+                chain_id=CHAIN_ID,
+            )
+        except Exception as exc:
+            error_message = str(exc)
+            if "liquidity is zero" in error_message.lower():
+                pool["liquidityError"] = None
+                pool["depthStatus"] = "no_liquidity"
+                pool["status"] = "initialized_pool_no_liquidity"
+            else:
+                pool["liquidityError"] = error_message[:240]
+                pool["depthStatus"] = "liquidity_read_failed"
+            pool["hasLiquidity"] = False
+            pool["liquidityIndex"] = 0
+            errors.append(f"{pool.get('poolId')}:{str(exc)[:160]}")
+            return
+        pool["liquidity"] = str(state.get("liquidity") or "")
+        pool["liquiditySource"] = state.get("source")
+        pool["liquidityReadAt"] = _stamp()
+        pool["liquidityBlockNumber"] = state.get("blockNumber")
+        try:
+            pool.update(_liquidity_reserve_metrics(pool, state))
+            depth = _liquidity_depth_status(pool)
+            pool["depthStatus"] = depth["label"]
+            pool["depthBand"] = depth
+            pool["balances"] = {
+                **pool.get("balances", {}),
+                "tvlUsd": pool.get("estimatedTvlUsd") or 0,
+            }
+            if pool.get("hasLiquidity"):
+                pool["tvlUsd"] = pool.get("estimatedTvlUsd") or 0
+                pool["status"] = "initialized_pool_with_liquidity"
+            else:
+                pool["status"] = "initialized_pool_no_liquidity"
+        except Exception as exc:
+            pool["liquidityError"] = str(exc)[:240]
+            pool["hasLiquidity"] = False
+            pool["liquidityIndex"] = 0
+            pool["depthStatus"] = "liquidity_math_failed"
+
+    with ThreadPoolExecutor(max_workers=min(6, max(1, len(selected)))) as executor:
+        for _ in executor.map(enrich_one, selected, chunksize=1):
+            pass
+    marked = sum(1 for pool in selected if pool.get("hasLiquidity"))
+    return {
+        "liquidityMarkerActive": True,
+        "liquidityMarkedPoolCount": marked,
+        "liquidityErrorCount": len(errors),
+        "liquidityErrors": errors[:20],
+        "liquidityScanAt": _stamp(),
+        "liquidityPoolIds": sorted(
+            str(pool.get("poolId") or "").lower()
+            for pool in selected
+            if pool.get("hasLiquidity")
+        ),
+    }
+
+
+def mark_pool_liquidity_for_pool_index(
+    *,
+    rpc_url: str | None = None,
+    pool_manager: str | None = None,
+    output_path: Path | None = None,
+    pool_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Refresh an existing pool index with live PoolManager liquidity markers."""
+    resolved = output_path or default_v4_pool_index_path()
+    if resolved is None:
+        raise ValueError("Robinhood mainnet v4_pool_index data file is not configured")
+    payload = _read_json(resolved)
+    if not payload:
+        raise ValueError(f"Robinhood mainnet v4_pool_index file is empty or invalid: {resolved}")
+    row = _chain_row()
+    resolved_pool_manager = Web3.to_checksum_address(pool_manager or _contract_address("v4_pool_manager"))
+    if rpc_url:
+        w3 = _connect_rpc(rpc_url)
+        resolved_rpc_url = rpc_url
+    else:
+        w3, resolved_rpc_url = _connect_chain_rpc(NETWORK, CHAIN_ID)
+    actual_chain_id = int(w3.eth.chain_id)
+    if actual_chain_id != CHAIN_ID:
+        raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {CHAIN_ID}")
+    pools = [pool for pool in payload.get("pools") or [] if isinstance(pool, dict)]
+    scan_ids = [str(pool_id).strip().lower() for pool_id in (pool_ids or []) if str(pool_id).strip().startswith("0x")]
+    pools_to_scan = pools
+    if scan_ids:
+        wanted = set(scan_ids)
+        pools_to_scan = [pool for pool in pools if str(pool.get("poolId") or "").lower() in wanted]
+    activity = _enrich_pool_liquidity(
+        w3,
+        pools_to_scan,
+        pool_manager=resolved_pool_manager,
+        rpc_url=resolved_rpc_url,
+        pool_ids=scan_ids,
+    )
+    if scan_ids:
+        activity["liquidityRequestedPoolIds"] = sorted(scan_ids)
+    payload.update(activity)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {**payload, "outputPath": str(resolved)}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -247,6 +665,10 @@ def build_v4_pool_index_from_observation_pool_ids(
     pool_manager: str | None = None,
     pool_ids: list[str] | None = None,
     to_block: int | None = None,
+    mark_recent_swaps: bool = True,
+    mark_liquidity: bool = True,
+    recent_swap_lookback_blocks: int | None = None,
+    recent_swap_lookback_days: int = RECENT_SWAP_LOOKBACK_DAYS,
 ) -> dict[str, Any]:
     row = _chain_row()
     resolved_rpc_url = rpc_url or str(row.get("rpc_url") or "").strip()
@@ -289,7 +711,29 @@ def build_v4_pool_index_from_observation_pool_ids(
         pool_keys.append(decoded["poolKey"])
         pools.append(decoded)
 
-    return {
+    activity = {}
+    if mark_recent_swaps and pools:
+        activity = _mark_recent_swap_activity_for_pool_ids(
+            w3,
+            pools,
+            pool_manager=resolved_pool_manager,
+            latest_block=latest_block,
+            lookback_days=recent_swap_lookback_days,
+            lookback_blocks=recent_swap_lookback_blocks,
+            block_chunk_size=50_000,
+            pool_batch_size=200,
+        )
+        activity["recentSwapLookbackDays"] = max(1, int(recent_swap_lookback_days))
+    liquidity_activity = {}
+    if mark_liquidity and pools:
+        liquidity_activity = _enrich_pool_liquidity(
+            w3,
+            pools,
+            pool_manager=resolved_pool_manager,
+            rpc_url=resolved_rpc_url,
+        )
+
+    payload = {
         "schemaVersion": "robinhood-v4-pool-index-v1",
         "network": NETWORK,
         "chainId": CHAIN_ID,
@@ -298,6 +742,8 @@ def build_v4_pool_index_from_observation_pool_ids(
         "generatedBlockNumber": latest_block,
         "discoveryMethod": "poolmanager_initialize_logs_for_observation_pool_ids",
         "rpcUrl": resolved_rpc_url,
+        **activity,
+        **liquidity_activity,
         "requestedPoolIdCount": len(seen),
         "decodedPoolKeyCount": len(pool_keys),
         "errorCount": len(errors),
@@ -306,6 +752,70 @@ def build_v4_pool_index_from_observation_pool_ids(
         "pools": pools,
         "blockingReasons": errors[:20],
     }
+    return payload
+
+
+def mark_recent_swap_activity_for_pool_index(
+    *,
+    rpc_url: str | None = None,
+    pool_manager: str | None = None,
+    output_path: Path | None = None,
+    recent_swap_lookback_days: int = RECENT_SWAP_LOOKBACK_DAYS,
+    recent_swap_lookback_blocks: int | None = None,
+    chunk_size: int = 50_000,
+    pool_batch_size: int = 200,
+    pool_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Refresh an existing pool index with recent Swap activity markers."""
+
+    resolved = output_path or default_v4_pool_index_path()
+    if resolved is None:
+        raise ValueError("Robinhood mainnet v4_pool_index data file is not configured")
+    payload = _read_json(resolved)
+    if not payload:
+        raise ValueError(f"Robinhood mainnet v4_pool_index file is empty or invalid: {resolved}")
+    row = _chain_row()
+    resolved_rpc_url = rpc_url or str(row.get("rpc_url") or "").strip()
+    if not resolved_rpc_url:
+        raise ValueError("Robinhood mainnet RPC URL is not configured")
+    resolved_pool_manager = Web3.to_checksum_address(pool_manager or _contract_address("v4_pool_manager"))
+    w3 = _connect_rpc(resolved_rpc_url)
+    actual_chain_id = int(w3.eth.chain_id)
+    if actual_chain_id != CHAIN_ID:
+        raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {CHAIN_ID}")
+    latest_block = int(w3.eth.block_number)
+    pools = [pool for pool in payload.get("pools") or [] if isinstance(pool, dict)]
+    scan_ids = [str(pool_id).strip().lower() for pool_id in (pool_ids or []) if str(pool_id).strip().startswith("0x")]
+    if scan_ids:
+        pools_to_scan = [
+            pool
+            for pool in pools
+            if str(pool.get("poolId") or "").lower() in scan_ids
+        ]
+    else:
+        pools_to_scan = pools
+    activity = _mark_recent_swap_activity_for_pool_ids(
+        w3,
+        pools_to_scan,
+        pool_manager=resolved_pool_manager,
+        latest_block=latest_block,
+        lookback_days=recent_swap_lookback_days,
+        lookback_blocks=recent_swap_lookback_blocks,
+        block_chunk_size=chunk_size,
+        pool_batch_size=pool_batch_size,
+    )
+    activity["recentSwapLookbackDays"] = max(1, int(recent_swap_lookback_days))
+    activity["recentSwapScanAt"] = _stamp()
+    activity["recentSwapScanBlockNumber"] = latest_block
+    activity["recentSwapScanChunkSize"] = int(chunk_size)
+    activity["recentSwapScanPoolBatchSize"] = int(pool_batch_size)
+    if scan_ids:
+        activity["recentSwapRequestedPoolIds"] = sorted(scan_ids)
+    payload["recentSwapActive"] = True
+    payload.update(activity)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {**payload, "outputPath": str(resolved)}
 
 
 def write_v4_pool_index_from_observation_pool_ids(output_path: Path | None = None, **kwargs: Any) -> dict[str, Any]:
@@ -391,6 +901,8 @@ __all__ = [
     "default_v4_pool_index_path",
     "keep_token_addresses_from_payload",
     "load_robinhood_mainnet_v4_pool_index",
+    "mark_pool_liquidity_for_pool_index",
+    "mark_recent_swap_activity_for_pool_index",
     "write_v4_pool_index_from_observation_pool_ids",
     "write_v4_pool_index_from_initialize_logs",
 ]

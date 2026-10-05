@@ -52,12 +52,24 @@ def build_market_observation_payload(
         protocols=protocols,
     )
     fund_anchor_pair_observation = _chain_fund_anchor_pair_observation(chain_id=chain_id, protocols=protocols)
-    chain_observation_sequences = [
-        sequence
-        for sequence in fund_anchor_pair_observation.get("observationSequences") or []
-        if isinstance(sequence, dict)
-    ]
-    observation_sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs) + chain_observation_sequences
+    chain_observation_sequences: list[dict[str, Any]] = []
+    observation_sequences: list[dict[str, Any]] = []
+    active_pool_ids = {
+        str(pool_id).lower()
+        for pool_id in fund_anchor_pair_observation.get("activePoolIds") or []
+        if str(pool_id).strip()
+    }
+    liquid_pool_ids = {
+        str(pool_id).lower()
+        for pool_id in fund_anchor_pair_observation.get("liquidPoolIds")
+        or fund_anchor_pair_observation.get("activePoolIds")
+        or []
+        if str(pool_id).strip()
+    }
+    recent_swap_filter_applied = bool(fund_anchor_pair_observation.get("recentSwapFilterApplied"))
+    liquidity_filter_applied = bool(fund_anchor_pair_observation.get("liquidityFilterApplied"))
+    # Market observation only prepares YC/ZC candidate sets; closed-loop path
+    # construction and active-pool judgment belong to the DEX overview stage.
     token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
     direct: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
@@ -87,130 +99,17 @@ def build_market_observation_payload(
         elif pools:
             unmatched.append(pair_row(pair, limit=3))
 
-    route_seen: set[tuple[str, ...]] = set()
     closed_routes: list[dict[str, Any]] = []
     bridge_routes: list[dict[str, Any]] = []
     used_pair_symbols: set[str] = {str(row.get("symbolPair") or "") for row in direct}
+    bridges: list[dict[str, Any]] = []
 
-    for anchor in observation_anchors:
-        anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
-        for anchor_key in anchor_keys:
-            # General case: X -> Y -> Z -> X, where Y and Z are distinct and the
-            # Y-Z bridge pool exists.
-            for mid_key in sorted(neighbor_keys.get(anchor_key) or []):
-                if mid_key == anchor_key:
-                    continue
-                first_pair = pair_by_edge.get(frozenset((anchor_key, mid_key)))
-                if first_pair is None:
-                    continue
-                first_row = pair_row(first_pair, limit=3)
-                mid_token = _pair_token_entry(first_pair, mid_key)
-                anchor_token = _pair_token_entry(first_pair, anchor_key)
-                if mid_token is None or anchor_token is None:
-                    continue
-                mid_symbol = _norm_symbol(mid_token.get("symbol"))
-                if not mid_symbol or not _route_symbol_allowed(mid_symbol):
-                    continue
-                for target_key in sorted(neighbor_keys.get(mid_key) or []):
-                    if target_key in {anchor_key, mid_key}:
-                        continue
-                    second_pair = pair_by_edge.get(frozenset((mid_key, target_key)))
-                    third_pair = pair_by_edge.get(frozenset((target_key, anchor_key)))
-                    if second_pair is None or third_pair is None:
-                        continue
-                    second_row = pair_row(second_pair, limit=3)
-                    third_row = pair_row(third_pair, limit=3)
-                    target_token = _pair_token_entry(second_pair, target_key)
-                    anchor_token_zx = _pair_token_entry(third_pair, anchor_key)
-                    if target_token is None or anchor_token_zx is None:
-                        continue
-                    target_symbol = _norm_symbol(target_token.get("symbol"))
-                    if not target_symbol or not _route_symbol_allowed(target_symbol):
-                        continue
-                    if mid_key >= target_key:
-                        continue
-                    route_key = (
-                        "triangle",
-                        anchor_key,
-                        mid_key,
-                        target_key,
-                        str(first_pair.get("symbolPair") or ""),
-                        str(second_pair.get("symbolPair") or ""),
-                        str(third_pair.get("symbolPair") or ""),
-                    )
-                    if route_key in route_seen:
-                        continue
-                    route_seen.add(route_key)
-                    used_pair_symbols.add(str(first_pair.get("symbolPair") or ""))
-                    used_pair_symbols.add(str(second_pair.get("symbolPair") or ""))
-                    used_pair_symbols.add(str(third_pair.get("symbolPair") or ""))
-                    route = {
-                        "kind": "bridge_closed_loop",
-                        "borrowSymbol": anchor,
-                        "anchorSymbol": anchor,
-                        "bridgeSymbol": mid_symbol,
-                        "targetSymbol": target_symbol,
-                        "pathSymbols": [anchor, mid_symbol, target_symbol, anchor],
-                        "pathText": f"{anchor} -> {mid_symbol} -> {target_symbol} -> {anchor}",
-                        "closedLoop": True,
-                        "firstLegCount": 1,
-                        "secondLegCount": 2,
-                        "firstLegPair": first_row,
-                        "secondLegPairs": [second_row, third_row],
-                        "routePairs": [first_row, second_row, third_row],
-                        "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
-                    }
-                    bridge_routes.append(route)
-                    closed_routes.append(route)
-
-    for sequence in observation_sequences:
-        route = _closed_route_from_sequence(sequence)
-        route_pool_ids = tuple(
-            _pool_address(step).lower()
-            for step in route.get("routePools") or []
-            if isinstance(step, dict) and _pool_address(step)
-        )
-        if not route_pool_ids:
-            continue
-        route_key = ("yc_zc_bridge", str(route.get("pathText") or ""), *route_pool_ids)
-        if route_key in route_seen:
-            continue
-        route_seen.add(route_key)
-        for step in route.get("routePools") or []:
-            if isinstance(step, dict):
-                used_pair_symbols.add(str(step.get("pairSymbol") or step.get("symbolPair") or ""))
-        bridge_routes.append(route)
-        closed_routes.append(route)
-
-    def route_sort_key(route: dict[str, Any]) -> tuple[float, int, str]:
-        pools = [pool for pair in route.get("routePairs") or [] for pool in pair.get("pools") or []]
-        if not pools:
-            pools = [pool for pool in route.get("routePools") or [] if isinstance(pool, dict)]
-        tvl = sum(_number((pool.get("balances") or {}).get("tvlUsd")) for pool in pools)
-        return (tvl, len(pools), str(route.get("pathText") or ""))
-
-    def route_identity(route: dict[str, Any]) -> tuple[str, str, tuple[str, ...]]:
-        pools = [pool for pair in route.get("routePairs") or [] for pool in pair.get("pools") or []]
-        if not pools:
-            pools = [pool for pool in route.get("routePools") or [] if isinstance(pool, dict)]
-        pool_ids = tuple(_pool_address(pool).lower() for pool in pools if _pool_address(pool))
-        return (str(route.get("kind") or ""), str(route.get("pathText") or ""), pool_ids)
-
-    def dedupe_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        deduped: list[dict[str, Any]] = []
-        seen_routes: set[tuple[str, str, tuple[str, ...]]] = set()
-        for route in routes:
-            identity = route_identity(route)
-            if identity in seen_routes:
-                continue
-            seen_routes.add(identity)
-            deduped.append(route)
-        return deduped
-
-    bridge_routes = sorted(dedupe_routes(bridge_routes), key=route_sort_key, reverse=True)
-    closed_routes = sorted(dedupe_routes(closed_routes), key=route_sort_key, reverse=True)[:200]
-    bridges = bridge_routes[:120]
-    candidate_observation_groups = _candidate_observation_groups(anchor_groups, observation_sequences, closed_routes)
+    candidate_observation_groups = _candidate_observation_groups(
+        anchor_groups,
+        observation_sequences,
+        closed_routes,
+        judge_observation_state=False,
+    )
     candidate_observation_groups.sort(
         key=lambda group: (
             -(_int(group.get("observationSequenceCount")) + _int(group.get("closedLoopRouteCount"))),
@@ -234,6 +133,14 @@ def build_market_observation_payload(
             if isinstance(step, dict) and _pool_address(step)
         }
     )
+    active_filter_summary = {
+        "recentSwapFilterApplied": recent_swap_filter_applied,
+        "liquidityFilterApplied": liquidity_filter_applied,
+        "activePoolCount": len(active_pool_ids),
+        "activePoolIds": sorted(active_pool_ids),
+        "liquidPoolCount": len(liquid_pool_ids),
+        "liquidPoolIds": sorted(liquid_pool_ids),
+    }
     group_pool_ids = sorted(
         {
             _pool_address(step)
@@ -248,6 +155,16 @@ def build_market_observation_payload(
         "mode": "dex_market_observation",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
+        "tableSource": "ob_table",
+        "referencedTable": "ch_table",
+        "poolIndexVersion": {
+            "path": (pool_payload.get("poolStaticTable") or {}).get("path"),
+            "network": (pool_payload.get("poolStaticTable") or {}).get("network"),
+            "chainId": (pool_payload.get("poolStaticTable") or {}).get("chainId"),
+            "generatedAt": (pool_payload.get("poolStaticTable") or {}).get("generatedAt"),
+            "generatedBlockNumber": (pool_payload.get("poolStaticTable") or {}).get("generatedBlockNumber"),
+            "source": (pool_payload.get("poolStaticTable") or {}).get("mode"),
+        },
         "marketObservationStaticTable": market_observation_static_table(
             {
                 **market_observation_static_store_metadata(
@@ -261,6 +178,8 @@ def build_market_observation_payload(
         "borrowableSymbols": borrow_symbols,
         "observationAnchorSymbols": observation_anchors,
         "anchorGroups": anchor_groups,
+        "pairs": pairs,
+        "bridgePairs": bridge_pairs,
         "candidateObservationGroups": candidate_observation_groups,
         "observationSequences": observation_sequences,
         "directPools": direct,
@@ -295,6 +214,8 @@ def build_market_observation_payload(
                 }
             },
         },
+        "recentSwapPoolFilter": active_filter_summary,
+        "liquidityPoolFilter": active_filter_summary,
         "summary": {
             "borrowableTokenCount": len(borrow_symbols),
             "observationAnchorCount": len(observation_anchors),
@@ -335,6 +256,10 @@ def build_market_observation_payload(
             "directPairCount": len(direct),
             "indirectRouteCount": len(bridges),
             "closedLoopRouteCount": len(closed_routes),
+            "recentSwapFilterApplied": recent_swap_filter_applied,
+            "liquidityFilterApplied": liquidity_filter_applied,
+            "activePoolCount": len(active_pool_ids),
+            "liquidPoolCount": len(liquid_pool_ids),
             "unmatchedPairCount": len(unmatched),
             "observableTokenCount": len(_unique_symbols([pool for pair in pairs for pool in pair.get("preferredPools") or []])),
         },

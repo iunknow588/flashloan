@@ -929,10 +929,11 @@ def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
     view = payload["protocol_views"][0]
     assert "status" not in view
     assert view["display_mode"] == "observable_dex_pool"
-    assert view["summary"]["observable_pool_count"] == 1
-    assert view["summary"]["borrow_asset_count"] == 1
-    assert view["summary"]["observed_borrow_token_count"] == 1
+    assert view["summary"]["observable_pool_count"] == 2
+    assert view["summary"]["borrow_asset_count"] == 2
+    assert view["summary"]["observed_borrow_token_count"] == 2
     assert view["summary"]["v4_pool_key_count"] == 1
+    assert [row["token_symbol"] for row in view["stable_borrow_pools"]] == ["USDG"]
     assert view["non_stable_borrow_pools"][0]["token_symbol"] == "ETH"
     assert view["non_stable_borrow_pools"][0]["pool_count"] == 1
     assert view["non_stable_borrow_pools"][0]["paired_symbol_count"] == 1

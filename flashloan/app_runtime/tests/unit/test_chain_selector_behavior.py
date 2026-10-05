@@ -154,3 +154,11 @@ def test_chain_selector_drops_market_id_that_conflicts_with_explicit_chain():
     assert "window.__CHAIN_SELECTOR_DEFAULT__ || {}" in script
     assert "normalized.set(\"market_id\", fallbackMarketId);" in script
     assert "window.history.replaceState({}, \"\", normalizedUrl);" in script
+
+
+def test_dex_overview_response_scope_accepts_backend_protocol_narrowing():
+    body = _read("web/templates/dex_overview.html")
+
+    assert "window.ChainSelector?.normalizeScopeQuery" in body
+    assert "scope.protocols.some(protocol => responseProtocols.includes(protocol))" in body
+    assert "responseProtocols.join(\",\") !== scope.protocols.join(\",\")" not in body

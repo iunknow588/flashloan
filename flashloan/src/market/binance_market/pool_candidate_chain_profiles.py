@@ -139,6 +139,17 @@ def _attach_execution_context(payload: dict[str, Any], chain_id: int | None) -> 
     summary["stablePairCount"] = str(class_counts["pairs"].get("stable_pair", 0))
     summary["stableToNonStablePairCount"] = str(class_counts["pairs"].get("stable_to_non_stable_pair", 0))
     summary["nonStablePairCount"] = str(class_counts["pairs"].get("non_stable_pair", 0))
+    pool_static = payload.get("poolStaticTable") if isinstance(payload.get("poolStaticTable"), dict) else {}
+    payload["tableSource"] = payload.get("tableSource") or "ch_table"
+    payload["referencedTable"] = payload.get("referencedTable")
+    payload["poolIndexVersion"] = payload.get("poolIndexVersion") or {
+        "path": pool_static.get("path"),
+        "network": pool_static.get("network"),
+        "chainId": pool_static.get("chainId") or chain_id,
+        "generatedAt": pool_static.get("generatedAt"),
+        "generatedBlockNumber": pool_static.get("generatedBlockNumber"),
+        "source": pool_static.get("mode"),
+    }
     payload["flashLoanLiquidity"] = flash_profile
     payload["dexSettlement"] = {
         "rails": [uniswapx_profile],

@@ -70,6 +70,15 @@ def _chain_supported_protocol_set(chain_id: int | None) -> set[str]:
         return set()
 
 
+def _is_robinhood_mainnet_chain(chain_id: int | None, network: str = "") -> bool:
+    try:
+        if chain_id is not None and int(chain_id) == 4663:
+            return True
+    except (TypeError, ValueError):
+        pass
+    return str(network or "").strip().lower() == "robinhood"
+
+
 def _provider_kind(protocol: str, market_type: str) -> str:
     normalized = str(protocol or "").strip().lower()
     if normalized in LENDING_PROTOCOLS:
@@ -235,7 +244,11 @@ def flash_loan_pools_payload(
         provider = _provider_from_market(row)
         provider_chain_id = provider.get("chain_id")
         supported_protocols = _chain_supported_protocol_set(int(provider_chain_id)) if provider_chain_id is not None else set()
-        if supported_protocols and provider["protocol"] not in supported_protocols:
+        if (
+            supported_protocols
+            and provider["protocol"] not in supported_protocols
+            and not _is_robinhood_mainnet_chain(provider_chain_id, provider.get("network"))
+        ):
             continue
         if discovered_protocols is not None and provider["protocol"] not in discovered_protocol_set:
             continue
