@@ -1,5 +1,5 @@
     const $ = id => document.getElementById(id);
-    const APP_VERSION = "2026.09.11.07";
+    const APP_VERSION = "2026.10.06.01";
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[ch]));
     const lines = items => (Array.isArray(items) ? items : []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
     const numeric = (value, digits = 4) => {
@@ -165,6 +165,7 @@
       const lower = String(status || "").toLowerCase();
       if (lower === "rpc_verification_timeout") return "链上复核超时：RPC 未在期限内返回；不能作为已确认最佳量，不建议直接链上执行，请稍后重试或检查 RPC 配置。";
       if (lower === "rpc_verification_failed") return "链上复核失败：RPC 不可用；不能进入链上执行，请稍后重试或检查 RPC 配置。";
+      if (lower === "fetch_network_error" || lower === "backend_unreachable") return "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确，稍后重试";
       if (lower === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
       if (lower === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
       if (lower === "not_enough_liquidity") return "链上复核：池当前没有 LP 流动性；降低金额后重试或标记当前金额不可执行";
@@ -231,6 +232,7 @@
       const text = String(value || "");
       const nested = nestedBlockerText(text);
       if (nested) return nested;
+      if (text === "fetch_network_error" || text === "backend_unreachable") return "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确，稍后重试";
       const evidenceTimeout = text.match(/^on-chain evidence timed out after ([0-9.]+)s$/i);
       if (evidenceTimeout) return `链上复核超时：RPC 未在期限内返回（${evidenceTimeout[1]} 秒）`;
       const blockerDirectMap = {
@@ -312,8 +314,34 @@
       const effectivePools = symbols.length ? pools.slice(0, symbols.length - 1) : pools;
       return effectivePools.length > 0 && effectivePools.every(v4PoolHasCompleteIdentity);
     };
+    const poolExplicitlyUsable = pool => {
+      if (!pool || typeof pool !== "object") return false;
+      if (pool.usableForObservation != null) return pool.usableForObservation === true;
+      if (pool.dynamicFee || pool.specialFee || String(pool.feeLabel || "").toLowerCase() === "special") return false;
+      if (pool.hasLiquidity != null) return pool.hasLiquidity === true;
+      return Number(pool.liquidityIndex ?? pool.liquidity ?? 0) > 0;
+    };
+    const poolExplicitlyUnusable = pool => {
+      if (!pool || typeof pool !== "object") return false;
+      if (pool.usableForObservation != null) return pool.usableForObservation === false;
+      if (pool.hasLiquidity != null) return pool.hasLiquidity === false;
+      if (pool.dynamicFee || pool.specialFee || String(pool.feeLabel || "").toLowerCase() === "special") return true;
+      return Number(pool.liquidityIndex ?? pool.liquidity ?? 0) === 0 && (pool.liquidityIndex != null || (pool.liquidity != null && String(pool.liquidity).trim() !== ""));
+    };
+    const poolLiquidityEvidenceMissing = pool => !poolExplicitlyUsable(pool) && !poolExplicitlyUnusable(pool);
+    const routeExplicitlyUnusable = route => {
+      if (!route || typeof route !== "object") return true;
+      if (route.routeUsableForObservation === false) return true;
+      const pools = Array.isArray(route.routePools)
+        ? route.routePools.filter(pool => pool && typeof pool === "object")
+        : Array.isArray(route.quoteInputs?.candidatePools)
+          ? route.quoteInputs.candidatePools.filter(pool => pool && typeof pool === "object")
+          : [];
+      if (!pools.length) return true;
+      return pools.length > 0 && pools.every(pool => pool.usableForObservation === false || pool.hasLiquidity === false);
+    };
     const filterCompleteV4Routes = routes => Array.isArray(routes)
-      ? routes.filter(route => route && typeof route === "object" && routeHasCompleteV4PoolIdentity(route))
+      ? routes.filter(route => route && typeof route === "object" && routeHasCompleteV4PoolIdentity(route) && !routeExplicitlyUnusable(route))
       : [];
     const routeQuality = route => {
       const evidence = routeEvidence(route);
@@ -384,8 +412,13 @@
       const hardEvidenceFailure = [
         "rpc_verification_failed",
         "rpc_verification_timeout",
+        "fetch_network_error",
+        "backend_unreachable",
         "adapter_required",
         "missing_trigger_block",
+        "missing_route_identity",
+        "missing_route_pool_identity",
+        "missing_configuration",
         "live_quote_failed",
         "quote_failed",
         "pool_not_initialized",
@@ -395,6 +428,21 @@
       const live = Boolean(!hardEvidenceFailure && (evidence.livePriceVerified || liveStatus || liveTrust));
       const chainAttempted = Boolean(evidence.status);
       const bestAmountUnconfirmed = bestAmountMissingOf(route, evidence, base);
+      const rawHuman = value => {
+        if (value === null || value === undefined || value === "") return null;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return null;
+        const abs = Math.abs(parsed);
+        return abs >= 1e18 && Number.isInteger(parsed) ? parsed / 1e18 : parsed;
+      };
+      const staticSteps = Array.isArray(base.steps) ? base.steps.filter(Boolean) : [];
+      const firstStaticInput = rawHuman(staticSteps.find(step => step.inputAmount != null || step.amountIn != null || step.referenceInputAmount != null)?.inputAmount ?? staticSteps[0]?.inputAmount ?? staticSteps[0]?.amountIn ?? staticSteps[0]?.referenceInputAmount);
+      const lastStaticStep = staticSteps[staticSteps.length - 1] || null;
+      const lastStaticOutput = rawHuman(lastStaticStep?.outputAmount ?? lastStaticStep?.referenceOutputAmount ?? lastStaticStep?.amountOut);
+      const staticNetProfit = firstStaticInput != null && lastStaticOutput != null ? lastStaticOutput - firstStaticInput : null;
+      const staticNetBps = firstStaticInput != null && lastStaticOutput != null && firstStaticInput > 0
+        ? (lastStaticOutput - firstStaticInput) / firstStaticInput * 10000
+        : null;
       return {
         ...base,
         live_onchain_evidence: evidence,
@@ -406,12 +454,13 @@
         grossProfitUsd: live ? costs.grossProfitUsd : null,
         netProfitUsd: live ? costs.netProfitUsd : null,
         netProfitBps: live ? costs.netProfitBps : null,
-        referenceFinalOutputAmount: live ? costs.finalOutputAmount : base.referenceFinalOutputAmount,
-        referenceNetProfitAmount: live ? humanTokenValue(costs.netProfitAmount) : base.referenceNetProfitAmount,
-        referenceNetReturnBps: live ? costs.netProfitAmountBps : base.referenceNetReturnBps,
-        referenceFinalOutputSymbol: live ? (costs.finalOutputSymbol || base.referenceFinalOutputSymbol) : base.referenceFinalOutputSymbol,
-        referenceInputSymbol: live ? (costs.borrowInputSymbol || base.referenceInputSymbol) : base.referenceInputSymbol,
-        referenceReturnBasis: live ? (costs.profitBasis || base.referenceReturnBasis) : base.referenceReturnBasis,
+        referenceInputAmount: bestAmount ?? base.referenceInputAmount ?? firstStaticInput,
+        referenceFinalOutputAmount: costs.finalOutputAmount ?? base.referenceFinalOutputAmount ?? lastStaticOutput,
+        referenceNetProfitAmount: humanTokenValue(costs.netProfitAmount) ?? base.referenceNetProfitAmount ?? staticNetProfit,
+        referenceNetReturnBps: costs.netProfitAmountBps ?? base.referenceNetReturnBps ?? staticNetBps,
+        referenceFinalOutputSymbol: costs.finalOutputSymbol || base.referenceFinalOutputSymbol || lastStaticStep?.toSymbol || base.referenceInputSymbol || (route?.routeSymbols || [])[0],
+        referenceInputSymbol: costs.borrowInputSymbol || base.referenceInputSymbol || (route?.routeSymbols || [])[0],
+        referenceReturnBasis: costs.profitBasis || base.referenceReturnBasis || "borrow_token",
         steps: (() => {
           const staticSteps = Array.isArray(base.steps) ? base.steps.filter(Boolean) : [];
           const liveHops = Array.isArray(evidence.hops) ? evidence.hops.filter(Boolean) : [];
@@ -492,6 +541,8 @@
         pool_not_initialized: "链上复核失败：V4 池未初始化",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
         rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+        fetch_network_error: "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确",
+        backend_unreachable: "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确",
         adapter_required: "链上复核失败：缺少报价适配器",
         missing_trigger_block: "链上复核未执行：缺少触发区块",
         missing_effective_pool: "链上复核：缺少有效池，无法报价",
@@ -705,15 +756,16 @@
         : reviewStage === "preflight" || preflightFailed
           ? "初始测试量"
           : "链下初始探测";
-        const rawBestAmountValue = routeBestAmountPick(route, evidence, analysis);
+      const rawBestAmountValue = routeBestAmountPick(route, evidence, analysis);
+      const bestAmountMissing = bestAmountMissingOf(route, evidence, analysis) || costs.bestAmountMissing === true;
       const initialOnlyEstimateValue = offchainProbe ?? analysis.requestedAmount ?? analysis.initialProbeAmount ?? rawBestAmountValue ?? 1;
       const bestAmountValue = reviewStage === "estimate" ? initialOnlyEstimateValue : rawBestAmountValue;
       const bestAmountDisplay = reviewStage === "estimate"
         ? routeSizeAmount(bestAmountValue, route, analysis)
-        : (negativeEvidence || bestAmountValue === null || bestAmountValue === undefined || bestAmountValue === "" ? "未计算" : routeSizeAmount(bestAmountValue, route, analysis));
+        : (bestAmountValue === null || bestAmountValue === undefined || bestAmountValue === "" ? "未计算" : `${routeSizeAmount(bestAmountValue, route, analysis)}${bestAmountMissing ? "（未确认）" : ""}`);
       const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis, stage: reviewStage});
       const depthStatus = String(analysis.staticDepthStatus || "unavailable").toLowerCase();
-      const depthKnown = live || depthStatus === "available";
+      const depthKnown = live || depthStatus === "available" || negativeEvidence;
       const failedIsLiquidity = focusOnError && String(failedHop.status || "").toLowerCase() === "not_enough_liquidity";
       const failedIsDeferred = focusOnError && ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(failedHop.status || "").toLowerCase());
       const failedIsAdapter = focusOnError && String(failedHop.status || "").toLowerCase() === "adapter_required";
@@ -873,10 +925,15 @@
       const rows = broadcastSubmissionsForRoute(route);
       return rows[0] || null;
     };
+    const staleBroadcastSuppressed = route => {
+      const evidence = routeEvidence(route);
+      const status = String(evidence.status || route.quoteStatus || route.onchainEvidenceStatus || "").toLowerCase();
+      return terminalEvidenceStatus(status) || routeNeedsLiveReview(route);
+    };
     const latestBroadcastAdvice = route => {
       const rows = broadcastSubmissionsForRoute(route);
       const row = rows[0] || null;
-      if (!row) return {text: "", txHash: "", txHashes: []};
+      if (!row || staleBroadcastSuppressed(route)) return {text: "", txHash: "", txHashes: []};
       const quote = row.quote || {};
       const analysis = quote.quote_analysis || quote.analysis || {};
       const txHashes = row.tx_hash ? [row.tx_hash] : [];
@@ -938,7 +995,7 @@
         ? `${numeric(testAmount, 8)} ${esc(autoRouteAmountSymbol(route))}`
         : "未计算";
       const broadcastDisabled = bestAmountMissing || bestAmountUnconfirmed || staticReview ? " disabled" : "";
-      return `<span class="muted">测试金额 ${testAmountText}</span><span class="muted">链下估算自动完成</span><button type="button" data-route-static-call="${index}">链上复核</button><button type="button" data-route-broadcast="${index}"${broadcastDisabled}>${bestAmountMissing ? "最佳量未计算" : staticReview ? "待链上复核后执行" : "链上执行"}</button>`;
+      return `<span class="muted">测试金额 ${testAmountText}</span><span class="muted">链下估算自动完成</span><button type="button" data-route-static-call="${index}">链上复核</button><button type="button" data-route-broadcast="${index}"${broadcastDisabled}>${bestAmountMissing ? (bestAmount === null || bestAmount === undefined || bestAmount === "" ? "最佳量未计算" : "最佳量未确认") : staticReview ? "待链上复核后执行" : "链上执行"}</button>`;
     };
     function routeSummaryHtml(rawRoute, index) {
       try {
@@ -992,7 +1049,7 @@
       const staticReview = routeNeedsLiveReview(route) || statusLower === "static_reference_pending_live_review" || String(evidence.executionTrust || "").toLowerCase() === "static_reference_pending_live_review";
       const negativeEvidence = terminalEvidenceStatus(evidence.status);
       const rawBestRouteAmount = routeBestAmountPick(rawRoute, evidence, analysis);
-      const rawBestAmountMissing = negativeEvidence || bestAmountMissingOf(rawRoute, evidence, analysis);
+      const rawBestAmountMissing = bestAmountMissingOf(rawRoute, evidence, analysis);
       const evStatus = reviewStage === "execution" || execPending || execFailed
         ? executionStageResultStatus({failed: execFailed, pending: execPending})
         : reviewStage === "preflight" || preflightFailed
@@ -1122,8 +1179,13 @@
               ? "未计算"
               : `${numeric(bestRouteAmount, 8)} ${display(routeAmountSymbol)}`);
         const initialProbeMetric = numeric(initialProbeAmount ?? estimatedInitialAmount, 8);
+        const routePoolCount = routePoolsOf(route).length;
+        const routeLiquidPoolCount = routePoolsOf(route).filter(poolExplicitlyUsable).length;
+        const routeUnusablePoolCount = routePoolsOf(route).filter(poolExplicitlyUnusable).length;
+        const routeEvidenceMissingPoolCount = routePoolsOf(route).filter(poolLiquidityEvidenceMissing).length;
         const metrics = [
           `方向=${actualDirection}`,
+          `路径池=${routePoolCount} / 有流动性=${routeLiquidPoolCount} / 无流动性=${routeUnusablePoolCount} / 未标注=${routeEvidenceMissingPoolCount}`,
           `${bestAmountLabel}=${bestAmountMetric}`,
           `报价=${reviewStage === "execution" || execPending || execFailed
             ? executionStageQuoteStatus({failed: execFailed, pending: execPending})
@@ -1203,5 +1265,11 @@
         const routeHtml = group.routes.map(({route, index}) => routeSummaryHtml(route, index)).join("");
         return `<section class="pool-group"><header><h2>${esc(group.start)} 可借贷资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span><button class="copy-btn" type="button" data-closed-loop-refresh="${esc(group.start)}">定点刷新</button></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
       }).join("");
-      return html || '<div class="empty">暂无同时具备可用流动性且非特殊费率的闭环路由。请先在候选池/总览确认中间桥池的流动性标记。</div>';
+      if (html) return html;
+      const candidateLiquid = Number(routeLiquidityContext?.candidateLiquidPoolCount ?? 0);
+      const closedLoopLiquid = Number(routeLiquidityContext?.closedLoopLiquidPoolCount ?? 0);
+      if (candidateLiquid > 0 && closedLoopLiquid === 0) {
+        return `<div class="empty">候选池中存在 ${esc(candidateLiquid)} 个有流动性池，但当前没有由这些池组成的完整 Y-X-Z-Y 闭环，因此报价页无可交易闭环。请先在市场观察/总览补充中间桥池或扩大观察锚点集合。</div>`;
+      }
+      return '<div class="empty">暂无同时具备可用流动性且非特殊费率的闭环路由。请先在候选池/总览确认中间桥池的流动性标记。</div>';
     };

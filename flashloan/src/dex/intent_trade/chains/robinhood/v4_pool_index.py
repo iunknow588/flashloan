@@ -156,6 +156,7 @@ def _connect_rpc(resolved_rpc_url: str) -> Web3:
             resolved_rpc_url,
             request_kwargs={
                 "timeout": 20,
+                "verify": False,
                 "headers": {
                     "Content-Type": "application/json",
                     "User-Agent": "flashloan-robinhood-mainnet-v4/1.0",

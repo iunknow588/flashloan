@@ -248,7 +248,7 @@ def test_dex_quotes_broadcast_disabled_is_a_not_submitted_state_not_failure():
 
 def test_dex_quotes_summary_shows_uncomputed_best_amount_instead_of_looking_confirmed():
     text = dex_quotes_ui_text()
-    assert "const rawBestAmountMissing = negativeEvidence || bestAmountMissingOf(rawRoute, evidence, analysis);" in text
+    assert "const rawBestAmountMissing = bestAmountMissingOf(rawRoute, evidence, analysis);" in text
     assert "const bestAmountMissingOf = (route, evidence, analysis) =>" in text
     assert "const bestAmountMetric = reviewStage === \"estimate\"" in text
     assert "rawBestAmountMissing" in text
@@ -264,8 +264,8 @@ def test_dex_quotes_summary_shows_uncomputed_best_amount_instead_of_looking_conf
 def test_dex_quotes_estimate_copy_does_not_show_initial_probe_as_uncomputed():
     text = dex_quotes_ui_text()
     assert "reviewStage !== \"estimate\" && (costs.bestAmountMissing === true || sourceAnalysis.bestAmountMissing === true || route.bestAmountMissing === true)" in text
-    assert "const bestAmountMissing = payload.bestAmountMissing === true\n    || analysis.bestAmountMissing === true\n    || !bestAmountConfirmed;" in text
-    assert "route.bestAmountMissing = bestAmountMissing;" in text
+    assert "const explicitBestAmountMissing = payload.bestAmountMissing === true" in text
+    assert "const mergedBestAmountMissing = explicitBestAmountMissing || (!mergedLiveVerifiedStatus && !payloadBestAmountConfirmed && !diagnosticBestComputed);" in text
     assert "route.bestAmountConfirmed = bestAmountConfirmed;" in text
     assert "route.bestAmountMissing = mergedAnalysis.bestAmountMissing === true;" in text
     assert "route.bestAmountConfirmed = mergedAnalysis.bestAmountConfirmed === true;" in text
@@ -292,6 +292,32 @@ def test_dex_quotes_terminal_status_never_masquerades_as_preflight_complete():
     assert "if (terminalRouteStatus(evidence?.status || route?.quoteStatus))" in text
     assert "if (estimateFailed) return terminalFailureAdvice(evidence.status);" in text
     assert "statusLower === \"route_unprofitable\"" in text
+
+
+def test_dex_quotes_structured_route_test_400_preserves_terminal_status():
+    text = dex_quotes_ui_text()
+    assert "async function postJson(path, payload, allowStructuredFailedResponse = false)" in text
+    assert "const structuredFailedResponse = Boolean(" in text
+    assert "data?.quoteStatus || data?.evidenceStatus || data?.executionTrust" in text
+    assert 'postJson("/api/dex/quote-route/test", {' in text
+    assert "}, true);" in text
+
+
+def test_dex_quotes_fetch_failure_is_not_rpc_failure():
+    text = dex_quotes_ui_text()
+    assert "networkError.__dexErrorCode = \"backend_unreachable\"" in text
+    assert "fetchFailure ? \"backend_unreachable\" : \"rpc_verification_failed\"" in text
+    assert "请求服务不可达" in text
+    assert "backend_unreachable" in text
+    assert "fetch_network_error" in text
+
+
+def test_dex_quotes_unprofitable_diagnostic_amount_is_not_missing():
+    text = dex_quotes_ui_text()
+    assert "terminalDiagnosticStatus" in text
+    assert "const rawBestAmountMissing = bestAmountMissingOf(rawRoute, evidence, analysis);" in text
+    assert "bestAmountComputed" in text
+    assert "bestAmountMissingCopy = pendingCopy" in text
 
 
 def test_dex_quotes_translates_evidence_timeout_blocker_to_chinese():

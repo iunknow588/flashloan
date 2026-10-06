@@ -153,6 +153,15 @@
       }
       return normalized;
     };
+    const scopedHref = path => {
+      const url = new URL(path, window.location.origin);
+      const query = normalizeScopeQuery(new URLSearchParams(window.location.search));
+      for (const [key, value] of query.entries()) {
+        if (!url.searchParams.has(key)) url.searchParams.set(key, value);
+      }
+      url.searchParams.delete("protocols");
+      return url.pathname + (url.search ? url.search : "");
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
@@ -642,7 +651,7 @@
       counts.all = Object.values(counts).reduce((total, value) => total + (Number(value) || 0), 0);
       const categories = ["all", "broadcast", "submission", "code", "rpc", "execution", "quote", "blocked", "other"].filter(category => category === "all" || counts[category] > 0);
       $("errorTabs").innerHTML = categories.map(category => {
-        const href = category === "all" ? "/dex/submissions/failed" : `/dex/submissions/failed/${category}`;
+        const href = scopedHref(category === "all" ? "/dex/submissions/failed" : `/dex/submissions/failed/${category}`);
         const cls = category === currentErrorCategory ? "active" : "";
         return `<a data-error-category="${category}" class="${cls}" href="${href}">${esc(errorCategoryLabel(category))} (${counts[category] || 0})</a>`;
       }).join("");
@@ -744,6 +753,9 @@
       if (!button) return;
       const row = latestRows[Number(button.dataset.copyRecord)];
       if (row) copyText(recordCopyText(row), button);
+    });
+    document.querySelectorAll("a[href^='/dex/']").forEach(link => {
+      link.href = scopedHref(link.getAttribute("href"));
     });
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();

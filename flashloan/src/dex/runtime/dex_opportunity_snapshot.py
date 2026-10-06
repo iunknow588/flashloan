@@ -99,7 +99,7 @@ def _closed_loop_workers() -> int:
         return 3
 
 
-def _auto_execute_log_stats(chain_id: int | None) -> dict[str, Any]:
+def _auto_execute_log_stats(chain_id: int | None, since: str | None = None) -> dict[str, Any]:
     """Return cumulative auto-execute stats persisted in execution attempts."""
     if chain_id is None:
         return {"auto_execute_count": 0, "last_auto_execute_at": None}
@@ -124,8 +124,10 @@ def _auto_execute_log_stats(chain_id: int | None) -> dict[str, Any]:
         tx_hash = str(result.get("txHash") or result.get("tx_hash") or "").strip()
         if not tx_hash:
             continue
-        auto_execute_count += 1
         ts = str(auto.get("observed_at") or attempt.get("created_at") or attempt.get("observed_at") or "").strip()
+        if since and ts and str(ts) < str(since):
+            continue
+        auto_execute_count += 1
         if ts and (last_auto_execute_at is None or ts > last_auto_execute_at):
             last_auto_execute_at = ts
     return {

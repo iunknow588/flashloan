@@ -91,3 +91,17 @@ def test_fixed_pipeline_marks_error_without_swallowing():
     assert failed.error_stack is not None
     assert failed.error_stack[0]["module"] == "DEX"
     assert failed.error_stack[0]["code"] == 3099
+
+
+def test_fixed_pipeline_start_uses_configured_group_workers(monkeypatch):
+    monkeypatch.setenv("DEX_CLOSED_LOOP_GROUP_WORKERS", "2")
+
+    def refresh_fn(task):
+        time.sleep(0.01)
+        return {"ok": True, "group_key": task.group_key}
+
+    pipeline = FixedRefreshPipeline(refresh_fn=refresh_fn)
+    pipeline.start()
+    assert len(pipeline._threads) >= 2
+    assert all(thread.daemon for thread in pipeline._threads)
+    pipeline.stop()

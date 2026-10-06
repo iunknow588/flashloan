@@ -954,7 +954,7 @@ def test_robinhood_overview_does_not_fallback_to_candidate_pools(monkeypatch):
     assert overview["arbitragePaths"] == []
 
 
-def test_quote_routes_skip_non_usable_liquidity_routes(monkeypatch):
+def test_quote_routes_keep_non_usable_liquidity_routes_for_selection(monkeypatch):
     from market.binance_market.dex_quote_surface import build_quote_routes_payload_from_overview
 
     usable_route = {
@@ -1011,8 +1011,14 @@ def test_quote_routes_skip_non_usable_liquidity_routes(monkeypatch):
         route_size_analysis_fn=lambda *args, **kwargs: {},
     )
     assert payload["summary"]["unfilteredRouteCount"] == 2
-    assert payload["summary"]["routeCount"] == 1
-    assert payload["routes"][0]["symbolPair"] == "ETH -> PEPE -> USDG -> ETH"
+    assert payload["summary"]["routeCount"] == 2
+    assert {route["symbolPair"] for route in payload["routes"]} == {
+        "ETH -> PEPE -> USDG -> ETH",
+        "ETH -> DIG -> USDG -> ETH",
+    }
+    by_symbol = {route["symbolPair"]: route for route in payload["routes"]}
+    assert by_symbol["ETH -> PEPE -> USDG -> ETH"]["routeUsableForObservation"] is True
+    assert by_symbol["ETH -> DIG -> USDG -> ETH"]["routeUsableForObservation"] is False
     assert payload["routes"][0]["pathSource"] == "candidate_pool_fallback"
     assert payload["routes"][0]["chainReviewEligible"] is False
     assert payload["routes"][0]["diagnosticOnly"] is True

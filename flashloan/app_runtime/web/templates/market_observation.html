@@ -212,7 +212,8 @@
       const depth = pool?.depthBand || {};
       const label = depth.label || pool?.depthStatus || "-";
       const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
-      return `${label}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+      const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
+      return `${usable === false ? "无流动性 / " : (usable === true ? "有流动性 / " : "流动性未标注 / ")}${label}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
     }
 
     function poolLabelText(pool) {
@@ -229,7 +230,9 @@
 
     function poolBadgeHtml(pool) {
       const title = `${poolLabelText(pool)} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}`;
-      return `<span class="badge neutral" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}</span>`;
+      const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
+      const cls = usable === true ? "good" : (usable === false ? "warn" : "neutral");
+      return `<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}</span>`;
     }
 
     function associatedPoolFallbackHtml(row) {
@@ -427,7 +430,6 @@
         $("observationTokenCount").textContent = `关联代币 ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
 
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
-
         $("associatedPairList").innerHTML = effectiveAssociatedPairs.map(associatedPairHtml).join("") || '<div class="empty">当前选择下没有资金锚点可接入交易对。</div>';
         $("candidateGroupList").innerHTML = candidateGroups.map(groupHtml).join("") || '<div class="empty">当前选择下没有按候选代币分类的观察分组。</div>';
 

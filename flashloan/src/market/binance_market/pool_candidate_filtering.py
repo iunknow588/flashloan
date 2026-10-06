@@ -186,6 +186,20 @@ def _candidate_pool_is_high_quality(row: dict) -> bool:
     quality = str(row.get("quality") or row.get("status") or "").strip().lower()
     return quality in {"pass", "recommended", "observable"}
 
+
+def _pool_candidate_has_liquidity(row: dict) -> bool:
+    if row.get("dynamicFee") or row.get("specialFee"):
+        return False
+    if row.get("usableForObservation") is not None:
+        return bool(row.get("usableForObservation"))
+    if row.get("hasLiquidity") is not None:
+        return bool(row.get("hasLiquidity"))
+    try:
+        return float(row.get("liquidityIndex") or row.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def _candidate_pool_available(row: dict) -> bool:
     return _candidate_pool_is_high_quality(row) and _candidate_pool_has_depth(row)
 
@@ -315,24 +329,26 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
     return copied
 
 def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> dict[str, Any]:
-    payload["selected_protocols"] = sorted(protocols)
+    result = dict(payload)
+    result["summary"] = dict(payload.get("summary") if isinstance(payload.get("summary"), dict) else {})
+    result["selected_protocols"] = sorted(protocols)
     if not protocols:
-        return payload
+        return result
     pairs = [
         filtered
         for pair in payload.get("pairs") or []
         for filtered in [_filter_pair_protocols(pair, protocols)]
         if filtered is not None
     ]
-    payload["pairs"] = pairs
+    result["pairs"] = pairs
     anchor_groups = [
         filtered
         for group in payload.get("anchorGroups") or []
         for filtered in [_filter_anchor_group_protocols(group, protocols)]
         if filtered is not None
     ]
-    payload["anchorGroups"] = anchor_groups
-    summary = payload.setdefault("summary", {})
+    result["anchorGroups"] = anchor_groups
+    summary = result["summary"]
     summary["pairTableCount"] = str(len(pairs))
     summary["anchorGroupCount"] = str(len(anchor_groups))
     summary["ycPoolCount"] = str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups))
@@ -348,7 +364,34 @@ def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> d
     summary["strictQualityPairCount"] = summary["pairsWithStrictQualityPools"]
     summary["candidateRouteCount"] = summary["preferredPoolCount"]
     summary["protocolFilter"] = sorted(protocols)
-    return payload
+    all_anchor_groups = anchor_groups or result.get("anchorGroups") or []
+    liquid_pool_ids: set[str] = set()
+    liquid_pool_group_count = 0
+    for group in all_anchor_groups:
+        group_pools = [
+            row
+            for row in (
+                list(group.get("ycPools") or [])
+                + list(group.get("zcPools") or [])
+                + list(group.get("sharedPools") or [])
+            )
+            if isinstance(row, dict)
+        ]
+        if not group_pools:
+            continue
+        liquid_rows = [row for row in group_pools if _pool_candidate_has_liquidity(row)]
+        if liquid_rows:
+            liquid_pool_group_count += 1
+            liquid_pool_ids.update(
+                {
+                    str(row.get("pool") or row.get("poolId") or "").strip().lower()
+                    for row in liquid_rows
+                    if str(row.get("pool") or row.get("poolId") or "").strip()
+                }
+            )
+    summary["liquidPoolCount"] = str(len(liquid_pool_ids))
+    summary["liquidPoolGroupCount"] = str(liquid_pool_group_count)
+    return result
 
 def _annotate_candidate_pool_cache(
     payload: dict[str, Any],

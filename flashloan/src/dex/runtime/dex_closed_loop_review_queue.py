@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import heapq
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -177,22 +178,37 @@ class FixedRefreshPipeline:
         self.queue = queue or ClosedLoopReviewQueue()
         self.refresh_fn = refresh_fn
         self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()
+
+    def _worker_count(self) -> int:
+        raw = os.getenv("DEX_CLOSED_LOOP_GROUP_WORKERS", os.getenv("DEX_CLOSED_LOOP_WORKERS", "3"))
+        try:
+            return max(1, min(8, int(raw)))
+        except (TypeError, ValueError):
+            return 1
 
     def start(self) -> None:
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
+            if any(thread.is_alive() for thread in self._threads):
                 return
             self._stop.clear()
-            self._thread = threading.Thread(target=self._loop, daemon=True, name="fixed-closed-loop-refresh")
-            self._thread.start()
+            self._threads = []
+            for index in range(self._worker_count()):
+                thread = threading.Thread(
+                    target=self._loop,
+                    daemon=True,
+                    name=f"fixed-closed-loop-refresh-{index}",
+                )
+                self._threads.append(thread)
+                thread.start()
 
     def stop(self) -> None:
         self._stop.set()
         with self._lock:
-            thread = self._thread
-            if thread is not None and thread.is_alive():
+            threads = list(self._threads)
+        for thread in threads:
+            if thread.is_alive():
                 thread.join(timeout=2.0)
 
     def run_once(self) -> ClosedLoopReviewTask | None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery as _default_query_flash_loan_pool_discovery
 from core.market_profiles import DEFAULT_ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID
@@ -126,6 +126,7 @@ def _v4_index_bridge_pairs_for_anchor_groups(
     *,
     chain_id: int | None,
     protocols: list[str] | None,
+    pool_liquidity_loader: Callable[[], dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     bridge_function = robinhood_testnet_v4_bridge_pairs_for_anchor_groups
     try:
@@ -140,6 +141,7 @@ def _v4_index_bridge_pairs_for_anchor_groups(
         anchor_groups,
         chain_id=chain_id,
         protocols=protocols,
+        **({"pool_liquidity_loader": pool_liquidity_loader} if pool_liquidity_loader is not None else {}),
     )
 
 def _chain_fund_anchor_pair_observation(
@@ -191,17 +193,20 @@ def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
 
 
 def _pool_has_explicit_observation_quality(pool: dict[str, Any]) -> bool:
-    return any(
-        pool.get(key) is not None
-        for key in (
-            "usableForObservation",
-            "specialFee",
-            "dynamicFee",
-            "hasLiquidity",
-            "liquidityIndex",
-            "liquidity",
-        )
-    )
+    for key in (
+        "usableForObservation",
+        "specialFee",
+        "dynamicFee",
+        "hasLiquidity",
+        "liquidityIndex",
+        "liquidity",
+    ):
+        value = pool.get(key)
+        if isinstance(value, str) and not value.strip():
+            continue
+        if value is not None:
+            return True
+    return False
 
 
 def _route_usability_from_pairs(pairs: list[dict[str, Any]]) -> tuple[bool | None, bool]:

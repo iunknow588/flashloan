@@ -149,6 +149,176 @@ def test_robinhood_testnet_static_quote_routes_keep_protocol_scope():
     ) == ["uniswap_v3", "uniswap_v4"]
 
 
+def test_static_route_liquidity_evidence_distinguishes_explicit_and_unknown():
+    from web.data_routes.dex_surface_routes_quotes import _static_route_liquidity_evidence
+
+    liquid_pool = {
+        "pool": "0x" + "a" * 64,
+        "poolKey": {"currency0": "0x0", "currency1": "0xaa", "fee": 500, "tickSpacing": 10, "hooks": "0x0"},
+        "hasLiquidity": True,
+        "usableForObservation": True,
+        "liquidityIndex": 100.0,
+    }
+    no_evidence_pool = {
+        "pool": "0x" + "b" * 64,
+        "poolKey": {"currency0": "0x0", "currency1": "0xbb", "fee": 500, "tickSpacing": 10, "hooks": "0x0"},
+    }
+    explicit_unusable_pool = {
+        "pool": "0x" + "c" * 64,
+        "poolKey": {"currency0": "0x0", "currency1": "0xcc", "fee": 500, "tickSpacing": 10, "hooks": "0x0"},
+        "hasLiquidity": False,
+        "usableForObservation": False,
+    }
+
+    usable, explicit = _static_route_liquidity_evidence([liquid_pool])
+    assert usable is True and explicit is True
+    usable, explicit = _static_route_liquidity_evidence([no_evidence_pool])
+    assert usable is None and explicit is False
+    usable, explicit = _static_route_liquidity_evidence([explicit_unusable_pool])
+    assert usable is False and explicit is True
+    usable, explicit = _static_route_liquidity_evidence([liquid_pool, no_evidence_pool])
+    assert usable is True and explicit is True
+    usable, explicit = _static_route_liquidity_evidence([liquid_pool, explicit_unusable_pool])
+    assert usable is False and explicit is True
+
+
+def test_static_quote_routes_keeps_unlabelled_closed_loops_and_exposes_liquid_registry(monkeypatch):
+    from web.data_routes.dex_surface_routes_quotes import register_dex_quote_routes
+    from web.data_routes import dex_surfaces as surface_root
+
+    def _pool(pool_id: str, symbols: tuple[str, str], *, usable=None, has_liquidity=None):
+        return {
+            "pool": pool_id,
+            "poolId": pool_id,
+            "poolKey": {
+                "currency0": "0x" + "1" * 40,
+                "currency1": "0x" + "2" * 40,
+                "fee": 500,
+                "tickSpacing": 10,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            "token0Symbol": symbols[0],
+            "token1Symbol": symbols[1],
+            "pairSymbol": f"{symbols[0]}:{symbols[1]}",
+            "symbolPair": f"{symbols[0]}:{symbols[1]}",
+            "routeSymbols": list(symbols),
+            "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40],
+            "fee": 500,
+            "usableForObservation": usable,
+            "hasLiquidity": has_liquidity,
+        }
+
+    overview = {
+        "exists": True,
+        "path": "overview.json",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "summary": {
+            "liquidPoolCount": 1,
+            "closedLoopRouteCount": 2,
+        },
+        "closedLoopRouteSummaries": [
+            {
+                "anchorSymbol": "ETH",
+                "counterSymbol": "AAA",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+                "routePools": [
+                    _pool("0x" + "a" * 64, ("ETH", "AAA"), usable=None, has_liquidity=None),
+                    _pool("0x" + "b" * 64, ("AAA", "BBB"), usable=None, has_liquidity=None),
+                    _pool("0x" + "c" * 64, ("BBB", "ETH"), usable=None, has_liquidity=None),
+                ],
+            },
+            {
+                "anchorSymbol": "ETH",
+                "counterSymbol": "CCC",
+                "pathSymbols": ["ETH", "CCC", "DDD", "ETH"],
+                "pathText": "ETH -> CCC -> DDD -> ETH",
+                "routeAddresses": ["0x" + "1" * 40, "0x" + "4" * 40, "0x" + "5" * 40, "0x" + "1" * 40],
+                "routePools": [
+                    _pool("0x" + "d" * 64, ("ETH", "CCC"), usable=False, has_liquidity=False),
+                    _pool("0x" + "e" * 64, ("CCC", "DDD"), usable=False, has_liquidity=False),
+                    _pool("0x" + "f" * 64, ("DDD", "ETH"), usable=False, has_liquidity=False),
+                ],
+            },
+        ],
+        "poolRegistry": {
+            "0x" + "a" * 64: _pool("0x" + "a" * 64, ("ETH", "AAA")),
+            "0x" + "b" * 64: _pool("0x" + "b" * 64, ("AAA", "BBB")),
+            "0x" + "c" * 64: _pool("0x" + "c" * 64, ("BBB", "ETH")),
+            "0x" + "d" * 64: _pool("0x" + "d" * 64, ("ETH", "CCC"), usable=False, has_liquidity=False),
+            "0x" + "e" * 64: _pool("0x" + "e" * 64, ("CCC", "DDD"), usable=False, has_liquidity=False),
+            "0x" + "f" * 64: _pool("0x" + "f" * 64, ("DDD", "ETH"), usable=False, has_liquidity=False),
+        },
+        "liquidPoolRegistry": {
+            "0x" + "g" * 64: _pool("0x" + "g" * 64, ("ETH", "GGG"), usable=True, has_liquidity=True),
+        },
+    }
+
+    monkeypatch.setattr(
+        surface_root,
+        "load_market_observation_overview_static",
+        lambda **kwargs: overview,
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "selected_chain_id_from_request",
+        lambda: ({"chain_id": 46630, "market_id": "dex-arbitrage-46630-uniswap-v4"}, 46630),
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "request_dex_protocols_arg",
+        lambda: ["uniswap_v4"],
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "_attach_dex_strategy",
+        lambda payload: payload,
+    )
+
+    app = Flask(__name__)
+    register_dex_quote_routes(app)
+    with app.test_client() as client:
+        response = client.get("/api/dex/quote-routes/static?chain_id=46630&protocols=uniswap_v4")
+        payload = response.get_json()
+
+    assert response.status_code == 200
+    # The unlabelled route is preserved; the explicitly-unusable route is dropped.
+    assert len(payload["routes"]) == 1
+    assert payload["routes"][0]["routeUsableForObservation"] is None
+    assert payload["routes"][0]["routeHasLiquidityEvidence"] is False
+    assert payload["summary"]["candidateLiquidPoolCount"] == 1
+    assert payload["summary"]["closedLoopLiquidPoolCount"] == 1
+    assert payload["summary"]["liquidPoolRegistryCount"] == 1
+    assert payload["liquidPoolRegistry"]["0x" + "g" * 64]["hasLiquidity"] is True
+
+
+def test_static_quote_routes_drops_route_with_mixed_explicit_unusable_liquidity(monkeypatch):
+    from web.data_routes.dex_surface_routes_quotes import _route_has_explicit_unusable_liquidity
+
+    liquid = {
+        "pool": "0x" + "a" * 64,
+        "poolId": "0x" + "a" * 64,
+        "hasLiquidity": True,
+        "usableForObservation": True,
+    }
+    unusable = {
+        "pool": "0x" + "b" * 64,
+        "poolId": "0x" + "b" * 64,
+        "hasLiquidity": False,
+        "usableForObservation": False,
+    }
+    missing = {
+        "pool": "0x" + "c" * 64,
+        "poolId": "0x" + "c" * 64,
+    }
+
+    assert _route_has_explicit_unusable_liquidity({"routePools": [liquid, unusable, missing]}) is True
+    assert _route_has_explicit_unusable_liquidity({"routePools": [liquid, missing]}) is False
+    assert _route_has_explicit_unusable_liquidity({"routePools": []}) is True
+
+
 def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     monkeypatch.setattr(
         quote_service,

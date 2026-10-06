@@ -97,39 +97,58 @@ function preflightRouteTestAdvice(result) {
 function markPreflightFailed(route, detail, status = "rpc_verification_failed") {
   if (!route || typeof route !== "object") return route;
   route.__broadcastError = detail || "链上复核失败";
-  route.bestAmountMissing = true;
+  const evidence = route.live_onchain_evidence && typeof route.live_onchain_evidence === "object" ? route.live_onchain_evidence : {};
+  const costs = evidence.costModel && typeof evidence.costModel === "object" ? evidence.costModel : {};
+  const terminalDiagnosticStatus = ["route_unprofitable", "slippage_limit_exceeded", "pool_insufficient_for_profitable_execution"].includes(String(status || "").toLowerCase());
+  const networkFailureStatus = ["fetch_network_error", "backend_unreachable"].includes(String(status || "").toLowerCase());
+  const preserveDiagnostic = terminalDiagnosticStatus || networkFailureStatus;
+  const existingBestAmount = costs.selectedBorrowInputAmount ?? costs.borrowInputAmount ?? route.quoteAnalysis?.bestAmount ?? null;
+  const hasDiagnosticBestAmount = preserveDiagnostic && existingBestAmount !== null && existingBestAmount !== undefined && existingBestAmount !== "";
+  route.bestAmountMissing = preserveDiagnostic ? Boolean(!hasDiagnosticBestAmount) : true;
+  route.bestAmountComputed = Boolean(hasDiagnosticBestAmount);
   route.bestAmountConfirmed = false;
   setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_FAILED, {quoteStatus: status});
   if (!route.live_onchain_evidence || typeof route.live_onchain_evidence !== "object") {
     route.live_onchain_evidence = {};
   }
-  const evidence = route.live_onchain_evidence;
-  const costs = evidence.costModel || {};
+  const nextEvidence = route.live_onchain_evidence;
+  const nextCosts = nextEvidence.costModel && typeof nextEvidence.costModel === "object" ? nextEvidence.costModel : {};
   evidence.status = status;
   evidence.executionTrust = status;
   evidence.offchainInitialProbeReason = evidence.offchainInitialProbeReason || "requested_borrow_amount_fallback";
   evidence.hops = [];
-  evidence.costModel = {
-    ...costs,
-    bestAmountMissing: true,
+  if (networkFailureStatus) evidence.blockers = [];
+  nextEvidence.status = status;
+  nextEvidence.executionTrust = status;
+  nextEvidence.offchainInitialProbeReason = nextEvidence.offchainInitialProbeReason || "requested_borrow_amount_fallback";
+  nextEvidence.hops = [];
+  if (networkFailureStatus) nextEvidence.blockers = [];
+  nextEvidence.costModel = {
+    ...nextCosts,
+    bestAmountMissing: preserveDiagnostic ? Boolean(!hasDiagnosticBestAmount) : true,
+    bestAmountComputed: Boolean(hasDiagnosticBestAmount),
     bestAmountConfirmed: false,
-    selectedBorrowInputAmount: costs.requestedBorrowInputAmount ?? null,
-    borrowInputAmount: costs.requestedBorrowInputAmount ?? null,
-    netProfitAmount: null,
-    netProfitAmountBps: null,
-    finalOutputAmount: null,
-    finalOutputSymbol: costs.finalOutputSymbol ?? costs.borrowInputSymbol ?? null,
+    selectedBorrowInputAmount: hasDiagnosticBestAmount ? existingBestAmount : (nextCosts.requestedBorrowInputAmount ?? null),
+    borrowInputAmount: hasDiagnosticBestAmount ? existingBestAmount : (nextCosts.requestedBorrowInputAmount ?? null),
+    netProfitAmount: preserveDiagnostic ? nextCosts.netProfitAmount : null,
+    netProfitAmountBps: preserveDiagnostic ? nextCosts.netProfitAmountBps : null,
+    finalOutputAmount: preserveDiagnostic ? nextCosts.finalOutputAmount : null,
+    finalOutputSymbol: nextCosts.finalOutputSymbol ?? nextCosts.borrowInputSymbol ?? null,
   };
   if (route.quoteAnalysis && typeof route.quoteAnalysis === "object") {
     route.quoteAnalysis.steps = [];
-    route.quoteAnalysis.referenceFinalOutputAmount = null;
-    route.quoteAnalysis.referenceNetProfitAmount = null;
-    route.quoteAnalysis.referenceNetReturnBps = null;
-    route.quoteAnalysis.probeRecords = [];
-    route.quoteAnalysis.probe_records = [];
-    route.quoteAnalysis.bestAmountMissing = true;
+    if (!preserveDiagnostic) {
+      route.quoteAnalysis.referenceFinalOutputAmount = null;
+      route.quoteAnalysis.referenceNetProfitAmount = null;
+      route.quoteAnalysis.referenceNetReturnBps = null;
+      route.quoteAnalysis.probeRecords = [];
+      route.quoteAnalysis.probe_records = [];
+    }
+    route.quoteAnalysis.bestAmountMissing = preserveDiagnostic ? Boolean(!hasDiagnosticBestAmount) : true;
+    route.quoteAnalysis.bestAmountComputed = Boolean(hasDiagnosticBestAmount);
     route.quoteAnalysis.bestAmountConfirmed = false;
     route.quoteAnalysis.amountOptimized = false;
   }
+  route.live_onchain_evidence = nextEvidence;
   return route;
 }

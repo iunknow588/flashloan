@@ -570,6 +570,7 @@ def _fixed_amount_pnl_payload(
         if live_verified and ref_net_profit_amount is not None and float(ref_net_profit_amount) <= 0
         else "static_reference_pending_live_review"
     )
+    diagnostic_unprofitable = quote_status == "route_unprofitable"
     return {
         "ok": True,
         "mode": "dex_route_fixed_amount_pnl",
@@ -577,9 +578,10 @@ def _fixed_amount_pnl_payload(
         "routeSymbols": route_symbols,
         "routeAddresses": route_addresses,
         "amount": float(amount),
-        "bestAmount": None,
+        "bestAmount": float(amount) if diagnostic_unprofitable else None,
         "bestAmountConfirmed": False,
-        "bestAmountMissing": True,
+        "bestAmountComputed": diagnostic_unprofitable,
+        "bestAmountMissing": not diagnostic_unprofitable,
         "bestAmountSelectionBasis": "requested_fixed_amount",
         "direction": " -> ".join(route_symbols),
         "directionConfirmed": True,
@@ -969,6 +971,7 @@ def _official_v4_preview_python(
                 rpc_url,
                 request_kwargs={
                     "timeout": 60,
+                    "verify": False,
                     "headers": {
                         "Content-Type": "application/json",
                         "User-Agent": "flashloan-robinhood-testnet-route-preview/1.0",
@@ -1036,11 +1039,12 @@ def _official_v4_preview_python(
             w3 = Web3(
                 Web3.HTTPProvider(
                     rpc_url,
-                    request_kwargs={
-                        "timeout": 60,
-                        "headers": {
-                            "Content-Type": "application/json",
-                            "User-Agent": "flashloan-robinhood-mainnet-route-preview/1.0",
+                request_kwargs={
+                    "timeout": 60,
+                    "verify": False,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "User-Agent": "flashloan-robinhood-mainnet-route-preview/1.0",
                             "Connection": "close",
                         },
                     },
@@ -1341,6 +1345,7 @@ def _official_v4_broadcast_python(
                 rpc_url,
                 request_kwargs={
                     "timeout": 60,
+                    "verify": False,
                     "headers": {
                         "Content-Type": "application/json",
                         "User-Agent": "flashloan-robinhood-official-v4-broadcast/1.0",
@@ -1363,12 +1368,25 @@ def _official_v4_broadcast_python(
         )
         gas_estimate = int(tx_fn.estimate_gas({"from": account.address}))
         nonce = int(w3.eth.get_transaction_count(account.address))
+        latest_block = w3.eth.get_block("latest")
+        base_fee = int((latest_block or {}).get("baseFeePerGas") or w3.eth.gas_price)
+        gas_price = int(w3.eth.gas_price)
+        try:
+            priority_fee = int(w3.eth.max_priority_fee)
+        except Exception:
+            priority_fee = 0
+        priority_fee = max(priority_fee, 0)
+        # Robinhood's RPC can reject a legacy gasPrice that is only a few wei
+        # below the latest base fee. Keep EIP-1559 fields unambiguous and add a
+        # buffer so a stale block/base-fee snapshot still clears the limit.
+        max_fee = max(gas_price, base_fee) * 3 // 2 + priority_fee + 1_000_000
         tx = tx_fn.build_transaction(
             {
                 "from": account.address,
                 "nonce": nonce,
                 "gas": int(gas_estimate * 1.15) + 50_000,
-                "gasPrice": int(w3.eth.gas_price),
+                "maxFeePerGas": max_fee,
+                "maxPriorityFeePerGas": priority_fee,
                 "chainId": int(w3.eth.chain_id),
             }
         )
@@ -2051,6 +2069,12 @@ def run_official_v4_arb_route_test(
         if quote_status == "static_reference_pending_live_review"
         else "live_quote_failed"
     )
+    diagnostic_best_amount = bool(
+        quote_status == "route_unprofitable"
+        and selected_amount is not None
+        and float(selected_amount) > 0
+    )
+    best_amount_missing = not best_amount_confirmed and not diagnostic_best_amount
 
     payload = {
         "ok": result.returncode == 0 and parsed.get("ok") is not False,
@@ -2065,7 +2089,8 @@ def run_official_v4_arb_route_test(
         "bestAmount": selected_amount,
         "bestAmountSource": "onchain_contract_preview" if best_amount_from_chain else "requested_initial_amount",
         "bestAmountConfirmed": best_amount_confirmed,
-        "bestAmountMissing": not best_amount_confirmed,
+        "bestAmountComputed": diagnostic_best_amount,
+        "bestAmountMissing": best_amount_missing,
         "bestAmountSelectionBasis": best_amount_selection_basis,
         "bestAmountConfirmationReason": best_amount_confirmation_reason,
         "amountSymbol": route_symbols[0] if route_symbols else None,
@@ -2105,7 +2130,8 @@ def run_official_v4_arb_route_test(
                 else ["on-chain best amount is not confirmed; cannot enter transaction preflight"]
             ),
             "bestAmountConfirmed": best_amount_confirmed,
-            "bestAmountMissing": not best_amount_confirmed,
+            "bestAmountComputed": diagnostic_best_amount,
+            "bestAmountMissing": best_amount_missing,
             "bestAmountSelectionBasis": best_amount_selection_basis,
             "bestAmountConfirmationReason": best_amount_confirmation_reason,
             "profitable": profitable,
@@ -2117,7 +2143,8 @@ def run_official_v4_arb_route_test(
                 "selectedBorrowInputAmount": selected_amount,
                 "requestedBorrowInputAmount": amount,
                 "bestAmountConfirmed": best_amount_confirmed,
-                "bestAmountMissing": not best_amount_confirmed,
+                "bestAmountComputed": diagnostic_best_amount,
+                "bestAmountMissing": best_amount_missing,
                 "bestAmountSelectionBasis": best_amount_selection_basis,
                 "bestAmountConfirmationReason": best_amount_confirmation_reason,
                 "netProfitAmount": profit_human,
@@ -2181,6 +2208,68 @@ def run_official_v4_arb_route_test(
         best_amount_selection_basis=best_amount_selection_basis,
         best_amount_confirmation_reason=best_amount_confirmation_reason,
     )
+    if diagnostic_best_amount:
+        payload["bestAmountComputed"] = True
+        payload["bestAmountMissing"] = False
+        if isinstance(payload.get("analysis"), dict):
+            payload["analysis"]["bestAmountComputed"] = True
+            payload["analysis"]["bestAmountMissing"] = False
+        best_amount_calculation = payload.get("bestAmountCalculation")
+        if isinstance(best_amount_calculation, dict):
+            best_amount_calculation["bestAmountComputed"] = True
+            best_amount_calculation["bestAmountMissing"] = False
+        if isinstance(payload.get("evidence"), dict):
+            evidence = payload["evidence"]
+            evidence["bestAmountComputed"] = True
+            evidence["bestAmountMissing"] = False
+            if isinstance(evidence.get("costModel"), dict):
+                evidence["costModel"]["bestAmountComputed"] = True
+                evidence["costModel"]["bestAmountMissing"] = False
+    # The official V4 contract can revert with NoProfitableRoute without
+    # returning a numeric final output. Keep that on-chain conclusion, but
+    # attach a negative reference P&L from the local observation snapshot so
+    # the UI never claims net profit is not positive while showing a blank
+    # net-profit value.
+    if quote_status == "route_unprofitable" and profit_human is None:
+        try:
+            fallback_pnl = estimate_fixed_amount_pnl_quick(
+                chain_id=int(chain_id),
+                route_symbols=route_symbols,
+                amount=amount,
+                protocols=["uniswap_v4"],
+            )
+        except Exception:
+            fallback_pnl = {}
+        fallback_net = fallback_pnl.get("referenceNetProfitAmount")
+        fallback_bps = fallback_pnl.get("referenceNetReturnBps")
+        fallback_out = fallback_pnl.get("referenceFinalOutputAmount")
+        fallback_symbol = route_symbols[0] if route_symbols else None
+        if fallback_net is not None:
+            payload["referenceNetProfitAmount"] = fallback_net
+            payload["referenceNetReturnBps"] = fallback_bps
+            payload["referenceFinalOutputAmount"] = fallback_out
+            payload["referenceFinalOutputSymbol"] = fallback_symbol
+            if isinstance(payload.get("evidence"), dict):
+                cost_model = payload["evidence"].get("costModel")
+                if isinstance(cost_model, dict):
+                    cost_model["netProfitAmount"] = fallback_net
+                    cost_model["netProfitAmountBps"] = fallback_bps
+                    cost_model["netProfitBps"] = fallback_bps
+                    cost_model["finalOutputAmount"] = fallback_out
+                    cost_model["finalOutputSymbol"] = fallback_symbol
+                    cost_model["finalOutputUsd"] = None
+                    cost_model["netProfitUsd"] = None
+                    cost_model["grossProfitUsd"] = None
+                payload["evidence"]["referenceNetProfitAmount"] = fallback_net
+                payload["evidence"]["referenceNetReturnBps"] = fallback_bps
+                payload["evidence"]["referenceFinalOutputAmount"] = fallback_out
+            if not isinstance(payload.get("analysis"), dict):
+                payload["analysis"] = {}
+            payload["analysis"]["referenceNetProfitAmount"] = fallback_net
+            payload["analysis"]["referenceNetReturnBps"] = fallback_bps
+            payload["analysis"]["referenceFinalOutputAmount"] = fallback_out
+            payload["analysis"]["referenceFinalOutputSymbol"] = fallback_symbol
+            payload["analysis"]["profitBasis"] = "borrow_token"
     if quote_status != "live_verified" or not best_amount_confirmed:
         reason = (
             payload.get("detail")

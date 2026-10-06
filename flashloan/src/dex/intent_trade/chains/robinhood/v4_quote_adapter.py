@@ -119,6 +119,7 @@ def _connect_chain_rpc(network: str | None, chain_id: int | None) -> tuple[Any, 
                     url,
                     request_kwargs={
                         "timeout": timeout,
+                        "verify": False,
                         "headers": {
                             "Content-Type": "application/json",
                             "User-Agent": "flashloan-robinhood-mainnet-v4/1.1",

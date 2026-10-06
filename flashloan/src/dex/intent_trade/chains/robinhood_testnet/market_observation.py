@@ -151,15 +151,37 @@ def _pool_contains(pool: dict[str, Any], address: str) -> bool:
 
 def _best_pool(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
+
     candidates.sort(
         key=lambda row: (
-            bool(row.get("recentSwapActive")),
-            float((row.get("balances") or {}).get("tvlUsd") or 0),
+            not _pool_usable(row),
+            not bool(row.get("recentSwapActive")),
+            -float((row.get("balances") or {}).get("tvlUsd") or 0),
             str(_pool_id(row)),
         ),
-        reverse=True,
     )
+    # Keep the stable sort semantics used by callers: usable rows first, then
+    # evidence-missing rows, then older no-liquidity rows.
     return candidates[0] if candidates else None
+
+
+def _pool_usable(row: dict[str, Any]) -> bool:
+    if row.get("usableForObservation") is not None:
+        return bool(row.get("usableForObservation"))
+    if row.get("hasLiquidity") is not None:
+        return bool(row.get("hasLiquidity"))
+    try:
+        return float(row.get("liquidityIndex") or row.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _pool_has_explicit_no_liquidity(row: dict[str, Any]) -> bool:
+    if row.get("usableForObservation") is not None:
+        return row.get("usableForObservation") is False
+    if row.get("hasLiquidity") is not None:
+        return row.get("hasLiquidity") is False
+    return False
 
 
 def _fund_associations(
@@ -345,6 +367,9 @@ def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dic
         "balances": pool.get("balances") or {},
         "depthBand": pool.get("depthBand") or {},
         "depthStatus": pool.get("depthStatus") or "",
+        "hasLiquidity": pool.get("hasLiquidity"),
+        "liquidityIndex": pool.get("liquidityIndex"),
+        "usableForObservation": pool.get("usableForObservation"),
         "quoteSummary": pool.get("quoteSummary") or {},
         "tick": pool.get("tick"),
         "sqrtPriceX96": pool.get("sqrtPriceX96"),
@@ -383,6 +408,7 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
     chain_id: int | None,
     protocols: list[str] | None,
     pool_index_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_index,
+    pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     protocol_set = {str(protocol or "").strip().lower() for protocol in (protocols or []) if str(protocol or "").strip()}
     if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or (protocol_set and "uniswap_v4" not in protocol_set):
@@ -432,6 +458,17 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
             "matchedPoolCount": 0,
         }
 
+    liquidity_rows_by_id: dict[str, dict[str, Any]] = {}
+    if pool_liquidity_loader is not None:
+        liquidity = pool_liquidity_loader()
+        if liquidity.get("ok"):
+            liquidity_rows_by_id = {
+                str(pool.get("poolId") or pool.get("pool") or "").strip().lower(): pool
+                for pool in liquidity.get("pools") or []
+                if isinstance(pool, dict)
+                and str(pool.get("poolId") or pool.get("pool") or "").strip()
+            }
+
     pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for pool in index.get("pools") or []:
         if not isinstance(pool, dict):
@@ -441,10 +478,32 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
             continue
         row = _pool_row(pool, token_metadata, source="v4_pool_index_bridge_pool")
         if row is not None:
+            if liquidity_rows_by_id:
+                liquidity_row = liquidity_rows_by_id.get(_pool_id(pool).lower())
+                if isinstance(liquidity_row, dict):
+                    has_liquidity = bool(
+                        liquidity_row.get("hasLiquidity")
+                        or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+                    )
+                    row.update(
+                        {
+                            "hasLiquidity": has_liquidity,
+                            "liquidityIndex": liquidity_row.get("liquidityIndex") or 0,
+                            "usableForObservation": liquidity_row.get("usableForObservation", has_liquidity),
+                            "status": liquidity_row.get("status") or row.get("status") or "",
+                            "depthStatus": liquidity_row.get("depthStatus") or liquidity_row.get("status") or row.get("depthStatus") or "",
+                        }
+                    )
+                elif _pool_has_explicit_no_liquidity(row):
+                    continue
             pools_by_edge.setdefault(edge, []).append(row)
 
     bridge_pairs: list[dict[str, Any]] = []
     for edge, pools in sorted(pools_by_edge.items()):
+        if liquidity_rows_by_id:
+            pools = [pool for pool in pools if _pool_usable(pool)]
+        if not pools:
+            continue
         left_token, right_token = needed_edges[edge]
         left_symbol = _symbol(left_token.get("symbol"))
         right_symbol = _symbol(right_token.get("symbol"))
@@ -581,6 +640,14 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             "observationSequences": [],
         }
 
+    liquidity_rows_by_id: dict[str, dict[str, Any]] = {}
+    for pool in liquidity.get("pools") or []:
+        if not isinstance(pool, dict):
+            continue
+        pool_id = _pool_id(pool)
+        if pool_id:
+            liquidity_rows_by_id[pool_id] = pool
+
     flash_rows = v4_flash_accounting_source_rows(liquidity, pool_manager=pool_manager)
     metadata_by_address = _token_metadata_from_flash_rows(flash_rows)
     funds: list[dict[str, Any]] = []
@@ -614,6 +681,22 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         row = _pool_row(pool, metadata_by_address, source="v4_pool_index_fund_anchor_pair_observation")
         if row is None:
             continue
+        liquidity_row = liquidity_rows_by_id.get(_pool_id(pool))
+        if isinstance(liquidity_row, dict):
+            has_liquidity = bool(
+                liquidity_row.get("hasLiquidity")
+                or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+            )
+            row.update(
+                {
+                    "hasLiquidity": has_liquidity,
+                    "liquidityIndex": liquidity_row.get("liquidityIndex") or 0,
+                    "usableForObservation": liquidity_row.get("usableForObservation", has_liquidity),
+                    "status": liquidity_row.get("status") or row.get("status") or "",
+                    "depthStatus": liquidity_row.get("depthStatus") or liquidity_row.get("status") or row.get("depthStatus") or "",
+                    "source": "robinhood_testnet_v4_pool_sources_merged",
+                }
+            )
         pools_by_edge.setdefault(edge, []).append(row)
         left, right = edge
         neighbors_by_address.setdefault(left, set()).add(right)
@@ -680,9 +763,15 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         z_address: str,
         yz_pool: dict[str, Any],
     ) -> bool:
+        # When the liquidity cache is populated, the handoff must only carry
+        # closed loops whose intermediate exchange pool has liquidity evidence.
+        if liquidity_rows_by_id and not _pool_usable(yz_pool):
+            return False
         xy_pool = _best_pool(pools_by_edge.get(tuple(sorted((anchor["address"], y_address)))) or [])
         zx_pool = _best_pool(pools_by_edge.get(tuple(sorted((z_address, anchor["address"])))) or [])
         if xy_pool is None or zx_pool is None:
+            return False
+        if liquidity_rows_by_id and (not _pool_usable(xy_pool) or not _pool_usable(zx_pool)):
             return False
         first_token = token_by_address.get(y_address)
         second_token = token_by_address.get(z_address)
@@ -802,6 +891,69 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
 
     associated_observation_pairs = _associated_observation_pair_rows(associated_observation_pools)
     _attach_route_evidence_to_associated_pairs(associated_observation_pairs, sequences)
+    route_liquidity_pool_ids = {
+        str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+        for sequence in sequences
+        for pool in sequence.get("routePools") or []
+        if isinstance(pool, dict) and bool(pool.get("hasLiquidity"))
+    }
+
+    # The candidate stage proves which pools have liquidity; this directory is
+    # the handoff to overview/quote surfaces. It intentionally stays limited to
+    # pools with liquidity evidence instead of copying the full V4 pool index.
+    liquid_pool_registry: dict[str, dict[str, Any]] = {}
+    for liquidity_row in liquidity_rows_by_id.values():
+        pool_id = str(liquidity_row.get("poolId") or liquidity_row.get("pool") or "").strip().lower()
+        if not pool_id:
+            continue
+        if not (
+            bool(liquidity_row.get("hasLiquidity"))
+            or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+        ):
+            continue
+        indexed_row = next(
+            (
+                row
+                for edge_rows in pools_by_edge.values()
+                for row in edge_rows
+                if str(_pool_id(row)).lower() == pool_id
+            ),
+            None,
+        )
+        row = {**(indexed_row or {}), **liquidity_row}
+        token0_address = _address(row.get("token0") or row.get("currency0"))
+        token1_address = _address(row.get("token1") or row.get("currency1"))
+        token0 = token_by_address.get(token0_address) or {
+            "symbol": "ETH" if token0_address == ZERO_ADDRESS.lower() else token0_address[:8].upper(),
+            "address": token0_address,
+        }
+        token1 = token_by_address.get(token1_address) or {
+            "symbol": "ETH" if token1_address == ZERO_ADDRESS.lower() else token1_address[:8].upper(),
+            "address": token1_address,
+        }
+        row.update(
+            {
+                "pool": pool_id,
+                "poolId": pool_id,
+                "protocol": "uniswap_v4",
+                "dex": "uniswap_v4",
+                "token0Symbol": _symbol(row.get("token0Symbol") or token0.get("symbol")),
+                "token1Symbol": _symbol(row.get("token1Symbol") or token1.get("symbol")),
+                "symbolPair": str(
+                    row.get("symbolPair")
+                    or f"{_symbol(token0.get('symbol'))}:{_symbol(token1.get('symbol'))}"
+                ),
+                "addressPair": str(row.get("addressPair") or f"{token0_address}:{token1_address}"),
+                "hasLiquidity": True,
+                "usableForObservation": True,
+                "liquiditySource": row.get("source")
+                or liquidity_row.get("source")
+                or "robinhood_testnet_v4_pool_liquidity",
+                "observationReason": "candidate_liquidity_pool_without_complete_closed_loop",
+                "closedLoopReady": False,
+            }
+        )
+        liquid_pool_registry[pool_id] = row
 
     return {
         "enabled": True,
@@ -810,6 +962,31 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         "liquiditySource": liquidity.get("source"),
         "blockNumber": index.get("block_number"),
         "refreshedAt": index.get("refreshed_at"),
+        "activePoolIds": sorted(liquidity_rows_by_id),
+        "liquidPoolIds": sorted(
+            pool_id
+            for pool_id, liquidity_row in liquidity_rows_by_id.items()
+            if bool(liquidity_row.get("hasLiquidity"))
+            or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+        ),
+        "recentSwapFilterApplied": False,
+        "liquidityFilterApplied": True,
+        "liquidityPoolCount": len(liquidity_rows_by_id),
+        "liquidityPoolIdCount": len(liquidity_rows_by_id),
+        "liquidityPoolRouteParticipationCount": len(route_liquidity_pool_ids),
+        "liquidPoolRegistry": liquid_pool_registry,
+        "liquidityPoolRouteEdgeCount": len(
+            {
+                tuple(sorted((_address(pool.get("token0")), _address(pool.get("token1")))))
+                for edge_pools in pools_by_edge.values()
+                for pool in edge_pools
+                if isinstance(pool, dict) and bool(pool.get("hasLiquidity"))
+            }
+        ),
+        "summary": {
+            "liquidPoolCount": str(len(liquidity_rows_by_id)),
+            "liquidPoolRouteParticipationCount": str(len(route_liquidity_pool_ids)),
+        },
         "fundAssetCount": len(funds),
         "executorSupportedFundAssetCount": sum(1 for fund in funds if fund.get("executorSupported")),
         "fundAnchorCandidatePairCount": indexed_pair_count,

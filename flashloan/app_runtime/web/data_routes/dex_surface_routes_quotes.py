@@ -14,6 +14,7 @@ from web.data_routes.dex_surface_helpers import (
     _infer_route_addresses_from_pools,
     _merge_manifest_live_evidence_into_routes,
 )
+from market.binance_market.dex_quote_surface_routes_builder import _pool_usable_for_observation
 
 
 _STATIC_ROUTE_PAYLOAD_CACHE: dict[tuple[str, tuple[str, ...], str, float], dict[str, Any]] = {}
@@ -44,13 +45,11 @@ def _protocols_include_uniswap_v4(protocols: list[str] | None) -> bool:
 
 def _active_v4_pool_ids_from_overview(overview: dict[str, Any]) -> set[str]:
     active: set[str] = set()
-    registry = overview.get("poolRegistry") or {}
-    if isinstance(registry, dict):
-        for pool in registry.values():
-            if isinstance(pool, dict) and _pool_has_liquidity(pool):
-                raw = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
-                if raw:
-                    active.add(raw)
+    for pool in _registry_pool_rows(overview.get("poolRegistry")):
+        if isinstance(pool, dict) and _pool_has_liquidity(pool):
+            raw = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+            if raw:
+                active.add(raw)
     for summary in overview.get("closedLoopRouteSummaries") or []:
         if not isinstance(summary, dict):
             continue
@@ -60,6 +59,47 @@ def _active_v4_pool_ids_from_overview(overview: dict[str, Any]) -> set[str]:
                 if raw:
                     active.add(raw)
     return active
+
+
+def _registry_pool_rows(registry: object) -> list[dict[str, Any]]:
+    """Normalize a persisted pool registry to row dicts.
+
+    New snapshots persist ``poolRegistry`` as a dict keyed by pool id, but
+    older files and hand-written fixtures may store a bare list of pool rows.
+    """
+    if isinstance(registry, dict):
+        return [row for row in registry.values() if isinstance(row, dict)]
+    if isinstance(registry, list):
+        return [row for row in registry if isinstance(row, dict)]
+    return []
+
+
+def _hydrate_static_pool_liquidity(pool: dict[str, Any], overview: dict[str, Any]) -> dict[str, Any]:
+    """Merge persisted liquidity evidence into one static route-pool row."""
+    pool_id = str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+    if not pool_id:
+        return pool
+    for key in ("liquidPoolRegistry", "poolRegistry"):
+        registry = overview.get(key) or {}
+        if not isinstance(registry, dict):
+            continue
+        row = registry.get(pool_id)
+        if not isinstance(row, dict):
+            continue
+        hydrated = dict(pool)
+        for evidence_key in (
+            "usableForObservation",
+            "hasLiquidity",
+            "liquidityIndex",
+            "liquidity",
+            "liquiditySource",
+            "depthStatus",
+            "estimatedTvlUsd",
+        ):
+            if evidence_key in row:
+                hydrated[evidence_key] = row[evidence_key]
+        return hydrated
+    return pool
 
 
 def _pool_has_liquidity(pool: dict[str, Any]) -> bool:
@@ -154,6 +194,54 @@ def _route_uses_active_v4_pools(route_pools: list[dict[str, Any]], overview: dic
     if not pool_ids:
         return False
     return all(pool_id in active for pool_id in pool_ids)
+
+
+def _route_pools_usable_for_observation(route: dict[str, Any]) -> bool:
+    pools = [pool for pool in (route.get("routePools") or []) if isinstance(pool, dict)]
+    if not pools:
+        return False
+    return all(_pool_usable_for_observation(pool) for pool in pools)
+
+
+def _route_has_explicit_unusable_liquidity(route: dict[str, Any]) -> bool:
+    """Return whether a route is explicitly unusable across every hop.
+
+    Routes with missing liquidity evidence are kept so legacy snapshots remain
+    quoteable until the market-observation handoff marks each hop liquid.
+    """
+    pools = [pool for pool in (route.get("routePools") or []) if isinstance(pool, dict)]
+    if not pools:
+        return True
+    return any(
+        not _pool_usable_for_observation(pool)
+        and any(
+            key in pool
+            for key in ("usableForObservation", "hasLiquidity", "liquidityIndex", "liquidity")
+        )
+        for pool in pools
+    )
+
+
+def _static_route_liquidity_evidence(route_pools: list[dict[str, Any]]) -> tuple[bool | None, bool]:
+    """Return (usable, has_explicit_evidence) for static route pools.
+
+    ``usable`` stays ``None`` when the snapshot has not attached liquidity
+    evidence, so the page can distinguish "no evidence yet" from "explicitly
+    no liquidity" instead of treating initialized-but-unpriced pools as usable.
+    """
+    pools = [pool for pool in route_pools if isinstance(pool, dict)]
+    if not pools:
+        return False, True
+    explicit_pools: list[dict[str, Any]] = []
+    for pool in pools:
+        for key in ("usableForObservation", "hasLiquidity", "liquidityIndex", "liquidity"):
+            value = pool.get(key)
+            if value is not None and str(value).strip() != "":
+                explicit_pools.append(pool)
+                break
+    if not explicit_pools:
+        return None, False
+    return all(_pool_usable_for_observation(pool) for pool in explicit_pools), True
 
 
 def _explicit_chain_id_is_robinhood_supported() -> bool:
@@ -273,7 +361,12 @@ def register_dex_quote_routes(app) -> None:
             if any(_is_zero_address(address) for address in route_addresses) and not _protocols_include_uniswap_v4(protocols):
                 continue
             route_pools = [
-                _compact_static_route_pool(pool)
+                _compact_static_route_pool(
+                    _hydrate_static_pool_liquidity(
+                        pool,
+                        overview,
+                    )
+                )
                 for pool in summary.get("routePools") or []
                 if isinstance(pool, dict)
             ]
@@ -283,6 +376,9 @@ def register_dex_quote_routes(app) -> None:
             if not _route_has_complete_v4_pool_identity({"routeSymbols": path_symbols, "routePools": route_pools}):
                 continue
             if not _route_uses_active_v4_pools(route_pools, overview):
+                continue
+            route_usable, route_has_explicit_liquidity = _static_route_liquidity_evidence(route_pools)
+            if route_usable is False and route_has_explicit_liquidity:
                 continue
             steps = [
                 {
@@ -307,6 +403,11 @@ def register_dex_quote_routes(app) -> None:
                     "pathSource": "market_observation",
                     "diagnosticOnly": False,
                     "chainReviewEligible": True,
+                    "routeUsableForObservation": route_usable,
+                    "routeHasLiquidityEvidence": route_has_explicit_liquidity,
+                    "liquidPoolCount": sum(
+                        1 for pool in route_pools if _pool_usable_for_observation(pool)
+                    ),
                     "overviewRoute": {
                         "anchorBorrowSymbol": str(summary.get("anchorSymbol") or path_symbols[0]),
                         "targetSymbol": str(summary.get("counterSymbol") or path_symbols[-2]),
@@ -315,6 +416,15 @@ def register_dex_quote_routes(app) -> None:
                         "kind": "bridge_pair",
                         "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                         "marketObservationRoute": True,
+                        "routeUsableForObservation": route_usable,
+                        "hopLiquidityEvidence": [
+                            {
+                                "pool": pool.get("pool") or pool.get("poolId"),
+                                "usableForObservation": _pool_usable_for_observation(pool),
+                                "hasLiquidity": pool.get("hasLiquidity"),
+                            }
+                            for pool in route_pools
+                        ],
                     },
                     "quoteAnalysis": {
                         "steps": steps,
@@ -337,6 +447,35 @@ def register_dex_quote_routes(app) -> None:
         routes = [_infer_route_addresses_from_pools(route) for route in routes]
         _merge_manifest_live_evidence_into_routes(routes, chain_id=int(selected_chain_id))
         overview_summary = overview.get("summary") or {}
+        overview_liquid = overview.get("liquidityPoolFilter") or {}
+        candidate_liquid_pool_count = int(
+            overview_summary.get("liquidPoolCount")
+            or overview_liquid.get("liquidPoolCount")
+            or overview.get("liquidPoolCount")
+            or 0
+        )
+        candidate_liquid_registry = overview.get("liquidPoolRegistry") or {}
+        if isinstance(candidate_liquid_registry, dict):
+            candidate_liquid_registry = {
+                str(key or "").lower(): row
+                for key, row in candidate_liquid_registry.items()
+                if isinstance(row, dict)
+            }
+        closed_loop_registry_pool_ids = {
+            str(existing_pool.get("pool") or existing_pool.get("poolId") or "").strip().lower()
+            for existing_pool in _registry_pool_rows(overview.get("poolRegistry"))
+        }
+        closed_loop_liquid_pool_count = sum(
+            1
+            for route_pool in _registry_pool_rows(overview.get("poolRegistry"))
+            if _pool_has_liquidity(route_pool)
+        ) + sum(
+            1
+            for pool_id, route_pool in candidate_liquid_registry.items()
+            if pool_id not in closed_loop_registry_pool_ids
+            and isinstance(route_pool, dict)
+            and _pool_has_liquidity(route_pool)
+        )
         payload = {
             "ok": True,
             "mode": "dex_quote_routes_static",
@@ -347,6 +486,7 @@ def register_dex_quote_routes(app) -> None:
             "poolIndexVersion": overview.get("poolIndexVersion") or {},
             "marketObservationSource": "cached_snapshot",
             "marketObservationSourceStage": "cached_snapshot",
+            "liquidPoolRegistry": candidate_liquid_registry,
             "summary": {
                 "routeCount": len(routes),
                 "candidateRouteCount": len(routes),
@@ -359,6 +499,9 @@ def register_dex_quote_routes(app) -> None:
                 "completeStaticQuoteCount": 0,
                 "profitableRouteCount": 0,
                 "chainSubmissionCandidateCount": 0,
+                "candidateLiquidPoolCount": candidate_liquid_pool_count,
+                "closedLoopLiquidPoolCount": closed_loop_liquid_pool_count,
+                "liquidPoolRegistryCount": len(candidate_liquid_registry),
                 "pathSource": "market_observation",
             },
             "routes": routes,
@@ -448,7 +591,8 @@ def register_dex_quote_routes(app) -> None:
                     top_routes = scanner_routes
                     snapshot_routes = scanner_routes
                     snapshot_data["routes"] = scanner_routes
-                    payload["routes"] = scanner_routes
+                    if not base_routes:
+                        payload["routes"] = scanner_routes
                 else:
                     payload["scannerState"] = {
                         "status": "stale_refresh_queued",
@@ -559,14 +703,22 @@ def register_dex_quote_routes(app) -> None:
                 chain_id=selected_chain_id,
                 protocols=protocols,
             )
-            filtered_routes = [
-                _infer_route_addresses_from_pools(route)
-                for route in payload["routes"]
-                if isinstance(route, dict)
-                and not _route_has_unresolved_zero_address(route, protocols)
-                and _route_has_complete_v4_pool_identity(route)
-                and _route_uses_active_v4_pools(route.get("routePools") or [], overview)
-            ]
+            filtered_routes = []
+            for route in payload["routes"]:
+                if not isinstance(route, dict):
+                    continue
+                route = _infer_route_addresses_from_pools(route)
+                if _route_has_unresolved_zero_address(route, protocols):
+                    continue
+                if not _route_has_complete_v4_pool_identity(route):
+                    continue
+                if _route_has_explicit_unusable_liquidity(route):
+                    continue
+                route["activePoolMatch"] = _route_uses_active_v4_pools(
+                    route.get("routePools") or [],
+                    overview,
+                )
+                filtered_routes.append(route)
             payload["routes"] = filtered_routes
             summary = payload.get("summary")
             if isinstance(summary, dict) and "routeCount" in summary:

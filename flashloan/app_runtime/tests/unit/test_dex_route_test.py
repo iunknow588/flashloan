@@ -222,8 +222,9 @@ def test_estimate_fixed_amount_pnl_returns_single_amount_without_ladder(monkeypa
     assert result["referenceNetProfitAmount"] == -2.4
     assert result["referenceNetReturnBps"] == -3000.0
     assert "probeRecords" not in result
-    assert result["bestAmount"] is None
-    assert result["bestAmountMissing"] is True
+    assert result["bestAmount"] == 8.0
+    assert result["bestAmountComputed"] is True
+    assert result["bestAmountMissing"] is False
     assert result["bestAmountConfirmed"] is False
 
 
@@ -1438,6 +1439,85 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
     assert result["readyForTransactionPreflight"] is False
     assert result["quoteStatus"] == "static_reference_pending_live_review", result
     assert result["evidence"]["blockers"]
+
+
+def test_run_official_v4_arb_route_test_no_profitable_route_attaches_negative_reference_pnl(tmp_path, monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    script = tmp_path / "official-arb.js"
+    script.write_text("", encoding="utf-8")
+    dex_dir = tmp_path / "DEX"
+    dex_dir.mkdir()
+    monkeypatch.setattr(route_test_module, "_official_arb_script_for_chain", lambda chain_id: script)
+    monkeypatch.setattr(route_test_module, "_official_dex_dir_for_chain", lambda chain_id: dex_dir)
+    monkeypatch.setattr(
+        route_test_module,
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com", 12345),
+    )
+    monkeypatch.setattr(route_test_module, "_routes_payload", lambda **kwargs: {"routes": []})
+    monkeypatch.setattr(
+        route_test_module,
+        "estimate_fixed_amount_pnl_quick",
+        lambda **kwargs: {
+            "referenceNetProfitAmount": -0.25,
+            "referenceNetReturnBps": -2500.0,
+            "referenceFinalOutputAmount": 0.75,
+        },
+    )
+
+    route_symbols = ["TZ", "TB", "TA", "TZ"]
+    addresses = [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    ]
+    fake_pool_keys = [
+        {"currency0": addresses[1], "currency1": addresses[0], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[2], "currency1": addresses[1], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[2], "currency1": addresses[0], "fee": 8388608, "tickSpacing": 60, "hooks": "0x60a29f76185a76cc52c070be69d775480c112080"},
+    ]
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: fake_pool_keys)
+
+    def fake_preview(**kwargs):
+        return (
+            {
+                "ok": False,
+                "error": "static_arb_call_reverted",
+                "detail": "链上复核未通过：NoProfitableRoute()",
+                "errorDetail": "NoProfitableRoute()",
+                "routeSymbols": route_symbols,
+                "amount": 1.0,
+                "initialAmount": 1.0,
+                "staticCall": "reverted",
+                "method": "previewArbitrageBestAmount",
+                "quoteStatus": "route_unprofitable",
+                "evidenceStatus": "route_unprofitable",
+                "executionTrust": "route_unprofitable",
+            },
+            "",
+        )
+
+    monkeypatch.setattr(route_test_module, "_official_v4_preview_python", fake_preview)
+
+    result = route_test_module.run_official_v4_arb_route_test(
+        route_symbols=route_symbols,
+        route_addresses=addresses,
+        amount=1.0,
+        broadcast=False,
+        chain_id=46630,
+    )
+
+    assert result["quoteStatus"] == "route_unprofitable"
+    assert result["bestAmount"] == 1.0
+    assert result["bestAmountComputed"] is True
+    assert result["bestAmountMissing"] is False
+    assert result["bestAmountConfirmed"] is False
+    assert result["referenceNetProfitAmount"] == -0.25
+    assert result["referenceNetReturnBps"] == -2500.0
+    assert result["evidence"]["costModel"]["netProfitAmount"] == -0.25
+    assert result["analysis"]["referenceNetProfitAmount"] == -0.25
 
 
 def test_raw_amount_to_human_converts_raw_wei_before_ui_display():

@@ -160,7 +160,7 @@ def candidate_pagination_args() -> tuple[int, int, str, str]:
     )
     query = request.args.get("q", "").strip().lower()
     quality = request.args.get("quality", "all").strip().lower()
-    if quality not in {"all", "with_data", "empty"}:
+    if quality not in {"all", "with_data", "empty", "with_liquidity"}:
         quality = "all"
     return page, page_size, query, quality
 

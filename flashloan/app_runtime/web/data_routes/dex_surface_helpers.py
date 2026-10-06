@@ -406,20 +406,39 @@ def _merge_recent_attempt_evidence_into_routes(
         evidence = _attempt_route_evidence(attempt)
         if not isinstance(evidence, dict) or not evidence.get("status"):
             continue
+        route_addresses = (
+            evidence.get("routeAddresses")
+            or evidence.get("route_addresses")
+            or quote.get("routeAddresses")
+            or quote.get("route_addresses")
+            or attempt.get("route_addresses")
+            or attempt.get("routeAddresses")
+            or []
+        )
+        route_symbols = raw_path or evidence.get("routeSymbols") or evidence.get("route_symbols") or []
         route_key = _route_dedup_key(
             {
-                "routeAddresses": evidence.get("routeAddresses") or evidence.get("route_addresses") or [],
-                "routeSymbols": raw_path,
+                "routeAddresses": route_addresses,
+                "routeSymbols": route_symbols,
             }
         )
         if not route_key:
             continue
+        symbol_key = "symbol|" + _route_symbol_key(route_symbols)
         latest_evidence_by_route.setdefault(route_key, evidence)
+        if symbol_key and symbol_key != route_key:
+            # Older on-chain previews may not carry addresses in the persisted
+            # evidence. Keep a symbol-only key as a fallback so the quote-routes
+            # page can still merge route_unprofitable/live_verified rows.
+            latest_evidence_by_route.setdefault(symbol_key, evidence)
     for route in routes:
         if not isinstance(route, dict):
             continue
         route_key = _route_dedup_key(route)
         evidence = latest_evidence_by_route.get(route_key)
+        if not isinstance(evidence, dict) or not evidence:
+            symbol_key = "symbol|" + _route_symbol_key(route)
+            evidence = latest_evidence_by_route.get(symbol_key)
         if not isinstance(evidence, dict) or not evidence:
             continue
         existing_evidence = route.get("live_onchain_evidence")

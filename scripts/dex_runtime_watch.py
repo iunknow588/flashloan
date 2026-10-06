@@ -20,6 +20,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_PY = REPO_ROOT / "flashloan" / "app_runtime" / "run.py"
+LOG_DIR = REPO_ROOT / "flashloan" / "src" / "runtime" / "logs"
 DEFAULT_PORT = 5000
 QUERY_KEYS = ("chain_id", "market_id", "protocols", "dex_strategy")
 SYSTEM_MARKERS = (
@@ -116,8 +117,9 @@ def start_runtime(logger: logging.Logger, base_url: str) -> bool:
                 check=False,
             )
         wait_port_free(port, timeout=8)
-        out_log = REPO_ROOT / "web-testnet-46630.watch.out.log"
-        err_log = REPO_ROOT / "web-testnet-46630.watch.err.log"
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        out_log = LOG_DIR / "web-testnet-46630.watch.out.log"
+        err_log = LOG_DIR / "web-testnet-46630.watch.err.log"
         python_exe = Path(sys.executable)
         stdout = out_log.open("a", encoding="utf-8", errors="replace")
         stderr = err_log.open("a", encoding="utf-8", errors="replace")
@@ -354,7 +356,7 @@ def main() -> int:
     parser.add_argument("--cooldown", type=float, default=60.0)
     parser.add_argument("--autodetect", action="store_true", default=True)
     parser.add_argument("--no-autodetect", dest="autodetect", action="store_false")
-    parser.add_argument("--log", default=str(REPO_ROOT / "dex_runtime_watch.log"))
+    parser.add_argument("--log", default=str(LOG_DIR / "dex_runtime_watch.log"))
     args = parser.parse_args()
     if args.autodetect:
         parsed = urllib.parse.urlparse(args.base_url)

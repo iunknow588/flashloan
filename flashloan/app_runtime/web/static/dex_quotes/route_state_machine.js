@@ -29,9 +29,13 @@ const terminalRouteStatus = status => [
   "pool_insufficient_for_profitable_execution",
   "missing_effective_pool",
   "missing_route_identity",
+  "missing_route_pool_identity",
+  "missing_configuration",
   "route_lacks_complete_token_address_identity",
   "rpc_verification_failed",
   "rpc_verification_timeout",
+  "fetch_network_error",
+  "backend_unreachable",
   "adapter_required",
   "missing_trigger_block",
 ].includes(String(status || "").toLowerCase());
@@ -207,6 +211,18 @@ const routeBestAmountPick = (route, evidence, analysis) => {
   const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
   const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
   const liveVerifiedStatus = String(safeEvidence.status || "").toLowerCase() === "live_verified";
+  const terminalDiagnosticStatus = [
+    "route_unprofitable",
+    "slippage_limit_exceeded",
+    "pool_insufficient_for_profitable_execution",
+    "missing_route_identity",
+    "missing_route_pool_identity",
+    "missing_configuration",
+    "backend_unreachable",
+    "fetch_network_error",
+    "rpc_verification_failed",
+    "rpc_verification_timeout",
+  ].includes(String(safeEvidence.status || safeAnalysis.onchainEvidenceStatus || "").toLowerCase());
   const evidenceConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
     || costs.bestAmountConfirmed === true
     || safeEvidence.bestAmountConfirmed === true
@@ -218,6 +234,7 @@ const routeBestAmountPick = (route, evidence, analysis) => {
       || safeAnalysis.bestAmountMissing === true
       || route?.bestAmountMissing === true
       || unconfirmedFixedAmount(costs)) && !evidenceConfirmed
+      && !terminalDiagnosticStatus
   ) {
     return null;
   }
@@ -227,10 +244,17 @@ const routeBestAmountPick = (route, evidence, analysis) => {
     route?.bestAmountCalculation?.bestAmount ??
     route?.quoteAnalysis?.bestAmountCalculation?.bestAmount ??
     null;
+  const requestedBest =
+    costs.requestedBorrowInputAmount ??
+    route?.__requestedAmount ??
+    safeAnalysis.requestedAmount ??
+    safeAnalysis.initialProbeAmount ??
+    safeAnalysis.referenceInputAmount;
   const sizeBest =
     route?.sizeAnalysis?.recommendedBorrowInputAmount ??
     route?.sizeAnalysis?.tokenAmountSteps?.[0] ??
-    null;
+    requestedBest ??
+    1;
   const confirmedBest = costs.selectedBorrowInputAmount ?? costs.borrowInputAmount ?? analysisBest ?? calcBest;
   return confirmedBest ?? sizeBest ?? null;
 };
@@ -240,6 +264,15 @@ const bestAmountMissingOf = (route, evidence, analysis) => {
   const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
   const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
   const liveVerifiedStatus = String(safeEvidence.status || "").toLowerCase() === "live_verified";
+  const terminalDiagnosticStatus = [
+    "route_unprofitable",
+    "slippage_limit_exceeded",
+    "pool_insufficient_for_profitable_execution",
+    "backend_unreachable",
+    "fetch_network_error",
+    "rpc_verification_failed",
+    "rpc_verification_timeout",
+  ].includes(String(safeEvidence.status || safeAnalysis.onchainEvidenceStatus || "").toLowerCase());
   const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
     || costs.bestAmountConfirmed === true
     || safeEvidence.bestAmountConfirmed === true
@@ -249,10 +282,11 @@ const bestAmountMissingOf = (route, evidence, analysis) => {
   if (
     (route?.bestAmountMissing === true
       || safeAnalysis.bestAmountMissing === true
-      || costs.bestAmountMissing === true) && !bestAmountConfirmed
+      || costs.bestAmountMissing === true
+      || unconfirmedFixedAmount(costs)) && !bestAmountConfirmed
   ) return true;
   const picked = routeBestAmountPick(route, safeEvidence, safeAnalysis);
-  return picked === null || picked === undefined || picked === "" || !bestAmountConfirmed;
+  return picked === null || picked === undefined || picked === "";
 };
 
 const canAutoEstimate = route => [ROUTE_UI_STATE.OFFCHAIN_ESTIMATE, ROUTE_UI_STATE.OFFCHAIN_PENDING].includes(effectiveUiState(route));
@@ -346,7 +380,7 @@ const bestAmountHint = ({evidence, analysis, amount, symbol, initialAmount, init
   return estimateBestAmountHint({evidence, analysis, amount, symbol, initialAmount, initialSymbol});
 };
 
-const estimateBestAmountDisplayLabel = () => "链下估算初始量";
+const estimateBestAmountDisplayLabel = () => "最佳交易量";
 const preflightBestAmountDisplayLabel = () => "最佳交易量";
 const executionBestAmountDisplayLabel = () => "链上执行金额";
 

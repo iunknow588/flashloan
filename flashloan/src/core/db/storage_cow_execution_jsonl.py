@@ -74,9 +74,14 @@ def append_cow_execution_attempts_jsonl(
             market_signatures.add(signature)
         additions.append(row)
     rows = [*existing_rows, *additions]
-    with path.open("w", encoding="utf-8") as handle:
+    # Write to a sibling temp file first, then atomically replace the target.
+    # This keeps a partially prepared JSONL file from truncating the persisted
+    # attempts when Windows rejects the direct write with an OSError.
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    with temp_path.open("w", encoding="utf-8") as handle:
         for item in rows:
             handle.write(_json_text(item) + "\n")
+    temp_path.replace(path)
     return len(additions)
 
 
@@ -125,12 +130,14 @@ def clear_cow_execution_attempts_jsonl(
     path: Path,
     *,
     networks: list[str] | None = None,
+    chain_ids: list[int] | None = None,
     category: str | None = None,
 ) -> dict[str, Any]:
     source_paths = [item for item in _jsonl_source_paths(path) if item.exists()]
     if not source_paths:
         return {"cleared": 0, "remaining": 0, "source": "jsonl", "error": None}
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
+    wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
     wanted_category = str(category or "").strip().lower()
     cleared = 0
     remaining = 0
@@ -146,8 +153,14 @@ def clear_cow_execution_attempts_jsonl(
                 kept_rows.append(line)
                 continue
             network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
+            chain_id = row.get("chain_id")
+            try:
+                row_chain_id = int(chain_id)
+            except (TypeError, ValueError):
+                row_chain_id = None
+            chain_matches = not wanted_chain_ids or (row_chain_id is not None and row_chain_id in wanted_chain_ids)
             category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
-            if network_matches and category_matches:
+            if network_matches and chain_matches and category_matches:
                 cleared += 1
                 continue
             kept_rows.append(_json_text(row))

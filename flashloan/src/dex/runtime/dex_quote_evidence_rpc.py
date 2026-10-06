@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 from typing import Any
 from urllib import request as urllib_request
 
@@ -34,6 +35,7 @@ def _connect_robinhood() -> tuple[Any, str]:
                         "User-Agent": "flashloan-robinhood-mainnet/1.1",
                         "Connection": "close",
                     },
+                    "verify": False,
                 },
             )
         )
@@ -50,6 +52,10 @@ def _connect_robinhood() -> tuple[Any, str]:
         except Exception as exc:
             raise RuntimeError("Robinhood RPC unavailable: " + str(exc))
     for url in urls:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        opener = urllib_request.build_opener(urllib_request.HTTPSHandler(context=ssl_ctx))
         try:
             return _probe(url)
         except Exception as exc:
@@ -68,6 +74,10 @@ def _probe_robinhood_testnet_rpc_fast() -> str | None:
         return None
     timeout = float(os.getenv("DEX_ONCHAIN_RPC_PROBE_TIMEOUT_SECONDS", "8") or 8)
     failures: list[str] = []
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    opener = urllib_request.build_opener(urllib_request.HTTPSHandler(context=ssl_ctx))
     for url in urls:
         try:
             body = json.dumps(
@@ -85,7 +95,7 @@ def _probe_robinhood_testnet_rpc_fast() -> str | None:
                 },
                 method="POST",
             )
-            with urllib_request.urlopen(req, timeout=timeout) as response:
+            with opener.open(req, timeout=timeout) as response:
                 rows = json.loads(response.read().decode("utf-8"))
             if isinstance(rows, dict):
                 rows = [rows]
@@ -124,6 +134,7 @@ def _connect_robinhood_family(chain_id: int | None, network: str) -> tuple[Any, 
                             "User-Agent": "flashloan-robinhood-testnet/1.1",
                             "Connection": "close",
                         },
+                        "verify": False,
                     },
                 )
             )

@@ -34,6 +34,7 @@ def _web3(rpc_url: str, timeout: float | None = None) -> Web3:
             rpc_url,
             request_kwargs={
                 "timeout": selected_timeout,
+                "verify": False,
                 "headers": {
                     "Content-Type": "application/json",
                     "User-Agent": "flashloan-robinhood-mainnet-v4-rpc/1.0",

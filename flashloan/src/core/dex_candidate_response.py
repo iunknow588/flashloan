@@ -16,6 +16,28 @@ def _has_data(group: dict) -> bool:
     return _number_like(group.get("ycPoolCount")) > 0 or _number_like(group.get("zcPoolCount")) > 0
 
 
+def _pool_liquid(row: dict) -> bool:
+    if not isinstance(row, dict):
+        return False
+    if row.get("dynamicFee") or row.get("specialFee"):
+        return False
+    if row.get("usableForObservation") is not None:
+        return bool(row.get("usableForObservation"))
+    if row.get("hasLiquidity") is not None:
+        return bool(row.get("hasLiquidity"))
+    try:
+        return float(row.get("liquidityIndex") or row.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _group_has_liquid_pools(group: dict) -> bool:
+    for bucket in ("ycPools", "zcPools", "sharedPools"):
+        if any(_pool_liquid(row) for row in group.get(bucket) or []):
+            return True
+    return False
+
+
 def _matches(group: dict, query: str) -> bool:
     if not query:
         return True
@@ -61,6 +83,8 @@ def compact_candidate_payload(payload: dict, *, page: int, page_size: int, query
             rows = [item for item in rows if _has_data(item)]
         elif quality == "empty":
             rows = [item for item in rows if not _has_data(item)]
+        elif quality == "with_liquidity":
+            rows = [item for item in rows if _group_has_liquid_pools(item)]
         rows = [item for item in rows if _matches(item, query)]
     elif query:
         rows = [item for item in rows if query in " ".join(str(value or "") for value in item.values()).lower()]

@@ -125,6 +125,7 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
         self._snapshots: dict[str, dict[str, Any]] = {}
         self._recorded_signatures: dict[tuple[Any, ...], float] = {}
         self._last_recording: dict[str, Any] = {"recorded": 0, "source": "empty", "error": None}
+        self._chain_stats: dict[str, dict[str, Any]] = {}
         self._recorded_attempt_count = 0
         self._closed_loop_scan_count = 0
         self._closed_loop_review_count = 0
@@ -192,7 +193,13 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
         self._auto_execute_runner.enabled = self.auto_execute_enabled
         self._auto_execute_runner.callback = self.auto_execute_callback
 
-    def _record_session_executed(self, payload: dict[str, Any], *, auto: bool = True) -> None:
+    def _record_session_executed(
+        self,
+        payload: dict[str, Any],
+        *,
+        auto: bool = True,
+        chain_id: int | None = None,
+    ) -> None:
         with self._lock:
             self._session_executed_count += 1
             if auto:
@@ -201,20 +208,92 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
             if profit is not None and profit > 0:
                 self._session_positive_profit_count += 1
                 self._session_positive_profit_amount += float(profit)
+            if chain_id is not None:
+                stats = self._get_chain_stats(chain_id)
+                if stats is not None:
+                    stats["session_executed_count"] += 1
+                    if auto:
+                        stats["session_auto_executed_count"] += 1
+                    if profit is not None and profit > 0:
+                        stats["session_positive_profit_count"] += 1
+                        stats["session_positive_profit_amount"] += float(profit)
 
-    def reset_dex_opportunity_stats(self) -> None:
+    def _default_chain_stats(self) -> dict[str, Any]:
+        return {
+            "scan_count": 0,
+            "recorded_attempt_count": 0,
+            "closed_loop_scan_count": 0,
+            "closed_loop_review_count": 0,
+            "auto_execute_count": 0,
+            "last_auto_execute_at": None,
+            "last_recording": {"recorded": 0, "source": "empty", "error": None},
+            "session_reset_at": _now_iso(),
+            "session_executed_count": 0,
+            "session_auto_executed_count": 0,
+            "session_positive_profit_count": 0,
+            "session_positive_profit_amount": 0.0,
+        }
+
+    def _get_chain_stats(self, chain_id: int | None) -> dict[str, Any] | None:
+        if chain_id is None:
+            return None
+        key = _chain_key(chain_id)
+        existing = self._chain_stats.get(key)
+        if existing is not None:
+            return existing
+        stats = self._default_chain_stats()
+        self._chain_stats[key] = stats
+        return stats
+
+    def reset_dex_opportunity_stats(
+        self,
+        *,
+        chain_id: int | None = None,
+        protocols: list[str] | None = None,
+    ) -> None:
         with self._lock:
-            self._session_reset_at = _now_iso()
-            self._session_executed_count = 0
-            self._session_auto_executed_count = 0
-            self._session_positive_profit_count = 0
-            self._session_positive_profit_amount = 0.0
-            self._closed_loop_scan_count = 0
-            self._closed_loop_review_count = 0
-            self._auto_execute_count = 0
-            self._last_auto_execute_at = None
-            self._recorded_signatures.clear()
+            if chain_id is None:
+                self._session_reset_at = _now_iso()
+                self._session_executed_count = 0
+                self._session_auto_executed_count = 0
+                self._session_positive_profit_count = 0
+                self._session_positive_profit_amount = 0.0
+                self._closed_loop_scan_count = 0
+                self._closed_loop_review_count = 0
+                self._auto_execute_count = 0
+                self._last_auto_execute_at = None
+                self._recorded_attempt_count = 0
+                self._scan_count = 0
+                self._last_recording = {"recorded": 0, "source": "reset", "error": None}
+                self._recorded_signatures.clear()
             self._auto_execute_runner.reset_cooldowns()
+            if chain_id is None:
+                self._chain_stats.clear()
+                self._snapshots.clear()
+            else:
+                self._chain_stats[_chain_key(chain_id)] = self._default_chain_stats()
+                base = _chain_key(chain_id)
+                chain_scope = _chain_key(chain_id)
+                chain_id_values = {chain_id, str(chain_id)}
+                self._recorded_signatures = {
+                    signature: recorded_at
+                    for signature, recorded_at in self._recorded_signatures.items()
+                    if len(signature) < 2
+                    or not (
+                        signature[1] in chain_id_values
+                        or chain_scope in {str(signature[0]), str(signature[1])}
+                    )
+                }
+                cleared = {
+                    "chain_id": chain_id,
+                    "payload": None,
+                    "summary": _snapshot_summary(None),
+                    "updated_at": None,
+                    "error": None,
+                }
+                for key in list(self._snapshots):
+                    if key == base or key.startswith(base + "|"):
+                        self._snapshots[key] = dict(cleared)
         self._write_cache()
 
     def _enqueue_closed_loop_groups_from_payload(
@@ -304,6 +383,20 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
                 last_recording = scanner.get("last_recording")
                 if isinstance(last_recording, dict):
                     self._last_recording = last_recording
+        chain_stats = data.get("chain_stats")
+        if isinstance(chain_stats, dict):
+            with self._lock:
+                for key, stats in chain_stats.items():
+                    if isinstance(stats, dict):
+                        defaults = self._default_chain_stats()
+                        self._chain_stats[key] = {
+                            **defaults,
+                            **stats,
+                            "last_recording": {
+                                **defaults.get("last_recording", {}),
+                                **(stats.get("last_recording") if isinstance(stats.get("last_recording"), dict) else {}),
+                            },
+                        }
 
     def start(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> None:
         self.watch(chain_id=chain_id, protocols=protocols)
@@ -343,29 +436,60 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
         return deepcopy(candidates[0])
 
     def status(self, *, chain_id: int | None = None) -> dict[str, Any]:
-        log_stats = _auto_execute_log_stats(chain_id)
         thread = self._thread
         with self._lock:
             watched_keys = sorted(self._watched)
             queued_count = len(self._queued_scans)
             snapshot = self._latest_chain_snapshot_for_status(chain_id)
-            scan_count = self._scan_count
+            chain_stats = self._chain_stats.get(_chain_key(chain_id)) if chain_id is not None else None
+            if chain_stats is not None:
+                scan_count = int(chain_stats.get("scan_count") or 0)
+                last_recording = deepcopy(chain_stats.get("last_recording") or {"recorded": 0, "source": "empty", "error": None})
+                recorded_attempt_count = int(chain_stats.get("recorded_attempt_count") or 0)
+                closed_loop_scan_count = int(chain_stats.get("closed_loop_scan_count") or 0)
+                closed_loop_review_count = int(chain_stats.get("closed_loop_review_count") or 0)
+                auto_execute_count = int(chain_stats.get("auto_execute_count") or 0)
+                last_auto_execute_at = chain_stats.get("last_auto_execute_at")
+                session_reset_at = str(chain_stats.get("session_reset_at") or _now_iso())
+                session_executed_count = int(chain_stats.get("session_executed_count") or 0)
+                session_auto_executed_count = int(chain_stats.get("session_auto_executed_count") or 0)
+                session_positive_profit_count = int(chain_stats.get("session_positive_profit_count") or 0)
+                session_positive_profit_amount = float(chain_stats.get("session_positive_profit_amount") or 0)
+            elif chain_id is not None:
+                # A chain with no recorded activity must not fall back to the
+                # global totals. Return an empty per-chain baseline instead.
+                defaults = self._default_chain_stats()
+                scan_count = 0
+                last_recording = deepcopy(defaults.get("last_recording") or {"recorded": 0, "source": "empty", "error": None})
+                recorded_attempt_count = 0
+                closed_loop_scan_count = 0
+                closed_loop_review_count = 0
+                auto_execute_count = 0
+                last_auto_execute_at = None
+                session_reset_at = str(defaults.get("session_reset_at") or _now_iso())
+                session_executed_count = 0
+                session_auto_executed_count = 0
+                session_positive_profit_count = 0
+                session_positive_profit_amount = 0.0
+            else:
+                scan_count = self._scan_count
+                last_recording = deepcopy(self._last_recording)
+                recorded_attempt_count = self._recorded_attempt_count
+                closed_loop_scan_count = self._closed_loop_scan_count
+                closed_loop_review_count = self._closed_loop_review_count
+                auto_execute_count = self._auto_execute_count
+                last_auto_execute_at = self._last_auto_execute_at
+                session_reset_at = self._session_reset_at
+                session_executed_count = self._session_executed_count
+                session_auto_executed_count = self._session_auto_executed_count
+                session_positive_profit_count = self._session_positive_profit_count
+                session_positive_profit_amount = self._session_positive_profit_amount
             last_error = self._last_error
             last_error_stack = deepcopy(self._last_error_stack)
             last_started = self._last_scan_started_at
             last_finished = self._last_scan_finished_at
             last_duration = self._last_duration_ms
-            last_recording = deepcopy(self._last_recording)
-            recorded_attempt_count = self._recorded_attempt_count
-            closed_loop_scan_count = self._closed_loop_scan_count
-            closed_loop_review_count = self._closed_loop_review_count
-            auto_execute_count = self._auto_execute_count
-            last_auto_execute_at = self._last_auto_execute_at
-            session_reset_at = self._session_reset_at
-            session_executed_count = self._session_executed_count
-            session_auto_executed_count = self._session_auto_executed_count
-            session_positive_profit_count = self._session_positive_profit_count
-            session_positive_profit_amount = self._session_positive_profit_amount
+        log_stats = _auto_execute_log_stats(chain_id, since=session_reset_at)
         log_auto_execute_count = int(log_stats.get("auto_execute_count") or 0)
         if log_auto_execute_count > auto_execute_count:
             auto_execute_count = log_auto_execute_count
@@ -597,6 +721,10 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
             duration_ms = int((time.perf_counter() - started) * 1000)
             with self._lock:
                 self._scan_count += 1
+                if chain_id is not None:
+                    chain_stats = self._get_chain_stats(chain_id)
+                    if chain_stats is not None:
+                        chain_stats["scan_count"] += 1
                 self._last_error = error
                 self._last_error_stack = error_stack
                 self._last_scan_finished_at = finished_at
@@ -684,6 +812,7 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
             payload = {
                 "updated_at": _now_iso(),
                 "scanner": scanner,
+                "chain_stats": deepcopy(self._chain_stats),
                 "snapshots": deepcopy(self._snapshots),
             }
         try:
@@ -720,6 +849,10 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
             }
             with self._lock:
                 self._last_recording = recording
+                if chain_id is not None:
+                    chain_stats = self._get_chain_stats(chain_id)
+                    if chain_stats is not None:
+                        chain_stats["last_recording"] = recording
             return recording
         attempts = build_dex_opportunity_attempts(
             payload,
@@ -735,6 +868,10 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
             recording = {"candidate_count": 0, "recorded": 0, "source": "empty", "error": None}
             with self._lock:
                 self._last_recording = recording
+                if chain_id is not None:
+                    chain_stats = self._get_chain_stats(chain_id)
+                    if chain_stats is not None:
+                        chain_stats["last_recording"] = recording
             return recording
         auto_execute_result = self._auto_execute_ready_attempts(attempts, chain_id=chain_id, observed_at=observed_at)
         if not self.record_opportunities:
@@ -748,6 +885,10 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
                 recording.update(auto_execute_result)
             with self._lock:
                 self._last_recording = recording
+                if chain_id is not None:
+                    chain_stats = self._get_chain_stats(chain_id)
+                    if chain_stats is not None:
+                        chain_stats["last_recording"] = recording
             return recording
         now = time.monotonic()
         cooled_attempts = []
@@ -776,6 +917,11 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
         with self._lock:
             self._last_recording = recording
             self._recorded_attempt_count += int(recording.get("recorded") or 0)
+            if chain_id is not None:
+                chain_stats = self._get_chain_stats(chain_id)
+                if chain_stats is not None:
+                    chain_stats["last_recording"] = recording
+                    chain_stats["recorded_attempt_count"] += int(recording.get("recorded") or 0)
         return recording
 
     def _auto_execute_ready_attempts(
@@ -796,8 +942,13 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
                 auto = attempt.get("auto_execute") if isinstance(attempt.get("auto_execute"), dict) else {}
                 if bool(auto.get("executed")):
                     result_payload = auto.get("result") if isinstance(auto.get("result"), dict) else {}
-                    self._record_session_executed(result_payload, auto=True)
+                    self._record_session_executed(result_payload, auto=True, chain_id=chain_id)
             with self._lock:
                 self._auto_execute_count += executed_count
                 self._last_auto_execute_at = observed_at
+                if chain_id is not None:
+                    chain_stats = self._get_chain_stats(chain_id)
+                    if chain_stats is not None:
+                        chain_stats["auto_execute_count"] += executed_count
+                        chain_stats["last_auto_execute_at"] = observed_at
         return result

@@ -25,6 +25,9 @@ LIST_KEYS = (
     "chainSpecificObservationPairs",
     "chainSpecificObservationPools",
     "chainSpecificObservationTokens",
+    "activePoolIds",
+    "liquidPoolIds",
+    "liquidPoolOutsideClosedLoopIds",
     "closedLoopRouteSummaries",
 )
 
@@ -36,6 +39,9 @@ PERSISTED_LIST_KEYS = (
     "pairs",
     "bridgePairs",
     "chainSpecificObservationPairs",
+    "activePoolIds",
+    "liquidPoolIds",
+    "liquidPoolOutsideClosedLoopIds",
 )
 
 DICT_KEYS = (
@@ -43,6 +49,7 @@ DICT_KEYS = (
     "chainSpecificObservation",
     "dexSettlement",
     "flashLoanLiquidity",
+    "liquidPoolRegistry",
     "poolRegistry",
     "poolStaticTable",
 )
@@ -50,6 +57,7 @@ DICT_KEYS = (
 PERSISTED_DICT_KEYS = (
     "dexSettlement",
     "flashLoanLiquidity",
+    "liquidPoolRegistry",
     "poolRegistry",
     "poolStaticTable",
 )
@@ -59,6 +67,9 @@ OVERVIEW_LIST_KEYS = (
     "observationAnchorSymbols",
     "closedLoopRouteSummaries",
     "chainSpecificObservationPairs",
+    "activePoolIds",
+    "liquidPoolIds",
+    "liquidPoolOutsideClosedLoopIds",
 )
 
 STATIC_META_KEYS = {

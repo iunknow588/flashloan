@@ -3,10 +3,11 @@ from __future__ import annotations
 import threading
 import time
 
-from flask import jsonify, request
+from flask import g, jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl_grouped
+from core.evidence_scope import infer_evidence_scope
 from dex.runtime.dex_closed_loop_review_queue import (
     SCAN_PRIORITY,
     USER_PRIORITY,
@@ -41,6 +42,24 @@ def _cached_submission_response_payload(key: str) -> dict | None:
 def _cache_submission_response_payload(key: str, payload: dict) -> None:
     with _SUBMISSION_RESPONSE_CACHE_LOCK:
         _SUBMISSION_RESPONSE_CACHE[key] = (time.time(), payload)
+
+
+def _submission_row_chain_id(row: dict) -> int | None:
+    try:
+        return infer_evidence_scope(row).chain_id
+    except Exception:
+        return None
+
+
+def _filter_submission_rows_by_chain(rows: list[dict], chain_id: int | None) -> list[dict]:
+    if chain_id is None:
+        return rows
+    wanted = int(chain_id)
+    return [
+        row for row in rows
+        if isinstance(row, dict)
+        and (_submission_row_chain_id(row) in {None, wanted})
+    ]
 
 
 def _clear_submission_response_cache() -> None:
@@ -636,11 +655,21 @@ def register_dex_scanner_routes(app) -> None:
             "yes",
             "on",
         }
+        protocols = _root.request_dex_protocols_arg()
         scanner = _root.get_dex_opportunity_scanner()
-        # Rule: every click on the auto-execute toggle resets the session stats,
-        # whether it is being enabled or disabled.
-        scanner.reset_dex_opportunity_stats()
         scanner.set_auto_execute_enabled(enabled)
+        if enabled:
+            scanner.start(chain_id=selected_chain_id, protocols=protocols)
+            current = scanner.snapshot(chain_id=selected_chain_id, protocols=protocols)
+            snapshot = current.get("snapshot") if isinstance(current.get("snapshot"), dict) else {}
+            payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else None
+            if isinstance(payload, dict):
+                scanner._enqueue_closed_loop_groups_from_payload(
+                    payload,
+                    chain_id=selected_chain_id,
+                    protocols=protocols,
+                )
+            scanner.closed_loop_review_pipeline.start()
         payload = _root.dex_opportunity_snapshot(
             chain_id=selected_chain_id,
             protocols=_root.request_dex_protocols_arg(),
@@ -655,7 +684,10 @@ def register_dex_scanner_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         scanner = _root.get_dex_opportunity_scanner()
-        scanner.reset_dex_opportunity_stats()
+        scanner.reset_dex_opportunity_stats(
+            chain_id=selected_chain_id,
+            protocols=_root.request_dex_protocols_arg(),
+        )
         payload = _root.dex_opportunity_snapshot(
             chain_id=selected_chain_id,
             protocols=_root.request_dex_protocols_arg(),
@@ -682,6 +714,10 @@ def register_dex_pool_routes(app) -> None:
             payload = _root.dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
             payload["chain_selection"] = chain_selection
             payload.setdefault("candidates", payload.get("pairs") or [])
+            # This endpoint returns a large static snapshot; the route already
+            # sets mode and builds the payload from the same known source, so
+            # let the generic after_request middleware avoid re-parsing it.
+            g.response_contract_validated = True
             return jsonify(
                 _root._attach_dex_strategy(
                     _root.paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)
@@ -796,6 +832,7 @@ def register_dex_submission_routes(app) -> None:
             lambda **kwargs: _root.load_recent_cow_execution_attempts_jsonl(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
             limit=limit,
@@ -804,6 +841,7 @@ def register_dex_submission_routes(app) -> None:
             group_loader=lambda **kwargs: load_recent_cow_execution_attempts_jsonl_grouped(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
         )
@@ -818,6 +856,7 @@ def register_dex_submission_routes(app) -> None:
             for row in group_attempts or []:
                 if isinstance(row, dict):
                     attempt_rows.append(row)
+        attempt_rows = _filter_submission_rows_by_chain(attempt_rows, _selected_chain_id)
         attempt_rows.sort(
             key=lambda row: str(row.get("created_at") or row.get("observed_at") or ""),
             reverse=True,
@@ -885,6 +924,7 @@ def register_dex_submission_routes(app) -> None:
             lambda **kwargs: _root.load_recent_cow_execution_attempts_jsonl(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
             limit=limit,
@@ -893,6 +933,7 @@ def register_dex_submission_routes(app) -> None:
             group_loader=lambda **kwargs: load_recent_cow_execution_attempts_jsonl_grouped(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
         )
@@ -902,6 +943,7 @@ def register_dex_submission_routes(app) -> None:
             for row in group.get("attempts") or []
             if isinstance(row, dict)
         ]
+        attempt_rows = _filter_submission_rows_by_chain(attempt_rows, _selected_chain_id)
         failed_rows = _failed_submission_rows(attempt_rows)
         failed_rows.sort(
             key=lambda row: str(row.get("created_at") or row.get("observed_at") or ""),
@@ -970,6 +1012,7 @@ def register_dex_submission_routes(app) -> None:
             lambda **kwargs: _root.load_recent_cow_execution_attempts_jsonl(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
             limit=limit,
@@ -978,6 +1021,7 @@ def register_dex_submission_routes(app) -> None:
             group_loader=lambda **kwargs: load_recent_cow_execution_attempts_jsonl_grouped(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=_root.shared.COW_EXECUTION_RETENTION_DAYS,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
                 **kwargs,
             ),
         )
@@ -987,6 +1031,7 @@ def register_dex_submission_routes(app) -> None:
             for row in group.get("attempts") or []
             if isinstance(row, dict)
         ]
+        attempt_rows = _filter_submission_rows_by_chain(attempt_rows, _selected_chain_id)
         success_rows = _success_submission_rows(attempt_rows)
         success_rows.sort(
             key=lambda row: str(row.get("created_at") or row.get("observed_at") or ""),
@@ -1024,6 +1069,7 @@ def register_dex_submission_routes(app) -> None:
             _root.clear_cow_execution_attempts_jsonl(
                 _root.shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 networks=networks,
+                chain_ids=[_selected_chain_id] if _selected_chain_id is not None else [],
             )
         ]
         return jsonify(

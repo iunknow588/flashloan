@@ -91,6 +91,7 @@
       <select id="qualityFilter">
         <option value="all" selected>显示全部分组</option>
         <option value="with_data">仅看有候选</option>
+        <option value="with_liquidity">仅看有流动性</option>
         <option value="empty">仅看空分组</option>
       </select>
       <span id="refreshMeta" class="muted">等待数据</span>
@@ -101,6 +102,7 @@
       <div class="metric"><small>X 分组</small><strong id="anchorGroups">-</strong><span id="anchorTokens">-</span></div>
       <div class="metric"><small>YC 候选</small><strong id="ycPools">-</strong><span id="ycTokens">-</span></div>
       <div class="metric"><small>ZC 候选</small><strong id="zcPools">-</strong><span id="zcTokens">-</span></div>
+      <div class="metric"><small>有流动性池</small><strong id="liquidPools">-</strong><span id="liquidGroups">-</span></div>
       <div class="metric"><small>链上快照</small><strong id="blockNumber">-</strong><span id="generatedAt">-</span></div>
     </section>
 
@@ -308,6 +310,28 @@
       return statusBadge(row.quality || row.status);
     }
 
+    function poolIsLiquid(row) {
+      if (!row) return false;
+      if (row.dynamicFee || row.specialFee || String(row.feeLabel || "").toLowerCase() === "special") return false;
+      if (row.usableForObservation != null) return row.usableForObservation === true;
+      if (row.hasLiquidity != null) return row.hasLiquidity === true;
+      return Number(row.liquidityIndex ?? row.liquidity ?? 0) > 0;
+    }
+
+    function groupHasLiquidity(group) {
+      const rows = [
+        ...(group.sharedPools || []),
+        ...groupPools(group, "yc"),
+        ...groupPools(group, "zc"),
+      ];
+      return rows.some(poolIsLiquid);
+    }
+
+    function filterLiquidityRows(rows) {
+      if (($("qualityFilter").value || "all") !== "with_liquidity") return rows;
+      return rows.filter(poolIsLiquid);
+    }
+
     function groupPools(group, direction) {
       const key = `${direction}Pools`;
       const refKey = `${direction}PoolsRef`;
@@ -391,6 +415,11 @@
         [...groupPools(group, "yc"), ...groupPools(group, "zc")],
         pool => pool.pool || pool.poolId || `${pool.counterAddress || ""}:${pool.routeText || ""}`
       );
+      if (($("qualityFilter").value || "all") === "with_liquidity") {
+        const liquidRows = filterLiquidityRows(pools);
+        if (!liquidRows.length) return "";
+        return renderSection("YC/ZC 双向候选（有流动性）", tokens, liquidRows);
+      }
       return renderSection("YC/ZC 双向候选", tokens, pools);
     }
 
@@ -447,9 +476,11 @@
       }
       $("groupList").innerHTML = groups.map(group => {
         const sameSet = Boolean(group.ycZcSameSet || group.candidateSetMode === "bidirectional_same_pool_key_set");
+        if (($("qualityFilter").value || "all") === "with_liquidity" && !groupHasLiquidity(group)) return "";
         const sections = sameSet
           ? renderBidirectionalSection(group)
           : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
+        if (($("qualityFilter").value || "all") === "with_liquidity" && !sections.trim()) return "";
         return `
         <article class="group">
           <div class="group-head">
@@ -482,6 +513,8 @@
       $("ycTokens").textContent = `代币 ${summary.ycTokenCount || "-"}`;
       $("zcPools").textContent = summary.zcPoolCount || "-";
       $("zcTokens").textContent = `代币 ${summary.zcTokenCount || "-"}`;
+      $("liquidPools").textContent = summary.liquidPoolCount || "-";
+      $("liquidGroups").textContent = `分组 ${summary.liquidPoolGroupCount || "-"}`;
       $("blockNumber").textContent = source.generatedBlockNumber || "-";
       $("generatedAt").textContent = fmtTime(source.generatedAt);
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;

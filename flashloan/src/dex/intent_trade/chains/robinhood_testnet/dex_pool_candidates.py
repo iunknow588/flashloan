@@ -142,8 +142,10 @@ def _pool_candidate_row(
     pool_manager: str,
     *,
     token_metadata: dict[str, dict[str, Any]] | None = None,
+    pool_liquidity_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     pool_id = str(pool.get("poolId") or pool.get("pool_id") or pool.get("id") or "").strip()
+    pool_id_lower = pool_id.lower()
     token0 = _address(pool.get("token0") or pool.get("currency0"))
     token1 = _address(pool.get("token1") or pool.get("currency1"))
     metadata = token_metadata or {}
@@ -155,6 +157,7 @@ def _pool_candidate_row(
         return None
     row = {
         "pool": pool_id,
+        "poolId": pool_id,
         "poolIdentityMode": "pool_id",
         "poolManager": pool.get("poolManager") or pool.get("pool_manager") or pool_manager,
         "poolKey": pool.get("poolKey") or pool.get("pool_key"),
@@ -186,9 +189,38 @@ def _pool_candidate_row(
             "initializeBlockNumber": pool.get("initializeBlockNumber"),
             "initializeTransactionHash": pool.get("initializeTransactionHash"),
             "poolKeyDecoded": bool(pool.get("poolKeyDecoded")),
-            "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+            "discoveryMethod": (
+                "robinhood_testnet_v4_pool_liquidity_cache"
+                if pool_liquidity_by_id and pool_id_lower in pool_liquidity_by_id
+                else (pool.get("source") or "robinhood_testnet_v4_pool_index")
+            ),
         },
     }
+    liquidity_evidence = (pool_liquidity_by_id or {}).get(pool_id_lower) or {}
+    if liquidity_evidence:
+        liquidity_text = str(pool.get("liquidity") or liquidity_evidence.get("liquidity") or "")
+        has_liquidity = bool(
+            liquidity_evidence.get("hasLiquidity")
+            or str(liquidity_evidence.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+        )
+        try:
+            liquidity_index = float(liquidity_text)
+        except (TypeError, ValueError):
+            liquidity_index = float(liquidity_evidence.get("liquidityIndex") or 0) if liquidity_evidence.get("liquidityIndex") is not None else 0.0
+        row.update(
+            {
+                "liquidity": liquidity_text,
+                "hasLiquidity": bool(row.get("hasLiquidity")) or has_liquidity,
+                "liquidityIndex": liquidity_index,
+                "depthStatus": str(
+                    liquidity_evidence.get("depthStatus")
+                    or liquidity_evidence.get("status")
+                    or pool.get("depthStatus")
+                    or ""
+                ),
+                "usableForObservation": has_liquidity,
+            }
+        )
     row.update(_classification(token0_symbol, token1_symbol))
     row["depthBand"] = _depth_band(pool)
     return row
@@ -251,6 +283,7 @@ def _candidate_source_pools(pool_index: dict[str, Any], liquidity: dict[str, Any
     active_ids = _active_pool_ids(liquidity)
     indexed_pools = [pool for pool in pool_index.get("pools") or [] if isinstance(pool, dict)]
     liquidity_pools = [pool for pool in liquidity.get("pools") or [] if isinstance(pool, dict)]
+    liquidity_by_id = {_pool_id(pool): pool for pool in liquidity_pools if _pool_id(pool)}
     known_pool_ids = _known_v4_pool_ids()
     known_pools = [
         pool
@@ -260,7 +293,14 @@ def _candidate_source_pools(pool_index: dict[str, Any], liquidity: dict[str, Any
     if pool_index.get("ok") and active_ids:
         matched = [pool for pool in indexed_pools if _pool_id(pool) in active_ids]
         if matched:
-            return matched + known_pools + [
+            merged = []
+            for pool in matched + known_pools:
+                merged_pool = dict(pool)
+                liquidity_row = liquidity_by_id.get(_pool_id(pool))
+                if isinstance(liquidity_row, dict):
+                    merged_pool = {**merged_pool, **liquidity_row}
+                merged.append(merged_pool)
+            return merged + [
                 pool for pool in liquidity_pools
                 if _pool_id(pool) not in {_pool_id(item) for item in matched}
             ], "robinhood_testnet_v4_pool_sources_merged", pool_index.get("source")
@@ -275,6 +315,17 @@ def _candidate_source_pools(pool_index: dict[str, Any], liquidity: dict[str, Any
     if pool_index.get("ok"):
         return indexed_pools, "robinhood_testnet_v4_pool_index", pool_index.get("source")
     return liquidity_pools, "robinhood_testnet_v4_pool_liquidity", liquidity.get("source")
+
+
+def _liquidity_by_pool_id(liquidity: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for pool in liquidity.get("pools") or []:
+        if not isinstance(pool, dict):
+            continue
+        pool_id = _pool_id(pool)
+        if pool_id:
+            by_id[pool_id] = pool
+    return by_id
 
 
 def _shared_candidate_key(row: dict[str, Any]) -> str:
@@ -403,6 +454,7 @@ def dex_pool_candidates_payload(
         or ""
     ).strip()
     token_metadata = _metadata_by_address(liquidity_payload)
+    liquidity_by_id = _liquidity_by_pool_id(liquidity)
     anchor_symbols, anchor_addresses = _flash_accounting_assets(liquidity, pool_manager)
     source_pools, source_mode, source_path = _candidate_source_pools(pool_index, liquidity)
     anchor_symbol_set = set(anchor_symbols)
@@ -410,7 +462,12 @@ def dex_pool_candidates_payload(
         row
         for pool in source_pools
         if isinstance(pool, dict)
-        for row in [_pool_candidate_row(pool, pool_manager, token_metadata=token_metadata)]
+        for row in [_pool_candidate_row(
+            pool,
+            pool_manager,
+            token_metadata=token_metadata,
+            pool_liquidity_by_id=liquidity_by_id,
+        )]
         if row is not None and _row_uses_flash_asset(row, anchor_symbol_set, anchor_addresses)
     ]
     grouped: dict[str, dict[str, Any]] = {}

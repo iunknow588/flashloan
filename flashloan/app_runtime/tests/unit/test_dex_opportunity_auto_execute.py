@@ -293,6 +293,14 @@ def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkey
     assert status["closed_loop_review_count"] == 1
     assert status["auto_broadcast_count"] >= 1
     assert scanner._auto_execute_count == 1
+    refreshed_route = (done.result or {}).get("routes", [])[0]
+    refreshed_evidence = refreshed_route.get("live_onchain_evidence") or {}
+    refreshed_costs = refreshed_evidence.get("costModel") or {}
+    assert refreshed_costs.get("selectedBorrowInputAmount") == 1.5
+    assert refreshed_costs.get("selectedBorrowInputAmountConfirmedMax") is True
+    assert refreshed_costs.get("netProfitAmount") == 0.5
+    assert refreshed_route.get("bestAmountConfirmed") is True
+    assert refreshed_route.get("bestAmountMissing") is False
 
 
 def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitable(tmp_path, monkeypatch):
@@ -611,7 +619,7 @@ def test_closed_loop_groups_use_deep_mode_when_auto_execute_enabled(tmp_path):
 
 def test_session_stats_are_reset_explicitly(tmp_path):
     scanner = _scanner(tmp_path, enabled=True)
-    scanner._record_session_executed({"ok": True, "txHash": "0xabc", "profit": 1.25}, auto=True)
+    scanner._record_session_executed({"ok": True, "txHash": "0xabc", "profit": 1.25}, auto=True, chain_id=46630)
     status = scanner.status(chain_id=46630)
     session = status["session_stats"]
     assert session["executed_count"] == 1
@@ -626,6 +634,59 @@ def test_session_stats_are_reset_explicitly(tmp_path):
     assert session["auto_executed_count"] == 0
     assert session["positive_profit_count"] == 0
     assert session["positive_profit_amount"] == 0
+
+
+def test_chain_specific_status_and_reset_keep_global_and_other_chain(tmp_path):
+    scanner = _scanner(tmp_path)
+    scanner._record_session_executed({"ok": True, "txHash": "0xa", "profit": 1.0}, auto=True, chain_id=46630)
+    scanner._record_session_executed({"ok": True, "txHash": "0xb", "profit": 2.0}, auto=True, chain_id=4663)
+
+    chain_a = scanner.status(chain_id=46630)
+    chain_b = scanner.status(chain_id=4663)
+    global_stats = scanner.status()
+
+    assert chain_a["session_stats"]["executed_count"] == 1
+    assert chain_b["session_stats"]["executed_count"] == 1
+    assert global_stats["session_stats"]["executed_count"] == 2
+
+    scanner.reset_dex_opportunity_stats(chain_id=46630)
+
+    chain_a = scanner.status(chain_id=46630)
+    chain_b = scanner.status(chain_id=4663)
+    global_stats = scanner.status()
+    assert chain_a["session_stats"]["executed_count"] == 0
+    assert chain_b["session_stats"]["executed_count"] == 1
+    assert global_stats["session_stats"]["executed_count"] == 2
+
+
+def test_scan_count_is_isolated_per_chain(tmp_path):
+    scanner = _scanner(tmp_path)
+    scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
+    scanner.scan_now(chain_id=4663, protocols=["uniswap_v4"])
+
+    assert scanner.status(chain_id=46630)["scan_count"] == 1
+    assert scanner.status(chain_id=4663)["scan_count"] == 1
+    assert scanner.status()["scan_count"] == 2
+
+
+def test_status_unknown_chain_does_not_show_global_totals(tmp_path):
+    scanner = _scanner(tmp_path)
+    scanner._record_session_executed({"ok": True, "txHash": "0xchain-a", "profit": 1.0}, auto=True, chain_id=46630)
+
+    unknown_chain = scanner.status(chain_id=4663)
+    assert unknown_chain["scan_count"] == 0
+    assert unknown_chain["session_stats"]["executed_count"] == 0
+    assert scanner.status()["session_stats"]["executed_count"] == 1
+
+
+def test_chain_stats_are_persisted_then_restored(tmp_path):
+    scanner = _scanner(tmp_path)
+    scanner._record_session_executed({"ok": True, "txHash": "0xc", "profit": 3.0}, auto=True, chain_id=46630)
+    scanner._write_cache()
+
+    reloaded = _scanner(tmp_path)
+    assert reloaded.status(chain_id=46630)["session_stats"]["executed_count"] == 1
+    assert reloaded.status(chain_id=46630)["session_stats"]["positive_profit_amount"] == 3.0
 
 
 def test_scan_exception_records_structured_error_stack(tmp_path):

@@ -15,6 +15,16 @@ from dex.runtime.dex_opportunity_route_runner import (
 )
 
 
+def _first_number(*values: Any) -> float | None:
+    for value in values:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        return number
+    return None
+
+
 class DexOpportunityReviewEngineMixin:
     def _fixed_refresh_group(self, task) -> dict[str, Any]:
         anchor = str(task.group_key or "").strip().upper()
@@ -50,7 +60,7 @@ class DexOpportunityReviewEngineMixin:
                     manual_review_count += 1
                 if work["broadcast_executed"]:
                     auto_broadcast_count += 1
-                    self._record_session_executed(work["broadcast_payload"], auto=True)
+                    self._record_session_executed(work["broadcast_payload"], auto=True, chain_id=task.chain_id)
                 if work["broadcast_failed"]:
                     auto_broadcast_failed += 1
                     auto_broadcast_errors.extend(work["broadcast_errors"])
@@ -87,6 +97,18 @@ class DexOpportunityReviewEngineMixin:
                             "source": "closed_loop_deep_review",
                             "error": route_recording.get("error"),
                         }
+                        if task.chain_id is not None:
+                            chain_stats = self._get_chain_stats(task.chain_id)
+                            if chain_stats is not None:
+                                chain_stats["recorded_attempt_count"] += int(route_recording.get("recorded") or 0)
+                                chain_stats["closed_loop_review_count"] += 1
+                                chain_stats["last_recording"] = {
+                                    "candidate_count": 1,
+                                    "review_count": 1,
+                                    "recorded": int(route_recording.get("recorded") or 0),
+                                    "source": "closed_loop_deep_review",
+                                    "error": route_recording.get("error"),
+                                }
 
             workers = _closed_loop_workers()
             if workers <= 1 or len(routes) <= 1:
@@ -133,6 +155,11 @@ class DexOpportunityReviewEngineMixin:
                     with self._lock:
                         self._auto_execute_count += auto_broadcast_count
                         self._last_auto_execute_at = _now_iso()
+                        if task.chain_id is not None:
+                            chain_stats = self._get_chain_stats(task.chain_id)
+                            if chain_stats is not None:
+                                chain_stats["auto_execute_count"] += auto_broadcast_count
+                                chain_stats["last_auto_execute_at"] = _now_iso()
                 for route in refreshed:
                     broadcast_payload = route.get("__manualBroadcast")
                     auto_execute_payload = {
@@ -188,6 +215,14 @@ class DexOpportunityReviewEngineMixin:
                 if not self.record_opportunities:
                     self._recorded_attempt_count += int(recording.get("recorded") or 0)
                     self._closed_loop_review_count += len(refresh_attempt_pairs)
+                if task.chain_id is not None:
+                    chain_stats = self._get_chain_stats(task.chain_id)
+                    if chain_stats is not None:
+                        chain_stats["last_recording"] = recording
+                        chain_stats["closed_loop_scan_count"] += 1
+                        if not self.record_opportunities:
+                            chain_stats["recorded_attempt_count"] += int(recording.get("recorded") or 0)
+                            chain_stats["closed_loop_review_count"] += len(refresh_attempt_pairs)
             payload["recording"] = recording
         self._merge_fixed_refresh_into_snapshot(task, payload)
         return {
@@ -414,9 +449,52 @@ class DexOpportunityReviewEngineMixin:
                     "message": failure_detail or "on-chain review did not complete",
                 }
             ]
+        source_evidence = estimate.get("evidence") if isinstance(estimate.get("evidence"), dict) else {}
+        source_costs = source_evidence.get("costModel") if isinstance(source_evidence.get("costModel"), dict) else {}
+        analysis = estimate.get("analysis") if isinstance(estimate.get("analysis"), dict) else {}
+        source_best_amount = _first_number(
+            source_costs.get("selectedBorrowInputAmount"),
+            source_costs.get("borrowInputAmount"),
+            estimate.get("bestAmount"),
+            source_evidence.get("bestAmount"),
+        )
+        source_net_profit = _first_number(
+            analysis.get("referenceNetProfitAmount"),
+            analysis.get("netProfitAmount"),
+            estimate.get("referenceNetProfitAmount"),
+            estimate.get("profitHuman"),
+            estimate.get("profit"),
+            source_costs.get("netProfitAmount"),
+            source_evidence.get("referenceNetProfitAmount"),
+        )
+        source_net_bps = _first_number(
+            analysis.get("referenceNetReturnBps"),
+            analysis.get("netProfitBps"),
+            estimate.get("referenceNetReturnBps"),
+            source_costs.get("netProfitAmountBps"),
+            source_costs.get("netProfitBps"),
+        )
+        source_final_output = _first_number(
+            analysis.get("referenceFinalOutputAmount"),
+            source_costs.get("finalOutputAmount"),
+            estimate.get("outAmount"),
+            estimate.get("outAmountHuman"),
+        )
+        source_final_symbol = (
+            analysis.get("referenceFinalOutputSymbol")
+            or source_costs.get("finalOutputSymbol")
+            or (route_symbols[0] if route_symbols else None)
+        )
+        tx_hash = str(
+            estimate.get("txHash")
+            or source_evidence.get("txHash")
+            or source_evidence.get("transactionHash")
+            or ""
+        ).strip() or None
         evidence = {
             "status": quote_status,
             "executionTrust": execution_trust,
+            "liveVerified": bool(estimate.get("liveVerified")) and not best_amount_missing,
             "livePriceVerified": bool(estimate.get("liveVerified")) and not best_amount_missing,
             "readyForTransactionPreflight": bool(estimate.get("readyForTransactionPreflight")) and not best_amount_missing,
             "profitable": bool(estimate.get("profitable")),
@@ -424,25 +502,60 @@ class DexOpportunityReviewEngineMixin:
             "bestAmountConfirmed": best_amount_confirmed,
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
-            "hops": list(estimate.get("steps") or []),
+            "hops": list(estimate.get("steps") or source_evidence.get("hops") or []),
+            "blockNumber": estimate.get("blockNumber") or source_evidence.get("blockNumber"),
+            "txHash": tx_hash,
             "costModel": {
-                "selectedBorrowInputAmount": estimate.get("bestAmount"),
-                "borrowInputAmount": estimate.get("bestAmount"),
+                "borrowInputSymbol": route_symbols[0] if route_symbols else None,
+                "finalOutputSymbol": source_final_symbol,
+                "selectedBorrowInputAmount": source_best_amount,
+                "selectedBorrowInputAmountConfirmedMax": best_amount_confirmed,
+                "selectedBorrowInputAmountRaw": source_costs.get("selectedBorrowInputAmountRaw"),
+                "borrowInputAmount": source_best_amount,
+                "requestedBorrowInputAmount": estimate.get("amount") or source_costs.get("requestedBorrowInputAmount"),
                 "bestAmountConfirmed": best_amount_confirmed,
                 "bestAmountMissing": best_amount_missing,
-                "netProfitAmount": (estimate.get("analysis") or {}).get("referenceNetProfitAmount"),
-                "netProfitBps": (estimate.get("analysis") or {}).get("referenceNetReturnBps"),
+                "netProfitAmount": source_net_profit,
+                "netProfitBps": source_net_bps,
+                "netProfitAmountBps": source_net_bps,
+                "finalOutputAmount": source_final_output,
+                "profitBasis": analysis.get("profitBasis") or source_costs.get("profitBasis") or "borrow_token",
+                "profitable": bool(estimate.get("profitable")) or bool(source_costs.get("profitable")),
+                "readyForTransactionPreflight": bool(estimate.get("readyForTransactionPreflight")) and not best_amount_missing,
+                "bestAmountSelectionBasis": estimate.get("bestAmountSelectionBasis") or source_costs.get("bestAmountSelectionBasis"),
+                "bestAmountConfirmationReason": estimate.get("bestAmountConfirmationReason") or source_costs.get("bestAmountConfirmationReason"),
             },
+            "referenceNetProfitAmount": source_net_profit,
+            "referenceNetProfitAmountBps": source_net_bps,
+            "referenceFinalOutputAmount": source_final_output,
+            "referenceFinalOutputSymbol": source_final_symbol,
             "validation": {
-                "profitableAfterCosts": bool(estimate.get("profitable")),
+                "profitableAfterCosts": bool(estimate.get("profitable")) or bool(source_costs.get("profitable")),
             },
+            "offchainInitialProbeReason": (
+                estimate.get("offchainInitialProbeReason")
+                or source_evidence.get("offchainInitialProbeReason")
+                or "requested_borrow_amount_fallback"
+            ),
             "blockers": blockers,
             "conclusion": "閾句笂鎶ヤ环宸查獙璇佸綋鍓嶉噾棰濓紝浣嗘渶浣抽噺鏈绠楁垚鍔燂紱澶嶆牳鏈€氳繃" if best_amount_missing else None,
             "errorStack": error_stack,
         }
         quote = dict(route.get("quote") or {})
         quote["live_onchain_evidence"] = evidence
-        quote["quote_analysis"] = estimate.get("analysis") or {}
+        enriched_analysis = dict(analysis)
+        enriched_analysis.setdefault("referenceInputSymbol", route_symbols[0] if route_symbols else None)
+        if source_best_amount is not None:
+            enriched_analysis.setdefault("bestAmount", source_best_amount)
+            enriched_analysis.setdefault("referenceInputAmount", source_best_amount)
+            enriched_analysis.setdefault("initialProbeAmount", estimate.get("amount") or source_best_amount)
+        if source_net_profit is not None:
+            enriched_analysis.setdefault("referenceNetProfitAmount", source_net_profit)
+        if source_net_bps is not None:
+            enriched_analysis.setdefault("referenceNetReturnBps", source_net_bps)
+        if source_final_output is not None:
+            enriched_analysis.setdefault("referenceFinalOutputAmount", source_final_output)
+        quote["quote_analysis"] = enriched_analysis
         return {
             "network": _network_for_chain_id(chain_id),
             "chain_id": chain_id,
@@ -452,7 +565,7 @@ class DexOpportunityReviewEngineMixin:
             "routeAddresses": route_addresses,
             "priority_reason": "closed_loop_fixed_refresh",
             "quote": quote,
-            "quoteAnalysis": estimate.get("analysis") or {},
+            "quoteAnalysis": enriched_analysis,
             "observed_at": observed_at,
         }
 
@@ -467,6 +580,15 @@ class DexOpportunityReviewEngineMixin:
             **deepcopy(existing_analysis),
             **deepcopy(attempt.get("quoteAnalysis") or {}),
         }
+        if isinstance(evidence.get("costModel"), dict):
+            route_costs = evidence["costModel"]
+            route["quoteAnalysis"].setdefault("bestAmount", route_costs.get("selectedBorrowInputAmount"))
+            route["quoteAnalysis"].setdefault("referenceInputAmount", route_costs.get("selectedBorrowInputAmount"))
+            route["quoteAnalysis"].setdefault("referenceInputSymbol", route_costs.get("borrowInputSymbol"))
+            route["quoteAnalysis"].setdefault("referenceNetProfitAmount", route_costs.get("netProfitAmount"))
+            route["quoteAnalysis"].setdefault("referenceNetReturnBps", route_costs.get("netProfitAmountBps"))
+            route["quoteAnalysis"].setdefault("bestAmountConfirmed", bool(route_costs.get("bestAmountConfirmed")))
+            route["quoteAnalysis"].setdefault("bestAmountMissing", bool(route_costs.get("bestAmountMissing")))
         route["onchainEvidenceStatus"] = evidence.get("status")
         route["quoteStatus"] = evidence.get("status")
         route["quoteVerification"] = {

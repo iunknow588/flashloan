@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
@@ -617,6 +617,21 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
             ],
         }
 
+    def load_v4_pool_liquidity():
+        return {
+            "ok": True,
+            "status": "v4_pool_liquidity_cache_available",
+            "source": "test-liquidity",
+            "pools": [
+                {
+                    "poolId": "0x" + "c" * 64,
+                    "hasLiquidity": True,
+                    "usableForObservation": True,
+                }
+            ],
+            "pool_keys": [],
+        }
+
     monkeypatch.setattr(
         dex_surfaces,
         "robinhood_testnet_v4_bridge_pairs_for_anchor_groups",
@@ -625,6 +640,7 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
             chain_id=chain_id,
             protocols=protocols,
             pool_index_loader=load_v4_pool_index,
+            pool_liquidity_loader=load_v4_pool_liquidity,
         ),
     )
     monkeypatch.setattr(
@@ -643,6 +659,119 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
         (path.get("overviewRoute") or {}).get("pathSymbols") == ["USDC", "WETH", "DAI", "USDC"]
         for path in overview["arbitragePaths"]
     )
+
+
+def test_dex_market_observation_excludes_v4_yz_bridge_without_liquidity_evidence(monkeypatch):
+    usdc = "0x" + "1" * 40
+    weth = "0x" + "2" * 40
+    dai = "0x" + "3" * 40
+    pool_usdc_weth = _pool("0x" + "a" * 40, "USDC", "WETH", usdc, weth, price_native="0.0004", token0_amount=1_000_000, token1_amount=400, tvl_usd=2_000_000)
+    pool_usdc_dai = _pool("0x" + "b" * 40, "USDC", "DAI", usdc, dai, price_native="1.0", token0_amount=1_000_000, token1_amount=1_000_000, tvl_usd=2_000_000)
+    for pool in (pool_usdc_weth, pool_usdc_dai):
+        pool["dex"] = "uniswap_v4"
+        pool["protocol"] = "uniswap_v4"
+    shared_weth = dex_surfaces._route_step_row(
+        pool_usdc_weth,
+        from_token={"symbol": "USDC", "address": usdc},
+        to_token={"symbol": "WETH", "address": weth},
+        direction="shared",
+    )
+    shared_dai = dex_surfaces._route_step_row(
+        pool_usdc_dai,
+        from_token={"symbol": "USDC", "address": usdc},
+        to_token={"symbol": "DAI", "address": dai},
+        direction="shared",
+    )
+    payload = {
+        "pairs": [],
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "anchorGroups": [
+            {
+                "anchorSymbol": "USDC",
+                "anchorAddresses": [usdc],
+                "ycPools": [],
+                "zcPools": [],
+                "sharedPools": [shared_weth, shared_dai],
+                "ycPoolsRef": "sharedPools",
+                "zcPoolsRef": "sharedPools",
+                "ycTokens": [],
+                "zcTokens": [],
+                "sharedTokens": [
+                    {"symbol": "WETH", "address": weth, "poolCount": "1", "pools": [shared_weth]},
+                    {"symbol": "DAI", "address": dai, "poolCount": "1", "pools": [shared_dai]},
+                ],
+                "ycTokensRef": "sharedTokens",
+                "zcTokensRef": "sharedTokens",
+                "ycZcSameSet": True,
+                "ycPoolCount": "2",
+                "zcPoolCount": "2",
+                "ycTokenCount": "2",
+                "zcTokenCount": "2",
+                "candidatePoolCount": "2",
+            }
+        ],
+    }
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+
+    def load_v4_pool_index():
+        return {
+            "ok": True,
+            "status": "v4_pool_index_available",
+            "source": "test-index",
+            "block_number": 123,
+            "pools": [
+                {
+                    "poolId": "0x" + "c" * 64,
+                    "protocol": "uniswap_v4",
+                    "token0": weth,
+                    "token1": dai,
+                    "token0Symbol": "0x222222",
+                    "token1Symbol": "0x333333",
+                    "fee": 3000,
+                    "poolKeyDecoded": True,
+                }
+            ],
+        }
+
+    def load_v4_pool_liquidity():
+        return {
+            "ok": True,
+            "status": "v4_pool_liquidity_cache_available",
+            "source": "test-liquidity",
+            "pools": [
+                {
+                    "poolId": "0x" + "9" * 64,
+                    "hasLiquidity": True,
+                    "usableForObservation": True,
+                }
+            ],
+            "pool_keys": [],
+        }
+
+    monkeypatch.setattr(
+        dex_surfaces,
+        "robinhood_testnet_v4_bridge_pairs_for_anchor_groups",
+        lambda anchor_groups, chain_id=None, protocols=None: robinhood_testnet_market_observation.robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
+            anchor_groups,
+            chain_id=chain_id,
+            protocols=protocols,
+            pool_index_loader=load_v4_pool_index,
+            pool_liquidity_loader=load_v4_pool_liquidity,
+        ),
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "robinhood_testnet_v4_fund_anchor_pair_observation",
+        lambda chain_id=None, protocols=None: {"enabled": True, "status": "test_disabled", "observationSequences": []},
+    )
+
+    observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
+
+    assert observation["summary"]["bridgePoolIndexMatchedPairCount"] == 0
+    assert observation["summary"]["observationSequenceCount"] == 0
+    assert observation["closedLoopRoutes"] == []
 
 
 def test_robinhood_testnet_v4_non_eth_pair_first_keeps_native_zero_fund_routes():

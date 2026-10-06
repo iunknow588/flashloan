@@ -12,6 +12,11 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for market_id, summary in BUILTIN_MARKET_SUMMARIES.items():
         row = dict(summary)
+        # SQLite KV mirrors rows as JSON, so store lists rather than tuples
+        # to avoid tuple/list mismatches when comparing against existing rows.
+        for key, value in list(row.items()):
+            if isinstance(value, tuple):
+                row[key] = list(value)
         row.setdefault("market_id", market_id)
         row.setdefault("canonical_market_id", market_id)
         row.setdefault("legacy_market_id", market_id)
@@ -27,15 +32,56 @@ def ensure_chain_market_registry_schema(database_url: str) -> None:
     ensure_store(database_url)
 
 
+_BUILTIN_SEED_COMPARE_KEYS = (
+    "market_id",
+    "canonical_market_id",
+    "legacy_market_id",
+    "network",
+    "chain_id",
+    "feature",
+    "protocol",
+    "protocol_id",
+    "display_name",
+    "market_type",
+    "native_symbol",
+    "observation_only",
+    "rpc_env_prefixes",
+)
+
+
+def _builtin_seed_change_count(builtin_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> int:
+    existing_by_id = {
+        str(row.get("market_id") or "").strip().lower(): row
+        for row in existing_rows
+        if str(row.get("market_id") or "").strip()
+    }
+    changed = 0
+    for row in builtin_rows:
+        market_id = str(row.get("market_id") or "").strip().lower()
+        existing = existing_by_id.get(market_id)
+        if existing is None:
+            changed += 1
+            continue
+        for key in _BUILTIN_SEED_COMPARE_KEYS:
+            if key not in existing or row.get(key) != existing.get(key):
+                changed += 1
+                break
+    return changed
+
+
 def seed_builtin_chain_markets(database_url: str) -> None:
     ensure_store(database_url)
     builtin_rows = _builtin_chain_market_rows()
     builtin_ids = {str(row["market_id"]).strip().lower() for row in builtin_rows}
-    for row in load_rows(database_url, "chain_markets"):
+    existing_rows = load_rows(database_url, "chain_markets")
+    for row in existing_rows:
         if str(row.get("market_id") or "").strip().lower() not in builtin_ids:
             delete_key(database_url, "chain_markets", row.get("_key") or row.get("market_id") or "")
-    for row in builtin_rows:
-        upsert_row(database_url, "chain_markets", row["market_id"], row)
+    # Avoid re-writing every built-in row on each request.  The local KV store
+    # is only a seed mirror, so unchanged rows can be left untouched.
+    if _builtin_seed_change_count(builtin_rows, existing_rows):
+        for row in builtin_rows:
+            upsert_row(database_url, "chain_markets", row["market_id"], row)
 
 
 def load_chain_market_summaries(database_url: str) -> list[dict[str, Any]]:

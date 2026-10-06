@@ -91,7 +91,7 @@ def install_chain_selection_context(app: Flask, panel) -> None:
     @app.after_request
     def expose_chain_selection_context(response):
         if request.path.startswith("/api/") and 200 <= response.status_code < 300:
-            if response.is_json:
+            if response.is_json and not getattr(g, "response_contract_validated", False):
                 body = response.get_json(silent=True)
                 mode_by_path = {
                     "/api/dex/overview": "dex_overview",
@@ -106,14 +106,14 @@ def install_chain_selection_context(app: Flask, panel) -> None:
                     body["mode"] = mode
                     response.set_data(json.dumps(body, ensure_ascii=False))
                     response.content_type = "application/json"
-            required_keys = __import__("core.api_scope_policy", fromlist=["response_required_keys"]).response_required_keys(request.path)
-            if required_keys and response.is_json:
-                try:
-                    validate_named_response_contract(request.path, response.get_json(silent=True))
-                except ValueError as exc:
-                    invalid = jsonify({"ok": False, "error": str(exc), "code": "response_contract"})
-                    invalid.status_code = 500
-                    return invalid
+                required_keys = __import__("core.api_scope_policy", fromlist=["response_required_keys"]).response_required_keys(request.path)
+                if required_keys:
+                    try:
+                        validate_named_response_contract(request.path, body)
+                    except ValueError as exc:
+                        invalid = jsonify({"ok": False, "error": str(exc), "code": "response_contract"})
+                        invalid.status_code = 500
+                        return invalid
         request_id = getattr(g, "request_id", None)
         if request_id:
             response.headers["X-Request-Id"] = str(request_id)

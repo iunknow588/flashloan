@@ -18,6 +18,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
     let activeSelectionSignature = "";
     let activeRouteKey = "";
     let pageState = "init";
+    let routeLiquidityContext = {
+      candidateLiquidPoolCount: 0,
+      closedLoopLiquidPoolCount: 0,
+    };
     const PAGE_STATE = Object.freeze({
       INIT: "init",
       STATIC_READY: "static_ready",
@@ -82,9 +86,18 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       url.searchParams.set("v", APP_VERSION);
       return url.pathname + url.search;
     };
+    async function parseResponseJson(response) {
+      const text = await response.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        throw new Error(`请求失败（HTTP ${response.status}）：服务器返回了非 JSON 响应，请查看后端日志`);
+      }
+    }
     async function fetchJson(path) {
       const response = await fetch(apiPath(path), {cache: "no-cache", headers: {Accept: "application/json"}});
-      const data = await response.json();
+      const data = await parseResponseJson(response);
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
@@ -93,7 +106,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const response = await fetch(apiPath(path), {cache: "no-cache", signal: controller.signal, headers: {Accept: "application/json"}});
-        const data = await response.json();
+        const data = await parseResponseJson(response);
         if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
         return data;
       } catch (error) {
@@ -109,6 +122,11 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       if (responseChainId && activeChainId && String(responseChainId) !== activeChainId) return;
       if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
       const scanner = response.scanner || {}; const snapshot = response.snapshot || {}; const data = snapshot.payload || {}; const summary = data.summary || snapshot.summary || {};
+      const sessionStats = scanner.session_stats || {};
+      const sessionResetAt = sessionStats.reset_at || "";
+      const snapshotUpdatedAt = snapshot.updated_at || scanner.snapshot_updated_at || "";
+      const statsClearedSinceSnapshot = Boolean(sessionResetAt && (!snapshotUpdatedAt || String(sessionResetAt) > String(snapshotUpdatedAt)));
+      if (statsClearedSinceSnapshot) quoteRoutesPayload = null;
       const autoExecuteToggle = document.getElementById("autoExecuteToggle");
       if (autoExecuteToggle) {
         try {
@@ -138,14 +156,16 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const profitableCount = summary.liveProfitableRouteCount ?? summary.live_profitable_route_count ?? 0;
       $("profitableCount").textContent = `${profitableCount}`;
       $("profitableMeta").textContent = `${profitableCount} 条链上复核为正收益`;
-      const sessionStats = scanner.session_stats || {};
       const sessionExecuted = sessionStats.executed_count ?? 0;
       const sessionAutoExecuted = sessionStats.auto_executed_count ?? sessionStats.executed_count ?? 0;
       const sessionProfit = sessionStats.positive_profit_amount ?? 0;
-      const autoExecutedCount = sessionAutoExecuted;
       const closedLoopScanCount = scanner.closed_loop_scan_count ?? 0;
       const closedLoopReviewCount = scanner.closed_loop_review_count ?? 0;
       const autoBroadcastCount = scanner.auto_broadcast_count ?? scanner.auto_execute_count ?? 0;
+      const autoExecutedCount = Math.max(
+        Number(sessionAutoExecuted || 0),
+        Number(autoBroadcastCount || 0)
+      );
       const lastRecordingReviewCount = scanner.last_recording?.review_count ?? 0;
       $("closedLoopScanCount").textContent = `${closedLoopScanCount}`;
       $("closedLoopScanMeta").textContent = lastRecordingReviewCount > 0
@@ -185,13 +205,14 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const uniswapx = data.dexSettlement?.uniswapx || {};
       $("settlement").textContent = uniswapx.supported ? "UniswapX 可用" : "优先 AMM";
       $("settlementMeta").textContent = uniswapx.supported ? "意图报价通道已开启" : "当前链未启用 UniswapX 结算";
-      const scannerRoutes = Array.isArray(data.routes) ? data.routes : [];
+      const scannerRoutes = statsClearedSinceSnapshot ? [] : (Array.isArray(data.routes) ? data.routes : []);
       const quoteRoutesList = Array.isArray(quoteRoutesPayload?.routes)
         ? quoteRoutesPayload.routes
         : Array.isArray(quoteRoutesPayload?.snapshot?.payload?.routes)
           ? quoteRoutesPayload.snapshot.payload.routes
           : [];
-      const hasIncomingRoutes = scannerRoutes.length > 0 || quoteRoutesList.length > 0;
+      const effectiveQuoteRoutesList = statsClearedSinceSnapshot ? [] : quoteRoutesList;
+      const hasIncomingRoutes = scannerRoutes.length > 0 || effectiveQuoteRoutesList.length > 0;
       const previousRoutes = latestRoutes.slice();
       const previousReviewedByKey = new Map(
         previousRoutes
@@ -203,7 +224,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           .map(route => [routeKey(route), route])
       );
       if (hasIncomingRoutes || !latestRoutes.length) {
-        latestRoutes = routesToRender(scannerRoutes, quoteRoutesPayload).map(route => {
+        latestRoutes = routesToRender(scannerRoutes, statsClearedSinceSnapshot ? null : quoteRoutesPayload).map(route => {
           const reviewed = previousReviewedByKey.get(routeKey(route));
           return reviewed || route;
         });
@@ -222,6 +243,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       });
       if (latestRoutes.length > scannerRoutes.length) {
         const quoteSummary = (quoteRoutesPayload && (quoteRoutesPayload.summary || quoteRoutesPayload.snapshot?.payload?.summary)) || {};
+        routeLiquidityContext = {
+          candidateLiquidPoolCount: Number(quoteSummary.candidateLiquidPoolCount ?? 0),
+          closedLoopLiquidPoolCount: Number(quoteSummary.closedLoopLiquidPoolCount ?? 0),
+        };
         $("routeCount").textContent = latestRoutes.length;
         const quotePathSource = quoteSummary.pathSource || summary.pathSource || "market_observation";
         const quotePathSourceLabel = quotePathSource === "candidate_pool_fallback"
@@ -246,6 +271,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
       if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
       const routes = Array.isArray(payload.routes) ? filterCompleteV4Routes(payload.routes) : [];
+      routeLiquidityContext = {
+        candidateLiquidPoolCount: Number(payload.summary?.candidateLiquidPoolCount ?? 0),
+        closedLoopLiquidPoolCount: Number(payload.summary?.closedLoopLiquidPoolCount ?? 0),
+      };
       latestRoutes = routes.filter(Boolean).map(route => ({...route, reviewMode: "pending_offchain_review", __uiState: ROUTE_UI_STATE.OFFCHAIN_PENDING, __offchainReviewed: false}));
       $("routeCount").textContent = latestRoutes.length;
       $("routeSourceMeta").textContent = "市场观察 | 静态闭环";
@@ -292,7 +321,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       let snapshotHasRoutes = false;
       try {
         refreshClosedLoopGroups();
-        loadLatestSubmissions().catch(() => {});
+        const submissionsPromise = loadLatestSubmissions();
         const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
           ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
               .then(staticPayload => {
@@ -308,9 +337,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
             if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
             return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
           })
-          .then(snapshotPayload => {
+          .then(async snapshotPayload => {
             if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
             snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
+            await submissionsPromise;
             renderScannerResponse(snapshotPayload);
             (async () => {
               let quoteRoutesPayload = null;
@@ -348,6 +378,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const generation = selectionGeneration; const signature = activeSelectionSignature;
       try {
         await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 20000);
+        await loadLatestSubmissions();
         const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
         if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
         if (!scanNowInFlight) {
@@ -374,7 +405,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       let reviewScheduled = false;
       try {
         refreshClosedLoopGroups();
-        loadLatestSubmissions().catch(() => {});
+        const submissionsPromise = loadLatestSubmissions();
         const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
           ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
               .then(staticPayload => {
@@ -390,10 +421,11 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
             if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
             return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
           })
-          .then(snapshotPayload => {
+          .then(async snapshotPayload => {
             if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
             snapshot = snapshotPayload;
             snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
+            await submissionsPromise;
             renderScannerResponse(snapshotPayload);
             reviewScheduled = true;
             quoteRoutesPayloadPromise = fetchJsonWithTimeout("/api/dex/quote-routes").catch(() => null);
@@ -531,7 +563,8 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         sourceAnalysis.bestAmountCalculation?.bestAmount,
         sourceAnalysis.bestAmountCalculation?.recommendedBorrowInputAmount,
         route.bestAmountCalculation?.bestAmount,
-        route.bestAmountCalculation?.recommendedBorrowInputAmount
+        route.bestAmountCalculation?.recommendedBorrowInputAmount,
+        route.__requestedAmount
       );
       const confirmedCopyBestAmount = evidenceFirst(
         executionSubmission?.best_amount,
@@ -547,9 +580,18 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         : (costs.bestAmountMissing === true || sourceAnalysis.bestAmountMissing === true || route.bestAmountMissing === true
             ? null
             : rawBestAmountCopy);
+      const fallbackBestAmountCopy = evidenceFirst(
+        routeBestAmountPick(route, evidence, sourceAnalysis),
+        offchainProbeAmount(route, evidence),
+        sourceAnalysis.requestedAmount,
+        sourceAnalysis.initialProbeAmount,
+        sourceAnalysis.referenceInputAmount,
+        route.__requestedAmount,
+        1
+      );
       const bestAmountCopy = pendingCopy ? null : (reviewStage === "estimate"
-        ? (offchainProbeAmount(route, evidence) ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.initialProbeAmount ?? finalRawBestAmountCopy ?? 1)
-        : finalRawBestAmountCopy);
+        ? (offchainProbeAmount(route, evidence) ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.initialProbeAmount ?? finalRawBestAmountCopy ?? fallbackBestAmountCopy)
+        : (finalRawBestAmountCopy ?? fallbackBestAmountCopy));
       const evidenceStatusLower = String(evidence.status || "").toLowerCase();
       const evidenceTrustLower = String(evidence.executionTrust || "").toLowerCase();
       const staticReview = routeNeedsLiveReview(route) || evidenceStatusLower === "static_reference_pending_live_review" || evidenceTrustLower === "static_reference_pending_live_review";
@@ -561,6 +603,9 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         "rpc_verification_timeout",
         "adapter_required",
         "missing_trigger_block",
+        "missing_route_identity",
+        "missing_route_pool_identity",
+        "missing_configuration",
         "live_quote_failed",
         "quote_failed",
         "pool_not_initialized",
@@ -813,11 +858,12 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const routeRecommendationText = latestExecution?.text || (domTrustedForCopy ? domRouteRecommendationText : recommendationText);
       const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis: sourceAnalysis, stage: reviewStage});
       const bestAmountMissingCopy = pendingCopy
-        || estimateFailed
         || (reviewStage !== "estimate" && (costs.bestAmountMissing === true || sourceAnalysis.bestAmountMissing === true || route.bestAmountMissing === true))
         || (bestAmountCopy === null || bestAmountCopy === undefined || bestAmountCopy === "");
       const bestAmountCopyText = bestAmountMissingCopy
-        ? "未计算"
+        ? (bestAmountCopy === null || bestAmountCopy === undefined || bestAmountCopy === ""
+            ? "未计算"
+            : `${display(bestAmountCopy)} ${display(referenceInputSymbol)}（未确认）`)
         : `${display(bestAmountCopy)} ${display(referenceInputSymbol)}`;
       const actionRequested = Number(route.__requestedAmount);
       const hasActionRequest = Number.isFinite(actionRequested) && actionRequested > 0;
@@ -877,20 +923,35 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
     }
     $("refreshBtn").onclick = () => refresh(true);
-    async function postJson(path, payload) {
-      const response = await fetch(apiPath(path), {
-        method: "POST",
-        cache: "no-cache",
-        headers: {"Content-Type": "application/json", Accept: "application/json"},
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
+    async function postJson(path, payload, allowStructuredFailedResponse = false) {
+      let response;
+      try {
+        response = await fetch(apiPath(path), {
+          method: "POST",
+          cache: "no-cache",
+          headers: {"Content-Type": "application/json", Accept: "application/json"},
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        const networkError = new Error("请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确，稍后重试");
+        networkError.name = error && error.name === "AbortError" ? "fetch_network_error" : "fetch_network_error";
+        networkError.__dexErrorCode = "backend_unreachable";
+        networkError.__cause = error;
+        throw networkError;
+      }
+      const data = await parseResponseJson(response);
       const broadcastDisabledByBackend = Boolean(
         data?.broadcastDisabled
         || data?.error === "official_arb_broadcast_disabled"
         || String(data?.detail || data?.error || "").toLowerCase().includes("broadcast disabled")
       );
-      if (!response.ok && data?.ok !== true && !broadcastDisabledByBackend) {
+      const structuredFailedResponse = Boolean(
+        allowStructuredFailedResponse
+        && data
+        && data.ok !== true
+        && (data?.quoteStatus || data?.evidenceStatus || data?.executionTrust)
+      );
+      if (!response.ok && data?.ok !== true && !broadcastDisabledByBackend && !structuredFailedResponse) {
         const detail = data?.detail || data?.error || `请求失败（HTTP ${response.status}）`;
         throw new Error(detail);
       }
@@ -1012,12 +1073,23 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const explicitBestAmountMissing = payload.bestAmountMissing === true
         || incomingAnalysis.bestAmountMissing === true
         || payload.bestAmountCalculation?.bestAmountMissing === true;
+      const terminalDiagnosticStatus = [
+        "route_unprofitable",
+        "slippage_limit_exceeded",
+        "pool_insufficient_for_profitable_execution",
+      ].includes(String(mergedQuoteStatus || "").toLowerCase());
+      const diagnosticBestComputed = payload.bestAmountComputed === true
+        || incomingAnalysis.bestAmountComputed === true
+        || payload.bestAmountCalculation?.bestAmountComputed === true
+        || (terminalDiagnosticStatus && bestAmount !== null && bestAmount !== undefined && bestAmount !== "");
+      const mergedBestAmountMissing = explicitBestAmountMissing || (!mergedLiveVerifiedStatus && !payloadBestAmountConfirmed && !diagnosticBestComputed);
       const mergedAnalysis = {
         ...(route.quoteAnalysis && typeof route.quoteAnalysis === "object" ? route.quoteAnalysis : {}),
         ...incomingAnalysis,
         steps: scaledSteps.length ? scaledSteps : incomingAnalysis.steps,
         bestAmount,
-        bestAmountMissing: explicitBestAmountMissing || (!mergedLiveVerifiedStatus && !payloadBestAmountConfirmed),
+        bestAmountMissing: mergedBestAmountMissing,
+        bestAmountComputed: diagnosticBestComputed,
         bestAmountConfirmed: mergedLiveVerifiedStatus || payloadBestAmountConfirmed,
         bestAmountSelectionBasis: payload.bestAmountSelectionBasis
           || incomingAnalysis.bestAmountSelectionBasis
@@ -1067,7 +1139,8 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           selectedBorrowInputAmount: bestAmount,
           requestedBorrowInputAmount: requestedAmount,
           amountIsBest: payload.amountIsBest === true || incomingAnalysis.amountIsBest === true,
-          bestAmountMissing: explicitBestAmountMissing || (!mergedLiveVerifiedStatus && !payloadBestAmountConfirmed),
+          bestAmountMissing: mergedBestAmountMissing,
+          bestAmountComputed: diagnosticBestComputed,
           bestAmountConfirmed: mergedLiveVerifiedStatus || payloadBestAmountConfirmed,
           bestAmountSelectionBasis: payload.bestAmountSelectionBasis
             || incomingAnalysis.bestAmountSelectionBasis
@@ -1086,6 +1159,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       };
       const mergedBestAmountUnconfirmed = mergedAnalysis.bestAmountMissing === true;
       route.bestAmountMissing = mergedAnalysis.bestAmountMissing === true;
+      route.bestAmountComputed = mergedAnalysis.bestAmountComputed === true;
       route.bestAmountConfirmed = mergedAnalysis.bestAmountConfirmed === true;
       const resolvedStage = stage === "preflight" && mergedBestAmountUnconfirmed ? "estimate" : (stage || "estimate");
       setRouteUiState(route, uiStateFromStage(resolvedStage), {
@@ -1184,7 +1258,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           amountIsBest: false,
           mode: requestMode,
           broadcast,
-        });
+        }, true);
         const broadcastDisabledPayload = mode === "broadcast" && Boolean(
           payload?.broadcastDisabled
           || payload?.error === "official_arb_broadcast_disabled"
@@ -1261,7 +1335,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         );
         const routeTestOutput = advice ? (summaryAndAdviceCollide ? advice : `${summary} | ${advice}`) : summary;
         if (resultElement) resultElement.textContent = routeTestOutput;
-        $("message").textContent = routeTestOutput;
+        $("message").textContent = oldMessage || "路线测试结果已更新，详情见路线卡片";
         if (Number.isFinite(routeIndex)) {
           const cleanAdvice = advice ? String(advice).replace(/^建议：/, "") : "已更新本次测试结果，请结合链上状态决定下一步";
           document.querySelectorAll(`[data-route-recommendation="${routeIndex}"]`).forEach(el => {
@@ -1274,7 +1348,14 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           activeExecution.state = ROUTE_UI_STATE.EXECUTION_FAILED;
           route.__broadcastError = uiError(error.message) || "请检查网络或稍后重试；仍失败可重启服务";
         } else if (mode === "static_call") {
-          markPreflightFailed(route, `链上复核失败：${uiError(error.message)}`, "rpc_verification_failed");
+          const fetchFailure = error?.__dexErrorCode === "backend_unreachable"
+            || String(error?.name || "").toLowerCase() === "fetch_network_error"
+            || /failed to fetch|fetch failed|networkerror|network request failed|请求服务不可达/i.test(String(error?.message || ""));
+          markPreflightFailed(
+            route,
+            fetchFailure ? uiError(error.message) : `链上复核失败：${uiError(error.message)}`,
+            fetchFailure ? "backend_unreachable" : "rpc_verification_failed"
+          );
         } else {
           setRouteUiState(route, ROUTE_UI_STATE.OFFCHAIN_PENDING, {quoteStatus: ""});
           route.__broadcastError = "";
@@ -1427,9 +1508,12 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
     if (resetStatsBtn) {
       resetStatsBtn.addEventListener("click", async () => {
         try {
-          await postJson("/api/dex/opportunity-scanner/stats/reset", {});
+          const payload = await postJson("/api/dex/opportunity-scanner/stats/reset", {});
+          staticRoutesLoaded = true;
+          latestRoutes = [];
+          activeRouteKey = "";
           $("message").textContent = "统计已清零";
-          await refresh();
+          renderScannerResponse(payload);
         } catch (error) {
           $("message").textContent = uiError(error.message);
         }

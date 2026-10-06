@@ -768,7 +768,7 @@ def dex_pool_candidates_payload(
             if not refresh and not force_full:
                 cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
             if cached_payload is not None:
-                filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
+                filtered = _filter_payload_protocols(cached_payload, protocol_filter)
                 filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
                 return _attach_execution_context(filtered, int(chain_id))
             if not _candidate_pool_source_available(int(chain_id)):
@@ -803,7 +803,7 @@ def dex_pool_candidates_payload(
                 if cached_payload is None:
                     cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
                 if cached_payload is not None:
-                    filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
+                    filtered = _filter_payload_protocols(cached_payload, protocol_filter)
                     filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
                     return _attach_execution_context(filtered, int(chain_id))
         if chain_id is None:
@@ -818,7 +818,7 @@ def dex_pool_candidates_payload(
                 "pairs": [],
             }
             return _attach_execution_context(payload, int(chain_id))
-    payload = json.loads(json.dumps(_dex_pool_candidates_payload_cached(_cache_signature(pool_cache_path))))
+    payload = _dex_pool_candidates_payload_cached(_cache_signature(pool_cache_path))
     table = _read_json_object(pool_cache_path)
     filtered = _filter_payload_protocols(payload, _dex_pool_protocol_filter(protocols))
     return _attach_execution_context(filtered, _chain_id_from_table(table))

@@ -878,7 +878,12 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         not selected_amount_confirmed_max
         and selected_amount_reason in {"requested_amount_fallback", "onchain_execution_size_probe_confirmed_profitable_lower_bound"}
     )
-    if costs.get("bestAmountMissing") is True or unconfirmed_fixed_amount:
+    # Keep a visible best-amount value on the quote surface even when it is
+    # not contract-confirmed. route_unprofitable / depth-terminal attempts
+    # commonly only have the requested probe amount, and the UI should show it
+    # instead of a blank "最佳交易量".
+    terminal_unprofitable_status = status in {"route_unprofitable", "slippage_limit_exceeded"} or terminal_depth_status
+    if costs.get("bestAmountMissing") is True and not terminal_unprofitable_status:
         best_amount = None
     else:
         best_amount = costs.get("selectedBorrowInputAmount")
@@ -887,6 +892,10 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         if _number_or_none(best_amount) is None:
             best_amount = None
     best_amount_confirmed = bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))
+    best_amount_computed = bool(evidence.get("bestAmountComputed") or costs.get("bestAmountComputed"))
+    diagnostic_best_amount = bool(terminal_unprofitable_status and _number_or_none(best_amount) is not None)
+    if best_amount_computed and _number_or_none(best_amount) is not None:
+        diagnostic_best_amount = True
     best_amount_unconfirmed = bool(
         costs.get("bestAmountMissing") is True
         or unconfirmed_fixed_amount
@@ -920,7 +929,10 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "quote_verified": live_verified,
             "executableCandidate": ready_for_preflight_candidate,
             "chainSubmissionCandidate": ready_for_preflight_candidate,
-            "bestAmountMissing": best_amount_unconfirmed,
+            "bestAmountMissing": best_amount is None or (
+                costs.get("bestAmountMissing") is True and not diagnostic_best_amount
+            ),
+            "bestAmountComputed": diagnostic_best_amount,
             "bestAmountConfirmed": bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed")),
             "finalOutputUsd": costs.get("finalOutputUsd") if live_verified else None,
             "grossProfitUsd": costs.get("grossProfitUsd") if live_verified else None,

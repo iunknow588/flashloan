@@ -412,7 +412,7 @@ def _official_v4_route_pool_keys(
                 )
             if len(pool_keys) == hop_count:
                 return pool_keys
-    except Exception:
+    except (KeyError, TypeError, ValueError, AttributeError, OSError):
         pass
     return _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
 

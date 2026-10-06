@@ -59,11 +59,22 @@
       <div class="metric"><small>最佳参考净利</small><strong id="bestProfit">-</strong><span id="bestProfitMeta">扣除闪电贷费与 gas</span></div>
       <div class="metric"><small>当前链资金来源协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
       <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
+      <div class="metric"><small>有流动性池</small><strong id="liquidPoolCount">-</strong><span id="liquidPoolMeta">显式有流动性</span></div>
     </section>
     <section class="panel" style="margin-bottom:14px">
       <h2>关联 Y-Z 交易对</h2>
       <div class="muted">总览与市场观察使用同一份链路观察结果；这里列出可进入闭环报价的中间交易对。</div>
       <div id="watchList" class="badges"></div>
+    </section>
+    <section class="panel" style="margin-bottom:14px">
+      <div class="path-head">
+        <div>
+          <h2>有流动性中间兑换池</h2>
+          <div class="muted">来自候选池的有流动性池目录；未进入完整闭环时仍在此列出，报价页会保持“未标注/无闭环”区分。</div>
+        </div>
+        <div class="badges"><span class="badge" id="liquidRegistryCount">-</span></div>
+      </div>
+      <div id="liquidRegistryList" class="badges"></div>
     </section>
     <section id="pathList"></section>
   </main>
@@ -122,7 +133,33 @@
       const liq = Number(pool?.liquidityIndex ?? pool?.liquidity ?? 0);
       const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
       const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
-      return `${usable === false ? '<span class="badge warn">无流动性</span> ' : ''}${esc(label)}${liq > 0 ? ` / L=${num(liq)}` : ""}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+      if (usable === true) return `<span class="badge good">有流动性</span> ${esc(label)}${liq > 0 ? ` / L=${num(liq)}` : ""}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+      if (usable === false) return `<span class="badge warn">无流动性</span> ${esc(label)}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+      return `<span class="badge">流动性未标注</span> ${esc(label)}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+    };
+    const overviewPoolUsable = pool => {
+      if (!pool) return false;
+      if (pool.usableForObservation != null) return pool.usableForObservation === true;
+      if (pool.dynamicFee || pool.specialFee || String(pool.feeLabel || "").toLowerCase() === "special") return false;
+      if (pool.hasLiquidity != null) return pool.hasLiquidity === true;
+      return Number(pool.liquidityIndex ?? pool.liquidity ?? 0) > 0;
+    };
+    function liquidRegistryHtml(rows) {
+      const pools = list(rows);
+      if (!pools.length) return '<span class="badge">暂无候选有流动性池</span>';
+      return pools.map(pool => {
+        const pair = pool.symbolPair || pool.pairSymbol || [pool.token0Symbol, pool.token1Symbol].filter(Boolean).join(":");
+        const id = pool.pool || pool.poolId || "-";
+        const usable = pool.usableForObservation === true || pool.hasLiquidity === true;
+        const cls = usable ? "good" : "warn";
+        const label = usable ? "有流动性" : "无流动性";
+        const shortId = String(id || "").length > 18 ? `${String(id).slice(0, 14)}...` : id;
+        return `<span class="badge ${cls}" title="${esc(id)}">${esc(pair || "-")} / ${esc(shortId)} / ${esc(label)}</span>`;
+      }).join("");
+    }
+    const pathLiquidPoolCount = pair => {
+      const pools = pair.executionPools || pair.preferredPools || [];
+      return pools.filter(overviewPoolUsable).length;
     };
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
@@ -205,6 +242,7 @@
               <span class="badge">${esc(`观察阶段 ${marketObservationSourceStageLabel(routeFrameworkStage)}`)}</span>
               <span class="badge">${esc(routeLabel)}</span>
               <span class="badge ${routeUsableClass}">${esc(routeUsableText)}</span>
+              <span class="badge">路径池 ${esc(pools.length)} / 有流动性 ${esc(pathLiquidPoolCount(pair))}</span>
               <span class="badge">${esc(`价格证据 ${priceEvidenceText}`)}</span>
               <span class="badge ${livePriceVerified ? "good" : "warn"}">${esc(livePriceVerified ? "实时价格已验证" : "实时价格未接入")}</span>
               ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((route.bridgeSymbols || []).join(" -> "))}</span>` : ''}
@@ -310,8 +348,10 @@
       };
     }
     function clearOverview() {
-      ["pathCount", "watchCount", "profitCount", "bestProfit", "flashCount", "sourceNetwork"].forEach(id => $(id).textContent = "-");
-      ["pathMeta", "watchMeta", "profitMeta", "bestProfitMeta", "flashNames", "sourceMeta"].forEach(id => $(id).textContent = "-");
+      ["pathCount", "watchCount", "profitCount", "bestProfit", "flashCount", "sourceNetwork", "liquidPoolCount"].forEach(id => $(id).textContent = "-");
+      ["pathMeta", "watchMeta", "profitMeta", "bestProfitMeta", "flashNames", "sourceMeta", "liquidPoolMeta"].forEach(id => $(id).textContent = "-");
+      $("liquidRegistryCount").textContent = "-";
+      $("liquidRegistryList").innerHTML = "";
       $("watchList").innerHTML = "";
       $("pathList").innerHTML = "";
     }
@@ -369,6 +409,15 @@
         $("sourceMeta").textContent = source.exists === false
           ? "当前链没有静态池表"
           : `缓存时间 ${cacheTime ? fmtTime(cacheTime) : "-"}`;
+        const poolRows = list(data.arbitragePaths || []).flatMap(route => list(route.executionPools || route.preferredPools || route.routePools || []));
+        const liquidPoolIds = new Set(poolRows.filter(overviewPoolUsable).map(pool => String(pool.pool || pool.poolId || "").trim().toLowerCase()).filter(Boolean));
+        $("liquidPoolCount").textContent = liquidPoolIds.size || "-";
+        $("liquidPoolMeta").textContent = `来自 ${poolRows.length} 个路径池`;
+        const liquidRegistry = data.liquidPoolRegistry && typeof data.liquidPoolRegistry === "object"
+          ? Object.values(data.liquidPoolRegistry)
+          : list(data.marketObservation?.liquidPoolRegistry);
+        $("liquidRegistryCount").textContent = `${liquidRegistry.length} 个`;
+        $("liquidRegistryList").innerHTML = liquidRegistryHtml(liquidRegistry);
         $("watchList").innerHTML = list(data.watchPairs).map(watchHtml).join("") || '<span class="badge">暂无关联 Y-Z 交易对</span>';
         const groups = list(data.arbitragePathGroups || buildOverviewGroups(data.arbitragePaths || []));
         $("pathList").innerHTML = renderOverviewGroups(groups);

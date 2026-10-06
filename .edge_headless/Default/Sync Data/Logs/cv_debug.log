@@ -1,3 +1,0 @@
-{"logTime": "0908/002843", "correlationVector":"sTN5t+JG+6Fk+nP0I7co0I.1","action":"SyncServerConnectionManagerRequest", "result":"SYNC_SERVER_OK", "context":{"environment":"Prod_westus2_prod-s01-035-nam-westus2", "migrationStage":"NotStarted", "server":"akswtt11600001v"}}
-{"logTime": "0908/002843", "correlationVector":"sTN5t+JG+6Fk+nP0I7co0I.2","action":"ProcessGetUpdates", "result":"Done", "context":{"dataType":"Encryption Keys", "deleted":"0", "process_failed_to_decrypt":"0", "process_pending_decryption":"0", "process_success":"1", "total":"1"}}
-{"logTime": "0908/002844", "correlationVector":"","action":"SyncServerConnectionManagerRequest", "result":"CONNECTION_UNAVAILABLE", "context":{"error_type":"net_error_code", "error_value":"-3"}}

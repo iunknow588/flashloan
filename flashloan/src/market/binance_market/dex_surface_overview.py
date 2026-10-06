@@ -167,17 +167,20 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
             return False
 
     def _pool_has_explicit_observation_quality(pool: dict[str, Any]) -> bool:
-        return any(
-            pool.get(key) is not None
-            for key in (
-                "usableForObservation",
-                "specialFee",
-                "dynamicFee",
-                "hasLiquidity",
-                "liquidityIndex",
-                "liquidity",
-            )
-        )
+        for key in (
+            "usableForObservation",
+            "specialFee",
+            "dynamicFee",
+            "hasLiquidity",
+            "liquidityIndex",
+            "liquidity",
+        ):
+            value = pool.get(key)
+            if isinstance(value, str) and not value.strip():
+                continue
+            if value is not None:
+                return True
+        return False
 
     def _route_usability_from_pools(pools: list[dict[str, Any]]) -> tuple[bool | None, bool]:
         if not pools:

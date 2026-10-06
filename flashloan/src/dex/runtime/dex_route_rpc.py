@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 from typing import Any
 from urllib import request as urllib_request
 
@@ -26,7 +27,15 @@ def fetch_dex_tx_receipt(*, chain_id: int, tx_hash: str) -> dict[str, Any]:
     errors: list[str] = []
     for rpc_url in rpc_urls:
         try:
-            w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
+            w3 = Web3(
+                Web3.HTTPProvider(
+                    rpc_url,
+                    request_kwargs={
+                        "timeout": 20,
+                        "verify": int(chain_id) in (ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID),
+                    },
+                )
+            )
             receipt = w3.eth.get_transaction_receipt(tx_hash)
             transaction = None
             if receipt is None:
@@ -96,6 +105,10 @@ def _probe_robinhood_family_rpc(chain_id: int) -> tuple[str, int]:
     if not urls:
         raise RuntimeError(f"Robinhood chain {chain_id} RPC unavailable: no RPC URLs configured")
     timeout = float(os.getenv("DEX_ONCHAIN_RPC_PROBE_TIMEOUT_SECONDS", "8") or 8)
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    opener = urllib_request.build_opener(urllib_request.HTTPSHandler(context=ssl_ctx))
     failures: list[str] = []
     for url in urls:
         try:
@@ -114,7 +127,7 @@ def _probe_robinhood_family_rpc(chain_id: int) -> tuple[str, int]:
                 },
                 method="POST",
             )
-            with urllib_request.urlopen(req, timeout=timeout) as response:
+            with opener.open(req, timeout=timeout) as response:
                 rows = json.loads(response.read().decode("utf-8"))
             if isinstance(rows, dict):
                 rows = [rows]

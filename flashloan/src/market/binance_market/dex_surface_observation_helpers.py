@@ -253,6 +253,20 @@ def _anchor_group_direction_tokens(group: dict[str, Any], direction: str) -> lis
     ]
 
 
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    if pool.get("usableForObservation") is not None:
+        return bool(pool.get("usableForObservation"))
+    if pool.get("specialFee") or pool.get("dynamicFee"):
+        return False
+    has_liquidity = pool.get("hasLiquidity")
+    if has_liquidity is not None:
+        return bool(has_liquidity)
+    try:
+        return float(pool.get("liquidityIndex") or pool.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def _best_pool_rows(pools: list[dict[str, Any]], *, exclude_pool_ids: set[str] | None = None) -> list[dict[str, Any]]:
     from market.binance_market.dex_surface_v4 import _pool_tvl_usd
 
@@ -260,12 +274,19 @@ def _best_pool_rows(pools: list[dict[str, Any]], *, exclude_pool_ids: set[str] |
     rows = [pool for pool in pools if isinstance(pool, dict) and _pool_address(pool)]
     if exclude:
         rows = [pool for pool in rows if _pool_address(pool).lower() not in exclude]
-    rows.sort(
+    # Market observation is the liquidity-qualified handoff: explicitly
+    # unusable pools must never form the single route variant carried into
+    # overview/quote routing.  Pools without evidence are kept behind usable
+    # ones so older legacy rows still remain discoverable.
+    usable_rows = [pool for pool in rows if _pool_usable_for_observation(pool)]
+    evidence_rows = [pool for pool in rows if not _pool_usable_for_observation(pool)]
+    ordered = usable_rows + evidence_rows
+    ordered.sort(
         key=lambda pool: (
-            _pool_tvl_usd(pool),
-            _number((pool.get("balances") or {}).get("tvlUsd")),
+            pool in evidence_rows,
+            -float(_pool_tvl_usd(pool) or 0),
+            -float(_number((pool.get("balances") or {}).get("tvlUsd")) or 0),
             str(_pool_address(pool)),
         ),
-        reverse=True,
     )
-    return rows
+    return ordered
