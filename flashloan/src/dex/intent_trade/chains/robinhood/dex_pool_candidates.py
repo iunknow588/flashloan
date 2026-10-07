@@ -493,8 +493,7 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
         )
         bucket["strictQualityPools"].append(candidate)
         bucket["preferredPools"].append(candidate)
-        if len(bucket["executionPools"]) < 5:
-            bucket["executionPools"].append(candidate)
+        bucket["executionPools"].append(candidate)
 
     pairs: list[dict[str, Any]] = []
     for pair in grouped.values():
@@ -510,6 +509,10 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
 
     pairs.sort(key=lambda item: str(item.get("symbolPair") or ""))
     yc_zc_token_cache = _load_yc_zc_token_cache(request)
+    # The cache is display metadata only. It must not filter the candidate pool
+    # set: YC/ZC token discovery depends on pools, so filtering pools by the
+    # YC/ZC cache would create a circular dependency and silently drop real
+    # first/third-hop candidates.
     anchor_groups = _mark_v4_shared_yc_zc_sets(
         build_anchor_candidate_groups(pairs, anchor_symbols=_mainnet_configured_anchor_symbols()),
         stable_token_cache=yc_zc_token_cache,

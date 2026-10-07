@@ -125,6 +125,7 @@ def _closed_loop_dedup_key(summary: dict[str, Any], route: dict[str, Any]) -> tu
         mids = tuple(path_symbols[1:-1]) if len(path_symbols) >= 3 and path_symbols[0] == path_symbols[-1] else tuple(path_symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
+    # Reverse execution direction is the same closed loop.
     return (anchor, mids)
 
 

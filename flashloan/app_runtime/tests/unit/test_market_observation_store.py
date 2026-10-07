@@ -1,6 +1,6 @@
 import json
 
-from core.market_observation_compact import _compact_observation_pair
+from core.market_observation_compact import _compact_observation_pair, _merge_dynamic_hop_candidates_into_sequences
 from core.market_observation_store import (
     compact_market_observation_static,
     load_market_observation_static,
@@ -8,6 +8,7 @@ from core.market_observation_store import (
     market_observation_static_path,
     market_observation_overview_static_path,
     observation_payload_from_static,
+    overview_snapshot_from_observation,
     static_snapshot_from_observation,
     write_market_observation_static,
 )
@@ -336,6 +337,70 @@ def test_static_snapshot_merges_generic_closed_loop_routes_with_observation_sequ
     assert "TZ -> TB -> TA -> TZ" in path_texts
 
 
+def test_static_snapshot_collapses_reverse_direction_closed_loop_sequences():
+    def sequence(path_symbols, path_text, route_addresses, route_pools):
+        return {
+            "anchorSymbol": "A",
+            "pathSymbols": path_symbols,
+            "pathText": path_text,
+            "routeAddresses": route_addresses,
+            "routePools": route_pools,
+        }
+
+    observation = {
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "closedLoopSequences": [
+            sequence(
+                ["A", "B", "C", "A"],
+                "A -> B -> C -> A",
+                ["0xa", "0xb", "0xc", "0xa"],
+                [
+                    {"pool": "pool-ab", "routeSymbols": ["A", "B"], "routeAddresses": ["0xa", "0xb"]},
+                    {"pool": "pool-bc", "routeSymbols": ["B", "C"], "routeAddresses": ["0xb", "0xc"]},
+                    {"pool": "pool-ca", "routeSymbols": ["C", "A"], "routeAddresses": ["0xc", "0xa"]},
+                ],
+            ),
+            sequence(
+                ["A", "C", "B", "A"],
+                "A -> C -> B -> A",
+                ["0xa", "0xc", "0xb", "0xa"],
+                [
+                    {"pool": "pool-ac", "routeSymbols": ["A", "C"], "routeAddresses": ["0xa", "0xc"]},
+                    {"pool": "pool-cb", "routeSymbols": ["C", "B"], "routeAddresses": ["0xc", "0xb"]},
+                    {"pool": "pool-ba", "routeSymbols": ["B", "A"], "routeAddresses": ["0xb", "0xa"]},
+                ],
+            ),
+            sequence(
+                ["A", "B", "C", "A"],
+                "A -> B -> C -> A",
+                ["0xa_alt", "0xb", "0xc", "0xa_alt"],
+                [
+                    {"pool": "pool-ab-alt", "routeSymbols": ["A", "B"], "routeAddresses": ["0xa_alt", "0xb"]},
+                    {"pool": "pool-bc-alt", "routeSymbols": ["B", "C"], "routeAddresses": ["0xb", "0xc"]},
+                    {"pool": "pool-ca-alt", "routeSymbols": ["C", "A"], "routeAddresses": ["0xc", "0xa_alt"]},
+                ],
+            ),
+        ],
+    }
+
+    snapshot = static_snapshot_from_observation(
+        observation,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="full",
+    )
+    overview = overview_snapshot_from_observation(snapshot)
+
+    assert len(snapshot["observationSequences"]) == 2
+    assert {tuple(row["routeAddresses"]) for row in snapshot["observationSequences"]} == {
+        ("0xa", "0xb", "0xc", "0xa"),
+        ("0xa_alt", "0xb", "0xc", "0xa_alt"),
+    }
+    assert len(overview["closedLoopRouteSummaries"]) == 2
+
+
 def test_static_snapshot_persists_pool_registry_for_restore():
     snapshot = static_snapshot_from_observation(
         {
@@ -638,3 +703,143 @@ def test_static_snapshot_persists_ob_table_graph_and_provenance():
     payload = observation_payload_from_static(snapshot)
     assert payload["pairs"] == [{"symbolPair": "ETH:AAA"}]
     assert payload["bridgePairs"] == [{"symbolPair": "AAA:BBB"}]
+
+
+def test_static_snapshot_keeps_dynamic_hop_candidates_in_overview_summary():
+    observation = {
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "observationAnchorSymbols": ["ETH"],
+        "observationSequences": [
+            {
+                "kind": "anchor_closed_loop_token_bridge",
+                "anchorSymbol": "ETH",
+                "bridgeSymbol": "AAA",
+                "counterSymbol": "BBB",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "hopCandidates": [
+                    {
+                        "leg": "x-y",
+                        "direction": "yc",
+                        "symbolPair": "ETH -> AAA",
+                        "poolCount": 1,
+                        "usablePoolCount": 1,
+                        "selectionBasis": "tvl_depth_desc",
+                        "preferredPoolId": "pool-a",
+                        "preferredPoolUsable": True,
+                        "pools": [{"pool": "pool-a", "usableForObservation": True}],
+                    },
+                    {
+                        "leg": "y-z",
+                        "direction": "bridge",
+                        "symbolPair": "AAA -> BBB",
+                        "poolCount": 2,
+                        "usablePoolCount": 2,
+                        "selectionBasis": "tvl_depth_desc",
+                        "preferredPoolId": "pool-b",
+                        "preferredPoolUsable": True,
+                        "pools": [
+                            {"pool": "pool-b", "usableForObservation": True},
+                            {"pool": "pool-b2", "usableForObservation": True},
+                        ],
+                    },
+                    {
+                        "leg": "z-x",
+                        "direction": "zc",
+                        "symbolPair": "BBB -> ETH",
+                        "poolCount": 1,
+                        "usablePoolCount": 1,
+                        "selectionBasis": "tvl_depth_desc",
+                        "preferredPoolId": "pool-c",
+                        "preferredPoolUsable": True,
+                        "pools": [{"pool": "pool-c", "usableForObservation": True}],
+                    },
+                ],
+                "routePools": [
+                    {"pool": "pool-a", "routeSymbols": ["ETH", "AAA"], "routeAddresses": ["0xeth", "0xaaa"]},
+                    {"pool": "pool-b", "routeSymbols": ["AAA", "BBB"], "routeAddresses": ["0xaaa", "0xbbb"]},
+                    {"pool": "pool-c", "routeSymbols": ["BBB", "ETH"], "routeAddresses": ["0xbbb", "0xeth"]},
+                ],
+            }
+        ],
+    }
+
+    snapshot = static_snapshot_from_observation(
+        observation,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="full",
+    )
+    overview = overview_snapshot_from_observation(snapshot)
+
+    assert len(overview["closedLoopRouteSummaries"]) == 1
+    summary = overview["closedLoopRouteSummaries"][0]
+    assert summary["pathText"] == "ETH -> AAA -> BBB -> ETH"
+    assert len(summary["hopCandidates"]) == 3
+    assert summary["hopCandidateCounts"] == {"x-y": 1, "y-z": 2, "z-x": 1}
+    assert summary["poolPathKey"] == "pool-a|pool-b|pool-c"
+
+
+def test_merge_dynamic_hop_candidates_into_sequences_backfills_legacy_static_rows():
+    sequences = [
+        {
+            "kind": "anchor_closed_loop_token_bridge",
+            "anchorSymbol": "ETH",
+            "bridgeSymbol": "AAA",
+            "counterSymbol": "BBB",
+            "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+            "pathText": "ETH -> AAA -> BBB -> ETH",
+            "routePools": [
+                {"pool": "pool-a", "routeAddresses": ["0xeth", "0xaaa"]},
+                {"pool": "pool-b", "routeAddresses": ["0xaaa", "0xbbb"]},
+                {"pool": "pool-c", "routeAddresses": ["0xbbb", "0xeth"]},
+            ],
+        }
+    ]
+    dynamic_paths = [
+        {
+            "overviewRoute": {
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+            },
+            "routeTokenPath": [
+                {"symbol": "ETH", "address": "0xeth"},
+                {"symbol": "AAA", "address": "0xaaa"},
+                {"symbol": "BBB", "address": "0xbbb"},
+                {"symbol": "ETH", "address": "0xeth"},
+            ],
+            "strictQualityPools": [
+                {"pool": "pool-a"},
+                {"pool": "pool-b"},
+                {"pool": "pool-c"},
+            ],
+            "hopCandidates": [
+                {
+                    "leg": "x-y",
+                    "poolCount": 1,
+                    "pools": [{"pool": "pool-a"}],
+                },
+                {
+                    "leg": "y-z",
+                    "poolCount": 2,
+                    "pools": [{"pool": "pool-b"}, {"pool": "pool-b2"}],
+                },
+                {
+                    "leg": "z-x",
+                    "poolCount": 1,
+                    "pools": [{"pool": "pool-c"}],
+                },
+            ],
+            "hopCandidateCounts": {"x-y": 1, "y-z": 2, "z-x": 1},
+            "hopCandidateCombinationCount": 2,
+            "poolPathKey": "pool-a|pool-b|pool-c",
+        }
+    ]
+
+    merged = _merge_dynamic_hop_candidates_into_sequences(sequences, dynamic_paths)
+
+    assert len(merged) == 1
+    assert len(merged[0]["hopCandidates"]) == 3
+    assert merged[0]["hopCandidateCounts"] == {"x-y": 1, "y-z": 2, "z-x": 1}
+    assert merged[0]["poolPathKey"] == "pool-a|pool-b|pool-c"

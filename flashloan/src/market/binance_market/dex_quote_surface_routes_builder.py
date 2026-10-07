@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from market.binance_market.dex_quote_route_builder import build_quote_route_payload
+from market.binance_market.dex_route_candidate_selection import (
+    maybe_replace_route_with_better_candidates,
+)
 from market.binance_market.dex_quote_surface_helpers import (
     _enrich_route_pools_from_index,
     _framework_route_pools,
@@ -62,8 +65,6 @@ def _build_quote_routes_and_best(
 
     matched_route_index = 0
     for path in paths:
-        if path.get("routeUsableForObservation") is False:
-            continue
         if not route_live_test_policy.matches_anchor(path):
             continue
         matched_route_index += 1
@@ -76,6 +77,18 @@ def _build_quote_routes_and_best(
             _framework_route_pools(route),
             index_by_pool=v4_index_by_pool,
         )
+        hop_candidates = []
+        for candidate in route.get("hopCandidates") or []:
+            if not isinstance(candidate, dict):
+                continue
+            copied = dict(candidate)
+            copied["pools"] = _enrich_route_pools_from_index(
+                candidate.get("pools") or [],
+                index_by_pool=v4_index_by_pool,
+            )
+            hop_candidates.append(copied)
+        if hop_candidates:
+            route["hopCandidates"] = hop_candidates
         if path.get("routeUsableForObservation") is True:
             pools = [pool for pool in pools if _pool_usable_for_observation(pool)]
         base_quote_analysis = route.get("quoteAnalysis") or route.get("overviewProfit") or {}
@@ -129,6 +142,7 @@ def _build_quote_routes_and_best(
         chain_review_eligible = bool(
             str(path_source or "").strip() == "market_observation"
             and source_table in {"", "dex_table"}
+            and path.get("routeUsableForObservation") is not False
         )
         should_run_live_route = bool(
             chain_review_eligible
@@ -181,6 +195,17 @@ def _build_quote_routes_and_best(
                     price_evidence_mode=recommended_analysis.get("priceEvidenceMode"),
                     notional_usd=quote_probe_notional_usd,
                 )
+        route, pools, quote_analysis, size_analysis, replacement = maybe_replace_route_with_better_candidates(
+            route=route,
+            pools=pools,
+            quote_analysis=quote_analysis,
+            route_quote_analysis_fn=route_quote_analysis_fn,
+            price_map=price_map,
+            chain_id=chain_id,
+            route_size_analysis_fn=route_size_analysis_fn,
+            size_analysis=size_analysis,
+        )
+        route["hopCandidateReplacement"] = replacement
         route_payload = build_quote_route_payload(
             route=route,
             route_symbols=route_symbols,

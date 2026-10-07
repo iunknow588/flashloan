@@ -17,6 +17,7 @@ from market.binance_market.dex_surface_types import (
     _int,
     _norm_symbol,
     _number,
+    _pool_address,
     _raw_from_human,
 )
 from market.binance_market.dex_surface_route_quotes import (
@@ -46,6 +47,9 @@ def _closed_loop_dedup_key(
         mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
+    # A-B-C-A and A-C-B-A are the same closed loop, only executed in the
+    # opposite direction. The key is address-based so same-symbol tokens with
+    # different addresses remain separate routes.
     return (anchor_key, mids)
 
 
@@ -212,19 +216,23 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
         if len(path_symbols) < 4 or path_symbols[0] != path_symbols[-1] or not path_text:
             continue
         anchor = _norm_symbol(summary.get("anchorSymbol") or path_symbols[0])
-        dedup_key = _closed_loop_dedup_key(anchor, path_symbols)
+        route_addresses = [str(address or "").strip() for address in summary.get("routeAddresses") or [] if str(address or "").strip()]
+        if not route_addresses:
+            route_addresses = [str(address or "").strip() for address in summary.get("anchorAddresses") or [] if str(address or "").strip()]
+        dedup_key = _closed_loop_dedup_key(anchor, path_symbols, route_addresses)
         if dedup_key in seen_routes:
             continue
         seen_routes.add(dedup_key)
         target = _norm_symbol(summary.get("counterSymbol") or (path_symbols[-2] if len(path_symbols) > 2 else path_symbols[-1]))
-        route_addresses = [str(address or "").strip() for address in summary.get("routeAddresses") or [] if str(address or "").strip()]
-        if not route_addresses:
-            route_addresses = list(summary.get("anchorAddresses") or [])
         route_pools = [
             dict(pool)
             for pool in summary.get("routePools") or []
             if isinstance(pool, dict)
         ]
+        hop_candidates = list(summary.get("hopCandidates") or [])
+        hop_candidate_counts = dict(summary.get("hopCandidateCounts") or {})
+        hop_candidate_combination_count = max(1, _int(summary.get("hopCandidateCombinationCount")) or 1)
+        pool_path_key = str(summary.get("poolPathKey") or "|".join([_pool_address(pool) for pool in route_pools]))
         route_tokens = [
             {
                 "symbol": symbol,
@@ -246,6 +254,12 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                 "preferredPools": route_pools,
                 "strictQualityPools": route_pools,
                 "routePools": route_pools,
+                "hopCandidates": hop_candidates,
+                "hopCandidateCounts": hop_candidate_counts,
+                "hopCandidateCombinationCount": hop_candidate_combination_count,
+                "poolPathKey": pool_path_key,
+                "recommendedFirstPriority": True,
+                "routeRecommendationBasis": "tvl_depth_desc",
                 "routeUsableForObservation": route_usable,
                 "routeHasLiquidityEvidence": route_has_explicit,
                 "overviewRoute": {
@@ -264,6 +278,12 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                     "marketObservationRoute": True,
                     "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                     "routeUsableForObservation": route_usable,
+                    "hopCandidates": hop_candidates,
+                    "hopCandidateCounts": hop_candidate_counts,
+                    "hopCandidateCombinationCount": hop_candidate_combination_count,
+                    "poolPathKey": pool_path_key,
+                    "recommendedFirstPriority": True,
+                    "routeRecommendationBasis": "tvl_depth_desc",
                     "hopLiquidityEvidence": [
                         {
                             "pool": pool.get("pool") or pool.get("poolId"),

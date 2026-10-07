@@ -2,7 +2,10 @@ from market.binance_market.dex_flash_loan_route_groups import (
     closed_loop_route_groups_payload,
     group_closed_loop_routes_by_flash_loan_token,
 )
-from market.binance_market.dex_surface_overview import group_overview_paths_by_flash_loan_token
+from market.binance_market.dex_surface_overview import (
+    _overview_paths_from_static_summary,
+    group_overview_paths_by_flash_loan_token,
+)
 
 
 def _pool(pool_id, route_symbols, direction):
@@ -194,3 +197,51 @@ def test_group_overview_paths_dedupes_reverse_closed_loop():
     assert len(groups) == 1
     assert groups[0]["pathCount"] == 1
     assert groups[0]["poolDependencyCount"] == 2
+
+
+def test_overview_static_summary_collapses_reverse_direction_but_keeps_address_variants():
+    snapshot = {
+        "closedLoopRouteSummaries": [
+            {
+                "anchorSymbol": "TA",
+                "pathSymbols": ["TA", "TZ", "TB", "TA"],
+                "pathText": "TA -> TZ -> TB -> TA",
+                "routeAddresses": ["0xTA", "0xTZ", "0xTB", "0xTA"],
+                "routePools": [
+                    {"pool": "pool-ta-tz", "routeSymbols": ["TA", "TZ"], "routeAddresses": ["0xTA", "0xTZ"]},
+                    {"pool": "pool-tz-tb", "routeSymbols": ["TZ", "TB"], "routeAddresses": ["0xTZ", "0xTB"]},
+                    {"pool": "pool-tb-ta", "routeSymbols": ["TB", "TA"], "routeAddresses": ["0xTB", "0xTA"]},
+                ],
+            },
+            {
+                "anchorSymbol": "TA",
+                "pathSymbols": ["TA", "TB", "TZ", "TA"],
+                "pathText": "TA -> TB -> TZ -> TA",
+                "routeAddresses": ["0xTA", "0xTB", "0xTZ", "0xTA"],
+                "routePools": [
+                    {"pool": "pool-ta-tb", "routeSymbols": ["TA", "TB"], "routeAddresses": ["0xTA", "0xTB"]},
+                    {"pool": "pool-tb-tz", "routeSymbols": ["TB", "TZ"], "routeAddresses": ["0xTB", "0xTZ"]},
+                    {"pool": "pool-tz-ta", "routeSymbols": ["TZ", "TA"], "routeAddresses": ["0xTZ", "0xTA"]},
+                ],
+            },
+            {
+                "anchorSymbol": "TA",
+                "pathSymbols": ["TA", "TZ", "TB", "TA"],
+                "pathText": "TA -> TZ -> TB -> TA",
+                "routeAddresses": ["0xTA_ALT", "0xTZ", "0xTB", "0xTA_ALT"],
+                "routePools": [
+                    {"pool": "pool-ta-alt-tz", "routeSymbols": ["TA", "TZ"], "routeAddresses": ["0xTA_ALT", "0xTZ"]},
+                    {"pool": "pool-tz-tb", "routeSymbols": ["TZ", "TB"], "routeAddresses": ["0xTZ", "0xTB"]},
+                    {"pool": "pool-tb-ta-alt", "routeSymbols": ["TB", "TA"], "routeAddresses": ["0xTB", "0xTA_ALT"]},
+                ],
+            },
+        ]
+    }
+
+    paths = _overview_paths_from_static_summary(snapshot, chain_id=46630)
+
+    assert len(paths) == 2
+    assert {tuple(path["routeAddresses"]) for path in paths} == {
+        ("0xTA", "0xTZ", "0xTB", "0xTA"),
+        ("0xTA_ALT", "0xTZ", "0xTB", "0xTA_ALT"),
+    }

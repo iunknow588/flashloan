@@ -12,13 +12,28 @@ def _route_simple_key(route: dict[str, Any]) -> tuple[Any, ...]:
     if isinstance(addresses, list):
         selected = [str(item or "").strip().lower() for item in addresses if str(item or "").strip()]
         if selected:
-            return tuple(selected)
+            return _closed_loop_key_from_tokens(selected)
     symbols = route.get("routeSymbols") if isinstance(route.get("routeSymbols"), list) else route.get("symbols")
     if isinstance(symbols, list):
         selected = [str(item or "").strip().upper() for item in symbols if str(item or "").strip()]
         if selected:
-            return tuple(selected)
+            return _closed_loop_key_from_tokens(selected)
     return (str(route.get("symbolPair") or "").strip().upper(),)
+
+
+def _closed_loop_key_from_tokens(selected: list[str]) -> tuple[Any, ...]:
+    """Return a direction-normalized key for a closed token path.
+
+    ``A -> B -> C -> A`` and ``A -> C -> B -> A`` are the same closed loop,
+    so the middle segment is sorted by its lexicographically smaller reverse.
+    """
+    if len(selected) < 3 or selected[0] != selected[-1]:
+        return tuple(selected)
+    anchor = selected[0]
+    mids = tuple(selected[1:-1])
+    if mids and tuple(reversed(mids)) < mids:
+        mids = tuple(reversed(mids))
+    return (anchor, *mids)
 
 
 def _route_evidence_richness(route: dict[str, Any]) -> int:
@@ -35,19 +50,62 @@ def _route_evidence_richness(route: dict[str, Any]) -> int:
     return score
 
 
+def _route_is_temporary(route: dict[str, Any]) -> bool:
+    if not isinstance(route, dict):
+        return False
+    policy = route.get("temporaryRoutePolicy")
+    if isinstance(policy, dict) and (
+        bool(policy.get("temporaryRoute"))
+        or bool(policy.get("executeLast"))
+        or bool(policy.get("notForDefaultScan"))
+    ):
+        return True
+    return bool(route.get("temporaryRoute") or route.get("notForDefaultScan"))
+
+
+def _route_dedupe_key(route: dict[str, Any]) -> tuple[Any, ...]:
+    """Keep scan defaults and one-shot replacements in separate families.
+
+    A temporary route must remain visible for chain review and execution
+    history, but it must never replace the scan default inside the same
+    dedupe pass.  Keying by pool path also keeps multiple quote-page
+    replacement variants distinct when they share the same token addresses.
+    """
+    base = _route_simple_key(route)
+    if _route_is_temporary(route):
+        pool_key = str(
+            route.get("poolPathKey")
+            or route.get("referencePoolPathKey")
+            or ""
+        ).strip().lower()
+        return (*base, "temporary", pool_key)
+    return (*base, "default")
+
+
+def _dedupe_key_is_temporary(key: tuple[Any, ...]) -> bool:
+    return len(key) >= 3 and key[-2] == "temporary"
+
+
 def _dedupe_payload_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     best_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
     order: list[tuple[Any, ...]] = []
     for route in routes:
         if not isinstance(route, dict):
             continue
-        key = _route_simple_key(route)
+        key = _route_dedupe_key(route)
         if key not in best_by_key:
             order.append(key)
         existing = best_by_key.get(key)
         if existing is None or _route_evidence_richness(route) > _route_evidence_richness(existing):
             best_by_key[key] = route
-    return [best_by_key[key] for key in order if key in best_by_key]
+    ordered = sorted(
+        order,
+        key=lambda key: (
+            1 if _dedupe_key_is_temporary(key) else 0,
+            order.index(key),
+        ),
+    )
+    return [best_by_key[key] for key in ordered if key in best_by_key]
 
 
 def _scanner_snapshot_ttl_seconds() -> float:

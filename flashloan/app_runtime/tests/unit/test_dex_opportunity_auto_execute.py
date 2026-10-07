@@ -4,6 +4,86 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 
+def test_route_evidence_dedup_key_collapses_reverse_direction():
+    from dex.runtime.dex_opportunity_helpers import _route_evidence_dedup_key
+
+    forward = {"routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"]}
+    reverse = {"routeAddresses": ["0xTZ", "0xTA", "0xTB", "0xTZ"]}
+    symbol_forward = {"routeSymbols": ["TZ", "TB", "TA", "TZ"]}
+    symbol_reverse = {"routeSymbols": ["TZ", "TA", "TB", "TZ"]}
+
+    assert _route_evidence_dedup_key(forward) == _route_evidence_dedup_key(reverse)
+    assert _route_evidence_dedup_key(symbol_forward) == _route_evidence_dedup_key(symbol_reverse)
+
+
+def test_order_attempts_for_execution_keeps_temporary_routes_last():
+    from dex.runtime.dex_opportunity_auto_execute import (
+        _order_attempts_for_execution,
+        _order_routes_for_review,
+    )
+
+    default_attempt = {
+        "route_path": ["TZ", "TA", "TB", "TZ"],
+        "quote": {
+            "temporaryRoute": False,
+            "temporaryRoutePolicy": {},
+        },
+    }
+    temporary_attempt = {
+        "route_path": ["TZ", "TA2", "TB", "TZ"],
+        "quote": {
+            "temporaryRoute": True,
+            "temporaryRoutePolicy": {
+                "temporaryRoute": True,
+                "executeLast": True,
+                "notForDefaultScan": True,
+            },
+        },
+    }
+
+    ordered = _order_attempts_for_execution([temporary_attempt, default_attempt])
+
+    assert ordered == [default_attempt, temporary_attempt]
+
+    default_route = {
+        "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+        "temporaryRoute": False,
+        "temporaryRoutePolicy": {},
+    }
+    temporary_route = {
+        **default_route,
+        "routeSymbols": ["TZ", "TA2", "TB", "TZ"],
+        "temporaryRoute": True,
+        "temporaryRoutePolicy": {"temporaryRoute": True, "executeLast": True},
+    }
+    ordered_routes = _order_routes_for_review([temporary_route, default_route])
+
+    assert ordered_routes == [default_route, temporary_route]
+
+
+def test_closed_loop_review_group_key_isolates_temporary_replacement():
+    from dex.runtime.dex_opportunity_route_runner import _closed_loop_review_group_key
+
+    default_route = {
+        "routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"],
+        "poolPathKey": "default_pool_a|default_pool_b|default_pool_c",
+        "temporaryRoute": False,
+        "temporaryRoutePolicy": {},
+    }
+    temporary_route = {
+        **default_route,
+        "poolPathKey": "temporary_pool_a|bridge_pool|temporary_pool_c",
+        "temporaryRoute": True,
+        "temporaryRoutePolicy": {
+            "temporaryRoute": True,
+            "executeLast": True,
+            "notForDefaultScan": True,
+        },
+    }
+
+    assert _closed_loop_review_group_key(default_route) != _closed_loop_review_group_key(temporary_route)
+
+
 def _quote_payload_for_robinhood_testnet(*, symbol_pair: str = "TZ -> TA -> TB -> TZ") -> dict:
     return {
         "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},

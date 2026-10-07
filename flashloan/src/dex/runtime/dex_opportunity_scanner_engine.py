@@ -44,6 +44,7 @@ from dex.runtime.dex_opportunity_snapshot import (
     _auto_execute_log_stats,
     _chain_scope_key,
     _dedupe_payload_routes,
+    _route_is_temporary,
     _route_simple_key,
     _scanner_snapshot_ttl_seconds,
 )
@@ -669,6 +670,10 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
                             previous = existing_by_key.get(_route_simple_key(route))
                             if not isinstance(previous, dict):
                                 continue
+                            if _route_is_temporary(route) != _route_is_temporary(previous):
+                                # Never reuse default-path evidence for a
+                                # temporary replacement (or vice versa).
+                                continue
                             previous_evidence = previous.get("live_onchain_evidence")
                             if not isinstance(previous_evidence, dict) or not previous_evidence.get("status"):
                                 continue
@@ -746,6 +751,17 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
                             key_route = _route_simple_key(route)
                             current = by_key.get(key_route)
                             if isinstance(current, dict):
+                                current_temporary = _route_is_temporary(current)
+                                route_temporary = _route_is_temporary(route)
+                                if current_temporary and not route_temporary:
+                                    # Fresh default scan route wins over stale
+                                    # temporary snapshot data.
+                                    by_key[key_route] = route
+                                    continue
+                                if route_temporary and not current_temporary:
+                                    # A temporary replacement must not replace
+                                    # the scan default in the persisted snapshot.
+                                    continue
                                 current_evidence = current.get("live_onchain_evidence")
                                 if isinstance(current_evidence, dict) and current_evidence.get("status"):
                                     # The background closed-loop pipeline may have

@@ -114,6 +114,40 @@ def build_quote_route_payload(
         ),
         "routeUsableForObservation": route.get("routeUsableForObservation"),
         "routeHasLiquidityEvidence": route.get("routeHasLiquidityEvidence"),
+        "hopCandidates": list(route.get("hopCandidates") or []),
+        "hopCandidateCounts": dict(route.get("hopCandidateCounts") or {}),
+        "hopCandidateCombinationCount": max(1, int(route.get("hopCandidateCombinationCount") or 1)),
+        "poolPathKey": route.get("poolPathKey") or "",
+        "hopCandidateSelection": {
+            "selectionBasis": (
+                route.get("selectionBasis")
+                or (list(route.get("hopCandidates") or [])[0].get("selectionBasis") if list(route.get("hopCandidates") or []) else "tvl_depth_desc")
+            ),
+            "preferredPoolIds": [
+                str(candidate.get("preferredPoolId") or "").strip()
+                for candidate in route.get("hopCandidates") or []
+                if isinstance(candidate, dict) and str(candidate.get("preferredPoolId") or "").strip()
+            ],
+        },
+        "hopCandidateReplacement": dict(route.get("hopCandidateReplacement") or {}),
+        "temporaryRoute": bool(route.get("temporaryRoute")),
+        "temporaryRoutePolicy": dict(route.get("temporaryRoutePolicy") or {}),
+        "temporaryRouteSnapshot": dict(route.get("temporaryRouteSnapshot") or {}),
+        "notForDefaultScan": bool(route.get("notForDefaultScan")),
+        "referencePoolPathKey": str(
+            route.get("referencePoolPathKey")
+            or route.get("defaultPoolPathKey")
+            or ""
+        ),
+        "recommendedFirstPriority": bool(
+            route.get("recommendedFirstPriority")
+            or overview_route.get("recommendedFirstPriority")
+        ),
+        "routeRecommendationBasis": (
+            route.get("routeRecommendationBasis")
+            or overview_route.get("routeRecommendationBasis")
+            or "tvl_depth_desc"
+        ),
         "poolCount": len(pools),
         "routePools": pools,
         "executionPools": pools,

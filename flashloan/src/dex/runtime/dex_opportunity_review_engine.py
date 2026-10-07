@@ -9,6 +9,7 @@ from dex.runtime.dex_opportunity_helpers import (
     _now_iso,
     _structured_dex_error,
 )
+from dex.runtime.dex_opportunity_auto_execute import _order_routes_for_review
 from dex.runtime.dex_opportunity_route_runner import (
     _closed_loop_workers,
     _quote_routes_payload_from_facade,
@@ -41,7 +42,7 @@ class DexOpportunityReviewEngineMixin:
                 run_official_v4_arb_route_test,
             )
 
-            routes = payload.get("routes") or []
+            routes = _order_routes_for_review(payload.get("routes") or [])
             refreshed = []
             refresh_attempt_pairs = []
             manual_review_count = 0

@@ -166,10 +166,23 @@ def _route_addresses_from_route(route: dict[str, Any]) -> list[str]:
     return []
 
 
+def _closed_loop_path_key(parts: list[str]) -> tuple[str, ...]:
+    """Normalize reverse execution directions to one closed-loop identity."""
+    if not parts:
+        return ("",)
+    if len(parts) < 3 or parts[0] != parts[-1]:
+        return tuple(parts)
+    anchor = parts[0]
+    mids = tuple(parts[1:-1])
+    if mids and tuple(reversed(mids)) < mids:
+        mids = tuple(reversed(mids))
+    return (anchor, *mids)
+
+
 def _route_evidence_dedup_key(route: dict[str, Any]) -> str:
     addresses = _route_addresses_from_route(route)
     if addresses:
-        return "addr|" + "|".join(addresses)
+        return "addr|" + "|".join(_closed_loop_path_key(addresses))
     raw_path = route.get("routeSymbols") or route.get("symbolPair") or route.get("path") or []
     if isinstance(raw_path, str):
         raw_path = [part for part in raw_path.split(" -> ") if str(part).strip()]
@@ -181,7 +194,7 @@ def _route_evidence_dedup_key(route: dict[str, Any]) -> str:
         if s.startswith("0X") and len(s) < 20:
             continue
         parts.append(s)
-    return "symbol|" + " -> ".join(parts)
+    return "symbol|" + " -> ".join(_closed_loop_path_key(parts))
 
 
 def _recent_attempt_max_age_seconds() -> float:
@@ -574,6 +587,10 @@ def _route_attempt(
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
     route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
     route_token_path = route.get("routeTokenPath") if isinstance(route.get("routeTokenPath"), list) else []
+    temporary_route = bool(route.get("temporaryRoute"))
+    temporary_route_policy = dict(route.get("temporaryRoutePolicy") or {})
+    if temporary_route_policy.get("temporaryRoute") is not None:
+        temporary_route = bool(temporary_route_policy.get("temporaryRoute")) or temporary_route
     quote_status = str(route.get("quoteStatus") or recommendation.get("level") or "quote_required")
     final_amount = analysis.get("finalOutputUsd")
     final_delta = analysis.get("netProfitUsd")
@@ -615,6 +632,16 @@ def _route_attempt(
         "candidate_pools": quote_inputs.get("candidatePools") or [],
         "quote_requests": quote_inputs.get("quoteRequests") or [],
         "hops": analysis.get("steps") or [],
+        "temporaryRoute": temporary_route,
+        "temporaryRoutePolicy": temporary_route_policy,
+        "notForDefaultScan": bool(route.get("notForDefaultScan") or temporary_route_policy.get("notForDefaultScan")),
+        "referencePoolPathKey": str(
+            route.get("referencePoolPathKey")
+            or route.get("defaultPoolPathKey")
+            or temporary_route_policy.get("referencePoolPathKey")
+            or ""
+        ),
+        "poolPathKey": str(route.get("poolPathKey") or ""),
     }
     precheck = {
         "status": quote_status,
@@ -685,6 +712,16 @@ def _route_attempt(
                 "probe_notional_usd": analysis.get("notionalUsd"),
             },
         },
+        "temporaryRoute": temporary_route,
+        "temporaryRoutePolicy": temporary_route_policy,
+        "notForDefaultScan": bool(route.get("notForDefaultScan") or temporary_route_policy.get("notForDefaultScan")),
+        "referencePoolPathKey": str(
+            route.get("referencePoolPathKey")
+            or route.get("defaultPoolPathKey")
+            or temporary_route_policy.get("referencePoolPathKey")
+            or ""
+        ),
+        "poolPathKey": str(route.get("poolPathKey") or ""),
         "error": None,
     }
 

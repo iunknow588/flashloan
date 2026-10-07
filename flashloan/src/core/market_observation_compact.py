@@ -119,18 +119,56 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
     return {key: step[key] for key in keys if key in step}
 
 
+def _compact_hop_candidates(candidates: object) -> list[dict[str, Any]]:
+    """Compact per-hop candidate pools without losing candidate counts."""
+    compact: list[dict[str, Any]] = []
+    for candidate in candidates or []:
+        if not isinstance(candidate, dict):
+            continue
+        row = dict(candidate)
+        pools = [
+            _compact_route_pool(pool)
+            for pool in candidate.get("pools") or []
+            if isinstance(pool, dict)
+        ]
+        row["pools"] = pools
+        row["poolCount"] = len(pools)
+        compact.append(row)
+    return compact
+
+
 def _compact_observation_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
     compact = {
         key: value
         for key, value in sequence.items()
         if key not in {"ycPool", "bridgePool", "zcPool", "routePairs"}
     }
+    hop_candidates = _compact_hop_candidates(sequence.get("hopCandidates"))
+    hop_candidate_counts = dict(sequence.get("hopCandidateCounts") or {})
+    if hop_candidates and not hop_candidate_counts:
+        hop_candidate_counts = {
+            str(candidate.get("leg") or "").strip(): int(candidate.get("poolCount") or 0)
+            for candidate in hop_candidates
+            if isinstance(candidate, dict) and str(candidate.get("leg") or "").strip()
+        }
     route_pools = [
         _compact_route_pool(step)
         for step in sequence.get("routePools") or []
         if isinstance(step, dict)
     ]
     compact["routePools"] = route_pools
+    compact["hopCandidates"] = hop_candidates
+    compact["hopCandidateCounts"] = hop_candidate_counts
+    compact["hopCandidateCombinationCount"] = int(sequence.get("hopCandidateCombinationCount") or 1)
+    compact["poolPathKey"] = sequence.get("poolPathKey") or ""
+    if not compact["poolPathKey"] and route_pools:
+        compact["poolPathKey"] = "|".join(
+            [
+                _text(step.get("pool")).lower()
+                for step in route_pools
+                if _text(step.get("pool"))
+            ]
+        )
     path_symbols = list(compact.get("pathSymbols") or [])
     path_text = compact.get("pathText") or ""
     if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
@@ -219,6 +257,158 @@ def _compact_observation_pair(pair: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
+def _merge_dynamic_hop_candidates_into_sequences(
+    sequences: list[dict[str, Any]],
+    dynamic_paths: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge quote-page candidate pools from dynamic paths into static sequences.
+
+    Static observation files may predate per-hop candidate preservation.  When
+    the DEX overview snapshot is rebuilt, each matching closed loop keeps the
+    dynamic hop candidates so the quote/routing page can perform price-based
+    candidate replacement without mutating the global scan default.
+    """
+    if not dynamic_paths:
+        return sequences
+
+    def normalized_symbol(value: object) -> str:
+        return str(value or "").strip().upper()
+
+    def normalized_pool_id(value: object) -> str:
+        text = str(value or "").strip()
+        return text.lower() if text else ""
+
+    def path_addresses(path: dict[str, Any]) -> list[str]:
+        rows = [
+            token
+            for token in path.get("routeTokenPath") or []
+            if isinstance(token, dict)
+        ]
+        if rows:
+            return [
+                normalized_pool_id(token.get("address"))
+                for token in rows
+                if normalized_pool_id(token.get("address"))
+            ]
+        return [
+            normalized_pool_id(address)
+            for address in path.get("routeAddresses") or []
+            if normalized_pool_id(address)
+        ]
+
+    def path_pool_ids(path: dict[str, Any]) -> list[str]:
+        rows = (
+            path.get("strictQualityPools")
+            or path.get("preferredPools")
+            or path.get("executionPools")
+            or []
+        )
+        return [
+            normalized_pool_id(pool.get("pool") or pool.get("poolId") or "")
+            for pool in rows
+            if isinstance(pool, dict)
+            and normalized_pool_id(pool.get("pool") or pool.get("poolId") or "")
+        ]
+
+    def sequence_addresses(sequence: dict[str, Any]) -> list[str]:
+        addresses = [
+            normalized_pool_id(address)
+            for address in sequence.get("routeAddresses") or []
+            if normalized_pool_id(address)
+        ]
+        if addresses:
+            return addresses
+        result: list[str] = []
+        for step in sequence.get("routePools") or []:
+            if not isinstance(step, dict):
+                continue
+            step_addresses = [
+                normalized_pool_id(address)
+                for address in step.get("routeAddresses") or []
+                if normalized_pool_id(address)
+            ]
+            if len(step_addresses) < 2:
+                continue
+            if not result:
+                result.append(step_addresses[0])
+            result.append(step_addresses[1])
+        return result
+
+    def sequence_pool_ids(sequence: dict[str, Any]) -> list[str]:
+        return [
+            normalized_pool_id(step.get("pool") or step.get("poolId") or "")
+            for step in sequence.get("routePools") or []
+            if isinstance(step, dict)
+            and normalized_pool_id(step.get("pool") or step.get("poolId") or "")
+        ]
+
+    def sequence_symbols(sequence: dict[str, Any]) -> list[str]:
+        symbols = [
+            normalized_symbol(symbol)
+            for symbol in sequence.get("pathSymbols") or []
+            if normalized_symbol(symbol)
+        ]
+        if symbols:
+            return symbols
+        return [
+            normalized_symbol(value)
+            for value in str(sequence.get("pathText") or "").split(" -> ")
+            if normalized_symbol(value)
+        ]
+
+    path_by_symbols: dict[tuple[str, ...], dict[str, Any]] = {}
+    path_by_addresses: dict[tuple[str, ...], dict[str, Any]] = {}
+    path_by_pool_ids: dict[tuple[str, ...], dict[str, Any]] = {}
+    for path in dynamic_paths:
+        if not isinstance(path, dict):
+            continue
+        overview_route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+        symbols = [
+            normalized_symbol(symbol)
+            for symbol in (
+                path.get("routeSymbols")
+                or overview_route.get("pathSymbols")
+                or []
+            )
+            if normalized_symbol(symbol)
+        ]
+        addresses = path_addresses(path)
+        pool_ids = path_pool_ids(path)
+        if symbols:
+            path_by_symbols[tuple(symbols)] = path
+        if len(addresses) >= 2:
+            path_by_addresses[tuple(addresses)] = path
+        if len(pool_ids) >= 3:
+            path_by_pool_ids[tuple(pool_ids)] = path
+
+    merged: list[dict[str, Any]] = []
+    for sequence in sequences:
+        if not isinstance(sequence, dict):
+            merged.append(sequence)
+            continue
+        copied = dict(sequence)
+        if copied.get("hopCandidates"):
+            merged.append(copied)
+            continue
+        symbols = tuple(sequence_symbols(sequence))
+        addresses = tuple(sequence_addresses(sequence))
+        pool_ids = tuple(sequence_pool_ids(sequence))
+        path = (
+            path_by_symbols.get(symbols)
+            or path_by_addresses.get(addresses)
+            or path_by_pool_ids.get(pool_ids)
+        )
+        if path:
+            copied["hopCandidates"] = _compact_hop_candidates(path.get("hopCandidates"))
+            copied["hopCandidateCounts"] = dict(path.get("hopCandidateCounts") or {})
+            copied["hopCandidateCombinationCount"] = int(
+                path.get("hopCandidateCombinationCount") or 1
+            )
+            copied["poolPathKey"] = str(path.get("poolPathKey") or "").strip()
+        merged.append(copied)
+    return merged
+
+
 def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
     route_pools = [
         step
@@ -265,6 +455,10 @@ def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
         "anchorAddresses": list(sequence.get("anchorAddresses") or []),
         "routeAddresses": route_addresses,
         "routePools": [_compact_route_pool(step) for step in route_pools],
+        "hopCandidates": _compact_hop_candidates(sequence.get("hopCandidates")),
+        "hopCandidateCounts": dict(sequence.get("hopCandidateCounts") or {}),
+        "hopCandidateCombinationCount": int(sequence.get("hopCandidateCombinationCount") or 1),
+        "poolPathKey": sequence.get("poolPathKey") or "",
         "observationRef": "observation.json",
     }
 
@@ -331,6 +525,10 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
         "pathText": path_text,
         "pool": route.get("pool"),
         "routePools": route_pools,
+        "hopCandidates": _compact_hop_candidates(route.get("hopCandidates")),
+        "hopCandidateCounts": dict(route.get("hopCandidateCounts") or {}),
+        "hopCandidateCombinationCount": int(route.get("hopCandidateCombinationCount") or 1),
+        "poolPathKey": route.get("poolPathKey") or "",
         "candidatePoolCount": route.get("candidatePoolCount") or str(len(route_pools)),
         "matchedPoolCount": route.get("matchedPoolCount") or str(len(route_pools)),
         "anchorAddresses": list(route.get("anchorAddresses") or []),
@@ -341,9 +539,28 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
 def _closed_loop_dedup_key(sequence: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
     symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
     anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
-    mids = tuple(symbols[1:-1]) if len(symbols) >= 4 and symbols[0] == symbols[-1] else tuple(symbols)
+    route_addresses: list[str] = []
+    for step in sequence.get("routePools") or []:
+        if not isinstance(step, dict):
+            continue
+        step_addresses = [
+            _text(address).lower()
+            for address in step.get("routeAddresses") or []
+            if _text(address)
+        ]
+        if len(step_addresses) < 2:
+            continue
+        if not route_addresses:
+            route_addresses.append(step_addresses[0])
+        route_addresses.append(step_addresses[1])
+    if route_addresses and len(route_addresses) == len(symbols):
+        anchor = route_addresses[0]
+        mids = tuple(route_addresses[1:-1]) if len(route_addresses) >= 4 else tuple(route_addresses)
+    else:
+        mids = tuple(symbols[1:-1]) if len(symbols) >= 4 and symbols[0] == symbols[-1] else tuple(symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
+    # A-B-C-A and A-C-B-A are the same route, not two separate paths.
     return (anchor, mids)
 
 
@@ -370,6 +587,25 @@ def _sequence_liquidity_score(sequence: dict[str, Any]) -> float:
     return score
 
 
+def _dedup_closed_loop_sequences(sequences: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse reverse-direction duplicates while keeping the best evidence.
+
+    ``A -> B -> C -> A`` and ``A -> C -> B -> A`` describe the same closed
+    loop, so every consumer of observation sequences must count them once.
+    """
+    best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
+    for sequence in sequences:
+        if not isinstance(sequence, dict) or not _is_closed_loop_sequence(sequence):
+            continue
+        identity = _closed_loop_dedup_key(sequence)
+        if not identity:
+            continue
+        current = best.get(identity)
+        if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
+            best[identity] = sequence
+    return list(best.values())
+
+
 def _observation_sequences_from_observation(observation: dict[str, Any]) -> list[dict[str, Any]]:
     sequences = [
         _compact_observation_sequence(sequence)
@@ -383,16 +619,10 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         if isinstance(route, dict)
     ]
     if sequences:
-        best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
-        for sequence in sequences:
-            if not _is_closed_loop_sequence(sequence):
-                continue
-            identity = _closed_loop_dedup_key(sequence)
-            if not identity:
-                continue
-            current = best.get(identity)
-            if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
-                best[identity] = sequence
+        best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {
+            _closed_loop_dedup_key(sequence): sequence
+            for sequence in _dedup_closed_loop_sequences(sequences)
+        }
         for route in route_sources:
             sequence = _sequence_from_route(route)
             if not _is_closed_loop_sequence(sequence):
@@ -407,7 +637,10 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
                 best[identity] = sequence
         deduped = list(best.values())
         return deduped
-    best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
+    best = {
+        _closed_loop_dedup_key(sequence): sequence
+        for sequence in _dedup_closed_loop_sequences(sequences)
+    }
     for route in route_sources:
         sequence = _sequence_from_route(route)
         if not _is_closed_loop_sequence(sequence):
@@ -475,6 +708,10 @@ def _closed_routes_from_sequences(sequences: list[dict[str, Any]]) -> list[dict[
                 "secondLegPairs": route_pairs[1:],
                 "routePairs": route_pairs,
                 "routePools": list(sequence.get("routePools") or []),
+                "hopCandidates": _compact_hop_candidates(sequence.get("hopCandidates")),
+                "hopCandidateCounts": dict(sequence.get("hopCandidateCounts") or {}),
+                "hopCandidateCombinationCount": int(sequence.get("hopCandidateCombinationCount") or 1),
+                "poolPathKey": sequence.get("poolPathKey") or "",
                 "source": sequence.get("source") or "yc_zc_bridge_observation",
             }
         )

@@ -126,6 +126,15 @@ def build_quote_routes_payload_from_overview(
             "liveRouteLimit": route_policy.live_route_limit,
             "chainReviewEligiblePathCount": sum(1 for route in routes if route.get("chainReviewEligible")),
             "diagnosticOnlyPathCount": sum(1 for route in routes if route.get("diagnosticOnly")),
+            "hopCandidateRouteCount": sum(1 for route in routes if (route.get("hopCandidates") or [])),
+            "hopCandidateCombinationCount": sum(
+                max(1, int(route.get("hopCandidateCombinationCount") or 1))
+                for route in routes
+            ),
+            "hopCandidatePoolCount": sum(
+                sum(int(candidate.get("poolCount") or 0) for candidate in route.get("hopCandidates") or [])
+                for route in routes
+            ),
         }
     )
     return {

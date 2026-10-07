@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from market.binance_market.dex_surface_graph import (
     _pair_score,
@@ -16,6 +16,7 @@ from market.binance_market.dex_surface_observation_helpers import (
     _anchor_group_direction_tokens,
     _best_pool_rows,
     _group_token_pool_rows,
+    _pool_usable_for_observation,
     _token_instance_keys,
 )
 from market.binance_market.dex_surface_types import (
@@ -26,6 +27,124 @@ from market.binance_market.dex_surface_types import (
     _route_symbol_allowed,
     _token_address,
 )
+
+DEFAULT_BEST_POOL_BASIS = "tvl_depth_desc"
+
+
+def _select_best_pool_rows(
+    candidates: list[dict[str, Any]],
+    *,
+    selector: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
+    only_usable: bool = False,
+) -> list[dict[str, Any]]:
+    """Order hop candidates and pick the first row as the default working pool.
+
+    The default policy is deliberately documented here: currently the deepest
+    (highest TVL) usable pool is the first candidate. Quote/routing may later
+    replace this policy with a profit-aware selector; that extension point is
+    the ``selector`` argument, which must return the same candidate objects in
+    preference order. The first returned row is the working pool for the
+    existing quote/execution flow until a better candidate is selected.
+
+    ``only_usable`` is useful when a caller only wants liquidity-qualified rows
+    in a candidate set; it is not used for the legacy working route so unlabelled
+    rows remain visible when no liquidity evidence exists yet.
+    """
+    rows = [row for row in candidates if isinstance(row, dict) and _pool_address(row)]
+    if only_usable:
+        rows = [row for row in rows if _pool_usable_for_observation(row)]
+    if callable(selector):
+        ordered = [row for row in selector(rows) if isinstance(row, dict) and _pool_address(row)]
+        if ordered:
+            return ordered
+    return _best_pool_rows(rows)
+
+
+def _hop_candidate_set(
+    *,
+    leg: str,
+    direction: str,
+    from_token: dict[str, Any],
+    to_token: dict[str, Any],
+    pools: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Build the multi-pool candidate set carried for one closed-loop leg.
+
+    Every pool from the source page (candidate pools for hop 1/3, market
+    observation bridge pairs for hop 2) is preserved here. The first row is
+    only the temporary default working pool; the quote/routing page owns the
+    right to choose the final best direction from ``pools``.
+    """
+    rows = [
+        _route_step_row(
+            pool,
+            from_token=from_token,
+            to_token=to_token,
+            direction=direction,
+        )
+        for pool in pools
+        if isinstance(pool, dict) and _pool_address(pool)
+    ]
+    if not rows:
+        return None
+    usable_rows = [row for row in rows if _pool_usable_for_observation(row)]
+    selected_row = usable_rows[0] if usable_rows else rows[0]
+    selected_pool_id = _pool_address(selected_row)
+    return {
+        "leg": leg,
+        "direction": direction,
+        "fromSymbol": _norm_symbol(from_token.get("symbol")),
+        "toSymbol": _norm_symbol(to_token.get("symbol")),
+        "fromAddress": _token_address(from_token.get("address")),
+        "toAddress": _token_address(to_token.get("address")),
+        "symbolPair": " -> ".join(
+            [_norm_symbol(from_token.get("symbol")), _norm_symbol(to_token.get("symbol"))]
+        ),
+        "poolCount": len(rows),
+        "usablePoolCount": sum(bool(_pool_usable_for_observation(row)) for row in rows),
+        "selectionBasis": DEFAULT_BEST_POOL_BASIS,
+        "preferredPoolId": selected_pool_id,
+        "preferredPoolUsable": bool(usable_rows),
+        "pools": rows,
+    }
+
+
+def _hop_candidate_sets_from_pairs(
+    pairs: list[dict[str, Any]],
+    path_tokens: list[dict[str, Any]],
+    *,
+    selector: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
+    direction_by_index: tuple[str, ...] = ("yc", "bridge", "zc"),
+    leg_by_index: tuple[str, ...] = ("x-y", "y-z", "z-x"),
+) -> list[dict[str, Any]]:
+    """Convert ordered candidate pairs into per-hop candidate sets.
+
+    This helper is shared by the anchor-group observation path and the generic
+    candidate-pair fallback so both preserve first/third-hop candidates from
+    the candidate-pool page and second-hop candidates from market observation.
+    """
+    result: list[dict[str, Any]] = []
+    for index, pair in enumerate(pairs[: len(path_tokens) - 1]):
+        from_token = path_tokens[index] if index < len(path_tokens) else {}
+        to_token = path_tokens[index + 1] if index + 1 < len(path_tokens) else {}
+        if not _norm_symbol(from_token.get("symbol")) or not _norm_symbol(to_token.get("symbol")):
+            continue
+        direction = direction_by_index[index] if index < len(direction_by_index) else ""
+        leg = leg_by_index[index] if index < len(leg_by_index) else f"hop-{index + 1}"
+        pools = _select_best_pool_rows(
+            _pools_for_pair(pair),
+            selector=selector,
+        )
+        candidate = _hop_candidate_set(
+            leg=leg,
+            direction=direction,
+            from_token=from_token,
+            to_token=to_token,
+            pools=pools,
+        )
+        if candidate is not None:
+            result.append(candidate)
+    return result
 
 
 def _route_step_row(
@@ -102,12 +221,17 @@ def _route_step_row(
 def _anchor_observation_sequences(
     anchor_groups: list[dict[str, Any]],
     pairs: list[dict[str, Any]],
+    *,
+    best_pool_selector: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     _, symbol_to_keys, _, pair_by_edge = _token_graph(pairs)
     pair_by_symbol_edge = _pair_symbol_graph(pairs)
 
     def _best_pool_from_pair(pair: dict[str, Any], *, exclude_pool_ids: set[str] | None = None) -> dict[str, Any] | None:
-        pools = _best_pool_rows(_pools_for_pair(pair), exclude_pool_ids=exclude_pool_ids)
+        pools = _select_best_pool_rows(
+            _best_pool_rows(_pools_for_pair(pair), exclude_pool_ids=exclude_pool_ids),
+            selector=best_pool_selector,
+        )
         return pools[0] if pools else None
 
     def _best_pair_for_tokens(y_token: dict[str, Any], z_token: dict[str, Any]) -> dict[str, Any] | None:
@@ -145,7 +269,11 @@ def _anchor_observation_sequences(
             y_symbol = _norm_symbol(yc_token.get("symbol"))
             if not y_symbol or not _route_symbol_allowed(y_symbol):
                 continue
-            yc_pool = (_group_token_pool_rows(yc_token, yc_rows) or [None])[0]
+            yc_pool_rows = _select_best_pool_rows(
+                _group_token_pool_rows(yc_token, yc_rows),
+                selector=best_pool_selector,
+            )
+            yc_pool = yc_pool_rows[0] if yc_pool_rows else None
             if yc_pool is None:
                 continue
             yc_pool_id = _pool_address(yc_pool)
@@ -157,7 +285,11 @@ def _anchor_observation_sequences(
                     continue
                 if _token_key(yc_token) == _token_key(zc_token):
                     continue
-                zc_pool = (_group_token_pool_rows(zc_token, zc_rows) or [None])[0]
+                zc_pool_rows = _select_best_pool_rows(
+                    _group_token_pool_rows(zc_token, zc_rows),
+                    selector=best_pool_selector,
+                )
+                zc_pool = zc_pool_rows[0] if zc_pool_rows else None
                 if zc_pool is None:
                     continue
                 zc_pool_id = _pool_address(zc_pool)
@@ -167,6 +299,10 @@ def _anchor_observation_sequences(
                 if pair_yz is None:
                     continue
                 yz_pool = _best_pool_from_pair(pair_yz)
+                yz_candidates = _select_best_pool_rows(
+                    _best_pool_rows(_pools_for_pair(pair_yz)),
+                    selector=best_pool_selector,
+                )
                 if yz_pool is None:
                     continue
                 yz_pool_id = _pool_address(yz_pool)
@@ -189,6 +325,85 @@ def _anchor_observation_sequences(
                     _route_step_row(zc_pool, from_token=zc_token, to_token=anchor_token, direction="zc"),
                 ]
                 route_pool_ids = {yc_pool_id, yz_pool_id, zc_pool_id}
+                yc_candidates = [
+                    _route_step_row(pool, from_token=anchor_token, to_token=yc_token, direction="yc")
+                    for pool in yc_pool_rows
+                    if isinstance(pool, dict) and _pool_address(pool)
+                ]
+                zc_candidates = [
+                    _route_step_row(pool, from_token=zc_token, to_token=anchor_token, direction="zc")
+                    for pool in zc_pool_rows
+                    if isinstance(pool, dict) and _pool_address(pool)
+                ]
+                yz_candidates = [
+                    _route_step_row(pool, from_token=yc_token, to_token=zc_token, direction="bridge")
+                    for pool in yz_candidates
+                    if isinstance(pool, dict) and _pool_address(pool)
+                ]
+                yc_preferred = next(
+                    (_pool_address(pool) for pool in yc_candidates if _pool_usable_for_observation(pool)),
+                    yc_pool_id,
+                )
+                yz_preferred = next(
+                    (_pool_address(pool) for pool in yz_candidates if _pool_usable_for_observation(pool)),
+                    yz_pool_id,
+                )
+                zc_preferred = next(
+                    (_pool_address(pool) for pool in zc_candidates if _pool_usable_for_observation(pool)),
+                    zc_pool_id,
+                )
+                hop_candidates = [
+                    {
+                        "leg": "x-y",
+                        "direction": "yc",
+                        "fromSymbol": anchor_symbol,
+                        "toSymbol": y_symbol,
+                        "fromAddress": anchor_address,
+                        "toAddress": _token_address(yc_token.get("address")),
+                        "symbolPair": f"{anchor_symbol} -> {y_symbol}",
+                        "poolCount": len(yc_candidates),
+                        "usablePoolCount": sum(bool(_pool_usable_for_observation(pool)) for pool in yc_candidates),
+                        "selectionBasis": DEFAULT_BEST_POOL_BASIS,
+                        "preferredPoolId": yc_preferred,
+                        "preferredPoolUsable": bool(any(_pool_usable_for_observation(pool) for pool in yc_candidates)),
+                        "pools": yc_candidates,
+                    },
+                    {
+                        "leg": "y-z",
+                        "direction": "bridge",
+                        "fromSymbol": y_symbol,
+                        "toSymbol": z_symbol,
+                        "fromAddress": _token_address(yc_token.get("address")),
+                        "toAddress": _token_address(zc_token.get("address")),
+                        "symbolPair": f"{y_symbol} -> {z_symbol}",
+                        "poolCount": len(yz_candidates),
+                        "usablePoolCount": sum(bool(_pool_usable_for_observation(pool)) for pool in yz_candidates),
+                        "selectionBasis": DEFAULT_BEST_POOL_BASIS,
+                        "preferredPoolId": yz_preferred,
+                        "preferredPoolUsable": bool(any(_pool_usable_for_observation(pool) for pool in yz_candidates)),
+                        "pools": yz_candidates,
+                    },
+                    {
+                        "leg": "z-x",
+                        "direction": "zc",
+                        "fromSymbol": z_symbol,
+                        "toSymbol": anchor_symbol,
+                        "fromAddress": _token_address(zc_token.get("address")),
+                        "toAddress": anchor_address,
+                        "symbolPair": f"{z_symbol} -> {anchor_symbol}",
+                        "poolCount": len(zc_candidates),
+                        "usablePoolCount": sum(bool(_pool_usable_for_observation(pool)) for pool in zc_candidates),
+                        "selectionBasis": DEFAULT_BEST_POOL_BASIS,
+                        "preferredPoolId": zc_preferred,
+                        "preferredPoolUsable": bool(any(_pool_usable_for_observation(pool) for pool in zc_candidates)),
+                        "pools": zc_candidates,
+                    },
+                ]
+                candidate_counts = {
+                    "x-y": len(yc_candidates),
+                    "y-z": len(yz_candidates),
+                    "z-x": len(zc_candidates),
+                }
                 sequences.append(
                     {
                         "kind": "anchor_closed_loop_token_bridge",
@@ -204,6 +419,10 @@ def _anchor_observation_sequences(
                         "routePools": route_rows,
                         "ycPoolCount": str(len(yc_rows)),
                         "zcPoolCount": str(len(zc_rows)),
+                        "hopCandidates": hop_candidates,
+                        "hopCandidateCounts": candidate_counts,
+                        "hopCandidateCombinationCount": max(1, len(yc_candidates) * len(yz_candidates) * len(zc_candidates)),
+                        "poolPathKey": "|".join([*[str(item).lower() for item in (yc_pool_id, yz_pool_id, zc_pool_id)]]),
                         "candidatePoolCount": str(len(route_pool_ids)),
                         "matchedPoolCount": str(len(route_rows)),
                         "anchorAddresses": list(group.get("anchorAddresses") or []),
@@ -259,6 +478,12 @@ def _closed_route_from_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
         "routePairs": route_pairs,
         "routePools": route_pools,
         "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
+        "hopCandidates": list(sequence.get("hopCandidates") or []),
+        "hopCandidateCounts": dict(sequence.get("hopCandidateCounts") or {}),
+        "hopCandidateCombinationCount": _int(sequence.get("hopCandidateCombinationCount")) or 1,
+        "poolPathKey": sequence.get("poolPathKey") or "",
+        "recommendedFirstPriority": True,
+        "routeRecommendationBasis": "tvl_depth_desc",
         "source": sequence.get("source") or "yc_zc_bridge_observation",
     }
 

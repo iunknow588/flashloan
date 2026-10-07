@@ -10,6 +10,31 @@ from dex.intent_trade.chains.robinhood_testnet import market_observation as robi
 from market.strategy.arbitrage import ArbitrageConfig
 
 
+def test_testnet_observation_scope_matches_pool_addresses_case_insensitively():
+    from dex.intent_trade.chains.robinhood_testnet.dex_pool_candidates import (
+        _row_uses_flash_asset,
+        _row_uses_observation_scope,
+    )
+
+    row = {
+        "token0": "0x58cF1f9aa413aD044109aE6eCAc2AA473218b554",
+        "token1": "0x0000000000000000000000000000000000000000",
+        "token0Symbol": "USDC",
+        "token1Symbol": "ETH",
+    }
+    scope = {
+        "0x58cf1f9aa413ad044109ae6ecac2aa473218b554",
+        "0x0000000000000000000000000000000000000000",
+    }
+    flash_addresses = {
+        "0x0000000000000000000000000000000000000000",
+        "0x58CF1F9AA413AD044109AE6ECAC2AA473218B554",
+    }
+
+    assert _row_uses_observation_scope(row, scope) is True
+    assert _row_uses_flash_asset(row, {"ETH"}, flash_addresses) is True
+
+
 def test_scanner_evidence_timeout_has_rpc_retry_budget_floor(monkeypatch):
     from dex.runtime import dex_opportunity_scanner
 
@@ -37,6 +62,50 @@ def test_scanner_dedupes_same_closed_loop_route_by_addresses():
 
     assert len(deduped) == 1
     assert deduped[0]["quoteStatus"] == "rpc_verification_timeout"
+
+
+def test_scanner_dedupes_reverse_direction_closed_loop_as_one_route():
+    from dex.runtime.dex_opportunity_snapshot import _closed_loop_key_from_tokens
+
+    forward = ["0xTZ", "0xTB", "0xTA", "0xTZ"]
+    reverse = ["0xTZ", "0xTA", "0xTB", "0xTZ"]
+
+    assert _closed_loop_key_from_tokens(forward) == _closed_loop_key_from_tokens(reverse)
+
+
+def test_scanner_dedupe_keeps_default_and_temporary_replacement_distinct():
+    from dex.runtime.dex_opportunity_scanner import _dedupe_payload_routes
+
+    default_route = {
+        "routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"],
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteStatus": "requires_live_quoter",
+        "poolPathKey": "default_pool_a|default_pool_b|default_pool_c",
+        "temporaryRoute": False,
+        "temporaryRoutePolicy": {},
+        "quoteAnalysis": {"steps": []},
+    }
+    temporary_route = {
+        **default_route,
+        "quoteStatus": "live_verified",
+        "poolPathKey": "temporary_pool_a|bridge_pool|temporary_pool_c",
+        "temporaryRoute": True,
+        "notForDefaultScan": True,
+        "temporaryRoutePolicy": {
+            "temporaryRoute": True,
+            "notForDefaultScan": True,
+            "executeLast": True,
+        },
+        "quoteAnalysis": {"steps": [{"hop": 1}]},
+    }
+
+    deduped = _dedupe_payload_routes([temporary_route, default_route])
+
+    assert len(deduped) == 2
+    assert deduped[0]["temporaryRoute"] is False
+    assert deduped[0]["quoteStatus"] == "requires_live_quoter"
+    assert deduped[1]["temporaryRoute"] is True
+    assert deduped[1]["quoteStatus"] == "live_verified"
 
 
 def _write_json(path, payload):

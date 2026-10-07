@@ -1092,3 +1092,127 @@ def test_dex_market_observation_filters_same_symbol_reentry_without_profit(monke
     assert all(sequence["kind"] != "anchor_closed_loop_reentry" for sequence in observation["observationSequences"])
 
 
+def test_dex_market_observation_preserves_two_candidate_pools_per_hop(monkeypatch):
+    usdc = "0x" + "1" * 40
+    weth = "0x" + "2" * 40
+    dai = "0x" + "3" * 40
+    deep_ids = ["0x" + "a" * 40, "0x" + "d" * 40, "0x" + "f" * 40]
+    shallow_ids = ["0x" + "b" * 40, "0x" + "e" * 40, "0x" + "g" * 40]
+    pool_usdc_weth_deep = _pool(deep_ids[0], "USDC", "WETH", usdc, weth, price_native="0.0004", token0_amount=1_000_000, token1_amount=400, tvl_usd=2_000_000)
+    pool_usdc_weth_shallow = _pool(shallow_ids[0], "USDC", "WETH", usdc, weth, price_native="0.0004", token0_amount=1_000_000, token1_amount=400, tvl_usd=1_000_000)
+    pool_usdc_dai_deep = _pool(deep_ids[1], "USDC", "DAI", usdc, dai, price_native="1.0", token0_amount=1_000_000, token1_amount=1_000_000, tvl_usd=2_000_000)
+    pool_usdc_dai_shallow = _pool(shallow_ids[1], "USDC", "DAI", usdc, dai, price_native="1.0", token0_amount=1_000_000, token1_amount=1_000_000, tvl_usd=1_000_000)
+    pool_weth_dai_deep = _pool(deep_ids[2], "WETH", "DAI", weth, dai, price_native="2500.0", token0_amount=400, token1_amount=1_000_000, tvl_usd=2_000_000)
+    pool_weth_dai_shallow = _pool(shallow_ids[2], "WETH", "DAI", weth, dai, price_native="2500.0", token0_amount=400, token1_amount=1_000_000, tvl_usd=1_000_000)
+    for pool in (
+        pool_usdc_weth_deep,
+        pool_usdc_weth_shallow,
+        pool_usdc_dai_deep,
+        pool_usdc_dai_shallow,
+        pool_weth_dai_deep,
+        pool_weth_dai_shallow,
+    ):
+        pool["hasLiquidity"] = True
+        pool["usableForObservation"] = True
+    pair_reports = [
+        {
+            "symbolPair": "USDC:WETH",
+            "tokenX": usdc,
+            "tokenY": weth,
+            "tokenXSymbol": "USDC",
+            "tokenYSymbol": "WETH",
+            "preferredPools": [pool_usdc_weth_deep, pool_usdc_weth_shallow],
+            "executionPools": [pool_usdc_weth_deep, pool_usdc_weth_shallow],
+            "strictQualityPools": [pool_usdc_weth_deep, pool_usdc_weth_shallow],
+        },
+        {
+            "symbolPair": "USDC:DAI",
+            "tokenX": usdc,
+            "tokenY": dai,
+            "tokenXSymbol": "USDC",
+            "tokenYSymbol": "DAI",
+            "preferredPools": [pool_usdc_dai_deep, pool_usdc_dai_shallow],
+            "executionPools": [pool_usdc_dai_deep, pool_usdc_dai_shallow],
+            "strictQualityPools": [pool_usdc_dai_deep, pool_usdc_dai_shallow],
+        },
+        {
+            "symbolPair": "WETH:DAI",
+            "tokenX": weth,
+            "tokenY": dai,
+            "tokenXSymbol": "WETH",
+            "tokenYSymbol": "DAI",
+            "preferredPools": [pool_weth_dai_deep, pool_weth_dai_shallow],
+            "executionPools": [pool_weth_dai_deep, pool_weth_dai_shallow],
+            "strictQualityPools": [pool_weth_dai_deep, pool_weth_dai_shallow],
+        },
+    ]
+    payload = {
+        "pairs": pair_reports,
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "anchorGroups": build_anchor_candidate_groups(pair_reports, anchor_symbols=["USDC"]),
+    }
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+
+    observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v3"])
+    assert observation["summary"]["closedLoopRouteCount"] == 0
+
+    target_path = "USDC -> WETH -> DAI -> USDC"
+    overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v3"])
+    overview_path = next(
+        path
+        for path in overview["arbitragePaths"]
+        if (path.get("overviewRoute") or {}).get("pathText") == target_path
+    )
+    assert len(overview_path["hopCandidates"]) == 3
+    assert [candidate["poolCount"] for candidate in overview_path["hopCandidates"]] == [2, 2, 2]
+    assert overview_path["overviewRoute"]["hopCandidateCombinationCount"] == 8
+    preferred_by_leg = {
+        candidate["leg"]: candidate["preferredPoolId"]
+        for candidate in overview_path["hopCandidates"]
+    }
+    assert preferred_by_leg == {"x-y": deep_ids[0], "y-z": deep_ids[2], "z-x": deep_ids[1]}
+
+    quotes = dex_surfaces.dex_quote_routes_payload(chain_id=46630, protocols=["uniswap_v3"])
+    quote_route = next(route for route in quotes["routes"] if route.get("symbolPair") == target_path)
+    assert quote_route["hopCandidateCombinationCount"] == 8
+    assert quote_route["recommendedFirstPriority"] is True
+    assert quote_route["routeRecommendationBasis"] == "tvl_depth_desc"
+    assert quote_route["hopCandidateSelection"]["selectionBasis"] == "tvl_depth_desc"
+    assert quote_route["hopCandidateSelection"]["preferredPoolIds"] == [
+        deep_ids[0],
+        deep_ids[2],
+        deep_ids[1],
+    ]
+
+
+def test_dex_best_pool_selector_extension_point_controls_preferred_pool():
+    from market.binance_market.dex_surface_observation_sequences import (
+        _hop_candidate_set,
+        _select_best_pool_rows,
+    )
+    from market.binance_market.dex_surface_types import _pool_address
+
+    pool_deep = _pool("0x" + "a" * 40, "USDC", "WETH", "0x" + "1" * 40, "0x" + "2" * 40, price_native="0.0004", token0_amount=1_000_000, token1_amount=400, tvl_usd=2_000_000)
+    pool_shallow = _pool("0x" + "b" * 40, "USDC", "WETH", "0x" + "1" * 40, "0x" + "2" * 40, price_native="0.0004", token0_amount=1_000_000, token1_amount=400, tvl_usd=1_000_000)
+    for pool in (pool_deep, pool_shallow):
+        pool["hasLiquidity"] = True
+        pool["usableForObservation"] = True
+
+    assert _pool_address(_select_best_pool_rows([pool_deep, pool_shallow])[0]) == pool_deep["pool"]
+
+    selector_rows = _select_best_pool_rows(
+        [pool_deep, pool_shallow],
+        selector=lambda rows: list(reversed(rows)),
+    )
+    candidate = _hop_candidate_set(
+        leg="x-y",
+        direction="yc",
+        from_token={"symbol": "USDC", "address": "0x" + "1" * 40},
+        to_token={"symbol": "WETH", "address": "0x" + "2" * 40},
+        pools=selector_rows,
+    )
+    assert candidate["preferredPoolId"] == pool_shallow["pool"]
+
+

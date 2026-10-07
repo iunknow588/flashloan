@@ -82,7 +82,6 @@ def _closed_loop_checks(
     requested_tokens: list[str],
     *,
     eth_pair_token_payload: dict[str, Any] | None = None,
-    route_limit: int = 500,
 ) -> dict[str, Any]:
     eth_tokens = _eth_pool_tokens(index)
     candidate_tokens = list(eth_pair_token_payload.get("ycZc") or []) if eth_pair_token_payload else []
@@ -204,8 +203,10 @@ def _closed_loop_checks(
         "missingRequestedTokens": missing_requested,
         "matchedEthPoolTokenCount": len(matched_items),
         "candidateHitCount": len(candidate_hits),
-        "candidateHits": candidate_hits[: route_limit],
-        "matchedEthPoolTokenSample": checks[: route_limit],
+        # Diagnostics must not truncate the verified set. The closed-loop count
+        # follows the pool graph and changes as V4 pools initialize/liquidate.
+        "candidateHits": candidate_hits,
+        "matchedEthPoolTokenSample": checks,
         "allVerifiedTokenPairSlots": len(matched_items) * max(0, len(matched_items) - 1),
         "verifiedBridgePoolCount": sum(1 for check in checks if check.get("closedLoopVerified")),
         "notes": [

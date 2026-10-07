@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Callable
 
+from core.chain_data_registry import chain_data_file_path
 from dex.intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources import (
     ZERO_ADDRESS,
     v4_flash_accounting_source_rows,
@@ -13,7 +16,10 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
     _load_token_balance_scan_cache,
     load_robinhood_testnet_v4_pool_liquidity,
 )
-from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+)
 
 
 def _symbol(value: object) -> str:
@@ -40,6 +46,35 @@ def _pool_edge(pool: dict[str, Any]) -> tuple[str, str] | None:
 def _route_symbol_allowed(symbol: object) -> bool:
     text = _symbol(symbol)
     return bool(text) and not text.startswith("ROBINHOOD")
+
+
+def _testnet_observation_scope_token_addresses() -> set[str]:
+    """Return the temporary testnet observation token scope.
+
+    The test network deliberately starts with stablecoins plus native ETH and
+    TZ so the pool graph is small and deterministic. This is a pool-scope
+    constraint, not a route-count cap: whenever stable/TZ pools grow, the
+    closed-loop set grows with them and no hard ``44``/``200`` limit is applied.
+    """
+    addresses = {_address(ZERO_ADDRESS)}
+    try:
+        path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_token_allowlist")
+        if path is None:
+            return addresses
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return addresses
+    tokens = payload.get("tokens") if isinstance(payload.get("tokens"), dict) else {}
+    for symbol, row in tokens.items():
+        if not isinstance(row, dict):
+            continue
+        normalized_symbol = _symbol(symbol)
+        category = _symbol(row.get("category"))
+        if category == "STABLECOIN" or normalized_symbol in {"ETH", "TZ"}:
+            address = _address(row.get("address"))
+            if address:
+                addresses.add(address)
+    return addresses
 
 
 def _protocol_in_scope(protocols: list[str] | None) -> bool:
@@ -163,6 +198,58 @@ def _best_pool(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     # Keep the stable sort semantics used by callers: usable rows first, then
     # evidence-missing rows, then older no-liquidity rows.
     return candidates[0] if candidates else None
+
+
+def _ordered_pools(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Order pools depth-first without discarding depth-less candidates.
+
+    The first row remains the recommended first-priority working pool.  Rows
+    that lack liquidity evidence stay in the candidate list so the quote/routing
+    page can still see the full graph and attempt price-based replacement when
+    the recommended closed loop is not profitable.
+    """
+    candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
+    candidates.sort(
+        key=lambda row: (
+            not _pool_usable(row),
+            not bool(row.get("recentSwapActive")),
+            -float((row.get("balances") or {}).get("tvlUsd") or 0),
+            -float(row.get("liquidityIndex") or 0),
+            str(_pool_id(row)),
+        ),
+    )
+    return candidates
+
+
+def _hop_candidate(
+    *,
+    leg: str,
+    direction: str,
+    from_token: dict[str, Any],
+    to_token: dict[str, Any],
+    pools: list[dict[str, Any]],
+) -> dict[str, Any]:
+    rows = [
+        _step_row(pool, from_token=from_token, to_token=to_token, direction=direction)
+        for pool in _ordered_pools(pools)
+    ]
+    usable_rows = [row for row in rows if _pool_usable(row)]
+    preferred = usable_rows[0] if usable_rows else (rows[0] if rows else None)
+    return {
+        "leg": leg,
+        "direction": direction,
+        "fromSymbol": _symbol(from_token.get("symbol")),
+        "toSymbol": _symbol(to_token.get("symbol")),
+        "fromAddress": _address(from_token.get("address")),
+        "toAddress": _address(to_token.get("address")),
+        "symbolPair": f"{_symbol(from_token.get('symbol'))} -> {_symbol(to_token.get('symbol'))}",
+        "poolCount": len(rows),
+        "usablePoolCount": len(usable_rows),
+        "selectionBasis": "tvl_depth_desc",
+        "preferredPoolId": _pool_id(preferred) if preferred else "",
+        "preferredPoolUsable": bool(usable_rows),
+        "pools": rows,
+    }
 
 
 def _pool_usable(row: dict[str, Any]) -> bool:
@@ -409,10 +496,16 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
     protocols: list[str] | None,
     pool_index_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_index,
     pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
+    scope_token_addresses: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     protocol_set = {str(protocol or "").strip().lower() for protocol in (protocols or []) if str(protocol or "").strip()}
     if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or (protocol_set and "uniswap_v4" not in protocol_set):
         return [], {"enabled": False, "status": "out_of_scope"}
+    if scope_token_addresses is None and (
+        pool_index_loader is load_robinhood_testnet_v4_pool_index
+        and pool_liquidity_loader is load_robinhood_testnet_v4_pool_liquidity
+    ):
+        scope_token_addresses = _testnet_observation_scope_token_addresses()
 
     needed_edges: dict[tuple[str, str], tuple[dict[str, Any], dict[str, Any]]] = {}
     token_metadata: dict[str, dict[str, Any]] = {}
@@ -425,11 +518,15 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
             y_symbol = _symbol(yc_token.get("symbol"))
             if not y_address or not y_symbol or not _route_symbol_allowed(y_symbol):
                 continue
+            if scope_token_addresses is not None and y_address not in scope_token_addresses:
+                continue
             token_metadata.setdefault(y_address, yc_token)
             for zc_token in _group_direction_tokens(group, "zc"):
                 z_address = _address(zc_token.get("address"))
                 z_symbol = _symbol(zc_token.get("symbol"))
                 if not z_address or not z_symbol or not _route_symbol_allowed(z_symbol) or z_address == y_address:
+                    continue
+                if scope_token_addresses is not None and z_address not in scope_token_addresses:
                     continue
                 candidate_combination_count += 1
                 token_metadata.setdefault(z_address, zc_token)
@@ -549,11 +646,17 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
     protocols: list[str] | None,
     pool_index_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_index,
     pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
-    route_limit: int = 200,
+    route_limit: int | None = None,
+    scope_token_addresses: set[str] | None = None,
 ) -> dict[str, Any]:
     protocol_set = {str(protocol or "").strip().lower() for protocol in (protocols or []) if str(protocol or "").strip()}
     if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or (protocol_set and "uniswap_v4" not in protocol_set):
         return {"enabled": False, "status": "out_of_scope", "observationSequences": []}
+    if scope_token_addresses is None and (
+        pool_index_loader is load_robinhood_testnet_v4_pool_index
+        and pool_liquidity_loader is load_robinhood_testnet_v4_pool_liquidity
+    ):
+        scope_token_addresses = _testnet_observation_scope_token_addresses()
 
     index = pool_index_loader()
     liquidity = pool_liquidity_loader()
@@ -582,6 +685,8 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if isinstance(row, dict)
     }
     known_token_addresses = set(_known_token_pool_ids().keys())
+    if scope_token_addresses is not None:
+        known_token_addresses &= scope_token_addresses
     for address, entry in cached_entries.items():
         if not isinstance(entry, dict) or str(address).lower() in configured_addresses:
             continue
@@ -649,6 +754,12 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             liquidity_rows_by_id[pool_id] = pool
 
     flash_rows = v4_flash_accounting_source_rows(liquidity, pool_manager=pool_manager)
+    if scope_token_addresses is not None:
+        flash_rows = [
+            row
+            for row in flash_rows
+            if _address(row.get("currency_address") or row.get("token_address")) in scope_token_addresses
+        ]
     metadata_by_address = _token_metadata_from_flash_rows(flash_rows)
     funds: list[dict[str, Any]] = []
     for row in flash_rows:
@@ -677,6 +788,10 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             continue
         edge = _pool_edge(pool)
         if edge is None:
+            continue
+        if scope_token_addresses is not None and (
+            edge[0] not in scope_token_addresses or edge[1] not in scope_token_addresses
+        ):
             continue
         row = _pool_row(pool, metadata_by_address, source="v4_pool_index_fund_anchor_pair_observation")
         if row is None:
@@ -712,12 +827,18 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if ZERO_ADDRESS.lower() not in edge:
             non_eth_pair_count += 1
 
+    scope_pool_ids = {
+        _pool_id(row)
+        for edge_rows in pools_by_edge.values()
+        for row in edge_rows
+        if _pool_id(row)
+    }
     # The testnet pool index may contain more initialized AMM pairs than the
     # flash-source allowlist. Promote known/system-owned tokens that actually
     # appear in the pool graph so route discovery is not limited to tz/ta/tb
     # only, without treating every unrelated initialized currency as a flash
     # anchor.
-    for address in sorted(set(_known_token_pool_ids().keys())):
+    for address in sorted(known_token_addresses):
         token = token_by_address.get(address)
         if token is None or address in funds_by_address:
             continue
@@ -763,16 +884,18 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         z_address: str,
         yz_pool: dict[str, Any],
     ) -> bool:
-        # When the liquidity cache is populated, the handoff must only carry
-        # closed loops whose intermediate exchange pool has liquidity evidence.
-        if liquidity_rows_by_id and not _pool_usable(yz_pool):
+        # Keep every closed loop whose Y-Z bridge pool exists, including cold
+        # pools with no liquidity evidence. DEX overview/quote pages can then
+        # distinguish "no depth" from "missing route" and perform price-based
+        # candidate replacement without a hard market-observation cap.
+        xy_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((anchor["address"], y_address)))) or [])
+        yz_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((y_address, z_address)))) or [])
+        zx_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((z_address, anchor["address"])))) or [])
+        if not xy_rows or not yz_rows or not zx_rows:
             return False
-        xy_pool = _best_pool(pools_by_edge.get(tuple(sorted((anchor["address"], y_address)))) or [])
-        zx_pool = _best_pool(pools_by_edge.get(tuple(sorted((z_address, anchor["address"])))) or [])
-        if xy_pool is None or zx_pool is None:
-            return False
-        if liquidity_rows_by_id and (not _pool_usable(xy_pool) or not _pool_usable(zx_pool)):
-            return False
+        xy_pool = xy_rows[0]
+        yz_pool = yz_rows[0]
+        zx_pool = zx_rows[0]
         first_token = token_by_address.get(y_address)
         second_token = token_by_address.get(z_address)
         if first_token is None or second_token is None:
@@ -789,6 +912,34 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             return False
         seen.add(key)
         closed_loop_fund_anchor_edges.add(tuple(sorted((y_address, z_address))))
+        hop_candidates = [
+            _hop_candidate(
+                leg="x-y",
+                direction="yc",
+                from_token=anchor,
+                to_token=first_token,
+                pools=xy_rows,
+            ),
+            _hop_candidate(
+                leg="y-z",
+                direction="bridge",
+                from_token=first_token,
+                to_token=second_token,
+                pools=yz_rows,
+            ),
+            _hop_candidate(
+                leg="z-x",
+                direction="zc",
+                from_token=second_token,
+                to_token=anchor,
+                pools=zx_rows,
+            ),
+        ]
+        hop_candidate_counts = {
+            "x-y": len(xy_rows),
+            "y-z": len(yz_rows),
+            "z-x": len(zx_rows),
+        }
         route_rows = [
             _step_row(xy_pool, from_token=anchor, to_token=first_token, direction="yc"),
             _step_row(yz_pool, from_token=first_token, to_token=second_token, direction="bridge"),
@@ -810,6 +961,9 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
                 "bridgePool": route_rows[1],
                 "zcPool": route_rows[2],
                 "routePools": route_rows,
+                "hopCandidates": hop_candidates,
+                "hopCandidateCounts": hop_candidate_counts,
+                "hopCandidateCombinationCount": max(1, len(xy_rows) * len(yz_rows) * len(zx_rows)),
                 "candidatePoolCount": "3",
                 "matchedPoolCount": "3",
                 "anchorAddresses": [anchor["address"]],
@@ -819,7 +973,9 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
                 "poolManagerBalanceRaw": anchor.get("poolManagerBalanceRaw"),
             }
         )
-        return len(sequences) >= route_limit
+        if route_limit is not None:
+            return len(sequences) >= route_limit
+        return False
 
     for anchor in funds:
         for y_address in sorted(neighbors_by_address.get(anchor["address"]) or []):
@@ -831,9 +987,9 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
                     continue
                 if _append_route(anchor=anchor, y_address=y_address, z_address=z_address, yz_pool=yz_pool):
                     break
-            if len(sequences) >= route_limit:
+            if route_limit is not None and len(sequences) >= route_limit:
                 break
-        if len(sequences) >= route_limit:
+        if route_limit is not None and len(sequences) >= route_limit:
             break
 
     # The observation page only needs bridge pools that participate in a
@@ -906,6 +1062,8 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         pool_id = str(liquidity_row.get("poolId") or liquidity_row.get("pool") or "").strip().lower()
         if not pool_id:
             continue
+        if scope_token_addresses is not None and pool_id not in scope_pool_ids:
+            continue
         if not (
             bool(liquidity_row.get("hasLiquidity"))
             or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
@@ -962,12 +1120,21 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         "liquiditySource": liquidity.get("source"),
         "blockNumber": index.get("block_number"),
         "refreshedAt": index.get("refreshed_at"),
-        "activePoolIds": sorted(liquidity_rows_by_id),
+        "activePoolIds": sorted(
+            pool_id
+            for pool_id in liquidity_rows_by_id
+            if scope_token_addresses is None or pool_id in scope_pool_ids
+        ),
         "liquidPoolIds": sorted(
             pool_id
             for pool_id, liquidity_row in liquidity_rows_by_id.items()
-            if bool(liquidity_row.get("hasLiquidity"))
-            or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+            if (
+                scope_token_addresses is None or pool_id in scope_pool_ids
+            )
+            and (
+                bool(liquidity_row.get("hasLiquidity"))
+                or str(liquidity_row.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
+            )
         ),
         "recentSwapFilterApplied": False,
         "liquidityFilterApplied": True,
@@ -1010,6 +1177,7 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             key=lambda item: (str(item.get("symbol") or ""), str(item.get("address") or "")),
         ),
         "observationSequences": sequences,
+        "closedLoopSequences": sequences,
     }
 
 
@@ -1031,6 +1199,7 @@ def bridge_pairs_for_anchor_groups(
         anchor_groups,
         chain_id=chain_id,
         protocols=protocols,
+        scope_token_addresses=_testnet_observation_scope_token_addresses(),
     )
 
 
@@ -1042,6 +1211,7 @@ def fund_anchor_pair_observation(
     return robinhood_testnet_v4_fund_anchor_pair_observation(
         chain_id=chain_id,
         protocols=protocols,
+        scope_token_addresses=_testnet_observation_scope_token_addresses(),
     )
 
 
@@ -1049,6 +1219,7 @@ def market_observation_flow(*, request: Any, **_: Any) -> dict[str, Any]:
     return robinhood_testnet_v4_fund_anchor_pair_observation(
         chain_id=request.chain_id,
         protocols=[request.protocol] if request.protocol else [],
+        scope_token_addresses=_testnet_observation_scope_token_addresses(),
     )
 
 

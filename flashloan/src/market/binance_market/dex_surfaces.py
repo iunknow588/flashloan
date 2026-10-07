@@ -310,6 +310,15 @@ def dex_overview_payload(
                     "overviewProfitableRouteCount": 0,
                     "overviewExecutableCandidateCount": 0,
                     "overviewChainSubmissionCandidateCount": 0,
+                    "hopCandidateRouteCount": sum(1 for path in overview_paths if (path.get("hopCandidates") or [])),
+                    "hopCandidateCombinationCount": sum(
+                        max(1, int(path.get("hopCandidateCombinationCount") or 1))
+                        for path in overview_paths
+                    ),
+                    "hopCandidatePoolCount": sum(
+                        sum(int(candidate.get("poolCount") or 0) for candidate in path.get("hopCandidates") or [])
+                        for path in overview_paths
+                    ),
                 },
                 "decisionBasis": "robinhood_testnet_market_observation_closed_loop" if chain_id == ROBINHOOD_TESTNET_CHAIN_ID else "market_observation_closed_loop",
                 "marketObservationSource": "cached_snapshot",
@@ -457,6 +466,15 @@ def dex_overview_payload(
             "overviewTokenBasisRouteCount": sum(1 for profit in overview_profits if profit.get("referenceReturnBasis") == "borrow_token"),
             "overviewTokenBasisProfitableRouteCount": sum(1 for profit in overview_profits if profit.get("tokenBasisProfitable")),
             "overviewBestTokenBasisNetReturnBps": max(token_basis_returns) if token_basis_returns else None,
+            "hopCandidateRouteCount": sum(1 for path in ready_paths if (path.get("hopCandidates") or [])),
+            "hopCandidateCombinationCount": sum(
+                max(1, int(path.get("hopCandidateCombinationCount") or 1))
+                for path in ready_paths
+            ),
+            "hopCandidatePoolCount": sum(
+                sum(int(candidate.get("poolCount") or 0) for candidate in path.get("hopCandidates") or [])
+                for path in ready_paths
+            ),
         },
         "decisionBasis": decision_basis,
         "marketObservationSource": market_observation_source,
@@ -539,24 +557,14 @@ def dex_quote_routes_payload(
             )
         return payload
 
-    observation = dex_market_observation_surface_payload(
+    overview = dex_overview_payload(
         chain_id=chain_id,
         protocols=scope_protocols,
         use_static_observation=use_static_observation,
     )
-    settlement = observation.get("dexSettlement") or {}
+    observation = overview.get("marketObservation") or {}
+    settlement = overview.get("dexSettlement") or {}
     price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
-    frame_context = _route_framework_context_from_observation(
-        observation,
-        None,
-        chain_id=chain_id,
-        protocols=scope_protocols,
-    )
-    overview = _quote_routes_overview_payload(
-        observation=observation,
-        frame_context=frame_context,
-        settlement=settlement,
-    )
     payload = build_quote_routes_payload_from_overview(
         overview,
         chain_id=chain_id,
@@ -612,56 +620,13 @@ def _quote_routes_payload_for_robinhood_family(
     anchor: str | None = None,
     observation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    overview = None
-    if observation is None:
-        observation = _cached_framework_surface_payload(
-            "dex_market_observation",
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
-    if observation is None and use_static_observation:
-        observation = dex_market_observation_surface_payload(
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=True,
-        )
-    if price_map is None and observation is not None:
-        price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
-    if price_map is None:
-        price_map = {}
-    if overview is None and observation is not None:
-        frame_context = _route_framework_context_from_observation(
-            observation,
-            None,
-            chain_id=chain_id,
-            protocols=protocols,
-        )
-        overview = _quote_routes_overview_payload(
-            observation=observation,
-            frame_context=frame_context,
-            settlement=observation.get("dexSettlement") or {},
-        )
-    else:
-        overview = _cached_surface_payload(
-            "dex_overview",
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
-        if overview is None:
-            overview = dex_overview_payload(
-                chain_id=chain_id,
-                protocols=protocols,
-                use_static_observation=use_static_observation,
-            )
-            _cache_surface_payload(
-                "dex_overview",
-                overview,
-                chain_id=chain_id,
-                protocols=protocols,
-                use_static_observation=use_static_observation,
-            )
+    # Quote/routing must consume closed loops formed by the DEX overview. It
+    # must not rebuild A-B-C-A paths from observation/anchor sets on its own.
+    overview = dex_overview_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
     if observation is None:
         observation = _cached_framework_surface_payload(
             "dex_market_observation",
@@ -706,49 +671,6 @@ def _quote_routes_payload_for_robinhood_family(
             use_static_observation=use_static_observation,
         )
     return payload
-
-
-def _quote_routes_overview_payload(
-    *,
-    observation: dict[str, Any],
-    frame_context: dict[str, Any],
-    settlement: dict[str, Any],
-) -> dict[str, Any]:
-    observation_summary = observation.get("summary") if isinstance(observation.get("summary"), dict) else {}
-    overview_paths = frame_context.get("overview_paths") or []
-    closed_loop_route_count = len(overview_paths) or int(observation_summary.get("closedLoopRouteCount") or 0)
-    return {
-        "arbitragePaths": [_dex_table_route(path, observation) for path in frame_context["overview_paths"]],
-        "summary": {
-            "tableSource": "dex_table",
-            "referencedTable": "ob_table",
-            "poolIndexVersion": observation.get("poolIndexVersion") or {},
-            "probeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
-            "anchorBorrowSymbols": frame_context["anchor_symbols"],
-            "closedLoopAnchorSymbols": frame_context["closed_loop_anchor_symbols"],
-            "closedLoopAnchorCount": len(frame_context["closed_loop_anchor_symbols"]),
-            "observationAnchorSymbols": frame_context["observation_anchor_symbols"],
-            "observationAnchorCount": len(frame_context["observation_anchor_symbols"]),
-            "pathSource": frame_context["path_source"],
-            "marketObservationRouteCount": closed_loop_route_count,
-            "marketObservationSequenceCount": int(observation_summary.get("observationSequenceCount") or 0),
-            "chainSpecificObservationPairCount": len(observation.get("chainSpecificObservationPairs") or []),
-        },
-        "marketObservation": {
-            "summary": observation.get("summary") or {},
-            "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
-        },
-        "routeFrameworkSource": frame_context["path_source"],
-        "marketObservationSource": observation.get("marketObservationSource") or "computed",
-        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
-        or observation.get("marketObservationSource")
-        or "computed",
-        "tableSource": "dex_table",
-        "referencedTable": "ob_table",
-        "poolIndexVersion": observation.get("poolIndexVersion") or {},
-        "dexSettlement": settlement,
-        "poolStaticTable": observation.get("poolStaticTable") or {},
-    }
 
 
 def dex_quote_request_payload(

@@ -1,6 +1,10 @@
     const $ = id => document.getElementById(id);
     const APP_VERSION = "2026.10.06.01";
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[ch]));
+    const shortPoolId = value => {
+      const text = String(value || "");
+      return text.length > 18 ? `${text.slice(0, 14)}...` : text;
+    };
     const lines = items => (Array.isArray(items) ? items : []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
     const numeric = (value, digits = 4) => {
       if (value === null || value === undefined || value === "") return "-";
@@ -685,6 +689,73 @@
         live_onchain_evidence: {...liveEvidence, hops: liveHops},
       };
     };
+    const hopCandidateSectionHtml = route => {
+      const candidates = Array.isArray(route?.hopCandidates)
+        ? route.hopCandidates.filter(candidate => candidate && typeof candidate === "object")
+        : [];
+      if (!candidates.length) return "";
+      const selection = route.hopCandidateSelection && typeof route.hopCandidateSelection === "object"
+        ? route.hopCandidateSelection
+        : {};
+      const preferredIds = Array.isArray(selection.preferredPoolIds)
+        ? selection.preferredPoolIds.map(value => String(value || "").toLowerCase())
+        : [];
+      const combinationCount = Number(route.hopCandidateCombinationCount || candidates.reduce((total, candidate) => total * Math.max(1, Number(candidate.poolCount) || 0), 1));
+      const summary = candidates.map(candidate => {
+        const usable = Number(candidate.usablePoolCount ?? candidate.poolCount ?? 0);
+        return `<span class="badge">${esc(candidate.leg || "-")} ${esc(candidate.symbolPair || "-")} / ${numeric(candidate.poolCount ?? 0, 0)} 池 / 可用 ${numeric(usable, 0)}</span>`;
+      }).join("");
+      const replacement = route.hopCandidateReplacement && typeof route.hopCandidateReplacement === "object"
+        ? route.hopCandidateReplacement
+        : {};
+      const temporaryPolicy = route.temporaryRoutePolicy && typeof route.temporaryRoutePolicy === "object"
+        ? route.temporaryRoutePolicy
+        : {};
+      const temporaryRoute = Boolean(route.temporaryRoute || temporaryPolicy.temporaryRoute || temporaryPolicy.executeLast);
+      const temporaryBadge = temporaryRoute
+        ? '<span class="badge warn">临时路径 · 不写回默认扫描 · 执行顺序最后 · 执行后仅入历史</span>'
+        : "";
+      const replacementReasonLabels = {
+        better_candidate_found: "已替换候选池",
+        no_candidate_variants: "无可替换候选",
+        no_better_candidate: "无更优候选",
+        no_replacement_trigger: "当前路径无需替换",
+      };
+      const replacementText = replacement.attempted
+        ? (replacementReasonLabels[replacement.reason] || String(replacement.reason || "已评估候选替换"))
+        : "";
+      const replacementBadge = replacement.attempted
+        ? `<span class="badge ${replacement.reason === "better_candidate_found" ? "good" : "warn"}">候选替换：${esc(replacementText)}${Array.isArray(replacement.changedLegs) && replacement.changedLegs.length ? ` / 更换 ${esc(replacement.changedLegs.join("、"))}` : ""}</span>`
+        : "";
+      const pricePreferredLabel = selection.selectionBasis === "best_candidate_net_profit" || temporaryRoute
+        ? " / 价格/净利首选"
+        : " / 深度首选";
+      const body = candidates.map(candidate => {
+        const pools = Array.isArray(candidate.pools)
+          ? candidate.pools.filter(pool => pool && typeof pool === "object")
+          : [];
+        const chips = pools.slice(0, 6).map(pool => {
+          const id = String(pool?.pool || pool?.poolId || "-").toLowerCase();
+          const preferred = preferredIds.includes(id) ? pricePreferredLabel : "";
+          const liquidity = poolExplicitlyUsable(pool) ? "有流动性" : (poolExplicitlyUnusable(pool) ? "无流动性" : "未标注");
+          const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
+          return `<span class="badge ${poolExplicitlyUsable(pool) ? "good" : "warn"}" title="${esc(pool?.pool || pool?.poolId || "-")}">${esc(shortPoolId(pool?.pool || pool?.poolId || "-"))}${esc(preferred)} / ${esc(liquidity)}${tvl > 0 ? ` / $${numeric(tvl, 0)}` : ""}</span>`;
+        }).join("");
+        return `<tr>
+          <td>${esc(candidate.leg || "-")}</td>
+          <td>${esc(candidate.direction || "-")}</td>
+          <td>${esc(candidate.symbolPair || "-")}</td>
+          <td>${numeric(candidate.poolCount ?? pools.length, 0)}</td>
+          <td>${numeric(candidate.usablePoolCount ?? "-", 0)}</td>
+          <td>${esc(candidate.preferredPoolId || "-")}</td>
+          <td>${chips || '<span class="muted">无候选池明细</span>'}</td>
+        </tr>`;
+      }).join("");
+      return `<div class="table-wrap hop-candidates"><h4>每跳候选池（路径组合 ${numeric(combinationCount, 0)}，当前选择 ${esc(selection.selectionBasis || "tvl_depth_desc")}）</h4><div class="badges">${summary}${temporaryBadge}${replacementBadge}</div><table>
+        <thead><tr><th>跳</th><th>方向</th><th>交易对</th><th>候选池</th><th>可用池</th><th>当前首选</th><th>池列表</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>`;
+    };
     function routeHtml(route, index) {
       const evidence = routeEvidence(route);
       const analysis = routeAnalysis(route);
@@ -864,6 +935,7 @@
       ${bestCalcHtml}
       <div class="table-wrap"><table><thead><tr><th>跳</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池</th><th>手续费 bps</th><th>输入</th><th>输出</th><th>汇率</th><th>价格影响 / 上限</th></tr></thead><tbody>${stepRows || '<tr><td colspan="10">暂无单跳报价数据</td></tr>'}</tbody></table></div>
       <div class="recommendation" data-route-recommendation="${index}"><strong>建议：${esc(actionText)}</strong>${latestBroadcastForStage?.txHash ? `<div class="muted">最近已执行：${esc(latestBroadcastForStage.txHash)}${latestBroadcastForStage.txHashes?.length > 1 ? ` 等 ${latestBroadcastForStage.txHashes.length} 笔` : ""}</div>` : ""}<ol>${recommendationRowsDeduped.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
+      ${hopCandidateSectionHtml(route)}
       <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div><div class="badges">${requests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div></article>`;
     }
     function routeHtmlSafe(route, index) {

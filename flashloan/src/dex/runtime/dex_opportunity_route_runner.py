@@ -22,6 +22,7 @@ from dex.runtime.dex_opportunity_helpers import (
     _route_evidence,
     _select_recordable_routes,
 )
+from dex.runtime.dex_opportunity_snapshot import _route_is_temporary
 
 
 QuotePayloadProvider = Callable[..., dict[str, Any]]
@@ -43,6 +44,19 @@ def _route_closed_loop_group_key(route: dict[str, Any]) -> str:
             if text:
                 return text
     return "fallback"
+
+
+def _closed_loop_review_group_key(route: dict[str, Any]) -> str:
+    """Return a review group key that isolates one-shot replacement routes."""
+    group_key = _route_closed_loop_group_key(route)
+    if _route_is_temporary(route):
+        pool_key = str(
+            route.get("poolPathKey")
+            or route.get("referencePoolPathKey")
+            or ""
+        ).strip().lower()
+        group_key = f"temporary:{group_key}:{pool_key}"
+    return group_key
 
 
 def _route_is_closed_loop_quad(route: dict[str, Any]) -> bool:
@@ -414,7 +428,7 @@ def build_dex_opportunity_attempts(
         for _original_index, _route, _attempt in selected_routes:
             if not isinstance(_route, dict):
                 continue
-            group_key = _route_closed_loop_group_key(_route)
+            group_key = _closed_loop_review_group_key(_route)
             route_group_by_key.setdefault(group_key, []).append(_route)
 
         group_evidence_cache: dict[str, dict[str, Any]] = {}
@@ -422,8 +436,8 @@ def build_dex_opportunity_attempts(
 
         def _review_one(item: tuple[int, dict[str, Any], dict[str, Any], int]) -> tuple[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]]:
             attempt_index, route, attempt, original_index = item
-            group_key = _route_closed_loop_group_key(route)
-            if _route_is_closed_loop_quad(route):
+            group_key = _closed_loop_review_group_key(route)
+            if _route_is_closed_loop_quad(route) and not _route_is_temporary(route):
                 with group_evidence_lock:
                     cached = group_evidence_cache.get(group_key)
                 if cached is not None:
@@ -435,7 +449,7 @@ def build_dex_opportunity_attempts(
             if _evidence_ready_for_auto_execute(recent_evidence):
                 reusable_evidence = deepcopy(recent_evidence)
                 reusable_evidence["reusedRecentAttemptEvidence"] = True
-                if _route_is_closed_loop_quad(route):
+                if _route_is_closed_loop_quad(route) and not _route_is_temporary(route):
                     reusable_evidence["closedLoopGroupEvidence"] = {"shared": False, "groupKey": group_key}
                     with group_evidence_lock:
                         group_evidence_cache.setdefault(group_key, deepcopy(reusable_evidence))
@@ -450,7 +464,7 @@ def build_dex_opportunity_attempts(
                 trigger_context=trigger_context or {},
                 closed_loop_routes_group=route_group_by_key.get(group_key) or [route],
             )
-            if _route_is_closed_loop_quad(route):
+            if _route_is_closed_loop_quad(route) and not _route_is_temporary(route):
                 if isinstance(evidence, dict):
                     evidence["closedLoopGroupEvidence"] = {"shared": False, "groupKey": group_key}
                 with group_evidence_lock:

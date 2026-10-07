@@ -54,6 +54,16 @@ def build_market_observation_payload(
     fund_anchor_pair_observation = _chain_fund_anchor_pair_observation(chain_id=chain_id, protocols=protocols)
     chain_observation_sequences: list[dict[str, Any]] = []
     observation_sequences: list[dict[str, Any]] = []
+    # The chain-specific fund-anchor observation is the authoritative source
+    # for closed A-B-C-A loops. The observation page intentionally keeps
+    # observationSequences empty for its UI, but the full sequence set must be
+    # carried through the payload so static snapshots and the DEX overview can
+    # reuse exactly the same closed loops without rebuilding them.
+    closed_loop_sequences = list(
+        fund_anchor_pair_observation.get("closedLoopSequences")
+        or fund_anchor_pair_observation.get("observationSequences")
+        or []
+    )
     active_pool_ids = {
         str(pool_id).lower()
         for pool_id in fund_anchor_pair_observation.get("activePoolIds") or []
@@ -196,6 +206,7 @@ def build_market_observation_payload(
                 for key, value in fund_anchor_pair_observation.items()
                 if key
                 not in {
+                    "closedLoopSequences",
                     "observationSequences",
                     "associatedObservationPairs",
                     "associatedObservationPools",
@@ -207,6 +218,7 @@ def build_market_observation_payload(
                 for key, value in fund_anchor_pair_observation.items()
                 if key
                 not in {
+                    "closedLoopSequences",
                     "observationSequences",
                     "associatedObservationPairs",
                     "associatedObservationPools",
@@ -214,12 +226,14 @@ def build_market_observation_payload(
                 }
             },
         },
+        "closedLoopSequences": closed_loop_sequences,
         "recentSwapPoolFilter": active_filter_summary,
         "liquidityPoolFilter": active_filter_summary,
         "summary": {
             "borrowableTokenCount": len(borrow_symbols),
             "observationAnchorCount": len(observation_anchors),
             "candidateObservationGroupCount": len(candidate_observation_groups),
+            "closedLoopSequenceCount": len(closed_loop_sequences),
             "bridgePoolIndexMatchedPairCount": len(bridge_pairs),
             "bridgePoolIndexMatchedPoolCount": _int(bridge_index_lookup.get("matchedPoolCount")),
             "chainSpecificObservationSequenceCount": len(chain_observation_sequences),

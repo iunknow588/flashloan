@@ -4,13 +4,16 @@ from typing import Any
 from core.contracts import validate_scoped_payload
 
 from core.market_observation_compact import (
+    _closed_loop_dedup_key,
     _candidate_groups_from_sequences,
     _closed_routes_from_sequences,
     _compact_candidate_group,
     _compact_observation_pair,
     _compact_observation_sequence,
     _compact_route_pool,
+    _dedup_closed_loop_sequences,
     _hydrate_route_pools_from_registry,
+    _merge_dynamic_hop_candidates_into_sequences,
     _observation_sequences_from_observation,
     _overview_route_summary,
     _pool_registry_from_sequences,
@@ -115,6 +118,34 @@ def static_snapshot_from_observation(
         if isinstance(value, dict):
             snapshot[key] = value
     sequences = _observation_sequences_from_observation(observation)
+    # Prefer the explicit closed-loop handoff produced by the chain
+    # fund-anchor observation. Dynamic reconstruction is only a legacy
+    # backfill and must not shrink or reshape the authoritative set.
+    explicit_closed_loop_sequences = [
+        _compact_observation_sequence(sequence)
+        for sequence in (
+            observation.get("closedLoopSequences")
+            or (observation.get("chainSpecificObservation") or {}).get(
+                "robinhoodTestnetV4FundAnchorPairObservation",
+                {},
+            ).get("closedLoopSequences")
+            or []
+        )
+        if isinstance(sequence, dict)
+    ]
+    if explicit_closed_loop_sequences:
+        sequences = _dedup_closed_loop_sequences(explicit_closed_loop_sequences)
+    else:
+        dynamic_paths = _dynamic_overview_path_candidates(observation, normalized_chain_id, selected_protocols)
+        sequences = _merge_dynamic_hop_candidates_into_sequences(sequences, dynamic_paths)
+    snapshot["summary"] = {
+        **(snapshot.get("summary") or {}),
+        "closedLoopSequenceCount": len(sequences),
+        "fundAnchorPairObservationRouteCount": len(sequences),
+        "nonEthPairFirstRouteCount": len(sequences),
+        "chainSpecificObservationSequenceCount": len(sequences),
+        "observationSequenceCount": len(sequences),
+    }
     sequence_anchors = sorted(
         {
             _text(sequence.get("anchorSymbol")).upper()
@@ -137,6 +168,11 @@ def static_snapshot_from_observation(
     if not isinstance(raw_groups, list):
         raw_groups = observation.get("anchorGroups")
     snapshot["observationSequences"] = sequences
+    snapshot["closedLoopSequences"] = [
+        _compact_observation_sequence(sequence)
+        for sequence in sequences
+        if isinstance(sequence, dict)
+    ]
     snapshot["poolRegistry"] = _pool_registry_from_sequences(sequences)
     snapshot["candidateObservationGroups"] = _candidate_groups_from_sequences(
         raw_groups if isinstance(raw_groups, list) else [],
@@ -160,6 +196,35 @@ def static_snapshot_from_observation(
     return snapshot
 
 
+def _dynamic_overview_path_candidates(
+    observation: dict[str, Any],
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> list[dict[str, Any]]:
+    """Return dynamic closed-loop candidates for sequence enrichment.
+
+    The market-observation facade owns the graph algorithm.  This helper is
+    intentionally isolated here so core snapshots can preserve per-hop
+    candidates without creating an import cycle.
+    """
+    if not (observation.get("bridgePairs") or observation.get("anchorGroups")):
+        return []
+    try:
+        from market.binance_market.dex_surface_observation_impl import (
+            _overview_path_candidates_from_observation_sets,
+        )
+
+        paths, _watch, _anchors = _overview_path_candidates_from_observation_sets(
+            observation,
+            None,
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+        return [path for path in paths if isinstance(path, dict)]
+    except Exception:
+        return []
+
+
 def overview_snapshot_from_observation(snapshot: dict[str, Any]) -> dict[str, Any]:
     overview = {
         key: value
@@ -168,11 +233,17 @@ def overview_snapshot_from_observation(snapshot: dict[str, Any]) -> dict[str, An
     }
     overview["snapshot_kind"] = "dex_overview_compact"
     overview["observationSnapshotPath"] = snapshot.get("path")
-    overview["closedLoopRouteSummaries"] = [
-        _overview_route_summary(sequence)
-        for sequence in snapshot.get("observationSequences") or []
-        if isinstance(sequence, dict)
-    ]
+    summaries: list[dict[str, Any]] = []
+    seen_loop_keys: set[tuple[str, tuple[str, ...]]] = set()
+    for sequence in snapshot.get("observationSequences") or []:
+        if not isinstance(sequence, dict):
+            continue
+        loop_key = _closed_loop_dedup_key(sequence)
+        if loop_key in seen_loop_keys:
+            continue
+        seen_loop_keys.add(loop_key)
+        summaries.append(_overview_route_summary(sequence))
+    overview["closedLoopRouteSummaries"] = summaries
     for key in (
         "borrowableSymbols",
         "observationAnchorSymbols",

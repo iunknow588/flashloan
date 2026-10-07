@@ -372,7 +372,7 @@ def _eth_to_token_pool(anchor_address: str, token_address: str, pools_by_edge: d
 def _mainnet_eth_observation_sequences(
     pools: list[dict[str, Any]],
     *,
-    route_limit: int = 500,
+    route_limit: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     pools_by_edge = _pools_by_edge(pools)
     neighbors = _eth_anchor_neighbors(pools)
@@ -392,6 +392,49 @@ def _mainnet_eth_observation_sequences(
     sequences: list[dict[str, Any]] = []
     bridge_pairs_by_edge: dict[tuple[str, str], dict[str, Any]] = {}
     seen: set[tuple[str, str, str]] = set()
+
+    def _ordered_pools(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
+        candidates.sort(
+            key=lambda row: (
+                not _pool_usable_for_observation(row),
+                not bool(row.get("recentSwapActive")),
+                -_number_liquidity(row),
+                -(float((row.get("balances") or {}).get("tvlUsd") or row.get("estimatedTvlUsd") or 0)),
+                str(_pool_id(row)),
+            ),
+        )
+        return candidates
+
+    def _hop_candidates(
+        *,
+        leg: str,
+        direction: str,
+        from_token: dict[str, Any],
+        to_token: dict[str, Any],
+        pools: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        rows = [
+            _step_row(pool, from_token=from_token, to_token=to_token, direction=direction)
+            for pool in _ordered_pools(pools)
+        ]
+        usable_rows = [row for row in rows if _pool_usable_for_observation(row)]
+        preferred = usable_rows[0] if usable_rows else (rows[0] if rows else None)
+        return {
+            "leg": leg,
+            "direction": direction,
+            "fromSymbol": _symbol(from_token.get("symbol")),
+            "toSymbol": _symbol(to_token.get("symbol")),
+            "fromAddress": _address(from_token.get("address")),
+            "toAddress": _address(to_token.get("address")),
+            "symbolPair": f"{_symbol(from_token.get('symbol'))} -> {_symbol(to_token.get('symbol'))}",
+            "poolCount": len(rows),
+            "usablePoolCount": len(usable_rows),
+            "selectionBasis": "tvl_depth_desc",
+            "preferredPoolId": _pool_id(preferred) if preferred else "",
+            "preferredPoolUsable": bool(usable_rows),
+            "pools": rows,
+        }
 
     def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dict[str, Any], direction: str) -> dict[str, Any]:
         from_symbol = _symbol(from_token.get("symbol"))
@@ -476,6 +519,37 @@ def _mainnet_eth_observation_sequences(
                 _step_row(zx_pool, from_token=z_token, to_token=eth_token, direction="zc"),
             ]
             path_symbols = ["ETH", _symbol(y_token.get("symbol")), _symbol(z_token.get("symbol")), "ETH"]
+            xy_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((eth_address, y_address)))) or [])
+            yz_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((y_address, z_address)))) or [])
+            zx_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((z_address, eth_address)))) or [])
+            hop_candidates = [
+                _hop_candidates(
+                    leg="x-y",
+                    direction="yc",
+                    from_token=eth_token,
+                    to_token=y_token,
+                    pools=xy_rows,
+                ),
+                _hop_candidates(
+                    leg="y-z",
+                    direction="bridge",
+                    from_token=y_token,
+                    to_token=z_token,
+                    pools=yz_rows,
+                ),
+                _hop_candidates(
+                    leg="z-x",
+                    direction="zc",
+                    from_token=z_token,
+                    to_token=eth_token,
+                    pools=zx_rows,
+                ),
+            ]
+            hop_candidate_counts = {
+                "x-y": len(xy_rows),
+                "y-z": len(yz_rows),
+                "z-x": len(zx_rows),
+            }
             sequences.append(
                 {
                     "kind": "robinhood_mainnet_eth_anchor_closed_loop",
@@ -491,6 +565,9 @@ def _mainnet_eth_observation_sequences(
                     "bridgePool": route_rows[1],
                     "zcPool": route_rows[2],
                     "routePools": route_rows,
+                    "hopCandidates": hop_candidates,
+                    "hopCandidateCounts": hop_candidate_counts,
+                    "hopCandidateCombinationCount": max(1, len(xy_rows) * len(yz_rows) * len(zx_rows)),
                     "candidatePoolCount": "3",
                     "matchedPoolCount": "3",
                     "anchorAddresses": [eth_address],
@@ -519,15 +596,27 @@ def _mainnet_eth_observation_sequences(
                         "protocol": "uniswap_v4",
                     },
                 }
-            if len(sequences) >= route_limit:
+            if route_limit is not None and len(sequences) >= route_limit:
                 return sequences, list(bridge_pairs_by_edge.values())
     return sequences, list(bridge_pairs_by_edge.values())
+
+
+def _mainnet_eth_closed_loop_sequences() -> list[dict[str, Any]]:
+    """Return the complete ETH-anchored closed-loop sequence set.
+
+    The returned rows are the authoritative closed-loop handoff consumed by the
+    DEX overview. No fixed route limit is applied here; the upper bound is the
+    graph itself (every ETH-paired Y/Z pair with an existing Y-Z pool).
+    """
+    pools, _index = _load_mainnet_v4_index()
+    sequences, _bridge_pairs = _mainnet_eth_observation_sequences(pools)
+    return sequences
 
 
 def _mainnet_eth_bridge_pairs(
     pools: list[dict[str, Any]],
     *,
-    route_limit: int = 500,
+    route_limit: int | None = None,
 ) -> list[dict[str, Any]]:
     return _mainnet_eth_observation_sequences(pools, route_limit=route_limit)[1]
 
@@ -535,7 +624,7 @@ def _mainnet_eth_bridge_pairs(
 def _mainnet_eth_fund_anchor_observation(
     pools: list[dict[str, Any]],
     *,
-    route_limit: int = 500,
+    route_limit: int | None = None,
 ) -> dict[str, Any]:
     sequences, bridge_pairs = _mainnet_eth_observation_sequences(pools, route_limit=route_limit)
     pools_by_edge = _pools_by_edge(pools)
@@ -584,6 +673,7 @@ def _mainnet_eth_fund_anchor_observation(
         "verifiedEthPairPoolTokenCount": len(neighbors),
         "sourceTokenEvidence": "robinhood_eth_pair_tokens",
         "observationSequences": sequences,
+        "closedLoopSequences": sequences,
         "associatedObservationPairs": [],
         "associatedObservationPools": [],
         "associatedObservationTokens": [],

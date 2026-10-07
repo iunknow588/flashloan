@@ -19,6 +19,7 @@ from market.binance_market.dex_surface_graph import (
 )
 from market.binance_market.dex_surface_quotes import _route_quote_analysis as _default_route_quote_analysis
 from market.binance_market.dex_surface_types import (
+    _int,
     _is_stable_anchor,
     _norm_symbol,
     _pool_address,
@@ -52,6 +53,8 @@ from market.binance_market.dex_surface_observation_sequences import (
     _anchor_observation_sequences,
     _candidate_observation_groups,
     _closed_route_from_sequence,
+    _hop_candidate_sets_from_pairs,
+    _select_best_pool_rows,
     _route_anchor_symbol,
     _route_step_row,
     _sequence_pair_row,
@@ -282,6 +285,16 @@ def _route_candidate(
     route_tokens = path_tokens or [{"symbol": symbol, "address": ""} for symbol in path_symbols if symbol]
     route_symbols = _route_symbols_from_tokens(route_tokens)
     route_addresses = _route_addresses_from_tokens(route_tokens)
+    route_pool_rows = [pool for pair in pairs for pool in _select_best_pool_rows(_pools_for_pair(pair))[:1]]
+    hop_candidates = _hop_candidate_sets_from_pairs(pairs, route_tokens)
+    hop_candidate_counts = {candidate["leg"]: candidate["poolCount"] for candidate in hop_candidates if isinstance(candidate, dict)}
+    combination_count = 1
+    for candidate in hop_candidates:
+        if isinstance(candidate, dict):
+            combination_count = max(1, combination_count * max(1, candidate.get("poolCount") or 0))
+    pool_path_key = "|".join(
+        [_pool_address(pool) for pool in route_pool_rows if _pool_address(pool)]
+    )
     return {
         "symbolPair": " -> ".join(route_symbols),
         "addressPair": " -> ".join(address for address in route_addresses if address),
@@ -306,12 +319,19 @@ def _route_candidate(
         "rejectReasonCounts": {},
         "routeUsableForObservation": route_usable,
         "routeHasLiquidityEvidence": route_has_explicit,
+        "hopCandidates": hop_candidates,
+        "hopCandidateCounts": hop_candidate_counts,
+        "hopCandidateCombinationCount": combination_count,
+        "poolPathKey": pool_path_key,
+        "recommendedFirstPriority": True,
+        "routeRecommendationBasis": "tvl_depth_desc",
         "flashLoanLinkage": {
             "strategy": "stable_anchor_bridge_candidate_path",
             "borrow_symbols": [anchor],
             "borrow_tokens": [route_addresses[0]] if route_addresses and route_addresses[0] else [],
             "route_symbols": route_symbols,
             "route_addresses": route_addresses,
+            "candidate_combination_count": combination_count,
             "ready_for_atomic_arbitrage": bool(pools),
             "conditions": [
                 "quote page must verify executable output after slippage",
@@ -338,6 +358,12 @@ def _route_candidate(
                 _pair_liquidity_evidence(pair)
                 for pair in pairs
             ],
+            "hopCandidates": hop_candidates,
+            "hopCandidateCounts": hop_candidate_counts,
+            "hopCandidateCombinationCount": combination_count,
+            "poolPathKey": pool_path_key,
+            "recommendedFirstPriority": True,
+            "routeRecommendationBasis": "tvl_depth_desc",
         },
     }
 
@@ -413,6 +439,10 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
     route_symbols = _route_symbols_from_tokens(route_tokens) or [_norm_symbol(symbol) for symbol in route.get("pathSymbols") or [] if _norm_symbol(symbol)]
     route_addresses = _route_addresses_from_tokens(route_tokens)
     pools = _route_pools(route)
+    hop_candidates = list(route.get("hopCandidates") or [])
+    hop_candidate_counts = dict(route.get("hopCandidateCounts") or {})
+    hop_candidate_combination_count = max(1, _int(route.get("hopCandidateCombinationCount")) or 1)
+    pool_path_key = str(route.get("poolPathKey") or "|".join([_pool_address(pool) for pool in pools]))
     route_usable, route_has_explicit = _route_usability_from_pools(pools)
     anchor = _norm_symbol(route.get("anchorSymbol") or route.get("borrowSymbol") or (route_symbols[0] if route_symbols else ""))
     target = _norm_symbol(route.get("targetSymbol") or route.get("counterSymbol") or (route_symbols[-2] if len(route_symbols) > 2 else ""))
@@ -448,6 +478,12 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
         "rejectReasonCounts": {},
         "routeUsableForObservation": route_usable,
         "routeHasLiquidityEvidence": route_has_explicit,
+        "hopCandidates": hop_candidates,
+        "hopCandidateCounts": hop_candidate_counts,
+        "hopCandidateCombinationCount": hop_candidate_combination_count,
+        "poolPathKey": pool_path_key,
+        "recommendedFirstPriority": True,
+        "routeRecommendationBasis": "tvl_depth_desc",
         "marketObservationRoute": route,
         "flashLoanLinkage": {
             "strategy": strategy,
@@ -455,6 +491,7 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
             "borrow_tokens": [route_addresses[0]] if route_addresses and route_addresses[0] else [],
             "route_symbols": route_symbols,
             "route_addresses": route_addresses,
+            "candidate_combination_count": hop_candidate_combination_count,
             "ready_for_atomic_arbitrage": bool(pools and len(route_symbols) >= 2 and route_symbols[0] == route_symbols[-1]),
             "conditions": [
                 "路线必须来自市场观察闭环集合，不能绕过链路专用观察算法。",
@@ -483,6 +520,12 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
             "observationSource": route.get("source") or route.get("kind") or "dex_market_observation",
             "marketObservationRoute": True,
             "routeUsableForObservation": route_usable,
+            "hopCandidates": hop_candidates,
+            "hopCandidateCounts": hop_candidate_counts,
+            "hopCandidateCombinationCount": hop_candidate_combination_count,
+            "poolPathKey": pool_path_key,
+            "recommendedFirstPriority": True,
+            "routeRecommendationBasis": "tvl_depth_desc",
             "hopLiquidityEvidence": [
                 {
                     "pool": pool.get("pool") or pool.get("poolId"),
@@ -524,9 +567,18 @@ def _route_candidate_dedup_key(candidate: dict[str, Any]) -> tuple[str, tuple[st
     anchor = _norm_symbol(overview_route.get("anchorBorrowSymbol"))
     if not anchor and route_symbols:
         anchor = route_symbols[0]
-    mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
+    route_addresses = [
+        str(value or "").lower()
+        for value in candidate.get("routeAddresses") or overview_route.get("pathAddresses") or []
+        if str(value or "").strip()
+    ]
+    if route_addresses and len(route_addresses) == len(route_symbols):
+        mids = tuple(route_addresses[1:-1]) if len(route_addresses) >= 3 else tuple(route_addresses)
+    else:
+        mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
+    # Reversing B/C produces the same route in the opposite direction.
     return (anchor, mids)
 
 def _route_framework_context_from_observation(
@@ -542,17 +594,10 @@ def _route_framework_context_from_observation(
         chain_id=chain_id,
         protocols=protocols,
     )
-    active_filter_applied, active_pool_ids = _observation_active_pool_filter(
-        observation,
-        chain_id=chain_id,
-        protocols=protocols,
-    )
-    if active_filter_applied:
-        overview_paths = [
-            path
-            for path in overview_paths
-            if _candidate_path_uses_active_pools(path, active_pool_ids)
-        ]
+    # Depth/liquidity filters are display state only. They must not cut the
+    # closed-loop candidate set: a depth-less pool can still be replaced by a
+    # priced candidate on the quote/routing page, so overview must receive the
+    # full DEX-overview route set.
     path_source = "market_observation"
     watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
     watch_pair_symbols = {str(pair.get("symbolPair") or "").strip() for pair in watch_pairs}

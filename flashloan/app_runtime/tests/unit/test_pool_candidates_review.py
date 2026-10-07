@@ -954,6 +954,80 @@ def test_robinhood_overview_does_not_fallback_to_candidate_pools(monkeypatch):
     assert overview["arbitragePaths"] == []
 
 
+def test_quote_routes_consume_overview_without_rebuilding_closed_loops(monkeypatch):
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "USDC -> WETH -> DAI -> USDC",
+                "routeSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                "routeAddresses": ["0xusdc", "0xweth", "0xdai", "0xusdc"],
+                "routeTokenPath": [
+                    {"symbol": "USDC", "address": "0xusdc"},
+                    {"symbol": "WETH", "address": "0xweth"},
+                    {"symbol": "DAI", "address": "0xdai"},
+                    {"symbol": "USDC", "address": "0xusdc"},
+                ],
+                "overviewRoute": {
+                    "kind": "bridge_pair",
+                    "pathSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                    "pathText": "USDC -> WETH -> DAI -> USDC",
+                    "candidatePairSymbols": ["USDC:WETH"],
+                },
+                "routeUsableForObservation": True,
+                "executionPools": [
+                    {
+                        "pool": "0x" + "a" * 64,
+                        "protocol": "uniswap_v4",
+                        "dex": "uniswap_v4",
+                        "fee": 500,
+                        "hasLiquidity": True,
+                        "liquidityIndex": 100.0,
+                        "balances": {"tvlUsd": 100_000},
+                    }
+                ],
+            }
+        ],
+        "summary": {
+            "routeCount": 1,
+            "marketObservationRouteCount": 1,
+            "hopCandidateRouteCount": 0,
+            "hopCandidateCombinationCount": 1,
+        },
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "routeFrameworkSource": "market_observation",
+        "marketObservationSource": "cached_snapshot",
+        "marketObservationSourceStage": "cached_snapshot",
+        "tableSource": "dex_table",
+        "referencedTable": "ob_table",
+        "poolIndexVersion": {},
+        "dexSettlement": {},
+        "poolStaticTable": {},
+    }
+
+    calls = {"overview": 0, "context": 0}
+
+    def fake_overview_payload(**kwargs):
+        calls["overview"] += 1
+        return overview
+
+    def fail_context(*args, **kwargs):
+        calls["context"] += 1
+        raise AssertionError("quote/routing must not rebuild closed loops from observation")
+
+    monkeypatch.setattr(dex_surfaces, "dex_overview_payload", fake_overview_payload)
+    monkeypatch.setattr(dex_surfaces, "_route_framework_context_from_observation", fail_context)
+
+    payload = dex_surfaces.dex_quote_routes_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    assert calls == {"overview": 1, "context": 0}
+    assert len(payload["routes"]) == 1
+    assert payload["routes"][0]["symbolPair"] == "USDC -> WETH -> DAI -> USDC"
+    assert payload["summary"]["pathSource"] == "market_observation"
+
+
 def test_quote_routes_keep_non_usable_liquidity_routes_for_selection(monkeypatch):
     from market.binance_market.dex_quote_surface import build_quote_routes_payload_from_overview
 

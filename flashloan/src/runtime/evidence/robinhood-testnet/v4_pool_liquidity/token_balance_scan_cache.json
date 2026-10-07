@@ -72974,7 +72974,7 @@
     "0x3d77a526d23d57db88dc676e2d57d379f51f6d38": {
       "address": "0x3d77a526D23d57DB88dC676E2d57d379f51F6d38",
       "balanceRaw": "1000010211194930517706831",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x63986c4366f9c05e49f8dde67ce07a21b3de80c69d3b446d8cb7c2d606905a29"
       ],
@@ -73527,7 +73527,7 @@
     "0x3df4037b415c4e03dc70fb3d16e254801cba9fa1": {
       "address": "0x3df4037B415c4e03Dc70fb3d16E254801cBa9FA1",
       "balanceRaw": "1100025211162767356725461",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xbc0edacdd3ee7a3ade758fa0957af97fddf1deb584ec6f19607715d195ac7624",
         "0x189a20092bcb833a857946181ca4187ef42fa4f5fb8d0e09326906bb146d5987"
@@ -82113,7 +82113,7 @@
       "address": "0x450D9bc42Be9A45269678669a786D2c3C5221Bdf",
       "balanceRaw": "1096724765059732",
       "decimals": 18,
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x1a45099e7e3626d65ee6c287b1546a91258c4023420367947e105c98f4df8de2"
       ],
@@ -92934,7 +92934,7 @@
       "address": "0x4E5c427499c43b222fEC1eF60f5e2164b904D84E",
       "balanceRaw": "152532743024631",
       "decimals": 18,
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xf3fc7e7fa5942fe0ebc03c490178063b0e75cd079b69db6c183171db7ec1a634",
         "0xce6c9518396bef4763d6e72372eda3b1a660412867efbc564e60029984cbe2fd"
@@ -97094,7 +97094,7 @@
     "0x51c47827f42138679d52d4446ddf8a964aeb6b20": {
       "address": "0x51C47827f42138679d52d4446DDF8a964aEb6B20",
       "balanceRaw": "99999053008969",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xac9ff7931b945e9369dc74e3531f5cee84e71f1a66091a38f33aa595aedc555c"
       ],
@@ -129360,7 +129360,7 @@
     "0x6c53b7074ab5d8ebed1ec3dce5d2bcb321642756": {
       "address": "0x6c53b7074aB5d8eBeD1ec3dce5D2BCb321642756",
       "balanceRaw": "1000010211194930517706831",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xec2c32b5b203ef3009d42e5870d05439657f83ca7936338aa46ea309f1b3e503"
       ],
@@ -132930,7 +132930,7 @@
       "address": "0x6f63dD3948972F02752C4334c468Ad233F3F1007",
       "balanceRaw": "999999999677934816686344988",
       "decimals": 18,
-      "metadataScannedAt": "2026-09-13T09:13:12.625566Z",
+      "metadataScannedAt": "2026-10-06T20:27:13.246687Z",
       "poolIds": [
         "0xcc1254907e159611d66a869c3733f84f4c548aa084c47df163bbe573e80b826c"
       ],
@@ -145858,7 +145858,7 @@
     "0x7a285257ba12af9597b3cfedc10a5d70239cd8cd": {
       "address": "0x7A285257BA12aF9597B3cfEdC10A5D70239cD8CD",
       "balanceRaw": "1000008211194930517706831",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xc12725f0a4fa0146684bbf223801adb0a2fca8fe572dfe1f64a4dce2304ae8da"
       ],
@@ -185918,7 +185918,7 @@
       "address": "0x9c0720C52B7d5f659419317C37Ad2fC95FEDd2F7",
       "balanceRaw": "195475137126613",
       "decimals": 18,
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x1a45099e7e3626d65ee6c287b1546a91258c4023420367947e105c98f4df8de2"
       ],
@@ -212348,7 +212348,7 @@
     "0xb283ed0c6312f32bbfc2f692369f74c7e81f0054": {
       "address": "0xb283Ed0C6312f32BBfC2f692369f74C7E81f0054",
       "balanceRaw": "1000008999999999999945647",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x03d615f47abb4a4960ca8372666add0bee22eed921b5a7f652481fdf88ad7009"
       ],
@@ -218197,7 +218197,7 @@
     "0xb781eac36a126e066925db2d83da829e43494bdb": {
       "address": "0xB781eAc36A126e066925dB2D83da829e43494bDB",
       "balanceRaw": "1000010211194930517706831",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x63a66e81e26c192a64a5a6e6ba705d1f0fc186750c09c85d0527412b003003ae"
       ],
@@ -220716,7 +220716,7 @@
     "0xb994edc05848335c92849511407488b4ec04436d": {
       "address": "0xb994EDC05848335C92849511407488B4EC04436D",
       "balanceRaw": "999990090096607958088868",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xec2c32b5b203ef3009d42e5870d05439657f83ca7936338aa46ea309f1b3e503"
       ],
@@ -269454,7 +269454,7 @@
     "0xe39079223b46761bcd5b56a012e0a54c36cb3eb6": {
       "address": "0xE39079223b46761bCd5b56A012e0a54C36CB3eB6",
       "balanceRaw": "999991297075741549766942",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x03d615f47abb4a4960ca8372666add0bee22eed921b5a7f652481fdf88ad7009"
       ],
@@ -271194,7 +271194,7 @@
     "0xe4f9e1b88396b7f8b7ae447a5a07f62233213bca": {
       "address": "0xE4f9e1B88396b7F8B7ae447A5A07F62233213bca",
       "balanceRaw": "1099975538547986887367465",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xbc0edacdd3ee7a3ade758fa0957af97fddf1deb584ec6f19607715d195ac7624",
         "0x189a20092bcb833a857946181ca4187ef42fa4f5fb8d0e09326906bb146d5987"
@@ -273480,7 +273480,7 @@
     "0xe7119df8a226597c1a377a15e4d9b3067ccc26db": {
       "address": "0xE7119DF8A226597c1A377A15E4d9b3067ccC26dB",
       "balanceRaw": "999990090096607958088868",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x63a66e81e26c192a64a5a6e6ba705d1f0fc186750c09c85d0527412b003003ae"
       ],
@@ -287071,7 +287071,7 @@
     "0xf2fd4bb5c0b41d4bada12cc5878e49d0848115cb": {
       "address": "0xf2FD4Bb5c0b41D4bAdA12Cc5878E49d0848115CB",
       "balanceRaw": "999990070097004752248525",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0x63986c4366f9c05e49f8dde67ce07a21b3de80c69d3b446d8cb7c2d606905a29"
       ],
@@ -294064,7 +294064,7 @@
     "0xf94fffd4bf20d4eb01f8b720a7a03d30bbc2837d": {
       "address": "0xF94FFFd4Bf20d4eB01F8B720a7a03d30BBC2837D",
       "balanceRaw": "999992004062336329971622",
-      "metadataScannedAt": "2026-09-13T09:13:32.389380Z",
+      "metadataScannedAt": "2026-10-06T20:27:28.504701Z",
       "poolIds": [
         "0xc12725f0a4fa0146684bbf223801adb0a2fca8fe572dfe1f64a4dce2304ae8da"
       ],
@@ -299720,7 +299720,7 @@
       "address": "0xFE00A9963997075e77893260FF8FB25230c41007",
       "balanceRaw": "999999999999999999999975425",
       "decimals": 18,
-      "metadataScannedAt": "2026-09-13T09:13:12.625566Z",
+      "metadataScannedAt": "2026-10-06T20:27:13.955964Z",
       "poolIds": [
         "0x4991a37f34cbec1219aa58d2dd0411f9d2afce160ca69a88c1320b63a6003a32"
       ],
@@ -302125,10 +302125,10 @@
     }
   },
   "entryCount": 25060,
-  "lastScanScope": "active_plus_known",
+  "lastScanScope": "full_index",
   "network": "robinhood-testnet",
   "poolIndexSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
   "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-  "refreshedAt": "2026-10-05T09:33:26.692175Z",
+  "refreshedAt": "2026-10-06T20:27:28.509702Z",
   "schemaVersion": "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
 }

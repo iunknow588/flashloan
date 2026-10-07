@@ -161,6 +161,36 @@
       const pools = pair.executionPools || pair.preferredPools || [];
       return pools.filter(overviewPoolUsable).length;
     };
+    const shortPoolId = value => {
+      const text = String(value || "");
+      return text.length > 18 ? `${text.slice(0, 14)}...` : text;
+    };
+    const hopCandidateTableHtml = (candidates, combinationCount) => {
+      const rows = list(candidates);
+      if (!rows.length) return '<div class="muted">暂无可展开的每跳候选池</div>';
+      const body = rows.map(candidate => {
+        const pools = list(candidate.pools);
+        const preferred = String(candidate.preferredPoolId || "").toLowerCase();
+        const chips = pools.slice(0, 6).map(pool => {
+          const id = String(pool?.pool || pool?.poolId || "-");
+          const preferredMark = preferred && preferred === String(id).toLowerCase() ? " / 深度首选" : "";
+          return `<span class="badge ${overviewPoolUsable(pool) ? "good" : "warn"}" title="${esc(id)}">${esc(shortPoolId(id))}${esc(preferredMark)} ${overviewPoolLiquidity(pool)}</span>`;
+        }).join("");
+        return `<tr>
+          <td>${esc(candidate.leg || "-")}</td>
+          <td>${esc(candidate.direction || "-")}</td>
+          <td>${esc(candidate.symbolPair || "-")}</td>
+          <td>${esc(candidate.poolCount ?? pools.length)}</td>
+          <td>${esc(candidate.usablePoolCount ?? "-")}</td>
+          <td>${esc(candidate.preferredPoolId || "-")}</td>
+          <td>${chips || '<span class="muted">无候选池明细</span>'}</td>
+        </tr>`;
+      }).join("");
+      return `<div class="table-wrap"><h4>每跳候选池（组合 ${esc(combinationCount || 1)}）</h4><table>
+        <thead><tr><th>跳</th><th>方向</th><th>交易对</th><th>候选池</th><th>可用池</th><th>深度首选</th><th>池列表</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>`;
+    };
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
       const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
@@ -249,6 +279,7 @@
               <span class="badge">锚点 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
               <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
               <span class="badge">候选池 ${esc(pools.length)}</span>
+              <span class="badge">每跳候选 ${esc(list(pair.hopCandidates).map(candidate => candidate.poolCount || 0).join(" × "))} / 组合 ${esc(pair.hopCandidateCombinationCount || 1)}</span>
               <span class="badge ${recClass}">${tokenBasis ? tokenBasisLabel : "1000U 净利"} ${esc(tokenBasis ? tokenBasisNet : money(profit.observedNetProfitUsd))}</span>
               ${profit.chainSubmissionCandidate ? '<span class="badge good">链上利润控制候选</span>' : ''}
               ${profit.trustedUsdReference === false ? '<span class="badge warn">USD 锚点不可信</span>' : ''}
@@ -279,6 +310,7 @@
             <td>${esc((pool.balances || {}).tvlUsd ?? pool.estimatedTvlUsd ?? "-")}</td><td>${overviewPoolLiquidity(pool)}</td>
           </tr>`).join("") || '<tr><td colspan="6">暂无候选池</td></tr>'}</tbody>
         </table></div>
+        ${hopCandidateTableHtml(pair.hopCandidates || [], pair.hopCandidateCombinationCount || 1)}
       </article>`;
     }
     function watchHtml(row) {

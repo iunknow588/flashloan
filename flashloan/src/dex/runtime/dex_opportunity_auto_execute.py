@@ -83,6 +83,48 @@ def _auto_execute_amount(attempt: dict[str, Any]) -> float | None:
     return number if number > 0 else None
 
 
+def _attempt_is_temporary(attempt: dict[str, Any]) -> bool:
+    """Return whether an attempt is a one-shot candidate-replacement route."""
+    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+    policy = quote.get("temporaryRoutePolicy") if isinstance(quote.get("temporaryRoutePolicy"), dict) else {}
+    if not policy:
+        policy = attempt.get("temporaryRoutePolicy") if isinstance(attempt.get("temporaryRoutePolicy"), dict) else {}
+    return bool(
+        attempt.get("temporaryRoute")
+        or quote.get("temporaryRoute")
+        or policy.get("temporaryRoute")
+        or policy.get("executeLast")
+    )
+
+
+def _order_attempts_for_execution(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep scan defaults first and move temporary replacements to the end."""
+    return [
+        attempt
+        for _, attempt in sorted(
+            enumerate(attempts),
+            key=lambda item: (
+                0 if not _attempt_is_temporary(item[1]) else 1,
+                item[0],
+            ),
+        )
+    ]
+
+
+def _order_routes_for_review(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep scan defaults first and move temporary replacements to the end."""
+    return [
+        route
+        for _, route in sorted(
+            enumerate(routes),
+            key=lambda item: (
+                0 if not _attempt_is_temporary(item[1]) else 1,
+                item[0],
+            ),
+        )
+    ]
+
+
 class DexAutoExecuteRunner:
     def __init__(self, *, callback: AutoExecuteCallback | None, enabled: bool, cooldown_seconds: float) -> None:
         self.callback = callback
@@ -110,7 +152,8 @@ class DexAutoExecuteRunner:
         failed = 0
         errors: list[str] = []
         now = time.monotonic()
-        for attempt in attempts:
+        ordered_attempts = _order_attempts_for_execution(attempts)
+        for attempt in ordered_attempts:
             skip_reason = _auto_execute_skip_reason(attempt, chain_id=chain_id)
             if skip_reason:
                 attempt["auto_execute"] = {"skipped": True, "reason": skip_reason}
