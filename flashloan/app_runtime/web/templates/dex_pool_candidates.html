@@ -107,7 +107,7 @@
     </section>
 
     <div class="notice" id="scopeNotice">
-      本页按资金池 X 分组展示候选池。V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。页面只负责候选结构，不负责最终报价与盈亏判断。
+      本页负责构建 YC/ZC 候选集合交易池子，分析池子的特性；V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。闭环通道构建选择由 DEX 总览负责，报价与路由依赖 DEX 总览中的闭环。
     </div>
     <div id="filtersLine" class="filters-line"></div>
     <div class="pager" id="candidatePager">

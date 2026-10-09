@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "flashloan-rs"
+version = "0.1.0"
+description = "Robinhood V4 HyperSync/HyperRPC Rust core with read-only SQLite access"
+requires-python = ">=3.12"
+
+[tool.maturin]
+module-name = "flashloan_rs"
+features = ["pyo3/extension-module"]

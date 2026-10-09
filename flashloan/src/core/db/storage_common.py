@@ -63,6 +63,30 @@ SCHEMA_MIGRATIONS = (
         "20260818_chain_market_registry",
         "Persist chain/market registry, scan policies, and current DEX arbitrage candidates.",
     ),
+    (
+        "20261009_rs_hypersync_v4_pool_index",
+        "Add Robinhood V4 HyperSync/HyperRPC pool index and read-only Rust bridge metadata.",
+    ),
+    (
+        "20261009_chain_business_tables",
+        "Create global chain registry, chain config, chain info, chain tokens, contracts, files, flows, markets, initialization tables.",
+    ),
+    (
+        "20261009_v4_exchange_pools",
+        "Create v4_exchange_pools and v4_exchange_pool_liquidity_snapshots.",
+    ),
+    (
+        "20261009_v4_closed_loop_tables",
+        "Create v4_closed_loops, v4_closed_loop_hops, and v4_closed_loop_optimizations.",
+    ),
+    (
+        "20261009_dex_candidate_tables",
+        "Create dex_candidate_anchor_tokens, dex_candidate_pool_pairs, dex_candidate_pools, and dex_candidate_pool_recommendations.",
+    ),
+    (
+        "20261009_market_observation_tables",
+        "Create market_observation_yz_pairs, market_observation_intermediate_pools, and market_observation_liquidity_snapshots.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

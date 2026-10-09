@@ -1,0 +1,307 @@
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::prelude::*;
+use serde_json::Value;
+
+mod config;
+mod hyperrpc;
+mod hypersync;
+mod liquidity;
+mod pool_index;
+mod sqlite_read;
+
+fn default_database_path() -> String {
+    std::env::var("FLASHLOAN_KV_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            std::env::var("FLASHLOAN_RUNTIME_DIR")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| format!("{}/local_store.sqlite3", value.trim_end_matches(['/', '\\'])))
+                .unwrap_or_else(|| {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    cwd.join("flashloan")
+                        .join("src")
+                        .join("runtime")
+                        .join("local_store.sqlite3")
+                        .to_string_lossy()
+                        .into_owned()
+                })
+        })
+}
+
+fn as_py_error(message: String) -> PyErr {
+    PyRuntimeError::new_err(message)
+}
+
+fn json_to_py(py: Python<'_>, value: Value) -> PyObject {
+    let encoded = serde_json::to_string(&value).unwrap_or_else(|_| "null".to_string());
+    pyo3::types::PyModule::import(py, "json")
+        .and_then(|module| module.call_method1("loads", (encoded,)))
+        .unwrap_or_else(|_| py.None().into_bound(py))
+        .unbind()
+}
+
+fn json_result_to_py(py: Python<'_>, value: Value) -> PyObject {
+    json_to_py(py, value)
+}
+
+#[pyfunction]
+fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[pyfunction]
+fn initialize_topic() -> PyResult<String> {
+    Ok(pool_index::initialize_topic())
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, pool_manager, data_source="hyperrpc", from_block=0, to_block=None, database_path=None, currency0=None, currency1=None))]
+fn build_v4_pool_index(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    pool_manager: String,
+    data_source: &str,
+    from_block: u64,
+    to_block: Option<u64>,
+    database_path: Option<String>,
+    currency0: Option<String>,
+    currency1: Option<String>,
+) -> PyResult<PyObject> {
+    let runtime = tokio::runtime::Runtime::new().map_err(|error| as_py_error(format!("tokio runtime failed: {error}")))?;
+    let payload = runtime.block_on(async move {
+        let source = data_source.to_lowercase();
+        let config = config::ChainDataSourceConfig::from_env(&network, chain_id, &pool_manager)
+            .map_err(as_py_error)?;
+        let client = reqwest::Client::builder()
+            .build()
+            .map_err(|error| as_py_error(format!("HTTP client failed: {error}")))?;
+        let latest = match to_block {
+            Some(value) => value,
+            None => hyperrpc::get_block_number(&client, &config.hyperrpc_url)
+                .await
+                .map_err(as_py_error)?,
+        };
+        let topic = pool_index::initialize_topic();
+        let sorted_currency0 = currency0
+            .as_deref()
+            .map(config::canonical_address);
+        let sorted_currency1 = currency1
+            .as_deref()
+            .map(config::canonical_address);
+        let (filter0, filter1) = match (sorted_currency0, sorted_currency1) {
+            (Some(first), Some(second)) if first == second => {
+                return Err(as_py_error(
+                    "currency0 and currency1 must differ for filtered pool scan".to_string(),
+                ))
+            }
+            (Some(first), Some(second)) if first > second => (Some(second), Some(first)),
+            (first, second) => (first, second),
+        };
+        let logs = if source == "hypersync" {
+            hypersync::query_all_logs(
+                &client,
+                &config.hypersync_url,
+                &config.envio_api_token,
+                &config.pool_manager,
+                &topic,
+                filter0.as_deref(),
+                filter1.as_deref(),
+                from_block,
+                latest,
+            )
+            .await
+            .map_err(as_py_error)?
+        } else {
+            hyperrpc::get_logs_filtered(
+                &client,
+                &config.hyperrpc_url,
+                &config.pool_manager,
+                &topic,
+                filter0.as_deref(),
+                filter1.as_deref(),
+                from_block,
+                latest,
+            )
+            .await
+            .map_err(as_py_error)?
+        };
+        let mut rows = Vec::with_capacity(logs.len());
+        let mut pool_ids = std::collections::BTreeSet::new();
+        for log in logs {
+            match pool_index::decode_initialize_log(&log, &config.pool_manager) {
+                Ok(row) => {
+                    pool_ids.insert(row.pool_id.clone());
+                    rows.push(pool_index::row_to_json(&row, &config.pool_manager));
+                }
+                Err(error) => {
+                    return Err(as_py_error(format!(
+                        "Initialize log decode failed at block {}: {error}",
+                        log.block_number
+                    )))
+                }
+            }
+        }
+        let path = database_path.unwrap_or_else(default_database_path);
+        if path.is_empty() {
+            return Err(as_py_error("SQLite database path is empty".to_string()));
+        }
+        Ok::<Value, PyErr>(serde_json::json!({
+            "ok": true,
+            "network": network,
+            "chainId": chain_id,
+            "protocol": "uniswap_v4",
+            "dataSource": source,
+            "fromBlock": from_block,
+            "toBlock": latest,
+            "initializeLogCount": rows.len(),
+            "poolCount": pool_ids.len(),
+            "pools": rows,
+            "databasePath": path,
+        }))
+    })?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, token_a, token_b, database_path=None))]
+fn find_pools_between_tokens(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    token_a: String,
+    token_b: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let mut first = config::canonical_address(&token_a);
+    let mut second = config::canonical_address(&token_b);
+    if first == second {
+        return Err(PyValueError::new_err("token_a and token_b must differ"));
+    }
+    if first > second {
+        std::mem::swap(&mut first, &mut second);
+    }
+    let pools = sqlite_read::load_v4_exchange_pools(&connection, &network, chain_id, "uniswap_v4")
+        .map_err(as_py_error)?;
+    let mut matched = Vec::new();
+    for pool in pools {
+        let token0 = pool.get("token0").and_then(Value::as_str).unwrap_or_default().to_lowercase();
+        let token1 = pool.get("token1").and_then(Value::as_str).unwrap_or_default().to_lowercase();
+        if token0 == first && token1 == second {
+            matched.push(pool);
+        }
+    }
+    let payload = serde_json::json!({
+        "ok": true,
+        "network": network,
+        "chainId": chain_id,
+        "tokenA": token_a,
+        "tokenB": token_b,
+        "currency0": first,
+        "currency1": second,
+        "poolCount": matched.len(),
+        "pools": matched,
+    });
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_exchange_pools(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let rows = sqlite_read::load_v4_exchange_pools(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"pools": rows})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_pool_liquidity(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let rows = sqlite_read::load_v4_pool_liquidity(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"liquidity": rows})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, anchor_symbol, database_path=None))]
+fn load_dex_candidate_pools(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    anchor_symbol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let payload = sqlite_read::load_dex_candidate_pools(&connection, &network, chain_id, &protocol, &anchor_symbol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, anchor_symbol, database_path=None))]
+fn load_market_observation(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    anchor_symbol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let payload = sqlite_read::load_market_observation(&connection, &network, chain_id, &protocol, &anchor_symbol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, market_id, database_path=None))]
+fn load_v4_closed_loop(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    market_id: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let payload = sqlite_read::load_v4_closed_loop(&connection, &network, chain_id, &protocol, &market_id)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pymodule]
+fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(version, module)?)?;
+    module.add_function(wrap_pyfunction!(initialize_topic, module)?)?;
+    module.add_function(wrap_pyfunction!(build_v4_pool_index, module)?)?;
+    module.add_function(wrap_pyfunction!(find_pools_between_tokens, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_exchange_pools, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_pool_liquidity, module)?)?;
+    module.add_function(wrap_pyfunction!(load_dex_candidate_pools, module)?)?;
+    module.add_function(wrap_pyfunction!(load_market_observation, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_closed_loop, module)?)?;
+    Ok(())
+}
