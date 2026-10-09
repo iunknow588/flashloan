@@ -84,6 +84,11 @@ def _merge_list_values(existing: list[Any], incoming: list[Any], *, key: str) ->
             if isinstance(row, dict)
         ]
         return _merge_rows(existing, incoming)
+    if key == "chainSpecificObservationPools":
+        return _merge_rows(
+            [row for row in existing if isinstance(row, dict)],
+            [row for row in incoming if isinstance(row, dict)],
+        )
     if any(isinstance(row, dict) for row in [*existing, *incoming]):
         return _merge_rows(
             [row for row in existing if isinstance(row, dict)],

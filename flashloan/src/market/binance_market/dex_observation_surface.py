@@ -52,13 +52,12 @@ def build_market_observation_payload(
         protocols=protocols,
     )
     fund_anchor_pair_observation = _chain_fund_anchor_pair_observation(chain_id=chain_id, protocols=protocols)
-    chain_observation_sequences: list[dict[str, Any]] = []
-    observation_sequences: list[dict[str, Any]] = []
-    # The chain-specific fund-anchor observation is the authoritative source
-    # for closed A-B-C-A loops. The observation page intentionally keeps
-    # observationSequences empty for its UI, but the full sequence set must be
-    # carried through the payload so static snapshots and the DEX overview can
-    # reuse exactly the same closed loops without rebuilding them.
+    # YC/ZC candidate sets are provided by the candidate-pool page.  Market
+    # observation keeps every liquid YC-ZC bridge pool and builds the concrete
+    # middle-hop exchange pools here, so the page can show the depth surface
+    # before the DEX overview selects the best direction/pool.
+    observation_sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
+    chain_observation_sequences = list(observation_sequences)
     closed_loop_sequences = list(
         fund_anchor_pair_observation.get("closedLoopSequences")
         or fund_anchor_pair_observation.get("observationSequences")
@@ -78,8 +77,6 @@ def build_market_observation_payload(
     }
     recent_swap_filter_applied = bool(fund_anchor_pair_observation.get("recentSwapFilterApplied"))
     liquidity_filter_applied = bool(fund_anchor_pair_observation.get("liquidityFilterApplied"))
-    # Market observation only prepares YC/ZC candidate sets; closed-loop path
-    # construction and active-pool judgment belong to the DEX overview stage.
     token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
     direct: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
@@ -126,6 +123,79 @@ def build_market_observation_payload(
             str(group.get("anchorSymbol") or ""),
         ),
     )
+    # One Uniswap V4 pool serves both directions of the same token pair.  The
+    # contract can only execute the optimal direction, so the observation page
+    # keeps every complete Y-Z direction combination, but DEX overview counts
+    # one pool-backed closed loop per bridge-pool address instead of treating
+    # reverse token paths as separate loops.
+    for group in candidate_observation_groups:
+        sequences = list(group.get("observationSequences") or [])
+        grouped_by_bridge_pool: dict[str, list[dict[str, Any]]] = {}
+        for sequence in sequences:
+            bridge_pool_id = ""
+            for step in sequence.get("routePools") or []:
+                if not isinstance(step, dict):
+                    continue
+                if str(step.get("direction") or "").lower() == "bridge":
+                    bridge_pool_id = _pool_address(step)
+                    break
+            if not bridge_pool_id:
+                bridge_pool_id = str(sequence.get("pool") or "").strip().lower()
+            grouped_by_bridge_pool.setdefault(bridge_pool_id, []).append(sequence)
+        reachable_sequences = [
+            sequence
+            for sequence in sequences
+            if sequence.get("observationReachable") or sequence.get("observationState") == "reachable"
+        ]
+        reachable_by_bridge_pool: dict[str, list[dict[str, Any]]] = {}
+        for sequence in reachable_sequences:
+            bridge_pool_id = ""
+            for step in sequence.get("routePools") or []:
+                if not isinstance(step, dict):
+                    continue
+                if str(step.get("direction") or "").lower() == "bridge":
+                    bridge_pool_id = _pool_address(step)
+                    break
+            if not bridge_pool_id:
+                bridge_pool_id = str(sequence.get("pool") or "").strip().lower()
+            reachable_by_bridge_pool.setdefault(bridge_pool_id, []).append(sequence)
+        group["observationSequences"] = sequences
+        group["bridgePoolObservationGroups"] = [
+            {
+                "bridgePool": bridge_pool_id,
+                "directionCount": len(rows),
+                "observationSequences": rows,
+                "preview": (rows[0].get("pathText") if rows else "") or bridge_pool_id or "",
+            }
+            for bridge_pool_id, rows in reachable_by_bridge_pool.items()
+        ]
+        group["observationSequenceCount"] = len(reachable_by_bridge_pool)
+        group["observationSequencePreview"] = [
+            (rows[0].get("pathText") if rows else "") or bridge_pool_id or ""
+            for bridge_pool_id, rows in reachable_by_bridge_pool.items()
+        ][:6]
+        group["candidateCombinationCount"] = len(sequences)
+        group["reachableCombinationCount"] = len(reachable_sequences)
+        group["noPoolCombinationCount"] = len(sequences) - len(reachable_sequences)
+        group["observationCombinationCount"] = len(reachable_by_bridge_pool)
+        group["observationCombinationPreview"] = group["observationSequencePreview"]
+        group["observationState"] = {
+            **dict(group.get("observationState") or {}),
+            "status": "reachable" if reachable_sequences else group.get("observationState", {}).get("status"),
+            "reachable": bool(reachable_sequences),
+            "reason": None if reachable_sequences else group.get("observationState", {}).get("reason"),
+            "groupCount": len(reachable_by_bridge_pool),
+        }
+        group["observationReachable"] = bool(reachable_sequences)
+        group["observationEmptyReason"] = None if reachable_sequences else group.get("observationEmptyReason")
+        # Keep the full directional sequence list for the page's Y-Z surface.
+        # ``bridgePoolObservationGroups`` remains the pool-address view used by
+        # DEX overview.
+        group["directionCombinationCount"] = len(sequences)
+        group["directionCombinationPreview"] = [
+            sequence.get("pathText") or sequence.get("pool") or ""
+            for sequence in sequences[:6]
+        ]
     unmatched = [row for row in unmatched if str(row.get("symbolPair") or "") not in used_pair_symbols]
 
     sequence_anchor_symbols = sorted(

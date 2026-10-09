@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network, chain_data_file_path
+from dex.intent_trade.chains.robinhood.dex_pool_candidates import _mainnet_configured_addresses
 from dex.intent_trade.chains.robinhood.flash_liquidity import cached_robinhood_flash_liquidity_snapshot
 from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _as_float,
@@ -72,6 +73,24 @@ def _robinhood_v4_pool_index_path() -> Path:
     return Path(__file__).resolve().parents[4] / "runtime" / "evidence" / "robinhood" / "v4_pool_index" / "latest.json"
 
 
+def _robinhood_v4_static_candidate_loader() -> dict[str, Any]:
+    """Return the compact static candidate cache as the V4 view's pool source.
+
+    Candidate pools are the static handoff for this chain. The full V4 pool
+    index is discovery evidence, not the borrow-asset surface; reading it on
+    every page request recreates the multi-thousand-row pool tables. Explicit
+    index loaders (tests, refresh jobs) still take precedence.
+    """
+    from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+        DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH,
+    )
+
+    payload = read_json(DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH)
+    if payload and (payload.get("pools") or []):
+        return payload
+    return read_json(_robinhood_v4_pool_index_path()) or {}
+
+
 def _robinhood_v4_token_symbol(address: str, fallback: str = "", contracts: dict[str, Any] | None = None) -> str:
     normalized = str(address or "").strip().lower()
     if normalized == "0x0000000000000000000000000000000000000000":
@@ -86,7 +105,7 @@ def _robinhood_v4_token_symbol(address: str, fallback: str = "", contracts: dict
     else:
         contracts = contracts if isinstance(contracts, dict) else {}
     if normalized == str(contracts.get("wrapped_native") or "").strip().lower():
-        return "ETH"
+        return "WETH"
     if normalized == str(contracts.get("usdg") or "").strip().lower():
         return "USDG"
     fallback_symbol = str(fallback or "").strip()
@@ -126,7 +145,7 @@ def _mainnet_v4_anchor_assets() -> list[dict[str, Any]]:
     if wrapped_native:
         assets.append(
             {
-                "symbol": "ETH",
+                "symbol": "WETH",
                 "address": wrapped_native,
                 "decimals": 18,
                 "stable": False,
@@ -173,12 +192,9 @@ def _mainnet_v4_anchor_assets() -> list[dict[str, Any]]:
 
 
 def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
-    """Collapse configured-anchor V4 pools into borrowable token rows.
+    """Collapse configured-anchor V4 pools into five always-visible rows.
 
-    The pool discovery page is config-driven: ETH, USDG, USDE, and TZ are the
-    mainnet anchors configured through chain.json and the mainnet-v4-amm
-    manifest. TA/TB remain bridge/middle tokens and do not get standalone
-    borrow assets.
+    ETH and WETH are separate static anchors, alongside USDG, USDE and TZ.
     """
     try:
         chain_row = chain_data_by_network("robinhood") or {}
@@ -188,6 +204,33 @@ def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[d
         contracts = {}
     anchors = _mainnet_v4_anchor_assets()
     anchor_rows: dict[str, dict[str, Any]] = {}
+    for anchor in anchors:
+        if anchor["symbol"] in anchor_rows:
+            continue
+        anchor_rows[anchor["symbol"]] = _asset_row(
+            {
+                "token_symbol": anchor["symbol"],
+                "binance_symbol": anchor["symbol"],
+                "is_stable": bool(anchor["stable"]),
+                "anchor_symbol": anchor["symbol"],
+                "paired_symbol": anchor["symbol"],
+                "depth_score_usd": 0.0,
+                "available_liquidity": 0,
+                "pool_count": 0,
+                "token_address": anchor["address"],
+                "pool_manager_address": "",
+                "fee": "",
+                "dex": "uniswap_v4",
+                "flash_capable": True,
+                "flash_borrowable": False,
+                "borrowable": False,
+                "pool_role": "configured_anchor_v4_borrow_token",
+                "decimals": anchor["decimals"],
+                "observed_block": None,
+                "pool_ids": [],
+                "paired_symbols": [],
+            }
+        )
     total_pool_count = 0
     seen_pool_ids: set[str] = set()
     for pool in pools:
@@ -200,68 +243,57 @@ def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[d
         token0_symbol = _robinhood_v4_token_symbol(token0_address, pool.get("token0Symbol"), contracts=contracts) if token0_address else ""
         token1_symbol = _robinhood_v4_token_symbol(token1_address, pool.get("token1Symbol"), contracts=contracts) if token1_address else ""
         pool_id = str(pool.get("poolId") or pool.get("pool") or pool.get("pool_id") or "").strip()
-        matched_anchors = [
-            anchor
+        anchor_symbol_by_address = {
+            anchor["address"].lower(): anchor["symbol"]
             for anchor in anchors
-            if token0_address == anchor["address"].lower() or token1_address == anchor["address"].lower()
-        ]
-        if not matched_anchors:
+        }
+        token0_symbol = anchor_symbol_by_address.get(token0_address) or token0_symbol
+        token1_symbol = anchor_symbol_by_address.get(token1_address) or token1_symbol
+        configured_scope = _mainnet_configured_addresses()
+        if token0_address not in configured_scope and token1_address not in configured_scope:
             continue
+        matched_anchor_symbols = {
+            symbol
+            for symbol in (
+                anchor_symbol_by_address.get(token0_address, ""),
+                anchor_symbol_by_address.get(token1_address, ""),
+            )
+            if symbol
+        }
         if pool_id:
             first_time = pool_id not in seen_pool_ids
             seen_pool_ids.add(pool_id)
         else:
-            first_time = True
+            pool_identity = f"{token0_address}:{token1_address}:{pool_key.get('fee') or pool.get('fee') or ''}"
+            first_time = pool_identity not in seen_pool_ids
+            seen_pool_ids.add(pool_identity)
         if first_time:
             total_pool_count += 1
-        for anchor in matched_anchors:
-            row = anchor_rows.get(anchor["symbol"])
+        for symbol in matched_anchor_symbols:
+            row = anchor_rows.get(symbol)
             if row is None:
-                row = _asset_row(
-                    {
-                        "token_symbol": anchor["symbol"],
-                        "binance_symbol": anchor["symbol"],
-                        "is_stable": bool(anchor["stable"]),
-                        "anchor_symbol": anchor["symbol"],
-                        "paired_symbol": anchor["symbol"],
-                        "depth_score_usd": 0.0,
-                        "available_liquidity": 0,
-                        "pool_count": 0,
-                        "token_address": anchor["address"],
-                        "pool_manager_address": pool.get("poolManager") or "",
-                        "fee": pool.get("fee") if pool.get("fee") is not None else pool_key.get("fee"),
-                        "dex": "uniswap_v4",
-                        "flash_capable": True,
-                        "flash_borrowable": False,
-                        "borrowable": False,
-                        "pool_role": "configured_anchor_v4_borrow_token",
-                        "decimals": anchor["decimals"],
-                        "observed_block": pool.get("initializeBlockNumber"),
-                        "pool_ids": [],
-                    }
-                )
-                anchor_rows[anchor["symbol"]] = row
+                continue
             row["pool_count"] = int(row.get("pool_count") or 0) + 1
             if pool_id:
                 pool_ids = row.setdefault("pool_ids", [])
                 if len(pool_ids) < 16 and pool_id not in pool_ids:
                     pool_ids.append(pool_id)
-            for address, symbol in (
+            for address, pool_symbol in (
                 (token0_address, token0_symbol),
                 (token1_address, token1_symbol),
             ):
-                if not symbol or symbol.upper() == anchor["symbol"].upper():
+                if not pool_symbol or pool_symbol.upper() == symbol.upper():
                     continue
                 paired_symbols = row.setdefault("paired_symbols", [])
-                if symbol.upper() not in paired_symbols:
-                    paired_symbols.append(symbol.upper())
-    seen_anchor_symbols: set[str] = set()
+                if pool_symbol.upper() not in paired_symbols:
+                    paired_symbols.append(pool_symbol.upper())
     assets = []
+    seen_asset_symbols: set[str] = set()
     for anchor in anchors:
         symbol = anchor["symbol"]
-        if symbol not in anchor_rows or symbol in seen_anchor_symbols:
+        if symbol in seen_asset_symbols or symbol not in anchor_rows:
             continue
-        seen_anchor_symbols.add(symbol)
+        seen_asset_symbols.add(symbol)
         assets.append(anchor_rows[symbol])
     for asset in assets:
         asset["available_liquidity"] = float(asset.get("pool_count") or 0)
@@ -288,7 +320,7 @@ def _robinhood_v4_protocol_view(
     *,
     index_loader: Callable[[], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    loader = index_loader or (lambda: read_json(_robinhood_v4_pool_index_path()) or {})
+    loader = index_loader or _robinhood_v4_static_candidate_loader
     try:
         index = loader() or {}
     except Exception as exc:

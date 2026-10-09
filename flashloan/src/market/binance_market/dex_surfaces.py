@@ -236,15 +236,41 @@ def dex_market_observation_surface_payload(
         static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
         if static_snapshot.get("exists"):
             payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
-            payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
-            _cache_surface_payload(
-                "dex_market_observation",
-                payload,
-                chain_id=chain_id,
-                protocols=protocols,
-                use_static_observation=use_static_observation,
+            # A previously generated empty snapshot must not mask the live
+            # YC/ZC observation builder.  This is especially important for a
+            # newly scoped protocol snapshot: the legacy file can exist while
+            # containing no anchors, groups, or concrete sequences at all.
+            summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+            group_sequences = [
+                sequence
+                for group in (payload.get("candidateObservationGroups") or [])
+                if isinstance(group, dict)
+                for sequence in (group.get("observationSequences") or [])
+            ]
+            # A snapshot that only remembers anchors/candidate groups but has
+            # no concrete sequences is a legacy empty handoff.  It must not
+            # shadow the live observation builder, which now composes real
+            # Y-Z bridge pools into observationSequences.
+            is_empty_snapshot = not any(
+                (
+                    payload.get("observationSequences"),
+                    payload.get("chainSpecificObservationPairs"),
+                    summary.get("observationSequenceCount"),
+                    summary.get("candidateObservationSequenceCount"),
+                    summary.get("chainSpecificObservationSequenceCount"),
+                    group_sequences,
+                )
             )
-            return payload
+            if not is_empty_snapshot:
+                payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
+                _cache_surface_payload(
+                    "dex_market_observation",
+                    payload,
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    use_static_observation=use_static_observation,
+                )
+                return payload
     payload = dex_market_observation_payload(chain_id=chain_id, protocols=protocols)
     payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "computed"
     return payload
@@ -280,6 +306,46 @@ def dex_overview_payload(
         if use_compact_static_overview
         else {}
     )
+    overview_snapshot_has_route_schema = any(
+        key in compact_snapshot
+        for key in (
+            "closedLoopRouteSummaries",
+            "chainSpecificObservationPairs",
+            "observationSequences",
+            "poolRegistry",
+        )
+    )
+    if (
+        compact_snapshot.get("exists")
+        and not compact_snapshot.get("closedLoopRouteSummaries")
+        and not overview_snapshot_has_route_schema
+    ):
+        # A compact overview that carries anchor symbols but no route summaries
+        # can still be a stale snapshot that shadows the live builder.  Only
+        # keep it when the scoped observation snapshot has concrete sequences.
+        observation_snapshot_for_check = (
+            load_market_observation_static(chain_id=chain_id, protocols=scope_protocols)
+            if chain_id in _ROBINHOOD_CHAIN_IDS
+            else {}
+        )
+        observation_summary = observation_snapshot_for_check.get("summary") or {}
+        overview_has_route_data = bool(
+            compact_snapshot.get("closedLoopRouteSummaries")
+            or compact_snapshot.get("chainSpecificObservationPairs")
+            or observation_snapshot_for_check.get("observationSequences")
+            or observation_snapshot_for_check.get("closedLoopRoutes")
+            or observation_snapshot_for_check.get("chainSpecificObservationPairs")
+            or observation_summary.get("observationSequenceCount")
+            or any(
+                sequence
+                for group in observation_snapshot_for_check.get("candidateObservationGroups") or []
+                if isinstance(group, dict)
+                for sequence in (group.get("observationSequences") or [])
+            )
+        )
+        if not overview_has_route_data:
+            compact_snapshot = {}
+            use_compact_static_overview = False
     if compact_snapshot.get("exists"):
         if compact_snapshot.get("closedLoopRouteSummaries"):
             overview_paths = _overview_paths_from_static_summary(compact_snapshot, chain_id=chain_id)

@@ -7,7 +7,12 @@ from core.chain_data_registry import (
     chain_supported_protocols,
 )
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
-from core.flash_loan_pools import pool_evidence_from_view, static_store_metadata, write_flash_loan_pool_static
+from core.flash_loan_pools import (
+    load_flash_loan_pool_static,
+    pool_evidence_from_view,
+    static_store_metadata,
+    write_flash_loan_pool_static,
+)
 from core.market_config import PROTOCOL_CAPABILITIES, supported_market_summaries
 from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _empty_protocol_view,
@@ -210,6 +215,7 @@ def flash_loan_pools_payload(
     if refresh_mode not in {"incremental", "full"}:
         refresh_mode = "incremental"
     static_pool_store_root = provider_options.pop("static_pool_store_root", None)
+    use_static_cache = bool(provider_options.pop("use_static_cache", False))
     requested_protocols: list[str] = []
     for protocol in protocols or []:
         normalized = str(protocol or "").strip().lower()
@@ -300,6 +306,34 @@ def flash_loan_pools_payload(
             protocol_views.append(_route_only_protocol_view(protocol))
         elif has_protocol_scope and protocol not in available_protocols:
             protocol_views.append(_empty_protocol_view(protocol, status="chain_protocol_not_supported"))
+        elif use_static_cache and view_chain_id is not None:
+            static_view = load_flash_loan_pool_static(
+                chain_id=view_chain_id,
+                protocol=protocol,
+                root=static_pool_store_root,
+            )
+            embedded_view = static_view.get("protocol_view") or {}
+            if static_view.get("exists") and embedded_view:
+                embedded_view["_static_pool_source"] = {
+                    "path": static_view.get("path"),
+                    "generated_at": static_view.get("generated_at"),
+                    "refresh_mode": static_view.get("refresh_mode"),
+                }
+                embedded_view["static_pool_store"] = static_store_metadata(
+                    network=None,
+                    chain_id=view_chain_id,
+                    protocol=protocol,
+                    root=static_pool_store_root,
+                )
+                protocol_views.append(embedded_view)
+            else:
+                protocol_views.append(
+                    _dispatch_flash_loan_pool_protocol_view(
+                        protocol,
+                        chain_id=view_chain_id,
+                        **provider_options,
+                    )
+                )
         elif view_chain_id is not None:
             protocol_views.append(
                 _dispatch_flash_loan_pool_protocol_view(
@@ -314,6 +348,8 @@ def flash_loan_pools_payload(
     for view in protocol_views:
         protocol = str(view.get("protocol") or "").strip().lower()
         if not protocol:
+            continue
+        if view.get("_static_pool_source"):
             continue
         view_chain_id = chain_id
         cache = view.get("cache") if isinstance(view.get("cache"), dict) else {}

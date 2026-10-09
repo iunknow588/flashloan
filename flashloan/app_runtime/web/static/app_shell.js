@@ -137,8 +137,13 @@
     document.querySelectorAll("[data-shell-link], [data-flash-loan-protocol-link]").forEach(function (link) {
       const href = link.getAttribute("href") || "";
       const linkUrl = new URL(href, window.location.origin);
+      const linkPath = normalizedPath(linkUrl.pathname);
+      const candidatePoolPath = "/dex/candidates";
+      const flashLoanPoolPath = "/flash-loan/pools";
+      const targetIsPoolView = target === candidatePoolPath || target === flashLoanPoolPath;
       const active = normalizedPath(linkUrl.pathname) === target &&
-        (!linkUrl.searchParams.get("protocols") || linkUrl.searchParams.get("protocols") === url.searchParams.get("protocols"));
+        (!linkUrl.searchParams.get("protocols") || linkUrl.searchParams.get("protocols") === url.searchParams.get("protocols")) &&
+        (!targetIsPoolView || linkPath === target);
       link.classList.toggle("active", active);
     });
     const nextFeature = pathFeature(url.pathname);

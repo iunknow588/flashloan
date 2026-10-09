@@ -302125,10 +302125,10 @@
     }
   },
   "entryCount": 25060,
-  "lastScanScope": "full_index",
+  "lastScanScope": "active_plus_known",
   "network": "robinhood-testnet",
   "poolIndexSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
   "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-  "refreshedAt": "2026-10-06T20:27:28.509702Z",
+  "refreshedAt": "2026-10-07T16:53:09.536927Z",
   "schemaVersion": "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
 }

@@ -48,10 +48,58 @@ def test_mainnet_observation_hooks_refuse_other_chain_scopes():
     assert "missingYzPairCount" in mainnet
     assert mainnet["candidateYzPairCount"] >= mainnet["verifiedYzPairCount"]
     assert mainnet["sourceTokenEvidence"] == "robinhood_eth_pair_tokens"
+    assert mainnet["associatedObservationPairs"]
+    assert mainnet["associatedObservationPools"]
+    assert mainnet["associatedObservationTokens"]
+    assert len(mainnet["associatedObservationPairs"]) == mainnet["associatedObservationPairCount"]
+    assert len(mainnet["associatedObservationPools"]) == mainnet["associatedObservationPoolCount"]
+    assert len(mainnet["associatedObservationTokens"]) == mainnet["associatedObservationTokenCount"]
+    pairs_with_pools = [
+        pair
+        for pair in mainnet["associatedObservationPairs"]
+        if pair.get("hasDirectSwapPool")
+    ]
+    no_pool_pairs = [
+        pair
+        for pair in mainnet["associatedObservationPairs"]
+        if not pair.get("hasDirectSwapPool")
+    ]
+    assert pairs_with_pools
+    assert no_pool_pairs
+    for pair in pairs_with_pools:
+        assert pair["directSwapPools"]
+        assert pair["addressPair"]
+    for pair in no_pool_pairs:
+        assert pair["directionKey"]
+        assert pair["poolCount"] == 0
+        assert not pair["directSwapPools"]
 
     invalid = fund_anchor_pair_observation(chain_id=46630, protocols=["uniswap_v4"])
     assert invalid["enabled"] is False
     assert invalid["status"] == "chain_scope_invalid"
+
+
+def test_mainnet_closed_loops_use_fixed_fee_pools_without_hooks():
+    """Recommended closed loops must stay executable by the official arb path.
+
+    A non-zero hook may charge hidden fees or revert ``runArbitrage``; the
+    market-observation page can still display hook pools as YC/ZC candidates,
+    but the first-priority DEX overview handoff must not use them.
+    """
+    mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
+    sequences = mainnet.get("closedLoopSequences") or mainnet.get("observationSequences") or []
+    assert sequences
+    for sequence in sequences:
+        route_pools = sequence.get("routePools") or []
+        assert len(route_pools) == 3
+        for pool in route_pools:
+            fee = int(str(pool.get("fee") or "0").strip() or 0)
+            hooks = str(pool.get("hooks") or "").strip().lower()
+            assert fee > 0, f"closed loop uses zero fee: {pool}"
+            assert fee <= 100_000, f"closed loop uses special fee {fee}: {pool}"
+            assert not pool.get("dynamicFee"), f"closed loop uses dynamic fee: {pool}"
+            assert hooks == "0x0000000000000000000000000000000000000000", f"closed loop uses hook pool: {pool}"
+            assert pool.get("usableForObservation") is True
 
 
 def test_mainnet_observation_does_not_prefilter_yc_zc_by_symbol_or_stablecoin():

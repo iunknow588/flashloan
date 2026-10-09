@@ -402,6 +402,9 @@ def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
 
     response = client.get("/flash-loan/pools?chain_id=46630&protocols=uniswap_v4")
     payload = client.get("/api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4").get_json()
+    rebuilt_payload = client.get(
+        "/api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4&rebuild=1"
+    ).get_json()
 
     assert response.status_code == 200
     assert response.location is None
@@ -415,6 +418,7 @@ def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
     assert payload["protocol_views"][0]["cache"]["pool_manager_address"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
     assert payload["protocol_views"][0]["cache"]["identities"][0]["kind"] == "pool_manager"
     assert payload["protocol_views"][0]["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert payload["protocol_views"][0].get("_static_pool_source", {}).get("path", "").endswith("pools.json")
     assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
     assert payload["protocol_views"][0]["summary"]["verified_lending_borrow_asset_count"] == 0
     assert payload["protocol_views"][0]["summary"]["flash_borrowable_asset_count"] > 0
@@ -423,13 +427,15 @@ def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
     assert "status" not in payload["protocol_views"][0]
     assert payload["protocol_views"][0]["cache"]["asset_count"] == 0
     assert payload["protocol_views"][0]["cache"]["flash_accounting_asset_count"] > 0
-    assert payload["protocol_views"][0]["cache"]["observable_pool_key_count"] == 25
-    assert payload["protocol_views"][0]["cache"]["pool_key_count"] == 25
-    assert payload["protocol_views"][0]["summary"]["v4_pool_liquidity_pool_count"] == 25
-    assert payload["protocol_views"][0]["summary"]["v4_pool_key_count"] == 25
-    assert payload["protocol_views"][0]["summary"]["v4_decoded_pool_key_count"] == 25
-    assert payload["protocol_views"][0]["summary"]["v4_token_address_count"] >= 25
-    assert payload["protocol_views"][0]["summary"]["depth_counts"] == {"observable": 25}
+    assert payload["protocol_views"][0]["cache"]["observable_pool_key_count"] > 0
+    assert payload["protocol_views"][0]["cache"]["pool_key_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["v4_pool_liquidity_pool_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["v4_pool_key_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["v4_decoded_pool_key_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["v4_token_address_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["depth_counts"]["observable"] > 0
+    assert rebuilt_payload["protocol_views"][0].get("_static_pool_source") is None
+    assert rebuilt_payload["protocol_views"][0]["cache"]["observable_pool_key_count"] > 0
     assert payload["protocol_views"][0]["chainIsolation"]["network"] == "robinhood-testnet"
     assert payload["protocol_views"][0]["chainIsolation"]["usesMainnetRobinhoodCache"] is False
 

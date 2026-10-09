@@ -2,6 +2,7 @@ import inspect
 import json
 from pathlib import Path
 
+from core.flash_loan_pools import write_flash_loan_pool_static
 from web import flash_loan_pools
 
 
@@ -827,6 +828,48 @@ def test_flash_loan_pools_payload_uses_chain_flow_dispatcher():
     assert signature.parameters["provider_options"].kind == inspect.Parameter.VAR_KEYWORD
 
 
+def test_flash_loan_pools_payload_prefers_static_snapshot_for_ordinary_reads(tmp_path, monkeypatch):
+    static_view = {
+        "protocol": "uniswap_v4",
+        "display_name": "Robinhood Testnet Uniswap V4",
+        "cache": {
+            "chain_id": 46630,
+            "network": "robinhood-testnet",
+            "refreshed_at": "2026-09-01T00:00:00Z",
+        },
+        "summary": {"borrow_asset_count": 2},
+        "stable_v4_flash_source_rows": [{"token_symbol": "USDC"}],
+        "non_stable_v4_flash_source_rows": [{"token_symbol": "ETH"}],
+        "borrow_target_universe": None,
+    }
+    write_flash_loan_pool_static(
+        static_view,
+        chain_id=46630,
+        root=tmp_path,
+        refresh_mode="full",
+    )
+    called = []
+
+    def fail_if_dynamic_dispatch(*args, **kwargs):
+        called.append(True)
+        raise AssertionError("ordinary GET must not rebuild the dynamic view")
+
+    monkeypatch.setattr(flash_loan_pools, "_dispatch_flash_loan_pool_protocol_view", fail_if_dynamic_dispatch)
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_cache=True,
+        static_pool_store_root=tmp_path,
+    )
+
+    view = payload["protocol_views"][0]
+    assert called == []
+    assert view["protocol"] == "uniswap_v4"
+    assert view["summary"]["borrow_asset_count"] == 2
+    assert view["_static_pool_source"]["path"].endswith("pools.json")
+    assert view["static_pool_store"]["exists"] is True
+
+
 def test_flash_loan_pools_uses_robinhood_uniswap_v2_flash_swap_liquidity(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
@@ -929,14 +972,15 @@ def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
     view = payload["protocol_views"][0]
     assert "status" not in view
     assert view["display_mode"] == "observable_dex_pool"
-    assert view["summary"]["observable_pool_count"] == 2
-    assert view["summary"]["borrow_asset_count"] == 2
-    assert view["summary"]["observed_borrow_token_count"] == 2
+    assert view["summary"]["observable_pool_count"] == 5
+    assert view["summary"]["borrow_asset_count"] == 5
+    assert view["summary"]["observed_borrow_token_count"] == 5
     assert view["summary"]["v4_pool_key_count"] == 1
-    assert [row["token_symbol"] for row in view["stable_borrow_pools"]] == ["USDG"]
-    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "ETH"
-    assert view["non_stable_borrow_pools"][0]["pool_count"] == 1
-    assert view["non_stable_borrow_pools"][0]["paired_symbol_count"] == 1
+    assert [row["token_symbol"] for row in view["stable_borrow_pools"]] == ["USDE", "USDG"]
+    assert view["stable_borrow_pools"][1]["pool_count"] == 1
+    assert [row["token_symbol"] for row in view["non_stable_borrow_pools"]] == ["ETH", "TZ", "WETH"]
+    assert view["non_stable_borrow_pools"][2]["pool_count"] == 1
+    assert view["non_stable_borrow_pools"][2]["paired_symbol_count"] == 1
     assert view["cache"]["identities"][0]["kind"] == "pool_manager"
     assert view["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
 

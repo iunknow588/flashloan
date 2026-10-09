@@ -1,0 +1,1613 @@
+{
+  "anchorSymbol": "TZ",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\tz.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        ],
+        "anchorSymbol": "TZ",
+        "candidatePoolCount": "2",
+        "candidateQueueCount": "4",
+        "ycPoolCount": "2",
+        "ycPools": [
+          {
+            "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "anchorSymbol": "TZ",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "counterSymbol": "TB",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 79647902,
+              "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "316227766017675866399780",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+              "0x02a0bacc642d501422af804a462f98335b2bbf09"
+            ],
+            "routeKey": "yc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "routeSymbols": [
+              "TZ",
+              "TB"
+            ],
+            "routeText": "TZ -> TB",
+            "specialFee": null,
+            "sqrtPriceX96": "43036539623492203628755082752",
+            "tick": "-12207",
+            "tickSpacing": null,
+            "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+            "token0Decimals": null,
+            "token0Symbol": "TB",
+            "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token1Decimals": null,
+            "token1Symbol": "TZ",
+            "usableForObservation": null
+          },
+          {
+            "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "anchorSymbol": "TZ",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "counterSymbol": "TA",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "316227766017675866399780",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+              "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+            ],
+            "routeKey": "yc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "routeSymbols": [
+              "TZ",
+              "TA"
+            ],
+            "routeText": "TZ -> TA",
+            "specialFee": null,
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "tick": "-17889",
+            "tickSpacing": null,
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0Decimals": null,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1Decimals": null,
+            "token1Symbol": "TA",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "2",
+        "ycTokens": [
+          {
+            "address": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "anchorSymbol": "TZ",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "counterSymbol": "TA",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 79647842,
+                  "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "3000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "316227766017675866399780",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                  "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+                ],
+                "routeKey": "yc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "routeSymbols": [
+                  "TZ",
+                  "TA"
+                ],
+                "routeText": "TZ -> TA",
+                "specialFee": null,
+                "sqrtPriceX96": "32393637045873524264161319790",
+                "tick": "-17889",
+                "tickSpacing": null,
+                "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                "token0Decimals": null,
+                "token0Symbol": "TZ",
+                "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                "token1Decimals": null,
+                "token1Symbol": "TA",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "TA"
+          },
+          {
+            "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "anchorSymbol": "TZ",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "counterSymbol": "TB",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 79647902,
+                  "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "3000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "316227766017675866399780",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                  "0x02a0bacc642d501422af804a462f98335b2bbf09"
+                ],
+                "routeKey": "yc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "routeSymbols": [
+                  "TZ",
+                  "TB"
+                ],
+                "routeText": "TZ -> TB",
+                "specialFee": null,
+                "sqrtPriceX96": "43036539623492203628755082752",
+                "tick": "-12207",
+                "tickSpacing": null,
+                "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                "token0Decimals": null,
+                "token0Symbol": "TB",
+                "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                "token1Decimals": null,
+                "token1Symbol": "TZ",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "TB"
+          }
+        ],
+        "zcPoolCount": "2",
+        "zcPools": [
+          {
+            "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "anchorSymbol": "TZ",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "counterSymbol": "TB",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 79647902,
+              "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "316227766017675866399780",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x02a0bacc642d501422af804a462f98335b2bbf09",
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+            ],
+            "routeKey": "zc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "routeSymbols": [
+              "TB",
+              "TZ"
+            ],
+            "routeText": "TB -> TZ",
+            "specialFee": null,
+            "sqrtPriceX96": "43036539623492203628755082752",
+            "tick": "-12207",
+            "tickSpacing": null,
+            "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+            "token0Decimals": null,
+            "token0Symbol": "TB",
+            "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token1Decimals": null,
+            "token1Symbol": "TZ",
+            "usableForObservation": null
+          },
+          {
+            "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "anchorSymbol": "TZ",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "counterSymbol": "TA",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "316227766017675866399780",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+            ],
+            "routeKey": "zc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "routeSymbols": [
+              "TA",
+              "TZ"
+            ],
+            "routeText": "TA -> TZ",
+            "specialFee": null,
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "tick": "-17889",
+            "tickSpacing": null,
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0Decimals": null,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1Decimals": null,
+            "token1Symbol": "TA",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "2",
+        "zcTokens": [
+          {
+            "address": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "anchorSymbol": "TZ",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "counterSymbol": "TA",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 79647842,
+                  "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "3000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "316227766017675866399780",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+                ],
+                "routeKey": "zc:TZ:TA:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:uniswap_v4:3000:0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "routeSymbols": [
+                  "TA",
+                  "TZ"
+                ],
+                "routeText": "TA -> TZ",
+                "specialFee": null,
+                "sqrtPriceX96": "32393637045873524264161319790",
+                "tick": "-17889",
+                "tickSpacing": null,
+                "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                "token0Decimals": null,
+                "token0Symbol": "TZ",
+                "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                "token1Decimals": null,
+                "token1Symbol": "TA",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "TA"
+          },
+          {
+            "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "anchorSymbol": "TZ",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "counterSymbol": "TB",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 79647902,
+                  "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "3000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "316227766017675866399780",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+                ],
+                "routeKey": "zc:TZ:TB:0x02a0bacc642d501422af804a462f98335b2bbf09:0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:uniswap_v4:3000:0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "routeSymbols": [
+                  "TB",
+                  "TZ"
+                ],
+                "routeText": "TB -> TZ",
+                "specialFee": null,
+                "sqrtPriceX96": "43036539623492203628755082752",
+                "tick": "-12207",
+                "tickSpacing": null,
+                "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                "token0Decimals": null,
+                "token0Symbol": "TB",
+                "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                "token1Decimals": null,
+                "token1Symbol": "TZ",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "TB"
+          }
+        ]
+      }
+    ],
+    "closedLoopRouteSummaries": [
+      {
+        "anchorAddresses": [
+          "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        ],
+        "anchorSymbol": "TZ",
+        "bridgeSymbol": "TB",
+        "counterSymbol": "TA",
+        "hopCandidateCombinationCount": 1,
+        "hopCandidateCounts": {
+          "x-y": 1,
+          "y-z": 1,
+          "z-x": 1
+        },
+        "hopCandidates": [
+          {
+            "direction": "yc",
+            "fromAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "fromSymbol": "TZ",
+            "leg": "x-y",
+            "poolCount": 1,
+            "pools": [
+              {
+                "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "anchorSymbol": "TZ",
+                "balances": {
+                  "tvlUsd": 0,
+                  "v4Liquidity": "316227766017675866399780"
+                },
+                "classification": {},
+                "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "counterSymbol": "TB",
+                "depthBand": {
+                  "estimatedTvlUsd": null,
+                  "label": "unpriced",
+                  "level": "unpriced",
+                  "liquidityIndex": 316227.76601767587,
+                  "reason": "liquidity_present_but_no_usd_price"
+                },
+                "depthStatus": "live_liquid",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": false,
+                "estimatedTvlUsd": 0,
+                "evidence": {
+                  "bridgeOnly": true,
+                  "initializeBlockNumber": null,
+                  "initializeTransactionHash": null,
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_static_dex_candidates"
+                },
+                "fee": 3000,
+                "feeLabel": 3000,
+                "hasLiquidity": true,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "liquidity": "316227766017675866399780",
+                "liquidityBlockNumber": null,
+                "liquidityError": null,
+                "liquidityIndex": 3.1622776601767585e+23,
+                "liquidityReadAt": null,
+                "liquiditySource": "pool_manager_extsload_live_state_batch",
+                "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "pairSymbol": "TB:TZ",
+                "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                "poolIdentityMode": "v4_pool_id",
+                "poolKey": {
+                  "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                  "currency1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                  "fee": 3000,
+                  "hooks": "0x0000000000000000000000000000000000000000",
+                  "initializeBlockNumber": 79647902,
+                  "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+                  "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+                  "poolKeyDecoded": true,
+                  "sqrtPriceX96": "25054144837438405210904448839",
+                  "tick": -23028,
+                  "tickSpacing": 60,
+                  "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                  "token0Decimals": 18,
+                  "token0Symbol": "tb",
+                  "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                  "token1Decimals": 18,
+                  "token1Symbol": "tz"
+                },
+                "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                "protocol": "uniswap_v4",
+                "quality": null,
+                "quoteSummary": {},
+                "recentSwapActive": null,
+                "routeAddresses": [
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                  "0x02a0bacc642d501422af804a462f98335b2bbf09"
+                ],
+                "routeSymbols": [
+                  "TZ",
+                  "TB"
+                ],
+                "routeText": "TZ -> TB",
+                "source": "robinhood_mainnet_static_dex_candidates",
+                "specialFee": false,
+                "sqrtPriceX96": "43036539623492203628755082752",
+                "tick": -12207,
+                "tickSpacing": 60,
+                "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "token0Decimals": 18,
+                "token0Reserve": null,
+                "token0Symbol": "TB",
+                "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "token1Decimals": 18,
+                "token1Reserve": null,
+                "token1Symbol": "TZ",
+                "usableForObservation": true
+              }
+            ],
+            "preferredPoolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "preferredPoolUsable": true,
+            "selectionBasis": "tvl_depth_desc",
+            "symbolPair": "TZ -> TB",
+            "toAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "toSymbol": "TB",
+            "usablePoolCount": 1
+          },
+          {
+            "direction": "bridge",
+            "fromAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "fromSymbol": "TB",
+            "leg": "y-z",
+            "poolCount": 1,
+            "pools": [
+              {
+                "anchorAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "anchorSymbol": "TB",
+                "balances": {
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "counterSymbol": "TA",
+                "depthBand": {
+                  "estimatedTvlUsd": null,
+                  "label": "unpriced",
+                  "level": "unpriced",
+                  "liquidityIndex": 316227.76601767587,
+                  "reason": "liquidity_present_but_no_usd_price"
+                },
+                "depthStatus": "unpriced",
+                "dex": "uniswap_v4",
+                "direction": "bridge",
+                "dynamicFee": false,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "bridgeOnly": true,
+                  "initializeBlockNumber": 79647870,
+                  "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": 3000,
+                "feeLabel": 3000,
+                "hasLiquidity": true,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "liquidity": "316227766017675866399780",
+                "liquidityBlockNumber": 79647929,
+                "liquidityError": null,
+                "liquidityIndex": 316227.76601767587,
+                "liquidityReadAt": "2026-10-04T00:00:00Z",
+                "liquiditySource": "mainnet-v4-official-pool-create-tx",
+                "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "pairSymbol": "TB:TA",
+                "pool": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+                "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+                "poolIdentityMode": "v4_pool_id",
+                "poolKey": {
+                  "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                  "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                  "fee": 3000,
+                  "hooks": "0x0000000000000000000000000000000000000000",
+                  "initializeBlockNumber": 79647870,
+                  "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+                  "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+                  "poolKeyDecoded": true,
+                  "sqrtPriceX96": "25054144837438405210904448839",
+                  "tick": -23028,
+                  "tickSpacing": 60,
+                  "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+                  "token0Decimals": 18,
+                  "token0Symbol": "tb",
+                  "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                  "token1Decimals": 18,
+                  "token1Symbol": "ta"
+                },
+                "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                "protocol": "uniswap_v4",
+                "quality": null,
+                "quoteSummary": {},
+                "recentSwapActive": null,
+                "routeAddresses": [
+                  "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                  "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+                ],
+                "routeSymbols": [
+                  "TB",
+                  "TA"
+                ],
+                "routeText": "TB -> TA",
+                "source": "robinhood_mainnet_v4_pool_index",
+                "specialFee": false,
+                "sqrtPriceX96": "25054144837438405210904448839",
+                "tick": -23028,
+                "tickSpacing": 60,
+                "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "token0Decimals": 18,
+                "token0Reserve": "1000000.000005299554877465147",
+                "token0Symbol": "TB",
+                "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "token1Decimals": 18,
+                "token1Reserve": "99999.99999999999999999970615",
+                "token1Symbol": "TA",
+                "usableForObservation": true
+              }
+            ],
+            "preferredPoolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+            "preferredPoolUsable": true,
+            "selectionBasis": "tvl_depth_desc",
+            "symbolPair": "TB -> TA",
+            "toAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "toSymbol": "TA",
+            "usablePoolCount": 1
+          },
+          {
+            "direction": "zc",
+            "fromAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "fromSymbol": "TA",
+            "leg": "z-x",
+            "poolCount": 1,
+            "pools": [
+              {
+                "anchorAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "anchorSymbol": "TA",
+                "balances": {
+                  "tvlUsd": 0,
+                  "v4Liquidity": "316227766017675866399780"
+                },
+                "classification": {},
+                "counterAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "counterSymbol": "TZ",
+                "depthBand": {
+                  "estimatedTvlUsd": null,
+                  "label": "unpriced",
+                  "level": "unpriced",
+                  "liquidityIndex": 316227.76601767587,
+                  "reason": "liquidity_present_but_no_usd_price"
+                },
+                "depthStatus": "live_liquid",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": false,
+                "estimatedTvlUsd": 0,
+                "evidence": {
+                  "bridgeOnly": true,
+                  "initializeBlockNumber": null,
+                  "initializeTransactionHash": null,
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_static_dex_candidates"
+                },
+                "fee": 3000,
+                "feeLabel": 3000,
+                "hasLiquidity": true,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "liquidity": "316227766017675866399780",
+                "liquidityBlockNumber": null,
+                "liquidityError": null,
+                "liquidityIndex": 3.1622776601767585e+23,
+                "liquidityReadAt": null,
+                "liquiditySource": "pool_manager_extsload_live_state_batch",
+                "pairAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "pairSymbol": "TZ:TA",
+                "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                "poolIdentityMode": "v4_pool_id",
+                "poolKey": {
+                  "currency0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                  "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                  "fee": 3000,
+                  "hooks": "0x0000000000000000000000000000000000000000",
+                  "initializeBlockNumber": 79647842,
+                  "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+                  "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+                  "poolKeyDecoded": true,
+                  "sqrtPriceX96": "25054144837438405210904448839",
+                  "tick": -23028,
+                  "tickSpacing": 60,
+                  "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+                  "token0Decimals": 18,
+                  "token0Symbol": "tz",
+                  "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+                  "token1Decimals": 18,
+                  "token1Symbol": "ta"
+                },
+                "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                "protocol": "uniswap_v4",
+                "quality": null,
+                "quoteSummary": {},
+                "recentSwapActive": null,
+                "routeAddresses": [
+                  "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                  "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+                ],
+                "routeSymbols": [
+                  "TA",
+                  "TZ"
+                ],
+                "routeText": "TA -> TZ",
+                "source": "robinhood_mainnet_static_dex_candidates",
+                "specialFee": false,
+                "sqrtPriceX96": "32393637045873524264161319790",
+                "tick": -17889,
+                "tickSpacing": 60,
+                "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+                "token0Decimals": 18,
+                "token0Reserve": null,
+                "token0Symbol": "TZ",
+                "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                "token1Decimals": 18,
+                "token1Reserve": null,
+                "token1Symbol": "TA",
+                "usableForObservation": true
+              }
+            ],
+            "preferredPoolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "preferredPoolUsable": true,
+            "selectionBasis": "tvl_depth_desc",
+            "symbolPair": "TA -> TZ",
+            "toAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "toSymbol": "TZ",
+            "usablePoolCount": 1
+          }
+        ],
+        "kind": "robinhood_mainnet_closed_loop",
+        "observationRef": "observation.json",
+        "pairSymbols": [
+          "TB:TZ",
+          "TB:TA",
+          "TZ:TA"
+        ],
+        "pathSymbols": [
+          "TZ",
+          "TB",
+          "TA",
+          "TZ"
+        ],
+        "pathText": "TZ -> TB -> TA -> TZ",
+        "poolIds": [
+          "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+        ],
+        "poolPathKey": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0|0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0|0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+        "routeAddresses": [
+          "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        ],
+        "routeKey": "TZ -> TB -> TA -> TZ|0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0|0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0|0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+        "routePools": [
+          {
+            "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "anchorSymbol": "TZ",
+            "balances": {
+              "tvlUsd": 0,
+              "v4Liquidity": "316227766017675866399780"
+            },
+            "classification": {},
+            "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "counterSymbol": "TB",
+            "depthBand": {
+              "estimatedTvlUsd": null,
+              "label": "unpriced",
+              "level": "unpriced",
+              "liquidityIndex": 316227.76601767587,
+              "reason": "liquidity_present_but_no_usd_price"
+            },
+            "depthStatus": "live_liquid",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": false,
+            "estimatedTvlUsd": 0,
+            "evidence": {
+              "bridgeOnly": true,
+              "initializeBlockNumber": null,
+              "initializeTransactionHash": null,
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_static_dex_candidates"
+            },
+            "fee": 3000,
+            "feeLabel": 3000,
+            "hasLiquidity": true,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "liquidity": "316227766017675866399780",
+            "liquidityBlockNumber": null,
+            "liquidityError": null,
+            "liquidityIndex": 3.1622776601767585e+23,
+            "liquidityReadAt": null,
+            "liquiditySource": "pool_manager_extsload_live_state_batch",
+            "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "pairSymbol": "TB:TZ",
+            "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "poolIdentityMode": "v4_pool_id",
+            "poolKey": {
+              "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+              "currency1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+              "fee": 3000,
+              "hooks": "0x0000000000000000000000000000000000000000",
+              "initializeBlockNumber": 79647902,
+              "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+              "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+              "poolKeyDecoded": true,
+              "sqrtPriceX96": "25054144837438405210904448839",
+              "tick": -23028,
+              "tickSpacing": 60,
+              "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+              "token0Decimals": 18,
+              "token0Symbol": "tb",
+              "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+              "token1Decimals": 18,
+              "token1Symbol": "tz"
+            },
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "protocol": "uniswap_v4",
+            "quality": null,
+            "quoteSummary": {},
+            "recentSwapActive": null,
+            "routeAddresses": [
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+              "0x02a0bacc642d501422af804a462f98335b2bbf09"
+            ],
+            "routeSymbols": [
+              "TZ",
+              "TB"
+            ],
+            "routeText": "TZ -> TB",
+            "source": "robinhood_mainnet_static_dex_candidates",
+            "specialFee": false,
+            "sqrtPriceX96": "43036539623492203628755082752",
+            "tick": -12207,
+            "tickSpacing": 60,
+            "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "token0Decimals": 18,
+            "token0Reserve": null,
+            "token0Symbol": "TB",
+            "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "token1Decimals": 18,
+            "token1Reserve": null,
+            "token1Symbol": "TZ",
+            "usableForObservation": true
+          },
+          {
+            "anchorAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "anchorSymbol": "TB",
+            "balances": {
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "counterSymbol": "TA",
+            "depthBand": {
+              "estimatedTvlUsd": null,
+              "label": "unpriced",
+              "level": "unpriced",
+              "liquidityIndex": 316227.76601767587,
+              "reason": "liquidity_present_but_no_usd_price"
+            },
+            "depthStatus": "unpriced",
+            "dex": "uniswap_v4",
+            "direction": "bridge",
+            "dynamicFee": false,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "bridgeOnly": true,
+              "initializeBlockNumber": 79647870,
+              "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": 3000,
+            "feeLabel": 3000,
+            "hasLiquidity": true,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "liquidity": "316227766017675866399780",
+            "liquidityBlockNumber": 79647929,
+            "liquidityError": null,
+            "liquidityIndex": 316227.76601767587,
+            "liquidityReadAt": "2026-10-04T00:00:00Z",
+            "liquiditySource": "mainnet-v4-official-pool-create-tx",
+            "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "pairSymbol": "TB:TA",
+            "pool": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+            "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+            "poolIdentityMode": "v4_pool_id",
+            "poolKey": {
+              "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+              "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+              "fee": 3000,
+              "hooks": "0x0000000000000000000000000000000000000000",
+              "initializeBlockNumber": 79647870,
+              "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+              "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+              "poolKeyDecoded": true,
+              "sqrtPriceX96": "25054144837438405210904448839",
+              "tick": -23028,
+              "tickSpacing": 60,
+              "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+              "token0Decimals": 18,
+              "token0Symbol": "tb",
+              "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+              "token1Decimals": 18,
+              "token1Symbol": "ta"
+            },
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "protocol": "uniswap_v4",
+            "quality": null,
+            "quoteSummary": {},
+            "recentSwapActive": null,
+            "routeAddresses": [
+              "0x02a0bacc642d501422af804a462f98335b2bbf09",
+              "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+            ],
+            "routeSymbols": [
+              "TB",
+              "TA"
+            ],
+            "routeText": "TB -> TA",
+            "source": "robinhood_mainnet_v4_pool_index",
+            "specialFee": false,
+            "sqrtPriceX96": "25054144837438405210904448839",
+            "tick": -23028,
+            "tickSpacing": 60,
+            "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "token0Decimals": 18,
+            "token0Reserve": "1000000.000005299554877465147",
+            "token0Symbol": "TB",
+            "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "token1Decimals": 18,
+            "token1Reserve": "99999.99999999999999999970615",
+            "token1Symbol": "TA",
+            "usableForObservation": true
+          },
+          {
+            "anchorAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "anchorSymbol": "TA",
+            "balances": {
+              "tvlUsd": 0,
+              "v4Liquidity": "316227766017675866399780"
+            },
+            "classification": {},
+            "counterAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "counterSymbol": "TZ",
+            "depthBand": {
+              "estimatedTvlUsd": null,
+              "label": "unpriced",
+              "level": "unpriced",
+              "liquidityIndex": 316227.76601767587,
+              "reason": "liquidity_present_but_no_usd_price"
+            },
+            "depthStatus": "live_liquid",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": false,
+            "estimatedTvlUsd": 0,
+            "evidence": {
+              "bridgeOnly": true,
+              "initializeBlockNumber": null,
+              "initializeTransactionHash": null,
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_static_dex_candidates"
+            },
+            "fee": 3000,
+            "feeLabel": 3000,
+            "hasLiquidity": true,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "liquidity": "316227766017675866399780",
+            "liquidityBlockNumber": null,
+            "liquidityError": null,
+            "liquidityIndex": 3.1622776601767585e+23,
+            "liquidityReadAt": null,
+            "liquiditySource": "pool_manager_extsload_live_state_batch",
+            "pairAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "pairSymbol": "TZ:TA",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "poolIdentityMode": "v4_pool_id",
+            "poolKey": {
+              "currency0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+              "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+              "fee": 3000,
+              "hooks": "0x0000000000000000000000000000000000000000",
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+              "poolKeyDecoded": true,
+              "sqrtPriceX96": "25054144837438405210904448839",
+              "tick": -23028,
+              "tickSpacing": 60,
+              "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+              "token0Decimals": 18,
+              "token0Symbol": "tz",
+              "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+              "token1Decimals": 18,
+              "token1Symbol": "ta"
+            },
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "protocol": "uniswap_v4",
+            "quality": null,
+            "quoteSummary": {},
+            "recentSwapActive": null,
+            "routeAddresses": [
+              "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+              "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+            ],
+            "routeSymbols": [
+              "TA",
+              "TZ"
+            ],
+            "routeText": "TA -> TZ",
+            "source": "robinhood_mainnet_static_dex_candidates",
+            "specialFee": false,
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "tick": -17889,
+            "tickSpacing": 60,
+            "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+            "token0Decimals": 18,
+            "token0Reserve": null,
+            "token0Symbol": "TZ",
+            "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "token1Decimals": 18,
+            "token1Reserve": null,
+            "token1Symbol": "TA",
+            "usableForObservation": true
+          }
+        ],
+        "source": "robinhood_mainnet_v4_pool_index"
+      }
+    ],
+    "pairs": [
+      {
+        "addressPair": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "allPoolCount": "1",
+        "allPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "liquidity": "316227766017675866399780",
+            "market": {},
+            "nonStableSymbols": [
+              "TZ",
+              "TA"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "stableSymbols": [],
+            "tick": "-17889",
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0IsStable": false,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1IsStable": false,
+            "token1Symbol": "TA"
+          }
+        ],
+        "classification": {
+          "nonStableSymbols": [
+            "TZ",
+            "TA"
+          ],
+          "pairClass": "non_stable_pair",
+          "pairClassLabel": "non-stable pool",
+          "routeRole": "middle_volatility_leg",
+          "stableSymbols": [],
+          "token0IsStable": false,
+          "token1IsStable": false
+        },
+        "executionPoolCount": "1",
+        "executionPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "liquidity": "316227766017675866399780",
+            "market": {},
+            "nonStableSymbols": [
+              "TZ",
+              "TA"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "stableSymbols": [],
+            "tick": "-17889",
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0IsStable": false,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1IsStable": false,
+            "token1Symbol": "TA"
+          }
+        ],
+        "flashLoanLinkage": {
+          "available_flashloan_protocols": [
+            "morpho_blue",
+            "uniswap_v2"
+          ],
+          "borrow_symbols": [],
+          "conditions": [
+            "selected pool must have executable depth after slippage",
+            "quoted output must exceed borrowed principal plus flashloan fee and gas reserve",
+            "route must end in the borrowed stable asset for same-transaction repayment",
+            "UniswapX fills require a signed order/opportunity and solver execution path"
+          ],
+          "direct_stable_flashloan": false,
+          "flash_swap_bridge": true,
+          "ready_for_atomic_arbitrage": true,
+          "route_symbols": [
+            "TZ",
+            "TA"
+          ],
+          "strategy": "requires_stable_bridge_route"
+        },
+        "hasPreferredPools": true,
+        "hasStrictQualityPools": true,
+        "identityMode": "address",
+        "preferredPoolCount": "1",
+        "preferredPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "liquidity": "316227766017675866399780",
+            "market": {},
+            "nonStableSymbols": [
+              "TZ",
+              "TA"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "stableSymbols": [],
+            "tick": "-17889",
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0IsStable": false,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1IsStable": false,
+            "token1Symbol": "TA"
+          }
+        ],
+        "rejectReasonCounts": {},
+        "rejectedPoolCount": "0",
+        "rejectedPools": [],
+        "settlementRails": [
+          {
+            "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+            "chain_id": 4663,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "strictQualityPoolCount": "1",
+        "strictQualityPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 79647842,
+              "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "3000",
+            "liquidity": "316227766017675866399780",
+            "market": {},
+            "nonStableSymbols": [
+              "TZ",
+              "TA"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "32393637045873524264161319790",
+            "stableSymbols": [],
+            "tick": "-17889",
+            "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+            "token0IsStable": false,
+            "token0Symbol": "TZ",
+            "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+            "token1IsStable": false,
+            "token1Symbol": "TA"
+          }
+        ],
+        "symbolPair": "tz:ta",
+        "tokenX": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "tokenXSymbol": "TZ",
+        "tokenY": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "tokenYSymbol": "TA"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

@@ -1,0 +1,356 @@
+{
+  "anchorSymbol": "TALON",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\talon.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9"
+        ],
+        "anchorSymbol": "TALON",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "ycPoolCount": "1",
+        "ycPools": [
+          {
+            "anchorAddress": "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+            "anchorSymbol": "TALON",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78400276,
+              "initializeTransactionHash": "0xe7a7b87c0e7f65722ef5b815f9a63d0bbdf912e3d3db55a661d45ae71fc7b0bc",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "32156000099526845215062",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "poolId": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "routeSymbols": [
+              "TALON",
+              "ETH"
+            ],
+            "routeText": "TALON -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "1908495654438323441824156884859085",
+            "tick": "201799",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x3D2BEaBE116EF8c2e6D19A6d4c4254fcEFb2cDe9",
+            "token1Decimals": null,
+            "token1Symbol": "TALON",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+                "anchorSymbol": "TALON",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78400276,
+                  "initializeTransactionHash": "0xe7a7b87c0e7f65722ef5b815f9a63d0bbdf912e3d3db55a661d45ae71fc7b0bc",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "32156000099526845215062",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "poolId": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "routeSymbols": [
+                  "TALON",
+                  "ETH"
+                ],
+                "routeText": "TALON -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "1908495654438323441824156884859085",
+                "tick": "201799",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x3D2BEaBE116EF8c2e6D19A6d4c4254fcEFb2cDe9",
+                "token1Decimals": null,
+                "token1Symbol": "TALON",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "zcPoolCount": "1",
+        "zcPools": [
+          {
+            "anchorAddress": "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+            "anchorSymbol": "TALON",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78400276,
+              "initializeTransactionHash": "0xe7a7b87c0e7f65722ef5b815f9a63d0bbdf912e3d3db55a661d45ae71fc7b0bc",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "32156000099526845215062",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "poolId": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9"
+            ],
+            "routeKey": "zc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+            "routeSymbols": [
+              "ETH",
+              "TALON"
+            ],
+            "routeText": "ETH -> TALON",
+            "specialFee": null,
+            "sqrtPriceX96": "1908495654438323441824156884859085",
+            "tick": "201799",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x3D2BEaBE116EF8c2e6D19A6d4c4254fcEFb2cDe9",
+            "token1Decimals": null,
+            "token1Symbol": "TALON",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9",
+                "anchorSymbol": "TALON",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78400276,
+                  "initializeTransactionHash": "0xe7a7b87c0e7f65722ef5b815f9a63d0bbdf912e3d3db55a661d45ae71fc7b0bc",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "32156000099526845215062",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "poolId": "0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9"
+                ],
+                "routeKey": "zc:TALON:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x3d2beabe116ef8c2e6d19a6d4c4254fcefb2cde9:uniswap_v4:10000:0xa58d0e7447c6c40386e87dd2ca83e39aadd96bbe628a06c86902d79057bcf9f8",
+                "routeSymbols": [
+                  "ETH",
+                  "TALON"
+                ],
+                "routeText": "ETH -> TALON",
+                "specialFee": null,
+                "sqrtPriceX96": "1908495654438323441824156884859085",
+                "tick": "201799",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x3D2BEaBE116EF8c2e6D19A6d4c4254fcEFb2cDe9",
+                "token1Decimals": null,
+                "token1Symbol": "TALON",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

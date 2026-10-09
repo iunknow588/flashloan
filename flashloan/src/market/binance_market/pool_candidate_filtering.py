@@ -251,24 +251,31 @@ def _filter_pair_protocols(pair: dict, protocols: set[str]) -> dict | None:
 def _anchor_token_groups_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     token_groups: dict[str, dict[str, Any]] = {}
     for row in rows:
-        token_symbol = str(row.get("counterSymbol") or "").strip().upper()
-        if not token_symbol:
-            continue
         token_address = _token_address(row.get("counterAddress"))
         if not token_address or (_is_zero_address(token_address) and not _v4_zero_address_allowed(row)):
             continue
+        token_symbol = str(row.get("counterSymbol") or "").strip().upper()
+        if not token_symbol:
+            token_symbol = _token_address(token_address)[:10].upper()
+        # Uniswap V4 token identity is the currency address.  Same-symbol
+        # tokens at distinct addresses are separate YC/ZC instances, so bucket
+        # by address rather than by symbol.  This also keeps the observation
+        # surface bounded to real token instances instead of exploding into
+        # every symbol-alias permutation.
+        bucket_key = token_address
         bucket = token_groups.setdefault(
-            token_symbol,
+            bucket_key,
             {"symbol": token_symbol, "address": token_address, "pools": [], "poolIds": set()},
         )
-        if token_address and not bucket.get("address"):
-            bucket["address"] = token_address
         pool_id = str(row.get("pool") or "").strip()
         if pool_id and pool_id not in bucket["poolIds"]:
             bucket["poolIds"].add(pool_id)
             bucket["pools"].append(row)
     tokens: list[dict[str, Any]] = []
-    for token in sorted(token_groups.values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+    for token in sorted(
+        token_groups.values(),
+        key=lambda item: (-len(item["pools"]), str(item["symbol"]), str(item["address"])),
+    ):
         if not token.get("address"):
             continue
         if _is_zero_address(token.get("address")) and not any(
@@ -291,7 +298,26 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
     copied = dict(group)
     if group.get("ycZcSameSet"):
         shared_pools = [row for row in group.get("sharedPools") or [] if _pool_protocol(row) in protocols]
-        shared_tokens = _anchor_token_groups_from_rows(shared_pools)
+        original_tokens = [row for row in group.get("sharedTokens") or [] if isinstance(row, dict)]
+        shared_tokens = []
+        for token in original_tokens:
+            token_address = _token_address(token.get("address"))
+            if not token_address:
+                continue
+            token_pools = [
+                row
+                for row in shared_pools
+                if _token_address(row.get("counterAddress")) == token_address
+            ]
+            shared_tokens.append(
+                {
+                    **token,
+                    "poolCount": str(len(token_pools)),
+                    "pools": token_pools,
+                }
+            )
+        if not shared_tokens:
+            shared_tokens = _anchor_token_groups_from_rows(shared_pools)
         copied["sharedPools"] = shared_pools
         copied["sharedTokens"] = shared_tokens
         copied["ycPools"] = []

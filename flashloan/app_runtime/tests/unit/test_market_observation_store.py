@@ -280,7 +280,7 @@ def test_market_observation_static_payload_backfills_anchor_lists():
     assert payload["marketObservationStaticTable"]["chain_key"] == "robinhood-testnet:46630:uniswap_v4"
 
 
-def test_static_snapshot_drops_full_pool_and_token_exports():
+def test_static_snapshot_keeps_middle_hop_pool_exports_but_drops_index_exports():
     snapshot = static_snapshot_from_observation(
         {
             "chain_id": 46630,
@@ -294,7 +294,7 @@ def test_static_snapshot_drops_full_pool_and_token_exports():
         }
     )
 
-    assert "chainSpecificObservationPools" not in snapshot
+    assert snapshot["chainSpecificObservationPools"] == []
     assert "chainSpecificObservationTokens" not in snapshot
     assert "chainSpecificObservation" not in snapshot
     assert "bridgePoolIndexLookup" not in snapshot
@@ -337,7 +337,7 @@ def test_static_snapshot_merges_generic_closed_loop_routes_with_observation_sequ
     assert "TZ -> TB -> TA -> TZ" in path_texts
 
 
-def test_static_snapshot_collapses_reverse_direction_closed_loop_sequences():
+def test_static_snapshot_collapses_reverse_direction_pool_address_closed_loops():
     def sequence(path_symbols, path_text, route_addresses, route_pools):
         return {
             "anchorSymbol": "A",
@@ -393,9 +393,10 @@ def test_static_snapshot_collapses_reverse_direction_closed_loop_sequences():
     )
     overview = overview_snapshot_from_observation(snapshot)
 
-    assert len(snapshot["observationSequences"]) == 2
+    assert len(snapshot["observationSequences"]) == 3
     assert {tuple(row["routeAddresses"]) for row in snapshot["observationSequences"]} == {
         ("0xa", "0xb", "0xc", "0xa"),
+        ("0xa", "0xc", "0xb", "0xa"),
         ("0xa_alt", "0xb", "0xc", "0xa_alt"),
     }
     assert len(overview["closedLoopRouteSummaries"]) == 2
@@ -465,7 +466,9 @@ def test_observation_payload_from_static_hydrates_route_pools_from_registry():
 
     payload = observation_payload_from_static(snapshot)
 
-    assert payload["observationSequences"] == []
+    assert len(payload["observationSequences"]) == 1
+    assert payload["observationSequences"][0]["routePools"][0]["poolManager"] == "0xmanager"
+    assert payload["summary"]["observationSequenceCount"] == 1
     assert payload["closedLoopRoutes"] == []
     assert payload["indirectRoutes"] == []
 
@@ -537,11 +540,49 @@ def test_static_snapshot_keeps_only_route_handoff_fields():
             "sharedTokens": [{"symbol": "AAA", "address": "0xaaa", "poolCount": "2"}],
             "ycTokensRef": "sharedTokens",
             "zcTokensRef": "sharedTokens",
+            "combinationGroups": [
+                {
+                    "anchorSymbol": "ETH",
+                    "bridgeSymbol": "AAA",
+                    "counterSymbol": "BBB",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                    "pathText": "ETH -> AAA -> BBB -> ETH",
+                    "pool": "pool-2",
+                    "poolCount": 3,
+                    "observationState": "reachable",
+                    "observationReachable": True,
+                    "observationEmptyReason": None,
+                    "ycPool": None,
+                    "bridgePool": None,
+                    "zcPool": None,
+                    "routePools": [
+                        {"pool": "pool-1"},
+                        {"pool": "pool-2"},
+                        {"pool": "pool-3"},
+                    ],
+                    "ycPoolCount": 0,
+                    "zcPoolCount": 0,
+                    "candidatePoolCount": "3",
+                    "matchedPoolCount": "3",
+                    "hopCandidateCounts": {},
+                    "poolPathKey": "",
+                }
+            ],
             "observationSequenceCount": 1,
             "observationSequencePreview": ["ETH -> AAA -> BBB -> ETH"],
-            "observationReachable": True,
-            "observationState": {"status": "reachable", "reachable": True, "groupCount": 1},
-            "observationCombinationCount": 1,
+            "candidateCombinationCount": 1,
+                "reachableCombinationCount": 1,
+                "noPoolCombinationCount": 0,
+                "observationReachable": True,
+                "bridgePoolObservationGroups": [
+                    {
+                        "bridgePool": "pool-2",
+                        "directionCount": 1,
+                        "preview": "ETH -> AAA -> BBB -> ETH",
+                    }
+                ],
+                "observationState": {"status": "reachable", "reachable": True, "groupCount": 1},
+                "observationCombinationCount": 1,
             "observationCombinationPreview": ["ETH -> AAA -> BBB -> ETH"],
         }
     ]
@@ -594,7 +635,14 @@ def test_incremental_merge_removes_legacy_full_exports(tmp_path):
         root=tmp_path,
     )
 
-    assert "chainSpecificObservationPools" not in stored
+    assert {
+        row.get("pool") or row.get("poolId")
+        for row in stored["chainSpecificObservationPools"]
+    } >= {
+        "pool-1",
+        "pool-2",
+        "pool-3",
+    }
     assert "chainSpecificObservationTokens" not in stored
     assert "chainSpecificObservation" not in stored
     assert stored["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
@@ -645,13 +693,20 @@ def test_compact_market_observation_static_migrates_legacy_snapshot(tmp_path):
     )
 
     assert compact["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
-    assert "chainSpecificObservationPools" not in loaded
+    assert [row["pool"] for row in loaded["chainSpecificObservationPools"]] == [
+        "pool-1",
+        "pool-2",
+        "pool-3",
+    ]
     assert "chainSpecificObservationTokens" not in loaded
     assert overview["snapshot_kind"] == "dex_overview_compact"
     assert "observationSequences" not in overview
     assert overview["closedLoopRouteSummaries"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
-    assert observation_payload_from_static(loaded)["closedLoopRoutes"] == []
-    assert observation_payload_from_static(loaded)["observationSequences"] == []
+    static_payload = observation_payload_from_static(loaded)
+    assert static_payload["closedLoopRoutes"] == []
+    assert [sequence["pathText"] for sequence in static_payload["observationSequences"]] == [
+        "ETH -> AAA -> BBB -> ETH",
+    ]
 
 
 def test_observation_payload_from_static_filters_two_hop_closed_loop():

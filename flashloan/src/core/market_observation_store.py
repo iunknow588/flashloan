@@ -28,11 +28,18 @@ from core.market_observation_io import (
     PERSISTED_DICT_KEYS,
     PERSISTED_LIST_KEYS,
     SCHEMA_VERSION,
+    SHARDABLE_LIST_KEYS,
+    SHARD_MANIFEST_FILE,
+    SHARD_SCHEMA_VERSION,
     STATIC_META_KEYS,
     _as_int,
+    _hydrate_payload_from_shards,
     _network_for_chain,
     _protocol_key,
     _read_json,
+    _shard_manifest_path,
+    _shard_path_for_symbol,
+    _split_payload_shards,
     _stamp,
     _text,
     _write_json,
@@ -41,6 +48,25 @@ from core.market_observation_io import (
     market_observation_store_root,
 )
 from core.market_observation_merge import _list_counts, merge_market_observation_static
+
+
+def _merge_bridge_pool_rows(rows: list[dict[str, Any]], registry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Merge static bridge-pool rows with the full route-step registry."""
+    by_pool_id: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        pool_id = str(row.get("poolId") or row.get("pool") or "").strip().lower()
+        if pool_id:
+            by_pool_id[pool_id] = {**by_pool_id.get(pool_id, {}), **row}
+    for pool_id, row in (registry or {}).items():
+        if not isinstance(row, dict):
+            continue
+        normalized = str(pool_id or "").strip().lower()
+        if normalized:
+            by_pool_id[normalized] = {**by_pool_id.get(normalized, {}), **row}
+    return [row for _, row in sorted(by_pool_id.items())]
+
 
 def market_observation_static_table(snapshot: dict[str, Any]) -> dict[str, Any]:
     processing = snapshot.get("processing") if isinstance(snapshot.get("processing"), dict) else {}
@@ -117,27 +143,55 @@ def static_snapshot_from_observation(
         value = observation.get(key)
         if isinstance(value, dict):
             snapshot[key] = value
+    # The YC/ZC candidate set is the authoritative page handoff. It keeps
+    # every concrete middle-hop pool and every Y-Z direction combination,
+    # including rows that have no pool.  The overview stage counts one
+    # pool-backed closed loop per bridge-pool address, while the observation
+    # page keeps the full Y-Z surface for display.
     sequences = _observation_sequences_from_observation(observation)
-    # Prefer the explicit closed-loop handoff produced by the chain
-    # fund-anchor observation. Dynamic reconstruction is only a legacy
-    # backfill and must not shrink or reshape the authoritative set.
-    explicit_closed_loop_sequences = [
-        _compact_observation_sequence(sequence)
-        for sequence in (
-            observation.get("closedLoopSequences")
-            or (observation.get("chainSpecificObservation") or {}).get(
-                "robinhoodTestnetV4FundAnchorPairObservation",
-                {},
-            ).get("closedLoopSequences")
-            or []
-        )
+    dynamic_paths = _dynamic_overview_path_candidates(observation, normalized_chain_id, selected_protocols)
+    sequences = _merge_dynamic_hop_candidates_into_sequences(sequences, dynamic_paths)
+    # The external observation file stores every middle-hop Y-Z pool address
+    # plus the liquidity snapshot fields already present on each route step.
+    # Pool addresses are fixed; later refreshes update liquidity evidence
+    # without recreating the address registry.
+    snapshot["chainSpecificObservationPools"] = [
+        {
+            "pool": _text(step.get("pool") or step.get("poolId")),
+            "poolId": _text(step.get("pool") or step.get("poolId")),
+            "poolIdentityMode": "pool_id",
+            "protocol": "uniswap_v4",
+            "dex": "uniswap_v4",
+            "direction": "bridge",
+            "routeText": _text(step.get("routeText"))
+            or " -> ".join(_text(value) for value in step.get("routeSymbols") or []),
+            "bridgeSymbol": _text(sequence.get("bridgeSymbol")),
+            "counterSymbol": _text(sequence.get("counterSymbol")),
+            "hasLiquidity": step.get("hasLiquidity"),
+            "usableForObservation": step.get("usableForObservation"),
+            "balances": step.get("balances") or {},
+            "depthStatus": step.get("depthStatus") or "",
+            "liquidity": step.get("liquidity") or "",
+            "liquidityIndex": step.get("liquidityIndex"),
+            "estimatedTvlUsd": step.get("estimatedTvlUsd"),
+            "depthBand": step.get("depthBand") or {},
+            "liquiditySnapshotAt": step.get("liquiditySnapshotAt"),
+            "liquidityReadAt": step.get("liquidityReadAt"),
+            "liquidityBlockNumber": step.get("liquidityBlockNumber"),
+            "recentSwapActive": step.get("recentSwapActive"),
+            "token0": step.get("token0"),
+            "token1": step.get("token1"),
+            "token0Symbol": step.get("token0Symbol"),
+            "token1Symbol": step.get("token1Symbol"),
+            "addressPair": step.get("pairAddress") or "",
+        }
+        for sequence in sequences
         if isinstance(sequence, dict)
+        for step in sequence.get("routePools") or []
+        if isinstance(step, dict)
+        and _text(step.get("direction")).lower() == "bridge"
+        and _text(step.get("pool") or step.get("poolId"))
     ]
-    if explicit_closed_loop_sequences:
-        sequences = _dedup_closed_loop_sequences(explicit_closed_loop_sequences)
-    else:
-        dynamic_paths = _dynamic_overview_path_candidates(observation, normalized_chain_id, selected_protocols)
-        sequences = _merge_dynamic_hop_candidates_into_sequences(sequences, dynamic_paths)
     snapshot["summary"] = {
         **(snapshot.get("summary") or {}),
         "closedLoopSequenceCount": len(sequences),
@@ -173,7 +227,16 @@ def static_snapshot_from_observation(
         for sequence in sequences
         if isinstance(sequence, dict)
     ]
-    snapshot["poolRegistry"] = _pool_registry_from_sequences(sequences)
+    # Rebuild a full pool registry from observation pools so later page reads
+    # can hydrate every route, including routes restored from legacy
+    # closedLoopRoutes.  Static pool addresses remain stable; liquidity fields
+    # are refreshed separately.
+    registry = _pool_registry_from_sequences(sequences)
+    snapshot["poolRegistry"] = registry
+    snapshot["chainSpecificObservationPools"] = _merge_bridge_pool_rows(
+        snapshot.get("chainSpecificObservationPools") or [],
+        registry,
+    )
     snapshot["candidateObservationGroups"] = _candidate_groups_from_sequences(
         raw_groups if isinstance(raw_groups, list) else [],
         sequences,
@@ -184,14 +247,14 @@ def static_snapshot_from_observation(
     snapshot["anchorGroups"] = list(observation.get("anchorGroups") or [])
     snapshot["pairs"] = list(observation.get("pairs") or [])
     snapshot["bridgePairs"] = list(observation.get("bridgePairs") or [])
-    snapshot["tableSource"] = observation.get("tableSource") or "ob_table"
-    snapshot["referencedTable"] = observation.get("referencedTable") or "ch_table"
-    snapshot["poolIndexVersion"] = observation.get("poolIndexVersion") or {}
     snapshot["chainSpecificObservationPairs"] = [
         _compact_observation_pair(pair)
         for pair in observation.get("chainSpecificObservationPairs") or []
         if isinstance(pair, dict)
     ]
+    snapshot["tableSource"] = observation.get("tableSource") or "ob_table"
+    snapshot["referencedTable"] = observation.get("referencedTable") or "ch_table"
+    snapshot["poolIndexVersion"] = observation.get("poolIndexVersion") or {}
     snapshot["list_counts"] = _list_counts(snapshot)
     return snapshot
 
@@ -238,20 +301,22 @@ def overview_snapshot_from_observation(snapshot: dict[str, Any]) -> dict[str, An
     for sequence in snapshot.get("observationSequences") or []:
         if not isinstance(sequence, dict):
             continue
+        # Market observation keeps every Y-Z direction, including rows without
+        # a middle-hop pool. DEX overview must only receive pool-backed closed
+        # loops; no-pool discovery rows stay on the observation page and must
+        # not inflate the static overview.
+        if not (
+            sequence.get("observationReachable")
+            or sequence.get("observationState") == "reachable"
+        ):
+            continue
         loop_key = _closed_loop_dedup_key(sequence)
         if loop_key in seen_loop_keys:
             continue
         seen_loop_keys.add(loop_key)
         summaries.append(_overview_route_summary(sequence))
     overview["closedLoopRouteSummaries"] = summaries
-    for key in (
-        "borrowableSymbols",
-        "observationAnchorSymbols",
-        "anchorGroups",
-        "pairs",
-        "bridgePairs",
-        "chainSpecificObservationPairs",
-    ):
+    for key in OVERVIEW_LIST_KEYS:
         value = snapshot.get(key)
         if isinstance(value, list):
             overview[key] = value
@@ -298,20 +363,99 @@ def write_market_observation_static(
     if expected_scope is not None:
         validate_scoped_payload({"scope": expected_scope, **stored}, expected_scope)
         stored["scope"] = dict(expected_scope)
-    _write_json(path, stored)
+    _write_sharded_market_observation_static(
+        stored,
+        path=path,
+        refresh_mode=refresh_mode,
+        expected_scope=expected_scope,
+    )
     overview_path = market_observation_overview_static_path(
         network=stored["network"],
         chain_id=stored["chain_id"],
         protocols=stored["protocols"],
         root=root,
     )
-    overview = {
-        **overview_snapshot_from_observation(stored),
-        "path": str(overview_path),
-        "exists": True,
-    }
-    _write_json(overview_path, overview)
+    _write_sharded_market_observation_overview(stored, path=overview_path)
     return stored
+
+
+def _write_sharded_market_observation_static(
+    stored: dict[str, Any],
+    *,
+    path: Path,
+    refresh_mode: str,
+    expected_scope: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Write observation.json as a compact index plus per-anchor shards.
+
+    Large row lists are removed from the main file and persisted in
+    ``shards/<anchor>.json``.  The main file carries ``shardRef`` so readers
+    can reconstruct the legacy schema in memory; it does not keep a duplicate
+    full-size copy.
+    """
+    compact = dict(stored)
+    shards = _split_payload_shards(
+        stored,
+        path,
+        network=str(stored.get("network") or ""),
+        chain_id=_as_int(stored.get("chain_id")),
+        protocols=list(stored.get("protocols") or stored.get("selected_protocols") or []),
+    )
+    for key in SHARDABLE_LIST_KEYS:
+        compact.pop(key, None)
+    compact["shardRef"] = {
+        "schemaVersion": SHARD_SCHEMA_VERSION,
+        "manifest": str(_shard_manifest_path(path)),
+        "shardCount": len(shards),
+        "shards": [
+            {
+                "anchorSymbol": shard["anchorSymbol"],
+                "path": str(_shard_path_for_symbol(path, shard["anchorSymbol"])),
+                "rowKeys": sorted(shard["rows"].keys()),
+                "rowCount": sum(len(rows) for rows in shard["rows"].values()),
+            }
+            for shard in shards
+        ],
+    }
+    compact["list_counts"] = _list_counts(compact)
+    if expected_scope is not None:
+        validate_scoped_payload({"scope": expected_scope, **compact}, expected_scope)
+        compact["scope"] = dict(expected_scope)
+    _write_json(path, compact)
+    _write_shard_manifest(path, shards)
+    for shard in shards:
+        shard_path = _shard_path_for_symbol(path, shard["anchorSymbol"])
+        _write_json(shard_path, shard)
+    return compact
+
+
+def _write_shard_manifest(payload_path: Path, shards: list[dict[str, Any]]) -> None:
+    manifest = {
+        "schemaVersion": SHARD_SCHEMA_VERSION,
+        "payloadPath": str(payload_path),
+        "shardCount": len(shards),
+        "shards": [
+            {
+                "anchorSymbol": shard["anchorSymbol"],
+                "path": str(_shard_path_for_symbol(payload_path, shard["anchorSymbol"])),
+                "rowKeys": sorted(shard["rows"].keys()),
+                "rowCount": sum(len(rows) for rows in shard["rows"].values()),
+            }
+            for shard in shards
+        ],
+    }
+    _write_json(_shard_manifest_path(payload_path), manifest)
+
+
+def _write_sharded_market_observation_overview(stored: dict[str, Any], *, path: Path) -> dict[str, Any]:
+    overview = overview_snapshot_from_observation(stored)
+    overview = {**overview, "path": str(path), "exists": True}
+    return _write_sharded_market_observation_static(
+        overview,
+        path=path,
+        refresh_mode="full",
+        expected_scope=None,
+    )
 
 
 def load_market_observation_static(
@@ -325,6 +469,13 @@ def load_market_observation_static(
     path = market_observation_static_path(network=network, chain_id=chain_id, protocols=protocols, root=root)
     payload = _read_json(path)
     if payload:
+        payload = _hydrate_payload_from_shards(
+            payload,
+            path,
+            network=str(payload.get("network") or _network_for_chain(_as_int(chain_id), network) or "unknown"),
+            chain_id=_as_int(payload.get("chain_id") or chain_id),
+            protocols=list(payload.get("protocols") or payload.get("selected_protocols") or protocols or []),
+        )
         if expected_scope is not None:
             validate_scoped_payload(payload, expected_scope)
         return {**payload, "path": str(path), "exists": True}
@@ -358,6 +509,13 @@ def load_market_observation_overview_static(
     )
     payload = _read_json(path)
     if payload:
+        payload = _hydrate_payload_from_shards(
+            payload,
+            path,
+            network=str(payload.get("network") or _network_for_chain(_as_int(chain_id), network) or "unknown"),
+            chain_id=_as_int(payload.get("chain_id") or chain_id),
+            protocols=list(payload.get("protocols") or payload.get("selected_protocols") or protocols or []),
+        )
         return {**payload, "path": str(path), "exists": True}
     return {
         "ok": False,
@@ -396,13 +554,7 @@ def write_market_observation_overview_from_static(
         protocols=snapshot.get("protocols") or snapshot.get("selected_protocols"),
         root=root,
     )
-    overview = {
-        **overview_snapshot_from_observation(snapshot),
-        "path": str(path),
-        "exists": True,
-    }
-    _write_json(path, overview)
-    return overview
+    return _write_sharded_market_observation_overview(snapshot, path=path)
 
 
 def compact_market_observation_static(
@@ -438,7 +590,12 @@ def compact_market_observation_static(
         root=root,
     )
     compact = {**compact, "path": str(path), "exists": True}
-    _write_json(path, compact)
+    _write_sharded_market_observation_static(
+        compact,
+        path=path,
+        refresh_mode="full",
+        expected_scope=None,
+    )
 
     overview_path = market_observation_overview_static_path(
         network=compact.get("network"),
@@ -446,12 +603,7 @@ def compact_market_observation_static(
         protocols=compact.get("protocols"),
         root=root,
     )
-    overview = {
-        **overview_snapshot_from_observation(compact),
-        "path": str(overview_path),
-        "exists": True,
-    }
-    _write_json(overview_path, overview)
+    _write_sharded_market_observation_overview(compact, path=overview_path)
     return compact
 
 
@@ -475,15 +627,23 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
     for key in LIST_KEYS:
         if not isinstance(payload.get(key), list):
             payload[key] = []
-    # Market observation only prepares YC/ZC candidate sets; closed-loop route
-    # reconstruction is owned by the DEX overview stage.
-    payload["observationSequences"] = []
+    # The persisted observation handoff carries the YC-ZC bridge pools and the
+    # concrete closed-loop sequences.  Restore those sequences from the compact
+    # pool registry so a later page read does not discard the middle-hop pools
+    # that the DEX overview still needs.
+    persisted_sequences = payload.get("observationSequences") or payload.get("closedLoopSequences") or []
+    payload["observationSequences"] = _hydrate_route_pools_from_registry(
+        persisted_sequences,
+        payload.get("poolRegistry"),
+    )
     payload["closedLoopRoutes"] = []
     payload["indirectRoutes"] = []
-    payload["poolRegistry"] = {}
+    # The registry stays available to the observation page so middle-hop pool
+    # addresses and their latest liquidity snapshot can be rendered without
+    # re-reading the full V4 index.
     payload["candidateObservationGroups"] = _candidate_groups_from_sequences(
         payload.get("candidateObservationGroups") or payload.get("anchorGroups") or [],
-        [],
+        payload["observationSequences"],
         [
             _text(symbol).upper()
             for symbol in (

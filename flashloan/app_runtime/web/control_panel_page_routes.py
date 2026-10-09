@@ -334,6 +334,7 @@ def register_page_routes(app, panel) -> None:
             for item in protocol_options_for_chain(chain_id=chain_id)
         ] if chain_id is not None else None
         protocols = _request_protocols()
+        rebuild_view = _request_bool_arg("rebuild")
         return jsonify(
             flash_loan_pools_payload(
                 database_url=_panel_database_url(panel),
@@ -341,6 +342,7 @@ def register_page_routes(app, panel) -> None:
                 chain_id=chain_id,
                 protocols=protocols,
                 discovered_protocols=discovered_protocols,
+                use_static_cache=not rebuild_view,
             )
         )
 

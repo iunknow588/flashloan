@@ -1,0 +1,1547 @@
+{
+  "chainId": 4663,
+  "anchor": "ETH",
+  "tokenCount": 19,
+  "pairCount": 171,
+  "pairs": [
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "TB",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SABLE",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "PEPE",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "ZKD",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "MONTAGE",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SAEGIS",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SURGE",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "RUSH",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "KARAT",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "DIG",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "TMF",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "TA",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "LEMON",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "SC",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "BEHALF",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SABLE",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "PEPE",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "ZKD",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "MONTAGE",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SAEGIS",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SURGE",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "RUSH",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "KARAT",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "DIG",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "TMF",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "TA",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 1,
+      "fixedFeePoolCount": 1,
+      "depthPoolCount": 1
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "LEMON",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "SC",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TB",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "PEPE",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "ZKD",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "MONTAGE",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "SAEGIS",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "SURGE",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "RUSH",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "KARAT",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "DIG",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "TMF",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "TA",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "LEMON",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "SC",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SABLE",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "ZKD",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "MONTAGE",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "SAEGIS",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "SURGE",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "RUSH",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "KARAT",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "DIG",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "TMF",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "TA",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "LEMON",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "SC",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "PEPE",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "MONTAGE",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "SAEGIS",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "SURGE",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "RUSH",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "KARAT",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "DIG",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "TMF",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "TA",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "LEMON",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "SC",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "ZKD",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "SAEGIS",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "SURGE",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "RUSH",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "KARAT",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "DIG",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "TMF",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "TA",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "LEMON",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "SC",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "MONTAGE",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "SURGE",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "RUSH",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "KARAT",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "DIG",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "TMF",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "TA",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "LEMON",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "SC",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SAEGIS",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "RUSH",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "KARAT",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "DIG",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "TMF",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "TA",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "LEMON",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "SC",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SURGE",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x525b4726d2965592ddbaad9e0cd97dcb1d87162d",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "UMBRELLA",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "KARAT",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "DIG",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "TMF",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "TA",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "LEMON",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "SC",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "RUSH",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x7206deabb14212f94e67fed052ce5eac4399d500",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "KARAT",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "DIG",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "TMF",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "TA",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "LEMON",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "SC",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "UMBRELLA",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x793571697b01f8fad1cd95f390095a95a148e6cc",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "DIG",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "TMF",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "TA",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "LEMON",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "SC",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "KARAT",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "TMF",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "TA",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "LEMON",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "SC",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "DIG",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "SHROOMSFUN",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "SQUEEZE",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "TA",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "LEMON",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "SC",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TMF",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SHROOMSFUN",
+      "symbolB": "SQUEEZE",
+      "addressA": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "addressB": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SHROOMSFUN",
+      "symbolB": "TA",
+      "addressA": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SHROOMSFUN",
+      "symbolB": "LEMON",
+      "addressA": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SHROOMSFUN",
+      "symbolB": "SC",
+      "addressA": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SHROOMSFUN",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SQUEEZE",
+      "symbolB": "TA",
+      "addressA": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "addressB": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SQUEEZE",
+      "symbolB": "LEMON",
+      "addressA": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SQUEEZE",
+      "symbolB": "SC",
+      "addressA": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SQUEEZE",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TA",
+      "symbolB": "LEMON",
+      "addressA": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "addressB": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TA",
+      "symbolB": "SC",
+      "addressA": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "TA",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "LEMON",
+      "symbolB": "SC",
+      "addressA": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "addressB": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "LEMON",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    },
+    {
+      "symbolA": "SC",
+      "symbolB": "ORBIOBOOK",
+      "addressA": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "addressB": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "poolCount": 0,
+      "fixedFeePoolCount": 0,
+      "depthPoolCount": 0
+    }
+  ]
+}

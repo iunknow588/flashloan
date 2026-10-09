@@ -713,6 +713,12 @@ def _overview_path_candidates_from_observation_sets(
     candidates: list[dict[str, Any]] = []
     seen: set[tuple[str, tuple[str, ...]]] = set()
     for sequence in sequences:
+        # Market observation builds every Y-Z direction combination, including
+        # combinations without a middle-hop pool. DEX overview must only select
+        # closed loops that have a real Y-Z bridge pool; no-pool rows remain on
+        # the observation page as discovery state and must not become paths.
+        if not (sequence.get("observationReachable") or sequence.get("observationState") == "reachable"):
+            continue
         route = _closed_route_from_sequence(sequence)
         candidate = _observation_route_to_path_candidate(route, chain_id=chain_id)
         if not candidate.get("routeTokenPath") or not _route_pools(candidate):
@@ -722,17 +728,6 @@ def _overview_path_candidates_from_observation_sets(
             continue
         seen.add(key)
         candidates.append(candidate)
-    if not candidates and pairs:
-        observation_payload = {
-            **observation,
-            "pairs": pairs,
-            "anchorGroups": anchor_groups or observation.get("candidateObservationGroups") or [],
-        }
-        candidates, watch_pairs, anchors = _overview_path_candidates(
-            observation_payload,
-            chain_id=chain_id,
-            protocols=protocols,
-        )
     candidates.sort(key=_route_score, reverse=True)
     watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
     used_pair_symbols = {

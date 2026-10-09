@@ -96,6 +96,13 @@ def _borrowable_symbols(
     chain_id: int | None,
     protocols: list[str] | None = None,
 ) -> list[str]:
+    chain_symbols = _chain_borrowable_symbols_from_pool_payload(
+        pool_payload,
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    if chain_symbols:
+        return sorted({symbol for symbol in chain_symbols if symbol and ":" not in symbol})
     discovered = set(_borrowable_symbols_from_discovery(chain_id))
     for pair in pool_payload.get("pairs") or []:
         linkage = pair.get("flashLoanLinkage") or {}
@@ -104,7 +111,6 @@ def _borrowable_symbols(
             if normalized:
                 discovered.add(normalized)
     discovered.update(_v4_poolmanager_balance_symbols(pool_payload.get("pairs") or []))
-    discovered.update(_chain_borrowable_symbols_from_pool_payload(pool_payload, chain_id=chain_id, protocols=protocols))
     expanded = {part for symbol in discovered for part in _split_symbol_components(symbol)}
     return sorted(discovered | expanded)
 
@@ -215,7 +221,15 @@ def _token_instance_keys(token: dict[str, Any], symbol_to_keys: dict[str, set[st
     symbol = _norm_symbol(token.get("symbol"))
     if not symbol:
         return []
-    return sorted(symbol_to_keys.get(symbol) or [f"symbol:{symbol}"])
+    # A token entry without an address can still map to multiple on-chain
+    # instances.  In that case keep the candidate-page token identity itself
+    # (address-prefixed when possible) instead of collapsing every symbol
+    # instance into one key, which would explode the Y-Z surface with
+    # same-symbol addresses.
+    keys = sorted(symbol_to_keys.get(symbol) or [])
+    if keys:
+        return keys
+    return [f"symbol:{symbol}"]
 
 
 def _anchor_group_direction_rows(group: dict[str, Any], direction: str) -> list[dict[str, Any]]:

@@ -1,0 +1,478 @@
+{
+  "payloadPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\observation.json",
+  "schemaVersion": "market-observation-shard-v1",
+  "shardCount": 54,
+  "shards": [
+    {
+      "anchorSymbol": "ETH",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\eth.json",
+      "rowCount": 1000,
+      "rowKeys": [
+        "anchorGroups",
+        "candidateObservationGroups",
+        "chainSpecificObservationPools",
+        "closedLoopSequences",
+        "observationSequences",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "TZ",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\tz.json",
+      "rowCount": 8,
+      "rowKeys": [
+        "anchorGroups",
+        "candidateObservationGroups",
+        "chainSpecificObservationPools",
+        "closedLoopSequences",
+        "observationSequences",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "USDE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\usde.json",
+      "rowCount": 8,
+      "rowKeys": [
+        "anchorGroups",
+        "candidateObservationGroups",
+        "chainSpecificObservationPools",
+        "closedLoopSequences",
+        "observationSequences",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "USDG",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\usdg.json",
+      "rowCount": 9991,
+      "rowKeys": [
+        "anchorGroups",
+        "candidateObservationGroups",
+        "chainSpecificObservationPools",
+        "closedLoopSequences",
+        "observationSequences",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "WETH",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\weth.json",
+      "rowCount": 2421,
+      "rowKeys": [
+        "anchorGroups",
+        "candidateObservationGroups",
+        "chainSpecificObservationPools",
+        "closedLoopSequences",
+        "observationSequences",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "AFTR",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\aftr.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "AIGYR",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\aigyr.json",
+      "rowCount": 4,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "BACKED",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\backed.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "BEHALF",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\behalf.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "DOTTIE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\dottie.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "DUS",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\dus.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "DYNAMITE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\dynamite.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "FAAHHH",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\faahhh.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "FATCOIN",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\fatcoin.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "FILLED",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\filled.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "FLYBRAIN",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\flybrain.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "GPTCOIN",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\gptcoin.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "HODL",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\hodl.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "JEVVIS",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\jevvis.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "LIGER",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\liger.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "MONTAGE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\montage.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "PACKZ",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\packz.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "PEGGED",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\pegged.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "PEPE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\pepe.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "PINATA",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\pinata.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "ROOT",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\root.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "SABLE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\sable.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "SAEGIS",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\saegis.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "SLOWLY",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\slowly.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "SURGE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\surge.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "TB",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\tb.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "VIRPAID",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\virpaid.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "ZKD",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\zkd.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools",
+        "pairs"
+      ]
+    },
+    {
+      "anchorSymbol": "TA",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\ta.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "bridgePairs",
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "unknown",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\unknown.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPairs"
+      ]
+    },
+    {
+      "anchorSymbol": "DIG",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\dig.json",
+      "rowCount": 2,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "GENIE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\genie.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "KARAT",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\karat.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "LEMON",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\lemon.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "NUDES",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\nudes.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "ORBIOBOOK",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\orbiobook.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "POND",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\pond.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "QUOTED",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\quoted.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "RECURVE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\recurve.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "RUSH",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\rush.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "SC",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\sc.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "SHROOMSFUN",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\shroomsfun.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "SI.GOV",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\si.gov.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "SNIFFR",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\sniffr.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "SQUEEZE",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\squeeze.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "TMF",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\tmf.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "UMBRELLA",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\umbrella.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "VRAX",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\vrax.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    },
+    {
+      "anchorSymbol": "WITNESS",
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\witness.json",
+      "rowCount": 1,
+      "rowKeys": [
+        "chainSpecificObservationPools"
+      ]
+    }
+  ]
+}

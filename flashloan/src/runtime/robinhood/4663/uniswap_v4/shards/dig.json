@@ -1,0 +1,356 @@
+{
+  "anchorSymbol": "DIG",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\dig.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x8826ffea474dadb69957c4385d6ad9e9de787915"
+        ],
+        "anchorSymbol": "DIG",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "ycPoolCount": "1",
+        "ycPools": [
+          {
+            "anchorAddress": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+            "anchorSymbol": "DIG",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78447762,
+              "initializeTransactionHash": "0x5194174f2a8818d8ccf9ca75c496955e6e836b51bf0661f547f12f890684e53e",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "75",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "14842501888179635023333717467",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "poolId": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "routeSymbols": [
+              "DIG",
+              "ETH"
+            ],
+            "routeText": "DIG -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "4086875366418540195234104",
+            "tick": "-197457",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x8826Ffea474dadB69957C4385d6Ad9E9dE787915",
+            "token1Decimals": null,
+            "token1Symbol": "DIG",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+                "anchorSymbol": "DIG",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78447762,
+                  "initializeTransactionHash": "0x5194174f2a8818d8ccf9ca75c496955e6e836b51bf0661f547f12f890684e53e",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "75",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "14842501888179635023333717467",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "poolId": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "routeSymbols": [
+                  "DIG",
+                  "ETH"
+                ],
+                "routeText": "DIG -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "4086875366418540195234104",
+                "tick": "-197457",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x8826Ffea474dadB69957C4385d6Ad9E9dE787915",
+                "token1Decimals": null,
+                "token1Symbol": "DIG",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "zcPoolCount": "1",
+        "zcPools": [
+          {
+            "anchorAddress": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+            "anchorSymbol": "DIG",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78447762,
+              "initializeTransactionHash": "0x5194174f2a8818d8ccf9ca75c496955e6e836b51bf0661f547f12f890684e53e",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "75",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "14842501888179635023333717467",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "poolId": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x8826ffea474dadb69957c4385d6ad9e9de787915"
+            ],
+            "routeKey": "zc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+            "routeSymbols": [
+              "ETH",
+              "DIG"
+            ],
+            "routeText": "ETH -> DIG",
+            "specialFee": null,
+            "sqrtPriceX96": "4086875366418540195234104",
+            "tick": "-197457",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x8826Ffea474dadB69957C4385d6Ad9E9dE787915",
+            "token1Decimals": null,
+            "token1Symbol": "DIG",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+                "anchorSymbol": "DIG",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78447762,
+                  "initializeTransactionHash": "0x5194174f2a8818d8ccf9ca75c496955e6e836b51bf0661f547f12f890684e53e",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "75",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "14842501888179635023333717467",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "poolId": "0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0x8826ffea474dadb69957c4385d6ad9e9de787915"
+                ],
+                "routeKey": "zc:DIG:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x8826ffea474dadb69957c4385d6ad9e9de787915:uniswap_v4:75:0xeead8a411968262e7a1be3fd5d2ff6959224c64970a3ed0605706c681ea77a73",
+                "routeSymbols": [
+                  "ETH",
+                  "DIG"
+                ],
+                "routeText": "ETH -> DIG",
+                "specialFee": null,
+                "sqrtPriceX96": "4086875366418540195234104",
+                "tick": "-197457",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x8826Ffea474dadB69957C4385d6Ad9E9dE787915",
+                "token1Decimals": null,
+                "token1Symbol": "DIG",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

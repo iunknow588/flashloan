@@ -369,6 +369,58 @@ def test_robinhood_mainnet_candidates_use_cache_before_source_available(monkeypa
     assert payload["poolStaticTable"]["network"] == "robinhood"
     assert payload["poolStaticTable"]["chainId"] == 4663
     assert int(payload["summary"].get("pairTableCount") or 0) > 0
+    assert int(payload["summary"].get("ycZcSameSetGroupCount") or 0) > 0
+    assert payload["summary"].get("candidateSetStorageMode") == "shared_yc_zc_pool_set"
+    shared_group = next(
+        group for group in payload.get("anchorGroups") or []
+        if group.get("ycZcSameSet")
+    )
+    assert shared_group["ycPoolsRef"] == "sharedPools"
+    assert shared_group["zcPoolsRef"] == "sharedPools"
+    assert not shared_group["ycPools"] and not shared_group["zcPools"]
+    assert shared_group["sharedPools"]
+
+
+def test_shared_pool_recommended_hops_only_mark_optimal_pool_ids():
+    from dex.intent_trade.chains.robinhood import dex_pool_candidates as robinhood_candidates
+
+    optimal_id = "0x" + "1" * 64
+    other_id = "0x" + "2" * 64
+    shared_pools = [
+        {
+            "pool": optimal_id,
+            "counterSymbol": "TOKEN",
+            "counterAddress": "0x" + "3" * 40,
+            "fee": 3000,
+        },
+        {
+            "pool": other_id,
+            "counterSymbol": "OTHER",
+            "counterAddress": "0x" + "4" * 40,
+            "fee": 500,
+        },
+    ]
+    shared_tokens = [
+        {
+            "symbol": "TOKEN",
+            "address": "0x" + "3" * 40,
+            "ycOptimalPoolId": optimal_id,
+            "zcOptimalPoolId": optimal_id,
+        }
+    ]
+
+    annotated = robinhood_candidates._annotate_shared_pool_recommended_hops(shared_pools, shared_tokens)
+    by_pool = {row["pool"]: row for row in annotated}
+
+    assert by_pool[optimal_id]["hopRecommendation"] == [
+        "yc_anchor_to_counter_highest_price",
+        "zc_counter_to_anchor_lowest_price",
+    ]
+    assert by_pool[optimal_id]["isFirstHopRecommended"] is True
+    assert by_pool[optimal_id]["isThirdHopRecommended"] is True
+    assert by_pool[other_id]["hopRecommendation"] == []
+    assert by_pool[other_id]["isFirstHopRecommended"] is False
+    assert by_pool[other_id]["isThirdHopRecommended"] is False
 
 
 def test_robinhood_v4_pool_manager_address_is_same_on_mainnet_and_testnet():

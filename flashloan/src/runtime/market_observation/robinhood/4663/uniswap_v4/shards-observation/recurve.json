@@ -1,0 +1,92 @@
+{
+  "anchorSymbol": "RECURVE",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\recurve.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "anchorAddress": "0xe9b3dc212c80f2f48e37fbcca1bb54df38953c87",
+        "anchorSymbol": "RECURVE",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": 0
+        },
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "unavailable",
+          "level": "unavailable"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "zc",
+        "dynamicFee": null,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78421792,
+          "initializeTransactionHash": "0x0cea369f94ed5aa477c0cedc8727b1657ef6da51ab1cd25cc2b21842958c0520",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "989998",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "",
+        "liquidityIndex": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x2cd50c36232ccf233c488754653dfe0271d1edacd4e44fc0fae4ed1f31f961a3",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0xe9b3dc212c80f2f48e37fbcca1bb54df38953c87",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "RECURVE",
+          "USDG"
+        ],
+        "routeText": "RECURVE -> USDG",
+        "source": "",
+        "specialFee": null,
+        "sqrtPriceX96": "29943985587942488602739187661182558482",
+        "tick": "395025",
+        "tickSpacing": null,
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "USDG",
+        "token1": "0xE9b3dc212c80f2F48e37fBcCa1bb54Df38953c87",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "RECURVE",
+        "usableForObservation": null
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

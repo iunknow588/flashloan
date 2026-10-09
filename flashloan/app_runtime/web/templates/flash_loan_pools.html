@@ -25,6 +25,8 @@
     .pool-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
     .pool-section-title h2 { margin: 0; }
     .section-count { color: #667085; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pool-pagination { display: flex; justify-content: center; padding: 10px 0 2px; }
+    .pool-pagination .hidden { display: none; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
     .chip, .badge { display: inline-flex; align-items: center; min-height: 20px; border-radius: 4px; padding: 0 6px; background: #eef4ff; color: #344054; font-size: 11px; font-weight: 700; }
     .badge.good { background: #dcfae6; color: #067647; }
@@ -88,6 +90,7 @@
               <thead id="stableTableHead"><tr><th>资产/交易对</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>可借/可换流动性</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr></thead>
               <tbody id="stableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
             </table>
+            <div class="pool-pagination"><button id="stableLoadMoreBtn" type="button" class="hidden">加载更多</button></div>
           </div>
         </section>
         <section class="card" id="nonStableSection">
@@ -102,6 +105,7 @@
               <thead id="nonStableTableHead"><tr><th>资产/交易对</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>可借/可换流动性</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr></thead>
               <tbody id="nonStableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
             </table>
+            <div class="pool-pagination"><button id="nonStableLoadMoreBtn" type="button" class="hidden">加载更多</button></div>
           </div>
         </section>
         <section class="card" id="targetSection">
@@ -151,6 +155,11 @@
       return `接口错误（${text}）`;
     };
     let refreshInFlight = false;
+    const tableChunkSize = 250;
+    const tableState = {
+      stable: {rows: [], limit: 0},
+      nonStable: {rows: [], limit: 0}
+    };
     const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
@@ -257,6 +266,21 @@
         <td>${esc((row.target_symbols || []).slice(0, 12).join(", ") || "-")}</td>
       </tr>`).join("") || '<tr><td colspan="3" class="muted">暂无映射；等待闪电贷可借资产目标缓存生成</td></tr>';
     }
+    function renderPoolTable(id, rows, total) {
+      const visible = v4FlashSourceRows(rows.slice(0, tableState[id].limit));
+      $(`${id}Rows`).innerHTML = visible || '<tr><td colspan="7" class="muted">暂无数据</td></tr>';
+      const button = $(`${id}LoadMoreBtn`);
+      button.classList.toggle("hidden", tableState[id].limit >= total);
+      button.textContent = `加载更多（已显示 ${Math.min(tableState[id].limit, total)} / ${total}）`;
+    }
+    function resetPoolTableState(stableRows, nonStableRows, testnetV4Mode) {
+      tableState.stable = {rows: testnetV4Mode ? (stableRows || []) : (stableRows || []), limit: 0};
+      tableState.nonStable = {rows: testnetV4Mode ? (nonStableRows || []) : (nonStableRows || []), limit: 0};
+      ["stable", "nonStable"].forEach(id => {
+        tableState[id].limit = Math.min(tableChunkSize, tableState[id].rows.length);
+        renderPoolTable(id, tableState[id].rows, tableState[id].rows.length);
+      });
+    }
     function renderV4PoolKeyStatus(view, summary, associatedPoolKeyCount) {
       const status = view.v4_pool_key_status || {};
       const borrowableCount = status.poolmanager_balance_asset_count ?? summary.flash_accounting_asset_count ?? 0;
@@ -362,8 +386,16 @@
       $("nonStableEmpty").classList.toggle("visible", !nonStableRows.length);
       $("stableTableWrap").classList.toggle("hidden", !stableRows.length);
       $("nonStableTableWrap").classList.toggle("hidden", !nonStableRows.length);
-      $("stableRows").innerHTML = testnetV4Mode ? v4FlashSourceRows(stableRows) : assetRows(stableRows);
-      $("nonStableRows").innerHTML = testnetV4Mode ? v4FlashSourceRows(nonStableRows) : assetRows(nonStableRows);
+      if (testnetV4Mode) {
+        resetPoolTableState(stableRows, nonStableRows, true);
+      } else {
+        tableState.stable = {rows: [], limit: 0};
+        tableState.nonStable = {rows: [], limit: 0};
+        $("stableLoadMoreBtn").classList.add("hidden");
+        $("nonStableLoadMoreBtn").classList.add("hidden");
+        $("stableRows").innerHTML = assetRows(stableRows);
+        $("nonStableRows").innerHTML = assetRows(nonStableRows);
+      }
       if (testnetV4Mode) {
         renderV4PoolKeyStatus(view, summary, associatedPoolKeyCount);
       } else {
@@ -408,6 +440,14 @@
     $("refreshBtn").onclick = () => refresh().catch(error => { $("message").textContent = zhError(error.message); });
     $("incrementalRefreshBtn").onclick = () => refreshStaticPools(false).catch(error => { $("message").textContent = zhError(error.message); setRefreshBusy(false); });
     $("fullRefreshBtn").onclick = () => refreshStaticPools(true).catch(error => { $("message").textContent = zhError(error.message); setRefreshBusy(false); });
+    $("stableLoadMoreBtn").onclick = () => {
+      tableState.stable.limit += tableChunkSize;
+      renderPoolTable("stable", tableState.stable.rows, tableState.stable.rows.length);
+    };
+    $("nonStableLoadMoreBtn").onclick = () => {
+      tableState.nonStable.limit += tableChunkSize;
+      renderPoolTable("nonStable", tableState.nonStable.rows, tableState.nonStable.rows.length);
+    };
     window.addEventListener("chainselectionchanged", () => refresh().catch(error => { $("message").textContent = zhError(error.message); }));
     window.addEventListener("chainselectionprotocolschanged", () => refresh().catch(error => { $("message").textContent = zhError(error.message); }));
     refresh().catch(error => { $("message").textContent = zhError(error.message); });

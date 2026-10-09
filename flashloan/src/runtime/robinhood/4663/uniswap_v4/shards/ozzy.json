@@ -1,0 +1,356 @@
+{
+  "anchorSymbol": "OZZY",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\ozzy.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1"
+        ],
+        "anchorSymbol": "OZZY",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "ycPoolCount": "1",
+        "ycPools": [
+          {
+            "anchorAddress": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+            "anchorSymbol": "OZZY",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78431672,
+              "initializeTransactionHash": "0x2fd4852bec8f523193fa528067c58de64105e424ae7bde9422320d42f5d88eb7",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "9000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "24979191233756170707",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "poolId": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "routeSymbols": [
+              "OZZY",
+              "ETH"
+            ],
+            "routeText": "OZZY -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "1833236202873649852295408229074193",
+            "tick": "200995",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0xce6B10ab6059B0404Cb88b2C42130CdeFA0BF0A1",
+            "token1Decimals": null,
+            "token1Symbol": "OZZY",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+                "anchorSymbol": "OZZY",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78431672,
+                  "initializeTransactionHash": "0x2fd4852bec8f523193fa528067c58de64105e424ae7bde9422320d42f5d88eb7",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "9000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "24979191233756170707",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "poolId": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "routeSymbols": [
+                  "OZZY",
+                  "ETH"
+                ],
+                "routeText": "OZZY -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "1833236202873649852295408229074193",
+                "tick": "200995",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0xce6B10ab6059B0404Cb88b2C42130CdeFA0BF0A1",
+                "token1Decimals": null,
+                "token1Symbol": "OZZY",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "zcPoolCount": "1",
+        "zcPools": [
+          {
+            "anchorAddress": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+            "anchorSymbol": "OZZY",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78431672,
+              "initializeTransactionHash": "0x2fd4852bec8f523193fa528067c58de64105e424ae7bde9422320d42f5d88eb7",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "9000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "24979191233756170707",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "poolId": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1"
+            ],
+            "routeKey": "zc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+            "routeSymbols": [
+              "ETH",
+              "OZZY"
+            ],
+            "routeText": "ETH -> OZZY",
+            "specialFee": null,
+            "sqrtPriceX96": "1833236202873649852295408229074193",
+            "tick": "200995",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0xce6B10ab6059B0404Cb88b2C42130CdeFA0BF0A1",
+            "token1Decimals": null,
+            "token1Symbol": "OZZY",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+                "anchorSymbol": "OZZY",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78431672,
+                  "initializeTransactionHash": "0x2fd4852bec8f523193fa528067c58de64105e424ae7bde9422320d42f5d88eb7",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "9000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "24979191233756170707",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "poolId": "0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1"
+                ],
+                "routeKey": "zc:OZZY:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1:uniswap_v4:9000:0x4345f23257233e972a171b180c3f0e2b3b1d441e834e0a0bb3b894df0d69a77a",
+                "routeSymbols": [
+                  "ETH",
+                  "OZZY"
+                ],
+                "routeText": "ETH -> OZZY",
+                "specialFee": null,
+                "sqrtPriceX96": "1833236202873649852295408229074193",
+                "tick": "200995",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0xce6B10ab6059B0404Cb88b2C42130CdeFA0BF0A1",
+                "token1Decimals": null,
+                "token1Symbol": "OZZY",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

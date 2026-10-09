@@ -87,7 +87,7 @@
     <div class="toolbar">
       <button class="primary" id="refreshBtn">增量刷新</button>
       <button id="fullRefreshBtn">全量刷新</button>
-      <input id="searchInput" type="search" placeholder="搜索 X、YC、ZC、池子地址">
+      <input id="searchInput" type="search" placeholder="搜索 X、ZC/YC、池子地址">
       <select id="qualityFilter">
         <option value="all" selected>显示全部分组</option>
         <option value="with_data">仅看有候选</option>
@@ -100,14 +100,14 @@
     <section class="summary-grid">
       <div class="metric"><small>静态池</small><strong id="staticPools">-</strong><span id="staticPairs">-</span></div>
       <div class="metric"><small>X 分组</small><strong id="anchorGroups">-</strong><span id="anchorTokens">-</span></div>
-      <div class="metric"><small>YC 候选</small><strong id="ycPools">-</strong><span id="ycTokens">-</span></div>
-      <div class="metric"><small>ZC 候选</small><strong id="zcPools">-</strong><span id="zcTokens">-</span></div>
+    <div class="metric" id="directionMetrics"><small>YC 候选</small><strong id="ycPools">-</strong><span id="ycTokens">-</span></div>
+    <div class="metric" id="zcMetric"><small>ZC 候选</small><strong id="zcPools">-</strong><span id="zcTokens">-</span></div>
       <div class="metric"><small>有流动性池</small><strong id="liquidPools">-</strong><span id="liquidGroups">-</span></div>
       <div class="metric"><small>链上快照</small><strong id="blockNumber">-</strong><span id="generatedAt">-</span></div>
     </section>
 
     <div class="notice" id="scopeNotice">
-      本页按资金池 X 分组展示候选池。每个 X 下面拆成 YC 和 ZC 两个方向：YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。页面只负责候选结构，不负责最终报价与盈亏判断。
+      本页按资金池 X 分组展示候选池。V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。页面只负责候选结构，不负责最终报价与盈亏判断。
     </div>
     <div id="filtersLine" class="filters-line"></div>
     <div class="pager" id="candidatePager">
@@ -310,6 +310,33 @@
       return statusBadge(row.quality || row.status);
     }
 
+    function hopRecommendationBadge(row) {
+      const first = "yc_anchor_to_counter_highest_price";
+      const third = "zc_counter_to_anchor_lowest_price";
+      const roles = list(row?.hopRecommendation || row?.optimalRole);
+      const badges = [];
+      if (roles.includes(first)) {
+        badges.push('<span class="badge good" title="以资金池代币为基准，兑换出最多外部代币，且固定费率、有深度、无 Hook">第一跳推荐</span>');
+      }
+      if (roles.includes(third)) {
+        badges.push('<span class="badge good" title="以资金池代币为基准，兑换回最多资金池代币，且固定费率、有深度、无 Hook">第三跳推荐</span>');
+      }
+      if (!badges.length) return '<span class="badge neutral">普通候选</span>';
+      return badges.join("");
+    }
+
+    function groupRecommendedHopCount(group) {
+      const tokens = group?.sharedTokens || [];
+      const poolIds = new Set();
+      tokens.forEach(token => {
+        const ycId = token?.ycOptimalPoolId;
+        const zcId = token?.zcOptimalPoolId;
+        if (ycId) poolIds.add(`yc:${ycId}`);
+        if (zcId) poolIds.add(`zc:${zcId}`);
+      });
+      return poolIds.size;
+    }
+
     function poolIsLiquid(row) {
       if (!row) return false;
       if (row.dynamicFee || row.specialFee || String(row.feeLabel || "").toLowerCase() === "special") return false;
@@ -359,7 +386,7 @@
       return `<div class="table-wrap"><table>
         <thead>
           <tr>
-            <th>路径</th><th>池</th><th>对手代币</th><th>协议</th><th>费率</th><th>TVL</th><th>流动性</th><th>质量</th>
+            <th>路径</th><th>池</th><th>对手代币</th><th>协议</th><th>费率</th><th>TVL</th><th>流动性</th><th>推荐跳</th><th>质量</th>
           </tr>
         </thead>
         <tbody>${items.map(row => {
@@ -373,6 +400,7 @@
             <td>${poolFeeText(row)}</td>
             <td>${num(balances.tvlUsd)}</td>
             <td title="${esc(liquidityText(row))}">${liquidityText(row)}</td>
+            <td>${hopRecommendationBadge(row)}</td>
             <td>${poolCandidateBadge(row)}</td>
           </tr>`;
         }).join("")}</tbody>
@@ -407,20 +435,14 @@
     }
 
     function renderBidirectionalSection(group) {
-      const tokens = dedupeBy(
-        [...groupTokens(group, "yc"), ...groupTokens(group, "zc")],
-        token => token.address || token.symbol || ""
-      );
-      const pools = dedupeBy(
-        [...groupPools(group, "yc"), ...groupPools(group, "zc")],
-        pool => pool.pool || pool.poolId || `${pool.counterAddress || ""}:${pool.routeText || ""}`
-      );
+      const tokens = dedupeBy([...groupTokens(group, "yc"), ...groupTokens(group, "zc")], token => token.address || token.symbol || "");
+      const pools = dedupeBy([...groupPools(group, "yc"), ...groupPools(group, "zc")], pool => pool.pool || pool.poolId || `${pool.counterAddress || ""}:${pool.routeText || ""}`);
       if (($("qualityFilter").value || "all") === "with_liquidity") {
         const liquidRows = filterLiquidityRows(pools);
         if (!liquidRows.length) return "";
-        return renderSection("YC/ZC 双向候选（有流动性）", tokens, liquidRows);
+        return renderSection("ZC/YC 双向候选（有流动性）", tokens, liquidRows);
       }
-      return renderSection("YC/ZC 双向候选", tokens, pools);
+      return renderSection("ZC/YC 双向候选", tokens, pools);
     }
 
     function groupMatches(group, query) {
@@ -488,9 +510,11 @@
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                 <h2 title="${esc(group.anchorSymbol)}">${esc(group.anchorSymbol)}</h2>
                 <span class="badge good">X</span>
-<span class="badge neutral">YC 代币 ${esc(group.ycTokenCount || 0)} / 池 ${esc(group.ycPoolCount || 0)}</span>
-<span class="badge neutral">ZC 代币 ${esc(group.zcTokenCount || 0)} / 池 ${esc(group.zcPoolCount || 0)}</span>
+                ${sameSet
+                  ? `<span class="badge neutral">ZC/YC 代币 ${esc(group.zcTokenCount || group.ycTokenCount || 0)} / 池 ${esc(group.zcPoolCount || group.ycPoolCount || 0)}</span>`
+                  : `<span class="badge neutral">YC 代币 ${esc(group.ycTokenCount || 0)} / 池 ${esc(group.ycPoolCount || 0)}</span><span class="badge neutral">ZC 代币 ${esc(group.zcTokenCount || 0)} / 池 ${esc(group.zcPoolCount || 0)}</span>`}
                 <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
+                <span class="badge good" title="一个代币可同时被选为第一跳与第三跳推荐池，因此按推荐位统计；均优先固定费率、有深度、无 Hook">推荐 ${esc(groupRecommendedHopCount(group))} 个推荐位</span>
               </div>
               <div class="group-meta">锚点地址：${(group.anchorAddresses || []).map(addr => `<code>${esc(addr)}</code>`).join(" · ") || "-"}</div>
             </div>
@@ -511,6 +535,16 @@
       $("anchorTokens").textContent = `锚点 ${summary.anchorGroupCount || payload.anchorGroups?.length || "-"}`;
       $("ycPools").textContent = summary.ycPoolCount || "-";
       $("ycTokens").textContent = `代币 ${summary.ycTokenCount || "-"}`;
+      const anchorGroupCount = Number(summary.anchorGroupCount || payload.anchorGroups?.length || 0);
+      const sharedGroupCount = Number(summary.ycZcSameSetGroupCount || 0);
+      const sharedMode = anchorGroupCount > 0 && sharedGroupCount === anchorGroupCount;
+      if (sharedMode) {
+        $("directionMetrics").querySelector("small").textContent = "ZC/YC 候选";
+        $("zcMetric").style.display = "none";
+      } else {
+        $("directionMetrics").querySelector("small").textContent = "YC 候选";
+        $("zcMetric").style.display = "";
+      }
       $("zcPools").textContent = summary.zcPoolCount || "-";
       $("zcTokens").textContent = `代币 ${summary.zcTokenCount || "-"}`;
       $("liquidPools").textContent = summary.liquidPoolCount || "-";
@@ -520,7 +554,7 @@
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
       const cacheTime = payload.candidatePoolCache?.refreshedAt || source.generatedAt;
       $("refreshMeta").textContent = cacheTime ? `缓存时间 ${fmtTime(cacheTime)}` : `最后更新 ${fmtTime(new Date().toISOString())}`;
-      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；部分协议底层 PoolKey 相同，页面会合并为 YC/ZC 双向候选，方向有区别时仍分开展示。`;
+      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向，方向有区别时仍分开展示。`;
       renderPager(payload);
       renderGroups(payload);
     }

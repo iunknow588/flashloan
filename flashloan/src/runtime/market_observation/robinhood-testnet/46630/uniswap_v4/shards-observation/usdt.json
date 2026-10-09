@@ -1,0 +1,307 @@
+{
+  "anchorSymbol": "USDT",
+  "chainId": 46630,
+  "generatedAt": "2026-10-08T13:50:22.036953Z",
+  "network": "robinhood-testnet",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood-testnet\\46630\\uniswap_v4\\shards-observation\\usdt.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x80134df477dec046b8f4656ce75e1ebb18718896"
+        ],
+        "anchorSymbol": "USDT",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "candidateSetMode": "bidirectional_same_pool_key_set",
+        "sharedPoolCount": "1",
+        "sharedPools": [
+          {
+            "anchorAddress": "0x80134df477dec046b8f4656ce75e1ebb18718896",
+            "anchorSymbol": "USDT",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": null
+            },
+            "candidateSetMode": "bidirectional_same_pool_key",
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "poolId and PoolKey observed",
+              "level": "observed"
+            },
+            "depthStatus": "initialized_pool",
+            "dex": "uniswap_v4",
+            "direction": "shared",
+            "directions": [
+              "yc",
+              "zc"
+            ],
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+              "initializeBlockNumber": 101297508,
+              "initializeTransactionHash": "0x232f7c19f4de9d9cabbdb159f57b0e830cf8b42241baa3209cd7a9c3882e301b",
+              "poolKeyDecoded": true
+            },
+            "fee": "0",
+            "feeLabel": null,
+            "hasLiquidity": false,
+            "hooks": "0x1Fb74304FC6f4BfAb130AEAD3701978ab6e4E0cc",
+            "liquidity": "",
+            "liquidityIndex": 0.0,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "poolId": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "poolIdentityMode": "pool_id",
+            "poolKey": {
+              "currency0": "0x0000000000000000000000000000000000000000",
+              "currency0Metadata": {
+                "address": "0x0000000000000000000000000000000000000000",
+                "decimals": 18,
+                "metadataOk": true,
+                "symbol": "ETH"
+              },
+              "currency1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+              "currency1Metadata": {
+                "address": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+                "decimals": null,
+                "metadataOk": false,
+                "symbol": "0x80134d"
+              },
+              "fee": 0,
+              "hooks": "0x1Fb74304FC6f4BfAb130AEAD3701978ab6e4E0cc",
+              "initializeBlockNumber": 101297508,
+              "initializeTransactionHash": "0x232f7c19f4de9d9cabbdb159f57b0e830cf8b42241baa3209cd7a9c3882e301b",
+              "poolId": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+              "poolKeyDecoded": true,
+              "sqrtPriceX96": "363069051893879052242584267145545",
+              "tick": 168608,
+              "tickSpacing": 60,
+              "token0": "0x0000000000000000000000000000000000000000",
+              "token0Decimals": 18,
+              "token0Symbol": "ETH",
+              "token1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+              "token1Decimals": null,
+              "token1Symbol": "0x80134d"
+            },
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "quoteSummary": {},
+            "routeAddresses": [
+              "0x80134df477dec046b8f4656ce75e1ebb18718896",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "routeSymbols": [
+              "USDT",
+              "ETH"
+            ],
+            "routeText": "USDT <-> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "363069051893879052242584267145545",
+            "tick": "168608",
+            "tickSpacing": 60,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": 18,
+            "token0Symbol": "ETH",
+            "token1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+            "token1Decimals": 18,
+            "token1Symbol": "USDT",
+            "usableForObservation": false,
+            "ycRouteKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "ycRouteText": "USDT -> ETH",
+            "zcRouteKey": "zc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+            "zcRouteText": "ETH -> USDT"
+          }
+        ],
+        "sharedTokenCount": "1",
+        "sharedTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x80134df477dec046b8f4656ce75e1ebb18718896",
+                "anchorSymbol": "USDT",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": null
+                },
+                "candidateSetMode": "bidirectional_same_pool_key",
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "poolId and PoolKey observed",
+                  "level": "observed"
+                },
+                "depthStatus": "initialized_pool",
+                "dex": "uniswap_v4",
+                "direction": "shared",
+                "directions": [
+                  "yc",
+                  "zc"
+                ],
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+                  "initializeBlockNumber": 101297508,
+                  "initializeTransactionHash": "0x232f7c19f4de9d9cabbdb159f57b0e830cf8b42241baa3209cd7a9c3882e301b",
+                  "poolKeyDecoded": true
+                },
+                "fee": "0",
+                "feeLabel": null,
+                "hasLiquidity": false,
+                "hooks": "0x1Fb74304FC6f4BfAb130AEAD3701978ab6e4E0cc",
+                "liquidity": "",
+                "liquidityIndex": 0.0,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "poolId": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "poolIdentityMode": "pool_id",
+                "poolKey": {
+                  "currency0": "0x0000000000000000000000000000000000000000",
+                  "currency0Metadata": {
+                    "address": "0x0000000000000000000000000000000000000000",
+                    "decimals": 18,
+                    "metadataOk": true,
+                    "symbol": "ETH"
+                  },
+                  "currency1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+                  "currency1Metadata": {
+                    "address": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+                    "decimals": null,
+                    "metadataOk": false,
+                    "symbol": "0x80134d"
+                  },
+                  "fee": 0,
+                  "hooks": "0x1Fb74304FC6f4BfAb130AEAD3701978ab6e4E0cc",
+                  "initializeBlockNumber": 101297508,
+                  "initializeTransactionHash": "0x232f7c19f4de9d9cabbdb159f57b0e830cf8b42241baa3209cd7a9c3882e301b",
+                  "poolId": "0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                  "poolKeyDecoded": true,
+                  "sqrtPriceX96": "363069051893879052242584267145545",
+                  "tick": 168608,
+                  "tickSpacing": 60,
+                  "token0": "0x0000000000000000000000000000000000000000",
+                  "token0Decimals": 18,
+                  "token0Symbol": "ETH",
+                  "token1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+                  "token1Decimals": null,
+                  "token1Symbol": "0x80134d"
+                },
+                "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "quoteSummary": {},
+                "routeAddresses": [
+                  "0x80134df477dec046b8f4656ce75e1ebb18718896",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "routeSymbols": [
+                  "USDT",
+                  "ETH"
+                ],
+                "routeText": "USDT <-> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "363069051893879052242584267145545",
+                "tick": "168608",
+                "tickSpacing": 60,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": 18,
+                "token0Symbol": "ETH",
+                "token1": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+                "token1Decimals": 18,
+                "token1Symbol": "USDT",
+                "usableForObservation": false,
+                "ycRouteKey": "yc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "ycRouteText": "USDT -> ETH",
+                "zcRouteKey": "zc:USDT:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x80134df477dec046b8f4656ce75e1ebb18718896:uniswap_v4:0:0xd87483d8c425860bce004cc5a044ee921d1eaa467877c999a5b4157527dbf9b3",
+                "zcRouteText": "ETH -> USDT"
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "ycPoolCount": "1",
+        "ycPools": [],
+        "ycPoolsRef": "sharedPools",
+        "ycTokenCount": "1",
+        "ycTokens": [],
+        "ycTokensRef": "sharedTokens",
+        "ycZcSameSet": true,
+        "ycZcSharedPoolSet": true,
+        "zcPoolCount": "1",
+        "zcPools": [],
+        "zcPoolsRef": "sharedPools",
+        "zcTokenCount": "1",
+        "zcTokens": [],
+        "zcTokensRef": "sharedTokens"
+      }
+    ],
+    "candidateObservationGroups": [
+      {
+        "anchorAddresses": [
+          "0x80134df477dec046b8f4656ce75e1ebb18718896"
+        ],
+        "anchorSymbol": "USDT",
+        "bridgeClosedLoopCount": 0,
+        "bridgePoolObservationGroups": [],
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "candidateSetMode": "bidirectional_same_pool_key_set",
+        "closedLoopRouteCount": 0,
+        "observationCombinationCount": 0,
+        "observationCombinationPreview": [],
+        "observationEmptyReason": null,
+        "observationReachable": false,
+        "observationSequenceCount": 0,
+        "observationSequencePreview": [],
+        "observationState": {
+          "groupCount": 0,
+          "reachable": false,
+          "reason": null,
+          "status": "no_observation_sequence",
+          "ycTokenCount": 1,
+          "zcTokenCount": 1
+        },
+        "sharedPoolCount": "1",
+        "sharedTokenCount": "1",
+        "sharedTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "symbol": "ETH"
+          }
+        ],
+        "ycPoolCount": "1",
+        "ycTokenCount": "1",
+        "ycTokensRef": "sharedTokens",
+        "ycZcSameSet": true,
+        "ycZcSharedPoolSet": true,
+        "zcPoolCount": "1",
+        "zcTokenCount": "1",
+        "zcTokensRef": "sharedTokens"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

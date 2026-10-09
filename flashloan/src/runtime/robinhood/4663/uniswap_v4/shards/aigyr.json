@@ -1,0 +1,356 @@
+{
+  "anchorSymbol": "AIGYR",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\aigyr.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x779388cc6347dfdba03d8c112cbc245ffd324317"
+        ],
+        "anchorSymbol": "AIGYR",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "ycPoolCount": "1",
+        "ycPools": [
+          {
+            "anchorAddress": "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+            "anchorSymbol": "AIGYR",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78418173,
+              "initializeTransactionHash": "0x41f0d032ab6c77478e044066b91b670232932f86374abf2cf9f03f2ff398e591",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "32156000099526845215062",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "poolId": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "routeSymbols": [
+              "AIGYR",
+              "ETH"
+            ],
+            "routeText": "AIGYR -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "1908495655052602443813737305992301",
+            "tick": "201799",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x779388Cc6347DFdba03d8c112CBc245ffd324317",
+            "token1Decimals": null,
+            "token1Symbol": "AIGYR",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+                "anchorSymbol": "AIGYR",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78418173,
+                  "initializeTransactionHash": "0x41f0d032ab6c77478e044066b91b670232932f86374abf2cf9f03f2ff398e591",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "32156000099526845215062",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "poolId": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "routeSymbols": [
+                  "AIGYR",
+                  "ETH"
+                ],
+                "routeText": "AIGYR -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "1908495655052602443813737305992301",
+                "tick": "201799",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x779388Cc6347DFdba03d8c112CBc245ffd324317",
+                "token1Decimals": null,
+                "token1Symbol": "AIGYR",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "zcPoolCount": "1",
+        "zcPools": [
+          {
+            "anchorAddress": "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+            "anchorSymbol": "AIGYR",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78418173,
+              "initializeTransactionHash": "0x41f0d032ab6c77478e044066b91b670232932f86374abf2cf9f03f2ff398e591",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "32156000099526845215062",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "poolId": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x779388cc6347dfdba03d8c112cbc245ffd324317"
+            ],
+            "routeKey": "zc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+            "routeSymbols": [
+              "ETH",
+              "AIGYR"
+            ],
+            "routeText": "ETH -> AIGYR",
+            "specialFee": null,
+            "sqrtPriceX96": "1908495655052602443813737305992301",
+            "tick": "201799",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x779388Cc6347DFdba03d8c112CBc245ffd324317",
+            "token1Decimals": null,
+            "token1Symbol": "AIGYR",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x779388cc6347dfdba03d8c112cbc245ffd324317",
+                "anchorSymbol": "AIGYR",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78418173,
+                  "initializeTransactionHash": "0x41f0d032ab6c77478e044066b91b670232932f86374abf2cf9f03f2ff398e591",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "32156000099526845215062",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "poolId": "0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0x779388cc6347dfdba03d8c112cbc245ffd324317"
+                ],
+                "routeKey": "zc:AIGYR:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x779388cc6347dfdba03d8c112cbc245ffd324317:uniswap_v4:10000:0xc0cf77d1bf4f3997829df1b3e1a27443da51d42b491c2a00cdf061ad14a46452",
+                "routeSymbols": [
+                  "ETH",
+                  "AIGYR"
+                ],
+                "routeText": "ETH -> AIGYR",
+                "specialFee": null,
+                "sqrtPriceX96": "1908495655052602443813737305992301",
+                "tick": "201799",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x779388Cc6347DFdba03d8c112CBc245ffd324317",
+                "token1Decimals": null,
+                "token1Symbol": "AIGYR",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

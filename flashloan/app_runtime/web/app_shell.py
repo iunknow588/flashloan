@@ -87,6 +87,16 @@ def _active_path(path: str, target: str) -> bool:
     return aliases.get(normalized) == target
 
 
+def _active_path_mutually_exclusive(path: str, target: str) -> bool:
+    """资金池与候选池是同一描述面的两种视图，同一时间只能有一个高亮。"""
+    if not _active_path(path, target):
+        return False
+    if target in {"/flash-loan/pools", "/dex/candidates"}:
+        counterpart = "/dex/candidates" if target == "/flash-loan/pools" else "/flash-loan/pools"
+        return not _active_path(path, counterpart)
+    return True
+
+
 def _links(
     items: tuple[tuple[str, str], ...],
     current_path: str,
@@ -112,7 +122,7 @@ def _links(
         if resolved_chain_id is not None:
             scope_query["chain_id"] = str(resolved_chain_id)
     for label, href in items:
-        active = " active" if _active_path(current_path, href) else ""
+        active = " active" if _active_path_mutually_exclusive(current_path, href) else ""
         target = href
         target_query = dict(scope_query)
         target_feature = str(feature_from_page_path(href) or "").strip().lower()

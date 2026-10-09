@@ -508,12 +508,13 @@ def _pool_index_token_balance_sources(
         for address, entry in (cache.get("entries") or {}).items()
         if isinstance(entry, dict)
     }
-    if normalized_scope != "none":
+    if normalized_scope == "active_plus_known":
         for address, source_keys in _known_token_pool_ids().items():
-            bucket = token_pool_ids.setdefault(address, [])
-            for source_key in source_keys:
-                if source_key not in bucket:
-                    bucket.append(source_key)
+            if _is_address(address) and address.lower() != ZERO_ADDRESS.lower():
+                bucket = token_pool_ids.setdefault(address, [])
+                for source_key in source_keys:
+                    if source_key not in bucket:
+                        bucket.append(source_key)
     if not token_pool_ids:
         return [], {
             "poolIndexSource": pool_index_source,

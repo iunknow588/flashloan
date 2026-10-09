@@ -1,0 +1,98 @@
+{
+  "anchorSymbol": "SQUEEZE",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\squeeze.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "addressPair": "",
+        "anchorAddress": "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+        "anchorSymbol": "SQUEEZE",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": "0.0257583670789233451004930502"
+        },
+        "bridgeSymbol": "SQUEEZE",
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "dust",
+          "level": "dust"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "dynamicFee": false,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78447624,
+          "initializeTransactionHash": "0xb12e6aba83823e3ece07f0afa0f96fc9e493dde4353edb4e0044ade3ec4651f1",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "850000",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "101247756382255",
+        "liquidityBlockNumber": null,
+        "liquidityIndex": null,
+        "liquidityReadAt": null,
+        "liquiditySnapshotAt": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0xfd6a265135cbd9f5e1ff238aee5086556fe178335ce539f755b46b38a06d0e7a",
+        "poolId": "0xfd6a265135cbd9f5e1ff238aee5086556fe178335ce539f755b46b38a06d0e7a",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0xc947a19b234ec04335da19e1ba7a5fe73373040c",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "SQUEEZE",
+          "USDG"
+        ],
+        "routeText": "SQUEEZE -> USDG",
+        "source": "",
+        "specialFee": true,
+        "sqrtPriceX96": "311420117287700188685474343089947089433",
+        "tick": "441863",
+        "tickSpacing": null,
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "USDG",
+        "token1": "0xc947A19B234EC04335DA19E1ba7A5FE73373040c",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "SQUEEZE",
+        "usableForObservation": null
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

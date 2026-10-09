@@ -5,6 +5,7 @@ import pytest
 from core.flash_loan_pools import (
     load_chain_flash_loan_pool_static,
     load_flash_loan_pool_static,
+    static_store_metadata,
     write_flash_loan_pool_static,
 )
 from core.flash_loan_pool_store import pool_evidence_from_view
@@ -163,3 +164,25 @@ def test_flash_loan_pool_store_evidence_contract_is_stable_and_covers_all_fields
     assert validate_pool_evidence_contract(evidence) == (True, ())
     assert stored["pool_evidence_schema_version"] == "flash-loan-pool-evidence-v1"
     assert stored["pool_evidence_observed_at"] == stored["generated_at"]
+
+
+def test_static_store_metadata_can_opt_into_protocol_view_without_dynamic_rebuild(tmp_path):
+    write_flash_loan_pool_static(
+        _view([{"token_symbol": "ETH", "currency_address": "0x0000000000000000000000000000000000000000"}]),
+        chain_id=46630,
+        root=tmp_path,
+        refresh_mode="full",
+    )
+
+    slim = static_store_metadata(chain_id=46630, protocol="uniswap_v4", root=tmp_path)
+    full = static_store_metadata(
+        chain_id=46630,
+        protocol="uniswap_v4",
+        root=tmp_path,
+        include_protocol_view=True,
+    )
+
+    assert "protocol_view" not in slim
+    assert full["protocol_view"]["protocol"] == "uniswap_v4"
+    assert full["protocol_view"]["summary"]["borrow_asset_count"] == 1
+    assert full["cache"]["chain_id"] == 46630

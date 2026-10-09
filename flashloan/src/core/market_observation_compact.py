@@ -161,6 +161,16 @@ def _compact_observation_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
     compact["hopCandidateCounts"] = hop_candidate_counts
     compact["hopCandidateCombinationCount"] = int(sequence.get("hopCandidateCombinationCount") or 1)
     compact["poolPathKey"] = sequence.get("poolPathKey") or ""
+    if sequence.get("pathSymbols") and len(sequence.get("pathSymbols") or []) >= 4:
+        compact["routeAddresses"] = list(sequence.get("routeAddresses") or [])
+        compact["pathSymbols"] = list(sequence.get("pathSymbols") or [])
+        compact["anchorSymbol"] = sequence.get("anchorSymbol") or (sequence.get("pathSymbols") or [""])[0]
+        compact["bridgeSymbol"] = sequence.get("bridgeSymbol") or (sequence.get("pathSymbols") or ["", ""])[1]
+        compact["counterSymbol"] = sequence.get("counterSymbol") or (sequence.get("pathSymbols") or ["", "", ""])[2]
+        compact["observationState"] = sequence.get("observationState") or ("reachable" if route_pools else "no_yz_pool")
+        compact["observationReachable"] = sequence.get("observationReachable", bool(route_pools))
+        if not route_pools:
+            compact["observationEmptyReason"] = sequence.get("observationEmptyReason") or "YC 与 ZC 之间无交易池"
     if not compact["poolPathKey"] and route_pools:
         compact["poolPathKey"] = "|".join(
             [
@@ -173,6 +183,20 @@ def _compact_observation_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
     path_text = compact.get("pathText") or ""
     if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
         compact["pathSymbols"] = [part.strip() for part in path_text.split(" -> ") if part.strip()]
+    if sequence.get("observationState"):
+        compact["observationState"] = sequence.get("observationState")
+    if sequence.get("observationReachable") is not None:
+        compact["observationReachable"] = sequence.get("observationReachable")
+    elif route_pools:
+        compact["observationReachable"] = True
+        compact["observationState"] = "reachable"
+    else:
+        compact["observationReachable"] = False
+        compact["observationState"] = "no_yz_pool"
+    if sequence.get("observationEmptyReason") is not None:
+        compact["observationEmptyReason"] = sequence.get("observationEmptyReason")
+    elif not route_pools:
+        compact["observationEmptyReason"] = "YC 与 ZC 之间无交易池"
     return compact
 
 
@@ -181,6 +205,9 @@ def _compact_candidate_group(group: dict[str, Any]) -> dict[str, Any]:
         "anchorSymbol",
         "anchorAddresses",
         "candidatePoolCount",
+        "candidateCombinationCount",
+        "reachableCombinationCount",
+        "noPoolCombinationCount",
         "candidateQueueCount",
         "candidateSetMode",
         "sharedPoolCount",
@@ -226,6 +253,38 @@ def _compact_candidate_group(group: dict[str, Any]) -> dict[str, Any]:
             compact["ycTokens"] = yc_tokens
         if zc_tokens:
             compact["zcTokens"] = zc_tokens
+    combination_groups = [
+        {
+            key: combination[key]
+            for key in (
+                "anchorSymbol",
+                "bridgeSymbol",
+                "counterSymbol",
+                "pathSymbols",
+                "pathText",
+                "pool",
+                "poolCount",
+                "observationState",
+                "observationReachable",
+                "observationEmptyReason",
+                "ycPool",
+                "bridgePool",
+                "zcPool",
+                "routePools",
+                "ycPoolCount",
+                "zcPoolCount",
+                "candidatePoolCount",
+                "matchedPoolCount",
+                "hopCandidateCounts",
+                "poolPathKey",
+            )
+            if key in group
+        }
+        for combination in group.get("combinationGroups") or []
+        if isinstance(combination, dict)
+    ]
+    if combination_groups:
+        compact["combinationGroups"] = combination_groups
     return compact
 
 
@@ -445,6 +504,11 @@ def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
         ),
         "kind": sequence.get("kind") or "bridge_closed_loop",
         "source": sequence.get("source") or "market_observation",
+        "recommendedFirstPriority": bool(
+            sequence.get("recommendedFirstPriority") is True
+        ),
+        "routeRecommendationBasis": sequence.get("routeRecommendationBasis")
+        or "tvl_depth_desc",
         "anchorSymbol": sequence.get("anchorSymbol"),
         "counterSymbol": sequence.get("counterSymbol"),
         "bridgeSymbol": sequence.get("bridgeSymbol"),
@@ -515,15 +579,31 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
     path_text = route.get("pathText") or ""
     if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
         path_symbols = [part.strip() for part in path_text.split(" -> ") if part.strip()]
+    anchor_symbol = route.get("anchorSymbol") or route.get("borrowSymbol") or (path_symbols[0] if path_symbols else "")
+    bridge_symbol = route.get("bridgeSymbol") or (path_symbols[1] if len(path_symbols) > 1 else "")
+    counter_symbol = route.get("targetSymbol") or route.get("counterSymbol") or (path_symbols[2] if len(path_symbols) > 2 else "")
+    route_addresses = [_text(address) for address in route.get("routeAddresses") or []]
+    if not route_addresses:
+        for step in route_pools:
+            step_addresses = [_text(address) for address in step.get("routeAddresses") or [] if _text(address)]
+            if len(step_addresses) < 2:
+                continue
+            if not route_addresses:
+                route_addresses.append(step_addresses[0])
+            route_addresses.append(step_addresses[1])
     return {
         "kind": route.get("kind") or "bridge_closed_loop",
         "source": route.get("source") or "cached_snapshot",
-        "anchorSymbol": route.get("anchorSymbol") or route.get("borrowSymbol"),
-        "counterSymbol": route.get("targetSymbol") or route.get("counterSymbol"),
-        "bridgeSymbol": route.get("bridgeSymbol"),
+        "anchorSymbol": anchor_symbol,
+        "counterSymbol": counter_symbol,
+        "bridgeSymbol": bridge_symbol,
         "pathSymbols": path_symbols,
         "pathText": path_text,
-        "pool": route.get("pool"),
+        "routeAddresses": route_addresses,
+        "pool": route.get("pool") or (route_pools[1].get("pool") if len(route_pools) > 1 else ""),
+        "observationState": route.get("observationState") or ("reachable" if route_pools else "no_yz_pool"),
+        "observationReachable": route.get("observationReachable", bool(route_pools)),
+        "observationEmptyReason": route.get("observationEmptyReason"),
         "routePools": route_pools,
         "hopCandidates": _compact_hop_candidates(route.get("hopCandidates")),
         "hopCandidateCounts": dict(route.get("hopCandidateCounts") or {}),
@@ -537,6 +617,29 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
 
 
 def _closed_loop_dedup_key(sequence: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+    """Return the loop identity used by DEX overview.
+
+    A Uniswap V4 pool is one bridge-pool address and only the optimal
+    direction is executed, so reverse token paths through the same bridge pool
+    count once.  No-pool Y-Z combinations have no pool address and remain
+    distinct directional observations; they are not overview closed loops.
+    """
+    bridge_pool_id = ""
+    for step in sequence.get("routePools") or []:
+        if not isinstance(step, dict):
+            continue
+        if _text(step.get("direction")).lower() == "bridge":
+            bridge_pool_id = _text(step.get("pool") or step.get("poolId")).lower()
+            if bridge_pool_id:
+                break
+    if not bridge_pool_id:
+        bridge_pool_id = _text(sequence.get("pool") or sequence.get("poolId")).lower()
+    if not bridge_pool_id:
+        # Preserve the exact Y-Z direction for a no-pool combination.
+        symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
+        anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
+        mids = tuple(symbols[1:-1]) if len(symbols) >= 4 and symbols[0] == symbols[-1] else tuple(symbols)
+        return (anchor, ("no-yz-pool",) + mids)
     symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
     anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
     route_addresses: list[str] = []
@@ -607,10 +710,15 @@ def _dedup_closed_loop_sequences(sequences: list[dict[str, Any]]) -> list[dict[s
 
 
 def _observation_sequences_from_observation(observation: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_sequences = [
+        sequence
+        for key in ("observationSequences", "closedLoopSequences")
+        for sequence in observation.get(key) or []
+        if isinstance(sequence, dict)
+    ]
     sequences = [
         _compact_observation_sequence(sequence)
-        for sequence in observation.get("observationSequences") or []
-        if isinstance(sequence, dict)
+        for sequence in raw_sequences
     ]
     route_sources = [
         route
@@ -618,43 +726,58 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         for route in observation.get(key) or []
         if isinstance(route, dict)
     ]
-    if sequences:
-        best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {
-            _closed_loop_dedup_key(sequence): sequence
-            for sequence in _dedup_closed_loop_sequences(sequences)
-        }
-        for route in route_sources:
-            sequence = _sequence_from_route(route)
-            if not _is_closed_loop_sequence(sequence):
-                continue
-            if len(sequence.get("routePools") or []) < 3:
-                continue
-            identity = _closed_loop_dedup_key(sequence)
-            if not identity:
-                continue
-            current = best.get(identity)
-            if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
-                best[identity] = sequence
-        deduped = list(best.values())
-        return deduped
-    best = {
-        _closed_loop_dedup_key(sequence): sequence
-        for sequence in _dedup_closed_loop_sequences(sequences)
-    }
+    # The observation page keeps every complete Y-Z direction combination,
+    # including reverse directions through the same bridge pool address.  DEX
+    # overview applies its own bridge-pool-address dedup when it builds closed
+    # loops, so the static handoff must not collapse directions here.
+    best: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
     for route in route_sources:
         sequence = _sequence_from_route(route)
         if not _is_closed_loop_sequence(sequence):
             continue
         if len(sequence.get("routePools") or []) < 3:
             continue
-        identity = _closed_loop_dedup_key(sequence)
+        identity = _sequence_direction_key(sequence)
         if not identity:
             continue
         current = best.get(identity)
         if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
             best[identity] = sequence
-    recovered = list(best.values())
-    return recovered
+    for sequence in sequences:
+        identity = _sequence_direction_key(sequence)
+        if not identity:
+            continue
+        current = best.get(identity)
+        if current is None or _sequence_liquidity_score(sequence) > _sequence_liquidity_score(current):
+            best[identity] = sequence
+    return list(best.values())
+
+
+def _sequence_direction_key(sequence: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+    """Identity for one directional Y-Z observation.
+
+    Unlike the closed-loop overview key, reverse directions through the same
+    bridge pool are distinct page observations.  The bridge-pool address stays
+    in the key so different fee/hook pools remain separate rows.
+    """
+    symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
+    anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
+    mids = tuple(symbols[1:-1]) if len(symbols) >= 4 and symbols[0] == symbols[-1] else tuple(symbols)
+    bridge_pool_id = ""
+    for step in sequence.get("routePools") or []:
+        if not isinstance(step, dict):
+            continue
+        if _text(step.get("direction")).lower() == "bridge":
+            bridge_pool_id = _text(step.get("pool") or step.get("poolId")).lower()
+            if bridge_pool_id:
+                break
+    if not bridge_pool_id:
+        bridge_pool_id = _text(sequence.get("pool") or sequence.get("poolId")).lower()
+    if not bridge_pool_id:
+        route_pools = sequence.get("routePools") or []
+        if len(route_pools) >= 3:
+            bridge_pool_id = _text((route_pools[1] or {}).get("pool") or (route_pools[1] or {}).get("poolId")).lower()
+    return (anchor, mids + (bridge_pool_id,))
 
 
 def _route_pairs_from_sequence(sequence: dict[str, Any]) -> list[dict[str, Any]]:
@@ -723,6 +846,101 @@ def _candidate_groups_from_sequences(
     sequences: list[dict[str, Any]],
     anchors: list[str],
 ) -> list[dict[str, Any]]:
+    def combination_row(row: dict[str, Any]) -> dict[str, Any]:
+        route_pools = [
+            step
+            for step in row.get("routePools") or []
+            if isinstance(step, dict)
+        ]
+        bridge_step = next(
+            (
+                step
+                for step in route_pools
+                if _text(step.get("direction")).lower() == "bridge"
+            ),
+            None,
+        )
+        path_symbols = list(row.get("pathSymbols") or [])
+        path_text = row.get("pathText") or ""
+        if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
+            path_symbols = [part.strip() for part in path_text.split(" -> ") if part.strip()]
+        bridge_symbol = _text(row.get("bridgeSymbol")) or (path_symbols[1] if len(path_symbols) > 1 else "")
+        counter_symbol = _text(row.get("counterSymbol")) or (path_symbols[2] if len(path_symbols) > 2 else "")
+        return {
+            "anchorSymbol": _text(row.get("anchorSymbol")) or (path_symbols[0] if path_symbols else ""),
+            "bridgeSymbol": bridge_symbol,
+            "counterSymbol": counter_symbol,
+            "pathSymbols": path_symbols,
+            "pathText": path_text,
+            "pool": bridge_step.get("pool") if bridge_step else row.get("pool") or "",
+            "poolCount": len(route_pools),
+            "observationState": row.get("observationState") or (
+                "reachable" if route_pools else "no_yz_pool"
+            ),
+            "observationReachable": bool(
+                row.get("observationReachable")
+                or row.get("observationState") == "reachable"
+            ),
+            "observationEmptyReason": row.get("observationEmptyReason"),
+            "ycPool": next(
+                (step for step in route_pools if _text(step.get("direction")).lower() == "yc"),
+                None,
+            ),
+            "bridgePool": bridge_step,
+            "zcPool": next(
+                (step for step in route_pools if _text(step.get("direction")).lower() == "zc"),
+                None,
+            ),
+            "routePools": route_pools,
+            "ycPoolCount": _compact_count(row.get("ycPoolCount"), "x-y", row),
+            "zcPoolCount": _compact_count(row.get("zcPoolCount"), "z-x", row),
+            "candidatePoolCount": row.get("candidatePoolCount"),
+            "matchedPoolCount": row.get("matchedPoolCount"),
+            "hopCandidateCounts": dict(row.get("hopCandidateCounts") or {}),
+            "poolPathKey": row.get("poolPathKey") or "",
+        }
+
+    def _compact_count(explicit: object, leg: str, row: dict[str, Any]) -> int:
+        if explicit is not None:
+            try:
+                return int(explicit)
+            except (TypeError, ValueError):
+                pass
+        counts = row.get("hopCandidateCounts") or {}
+        try:
+            return int(counts.get(leg) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def combination_rows(rows: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+        """Group direction variants by the concrete bridge-pool address.
+
+        A Uniswap V4 pool can be walked in both directions but only one
+        direction is profitable per execution.  The observation page therefore
+        counts one pool-backed combination per bridge-pool address while
+        keeping every direction in the underlying sequence list for the DEX
+        overview stage.
+        """
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            pool_id = ""
+            route_pools = row.get("routePools") or []
+            for step in route_pools:
+                if not isinstance(step, dict):
+                    continue
+                if _text(step.get("direction")).lower() == "bridge":
+                    pool_id = _text(step.get("pool") or step.get("poolId")).lower()
+                    if pool_id:
+                        break
+            if not pool_id:
+                pool_id = _text(row.get("pool") or row.get("poolId")).lower()
+            if not pool_id and len(route_pools) >= 3:
+                pool_id = _text((route_pools[1] or {}).get("pool") or (route_pools[1] or {}).get("poolId")).lower()
+            if not pool_id:
+                pool_id = _text(row.get("pathText"))
+            grouped.setdefault(pool_id, []).append(row)
+        return list(grouped.items())
+
     by_anchor: dict[str, list[dict[str, Any]]] = {}
     for sequence in sequences:
         anchor = _text(sequence.get("anchorSymbol")).upper()
@@ -737,21 +955,44 @@ def _candidate_groups_from_sequences(
     for anchor in sorted(set(anchors) | set(existing) | set(by_anchor)):
         group = dict(existing.get(anchor) or {"anchorSymbol": anchor})
         rows = by_anchor.get(anchor) or []
-        group["observationSequenceCount"] = len(rows)
-        group["observationSequencePreview"] = [
-            row.get("pathText") or row.get("pool") or "" for row in rows[:6]
+        combinations = combination_rows(rows)
+        group["combinationGroups"] = [
+            combination_row(row)
+            for row in rows
+            if isinstance(row, dict)
         ]
-        group["observationReachable"] = bool(rows)
-        if rows:
+        group["observationSequenceCount"] = len(combinations)
+        group["observationSequencePreview"] = [
+            row.get("pathText") or row.get("pool") or ""
+            for row in rows[:6]
+        ]
+        reachable_rows = [
+            row
+            for row in rows
+            if row.get("observationReachable") or row.get("observationState") == "reachable"
+        ]
+        group["candidateCombinationCount"] = len(rows)
+        group["reachableCombinationCount"] = len(reachable_rows)
+        group["noPoolCombinationCount"] = len(rows) - len(reachable_rows)
+        group["observationReachable"] = bool(reachable_rows)
+        if reachable_rows:
             group.pop("observationEmptyReason", None)
         elif group.get("observationEmptyReason") is not None:
             group["observationEmptyReason"] = group.get("observationEmptyReason")
         group["observationState"] = {
             **(group.get("observationState") or {}),
-            "status": "reachable" if rows else "no_observation_sequence",
-            "reachable": bool(rows),
+            "status": "reachable" if reachable_rows else "no_observation_sequence",
+            "reachable": bool(reachable_rows),
             "groupCount": len(rows),
         }
+        group["bridgePoolObservationGroups"] = [
+            {
+                "bridgePool": bridge_pool_id,
+                "directionCount": len(bridge_rows),
+                "preview": (bridge_rows[0].get("pathText") if bridge_rows else "") or bridge_pool_id or "",
+            }
+            for bridge_pool_id, bridge_rows in combinations
+        ]
         group["observationCombinationCount"] = len(rows)
         group["observationCombinationPreview"] = group["observationSequencePreview"]
         result.append(group)

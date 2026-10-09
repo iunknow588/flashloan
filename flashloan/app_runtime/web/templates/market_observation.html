@@ -82,7 +82,7 @@
     </section>
 
         <section class="note" id="scopeNotice">
-      本页只负责形成 YC / ZC 候选集合；闭环通道构建、中期活跃度判断由 DEX 总览负责。报价与路由依赖 DEX 总览中的闭环。
+      本页根据候选池页面给出的资金池代币符号及 YC/ZC 集合，初始化并读取按资金池拆分的外部中间交换池文件；候选池负责第一/第三跳推荐池，本页负责构建 YC/ZC 之间的中间一跳交易池并分析池子特性。闭环通道构建选择由 DEX 总览负责，报价与路由依赖 DEX 总览中的闭环。
     </section>
 
     <section class="panel" style="margin-bottom:14px">
@@ -357,13 +357,78 @@
       return list(group?.sharedTokens);
     }
 
+    function bridgePoolGroupHtml(group) {
+      const poolId = shortAddress(group?.bridgePool || "-");
+      const directionCount = group?.directionCount || list(group?.observationSequences).length || 0;
+      const preview = group?.preview || "-";
+      return `<span class="badge good" title="${esc(preview + " / " + (group?.bridgePool || "-"))}">${esc(preview)} / ${esc(poolId)} · ${esc(directionCount)} 方向</span>`;
+    }
+
+    function pathTextLabel(combination) {
+      const text = combination?.pathText;
+      if (text) return text;
+      return [combination?.anchorSymbol, combination?.bridgeSymbol, combination?.counterSymbol, combination?.anchorSymbol].filter(Boolean).join(" -> ") || "-";
+    }
+
+    function combinationStatusText(combination) {
+      if (combination?.observationReachable || combination?.observationState === "reachable") return "可达闭环";
+      const reason = combination?.observationEmptyReason;
+      if (reason) return esc(reason);
+      const state = String(combination?.observationState || "");
+      return state === "no_yz_pool" ? "无交易池" : esc(state || "无交易池");
+    }
+
+    function combinationPoolBadge(combination) {
+      const bridge = combination?.bridgePool || {};
+      const poolId = shortAddress(bridge?.pool || combination?.pool || "");
+      const fee = marketFeeText(bridge);
+      const liquidity = marketLiquidityText(bridge);
+      const title = `${esc(bridge?.pool || combination?.pool || "-")} / ${fee} / ${liquidity}`;
+      const cls = combination?.observationReachable ? "good" : "reject";
+      return `<span class="badge ${cls}" title="${title}">${esc(poolId || "-")} / ${fee} / ${liquidity}</span>`;
+    }
+
+    function combinationRowHtml(combination) {
+      const ycSymbol = combination?.bridgeSymbol || "-";
+      const zcSymbol = combination?.counterSymbol || "-";
+      const hopCounts = combination?.hopCandidateCounts || {};
+      const poolCount = Number(hopCounts["y-z"] ?? combination?.poolCount ?? 0);
+      const bridgePool = combination?.bridgePool || {};
+      const bridgePoolId = bridgePool?.pool || combination?.pool || "";
+      return `<div class="pair-line">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>${esc(pathTextLabel(combination))}</strong>
+            <div class="route-subtitle">${esc(ycSymbol)} / ${esc(zcSymbol)} · 中间池 ${esc(poolCount)} 个</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">${esc(poolCount)}<small>Y-Z 池</small></span>
+            <span class="chip">${esc(combination?.ycPoolCount || hopCounts["x-y"] || 0)}<small>YC 池</small></span>
+            <span class="chip">${esc(combination?.zcPoolCount || hopCounts["z-x"] || 0)}<small>ZC 池</small></span>
+          </div>
+        </div>
+        <div class="pool-list">
+          ${bridgePoolId ? combinationPoolBadge(combination) : '<span class="badge reject">无交易池</span>'}
+        </div>
+        <div class="meta-line">${combinationStatusText(combination)}</div>
+      </div>`;
+    }
+
+    function combinationListHtml(combinations) {
+      const rows = list(combinations);
+      if (!rows.length) return '<div class="empty">暂无可观察的 Y-Z 组合。</div>';
+      return rows.slice(0, 120).map(combinationRowHtml).join("");
+    }
+
     function groupHtml(group) {
       const ycTokens = groupTokens(group, "yc");
       const zcTokens = groupTokens(group, "zc");
       const anchorAddresses = list(group?.anchorAddresses);
+      const bridgePoolGroups = list(group?.bridgePoolObservationGroups);
+      const combinations = list(group?.combinationGroups || group?.observationSequences);
       const state = group?.observationState || {};
       const stateText = state.reachable
-        ? "YC 与 ZC 候选集合已生成"
+        ? "YC 与 ZC 中间一跳池已构建"
         : (group?.observationEmptyReason || state.reason || "YC 与 ZC 之间暂无可达 Y-Z 交易对池");
       return `<div class="route-card">
         <div class="route-head">
@@ -375,7 +440,9 @@
             <span class="chip">${esc(group?.candidatePoolCount || 0)}<small>候选池</small></span>
             <span class="chip">${esc(group?.ycPoolCount || 0)}<small>YC</small></span>
             <span class="chip">${esc(group?.zcPoolCount || 0)}<small>ZC</small></span>
-            <span class="chip">${esc(group?.observationSequenceCount || 0)}<small>组合</small></span>
+            <span class="chip">${esc(group?.candidateCombinationCount ?? group?.observationCombinationCount ?? group?.observationSequenceCount ?? 0)}<small>组合</small></span>
+            <span class="chip">${esc(group?.reachableCombinationCount ?? bridgePoolGroups.length ?? 0)}<small>可达</small></span>
+            <span class="chip">${esc(group?.noPoolCombinationCount ?? 0)}<small>无池</small></span>
           </div>
         </div>
         <div class="pool-list">
@@ -391,8 +458,18 @@
             <div class="pool-list">${tokenListHtml(zcTokens, "暂无 ZC 代币")}</div>
           </div>
           <div class="pair-line">
+            <strong>中间一跳</strong>
+            <div class="pool-list">
+              ${bridgePoolGroups.map(bridgePoolGroupHtml).join("") || '<span class="badge neutral">暂无中间一跳池</span>'}
+            </div>
+          </div>
+          <div class="pair-line">
             <strong>观察状态</strong>
             <div class="meta-line">${esc(stateText)}</div>
+          </div>
+          <div class="pair-line">
+            <strong>全部 Y-Z 组合（含无交易池）</strong>
+            <div class="list">${combinationListHtml(combinations)}</div>
           </div>
         </div>
       </div>`;

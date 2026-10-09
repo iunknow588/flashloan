@@ -1,0 +1,356 @@
+{
+  "anchorSymbol": "FIX6900",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\fix6900.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x4f1e4b19b28de94156da48532c25e79306afc758"
+        ],
+        "anchorSymbol": "FIX6900",
+        "candidatePoolCount": "1",
+        "candidateQueueCount": "2",
+        "ycPoolCount": "1",
+        "ycPools": [
+          {
+            "anchorAddress": "0x4f1e4b19b28de94156da48532c25e79306afc758",
+            "anchorSymbol": "FIX6900",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "counterSymbol": "WETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78437029,
+              "initializeTransactionHash": "0xebc2ba0691eec70956e3308eed1847f8bcbb99f21f01197656c0583ab3b714c7",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "3152019188766008768489",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "poolId": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x4f1e4b19b28de94156da48532c25e79306afc758",
+              "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+            ],
+            "routeKey": "yc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "routeSymbols": [
+              "FIX6900",
+              "WETH"
+            ],
+            "routeText": "FIX6900 -> WETH",
+            "specialFee": null,
+            "sqrtPriceX96": "25135684720064525484653200295616",
+            "tick": "115199",
+            "tickSpacing": null,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token0Decimals": null,
+            "token0Symbol": "WETH",
+            "token1": "0x4f1e4b19B28de94156Da48532c25E79306afc758",
+            "token1Decimals": null,
+            "token1Symbol": "FIX6900",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x4f1e4b19b28de94156da48532c25e79306afc758",
+                "anchorSymbol": "FIX6900",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "counterSymbol": "WETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78437029,
+                  "initializeTransactionHash": "0xebc2ba0691eec70956e3308eed1847f8bcbb99f21f01197656c0583ab3b714c7",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "3152019188766008768489",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "poolId": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x4f1e4b19b28de94156da48532c25e79306afc758",
+                  "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+                ],
+                "routeKey": "yc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "routeSymbols": [
+                  "FIX6900",
+                  "WETH"
+                ],
+                "routeText": "FIX6900 -> WETH",
+                "specialFee": null,
+                "sqrtPriceX96": "25135684720064525484653200295616",
+                "tick": "115199",
+                "tickSpacing": null,
+                "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                "token0Decimals": null,
+                "token0Symbol": "WETH",
+                "token1": "0x4f1e4b19B28de94156Da48532c25E79306afc758",
+                "token1Decimals": null,
+                "token1Symbol": "FIX6900",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "WETH"
+          }
+        ],
+        "zcPoolCount": "1",
+        "zcPools": [
+          {
+            "anchorAddress": "0x4f1e4b19b28de94156da48532c25e79306afc758",
+            "anchorSymbol": "FIX6900",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "counterSymbol": "WETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78437029,
+              "initializeTransactionHash": "0xebc2ba0691eec70956e3308eed1847f8bcbb99f21f01197656c0583ab3b714c7",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "3152019188766008768489",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "poolId": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+              "0x4f1e4b19b28de94156da48532c25e79306afc758"
+            ],
+            "routeKey": "zc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+            "routeSymbols": [
+              "WETH",
+              "FIX6900"
+            ],
+            "routeText": "WETH -> FIX6900",
+            "specialFee": null,
+            "sqrtPriceX96": "25135684720064525484653200295616",
+            "tick": "115199",
+            "tickSpacing": null,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token0Decimals": null,
+            "token0Symbol": "WETH",
+            "token1": "0x4f1e4b19B28de94156Da48532c25E79306afc758",
+            "token1Decimals": null,
+            "token1Symbol": "FIX6900",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "poolCount": "1",
+            "pools": [
+              {
+                "anchorAddress": "0x4f1e4b19b28de94156da48532c25e79306afc758",
+                "anchorSymbol": "FIX6900",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "counterSymbol": "WETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78437029,
+                  "initializeTransactionHash": "0xebc2ba0691eec70956e3308eed1847f8bcbb99f21f01197656c0583ab3b714c7",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "3152019188766008768489",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "poolId": "0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                  "0x4f1e4b19b28de94156da48532c25e79306afc758"
+                ],
+                "routeKey": "zc:FIX6900:WETH:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4f1e4b19b28de94156da48532c25e79306afc758:uniswap_v4:10000:0x13aaafbbfa855b8a6fa16bf0a7c37232f5bd2914cd1420e467c1e2312d61aba7",
+                "routeSymbols": [
+                  "WETH",
+                  "FIX6900"
+                ],
+                "routeText": "WETH -> FIX6900",
+                "specialFee": null,
+                "sqrtPriceX96": "25135684720064525484653200295616",
+                "tick": "115199",
+                "tickSpacing": null,
+                "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                "token0Decimals": null,
+                "token0Symbol": "WETH",
+                "token1": "0x4f1e4b19B28de94156Da48532c25E79306afc758",
+                "token1Decimals": null,
+                "token1Symbol": "FIX6900",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "WETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

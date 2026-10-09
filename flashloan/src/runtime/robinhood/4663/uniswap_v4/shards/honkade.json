@@ -1,0 +1,665 @@
+{
+  "anchorSymbol": "HONKADE",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T00:52:32.881513Z",
+  "network": "robinhood",
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\honkade.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "anchorGroups": [
+      {
+        "anchorAddresses": [
+          "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+          "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec"
+        ],
+        "anchorSymbol": "HONKADE",
+        "candidatePoolCount": "2",
+        "candidateQueueCount": "4",
+        "ycPoolCount": "2",
+        "ycPools": [
+          {
+            "anchorAddress": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+            "anchorSymbol": "HONKADE",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78445376,
+              "initializeTransactionHash": "0xbc2753f0a7f91b3dcd44c5e4cdfbddac4a8e75d3baa601e721d5cd40b16a1f6a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "25302041194730249179482",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "poolId": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "routeSymbols": [
+              "HONKADE",
+              "ETH"
+            ],
+            "routeText": "HONKADE -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "2505028422186135038782175247572112",
+            "tick": "207239",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x1FaaB2d3deb644D994EeE097F777268dCD7672d8",
+            "token1Decimals": null,
+            "token1Symbol": "HONKADE",
+            "usableForObservation": null
+          },
+          {
+            "anchorAddress": "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+            "anchorSymbol": "HONKADE",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "yc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78448197,
+              "initializeTransactionHash": "0x732a641b8e402c8f0e6bdf51a5f03873b729d58a8a0fe0c8244294892f99e1d3",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "33045048050114210126972",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "poolId": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "routeKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "routeSymbols": [
+              "HONKADE",
+              "ETH"
+            ],
+            "routeText": "HONKADE -> ETH",
+            "specialFee": null,
+            "sqrtPriceX96": "1918049478001428166638756253902387",
+            "tick": "201899",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0xf62694e52Cd867BC52a9b5bcc4785c9E91FE0Fec",
+            "token1Decimals": null,
+            "token1Symbol": "HONKADE",
+            "usableForObservation": null
+          }
+        ],
+        "ycTokenCount": "1",
+        "ycTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "2",
+            "pools": [
+              {
+                "anchorAddress": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+                "anchorSymbol": "HONKADE",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78445376,
+                  "initializeTransactionHash": "0xbc2753f0a7f91b3dcd44c5e4cdfbddac4a8e75d3baa601e721d5cd40b16a1f6a",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "25302041194730249179482",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "poolId": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "routeSymbols": [
+                  "HONKADE",
+                  "ETH"
+                ],
+                "routeText": "HONKADE -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "2505028422186135038782175247572112",
+                "tick": "207239",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x1FaaB2d3deb644D994EeE097F777268dCD7672d8",
+                "token1Decimals": null,
+                "token1Symbol": "HONKADE",
+                "usableForObservation": null
+              },
+              {
+                "anchorAddress": "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+                "anchorSymbol": "HONKADE",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "yc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78448197,
+                  "initializeTransactionHash": "0x732a641b8e402c8f0e6bdf51a5f03873b729d58a8a0fe0c8244294892f99e1d3",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "33045048050114210126972",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "poolId": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+                  "0x0000000000000000000000000000000000000000"
+                ],
+                "routeKey": "yc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "routeSymbols": [
+                  "HONKADE",
+                  "ETH"
+                ],
+                "routeText": "HONKADE -> ETH",
+                "specialFee": null,
+                "sqrtPriceX96": "1918049478001428166638756253902387",
+                "tick": "201899",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0xf62694e52Cd867BC52a9b5bcc4785c9E91FE0Fec",
+                "token1Decimals": null,
+                "token1Symbol": "HONKADE",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ],
+        "zcPoolCount": "2",
+        "zcPools": [
+          {
+            "anchorAddress": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+            "anchorSymbol": "HONKADE",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78445376,
+              "initializeTransactionHash": "0xbc2753f0a7f91b3dcd44c5e4cdfbddac4a8e75d3baa601e721d5cd40b16a1f6a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "25302041194730249179482",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "poolId": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x1faab2d3deb644d994eee097f777268dcd7672d8"
+            ],
+            "routeKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+            "routeSymbols": [
+              "ETH",
+              "HONKADE"
+            ],
+            "routeText": "ETH -> HONKADE",
+            "specialFee": null,
+            "sqrtPriceX96": "2505028422186135038782175247572112",
+            "tick": "207239",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0x1FaaB2d3deb644D994EeE097F777268dCD7672d8",
+            "token1Decimals": null,
+            "token1Symbol": "HONKADE",
+            "usableForObservation": null
+          },
+          {
+            "anchorAddress": "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+            "anchorSymbol": "HONKADE",
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "classification": {},
+            "counterAddress": "0x0000000000000000000000000000000000000000",
+            "counterSymbol": "ETH",
+            "depthBand": {
+              "label": "on-chain liquidity observed",
+              "level": "observed"
+            },
+            "depthStatus": "",
+            "dex": "uniswap_v4",
+            "direction": "zc",
+            "dynamicFee": null,
+            "estimatedTvlUsd": null,
+            "evidence": {
+              "initializeBlockNumber": 78448197,
+              "initializeTransactionHash": "0x732a641b8e402c8f0e6bdf51a5f03873b729d58a8a0fe0c8244294892f99e1d3",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "10000",
+            "feeLabel": null,
+            "hasLiquidity": null,
+            "hooks": "",
+            "liquidity": "33045048050114210126972",
+            "liquidityIndex": null,
+            "pairAddress": "",
+            "pairSymbol": "",
+            "pool": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "poolId": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "poolIdentityMode": "",
+            "poolKey": null,
+            "poolManager": null,
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "queueKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "routeAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec"
+            ],
+            "routeKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+            "routeSymbols": [
+              "ETH",
+              "HONKADE"
+            ],
+            "routeText": "ETH -> HONKADE",
+            "specialFee": null,
+            "sqrtPriceX96": "1918049478001428166638756253902387",
+            "tick": "201899",
+            "tickSpacing": null,
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token0Decimals": null,
+            "token0Symbol": "ETH",
+            "token1": "0xf62694e52Cd867BC52a9b5bcc4785c9E91FE0Fec",
+            "token1Decimals": null,
+            "token1Symbol": "HONKADE",
+            "usableForObservation": null
+          }
+        ],
+        "zcTokenCount": "1",
+        "zcTokens": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "poolCount": "2",
+            "pools": [
+              {
+                "anchorAddress": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+                "anchorSymbol": "HONKADE",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78445376,
+                  "initializeTransactionHash": "0xbc2753f0a7f91b3dcd44c5e4cdfbddac4a8e75d3baa601e721d5cd40b16a1f6a",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "25302041194730249179482",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "poolId": "0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0x1faab2d3deb644d994eee097f777268dcd7672d8"
+                ],
+                "routeKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0x1faab2d3deb644d994eee097f777268dcd7672d8:uniswap_v4:10000:0x3f95367e3ca9553406c861cb8158ffa034ae28f0311933cc09d18ab1bd836a80",
+                "routeSymbols": [
+                  "ETH",
+                  "HONKADE"
+                ],
+                "routeText": "ETH -> HONKADE",
+                "specialFee": null,
+                "sqrtPriceX96": "2505028422186135038782175247572112",
+                "tick": "207239",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0x1FaaB2d3deb644D994EeE097F777268dCD7672d8",
+                "token1Decimals": null,
+                "token1Symbol": "HONKADE",
+                "usableForObservation": null
+              },
+              {
+                "anchorAddress": "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec",
+                "anchorSymbol": "HONKADE",
+                "balances": {
+                  "token0": null,
+                  "token0Usd": null,
+                  "token1": null,
+                  "token1Usd": null,
+                  "tvlUsd": 0
+                },
+                "classification": {},
+                "counterAddress": "0x0000000000000000000000000000000000000000",
+                "counterSymbol": "ETH",
+                "depthBand": {
+                  "label": "on-chain liquidity observed",
+                  "level": "observed"
+                },
+                "depthStatus": "",
+                "dex": "uniswap_v4",
+                "direction": "zc",
+                "dynamicFee": null,
+                "estimatedTvlUsd": null,
+                "evidence": {
+                  "initializeBlockNumber": 78448197,
+                  "initializeTransactionHash": "0x732a641b8e402c8f0e6bdf51a5f03873b729d58a8a0fe0c8244294892f99e1d3",
+                  "poolKeyDecoded": true,
+                  "source": "robinhood_mainnet_v4_pool_index"
+                },
+                "fee": "10000",
+                "feeLabel": null,
+                "hasLiquidity": null,
+                "hooks": "",
+                "liquidity": "33045048050114210126972",
+                "liquidityIndex": null,
+                "pairAddress": "",
+                "pairSymbol": "",
+                "pool": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "poolId": "0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "poolIdentityMode": "",
+                "poolKey": null,
+                "poolManager": null,
+                "protocol": "uniswap_v4",
+                "quality": "pass",
+                "queueKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "quoteSummary": {
+                  "probeUsd": null,
+                  "token0ToToken1": {
+                    "ok": false,
+                    "reason": null
+                  },
+                  "token1ToToken0": {
+                    "ok": false,
+                    "reason": null
+                  }
+                },
+                "routeAddresses": [
+                  "0x0000000000000000000000000000000000000000",
+                  "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec"
+                ],
+                "routeKey": "zc:HONKADE:ETH:0x0000000000000000000000000000000000000000:0x0000000000000000000000000000000000000000:0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec:uniswap_v4:10000:0xc7e173088b3bdadc6e8c89fec09b2d94f9f386f62ef6c08d8d1867f48286c0c5",
+                "routeSymbols": [
+                  "ETH",
+                  "HONKADE"
+                ],
+                "routeText": "ETH -> HONKADE",
+                "specialFee": null,
+                "sqrtPriceX96": "1918049478001428166638756253902387",
+                "tick": "201899",
+                "tickSpacing": null,
+                "token0": "0x0000000000000000000000000000000000000000",
+                "token0Decimals": null,
+                "token0Symbol": "ETH",
+                "token1": "0xf62694e52Cd867BC52a9b5bcc4785c9E91FE0Fec",
+                "token1Decimals": null,
+                "token1Symbol": "HONKADE",
+                "usableForObservation": null
+              }
+            ],
+            "symbol": "ETH"
+          }
+        ]
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

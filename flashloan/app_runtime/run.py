@@ -270,6 +270,21 @@ def main() -> int:
                     file=sys.stderr,
                     flush=True,
                 )
+            try:
+                from dex.intent_trade.chains.robinhood.market_observation import (
+                    initialize_market_observation_pool_files,
+                )
+
+                initialize_market_observation_pool_files(
+                    chain_id=4663,
+                    protocols=["uniswap_v4"],
+                )
+            except Exception as exc:
+                print(
+                    f"market observation intermediate pool initialization failed: {redact_sensitive_text(exc)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
         threading.Thread(
             target=initialize_runtime_background,

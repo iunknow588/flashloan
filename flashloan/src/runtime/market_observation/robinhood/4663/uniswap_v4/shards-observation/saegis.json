@@ -1,0 +1,385 @@
+{
+  "anchorSymbol": "SAEGIS",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\saegis.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "anchorAddress": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+        "anchorSymbol": "SAEGIS",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": "0.09344735572044835903428390314"
+        },
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "dust",
+          "level": "dust"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "zc",
+        "dynamicFee": null,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78403789,
+          "initializeTransactionHash": "0x446e1f915c59f9ccd4b8f8044d5d75f5ed4d3d0ab603dd7a95736ab80e4bf4be",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "2500",
+        "feeLabel": "2500",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "45958381085009",
+        "liquidityIndex": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0xdcc336f37857f7b461b5219557d2ba78e6707e172686c77394d9229e48eaf9c3",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0x44b5e3a7561f791073bf1a58b209c7f0e8748295",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "SAEGIS",
+          "USDG"
+        ],
+        "routeText": "SAEGIS -> USDG",
+        "source": "",
+        "specialFee": null,
+        "sqrtPriceX96": "161094932213853066301",
+        "tick": "-400293",
+        "tickSpacing": null,
+        "token0": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "SAEGIS",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "USDG",
+        "usableForObservation": null
+      }
+    ],
+    "pairs": [
+      {
+        "addressPair": "0x44b5e3a7561f791073bf1a58b209c7f0e8748295:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "allPoolCount": "1",
+        "allPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": "0.09344735572044835903428390314"
+            },
+            "depthBand": {
+              "label": "dust",
+              "level": "dust"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403789,
+              "initializeTransactionHash": "0x446e1f915c59f9ccd4b8f8044d5d75f5ed4d3d0ab603dd7a95736ab80e4bf4be",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "2500",
+            "liquidity": "45958381085009",
+            "market": {},
+            "nonStableSymbols": [
+              "SAEGIS"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0xdcc336f37857f7b461b5219557d2ba78e6707e172686c77394d9229e48eaf9c3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "161094932213853066301",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-400293",
+            "token0": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+            "token0IsStable": false,
+            "token0Symbol": "SAEGIS",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "classification": {
+          "nonStableSymbols": [
+            "SAEGIS"
+          ],
+          "pairClass": "stable_to_non_stable_pair",
+          "pairClassLabel": "stable to non-stable pool",
+          "routeRole": "flashloan_entry_or_exit_leg",
+          "stableSymbols": [
+            "USDG"
+          ],
+          "token0IsStable": false,
+          "token1IsStable": true
+        },
+        "executionPoolCount": "1",
+        "executionPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": "0.09344735572044835903428390314"
+            },
+            "depthBand": {
+              "label": "dust",
+              "level": "dust"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403789,
+              "initializeTransactionHash": "0x446e1f915c59f9ccd4b8f8044d5d75f5ed4d3d0ab603dd7a95736ab80e4bf4be",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "2500",
+            "liquidity": "45958381085009",
+            "market": {},
+            "nonStableSymbols": [
+              "SAEGIS"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0xdcc336f37857f7b461b5219557d2ba78e6707e172686c77394d9229e48eaf9c3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "161094932213853066301",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-400293",
+            "token0": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+            "token0IsStable": false,
+            "token0Symbol": "SAEGIS",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "flashLoanLinkage": {
+          "available_flashloan_protocols": [],
+          "borrow_symbols": [
+            "USDG"
+          ],
+          "conditions": [
+            "selected pool must have executable depth after slippage",
+            "quoted output must exceed borrowed principal plus flashloan fee and gas reserve",
+            "route must end in the borrowed stable asset for same-transaction repayment",
+            "UniswapX fills require a signed order/opportunity and solver execution path"
+          ],
+          "direct_stable_flashloan": false,
+          "flash_swap_bridge": false,
+          "ready_for_atomic_arbitrage": false,
+          "route_symbols": [
+            "USDG",
+            "SAEGIS"
+          ],
+          "strategy": "stable_flashloan_entry_exit"
+        },
+        "hasPreferredPools": true,
+        "hasStrictQualityPools": true,
+        "identityMode": "address",
+        "preferredPoolCount": "1",
+        "preferredPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": "0.09344735572044835903428390314"
+            },
+            "depthBand": {
+              "label": "dust",
+              "level": "dust"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403789,
+              "initializeTransactionHash": "0x446e1f915c59f9ccd4b8f8044d5d75f5ed4d3d0ab603dd7a95736ab80e4bf4be",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "2500",
+            "liquidity": "45958381085009",
+            "market": {},
+            "nonStableSymbols": [
+              "SAEGIS"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0xdcc336f37857f7b461b5219557d2ba78e6707e172686c77394d9229e48eaf9c3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "161094932213853066301",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-400293",
+            "token0": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+            "token0IsStable": false,
+            "token0Symbol": "SAEGIS",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "rejectReasonCounts": {},
+        "rejectedPoolCount": "0",
+        "rejectedPools": [],
+        "settlementRails": [
+          {
+            "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+            "chain_id": 4663,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "strictQualityPoolCount": "1",
+        "strictQualityPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": "0.09344735572044835903428390314"
+            },
+            "depthBand": {
+              "label": "dust",
+              "level": "dust"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403789,
+              "initializeTransactionHash": "0x446e1f915c59f9ccd4b8f8044d5d75f5ed4d3d0ab603dd7a95736ab80e4bf4be",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "2500",
+            "liquidity": "45958381085009",
+            "market": {},
+            "nonStableSymbols": [
+              "SAEGIS"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0xdcc336f37857f7b461b5219557d2ba78e6707e172686c77394d9229e48eaf9c3",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "161094932213853066301",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-400293",
+            "token0": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+            "token0IsStable": false,
+            "token0Symbol": "SAEGIS",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "symbolPair": "SAEGIS:USDG",
+        "tokenX": "0x44b5e3A7561f791073bf1A58B209C7f0e8748295",
+        "tokenXSymbol": "SAEGIS",
+        "tokenY": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "tokenYSymbol": "USDG"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

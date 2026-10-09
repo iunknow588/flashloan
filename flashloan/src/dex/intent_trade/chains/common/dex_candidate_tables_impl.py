@@ -833,7 +833,21 @@ def build_robinhood_pool_candidates(
                 "rejectReasonCounts": _reject_reason_counts(rejected_rows),
             }
         )
-    anchor_groups = build_anchor_candidate_groups(pair_reports, anchor_symbols=_borrowable_symbols_from_discovery(4663) or None)
+    anchor_groups = build_anchor_candidate_groups(
+        pair_reports,
+        anchor_symbols=("ETH", "WETH", "USDG", "USDE", "TZ"),
+    )
+    # Keep every initialized V4 PoolKey by token address, including different
+    # fee/tickSpacing/hook variants.  Liquidity is dynamic and belongs to a
+    # later refresh; the pool-address registry is the fixed on-chain surface.
+    all_pools_by_address_pair: dict[str, list[dict[str, Any]]] = {}
+    for pair in pair_reports:
+        address_pair = str(pair.get("addressPair") or "").strip()
+        if not address_pair:
+            continue
+        rows = list(pair.get("allPools") or [])
+        if rows:
+            all_pools_by_address_pair[address_pair] = rows
     return _candidate_payload(
         table,
         effective_path,
@@ -845,6 +859,7 @@ def build_robinhood_pool_candidates(
         network="robinhood",
         chain_id=4663,
         anchor_groups=anchor_groups,
+        all_pools_by_address_pair=all_pools_by_address_pair,
     )
 
 
@@ -927,6 +942,7 @@ def _candidate_payload(
     network: str | None = None,
     chain_id: int | None = None,
     anchor_groups: list[dict[str, Any]] | None = None,
+    all_pools_by_address_pair: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     anchor_groups = anchor_groups or build_anchor_candidate_groups(pair_reports)
     pair_reports.sort(key=lambda item: (-int(item.get("preferredPoolCount") or 0), str(item.get("symbolPair") or "")))
@@ -973,6 +989,7 @@ def _candidate_payload(
         },
         "pairs": pair_reports,
         "anchorGroups": anchor_groups,
+        "allPoolsByAddressPair": all_pools_by_address_pair or {},
     }
 
 

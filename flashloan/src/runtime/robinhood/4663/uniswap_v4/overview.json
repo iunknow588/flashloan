@@ -1,0 +1,973 @@
+{
+  "borrowableSymbols": [
+    "ETH",
+    "TZ",
+    "USDE",
+    "USDG",
+    "WETH",
+    "WETH:USDG"
+  ],
+  "chain_id": 4663,
+  "chain_key": "robinhood:4663:uniswap_v4",
+  "dexSettlement": {
+    "arbitrage_integration": {
+      "can_combine_with_flashloan": true,
+      "required_atomic_flow": [
+        "borrow from flash loan source",
+        "fill UniswapX order or execute AMM swap leg",
+        "complete hedge/exit leg on available DEX pools",
+        "repay principal plus fee in the same transaction"
+      ]
+    },
+    "rails": [
+      {
+        "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+        "chain_id": 4663,
+        "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+        "name": "UniswapX",
+        "pool_model": "intent_order_flow_not_amm_pool",
+        "reactor_family": "Dutch V3 Reactor",
+        "settlement_model": "dutch_auction_reactor",
+        "supported": true
+      }
+    ],
+    "uniswapx": {
+      "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+      "chain_id": 4663,
+      "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+      "name": "UniswapX",
+      "pool_model": "intent_order_flow_not_amm_pool",
+      "reactor_family": "Dutch V3 Reactor",
+      "settlement_model": "dutch_auction_reactor",
+      "supported": true
+    }
+  },
+  "exists": true,
+  "flashLoanLiquidity": {
+    "available_protocols": [
+      "morpho_blue",
+      "uniswap_v2"
+    ],
+    "chain_id": 4663,
+    "flash_swap_protocols": [
+      "uniswap_v2"
+    ],
+    "has_flashloan_liquidity": true,
+    "native_flashloan_protocols": [
+      "morpho_blue"
+    ],
+    "removed_protocols": [
+      {
+        "display_name": "Aave V3",
+        "protocol": "aave_v3",
+        "removed_reason": "protocol_pool_cache_not_available"
+      },
+      {
+        "display_name": "Uniswap V3",
+        "protocol": "uniswap_v3",
+        "removed_reason": "protocol_pool_cache_not_available"
+      },
+      {
+        "display_name": "Uniswap V4",
+        "protocol": "uniswap_v4",
+        "removed_reason": "protocol_pool_cache_not_available"
+      }
+    ],
+    "source": "flash_loan_pool_discovery_snapshot"
+  },
+  "flow_name": "market_observation",
+  "generated_at": "2026-10-08T00:52:32.881513Z",
+  "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+  "list_counts": {
+    "borrowableSymbols": 6,
+    "observationAnchorSymbols": 5
+  },
+  "mode": "dex_market_observation",
+  "network": "robinhood",
+  "observationAnchorSymbols": [
+    "ETH",
+    "TZ",
+    "USDE",
+    "USDG",
+    "WETH"
+  ],
+  "observationSnapshotPath": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\observation.json",
+  "ok": true,
+  "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\overview.json",
+  "poolIndexVersion": {
+    "chainId": 4663,
+    "generatedAt": "2026-10-02T23:01:21.149090Z",
+    "generatedBlockNumber": 78608812,
+    "network": "robinhood",
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
+    "source": "robinhood-static-dex-candidates-v1"
+  },
+  "poolRegistry": {
+    "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3": {
+      "anchorAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "anchorSymbol": "TA",
+      "balances": {
+        "tvlUsd": 0,
+        "v4Liquidity": "316227766017675866399780"
+      },
+      "classification": {},
+      "counterAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "counterSymbol": "TZ",
+      "depthBand": {
+        "estimatedTvlUsd": null,
+        "label": "unpriced",
+        "level": "unpriced",
+        "liquidityIndex": 316227.76601767587,
+        "reason": "liquidity_present_but_no_usd_price"
+      },
+      "depthStatus": "live_liquid",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "dynamicFee": false,
+      "estimatedTvlUsd": 0,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": null,
+        "initializeTransactionHash": null,
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_static_dex_candidates"
+      },
+      "fee": 3000,
+      "feeLabel": 3000,
+      "hasLiquidity": true,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "liquidity": "316227766017675866399780",
+      "liquidityBlockNumber": null,
+      "liquidityError": null,
+      "liquidityIndex": 3.1622776601767585e+23,
+      "liquidityReadAt": null,
+      "liquiditySource": "pool_manager_extsload_live_state_batch",
+      "pairAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "pairSymbol": "TZ:TA",
+      "pool": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+      "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 79647842,
+        "initializeTransactionHash": "0x7c782cd6a2f8030fa42d8687249a970a1f8d96bd406fa3ca63d41de3cb5ac706",
+        "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "token0Decimals": 18,
+        "token0Symbol": "tz",
+        "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "token1Decimals": 18,
+        "token1Symbol": "ta"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "routeSymbols": [
+        "TA",
+        "TZ"
+      ],
+      "routeText": "TA -> TZ",
+      "source": "robinhood_mainnet_static_dex_candidates",
+      "specialFee": false,
+      "sqrtPriceX96": "32393637045873524264161319790",
+      "tick": -17889,
+      "tickSpacing": 60,
+      "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "token0Decimals": 18,
+      "token0Reserve": null,
+      "token0Symbol": "TZ",
+      "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "token1Decimals": 18,
+      "token1Reserve": null,
+      "token1Symbol": "TA",
+      "usableForObservation": true
+    },
+    "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0": {
+      "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "anchorSymbol": "TZ",
+      "balances": {
+        "tvlUsd": 0,
+        "v4Liquidity": "316227766017675866399780"
+      },
+      "classification": {},
+      "counterAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "counterSymbol": "TB",
+      "depthBand": {
+        "estimatedTvlUsd": null,
+        "label": "unpriced",
+        "level": "unpriced",
+        "liquidityIndex": 316227.76601767587,
+        "reason": "liquidity_present_but_no_usd_price"
+      },
+      "depthStatus": "live_liquid",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "dynamicFee": false,
+      "estimatedTvlUsd": 0,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": null,
+        "initializeTransactionHash": null,
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_static_dex_candidates"
+      },
+      "fee": 3000,
+      "feeLabel": 3000,
+      "hasLiquidity": true,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "liquidity": "316227766017675866399780",
+      "liquidityBlockNumber": null,
+      "liquidityError": null,
+      "liquidityIndex": 3.1622776601767585e+23,
+      "liquidityReadAt": null,
+      "liquiditySource": "pool_manager_extsload_live_state_batch",
+      "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "pairSymbol": "TB:TZ",
+      "pool": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+      "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "currency1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 79647902,
+        "initializeTransactionHash": "0x01709b94adf1256dd6bbd4f6266581c0606668ee7437f9147170c094295ad6ae",
+        "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "token0Decimals": 18,
+        "token0Symbol": "tb",
+        "token1": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+        "token1Decimals": 18,
+        "token1Symbol": "tz"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB"
+      ],
+      "routeText": "TZ -> TB",
+      "source": "robinhood_mainnet_static_dex_candidates",
+      "specialFee": false,
+      "sqrtPriceX96": "43036539623492203628755082752",
+      "tick": -12207,
+      "tickSpacing": 60,
+      "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "token0Decimals": 18,
+      "token0Reserve": null,
+      "token0Symbol": "TB",
+      "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "token1Decimals": 18,
+      "token1Reserve": null,
+      "token1Symbol": "TZ",
+      "usableForObservation": true
+    },
+    "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794": {
+      "anchorAddress": "0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "ETH",
+      "balances": {
+        "tvlUsd": 0,
+        "v4Liquidity": "4963542378413232"
+      },
+      "classification": {},
+      "counterAddress": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "counterSymbol": "USDE",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "live_liquid",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "dynamicFee": false,
+      "estimatedTvlUsd": 0,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": null,
+        "initializeTransactionHash": null,
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_static_dex_candidates"
+      },
+      "fee": 75,
+      "feeLabel": 75,
+      "hasLiquidity": true,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "liquidity": "4963542378413232",
+      "liquidityBlockNumber": null,
+      "liquidityError": null,
+      "liquidityIndex": 4963542378413232.0,
+      "liquidityReadAt": null,
+      "liquiditySource": "pool_manager_extsload_live_state_batch",
+      "pairAddress": "0x0000000000000000000000000000000000000000:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "pairSymbol": "ETH:USDE",
+      "pool": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+      "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "fee": 75,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 46419739,
+        "initializeTransactionHash": "0xb74bf03528f1ee4c6d63a6f06f4f24ff1c697e52dd9e47f8250a68b924311489",
+        "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "3932523422033618123189612041769",
+        "tick": 78098,
+        "tickSpacing": 1,
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token0Decimals": 18,
+        "token0Symbol": "ETH",
+        "token1": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "token1Decimals": 18,
+        "token1Symbol": "USDe"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34"
+      ],
+      "routeSymbols": [
+        "ETH",
+        "USDE"
+      ],
+      "routeText": "ETH -> USDE",
+      "source": "robinhood_mainnet_static_dex_candidates",
+      "specialFee": false,
+      "sqrtPriceX96": "3980372750518131081556296882567",
+      "tick": 78339,
+      "tickSpacing": 1,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token0Decimals": 18,
+      "token0Reserve": null,
+      "token0Symbol": "ETH",
+      "token1": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "token1Decimals": 18,
+      "token1Reserve": null,
+      "token1Symbol": "USDE",
+      "usableForObservation": true
+    },
+    "0xca8cc1599f2c3e3d1d0bf777192927c18bf84e1bc0530648ccecb289da32e1ca": {
+      "anchorAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "USDG",
+      "balances": {
+        "tvlUsd": 0,
+        "v4Liquidity": "436538798"
+      },
+      "classification": {},
+      "counterAddress": "0x0000000000000000000000000000000000000000",
+      "counterSymbol": "ETH",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "live_liquid",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "dynamicFee": false,
+      "estimatedTvlUsd": 0,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": null,
+        "initializeTransactionHash": null,
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_static_dex_candidates"
+      },
+      "fee": 75,
+      "feeLabel": 75,
+      "hasLiquidity": true,
+      "hooks": "0x04dbF064E36Abe54e09b193574463Bc0691740CC",
+      "liquidity": "436538798",
+      "liquidityBlockNumber": null,
+      "liquidityError": null,
+      "liquidityIndex": 436538798.0,
+      "liquidityReadAt": null,
+      "liquiditySource": "pool_manager_extsload_live_state_batch",
+      "pairAddress": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "pairSymbol": "ETH:USDG",
+      "pool": "0xca8cc1599f2c3e3d1d0bf777192927c18bf84e1bc0530648ccecb289da32e1ca",
+      "poolId": "0xca8cc1599f2c3e3d1d0bf777192927c18bf84e1bc0530648ccecb289da32e1ca",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "fee": 75,
+        "hooks": "0x04dbF064E36Abe54e09b193574463Bc0691740CC",
+        "initializeBlockNumber": 22672089,
+        "initializeTransactionHash": "0x041533f7fee137080266d3e68a922e05a412c0f58520a864053651533b28f46e",
+        "poolId": "0xca8cc1599f2c3e3d1d0bf777192927c18bf84e1bc0530648ccecb289da32e1ca",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "3458687055872729686410878",
+        "tick": -200794,
+        "tickSpacing": 1,
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token0Decimals": 18,
+        "token0Symbol": "ETH",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1Decimals": 6,
+        "token1Symbol": "USDG"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "routeSymbols": [
+        "USDG",
+        "ETH"
+      ],
+      "routeText": "USDG -> ETH",
+      "source": "robinhood_mainnet_static_dex_candidates",
+      "specialFee": false,
+      "sqrtPriceX96": "3458687055872729686410878",
+      "tick": -200794,
+      "tickSpacing": 1,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token0Decimals": 18,
+      "token0Reserve": null,
+      "token0Symbol": "ETH",
+      "token1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "token1Decimals": 6,
+      "token1Reserve": null,
+      "token1Symbol": "USDG",
+      "usableForObservation": true
+    },
+    "0xe4544af14d1b1e27cecbe70ed26b498aedb3aa4b670d750ea959a08a3812c18d": {
+      "anchorAddress": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "anchorSymbol": "USDE",
+      "balances": {
+        "tvlUsd": 0,
+        "v4Liquidity": "9990332288846"
+      },
+      "classification": {},
+      "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "counterSymbol": "USDG",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "live_liquid",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "dynamicFee": false,
+      "estimatedTvlUsd": 0,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": null,
+        "initializeTransactionHash": null,
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_static_dex_candidates"
+      },
+      "fee": 21200,
+      "feeLabel": 21200,
+      "hasLiquidity": true,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "liquidity": "9990332288846",
+      "liquidityBlockNumber": null,
+      "liquidityError": null,
+      "liquidityIndex": 9990332288846.0,
+      "liquidityReadAt": null,
+      "liquiditySource": "pool_manager_extsload_live_state_batch",
+      "pairAddress": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "pairSymbol": "USDE:USDG",
+      "pool": "0xe4544af14d1b1e27cecbe70ed26b498aedb3aa4b670d750ea959a08a3812c18d",
+      "poolId": "0xe4544af14d1b1e27cecbe70ed26b498aedb3aa4b670d750ea959a08a3812c18d",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "currency1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "fee": 21200,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 8212527,
+        "initializeTransactionHash": "0x5497baf66121714db87883cbb553892c1e29015b50bf9c3ef41026d34af8ea97",
+        "poolId": "0xe4544af14d1b1e27cecbe70ed26b498aedb3aa4b670d750ea959a08a3812c18d",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "79232228561461197483623",
+        "tick": -276323,
+        "tickSpacing": 424,
+        "token0": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "token0Decimals": 18,
+        "token0Symbol": "USDe",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1Decimals": 6,
+        "token1Symbol": "USDG"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "routeSymbols": [
+        "USDE",
+        "USDG"
+      ],
+      "routeText": "USDE -> USDG",
+      "source": "robinhood_mainnet_static_dex_candidates",
+      "specialFee": false,
+      "sqrtPriceX96": "80031700116047018931338",
+      "tick": -276123,
+      "tickSpacing": 424,
+      "token0": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "token0Decimals": 18,
+      "token0Reserve": null,
+      "token0Symbol": "USDE",
+      "token1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "token1Decimals": 6,
+      "token1Reserve": null,
+      "token1Symbol": "USDG",
+      "usableForObservation": true
+    },
+    "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0": {
+      "anchorAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "anchorSymbol": "TB",
+      "balances": {
+        "tvlUsd": 0
+      },
+      "classification": {},
+      "counterAddress": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "counterSymbol": "TA",
+      "depthBand": {
+        "estimatedTvlUsd": null,
+        "label": "unpriced",
+        "level": "unpriced",
+        "liquidityIndex": 316227.76601767587,
+        "reason": "liquidity_present_but_no_usd_price"
+      },
+      "depthStatus": "unpriced",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "dynamicFee": false,
+      "estimatedTvlUsd": null,
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": 79647870,
+        "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+        "poolKeyDecoded": true,
+        "source": "robinhood_mainnet_v4_pool_index"
+      },
+      "fee": 3000,
+      "feeLabel": 3000,
+      "hasLiquidity": true,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "liquidity": "316227766017675866399780",
+      "liquidityBlockNumber": 79647929,
+      "liquidityError": null,
+      "liquidityIndex": 316227.76601767587,
+      "liquidityReadAt": "2026-10-04T00:00:00Z",
+      "liquiditySource": "mainnet-v4-official-pool-create-tx",
+      "pairAddress": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "pairSymbol": "TB:TA",
+      "pool": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+      "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "currency1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 79647870,
+        "initializeTransactionHash": "0x4bb9993b78a64296b54767622f88f4549fc2b4b9c0e2354643a8e0ce034b4549",
+        "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+        "token0Decimals": 18,
+        "token0Symbol": "tb",
+        "token1": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+        "token1Decimals": 18,
+        "token1Symbol": "ta"
+      },
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": null,
+      "routeAddresses": [
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+      ],
+      "routeSymbols": [
+        "TB",
+        "TA"
+      ],
+      "routeText": "TB -> TA",
+      "source": "robinhood_mainnet_v4_pool_index",
+      "specialFee": false,
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "tick": -23028,
+      "tickSpacing": 60,
+      "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "token0Decimals": 18,
+      "token0Reserve": "1000000.000005299554877465147",
+      "token0Symbol": "TB",
+      "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "token1Decimals": 18,
+      "token1Reserve": "99999.99999999999999999970615",
+      "token1Symbol": "TA",
+      "usableForObservation": true
+    }
+  },
+  "poolStaticTable": {
+    "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
+    "chainId": 4663,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-10-02T23:01:21.149090Z",
+    "generatedBlockNumber": 78608812,
+    "mode": "robinhood-static-dex-candidates-v1",
+    "network": "robinhood",
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
+    "quoter": null,
+    "router": null,
+    "sourceDiscoveryBlockNumber": null,
+    "sourceDiscoveryFetchedAt": null,
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\robinhood\\robinhood_dex_candidates.json"
+  },
+  "processing": {
+    "allowed_protocols": [
+      "uniswap_v4"
+    ],
+    "chain_id": 4663,
+    "chain_key": "chain:4663",
+    "data_file_keys": [
+      "dex_candidates",
+      "dex_market_pools",
+      "dex_discovery",
+      "v4_pool_index",
+      "v4_pool_liquidity",
+      "market_observation"
+    ],
+    "flow_name": "market_observation",
+    "global_chain_id": "chain:4663",
+    "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+    "network": "robinhood",
+    "protocol": "uniswap_v4",
+    "requires_scope_match": true
+  },
+  "protocol_key": "uniswap_v4",
+  "protocols": [
+    "uniswap_v4"
+  ],
+  "referencedTable": "ch_table",
+  "refresh_mode": "full",
+  "schema_version": "market-observation-static-store-v3",
+  "scope_key": "robinhood:4663:uniswap_v4",
+  "selected_protocols": [
+    "uniswap_v4"
+  ],
+  "shardRef": {
+    "manifest": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\manifest.json",
+    "schemaVersion": "market-observation-shard-v1",
+    "shardCount": 27,
+    "shards": [
+      {
+        "anchorSymbol": "AGNET",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\agnet.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "AIGYR",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\aigyr.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "BDBID",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\bdbid.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "CUACKY",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\cuacky.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "DEXTINY",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\dextiny.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "DIG",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\dig.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "DYNAMITE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\dynamite.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "ETH",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\eth.json",
+        "rowCount": 25,
+        "rowKeys": [
+          "anchorGroups",
+          "bridgePairs",
+          "closedLoopRouteSummaries",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "FIX6900",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\fix6900.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "HARMONIC",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\harmonic.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "HONKADE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\honkade.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "INVESTINU",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\investinu.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "JSON",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\json.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "LIEGE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\liege.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "OZZY",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\ozzy.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "PEPE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\pepe.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "SAEGIS",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\saegis.json",
+        "rowCount": 2,
+        "rowKeys": [
+          "anchorGroups",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "SC",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\sc.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "SI.GOV",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\si.gov.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "SQUEEZE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\squeeze.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "TA",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\ta.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "TALON",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\talon.json",
+        "rowCount": 1,
+        "rowKeys": [
+          "anchorGroups"
+        ]
+      },
+      {
+        "anchorSymbol": "TB",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\tb.json",
+        "rowCount": 3,
+        "rowKeys": [
+          "anchorGroups",
+          "bridgePairs",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "TZ",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\tz.json",
+        "rowCount": 3,
+        "rowKeys": [
+          "anchorGroups",
+          "closedLoopRouteSummaries",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "USDE",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\usde.json",
+        "rowCount": 4,
+        "rowKeys": [
+          "anchorGroups",
+          "bridgePairs",
+          "closedLoopRouteSummaries",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "USDG",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\usdg.json",
+        "rowCount": 4,
+        "rowKeys": [
+          "anchorGroups",
+          "closedLoopRouteSummaries",
+          "pairs"
+        ]
+      },
+      {
+        "anchorSymbol": "WETH",
+        "path": "e:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\robinhood\\4663\\uniswap_v4\\shards\\weth.json",
+        "rowCount": 3,
+        "rowKeys": [
+          "anchorGroups",
+          "pairs"
+        ]
+      }
+    ]
+  },
+  "snapshot_kind": "dex_overview_compact",
+  "source": "dex_market_observation_payload",
+  "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
+  "summary": {
+    "activePoolCount": 42,
+    "borrowableTokenCount": 6,
+    "bridgePoolIndexMatchedPairCount": 4,
+    "bridgePoolIndexMatchedPoolCount": 183,
+    "candidateObservationBridgeCount": 0,
+    "candidateObservationGroupCount": 27,
+    "candidateObservationPoolCount": 0,
+    "candidateObservationSequenceCount": 0,
+    "chainSpecificObservationSequenceCount": 4,
+    "closedLoopRouteCount": 0,
+    "closedLoopSequenceCount": 4,
+    "directPairCount": 29,
+    "fundAnchorPairObservationAssociatedObservationPoolCount": 183,
+    "fundAnchorPairObservationAssociatedObservationTokenCount": 140,
+    "fundAnchorPairObservationAssociatedPairCount": 4,
+    "fundAnchorPairObservationPoolCount": 0,
+    "fundAnchorPairObservationRouteCount": 4,
+    "indirectRouteCount": 0,
+    "liquidPoolCount": 42,
+    "liquidityFilterApplied": true,
+    "nonEthPairFirstAssociatedObservationPoolCount": 183,
+    "nonEthPairFirstAssociatedObservationTokenCount": 140,
+    "nonEthPairFirstAssociatedPairCount": 4,
+    "nonEthPairFirstPoolCount": 0,
+    "nonEthPairFirstRouteCount": 4,
+    "observableTokenCount": 27,
+    "observationAnchorCount": 5,
+    "observationSequenceAnchorCount": 0,
+    "observationSequenceCount": 4,
+    "observationSequencePoolCount": 0,
+    "recentSwapFilterApplied": false,
+    "unmatchedPairCount": 0
+  },
+  "surface": "dex_market_observation",
+  "tableSource": "ob_table"
+}

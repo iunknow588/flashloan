@@ -430,6 +430,122 @@ def test_dex_market_observation_collapses_reverse_closed_loop_directions(monkeyp
     assert len(observation["closedLoopRoutes"]) == 0
 
 
+def test_dex_market_observation_tz_shared_bridge_pool_is_one_combination(monkeypatch):
+    tz = "0x" + "1" * 40
+    tb = "0x" + "2" * 40
+    ta = "0x" + "3" * 40
+    bridge_pool_id = "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0"
+    pool_tz_tb = _pool(
+        "0x" + "4" * 64,
+        "TZ",
+        "TB",
+        tz,
+        tb,
+        price_native="1.0",
+        token0_amount=1000,
+        token1_amount=1000,
+        tvl_usd=1000,
+    )
+    pool_tz_ta = _pool(
+        "0x" + "5" * 64,
+        "TZ",
+        "TA",
+        tz,
+        ta,
+        price_native="1.0",
+        token0_amount=1000,
+        token1_amount=1000,
+        tvl_usd=1000,
+    )
+    pool_tb_ta = _pool(
+        bridge_pool_id,
+        "TB",
+        "TA",
+        tb,
+        ta,
+        price_native="1.0",
+        token0_amount=1000,
+        token1_amount=1000,
+        tvl_usd=1000,
+    )
+    for pool in (pool_tz_tb, pool_tz_ta, pool_tb_ta):
+        pool["hasLiquidity"] = True
+
+    def pair(pool, x_symbol, y_symbol, x_address, y_address):
+        return {
+            "symbolPair": f"{x_symbol}:{y_symbol}",
+            "tokenX": x_address,
+            "tokenY": y_address,
+            "tokenXSymbol": x_symbol,
+            "tokenYSymbol": y_symbol,
+            "preferredPools": [pool],
+            "executionPools": [pool],
+            "strictQualityPools": [pool],
+        }
+
+    payload = {
+        "pairs": [
+            pair(pool_tz_tb, "TZ", "TB", tz, tb),
+            pair(pool_tz_ta, "TZ", "TA", tz, ta),
+        ],
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "anchorGroups": build_anchor_candidate_groups(
+            [
+                pair(pool_tz_tb, "TZ", "TB", tz, tb),
+                pair(pool_tz_ta, "TZ", "TA", tz, ta),
+            ],
+            anchor_symbols=["TZ"],
+        ),
+    }
+    bridge_pair = pair(pool_tb_ta, "TB", "TA", tb, ta)
+    bridge_pair["addressPair"] = f"{tb}:{ta}"
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_v4_index_bridge_pairs_for_anchor_groups",
+        lambda anchor_groups, chain_id=None, protocols=None: (
+            [bridge_pair],
+            {"enabled": True, "status": "test", "matchedPoolCount": 1},
+        ),
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_chain_fund_anchor_pair_observation",
+        lambda chain_id=None, protocols=None: {
+            "enabled": True,
+            "status": "test",
+            "observationSequences": [],
+            "associatedObservationPairs": [],
+            "associatedObservationPools": [],
+            "associatedObservationTokens": [],
+        },
+    )
+
+    observation = dex_surfaces.dex_market_observation_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    tz_group = next(
+        group
+        for group in observation["candidateObservationGroups"]
+        if group.get("anchorSymbol") == "TZ"
+    )
+    assert {sequence["pathText"] for sequence in tz_group["observationSequences"]} == {
+        "TZ -> TB -> TA -> TZ",
+        "TZ -> TA -> TB -> TZ",
+    }
+    assert tz_group["observationSequenceCount"] == 1
+    assert tz_group["observationCombinationCount"] == 1
+    bridge_groups = tz_group["bridgePoolObservationGroups"]
+    assert len(bridge_groups) == 1
+    assert bridge_groups[0]["bridgePool"] == bridge_pool_id
+    assert bridge_groups[0]["directionCount"] == 2
+    assert bridge_groups[0]["preview"] == "TZ -> TB -> TA -> TZ"
+
+
 def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monkeypatch):
     snapshot = {
         "exists": True,
@@ -470,6 +586,64 @@ def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monk
     assert observation["marketObservationSourceStage"] == "cached_snapshot"
     assert observation["summary"]["closedLoopRouteCount"] == 0
     assert observation["observationAnchorSymbols"] == ["ETH", "USDC"]
+
+
+def test_dex_market_observation_surface_recomputes_when_static_snapshot_is_empty(monkeypatch):
+    empty_snapshot = {
+        "exists": True,
+        "path": "observation.json",
+        "chain_id": 46630,
+        "protocols": ["uniswap_v4"],
+        "marketObservationSource": "cached_snapshot",
+        "summary": {
+            "observationAnchorCount": 0,
+            "candidateObservationGroupCount": 0,
+            "observationSequenceCount": 0,
+            "closedLoopRouteCount": 0,
+        },
+        "observationAnchorSymbols": [],
+        "borrowableSymbols": [],
+        "candidateObservationGroups": [],
+        "observationSequences": [],
+        "closedLoopRoutes": [],
+        "chainSpecificObservationPairs": [],
+        "chainSpecificObservationPools": [],
+        "directPools": [],
+        "indirectRoutes": [],
+        "unmatchedPools": [],
+    }
+    computed = {
+        "mode": "dex_market_observation",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "observationAnchorSymbols": ["TZ", "TA", "TB"],
+        "summary": {
+            "observationAnchorCount": 3,
+            "candidateObservationGroupCount": 1,
+            "observationSequenceCount": 2,
+            "closedLoopRouteCount": 0,
+        },
+        "candidateObservationGroups": [{"anchorSymbol": "TZ", "observationSequenceCount": 1}],
+        "observationSequences": [{"anchorSymbol": "TZ"}],
+    }
+
+    monkeypatch.setattr(dex_surfaces, "_cached_framework_surface_payload", lambda *args, **kwargs: None)
+    monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: empty_snapshot)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "dex_market_observation_payload",
+        lambda chain_id=None, protocols=None: dict(computed),
+    )
+
+    observation = dex_surfaces.dex_market_observation_surface_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
+
+    assert observation["observationAnchorSymbols"] == ["TZ", "TA", "TB"]
+    assert observation["summary"]["observationSequenceCount"] == 2
+    assert observation["marketObservationSourceStage"] == "computed"
 
 
 def test_dex_market_observation_links_yc_to_zc_when_yz_pair_exists(monkeypatch):
@@ -529,11 +703,12 @@ def test_dex_market_observation_links_yc_to_zc_when_yz_pair_exists(monkeypatch):
 
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v3"])
 
-    assert observation["summary"]["observationSequenceCount"] == 0
-    assert observation["observationSequences"] == []
+    assert observation["summary"]["observationSequenceCount"] == 1
+    assert len(observation["observationSequences"]) == 1
     assert observation["closedLoopRoutes"] == []
     group = observation["candidateObservationGroups"][0]
-    assert group["observationState"]["status"] == "yc_zc_candidate_set"
+    assert group["observationState"]["status"] == "reachable"
+    assert group["observationSequenceCount"] == 1
 
     overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v3"])
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=46630, protocols=["uniswap_v3"])
@@ -652,8 +827,13 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
 
     assert observation["summary"]["bridgePoolIndexMatchedPairCount"] == 1
-    assert observation["summary"]["observationSequenceCount"] == 0
-    assert observation["observationSequences"] == []
+    assert observation["summary"]["observationSequenceCount"] == 2
+    assert len(observation["observationSequences"]) == 2
+    group = observation["candidateObservationGroups"][0]
+    assert group["observationSequenceCount"] == 1
+    assert group["observationCombinationCount"] == 1
+    assert len(group.get("bridgePoolObservationGroups") or []) == 1
+    assert (group.get("bridgePoolObservationGroups") or [{}])[0]["directionCount"] == 2
     overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v4"])
     assert any(
         (path.get("overviewRoute") or {}).get("pathSymbols") == ["USDC", "WETH", "DAI", "USDC"]
@@ -770,7 +950,7 @@ def test_dex_market_observation_excludes_v4_yz_bridge_without_liquidity_evidence
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
 
     assert observation["summary"]["bridgePoolIndexMatchedPairCount"] == 0
-    assert observation["summary"]["observationSequenceCount"] == 0
+    assert observation["summary"]["observationSequenceCount"] == 2
     assert observation["closedLoopRoutes"] == []
 
 
@@ -1052,11 +1232,13 @@ def test_dex_market_observation_keeps_class_when_no_yz_pair_exists(monkeypatch):
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v3"])
 
     assert observation["summary"]["candidateObservationGroupCount"] == 1
-    assert observation["summary"]["observationSequenceCount"] == 0
+    assert observation["summary"]["observationSequenceCount"] == 1
     group = observation["candidateObservationGroups"][0]
     assert group["anchorSymbol"] == "USDC"
     assert group["observationReachable"] is False
-    assert group["observationState"]["status"] == "yc_zc_candidate_set"
+    assert group["observationState"]["status"] == "no_yz_pool"
+    assert group["noPoolCombinationCount"] == 1
+    assert group["candidateCombinationCount"] == 1
 
 
 def test_dex_market_observation_filters_same_symbol_reentry_without_profit(monkeypatch):

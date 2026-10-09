@@ -1,0 +1,92 @@
+{
+  "anchorSymbol": "ORBIOBOOK",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\orbiobook.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "anchorAddress": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+        "anchorSymbol": "ORBIOBOOK",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": "0.2187430000061020703515848053"
+        },
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "dust",
+          "level": "dust"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "zc",
+        "dynamicFee": null,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78442863,
+          "initializeTransactionHash": "0x77b921f69c7813bdd901fb7d28ad1cc95f5ac9572eb720ed9d1bc206fcbcdb5a",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "989998",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "82673092897576",
+        "liquidityIndex": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x936d4999df13fa18f6b7151e112c7d7d1a11157a5af83dc1d7ead605103bbf3c",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "ORBIOBOOK",
+          "USDG"
+        ],
+        "routeText": "ORBIOBOOK -> USDG",
+        "source": "",
+        "specialFee": null,
+        "sqrtPriceX96": "29943985587942488602739187661182558482",
+        "tick": "395025",
+        "tickSpacing": null,
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "USDG",
+        "token1": "0xF85042182bDC90cec96FD51D89E455dF6a56c808",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "ORBIOBOOK",
+        "usableForObservation": null
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

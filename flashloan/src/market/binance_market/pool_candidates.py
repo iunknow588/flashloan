@@ -742,7 +742,7 @@ def dex_pool_candidates_payload(
                 }
                 return _attach_execution_context(payload, int(chain_id))
             network = str(chain_data.get("network") or "").strip().lower()
-            use_generic_candidate_cache = network != "robinhood-testnet"
+            use_generic_candidate_cache = network not in {"robinhood", "robinhood-testnet"}
             if not use_generic_candidate_cache:
                 try:
                     payload = dispatch_chain_flow(
@@ -750,6 +750,13 @@ def dex_pool_candidates_payload(
                         flow_name="dex_pool_candidates",
                         protocol="",
                     )
+                    if _payload_has_candidate_data(payload):
+                        refresh_candidate_pool_cache(
+                            payload,
+                            network=network,
+                            chain_id=int(chain_id),
+                            force_full=force_full,
+                        )
                     filtered = _filter_payload_protocols(payload, protocol_filter)
                     return _attach_execution_context(filtered, int(chain_id))
                 except ChainFlowDispatchError as exc:

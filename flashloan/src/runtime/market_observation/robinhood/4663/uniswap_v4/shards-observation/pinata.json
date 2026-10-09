@@ -1,0 +1,305 @@
+{
+  "anchorSymbol": "PINATA",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\pinata.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "pairs": [
+      {
+        "addressPair": "0x2bec22704c71a6eab0558b16bfbebcaa5b3e4c17:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "allPoolCount": "1",
+        "allPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409703,
+              "initializeTransactionHash": "0xf36ded6c95700d1b8cb7d4a5f1e615637aef07c43e3fca2b83aea89a9483825a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "989998",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "PINATA"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x24ed351db773301463b99c4992fb8990399ab5d1be5cebeb77e8dfdcc111a678",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "250529391410817816299",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-391460",
+            "token0": "0x2BEc22704C71A6Eab0558b16bFBeBcAa5B3E4c17",
+            "token0IsStable": false,
+            "token0Symbol": "PINATA",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "classification": {
+          "nonStableSymbols": [
+            "PINATA"
+          ],
+          "pairClass": "stable_to_non_stable_pair",
+          "pairClassLabel": "stable to non-stable pool",
+          "routeRole": "flashloan_entry_or_exit_leg",
+          "stableSymbols": [
+            "USDG"
+          ],
+          "token0IsStable": false,
+          "token1IsStable": true
+        },
+        "executionPoolCount": "1",
+        "executionPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409703,
+              "initializeTransactionHash": "0xf36ded6c95700d1b8cb7d4a5f1e615637aef07c43e3fca2b83aea89a9483825a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "989998",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "PINATA"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x24ed351db773301463b99c4992fb8990399ab5d1be5cebeb77e8dfdcc111a678",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "250529391410817816299",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-391460",
+            "token0": "0x2BEc22704C71A6Eab0558b16bFBeBcAa5B3E4c17",
+            "token0IsStable": false,
+            "token0Symbol": "PINATA",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "flashLoanLinkage": {
+          "available_flashloan_protocols": [],
+          "borrow_symbols": [
+            "USDG"
+          ],
+          "conditions": [
+            "selected pool must have executable depth after slippage",
+            "quoted output must exceed borrowed principal plus flashloan fee and gas reserve",
+            "route must end in the borrowed stable asset for same-transaction repayment",
+            "UniswapX fills require a signed order/opportunity and solver execution path"
+          ],
+          "direct_stable_flashloan": false,
+          "flash_swap_bridge": false,
+          "ready_for_atomic_arbitrage": false,
+          "route_symbols": [
+            "USDG",
+            "PINATA"
+          ],
+          "strategy": "stable_flashloan_entry_exit"
+        },
+        "hasPreferredPools": true,
+        "hasStrictQualityPools": true,
+        "identityMode": "address",
+        "preferredPoolCount": "1",
+        "preferredPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409703,
+              "initializeTransactionHash": "0xf36ded6c95700d1b8cb7d4a5f1e615637aef07c43e3fca2b83aea89a9483825a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "989998",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "PINATA"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x24ed351db773301463b99c4992fb8990399ab5d1be5cebeb77e8dfdcc111a678",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "250529391410817816299",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-391460",
+            "token0": "0x2BEc22704C71A6Eab0558b16bFBeBcAa5B3E4c17",
+            "token0IsStable": false,
+            "token0Symbol": "PINATA",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "rejectReasonCounts": {},
+        "rejectedPoolCount": "0",
+        "rejectedPools": [],
+        "settlementRails": [
+          {
+            "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+            "chain_id": 4663,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "strictQualityPoolCount": "1",
+        "strictQualityPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409703,
+              "initializeTransactionHash": "0xf36ded6c95700d1b8cb7d4a5f1e615637aef07c43e3fca2b83aea89a9483825a",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "989998",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "PINATA"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x24ed351db773301463b99c4992fb8990399ab5d1be5cebeb77e8dfdcc111a678",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "250529391410817816299",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-391460",
+            "token0": "0x2BEc22704C71A6Eab0558b16bFBeBcAa5B3E4c17",
+            "token0IsStable": false,
+            "token0Symbol": "PINATA",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "symbolPair": "PINATA:USDG",
+        "tokenX": "0x2BEc22704C71A6Eab0558b16bFBeBcAa5B3E4c17",
+        "tokenXSymbol": "PINATA",
+        "tokenY": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "tokenYSymbol": "USDG"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

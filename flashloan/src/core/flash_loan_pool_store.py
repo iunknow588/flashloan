@@ -394,9 +394,10 @@ def static_store_metadata(
     chain_id: int | None = None,
     protocol: str,
     root: Path | str | None = None,
+    include_protocol_view: bool = False,
 ) -> dict[str, Any]:
     payload = load_flash_loan_pool_static(network=network, chain_id=chain_id, protocol=protocol, root=root)
-    return {
+    metadata = {
         "path": payload["path"],
         "exists": bool(payload.get("exists")),
         "network": payload.get("network"),
@@ -409,6 +410,13 @@ def static_store_metadata(
         "pool_evidence_observed_at": payload.get("generated_at"),
         "pool_evidence": payload.get("pool_evidence") or {},
     }
+    if include_protocol_view:
+        metadata["protocol_view"] = payload.get("protocol_view") or {}
+        metadata["summary"] = payload.get("summary") or {}
+        metadata["sections"] = payload.get("sections") or {}
+        metadata["borrow_target_universe"] = payload.get("borrow_target_universe")
+        metadata["cache"] = payload.get("cache") or {}
+    return metadata
 
 
 __all__ = [

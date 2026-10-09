@@ -1,0 +1,98 @@
+{
+  "anchorSymbol": "SNIFFR",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\sniffr.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "addressPair": "",
+        "anchorAddress": "0x76785982426da4982cca74c1ff8842de1a8692f3",
+        "anchorSymbol": "SNIFFR",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": 0
+        },
+        "bridgeSymbol": "SNIFFR",
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "unavailable",
+          "level": "unavailable"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "dynamicFee": false,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78422016,
+          "initializeTransactionHash": "0xdec64c7a2e6d78dffda2bc631afd6c98afa55a839bf7947a373daee7d00a3de5",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "880000",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "",
+        "liquidityBlockNumber": null,
+        "liquidityIndex": null,
+        "liquidityReadAt": null,
+        "liquiditySnapshotAt": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0xddf067aa86eb791856c7d79eee48ba265524e1c7f7a5adbc4653ee0bb952148e",
+        "poolId": "0xddf067aa86eb791856c7d79eee48ba265524e1c7f7a5adbc4653ee0bb952148e",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0x76785982426da4982cca74c1ff8842de1a8692f3",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "SNIFFR",
+          "USDG"
+        ],
+        "routeText": "SNIFFR -> USDG",
+        "source": "",
+        "specialFee": true,
+        "sqrtPriceX96": "177157577561233566142484748532087716821",
+        "tick": "430581",
+        "tickSpacing": null,
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "USDG",
+        "token1": "0xB4630cA07be5aB574f5726Ad8C724082F8b024a4",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "SNIFFR",
+        "usableForObservation": null
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

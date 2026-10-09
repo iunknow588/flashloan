@@ -73,6 +73,7 @@
     "dex_market_pools": "runtime/cache/robinhood/robinhood_dex_market_pools.json",
     "dex_discovery": "runtime/evidence/robinhood/dex_discovery",
     "v4_pool_index": "runtime/evidence/robinhood/v4_pool_index/latest.json",
+    "v4_pool_snapshot": "runtime/evidence/robinhood/v4_pool_snapshot/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood/v4_pool_liquidity/latest.json",
     "v4_token_allowlist": "chains/robinhood/v4_token_allowlist.json",
     "v4_token_metadata": "runtime/evidence/robinhood/v4_token_metadata.json",

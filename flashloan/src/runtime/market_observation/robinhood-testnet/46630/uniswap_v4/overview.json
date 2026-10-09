@@ -1,11 +1,11 @@
 {
-  "anchorGroups": [],
-  "borrowableSymbols": [],
-  "bridgePairs": [],
-  "chainSpecificObservationPairs": [],
+  "borrowableSymbols": [
+    "ETH",
+    "FRAX",
+    "USDT"
+  ],
   "chain_id": 46630,
   "chain_key": "robinhood-testnet:46630:uniswap_v4",
-  "closedLoopRouteSummaries": [],
   "dexSettlement": {
     "arbitrage_integration": {
       "can_combine_with_flashloan": false,
@@ -55,24 +55,22 @@
     ],
     "source": "flash_loan_pool_discovery_snapshot"
   },
-  "flow_name": "dex_market_observation",
-  "generated_at": "2026-10-07T04:00:02.935704Z",
-  "handler": null,
+  "flow_name": "market_observation",
+  "generated_at": "2026-10-08T13:50:22.036953Z",
+  "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "anchorGroups": 0,
-    "borrowableSymbols": 0,
-    "bridgePairs": 0,
-    "chainSpecificObservationPairs": 0,
-    "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 0,
-    "pairs": 0
+    "borrowableSymbols": 3,
+    "observationAnchorSymbols": 3
   },
   "mode": "dex_market_observation",
   "network": "robinhood-testnet",
-  "observationAnchorSymbols": [],
+  "observationAnchorSymbols": [
+    "ETH",
+    "FRAX",
+    "USDT"
+  ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood-testnet\\46630\\uniswap_v4\\observation.json",
   "ok": true,
-  "pairs": [],
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood-testnet\\46630\\uniswap_v4\\overview.json",
   "poolIndexVersion": {
     "chainId": 46630,
@@ -85,7 +83,7 @@
   "poolRegistry": {},
   "poolStaticTable": {
     "chainId": 46630,
-    "exists": false,
+    "exists": true,
     "factory": null,
     "generatedAt": "2026-09-11T22:05:37.799Z",
     "generatedBlockNumber": 117706281,
@@ -95,6 +93,24 @@
     "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
     "quoter": null,
     "router": null
+  },
+  "processing": {
+    "allowed_protocols": [
+      "uniswap_v4"
+    ],
+    "chain_id": 46630,
+    "chain_key": "chain:46630",
+    "data_file_keys": [
+      "market_observation",
+      "v4_pool_index",
+      "v4_pool_liquidity"
+    ],
+    "flow_name": "market_observation",
+    "global_chain_id": "chain:46630",
+    "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+    "network": "robinhood-testnet",
+    "protocol": "uniswap_v4",
+    "requires_scope_match": true
   },
   "protocol_key": "uniswap_v4",
   "protocols": [
@@ -107,22 +123,28 @@
   "selected_protocols": [
     "uniswap_v4"
   ],
+  "shardRef": {
+    "manifest": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood-testnet\\46630\\uniswap_v4\\shards-overview\\manifest.json",
+    "schemaVersion": "market-observation-shard-v1",
+    "shardCount": 0,
+    "shards": []
+  },
   "snapshot_kind": "dex_overview_compact",
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
     "activePoolCount": 2,
-    "borrowableTokenCount": 0,
+    "borrowableTokenCount": 3,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
-    "candidateObservationGroupCount": 0,
+    "candidateObservationGroupCount": 3,
     "candidateObservationPoolCount": 0,
     "candidateObservationSequenceCount": 0,
     "chainSpecificObservationSequenceCount": 0,
     "closedLoopRouteCount": 0,
     "closedLoopSequenceCount": 0,
-    "directPairCount": 0,
+    "directPairCount": 2,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
     "fundAnchorPairObservationAssociatedPairCount": 0,
@@ -136,8 +158,8 @@
     "nonEthPairFirstAssociatedPairCount": 0,
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
-    "observableTokenCount": 0,
-    "observationAnchorCount": 0,
+    "observableTokenCount": 3,
+    "observationAnchorCount": 3,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,
     "observationSequencePoolCount": 0,

@@ -1,0 +1,391 @@
+{
+  "anchorSymbol": "DYNAMITE",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\dynamite.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "addressPair": "",
+        "anchorAddress": "0x1bf14147642d58d47cb2229ce23548bf2a01cfbe",
+        "anchorSymbol": "DYNAMITE",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": 0
+        },
+        "bridgeSymbol": "DYNAMITE",
+        "classification": {},
+        "counterAddress": "0x0000000000000000000000000000000000000000",
+        "counterSymbol": "ETH",
+        "depthBand": {
+          "label": "unavailable",
+          "level": "unavailable"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "dynamicFee": false,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78416300,
+          "initializeTransactionHash": "0x8cc3741cce48cfd77edbd578ed7c97a46f0c3963bf9759a1f3a01e3630fd166b",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "790000",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "",
+        "liquidityBlockNumber": null,
+        "liquidityIndex": null,
+        "liquidityReadAt": null,
+        "liquiditySnapshotAt": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x7fe515df2f2f662fd25821dd015cb1971a4d09d7cdf1cd684fce01362974a0da",
+        "poolId": "0x7fe515df2f2f662fd25821dd015cb1971a4d09d7cdf1cd684fce01362974a0da",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0x1bf14147642d58d47cb2229ce23548bf2a01cfbe",
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "routeSymbols": [
+          "DYNAMITE",
+          "ETH"
+        ],
+        "routeText": "DYNAMITE -> ETH",
+        "source": "",
+        "specialFee": true,
+        "sqrtPriceX96": "1458981441732195246722426963214148",
+        "tick": "196428",
+        "tickSpacing": null,
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "ETH",
+        "token1": "0xB4ebf16f805c3E307242728c1Aa3C1ee07E965F7",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "DYNAMITE",
+        "usableForObservation": null
+      }
+    ],
+    "pairs": [
+      {
+        "addressPair": "0x1bf14147642d58d47cb2229ce23548bf2a01cfbe:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "allPoolCount": "1",
+        "allPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409821,
+              "initializeTransactionHash": "0x9a96179c390f695f9ee320bcf355841c1a7b0b1e5d8574a015b305e63431df1d",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "820000",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "DYNAMITE"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x34fa67f7749eac9d43f7406487fca2b850b653fe049a002e6ed0c90dba5ab251",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "112041179680891814539",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-407555",
+            "token0": "0x1BF14147642d58d47cb2229ce23548bf2a01cFbe",
+            "token0IsStable": false,
+            "token0Symbol": "DYNAMITE",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "classification": {
+          "nonStableSymbols": [
+            "DYNAMITE"
+          ],
+          "pairClass": "stable_to_non_stable_pair",
+          "pairClassLabel": "stable to non-stable pool",
+          "routeRole": "flashloan_entry_or_exit_leg",
+          "stableSymbols": [
+            "USDG"
+          ],
+          "token0IsStable": false,
+          "token1IsStable": true
+        },
+        "executionPoolCount": "1",
+        "executionPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409821,
+              "initializeTransactionHash": "0x9a96179c390f695f9ee320bcf355841c1a7b0b1e5d8574a015b305e63431df1d",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "820000",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "DYNAMITE"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x34fa67f7749eac9d43f7406487fca2b850b653fe049a002e6ed0c90dba5ab251",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "112041179680891814539",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-407555",
+            "token0": "0x1BF14147642d58d47cb2229ce23548bf2a01cFbe",
+            "token0IsStable": false,
+            "token0Symbol": "DYNAMITE",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "flashLoanLinkage": {
+          "available_flashloan_protocols": [],
+          "borrow_symbols": [
+            "USDG"
+          ],
+          "conditions": [
+            "selected pool must have executable depth after slippage",
+            "quoted output must exceed borrowed principal plus flashloan fee and gas reserve",
+            "route must end in the borrowed stable asset for same-transaction repayment",
+            "UniswapX fills require a signed order/opportunity and solver execution path"
+          ],
+          "direct_stable_flashloan": false,
+          "flash_swap_bridge": false,
+          "ready_for_atomic_arbitrage": false,
+          "route_symbols": [
+            "USDG",
+            "DYNAMITE"
+          ],
+          "strategy": "stable_flashloan_entry_exit"
+        },
+        "hasPreferredPools": true,
+        "hasStrictQualityPools": true,
+        "identityMode": "address",
+        "preferredPoolCount": "1",
+        "preferredPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409821,
+              "initializeTransactionHash": "0x9a96179c390f695f9ee320bcf355841c1a7b0b1e5d8574a015b305e63431df1d",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "820000",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "DYNAMITE"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x34fa67f7749eac9d43f7406487fca2b850b653fe049a002e6ed0c90dba5ab251",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "112041179680891814539",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-407555",
+            "token0": "0x1BF14147642d58d47cb2229ce23548bf2a01cFbe",
+            "token0IsStable": false,
+            "token0Symbol": "DYNAMITE",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "rejectReasonCounts": {},
+        "rejectedPoolCount": "0",
+        "rejectedPools": [],
+        "settlementRails": [
+          {
+            "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+            "chain_id": 4663,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "strictQualityPoolCount": "1",
+        "strictQualityPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78409821,
+              "initializeTransactionHash": "0x9a96179c390f695f9ee320bcf355841c1a7b0b1e5d8574a015b305e63431df1d",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "820000",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "DYNAMITE"
+            ],
+            "pairClass": "stable_to_non_stable_pair",
+            "pairClassLabel": "stable to non-stable pool",
+            "pool": "0x34fa67f7749eac9d43f7406487fca2b850b653fe049a002e6ed0c90dba5ab251",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "flashloan_entry_or_exit_leg",
+            "sqrtPriceX96": "112041179680891814539",
+            "stableSymbols": [
+              "USDG"
+            ],
+            "tick": "-407555",
+            "token0": "0x1BF14147642d58d47cb2229ce23548bf2a01cFbe",
+            "token0IsStable": false,
+            "token0Symbol": "DYNAMITE",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            "token1IsStable": true,
+            "token1Symbol": "USDG"
+          }
+        ],
+        "symbolPair": "DYNAMITE:USDG",
+        "tokenX": "0x1BF14147642d58d47cb2229ce23548bf2a01cFbe",
+        "tokenXSymbol": "DYNAMITE",
+        "tokenY": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "tokenYSymbol": "USDG"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

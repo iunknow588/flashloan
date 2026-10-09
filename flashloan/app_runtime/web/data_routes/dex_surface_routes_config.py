@@ -5,6 +5,7 @@ from flask import jsonify, request
 from core.chain_data_registry import chain_supported_protocols
 from core.chain_selection import ChainSelectionError
 from web.data_routes import dex_surfaces as _root
+from web.data_routes.dex_surface_orchestration import _market_observation_static_metadata
 
 
 def _protocol_not_supported_response(chain_id: int | None, protocols: list[str]):
@@ -187,13 +188,22 @@ def register_dex_overview_routes(app) -> None:
             ),
             force_compute=False,
         )
-        payload = _root._finalize_market_observation_payload(
-            payload,
-            chain_id=selected_chain_id,
-            protocols=protocols,
-            refresh_mode="full",
-            generated_source="generated_live_snapshot",
-        )
+        # A GET page view is read-only: it must never rewrite the static
+        # shard files it is currently reading.  Static snapshots are created
+        # or refreshed explicitly through POST /api/dex/market-observation/refresh.
+        static_table = payload.get("marketObservationStaticTable") if isinstance(payload.get("marketObservationStaticTable"), dict) else {}
+        if not static_table:
+            payload["marketObservationStaticTable"] = _market_observation_static_metadata(
+                {
+                    "network": static_table.get("network"),
+                    "chain_id": selected_chain_id,
+                    "protocols": protocols,
+                    "exists": False,
+                    "path": static_table.get("path"),
+                    "summary": payload.get("summary") or {},
+                    "list_counts": static_table.get("list_counts") or {},
+                }
+            )
         payload = _root._market_observation_page_payload(payload)
         payload["chain_selection"] = chain_selection
         payload.setdefault("mode", "dex_market_observation")

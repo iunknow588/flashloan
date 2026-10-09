@@ -1,0 +1,298 @@
+{
+  "anchorSymbol": "VIRPAID",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\virpaid.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "pairs": [
+      {
+        "addressPair": "0x031fb6bc73b65a795ca311658a4cf0d0013a07fe:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "allPoolCount": "1",
+        "allPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403286,
+              "initializeTransactionHash": "0xb3ca14859d54dca94b263ab53af5b0128af1fcd1023275216bfec2d541014579",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "8388608",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "VIRPAID",
+              "WETH"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0xa826b7be4fee3e7654743fe4b3b8e00257591cfa1bd1540d2af4111d8c7d97d0",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "19486123837702126939993817",
+            "stableSymbols": [],
+            "tick": "-166216",
+            "token0": "0x031FB6bC73b65A795Ca311658A4CF0d0013a07Fe",
+            "token0IsStable": false,
+            "token0Symbol": "VIRPAID",
+            "token1": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1IsStable": false,
+            "token1Symbol": "WETH"
+          }
+        ],
+        "classification": {
+          "nonStableSymbols": [
+            "VIRPAID",
+            "WETH"
+          ],
+          "pairClass": "non_stable_pair",
+          "pairClassLabel": "non-stable pool",
+          "routeRole": "middle_volatility_leg",
+          "stableSymbols": [],
+          "token0IsStable": false,
+          "token1IsStable": false
+        },
+        "executionPoolCount": "1",
+        "executionPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403286,
+              "initializeTransactionHash": "0xb3ca14859d54dca94b263ab53af5b0128af1fcd1023275216bfec2d541014579",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "8388608",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "VIRPAID",
+              "WETH"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0xa826b7be4fee3e7654743fe4b3b8e00257591cfa1bd1540d2af4111d8c7d97d0",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "19486123837702126939993817",
+            "stableSymbols": [],
+            "tick": "-166216",
+            "token0": "0x031FB6bC73b65A795Ca311658A4CF0d0013a07Fe",
+            "token0IsStable": false,
+            "token0Symbol": "VIRPAID",
+            "token1": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1IsStable": false,
+            "token1Symbol": "WETH"
+          }
+        ],
+        "flashLoanLinkage": {
+          "available_flashloan_protocols": [],
+          "borrow_symbols": [],
+          "conditions": [
+            "selected pool must have executable depth after slippage",
+            "quoted output must exceed borrowed principal plus flashloan fee and gas reserve",
+            "route must end in the borrowed stable asset for same-transaction repayment",
+            "UniswapX fills require a signed order/opportunity and solver execution path"
+          ],
+          "direct_stable_flashloan": false,
+          "flash_swap_bridge": false,
+          "ready_for_atomic_arbitrage": false,
+          "route_symbols": [
+            "VIRPAID",
+            "WETH"
+          ],
+          "strategy": "requires_stable_bridge_route"
+        },
+        "hasPreferredPools": true,
+        "hasStrictQualityPools": true,
+        "identityMode": "address",
+        "preferredPoolCount": "1",
+        "preferredPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403286,
+              "initializeTransactionHash": "0xb3ca14859d54dca94b263ab53af5b0128af1fcd1023275216bfec2d541014579",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "8388608",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "VIRPAID",
+              "WETH"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0xa826b7be4fee3e7654743fe4b3b8e00257591cfa1bd1540d2af4111d8c7d97d0",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "19486123837702126939993817",
+            "stableSymbols": [],
+            "tick": "-166216",
+            "token0": "0x031FB6bC73b65A795Ca311658A4CF0d0013a07Fe",
+            "token0IsStable": false,
+            "token0Symbol": "VIRPAID",
+            "token1": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1IsStable": false,
+            "token1Symbol": "WETH"
+          }
+        ],
+        "rejectReasonCounts": {},
+        "rejectedPoolCount": "0",
+        "rejectedPools": [],
+        "settlementRails": [
+          {
+            "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+            "chain_id": 4663,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "strictQualityPoolCount": "1",
+        "strictQualityPools": [
+          {
+            "balances": {
+              "token0": null,
+              "token0Usd": null,
+              "token1": null,
+              "token1Usd": null,
+              "tvlUsd": 0
+            },
+            "depthBand": {
+              "label": "unavailable",
+              "level": "unavailable"
+            },
+            "dex": "uniswap_v4",
+            "evidence": {
+              "initializeBlockNumber": 78403286,
+              "initializeTransactionHash": "0xb3ca14859d54dca94b263ab53af5b0128af1fcd1023275216bfec2d541014579",
+              "poolKeyDecoded": true,
+              "source": "robinhood_mainnet_v4_pool_index"
+            },
+            "fee": "8388608",
+            "liquidity": "",
+            "market": {},
+            "nonStableSymbols": [
+              "VIRPAID",
+              "WETH"
+            ],
+            "pairClass": "non_stable_pair",
+            "pairClassLabel": "non-stable pool",
+            "pool": "0xa826b7be4fee3e7654743fe4b3b8e00257591cfa1bd1540d2af4111d8c7d97d0",
+            "protocol": "uniswap_v4",
+            "quality": "pass",
+            "quoteSummary": {
+              "probeUsd": null,
+              "token0ToToken1": {
+                "ok": false,
+                "reason": null
+              },
+              "token1ToToken0": {
+                "ok": false,
+                "reason": null
+              }
+            },
+            "rejectReasons": [],
+            "routeRole": "middle_volatility_leg",
+            "sqrtPriceX96": "19486123837702126939993817",
+            "stableSymbols": [],
+            "tick": "-166216",
+            "token0": "0x031FB6bC73b65A795Ca311658A4CF0d0013a07Fe",
+            "token0IsStable": false,
+            "token0Symbol": "VIRPAID",
+            "token1": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1IsStable": false,
+            "token1Symbol": "WETH"
+          }
+        ],
+        "symbolPair": "VIRPAID:WETH",
+        "tokenX": "0x031FB6bC73b65A795Ca311658A4CF0d0013a07Fe",
+        "tokenXSymbol": "VIRPAID",
+        "tokenY": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "tokenYSymbol": "WETH"
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}

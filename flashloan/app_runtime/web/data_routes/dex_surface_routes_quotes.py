@@ -712,7 +712,14 @@ def register_dex_quote_routes(app) -> None:
                     continue
                 if not _route_has_complete_v4_pool_identity(route):
                     continue
-                if _route_has_explicit_unusable_liquidity(route):
+                # Keep a closed loop even when its recommended hop pools are
+                # currently unusable, as long as it still carries hop candidates
+                # that the quote/routing page can substitute on a temporary
+                # basis. Dropping it here would hide the loop before any
+                # price-based replacement can be evaluated.
+                if _route_has_explicit_unusable_liquidity(route) and not (
+                    route.get("hopCandidates") or []
+                ):
                     continue
                 route["activePoolMatch"] = _route_uses_active_v4_pools(
                     route.get("routePools") or [],

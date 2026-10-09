@@ -1,0 +1,98 @@
+{
+  "anchorSymbol": "NUDES",
+  "chainId": 4663,
+  "generatedAt": "2026-10-08T22:31:50.573705Z",
+  "network": "robinhood",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v4\\shards-observation\\nudes.json",
+  "protocol_key": "uniswap_v4",
+  "rows": {
+    "chainSpecificObservationPools": [
+      {
+        "addressPair": "",
+        "anchorAddress": "0x42b86d926022c0fbece74dcd234d51cb0f0a4f28",
+        "anchorSymbol": "NUDES",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": 0
+        },
+        "bridgeSymbol": "NUDES",
+        "classification": {},
+        "counterAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "counterSymbol": "USDG",
+        "depthBand": {
+          "label": "unavailable",
+          "level": "unavailable"
+        },
+        "depthStatus": "",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "dynamicFee": false,
+        "estimatedTvlUsd": null,
+        "evidence": {
+          "initializeBlockNumber": 78413305,
+          "initializeTransactionHash": "0xddc0594b147fd83f67ee971d4f4921ee8b828734d1754d7f5084dfb66798c30f",
+          "poolKeyDecoded": true,
+          "source": "robinhood_mainnet_v4_pool_index"
+        },
+        "fee": "900000",
+        "feeLabel": "special",
+        "hasLiquidity": null,
+        "hooks": "",
+        "liquidity": "",
+        "liquidityBlockNumber": null,
+        "liquidityIndex": null,
+        "liquidityReadAt": null,
+        "liquiditySnapshotAt": null,
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x5c4306d1f68108d59f35cd3b634ab741b0513003dcae1aaaeb8abc6475a05b85",
+        "poolId": "0x5c4306d1f68108d59f35cd3b634ab741b0513003dcae1aaaeb8abc6475a05b85",
+        "poolIdentityMode": "",
+        "poolKey": null,
+        "poolManager": null,
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "ok": false,
+            "reason": null
+          },
+          "token1ToToken0": {
+            "ok": false,
+            "reason": null
+          }
+        },
+        "recentSwapActive": null,
+        "routeAddresses": [
+          "0x42b86d926022c0fbece74dcd234d51cb0f0a4f28",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "NUDES",
+          "USDG"
+        ],
+        "routeText": "NUDES -> USDG",
+        "source": "",
+        "specialFee": true,
+        "sqrtPriceX96": "6272279015036448952128521362682544321",
+        "tick": "363759",
+        "tickSpacing": null,
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0Decimals": null,
+        "token0Reserve": null,
+        "token0Symbol": "USDG",
+        "token1": "0xbe98b75361935b18d688409424a869a4C3dC7401",
+        "token1Decimals": null,
+        "token1Reserve": null,
+        "token1Symbol": "NUDES",
+        "usableForObservation": null
+      }
+    ]
+  },
+  "schemaVersion": "market-observation-shard-v1",
+  "source": "dex_market_observation_payload"
+}
