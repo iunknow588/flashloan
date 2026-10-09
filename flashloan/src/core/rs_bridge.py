@@ -4,9 +4,10 @@ The page read path is intentionally centralised here:
 
     page -> rs_bridge -> flashloan_rs (Rust read-only SQLite) -> SQLite
 
-When the Rust extension is unavailable or the database tables are missing,
-the bridge falls back to the existing Python storage/JSON readers.  Writes
-always stay in Python storage and never go through Rust.
+Rust is responsible for network reads and read-only SQLite reads.  SQLite
+write/schema ownership stays in Python storage.  A Rust read failure is
+surfaced as an error; when Rust is not installed the bridge falls back to the
+Python SQLite readers only, never to JSON page shards.
 """
 
 from __future__ import annotations
@@ -119,7 +120,11 @@ def load_v4_exchange_pools(
             )
             return [_convert_rust_dict(row) for row in _rust_rows(payload, "pools")]
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_exchange_pools; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     return _py_load_v4_exchange_pools(
         _database_path(database_url),
         network=network,
@@ -146,7 +151,11 @@ def load_v4_pool_liquidity(
             )
             return [_convert_rust_dict(row) for row in _rust_rows(payload, "liquidity")]
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_pool_liquidity; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     return _py_load_v4_pool_liquidity(
         _database_path(database_url),
         network=network,
@@ -181,7 +190,11 @@ def load_dex_candidate_pools(
             }
             return {**_source_meta([], None), **rows}
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for load_dex_candidate_pools; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     rows = _py_load_dex_candidate_pools(
         _database_path(database_url),
         network=network,
@@ -217,7 +230,11 @@ def load_market_observation(
             }
             return {**_source_meta([], None), **rows}
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for load_market_observation; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     rows = _py_load_market_observation(
         _database_path(database_url),
         network=network,
@@ -253,7 +270,11 @@ def load_v4_closed_loop(
             }
             return {**_source_meta([], None), **rows}
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_closed_loop; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     rows = _py_load_v4_closed_loop(
         _database_path(database_url),
         network=network,
@@ -285,7 +306,11 @@ def find_pools_between_tokens(
             if isinstance(payload, dict):
                 return payload
         except Exception as exc:
-            _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+            raise RuntimeError(
+                "flashloan_rs read failed for find_pools_between_tokens; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     pools = _py_find_v4_pools(
         _database_path(database_url),
         network=network,

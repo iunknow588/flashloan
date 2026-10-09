@@ -106,7 +106,7 @@ def build_market_observation_payload(
         elif pools:
             unmatched.append(pair_row(pair, limit=3))
 
-    closed_routes: list[dict[str, Any]] = []
+    closed_routes = list(fund_anchor_pair_observation.get("closedLoopRoutes") or [])
     bridge_routes: list[dict[str, Any]] = []
     used_pair_symbols: set[str] = {str(row.get("symbolPair") or "") for row in direct}
     bridges: list[dict[str, Any]] = []
@@ -235,6 +235,8 @@ def build_market_observation_payload(
         "mode": "dex_market_observation",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
+        "marketObservationSource": "computed",
+        "marketObservationSourceStage": "computed",
         "tableSource": "ob_table",
         "referencedTable": "ch_table",
         "poolIndexVersion": {

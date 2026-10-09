@@ -232,7 +232,11 @@ def dex_market_observation_surface_payload(
     if cached is not None:
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
-    if use_static_observation:
+    _database_first_v4_mainnet = bool(
+        int(chain_id or 0) == ROBINHOOD_CHAIN_ID
+        and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
+    )
+    if use_static_observation and not _database_first_v4_mainnet:
         static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
         if static_snapshot.get("exists"):
             payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
@@ -294,7 +298,12 @@ def dex_overview_payload(
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
     use_compact_static_overview = bool(
-        use_static_observation and chain_id in _ROBINHOOD_CHAIN_IDS
+        use_static_observation
+        and chain_id in _ROBINHOOD_CHAIN_IDS
+        and not (
+            int(chain_id or 0) == ROBINHOOD_CHAIN_ID
+            and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
+        )
     )
     scope_protocols = _robinhood_static_scope_protocols(
         chain_id=chain_id,

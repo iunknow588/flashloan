@@ -744,6 +744,20 @@ def dex_pool_candidates_payload(
             network = str(chain_data.get("network") or "").strip().lower()
             use_generic_candidate_cache = network not in {"robinhood", "robinhood-testnet"}
             if not use_generic_candidate_cache:
+                # Robinhood mainnet V4 candidate surface is now database-first.
+                # The old JSON cache remains only as a compatibility fallback
+                # when the SQLite business tables are not yet available.
+                if network == "robinhood" and int(chain_id) == 4663 and (
+                    not protocol_filter or "uniswap_v4" in protocol_filter
+                ):
+                    from core.db.page_payloads import build_candidate_payload as _build_db_candidate_payload
+
+                    db_payload = _build_db_candidate_payload(
+                        chain_id=int(chain_id),
+                        protocols=protocols,
+                    )
+                    filtered = _filter_payload_protocols(db_payload, protocol_filter)
+                    return _attach_execution_context(filtered, int(chain_id))
                 try:
                     payload = dispatch_chain_flow(
                         chain_id=int(chain_id),

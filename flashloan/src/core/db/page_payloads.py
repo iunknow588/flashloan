@@ -145,7 +145,10 @@ def _candidate_pool_row(
     pool_id = _pool_address(pool)
     usable = pool.get("usable_for_observation")
     has_liquidity = pool.get("has_liquidity")
-    quality = "pass" if _bool(usable) or _bool(has_liquidity) or _number(pool.get("liquidity_index") or pool.get("liquidityIndex")) > 0 else ("observed" if not dynamic_fee and not special_fee else "rejected")
+    fixed_fee_candidate = not dynamic_fee and not special_fee
+    no_hook = _lower(pool.get("hooks")) in {"", "0x0000000000000000000000000000000000000000"}
+    usable_for_observation = fixed_fee_candidate and no_hook
+    quality = "pass" if usable_for_observation else "rejected"
     return {
         "pool": pool_id,
         "poolId": pool_id,
@@ -174,7 +177,7 @@ def _candidate_pool_row(
         "balances": balances,
         "depthStatus": pool.get("depth_status") or "",
         "depthBand": depth_band,
-        "usableForObservation": usable,
+        "usableForObservation": usable_for_observation,
         "quality": quality,
         "status": "observable" if quality == "pass" else "observed",
         "hopRecommendation": {"first": first_recommended, "third": third_recommended},
@@ -270,10 +273,21 @@ def _candidate_pair_report(
 ) -> dict[str, Any]:
     counter_address = _text(pair.get("counter_address") or pair.get("counterAddress"))
     anchor_key = _lower(anchor_address)
+    counter_key = _lower(counter_address)
     pair_pools = [
         pool
         for pool in pools
-        if _lower(pool.get("token0")) == anchor_key or _lower(pool.get("token1")) == anchor_key
+        if counter_key
+        and (
+            (
+                _lower(pool.get("token0")) == anchor_key
+                and _lower(pool.get("token1")) == counter_key
+            )
+            or (
+                _lower(pool.get("token0")) == counter_key
+                and _lower(pool.get("token1")) == anchor_key
+            )
+        )
     ]
     counter_symbol = _symbol_for_address(counter_address, token_symbols)
     preferred = [

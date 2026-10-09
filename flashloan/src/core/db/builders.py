@@ -7,7 +7,8 @@ requests; initialisation/refresh scripts call :func:`build_all_anchor_data`.
 Rules kept here:
 
 - YC/ZC is a single shared set for V4; UI can display ``ZC/YC``.
-- Fixed fee + no hook + meaningful depth are the recommendation constraints.
+- Fixed fee + no hook are the static YC/ZC constraints; depth/price are
+  dynamic fields refreshed separately and are not static membership filters.
 - Market observation must keep every ``N*(N-1)`` direction, including no-pool rows.
 - One V4 pool is one closed-loop hop; reverse directions are not separate loops.
 """
@@ -21,6 +22,7 @@ from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
 from core.db.storage_business_io import delete_rows, query
+from core.db.storage_chain_core import seed_chain_tokens
 from core.db.storage_dex_candidate import replace_dex_candidate_tables
 from core.db.storage_market_observation import (
     delete_market_observation_anchor,
@@ -38,6 +40,12 @@ DYNAMIC_FEE_FLAG = 8388608
 MAX_FIXED_FEE = 100_000
 MAX_RECOMMENDATIONS_PER_HOP = 3
 NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
+ROBINHOOD_TOKEN_ALLOWLIST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "chains"
+    / "robinhood"
+    / "v4_token_allowlist.json"
+)
 
 
 def _stamp() -> str:
@@ -89,6 +97,130 @@ def _has_depth(pool: dict[str, Any]) -> bool:
     if has_liquidity is not None:
         return bool(has_liquidity) or _float(pool.get("liquidity_index")) > 0
     return _float(pool.get("liquidity_index")) > 0 or _float(pool.get("estimated_tvl_usd")) > 0
+
+
+def _fixed_fee_no_hook_sql() -> str:
+    """SQL predicate shared by candidate and observation builders.
+
+    Depth and price are dynamic fields refreshed separately, so the static
+    YC/ZC surface is only constrained by fixed fee and no hook.
+    """
+    return (
+        "p.fee > 0 AND p.fee <= 100000 AND (p.fee & 8388608) = 0 "
+        "AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = '0x0000000000000000000000000000000000000000')"
+    )
+
+
+def _seed_chain_token_symbols(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+) -> None:
+    """Refresh display symbols from the chain token allowlist.
+
+    The allowlist is chain configuration metadata, not a page data shard.  It
+    keeps address-sorted YC/ZC rows readable on pages that read SQLite only.
+    """
+    try:
+        payload = json.loads(ROBINHOOD_TOKEN_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return
+    tokens = payload.get("tokens") if isinstance(payload, dict) else None
+    if not isinstance(tokens, dict):
+        return
+    rows = []
+    for item in tokens.values():
+        if not isinstance(item, dict):
+            continue
+        address = _text(item.get("address"))
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if not address or not symbol:
+            continue
+        category = str(item.get("category") or "").strip().lower()
+        rows.append(
+            {
+                "token_address": address,
+                "token_symbol": symbol,
+                "token_name": symbol,
+                "token_decimals": item.get("decimals"),
+                "token_kind": "native"
+                if category == "native"
+                else "wrapped_native"
+                if category == "wrapped_native"
+                else "erc20",
+                "is_native": 1 if category == "native" else 0,
+                "is_wrapped_native": 1 if category == "wrapped_native" else 0,
+                "is_stable": 1 if symbol in {"USDG", "USDE", "TZ"} else 0,
+                "anchor_symbol": symbol if symbol in ANCHOR_SYMBOLS else None,
+                "token_metadata": {"category": category, "source": item.get("source")},
+                "source": {"seed": "robinhood_v4_token_allowlist"},
+            }
+        )
+    if rows:
+        seed_chain_tokens(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            token_rows=rows,
+        )
+    existing_addresses = {
+        _text(row.get("token_address"))
+        for row in query(
+            str(database_url),
+            "SELECT token_address FROM chain_tokens WHERE network = ? AND chain_id = ?",
+            (network, chain_id),
+        )
+    }
+    missing_symbols = {
+        _text(item.get("address")): {
+            "symbol": str(item.get("symbol") or "").strip().upper(),
+            "category": str(item.get("category") or "").strip().lower(),
+        }
+        for item in (tokens or {}).values()
+        if isinstance(item, dict)
+        and _text(item.get("address"))
+        and str(item.get("symbol") or "").strip()
+        and _text(item.get("address")) not in existing_addresses
+    }
+    if missing_symbols:
+        seed_chain_tokens(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            token_rows=[
+                {
+                    "token_address": address,
+                    "token_symbol": meta["symbol"],
+                    "token_name": meta["symbol"],
+                    "token_decimals": None,
+                    "token_kind": "erc20",
+                    "is_native": 0,
+                    "is_wrapped_native": 0,
+                    "is_stable": 0,
+                    "anchor_symbol": symbol if symbol in ANCHOR_SYMBOLS else None,
+                    "token_metadata": {
+                        "category": meta.get("category") or "test_tokens",
+                        "source": "robinhood_v4_token_allowlist",
+                    },
+                    "source": {"seed": "robinhood_v4_token_allowlist"},
+                }
+                for address, meta in sorted(missing_symbols.items())
+            ],
+        )
+
+
+def _token_symbol_lookup(database_url: str, *, network: str, chain_id: int) -> dict[str, str]:
+    rows = query(
+        str(database_url),
+        "SELECT token_address, token_symbol FROM chain_tokens WHERE network = ? AND chain_id = ?",
+        (network, chain_id),
+    )
+    return {
+        _text(row.get("token_address")): str(row.get("token_symbol") or "").strip().upper()
+        for row in rows
+        if _text(row.get("token_address")) and str(row.get("token_symbol") or "").strip()
+    }
 
 
 def _pool_id(pool: dict[str, Any]) -> str:
@@ -208,12 +340,11 @@ def _pool_depth(pool: dict[str, Any]) -> float:
 def _select_recommendations(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Return up to three first/third-hop recommendations, low fee first.
 
-    Only fixed-fee pools with meaningful depth are recommendations; pools
-    without current depth remain candidate rows but must not be selected as
-    the executable first/third hop.
+    Depth and price are refreshed dynamically, so the static recommendation
+    only requires a fixed-fee no-hook pool.
     """
 
-    liquid = [pool for pool in pools if _has_depth(pool)]
+    liquid = list(pools)
     first: list[dict[str, Any]] = []
     third: list[dict[str, Any]] = []
     for pool in sorted(liquid, key=lambda item: (_int(item.get("fee")), _pool_id(item))):
@@ -276,7 +407,7 @@ def _candidate_rows(
                 "yc_optimal_pool_id": yc_pool,
                 "zc_optimal_pool_id": zc_pool,
                 "price_reference": {},
-                "price_outlier_filter": "fixed_fee_no_hook_depth_low_fee",
+                "price_outlier_filter": "fixed_fee_no_hook_low_fee",
             }
         )
         for pool in pools:
@@ -328,7 +459,7 @@ def _candidate_rows(
                     "depth_score": _pool_depth(pool),
                     "price": pool.get("price"),
                     "fee": pool.get("fee"),
-                    "selection_basis": "fixed_fee_no_hook_depth_low_fee_first_hop",
+                    "selection_basis": "fixed_fee_no_hook_low_fee_first_hop",
                 }
             )
         for rank, pool in enumerate(third, start=1):
@@ -341,7 +472,7 @@ def _candidate_rows(
                     "depth_score": _pool_depth(pool),
                     "price": pool.get("price"),
                     "fee": pool.get("fee"),
-                    "selection_basis": "fixed_fee_no_hook_depth_low_fee_third_hop",
+                    "selection_basis": "fixed_fee_no_hook_low_fee_third_hop",
                 }
             )
     return {
@@ -365,9 +496,10 @@ def build_candidate_anchor(
     """Rebuild one anchor's candidate rows from the V4 exchange pool tables."""
 
     resolved = absolute_database_path(database_url)
+    fixed_fee_no_hook = _fixed_fee_no_hook_sql()
     pools = query(
         str(resolved),
-        """
+        f"""
         SELECT p.pool_id, p.pool_manager, p.pool_key_json, p.token0, p.token1,
                p.fee, p.fee_label, p.dynamic_fee, p.special_fee, p.tick_spacing,
                p.hooks, l.has_liquidity, l.liquidity, l.liquidity_index,
@@ -379,6 +511,7 @@ def build_candidate_anchor(
           ON l.network = p.network AND l.chain_id = p.chain_id
          AND l.protocol = p.protocol AND l.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+          AND {fixed_fee_no_hook}
         ORDER BY p.pool_id
         """,
         (network, chain_id, protocol),
@@ -479,6 +612,11 @@ def build_market_observation_anchor(
     """Rebuild every Y-Z direction for one anchor, including no-pool rows."""
 
     resolved = absolute_database_path(database_url)
+    _seed_chain_token_symbols(
+        str(resolved),
+        network=network,
+        chain_id=chain_id,
+    )
     if token_addresses is None:
         token_rows = query(
             str(resolved),
@@ -508,6 +646,7 @@ def build_market_observation_anchor(
           ON l.network = p.network AND l.chain_id = p.chain_id
          AND l.protocol = p.protocol AND l.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+          AND {_fixed_fee_no_hook_sql()}
           AND (p.token0 IN ({placeholders}) OR p.token1 IN ({placeholders}))
         ORDER BY p.pool_id
         """,
@@ -601,10 +740,12 @@ def _build_loop_candidates(
     token_addresses: list[str],
     candidate_pools: dict[str, Any],
     observation_pools: dict[str, Any],
+    token_symbols: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build hop-1/2/3 closed loops from recommendation and observation rows."""
 
     recommendations = candidate_pools.get("recommendations") or []
+    token_symbols = token_symbols or {}
     first_by_counter: dict[str, list[dict[str, Any]]] = {}
     third_by_counter: dict[str, list[dict[str, Any]]] = {}
     for rec in recommendations:
@@ -623,6 +764,7 @@ def _build_loop_candidates(
     loops: list[dict[str, Any]] = []
     hops: list[dict[str, Any]] = []
     seen_loop_keys: set[str] = set()
+    symbol_for = lambda address: token_symbols.get(_text(address), _text(address))
     for y_address in token_addresses:
         if y_address == anchor_address:
             continue
@@ -644,6 +786,12 @@ def _build_loop_candidates(
                 for third in third_options[:1]:
                     pool_ids = (first["pool_id"], _pool_id(middle), third["pool_id"])
                     token_path = (anchor_address, y_address, z_address, anchor_address)
+                    path_symbols = [
+                        anchor_symbol,
+                        symbol_for(y_address),
+                        symbol_for(z_address),
+                        anchor_symbol,
+                    ]
                     sorted_tokens = tuple(sorted((anchor_address, y_address, z_address)))
                     loop_key = "|".join((*sorted_tokens, *sorted(pool_ids)))
                     if loop_key in seen_loop_keys:
@@ -655,14 +803,14 @@ def _build_loop_candidates(
                             "loop_key": loop_key_short,
                             "anchor_address": anchor_address,
                             "anchor_symbol": anchor_symbol,
-                            "path_text": " -> ".join(token_path),
+                            "path_text": " -> ".join(path_symbols),
                             "path_addresses": list(token_path),
-                            "path_symbols": [anchor_symbol, y_address, z_address, anchor_symbol],
+                            "path_symbols": path_symbols,
                             "pool_path_key": ":".join((*token_path, *pool_ids)),
                             "pool_ids": list(pool_ids),
                             "hop_candidate_counts": {"1": len(first_options), "2": len(yz_pools), "3": len(third_options)},
                             "hop_candidate_combination_count": len(first_options) * len(yz_pools) * len(third_options),
-                            "recommendation_basis": "fixed_fee_no_hook_depth_low_fee",
+                            "recommendation_basis": "fixed_fee_no_hook_low_fee",
                             "recommended_first_priority": 1,
                             "status": "active",
                             "source": "database_builder",
@@ -763,18 +911,32 @@ def build_closed_loops_anchor(
         token_addresses=token_addresses,
         candidate_pools={"recommendations": candidate_pools},
         observation_pools={"pools": observation_pools},
-    )
-    for table in (
-        "v4_closed_loop_optimizations",
-        "v4_closed_loop_hops",
-        "v4_closed_loops",
-    ):
-        delete_rows(
+        token_symbols=_token_symbol_lookup(
             str(resolved),
-            table,
-            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ?",
-            (network, chain_id, protocol, market_id),
-        )
+            network=network,
+            chain_id=chain_id,
+        ),
+    )
+    delete_rows(
+        str(resolved),
+        "v4_closed_loop_optimizations",
+        "network = ? AND chain_id = ? AND protocol = ? AND market_id = ?",
+        (network, chain_id, protocol, market_id),
+    )
+    delete_rows(
+        str(resolved),
+        "v4_closed_loop_hops",
+        "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+        "AND loop_key IN (SELECT loop_key FROM v4_closed_loops "
+        "WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?)",
+        (network, chain_id, protocol, market_id, network, chain_id, protocol, market_id, anchor_symbol),
+    )
+    delete_rows(
+        str(resolved),
+        "v4_closed_loops",
+        "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?",
+        (network, chain_id, protocol, market_id, anchor_symbol),
+    )
     counts = replace_v4_closed_loop_tables(
         str(resolved),
         network=network,
@@ -804,6 +966,11 @@ def build_all_anchor_data(
     anchors: Iterable[str] = ANCHOR_SYMBOLS,
 ) -> dict[str, Any]:
     resolved = absolute_database_path(database_url)
+    _seed_chain_token_symbols(
+        str(resolved),
+        network=network,
+        chain_id=chain_id,
+    )
     reports = []
     for anchor_symbol in anchors:
         # Candidate page owns the YC/ZC token set: only tokens with a direct

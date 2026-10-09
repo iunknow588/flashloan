@@ -888,7 +888,7 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
     assert overview["arbitragePaths"][0]["overviewProfit"]["recommendationLevel"] == "requires_live_quote"
 
 
-def test_robinhood_overview_does_not_fallback_to_candidate_pools(monkeypatch):
+def test_robinhood_mainnet_overview_builds_from_database_candidate_pools(monkeypatch):
     compact_snapshot = {
         "exists": True,
         "chain_id": 4663,
@@ -948,7 +948,10 @@ def test_robinhood_overview_does_not_fallback_to_candidate_pools(monkeypatch):
         use_static_observation=True,
     )
 
-    assert calls == {"candidate": 0, "context": 1}
+    # Robinhood mainnet V4 is database-first: the overview reads the same
+    # candidate tables instead of falling back to a static compact snapshot.
+    # `_candidate_payload` is now a SQLite read, not a rebuild/fallback.
+    assert calls == {"candidate": 1, "context": 1}
     assert overview["routeFrameworkSource"] == "market_observation"
     assert overview["summary"]["arbitragePathCount"] == 0
     assert overview["arbitragePaths"] == []
