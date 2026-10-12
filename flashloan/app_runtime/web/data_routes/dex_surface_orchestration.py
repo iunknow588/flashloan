@@ -6,14 +6,23 @@ from flask import request
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, chain_flow_request
 from core.market_observation_store import market_observation_static_table, write_market_observation_static
-from market.binance_market.dex_surface_cache import _cached_framework_surface_payload, _clear_dex_surface_cache
+from market.binance_market.dex_surface_cache import (
+    _cached_surface_payload,
+    _cached_framework_surface_payload,
+    _cache_surface_payload,
+    _clear_dex_surface_cache,
+)
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
-    write_v4_pool_index_from_observation_pool_ids as write_robinhood_mainnet_v4_pool_index,
+    write_v4_pool_index_from_initialize_logs as write_robinhood_mainnet_v4_pool_index,
 )
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
+from dex.intent_trade.chains.robinhood.v4_pool_liquidity import (
+    write_v4_pool_liquidity_from_contract_evidence as write_robinhood_mainnet_v4_pool_liquidity,
+)
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_surfaces import (
+    _database_first_v4_mainnet,
     dex_market_observation_surface_payload,
     dex_overview_payload,
     dex_quote_routes_payload,
@@ -68,12 +77,28 @@ def _bootstrap_dex_surface_dependencies(
         "dex_overview": (),
         "dex_quote_routes": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: (
+                observation_surface_payload(
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    use_static_observation=True,
+                )
+                if not _database_first_v4_mainnet(chain_id=chain_id, protocols=protocols)
+                else None
+            ),
             lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
         "dex_quote_request": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: (
+                observation_surface_payload(
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    use_static_observation=True,
+                )
+                if not _database_first_v4_mainnet(chain_id=chain_id, protocols=protocols)
+                else None
+            ),
             lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
             lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
@@ -169,6 +194,35 @@ def _finalize_market_observation_payload(
         )
         payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
         return payload
+    if _database_first_v4_mainnet(chain_id=chain_id, protocols=protocols):
+        # Mainnet V4 is DB-first: refresh caches the computed payload in
+        # memory and must not rewrite legacy observation JSON shards.
+        _clear_dex_surface_cache(
+            chain_id=chain_id,
+            use_static_observation=True,
+        )
+        _cache_surface_payload(
+            "dex_market_observation",
+            payload,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+            ttl_seconds=0,
+        )
+        payload["marketObservationStaticTable"] = _market_observation_static_metadata(
+            {
+                "network": "robinhood",
+                "chain_id": chain_id,
+                "protocols": protocols,
+                "exists": True,
+                "path": "sqlite_db",
+                "summary": payload.get("summary") or {},
+                "list_counts": {},
+            }
+        )
+        payload["marketObservationSource"] = generated_source
+        payload["marketObservationSourceStage"] = generated_source
+        return payload
     stored = write_market_observation_static(
         payload,
         chain_id=chain_id,
@@ -178,6 +232,18 @@ def _finalize_market_observation_payload(
     _clear_dex_surface_cache(
         chain_id=chain_id,
         use_static_observation=True,
+    )
+    # A POST refresh is the only path that recomputes market observation. Keep
+    # the freshly generated payload in the process-global surface cache so GET
+    # page views serve the same in-memory snapshot instead of re-reading and
+    # hydrating the persisted shard files on every request.
+    _cache_surface_payload(
+        "dex_market_observation",
+        payload,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=True,
+        ttl_seconds=0,
     )
     payload["marketObservationStaticTable"] = _market_observation_static_metadata(stored)
     payload["marketObservationSource"] = generated_source
@@ -235,7 +301,12 @@ def _refresh_v4_sources(*, chain_id: int | None = None, network: str = "") -> di
     errors: list[str] = []
     try:
         if is_mainnet:
-            index_result = write_robinhood_mainnet_v4_pool_index()
+            index_result = write_robinhood_mainnet_v4_pool_index(
+                from_block=0,
+                to_block=None,
+                include_metadata=True,
+                mark_recent_swaps=True,
+            )
         else:
             index_result = write_v4_pool_index_from_initialize_logs()
         steps.append(
@@ -254,22 +325,14 @@ def _refresh_v4_sources(*, chain_id: int | None = None, network: str = "") -> di
 
     try:
         liquidity_result = {}
-        if is_testnet:
+        if is_mainnet:
+            liquidity_result = write_robinhood_mainnet_v4_pool_liquidity()
+        elif is_testnet:
             liquidity_result = write_v4_pool_liquidity_from_contract_evidence(
                 token_balance_scan_scope="active_plus_known",
                 multicall_chunk_size=200,
                 max_token_balance_scan_seconds=None,
             )
-        else:
-            liquidity_result = {
-                "ok": True,
-                "poolCount": 0,
-                "pool_keys": [],
-                "tokenBalanceScanComplete": False,
-                "tokenBalanceScanCount": 0,
-                "tokenBalancePendingCount": 0,
-                "message": "Robinhood mainnet V4 pool liquidity evidence comes after pool index generation",
-            }
         steps.append(
             {
                 "source": "v4_pool_liquidity",
@@ -318,19 +381,60 @@ def _refresh_state_summary(payload: dict, refresh_state: dict) -> dict:
     return refresh_state
 
 
-def _market_observation_page_payload(payload: dict, *, pool_preview_limit: int = 80) -> dict:
-    if str(request.args.get("include_all") or "").strip().lower() in {"1", "true", "yes", "all"}:
-        return payload
-    rows = payload.get("chainSpecificObservationPools")
-    if not isinstance(rows, list) or len(rows) <= pool_preview_limit:
+def _market_observation_page_payload(
+    payload: dict,
+    *,
+    pool_preview_limit: int = 80,
+    chain_id: int | None = None,
+    protocols: list[str] | None = None,
+) -> dict:
+    include_all = str(request.args.get("include_all") or "").strip().lower() in {"1", "true", "yes", "all"}
+    if not include_all and chain_id is not None:
+        cached_page = _cached_surface_payload(
+            "dex_market_observation_page",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        )
+        if cached_page is not None:
+            return cached_page
+    if include_all:
         return payload
     trimmed = dict(payload)
-    trimmed["chainSpecificObservationPools"] = rows[:pool_preview_limit]
+    rows = payload.get("chainSpecificObservationPools")
+    if isinstance(rows, list):
+        trimmed["chainSpecificObservationPools"] = rows[:pool_preview_limit]
+    # The market-observation page renders per-anchor YC/ZC candidate sets and
+    # compact previews.  Keeping every closed-loop sequence in the API response
+    # makes the GET payload hundreds of megabytes for a display-only surface;
+    # full sequences remain in the static snapshot consumed by DEX overview.
+    for key in ("observationSequences", "closedLoopSequences", "indirectRoutes"):
+        if isinstance(payload.get(key), list):
+            trimmed[key] = []
+            trimmed.pop(f"{key}Total", None)
+            trimmed[f"{key}Total"] = len(payload.get(key))
+    if isinstance(payload.get("pairs"), list):
+        trimmed["pairs"] = []
+    if isinstance(payload.get("anchorGroups"), list):
+        trimmed["anchorGroups"] = []
     trimmed["marketObservationPreview"] = {
-        "chainSpecificObservationPoolsReturned": pool_preview_limit,
-        "chainSpecificObservationPoolsTotal": len(rows),
+        "chainSpecificObservationPoolsReturned": len(trimmed.get("chainSpecificObservationPools") or []),
+        "chainSpecificObservationPoolsTotal": len(payload.get("chainSpecificObservationPools") or []),
+        "observationSequencesReturned": 0,
+        "observationSequencesTotal": len(payload.get("observationSequences") or []),
+        "closedLoopSequencesReturned": 0,
+        "closedLoopSequencesTotal": len(payload.get("closedLoopSequences") or []),
         "includeAllParameter": "include_all=1",
     }
+    if chain_id is not None:
+        _cache_surface_payload(
+            "dex_market_observation_page",
+            trimmed,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+            ttl_seconds=0,
+        )
     return trimmed
 
 

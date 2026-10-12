@@ -296,6 +296,17 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
     if not protocols:
         return group
     copied = dict(group)
+    abnormal_pools = [
+        row
+        for row in group.get("abnormalPools") or []
+        if _pool_protocol(row) in protocols
+    ]
+    abnormal_tokens = _anchor_token_groups_from_rows(abnormal_pools)
+    copied["abnormalPools"] = abnormal_pools
+    copied["abnormalTokens"] = abnormal_tokens
+    copied["abnormalPoolCount"] = str(len(abnormal_pools))
+    copied["abnormalTokenCount"] = str(len(abnormal_tokens))
+    copied["abnormalDirectionCount"] = str(len(abnormal_pools) * 2)
     if group.get("ycZcSameSet"):
         shared_pools = [row for row in group.get("sharedPools") or [] if _pool_protocol(row) in protocols]
         original_tokens = [row for row in group.get("sharedTokens") or [] if isinstance(row, dict)]
@@ -336,7 +347,7 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
         copied["zcTokenCount"] = str(len(shared_tokens))
         copied["candidatePoolCount"] = str(len({str(row.get("pool") or "").strip() for row in shared_pools if str(row.get("pool") or "").strip()}))
         copied["candidateQueueCount"] = str(len(shared_pools) * 2)
-        if not shared_pools:
+        if not shared_pools and not abnormal_pools:
             return None
         return copied
     yc_pools = [row for row in group.get("ycPools") or [] if _pool_protocol(row) in protocols]
@@ -350,7 +361,7 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
     copied["ycTokenCount"] = str(len(copied["ycTokens"]))
     copied["zcTokenCount"] = str(len(copied["zcTokens"]))
     copied["candidatePoolCount"] = str(len({str(row.get("pool") or "").strip() for row in yc_pools + zc_pools if str(row.get("pool") or "").strip()}))
-    if not yc_pools and not zc_pools:
+    if not yc_pools and not zc_pools and not abnormal_pools:
         return None
     return copied
 
@@ -381,6 +392,8 @@ def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> d
     summary["zcPoolCount"] = str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups))
     summary["ycTokenCount"] = str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups))
     summary["zcTokenCount"] = str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups))
+    summary["abnormalStaticPoolCount"] = str(sum(int(group.get("abnormalPoolCount") or 0) for group in anchor_groups))
+    summary["abnormalStaticTokenCount"] = str(sum(int(group.get("abnormalTokenCount") or 0) for group in anchor_groups))
     summary["preferredPoolCount"] = str(sum(int(pair.get("preferredPoolCount") or 0) for pair in pairs))
     summary["executionPoolCount"] = str(sum(int(pair.get("executionPoolCount") or 0) for pair in pairs))
     summary["strictQualityPoolCount"] = str(sum(int(pair.get("strictQualityPoolCount") or 0) for pair in pairs))

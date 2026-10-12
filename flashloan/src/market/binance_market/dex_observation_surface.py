@@ -359,5 +359,6 @@ def build_market_observation_payload(
         chain_id=chain_id,
         protocols=protocols,
         use_static_observation=False,
+        ttl_seconds=0,
     )
     return payload

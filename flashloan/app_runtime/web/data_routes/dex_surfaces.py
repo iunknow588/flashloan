@@ -21,6 +21,8 @@ from market.binance_market.dex_strategy_registry import (
     resolve_dex_strategy_key,
 )
 from market.binance_market.dex_surfaces import (
+    database_overview_snapshot,
+    load_observation_overview_for_scope,
     dex_market_observation_payload,
     dex_market_observation_surface_payload,
     dex_overview_payload,
@@ -59,6 +61,7 @@ from web.data_routes.dex_surface_orchestration import (
 from web.data_routes.dex_surface_response import (
     attach_dex_strategy as _attach_dex_strategy,
     candidate_pagination_args,
+    section_pagination_args,
     chain_flow_protocol as _chain_flow_protocol,
     dex_surface_payload_for_chain as _dex_surface_payload_for_chain,
     overview_response_payload as _overview_response_payload,

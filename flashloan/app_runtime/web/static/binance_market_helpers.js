@@ -19,8 +19,27 @@
     const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 1000;
     const DEFAULT_SELECTED_NETWORKS = ["bnb"];
     const networkPanels = new Map();
-    const COW_ATTEMPT_PAGE_SIZE = 10;
+    const COW_ATTEMPT_PAGE_SIZE = 20;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
+    let cowSupportedOverviewPage = 0;
+    let latestCowSupportedOverview = null;
+    const BINANCE_MARKET_PAGE_SIZE = 20;
+    const binanceMarketTablePages = { rawTop: 0, rawBottom: 0, aave: 0, quotes: 0, queue: 0 };
+    const renderBinanceTablePager = (id, total, page, onPage) => {
+      const node = $(id);
+      if (!node) return;
+      const pageCount = Math.max(1, Math.ceil(total / BINANCE_MARKET_PAGE_SIZE));
+      const safePage = Math.min(Math.max(0, Number(page) || 0), pageCount - 1);
+      if (pageCount <= 1) {
+        node.innerHTML = "";
+        return;
+      }
+      const start = safePage * BINANCE_MARKET_PAGE_SIZE + 1;
+      const end = Math.min((safePage + 1) * BINANCE_MARKET_PAGE_SIZE, total);
+      node.innerHTML = `<button type="button" data-table-page="prev" ${safePage <= 0 ? "disabled" : ""}>上一页</button><span>${start}-${end} / ${total}</span><button type="button" data-table-page="next" ${safePage >= pageCount - 1 ? "disabled" : ""}>下一页</button>`;
+      node.querySelector('[data-table-page="prev"]').onclick = () => onPage(Math.max(0, safePage - 1));
+      node.querySelector('[data-table-page="next"]').onclick = () => onPage(Math.min(pageCount - 1, safePage + 1));
+    };
     let latestCowAttemptHistoryPayload = null;
     let latestCowSubmissionPausePayload = {paused: false, pause_reason: null};
     const COW_ATTEMPT_GROUP_META = {
@@ -735,16 +754,55 @@
         `行情过滤排除 ${stats.market_excluded_symbol_count ?? 0} 个 (${reasonText})`,
       ].join(" | ");
     };
+    const renderCowSupportedPager = (topTotal, bottomTotal, pageSize, page) => {
+      const total = Math.max(topTotal, bottomTotal);
+      const pageCount = Math.max(1, Math.ceil(total / pageSize));
+      const prev = $("cowSupportedPrevPageBtn");
+      const next = $("cowSupportedNextPageBtn");
+      const status = $("cowSupportedPageStatus");
+      if (!next || !status) return;
+      if (pageCount <= 1) {
+        if (prev) prev.classList.add("hidden");
+        next.classList.add("hidden");
+        status.classList.add("hidden");
+        return;
+      }
+      if (prev) {
+        prev.classList.remove("hidden");
+        prev.disabled = page <= 0;
+        prev.onclick = () => {
+          cowSupportedOverviewPage = Math.max(0, cowSupportedOverviewPage - 1);
+          renderCowSupportedOverview(latestCowSupportedOverview || null);
+        };
+      }
+      next.classList.remove("hidden");
+      next.disabled = page >= pageCount - 1;
+      next.onclick = () => {
+        cowSupportedOverviewPage += 1;
+        renderCowSupportedOverview(latestCowSupportedOverview || null);
+      };
+      const start = page * pageSize + 1;
+      const end = Math.min((page + 1) * pageSize, total);
+      status.classList.remove("hidden");
+      status.textContent = `${start}-${end} / ${total}`;
+    };
     const renderCowSupportedOverview = overview => {
+      latestCowSupportedOverview = overview || null;
       const top = overview?.top || [];
       const bottom = overview?.bottom || [];
       const limit = overview?.limit || 50;
+      const pageSize = 20;
+      const pageCount = Math.max(1, Math.ceil(Math.max(top.length, bottom.length) / pageSize));
+      const safePage = Math.min(Math.max(0, Number(cowSupportedOverviewPage || 0) || 0), pageCount - 1);
+      const pagedTop = top.slice(safePage * pageSize, (safePage + 1) * pageSize);
+      const pagedBottom = bottom.slice(safePage * pageSize, (safePage + 1) * pageSize);
       $("cowSupportedTopTitle").textContent = `所有 CoW 支持代币涨幅前 ${limit}`;
       $("cowSupportedBottomTitle").textContent = `所有 CoW 支持代币跌幅前 ${limit}`;
       $("cowSupportedTopMeta").textContent = cowSupportedOverviewMeta(overview, "涨幅");
       $("cowSupportedBottomMeta").textContent = cowSupportedOverviewMeta(overview, "跌幅");
-      $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币涨幅数据</td></tr>';
-      $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币跌幅数据</td></tr>';
+      $("cowSupportedTopBody").innerHTML = pagedTop.map((row, index) => cowSupportedRowHtml(row, safePage * pageSize + index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币涨幅数据</td></tr>';
+      $("cowSupportedBottomBody").innerHTML = pagedBottom.map((row, index) => cowSupportedRowHtml(row, safePage * pageSize + index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币跌幅数据</td></tr>';
+      renderCowSupportedPager(top.length, bottom.length, pageSize, safePage);
     };
     const rowsTable = (rows, sideLabel, options = {}) => `<div class="table-wrap"><table>
       <thead><tr><th>#</th><th>代币</th><th>${esc(sideLabel)}</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>

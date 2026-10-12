@@ -114,7 +114,7 @@
     let allCategoryCounts = {};
     const failedCategoryFromUrl = window.location.pathname.split("/").filter(Boolean).pop();
     let currentErrorCategory = ["all", "broadcast", "submission", "code", "rpc", "execution", "quote", "blocked", "other"].includes(failedCategoryFromUrl) ? failedCategoryFromUrl : "all";
-    const pageSize = 25;
+    const pageSize = 20;
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const uiError = value => {
       const text = String(value || "请求失败");

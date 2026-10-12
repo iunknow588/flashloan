@@ -16,7 +16,7 @@ def quote_route_status(quote_analysis: dict[str, Any]) -> str:
     if live_verified:
         return "live_verified"
     terminal_status = str(quote_analysis.get("terminalStatus") or "").strip()
-    if terminal_status in {"missing_route_identity", "route_invalid"}:
+    if terminal_status in {"missing_route_identity", "route_invalid", "uniswapx_fallback_failed"}:
         return terminal_status
     if quote_analysis.get("executableCandidate"):
         return "static_probe_ready_for_precheck"
@@ -115,6 +115,7 @@ def build_quote_request_specs(
     v4_status: str | None = None,
     uniswapx_quote_mode: str | None = None,
     uniswapx_status: str | None = None,
+    uniswapx_middle_hop: dict[str, Any] | None = None,
     adapter_hints: list[str] | None = None,
     amm_limit: int = 5,
 ) -> list[dict[str, Any]]:
@@ -151,20 +152,51 @@ def build_quote_request_specs(
         )
     uniswapx = settlement.get("uniswapx") if isinstance(settlement.get("uniswapx"), dict) else {}
     if uniswapx.get("supported") and len(route_symbols) >= 2 and uniswapx_quote_mode:
-        quote_requests.append(
-            {
-                "venue": "uniswapx",
-                "quoteMode": uniswapx_quote_mode,
-                "status": uniswapx_status or amm_status,
-                "quoteRequestUrl": f"/api/dex/quote-request?pair={quote(pair_symbol, safe='')}&venue=uniswapx",
-                "routeSymbols": route_symbols,
-                "routeAddresses": route_addresses,
-                "routeTokenPath": route_tokens,
-                "chainId": chain_id,
-                "reactorFamily": uniswapx.get("reactor_family"),
-                "requires": ["sellToken", "buyToken", "amount", "userAddress"],
-            }
-        )
+        middle_hop = dict(uniswapx_middle_hop or {})
+        request_symbols = list(middle_hop.get("routeSymbols") or [])
+        request_addresses = list(middle_hop.get("routeAddresses") or [])
+        middle_pair = str(middle_hop.get("symbolPair") or "").strip()
+        if middle_hop:
+            request_symbols = request_symbols or [
+                middle_hop.get("fromSymbol"),
+                middle_hop.get("toSymbol"),
+            ]
+            request_addresses = request_addresses or [
+                middle_hop.get("fromAddress"),
+                middle_hop.get("toAddress"),
+            ]
+            if not middle_pair:
+                middle_pair = " -> ".join(
+                    str(symbol or "").strip()
+                    for symbol in request_symbols
+                    if str(symbol or "").strip()
+                )
+        request = {
+            "venue": "uniswapx",
+            "quoteMode": uniswapx_quote_mode,
+            "status": uniswapx_status or amm_status,
+            "quoteRequestUrl": f"/api/dex/quote-request?pair={quote(middle_pair or pair_symbol, safe='')}&venue=uniswapx",
+            "routeSymbols": request_symbols or route_symbols,
+            "routeAddresses": request_addresses or route_addresses,
+            "routeTokenPath": route_tokens,
+            "chainId": chain_id,
+            "reactorFamily": uniswapx.get("reactor_family"),
+            "requires": ["sellToken", "buyToken", "amount", "userAddress"],
+        }
+        if middle_hop:
+            request["middleHop"] = middle_hop
+            if middle_hop.get("middleLeg"):
+                request["middleLeg"] = middle_hop.get("middleLeg")
+            quote_parameters = middle_hop.get("quoteParameters")
+            if isinstance(quote_parameters, dict):
+                request["quoteParameters"] = quote_parameters
+                request["sellToken"] = quote_parameters.get("sellToken")
+                request["buyToken"] = quote_parameters.get("buyToken")
+                request["amount"] = quote_parameters.get("sellAmount")
+                request["minBuyAmount"] = quote_parameters.get("buyAmount") or quote_parameters.get("minBuyAmount")
+                request["limitPrice"] = quote_parameters.get("limitPrice")
+                request["targetProfitBps"] = quote_parameters.get("targetProfitBps")
+        quote_requests.append(request)
     return quote_requests
 
 

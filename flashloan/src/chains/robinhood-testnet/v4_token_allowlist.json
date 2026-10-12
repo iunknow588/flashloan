@@ -102,6 +102,20 @@
       "category": "stablecoin",
       "source": "v4_pool_liquidity/token_balance_scan_cache.json"
     },
+    "usde": {
+      "symbol": "USDE",
+      "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "decimals": 18,
+      "category": "stablecoin",
+      "source": "robinhood_mainnet_anchor_config"
+    },
+    "usdg": {
+      "symbol": "USDG",
+      "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "decimals": 18,
+      "category": "stablecoin",
+      "source": "robinhood_mainnet_anchor_config"
+    },
     "wbtc": {
       "symbol": "WBTC",
       "address": "0xAf10804164F5f28935ee616afe6F9CEaf437Ff2b",

@@ -35,6 +35,8 @@
     let latestBorrowPayload = null;
     const accountPageState = { page: 1, pageCount: 1 };
     const borrowPageState = { risk: 1, high: 1, core: 1 };
+    let staticCallPage = 0;
+    let latestStaticCallRows = [];
     const accountDetailBasePath = "/liquidation/account?account=";
     const isAccountScanPage = () => ["/account-scan", "/bot/account-scan"].includes(location.pathname);
     const fmtTime = v => v ? new Date(v).toLocaleString([], { hour12: false }) : "-";
@@ -273,6 +275,34 @@
       node.innerHTML = `<button class="compact" data-page-action="prev" ${page <= 1 ? "disabled" : ""}>上一页</button><span>第 ${page}/${pageCount} 页 · 共 ${total} 条</span><button class="compact" data-page-action="next" ${page >= pageCount ? "disabled" : ""}>下一页</button>`;
       node.querySelector('[data-page-action="prev"]').onclick = () => page > 1 && onPage(page - 1);
       node.querySelector('[data-page-action="next"]').onclick = () => page < pageCount && onPage(page + 1);
+    }
+    function renderStaticCallPager(total) {
+      const node = $("staticCallPager");
+      if (!node) return;
+      const pageSize = 20;
+      const pageCount = Math.max(1, Math.ceil(total / pageSize));
+      staticCallPage = Math.min(Math.max(0, staticCallPage || 0), pageCount - 1);
+      if (pageCount <= 1) {
+        node.innerHTML = "";
+        return;
+      }
+      const start = staticCallPage * pageSize + 1;
+      const end = Math.min((staticCallPage + 1) * pageSize, total);
+      node.innerHTML = `<button class="compact" data-static-page="prev" ${staticCallPage <= 0 ? "disabled" : ""}>上一页</button><span>${start}-${end} / ${total}</span><button class="compact" data-static-page="next" ${staticCallPage >= pageCount - 1 ? "disabled" : ""}>下一页</button>`;
+      node.querySelector('[data-static-page="prev"]').onclick = () => {
+        staticCallPage = Math.max(0, staticCallPage - 1);
+        renderStaticCallPager(total);
+        renderStaticCallPage(total);
+      };
+      node.querySelector('[data-static-page="next"]').onclick = () => {
+        staticCallPage = Math.min(pageCount - 1, staticCallPage + 1);
+        renderStaticCallPager(total);
+        renderStaticCallPage(total);
+      };
+    }
+    function renderStaticCallPage(total) {
+      const staticRows = latestStaticCallRows || [];
+      $("staticCallBody").innerHTML = staticRows.slice(staticCallPage * 20, (staticCallPage + 1) * 20).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${rawStatusText(row.state)}</td><td>${row.error ? zhError(row.error) : reasonListText(row.blocked_reasons)}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="5">暂无静态模拟记录</td></tr>';
     }
     const accountScanStatusText = status => ({
       ENTER: "进入账户扫描",
@@ -660,7 +690,10 @@
       $("staticCallFailedMeta").textContent = failed ? "检查失败原因" : "近期无失败";
       $("staticCallTopReason").textContent = top ? failureReasonText(top[0]) : "-";
       $("staticCallTopReasonMeta").textContent = top ? `${top[1]} 个样本` : "无失败样本";
-      $("staticCallBody").innerHTML = staticRows.slice(0, 20).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${rawStatusText(row.state)}</td><td>${row.error ? zhError(row.error) : reasonListText(row.blocked_reasons)}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="5">暂无静态模拟记录</td></tr>';
+      latestStaticCallRows = staticRows;
+      staticCallPage = Math.min(Math.max(0, staticCallPage || 0), Math.max(0, Math.ceil(staticRows.length / 20) - 1));
+      renderStaticCallPage(staticRows.length);
+      renderStaticCallPager(staticRows.length);
     }
 
     function renderLiquidationStats(attemptRows, sampleRows, stats = {}) {

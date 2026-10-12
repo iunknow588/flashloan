@@ -60,6 +60,7 @@
           </thead>
           <tbody id="opportunityHealthBody"></tbody>
         </table>
+        <div id="opportunityHealthPager" class="toolbar"></div>
       </div>
     </section>
   </main>
@@ -79,6 +80,7 @@
     const statusCls = v => ({selected:"status-selected",candidate:"status-candidate",healthy:"status-healthy"}[String(v||"").toLowerCase()]||"status-watching");
     const statusText = v => ({selected:"已选中",candidate:"候选",healthy:"健康",watching:"观察中"}[String(v||"").toLowerCase()] || v || "-");
     const base = s => String(s||"-").replace(/(USDT|USDC)$/i,"")||"-";
+    let opportunityHealthPage = 0;
     function renderHealth(data){
       const rows=data.rows||[], summary=data.summary||{}, total=Number.isFinite(summary.total)?summary.total:rows.length;
       $("monitorWindow").textContent=Number.isFinite(summary.monitor_window_seconds)?`${summary.monitor_window_seconds.toFixed(1)} 秒`:"-";
@@ -87,7 +89,18 @@
       $("opportunityCandidateCount").textContent=Number.isFinite(summary.candidate_count)?summary.candidate_count:"-"; $("opportunityCandidateMeta").textContent=Number.isFinite(summary.selected_count)?`已选 ${summary.selected_count}`:"等待中";
       $("opportunityTopScore").textContent=Number.isFinite(summary.best_health_score)?Number(summary.best_health_score).toFixed(2):"-"; $("opportunityTopMeta").textContent=summary.best_symbol?`${base(summary.best_symbol)} | ${statusText(summary.best_status)}`:"等待中";
       $("opportunityHealthMeta").textContent=`${total} 条机会 | ${summary.watched_count??0} 条观察中 | ${summary.healthy_count??0} 条健康`;
-      $("opportunityHealthBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${statusText(row.status)}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>';
+      const pageSize=20, pageCount=Math.max(1,Math.ceil(rows.length/pageSize)), safePage=Math.min(Math.max(0,opportunityHealthPage||0),pageCount-1), pageRows=rows.slice(safePage*pageSize,(safePage+1)*pageSize);
+      $("opportunityHealthBody").innerHTML=pageRows.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${statusText(row.status)}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>';
+      const pager=$("opportunityHealthPager");
+      if(pager){
+        if(pageCount<=1){ pager.innerHTML=""; }
+        else {
+          const end=Math.min((safePage+1)*pageSize,rows.length);
+          pager.innerHTML=`<button type="button" data-opportunity-page="prev" ${safePage<=0?"disabled":""}>上一页</button><span>${safePage*pageSize+1}-${end} / ${rows.length}</span><button type="button" data-opportunity-page="next" ${safePage>=pageCount-1?"disabled":""}>下一页</button>`;
+          pager.querySelector('[data-opportunity-page="prev"]').onclick=()=>{ opportunityHealthPage=Math.max(0,safePage-1); renderHealth(data); };
+          pager.querySelector('[data-opportunity-page="next"]').onclick=()=>{ opportunityHealthPage=Math.min(pageCount-1,safePage+1); renderHealth(data); };
+        }
+      }
     }
     async function refresh(){ try{ renderHealth(await api("/api/opportunity-health")); }catch(e){ $("message").textContent=zhError(e.message); } }
     $("refreshBtn").onclick=refresh; refresh(); setInterval(refresh,5000);

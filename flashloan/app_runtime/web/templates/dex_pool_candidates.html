@@ -21,6 +21,8 @@
     button:disabled { opacity: 0.6; cursor: wait; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
     .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .pager.section-pager { margin: 8px 0 4px; }
+    .pager.section-pager button { min-height: 30px; min-width: 64px; padding: 0 10px; }
     .pager input { min-width: 70px; width: 82px; text-align: center; }
     .pager select { min-width: 100px; }
     .pager button { min-width: 76px; }
@@ -117,14 +119,14 @@
       <label class="page-status" for="pageInput">跳至</label>
       <input id="pageInput" type="number" min="1" step="1" value="1">
       <select id="pageSizeSelect">
-        <option value="1">每页 1 个 X</option>
-        <option value="2">每页 2 个 X</option>
-        <option value="5">每页 5 个 X</option>
-        <option value="10">每页 10 个 X</option>
-        <option value="20" selected>每页 20 个 X</option>
-        <option value="50">每页 50 个 X</option>
-        <option value="100">每页 100 个 X</option>
-        <option value="1000">显示全部候选组</option>
+        <option value="1">每页 1 条候选池</option>
+        <option value="2">每页 2 条候选池</option>
+        <option value="5">每页 5 条候选池</option>
+        <option value="10">每页 10 条候选池</option>
+        <option value="20" selected>每页 20 条候选池</option>
+        <option value="50">每页 50 条候选池</option>
+        <option value="100">每页 100 条候选池</option>
+        <option value="1000">显示全部候选池</option>
       </select>
     </div>
     <section id="groupList"></section>
@@ -133,6 +135,7 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const list = value => Array.isArray(value) ? value : [];
     const uiError = value => {
       const text = String(value || "请求失败");
       if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
@@ -167,6 +170,8 @@
     let refreshInFlight = false;
     let candidatePage = Math.max(1, Number(new URLSearchParams(window.location.search).get("page") || 1) || 1);
     let candidatePageSize = Math.max(1, Math.min(1000, Number(new URLSearchParams(window.location.search).get("page_size") || 20) || 20));
+    let abnormalPoolPage = Math.max(1, Number(new URLSearchParams(window.location.search).get("abnormal_pool_page") || 1) || 1);
+    let abnormalTokenPage = Math.max(1, Number(new URLSearchParams(window.location.search).get("abnormal_token_page") || 1) || 1);
     let searchTimer = null;
 
     function marketIdChainComponent(marketId) {
@@ -211,7 +216,7 @@
       const next = new URL(window.location.href);
       Object.entries(updates).forEach(([key, value]) => {
         const text = String(value ?? "").trim();
-        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "20") || (key === "quality" && text === "all")) {
+        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "20") || (key === "quality" && text === "all") || ((key === "abnormal_pool_page" || key === "abnormal_token_page") && text === "1")) {
           next.searchParams.delete(key);
         } else {
           next.searchParams.set(key, text);
@@ -230,6 +235,10 @@
       query.set("page", String(candidatePage));
       query.set("page_size", String(candidatePageSize));
       query.set("quality", $("qualityFilter").value || "all");
+      if (abnormalPoolPage > 1) query.set("abnormal_pool_page", String(abnormalPoolPage));
+      else query.delete("abnormal_pool_page");
+      if (abnormalTokenPage > 1) query.set("abnormal_token_page", String(abnormalTokenPage));
+      else query.delete("abnormal_token_page");
       return query;
     }
 
@@ -407,7 +416,22 @@
       </table></div>`;
     }
 
-    function renderSection(label, tokens, pools) {
+    function sectionPaginationButtons(pagination, target) {
+      if (!pagination || !pagination.page_count || pagination.page_count <= 1) return "";
+      const prevDisabled = pagination.has_previous === false || !pagination.has_previous ? "disabled" : "";
+      const nextDisabled = pagination.has_next === false || !pagination.has_next ? "disabled" : "";
+      return `
+        <div class="pager section-pager">
+          <button type="button" data-pager-target="${esc(target)}" data-pager-delta="-1" ${prevDisabled}>上一页</button>
+          <span class="page-status">${esc(pagination.display_start || 0)}-${esc(pagination.display_end || 0)} / ${esc(pagination.total_count || 0)}</span>
+          <button type="button" data-pager-target="${esc(target)}" data-pager-delta="1" ${nextDisabled}>下一页</button>
+        </div>
+      `.trim();
+    }
+
+    function renderSection(label, tokens, pools, pagination) {
+      const tokenChips = renderTokenChips(tokens);
+      const poolTable = renderPoolTable(pools);
       return `
         <div class="section">
           <div class="section-head">
@@ -415,9 +439,10 @@
               <h3>${label}</h3>
               <div class="group-meta">${esc(label)} 方向代币 ${esc(tokens.length || 0)} 个，候选池 ${esc(pools.length || 0)} 个</div>
             </div>
-            <div class="chip-row">${renderTokenChips(tokens)}</div>
+            <div class="chip-row">${tokenChips}</div>
           </div>
-          ${renderPoolTable(pools)}
+          ${poolTable}
+          ${pagination ? sectionPaginationButtons(pagination, null, null, label) : ""}
         </div>
       `;
     }
@@ -445,6 +470,29 @@
       return renderSection("ZC/YC 双向候选", tokens, pools);
     }
 
+    function renderAbnormalSection(group) {
+      const tokens = group.abnormalTokens || [];
+      const pools = group.abnormalPools || [];
+      const poolPagination = group.abnormalPoolPagination || null;
+      const tokenPagination = group.abnormalTokenPagination || null;
+      if (!poolPagination?.total_count && !tokenPagination?.total_count) return "";
+      const tokenChips = renderTokenChips(tokens);
+      return `
+        <div class="section">
+          <div class="section-head">
+            <div>
+              <h3>YC'' / ZC'' 非正常候选</h3>
+              <div class="group-meta">YC'' / ZC'' 非正常候选 方向代币共 ${esc(tokenPagination?.total_count ?? (tokens.length || 0))} 个，当前页 ${esc(tokens.length || 0)} 个；候选池共 ${esc(poolPagination?.total_count ?? (pools.length || 0))} 个，当前页 ${esc(pools.length || 0)} 个</div>
+            </div>
+            <div class="chip-row">${tokenChips}</div>
+          </div>
+          ${tokenPagination ? sectionPaginationButtons(tokenPagination, "abnormal_token_page") : ""}
+          ${renderPoolTable(pools)}
+          ${poolPagination ? sectionPaginationButtons(poolPagination, "abnormal_pool_page") : ""}
+        </div>
+      `;
+    }
+
     function groupMatches(group, query) {
       if (!query) return true;
       const parts = [
@@ -456,6 +504,8 @@
         ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
         ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
         ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...(group.abnormalTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...(group.abnormalPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
       ].join(" ").toLowerCase();
       return parts.includes(query);
     }
@@ -481,7 +531,7 @@
       const unfiltered = Number(pagination.unfiltered_count || total);
       const range = total ? `${pagination.display_start || 1}-${pagination.display_end || total}` : "0";
       const suffix = unfiltered !== total ? `，筛选前 ${unfiltered}` : "";
-      $("pageStatus").textContent = `第 ${candidatePage} / ${pagination.page_count || 1} 页，显示 ${range} / ${total} 个 X 分组${suffix}`;
+      $("pageStatus").textContent = `第 ${candidatePage} / ${pagination.page_count || 1} 页，每个资金池显示 ${range} / ${total} 条候选池${suffix}`;
       replaceUrlParams({
         page: candidatePage,
         page_size: candidatePageSize,
@@ -498,11 +548,12 @@
       }
       $("groupList").innerHTML = groups.map(group => {
         const sameSet = Boolean(group.ycZcSameSet || group.candidateSetMode === "bidirectional_same_pool_key_set");
-        if (($("qualityFilter").value || "all") === "with_liquidity" && !groupHasLiquidity(group)) return "";
+        const abnormalSection = renderAbnormalSection(group);
+        if (($("qualityFilter").value || "all") === "with_liquidity" && !groupHasLiquidity(group) && !group.poolPagination) return "";
         const sections = sameSet
           ? renderBidirectionalSection(group)
           : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
-        if (($("qualityFilter").value || "all") === "with_liquidity" && !sections.trim()) return "";
+        if (($("qualityFilter").value || "all") === "with_liquidity" && !sections.trim() && !abnormalSection.trim() && !group.poolPagination) return "";
         return `
         <article class="group">
           <div class="group-head">
@@ -514,13 +565,15 @@
                   ? `<span class="badge neutral">ZC/YC 代币 ${esc(group.zcTokenCount || group.ycTokenCount || 0)} / 池 ${esc(group.zcPoolCount || group.ycPoolCount || 0)}</span>`
                   : `<span class="badge neutral">YC 代币 ${esc(group.ycTokenCount || 0)} / 池 ${esc(group.ycPoolCount || 0)}</span><span class="badge neutral">ZC 代币 ${esc(group.zcTokenCount || 0)} / 池 ${esc(group.zcPoolCount || 0)}</span>`}
                 <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
+                ${group.poolPagination ? `<span class="badge neutral" title="本组候选池按每页 ${esc(group.poolPagination.page_size || 20)} 条分页">本组 ${esc(group.poolPagination.display_start || 0)}-${esc(group.poolPagination.display_end || 0)} / ${esc(group.poolPagination.total_count || 0)} 池</span>` : ""}
                 <span class="badge good" title="一个代币可同时被选为第一跳与第三跳推荐池，因此按推荐位统计；均优先固定费率、有深度、无 Hook">推荐 ${esc(groupRecommendedHopCount(group))} 个推荐位</span>
               </div>
               <div class="group-meta">锚点地址：${(group.anchorAddresses || []).map(addr => `<code>${esc(addr)}</code>`).join(" · ") || "-"}</div>
             </div>
             <div class="group-meta">页面只展示候选方向，不做最终盈亏裁决。</div>
           </div>
-          ${sections}
+          ${sections || '<div class="empty">本页暂无候选池</div>'}
+          ${abnormalSection}
         </article>
       `;
       }).join("");
@@ -554,7 +607,7 @@
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
       const cacheTime = payload.candidatePoolCache?.refreshedAt || source.generatedAt;
       $("refreshMeta").textContent = cacheTime ? `缓存时间 ${fmtTime(cacheTime)}` : `最后更新 ${fmtTime(new Date().toISOString())}`;
-      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向，方向有区别时仍分开展示。`;
+      $("scopeNotice").textContent = `本页按资金池锚点分组展示候选池，每个资金池下的候选池列表默认每页 20 条。V4 中 YC 与 ZC 是同一组池子，页面合并展示为 ZC/YC；YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向，方向有区别时仍分开展示。`;
       renderPager(payload);
       renderGroups(payload);
     }
@@ -629,6 +682,24 @@
       replaceUrlParams({ page: candidatePage, page_size: candidatePageSize, quality: $("qualityFilter").value || "all" });
       load();
     };
+    $("groupList").addEventListener("click", event => {
+      const button = event.target.closest("[data-pager-target]");
+      if (!button) return;
+      const target = String(button.dataset.pagerTarget || "");
+      const delta = Number(button.dataset.pagerDelta || 0);
+      if (!target || !delta) return;
+      if (target === "abnormal_pool_page") {
+        const next = abnormalPoolPage + delta;
+        abnormalPoolPage = Math.max(1, next);
+      } else if (target === "abnormal_token_page") {
+        const next = abnormalTokenPage + delta;
+        abnormalTokenPage = Math.max(1, next);
+      } else {
+        return;
+      }
+      replaceUrlParams({ [target]: target === "abnormal_pool_page" ? abnormalPoolPage : abnormalTokenPage });
+      load();
+    });
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") load();
     });

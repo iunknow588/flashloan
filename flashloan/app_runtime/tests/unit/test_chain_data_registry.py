@@ -125,7 +125,6 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
     assert data_independence["data_file_keys"] == [
         "chain_test",
         "lending_liquidity",
-        "market_observation",
         "normal_testnet_probe",
         "predeploy_readiness",
         "v4_pool_index",
@@ -135,7 +134,6 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
     assert data_independence["flow_data_file_keys"] == [
         "chain_test",
         "lending_liquidity",
-        "market_observation",
         "predeploy_readiness",
         "v4_pool_index",
         "v4_pool_liquidity",

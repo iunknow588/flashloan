@@ -2,7 +2,7 @@
 
 All new initialisation/refresh tooling should use ``absolute_database_path`` so
 relative values can never accidentally land in a nested runtime directory.
-The function deliberately returns an absolute :class:`pathlib.Path`; the old
+Relative paths are resolved against the current working directory; the old
 ``core.local_kv.store_path`` remains for legacy callers.
 """
 
@@ -22,15 +22,11 @@ def default_database_path() -> Path:
 def absolute_database_path(database_url: str | os.PathLike[str] | None = None) -> Path:
     if database_url:
         resolved = Path(database_url).expanduser()
-        if resolved.is_absolute():
-            return resolved
-        return default_database_path().parent / resolved
+        return resolved.resolve()
     env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
     if env_path:
         resolved = Path(env_path).expanduser()
-        if resolved.is_absolute():
-            return resolved
-        return default_database_path().parent / resolved
+        return resolved.resolve()
     return default_database_path()
 
 

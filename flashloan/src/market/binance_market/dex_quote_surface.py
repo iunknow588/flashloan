@@ -27,14 +27,45 @@ def build_quote_routes_payload_from_overview(
     price_map: dict[str, float] | None = None,
     anchor: str | None = None,
     route_live_test_policy: QuoteLiveTestPolicy | None = None,
+    route_limit: int | None = None,
+    best_per_anchor_direction: bool = False,
 ) -> dict[str, Any]:
     paths = [path for path in overview.get("arbitragePaths") or [] if isinstance(path, dict)]
     summary = dict(overview.get("summary") or {})
     market_observation = overview.get("marketObservation") if isinstance(overview.get("marketObservation"), dict) else {}
     settlement = overview.get("dexSettlement") if isinstance(overview.get("dexSettlement"), dict) else {}
     pool_static_table = overview.get("poolStaticTable") if isinstance(overview.get("poolStaticTable"), dict) else {}
-    route_policy = route_live_test_policy or QuoteLiveTestPolicy(anchor=anchor)
+    route_policy = route_live_test_policy or QuoteLiveTestPolicy(
+        anchor=anchor,
+        probe_best_only=True,
+    )
     unfiltered_route_count = len(paths)
+    if route_limit is not None:
+        # DEX overview only needs one representative closed loop for live
+        # quote testing. The full set is still reported as unfiltered count
+        # so the page can show that a best-only review was performed.
+        paths = paths[: max(0, int(route_limit))]
+    elif best_per_anchor_direction:
+        selected: list[dict[str, Any]] = []
+        seen_directions: set[tuple[str, tuple[str, ...]]] = set()
+        for path in paths:
+            route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+            symbols = [
+                str(symbol or "").strip().upper()
+                for symbol in path.get("routeSymbols") or route.get("pathSymbols") or []
+                if str(symbol or "").strip()
+            ]
+            anchor_symbol = str(
+                route.get("anchorBorrowSymbol")
+                or (symbols[0] if symbols else "")
+            ).strip().upper()
+            middle_direction = tuple(symbols[1:-1]) if len(symbols) >= 4 else tuple(symbols)
+            key = (anchor_symbol, middle_direction)
+            if key in seen_directions:
+                continue
+            seen_directions.add(key)
+            selected.append(path)
+        paths = selected
     routes: list[dict[str, Any]] = []
     v4_index_by_pool = _v4_pool_index_by_id(chain_id)
     observed_net_profits: list[float] = []
@@ -121,9 +152,25 @@ def build_quote_routes_payload_from_overview(
                 for request in (route.get("quoteInputs") or {}).get("quoteRequests") or []
                 if request.get("venue") == "uniswapx"
             ),
+            "uniswapxFallbackRouteCount": sum(
+                1
+                for route in routes
+                if (route.get("uniswapxFallback") or {}).get("status") == "selected"
+            ),
+            "uniswapxFallbackFailureCount": sum(
+                1
+                for route in routes
+                if (route.get("uniswapxFallback") or {}).get("status") == "failed"
+            ),
+            "uniswapxFallbackQuoteRequiredCount": sum(
+                1
+                for route in routes
+                if (route.get("quoteAnalysis") or {}).get("uniswapxQuoteRequired")
+            ),
             "unfilteredRouteCount": unfiltered_route_count,
             "anchorFilter": route_policy.anchor or None,
             "liveRouteLimit": route_policy.live_route_limit,
+            "probeBestOnly": route_policy.probe_best_only,
             "chainReviewEligiblePathCount": sum(1 for route in routes if route.get("chainReviewEligible")),
             "diagnosticOnlyPathCount": sum(1 for route in routes if route.get("diagnosticOnly")),
             "hopCandidateRouteCount": sum(1 for route in routes if (route.get("hopCandidates") or [])),

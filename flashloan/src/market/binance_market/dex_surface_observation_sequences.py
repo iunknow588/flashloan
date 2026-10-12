@@ -183,6 +183,7 @@ def _route_step_row(
         "dynamicFee": pool.get("dynamicFee", _dynamic_fee),
         "specialFee": pool.get("specialFee", _special_fee),
         "feeLabel": pool.get("feeLabel") or ("dynamic" if _dynamic_fee else "special" if _special_fee else pool.get("fee")),
+        "observationUsable": pool.get("observationUsable"),
         "usableForObservation": pool.get("usableForObservation"),
         "quality": pool.get("quality"),
         "classification": pool.get("classification") or {},

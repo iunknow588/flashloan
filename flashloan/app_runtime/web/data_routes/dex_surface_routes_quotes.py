@@ -300,7 +300,7 @@ def register_dex_quote_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
-        overview = _root.load_market_observation_overview_static(
+        overview = _root.load_observation_overview_for_scope(
             chain_id=selected_chain_id,
             protocols=protocols,
         )
@@ -699,7 +699,7 @@ def register_dex_quote_routes(app) -> None:
         payload.setdefault("routes", [])
         payload.setdefault("mode", "dex_quote_routes")
         if isinstance(payload.get("routes"), list):
-            overview = _root.load_market_observation_overview_static(
+            overview = _root.load_observation_overview_for_scope(
                 chain_id=selected_chain_id,
                 protocols=protocols,
             )
@@ -731,7 +731,7 @@ def register_dex_quote_routes(app) -> None:
             if isinstance(summary, dict) and "routeCount" in summary:
                 summary["routeCount"] = len(filtered_routes)
         try:
-            overview = _root.load_market_observation_overview_static(
+            overview = _root.load_observation_overview_for_scope(
                 chain_id=selected_chain_id,
                 protocols=protocols,
             )

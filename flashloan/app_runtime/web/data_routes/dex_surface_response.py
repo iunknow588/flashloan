@@ -145,9 +145,26 @@ def _legacy_paginate_candidate_payload(payload: dict, *, page: int, page_size: i
     return paged_payload
 
 
-def paginate_candidate_payload(payload: dict, *, page: int, page_size: int, query: str, quality: str) -> dict:
+def paginate_candidate_payload(
+    payload: dict,
+    *,
+    page: int,
+    page_size: int,
+    query: str,
+    quality: str,
+    abnormal_pool_page: int | None = None,
+    abnormal_token_page: int | None = None,
+) -> dict:
     """Compatibility wrapper around the core-owned candidate paginator."""
-    return compact_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)
+    return compact_candidate_payload(
+        payload,
+        page=page,
+        page_size=page_size,
+        query=query,
+        quality=quality,
+        abnormal_pool_page=abnormal_pool_page,
+        abnormal_token_page=abnormal_token_page,
+    )
 
 
 def candidate_pagination_args() -> tuple[int, int, str, str]:
@@ -163,6 +180,22 @@ def candidate_pagination_args() -> tuple[int, int, str, str]:
     if quality not in {"all", "with_data", "empty", "with_liquidity"}:
         quality = "all"
     return page, page_size, query, quality
+
+
+def section_pagination_args() -> tuple[int, int]:
+    abnormal_pool_page = shared.request_int_arg(
+        "abnormal_pool_page",
+        1,
+        minimum=1,
+        maximum=MAX_CANDIDATE_PAGE_SIZE,
+    )
+    abnormal_token_page = shared.request_int_arg(
+        "abnormal_token_page",
+        1,
+        minimum=1,
+        maximum=MAX_CANDIDATE_PAGE_SIZE,
+    )
+    return abnormal_pool_page, abnormal_token_page
 
 
 def request_protocols_arg() -> list[str]:
@@ -316,6 +349,7 @@ __all__ = [
     "request_dex_protocols_arg",
     "request_dex_strategy_arg",
     "request_protocols_arg",
+    "section_pagination_args",
     "selected_chain_id_from_request",
     "submission_networks_from_request",
 ]

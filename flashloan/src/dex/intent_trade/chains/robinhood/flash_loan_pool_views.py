@@ -74,20 +74,12 @@ def _robinhood_v4_pool_index_path() -> Path:
 
 
 def _robinhood_v4_static_candidate_loader() -> dict[str, Any]:
-    """Return the compact static candidate cache as the V4 view's pool source.
+    """Return the on-chain V4 pool index as the flash-loan view's pool source.
 
-    Candidate pools are the static handoff for this chain. The full V4 pool
-    index is discovery evidence, not the borrow-asset surface; reading it on
-    every page request recreates the multi-thousand-row pool tables. Explicit
-    index loaders (tests, refresh jobs) still take precedence.
+    The full V4 pool index is the canonical chain evidence input. Candidate
+    JSON caches are no longer consumed by this surface; SQLite is the single
+    business data store and the index JSON is only the evidence import source.
     """
-    from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
-        DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH,
-    )
-
-    payload = read_json(DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH)
-    if payload and (payload.get("pools") or []):
-        return payload
     return read_json(_robinhood_v4_pool_index_path()) or {}
 
 

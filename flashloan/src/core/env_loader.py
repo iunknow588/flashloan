@@ -9,7 +9,7 @@ SENSITIVE_ENV_MARKERS = (
     "JWT",
 )
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
-    path = Path(start_path).resolve()
+    path = Path(os.path.abspath(start_path))
     directory = path.parent if path.is_file() else path
     paths: list[Path] = []
 
@@ -25,7 +25,7 @@ def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
 
 
 def find_repo_root(start_path: str | os.PathLike[str]) -> Path | None:
-    path = Path(start_path).resolve()
+    path = Path(os.path.abspath(start_path))
     directory = path.parent if path.is_file() else path
     for current in [directory, *directory.parents]:
         if (current / "contract").is_dir() and (current / "flashloan").is_dir():

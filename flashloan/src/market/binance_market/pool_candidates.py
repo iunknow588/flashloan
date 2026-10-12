@@ -59,6 +59,7 @@ from market.binance_market.pool_candidate_normalization import (
 )
 
 from market.binance_market.candidate_pool_cache import candidate_pool_cache_paths, load_candidate_pool_snapshot, refresh_candidate_pool_cache
+from market.binance_market.dex_surface_cache import _cache_surface_payload, _cached_surface_payload, _clear_dex_surface_cache
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
@@ -319,9 +320,6 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
     balances = row.get("balances") if isinstance(row.get("balances"), dict) else {}
     tvl = _string_number(balances.get("tvlUsd") if balances else row.get("tvlUsd"))
     status = str(row.get("status") or "").strip().lower()
-    quality = str(row.get("quality") or "").strip().lower()
-    if not quality:
-        quality = "pass" if status in {"observable", "recommended", "active"} else status or "observed"
     raw_fee_text = str(row.get("fee") or "").strip()
     try:
         raw_fee_int = int(raw_fee_text) if raw_fee_text else 0
@@ -329,6 +327,15 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         raw_fee_int = 0
     dynamic_fee = bool(raw_fee_int & 8388608)
     special_fee = dynamic_fee or raw_fee_int > 100_000
+    hooks = str(row.get("hooks") or "").strip().lower()
+    quality = str(row.get("quality") or "").strip().lower()
+    if not quality:
+        if status in {"observable", "recommended", "active"}:
+            quality = "pass"
+        elif not special_fee and 0 < raw_fee_int <= 3000 and hooks in ("", "0x0000000000000000000000000000000000000000"):
+            quality = "pass"
+        else:
+            quality = status or "rejected"
     liquidity_index = _string_number(row.get("liquidityIndex") or row.get("liquidity") or 0)
     result = {
         "pool": _pool_address(row),
@@ -338,7 +345,11 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         "dynamicFee": dynamic_fee,
         "specialFee": special_fee,
         "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else raw_fee_text,
-        "usableForObservation": (not special_fee) and (bool(row.get("hasLiquidity")) or (liquidity_index is not None and liquidity_index > 0)),
+        "usableForObservation": (
+            not special_fee
+            and 0 < raw_fee_int <= 3000
+            and hooks in ("", "0x0000000000000000000000000000000000000000")
+        ),
         "quality": quality,
         "rejectReasons": row.get("rejectReasons") or row.get("reject_reasons") or [],
         "token0": row.get("token0") or row.get("baseToken"),
@@ -752,11 +763,41 @@ def dex_pool_candidates_payload(
                 ):
                     from core.db.page_payloads import build_candidate_payload as _build_db_candidate_payload
 
+                    # Candidate data is a static business snapshot.  Keep the
+                    # DB-shaped page payload in the process-wide surface cache
+                    # so every page view can reuse the Rust/SQLite result.
+                    # ``refresh`` and ``force_full`` are the explicit manual
+                    # refresh paths and are the only normal invalidation point.
+                    if not refresh and not force_full:
+                        cached = _cached_surface_payload(
+                            "dex_pool_candidates",
+                            chain_id=int(chain_id),
+                            protocols=protocols,
+                            use_static_observation=False,
+                        )
+                        if cached is not None:
+                            filtered = _filter_payload_protocols(cached, protocol_filter)
+                            return _attach_execution_context(filtered, int(chain_id))
+                    _clear_dex_surface_cache(
+                        surface="dex_pool_candidates",
+                        chain_id=int(chain_id),
+                        protocols=protocols,
+                        use_static_observation=False,
+                    )
+
                     db_payload = _build_db_candidate_payload(
                         chain_id=int(chain_id),
                         protocols=protocols,
                     )
                     filtered = _filter_payload_protocols(db_payload, protocol_filter)
+                    _cache_surface_payload(
+                        "dex_pool_candidates",
+                        filtered,
+                        chain_id=int(chain_id),
+                        protocols=protocols,
+                        use_static_observation=False,
+                        ttl_seconds=0,
+                    )
                     return _attach_execution_context(filtered, int(chain_id))
                 try:
                     payload = dispatch_chain_flow(
@@ -764,7 +805,10 @@ def dex_pool_candidates_payload(
                         flow_name="dex_pool_candidates",
                         protocol="",
                     )
-                    if _payload_has_candidate_data(payload):
+                    if (
+                        network not in {"robinhood", "robinhood-testnet"}
+                        and _payload_has_candidate_data(payload)
+                    ):
                         refresh_candidate_pool_cache(
                             payload,
                             network=network,

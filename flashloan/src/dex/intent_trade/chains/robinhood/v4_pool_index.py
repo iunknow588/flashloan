@@ -33,6 +33,7 @@ from dex.intent_trade.chains.robinhood.v4_quote_adapter import (
     _connect_chain_rpc,
     _read_live_pool_state_with_w3,
 )
+from dex.intent_trade.chains.robinhood.config import rpc_urls_from_env
 
 
 getcontext().prec = 80
@@ -619,24 +620,26 @@ def _iter_observation_pool_rows(payload: dict[str, Any]) -> list[dict[str, Any]]
 
 
 def _observation_pool_rows() -> list[dict[str, Any]]:
-    candidates: list[Path] = []
-    # v4_pool_index.py lives under src/dex/intent_trade/chains/robinhood;
-    # runtime evidence is rooted at src/runtime.
-    base = Path(__file__).resolve().parents[4] / "runtime" / "market_observation" / NETWORK / str(CHAIN_ID)
-    for rel in ("uniswap_v4", "all", "uniswap_v2+uniswap_v3+uniswap_v4"):
-        path = base / rel / "observation.json"
-        if path.exists():
-            candidates.append(path)
-    merged: dict[str, dict[str, Any]] = {}
-    for path in candidates:
-        for row in _iter_observation_pool_rows(_read_json(path)):
-            protocol = str(row.get("protocol") or row.get("dex") or "").strip().lower()
-            if protocol and protocol != "uniswap_v4":
-                continue
-            key = str(row.get("pool") or row.get("poolId") or "").lower()
-            if key:
-                merged[key] = {**row, "pool": key}
-    return list(merged.values())
+    """Return observed V4 pool ids from SQLite, not from legacy JSON shards."""
+    from core.db.database_path import absolute_database_path
+    from core.db.storage_business_io import query
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for table in (
+        "market_observation_intermediate_pools",
+        "market_observation_abnormal_intermediate_pools",
+    ):
+        for row in query(
+            str(absolute_database_path()),
+            f"SELECT pool_id FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?",
+            (NETWORK, CHAIN_ID, "uniswap_v4"),
+        ):
+            pool_id = str(row.get("pool_id") or "").strip().lower()
+            if pool_id.startswith("0x") and pool_id not in seen:
+                seen.add(pool_id)
+                rows.append({"pool": pool_id})
+    return rows
 
 
 def _decode_initialize_log(w3: Web3, *, pool_manager: str, pool_id: str, to_block: int) -> dict[str, Any] | None:
@@ -832,6 +835,9 @@ def write_v4_pool_index_from_observation_pool_ids(output_path: Path | None = Non
 def build_v4_pool_index_from_initialize_logs(
     *,
     rpc_url: str | None = None,
+    rpc_urls: tuple[str, ...] | list[str] | None = None,
+    hyperrpc_url: str = "",
+    prefer_hyperrpc: bool = False,
     pool_manager: str | None = None,
     from_block: int = 0,
     to_block: int | None = None,
@@ -846,13 +852,22 @@ def build_v4_pool_index_from_initialize_logs(
     row = _chain_row()
     resolved_rpc_url = rpc_url or str(row.get("rpc_url") or "").strip()
     if not resolved_rpc_url:
+        rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+        resolved_rpc_url = str(rpc_block.get("primary") or "").strip()
+    if not resolved_rpc_url:
         raise ValueError("Robinhood mainnet RPC URL is not configured")
     resolved_pool_manager = Web3.to_checksum_address(pool_manager or _contract_address("v4_pool_manager"))
+    resolved_rpc_urls = list(rpc_urls) if rpc_urls else list(rpc_urls_from_env())
+    if resolved_rpc_url and resolved_rpc_url not in resolved_rpc_urls:
+        resolved_rpc_urls.insert(0, resolved_rpc_url)
     return _build_core(
         network=NETWORK,
         chain_id=CHAIN_ID,
         pool_manager=resolved_pool_manager,
         rpc_url=resolved_rpc_url,
+        rpc_urls=resolved_rpc_urls,
+        hyperrpc_url=hyperrpc_url or os.getenv("ROBINHOOD_HYPERRPC_URL", os.getenv("ROBINHOOD_HyperRPC_URL", "")),
+        prefer_hyperrpc=bool(prefer_hyperrpc),
         schema_version="robinhood-v4-pool-index-v1",
         include_currency_metadata=False,
         from_block=from_block,
@@ -872,8 +887,15 @@ def write_v4_pool_index_from_initialize_logs(output_path: Path | None = None, **
     row = _chain_row()
     resolved_rpc_url = kwargs.pop("rpc_url", None) or str(row.get("rpc_url") or "").strip()
     if not resolved_rpc_url:
+        rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+        resolved_rpc_url = str(rpc_block.get("primary") or "").strip()
+    if not resolved_rpc_url:
         raise ValueError("Robinhood mainnet RPC URL is not configured")
     resolved_pool_manager = Web3.to_checksum_address(kwargs.pop("pool_manager", None) or _contract_address("v4_pool_manager"))
+    resolved_rpc_urls = list(kwargs.pop("rpc_urls", None) or ()) or list(rpc_urls_from_env())
+    if resolved_rpc_url and resolved_rpc_url not in resolved_rpc_urls:
+        resolved_rpc_urls.insert(0, resolved_rpc_url)
+    prefer_hyperrpc = bool(kwargs.pop("prefer_hyperrpc", False))
     return _write_core(
         output_path=output_path,
         default_output_path=default_v4_pool_index_path(),
@@ -881,6 +903,10 @@ def write_v4_pool_index_from_initialize_logs(output_path: Path | None = None, **
         chain_id=CHAIN_ID,
         pool_manager=resolved_pool_manager,
         rpc_url=resolved_rpc_url,
+        rpc_urls=resolved_rpc_urls,
+        hyperrpc_url=kwargs.pop("hyperrpc_url", None)
+        or os.getenv("ROBINHOOD_HYPERRPC_URL", os.getenv("ROBINHOOD_HyperRPC_URL", "")),
+        prefer_hyperrpc=prefer_hyperrpc,
         schema_version="robinhood-v4-pool-index-v1",
         include_currency_metadata=False,
         rpc_user_agent="flashloan-robinhood-mainnet-v4/1.0",

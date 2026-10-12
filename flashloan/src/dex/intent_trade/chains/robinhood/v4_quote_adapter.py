@@ -238,7 +238,7 @@ def _read_live_pool_state_with_w3(
     # block and return "historical state ... is not available".
     call_kwargs: dict[str, Any] = {"block_identifier": "latest"}
     slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
-    liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+    liquidity_slot = (int.from_bytes(state_slot, "big") + 2).to_bytes(32, "big")
     liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
     slot0_value = int.from_bytes(bytes(slot0_raw), "big")
     sqrt_price_x96 = slot0_value & ((1 << 160) - 1)

@@ -350,9 +350,14 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
         if full:
             try:
                 if chain_id == ROBINHOOD_CHAIN_ID:
-                    from dex.intent_trade.chains.robinhood.v4_pool_index import write_v4_pool_index_from_observation_pool_ids as write_mainnet_v4_index
+                    from dex.intent_trade.chains.robinhood.v4_pool_index import write_v4_pool_index_from_initialize_logs as write_mainnet_v4_index
 
-                    result = write_mainnet_v4_index()
+                    result = write_mainnet_v4_index(
+                        from_block=0,
+                        to_block=None,
+                        include_metadata=True,
+                        mark_recent_swaps=True,
+                    )
                     source = "robinhood_mainnet_v4_pool_index"
                 else:
                     from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs

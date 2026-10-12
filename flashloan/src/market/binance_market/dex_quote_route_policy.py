@@ -41,6 +41,7 @@ class QuoteLiveTestPolicy:
         live_route_limit: int | None = None,
         force_live_refresh: bool | None = None,
         probe_all_testnet_routes: bool | None = None,
+        probe_best_only: bool | None = None,
     ) -> None:
         explicit_anchor = str(anchor or "").strip().upper() if anchor else ""
         env_anchor = str(os.getenv("DEX_QUOTE_ROUTE_ANCHOR_FILTER", "")).strip().upper()
@@ -65,6 +66,11 @@ class QuoteLiveTestPolicy:
             bool(probe_all_testnet_routes)
             if probe_all_testnet_routes is not None
             else _env_bool("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES")
+        )
+        self.probe_best_only = (
+            bool(probe_best_only)
+            if probe_best_only is not None
+            else _env_bool("DEX_QUOTE_ROUTE_PROBE_BEST_ONLY")
         )
 
     def matches_anchor(self, path: dict[str, Any]) -> bool:

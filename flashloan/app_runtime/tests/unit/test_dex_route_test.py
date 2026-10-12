@@ -881,6 +881,108 @@ def test_route_quote_analysis_uses_route_addresses_without_token_path():
     assert analysis["routeAddresses"] == addresses
 
 
+def _uniswapx_fallback_route(*, quote_result: dict | None = None) -> dict:
+    addresses = [
+        "0x00000000000000000000000000000000000000a1",
+        "0x00000000000000000000000000000000000000b1",
+        "0x00000000000000000000000000000000000000c1",
+        "0x00000000000000000000000000000000000000a1",
+    ]
+    route_tokens = [
+        {"symbol": "A", "address": addresses[0], "decimals": 18},
+        {"symbol": "B", "address": addresses[1], "decimals": 18},
+        {"symbol": "C", "address": addresses[2], "decimals": 18},
+        {"symbol": "A", "address": addresses[3], "decimals": 18},
+    ]
+
+    def pool(pool_id: str, token0: str, token1: str, address0: str, address1: str) -> dict:
+        return {
+            "pool": pool_id,
+            "protocol": "uniswap_v2",
+            "fee": "30",
+            "token0Symbol": token0,
+            "token1Symbol": token1,
+            "token0": address0,
+            "token1": address1,
+            "balances": {"tvlUsd": 1000.0, "token0": 100.0, "token1": 100.0},
+            "hasLiquidity": True,
+            "usableForObservation": True,
+            "quoteSummary": {"outputAmount": 1.0},
+        }
+
+    fallback = {
+        "status": "selected",
+        "middleHop": {
+            "middleLeg": "y-z",
+            "fromSymbol": "B",
+            "toSymbol": "C",
+            "fromAddress": addresses[1],
+            "toAddress": addresses[2],
+        },
+        "quoteParameters": {
+            "targetProfitBps": 100,
+            "sellToken": "B",
+            "buyToken": "C",
+            "sellAmount": 1.0,
+            "minBuyAmount": 1.02,
+            "limitPrice": 1.02,
+        },
+    }
+    if quote_result is not None:
+        fallback["quoteResult"] = quote_result
+    return {
+        "routeSymbols": ["A", "B", "C", "A"],
+        "routeAddresses": addresses,
+        "routeTokenPath": route_tokens,
+        "routePools": [
+            pool("x_y", "A", "B", addresses[0], addresses[1]),
+            pool("y_z", "B", "C", addresses[1], addresses[2]),
+            pool("z_x", "C", "A", addresses[2], addresses[3]),
+        ],
+        "uniswapxFallback": fallback,
+    }
+
+
+def test_route_quote_analysis_requires_uniswapx_middle_hop_quote_without_result():
+    from market.binance_market.dex_surface_route_quotes import _route_quote_analysis
+
+    analysis = _route_quote_analysis(
+        _uniswapx_fallback_route(),
+        price_map={},
+        chain_id=None,
+        token_basis_input_amount=1.0,
+    )
+
+    assert analysis["uniswapxQuoteRequired"] is True
+    assert analysis["uniswapxQuoteResultApplied"] is False
+    assert analysis["requiresLiveQuoter"] is True
+    assert analysis["complete"] is False
+    middle = next(step for step in analysis["steps"] if step["hop"] == 2)
+    assert middle["status"] == "uniswapx_quote_required"
+    assert middle["venue"] == "uniswapx"
+    assert middle["outputAmount"] is None
+
+
+def test_route_quote_analysis_applies_uniswapx_middle_hop_quote_result():
+    from market.binance_market.dex_surface_route_quotes import _route_quote_analysis
+
+    analysis = _route_quote_analysis(
+        _uniswapx_fallback_route(quote_result={"outputAmount": 1.1, "outputUsd": 1.1}),
+        price_map={},
+        chain_id=46630,
+        token_basis_input_amount=1.0,
+    )
+
+    assert analysis["uniswapxQuoteRequired"] is False
+    assert analysis["uniswapxQuoteResultApplied"] is True
+    assert analysis["complete"] is True
+    middle = next(step for step in analysis["steps"] if step["hop"] == 2)
+    assert middle["venue"] == "uniswapx"
+    assert middle["status"] == "quoted"
+    assert middle["outputAmount"] == 1.1
+    assert analysis["referenceNetReturnBps"] is not None
+
+
 def test_quote_route_status_returns_missing_identity_before_live_quoter():
     from market.binance_market.dex_quote_route_common import quote_route_status
 

@@ -292,17 +292,23 @@ def _compact_observation_pair(pair: dict[str, Any]) -> dict[str, Any]:
     keep = (
         "symbolPair",
         "addressPair",
+        "anchorSymbol",
+        "anchorAddress",
         "token0",
         "token1",
         "poolCount",
+        "hasDirectSwapPool",
         "kind",
         "source",
         "observationReason",
+        "observationEmptyReason",
         "closedLoopReady",
         "associatedFundSymbols",
         "routeSemantics",
         "directSwapRequired",
         "directSwapPoolCount",
+        "hasNonNormalSwapPool",
+        "nonNormalSwapPoolCount",
         "closedLoopRoutePreviews",
     )
     compact = {key: pair[key] for key in keep if key in pair}
@@ -313,6 +319,13 @@ def _compact_observation_pair(pair: dict[str, Any]) -> dict[str, Any]:
     ]
     if direct_swap_pools:
         compact["directSwapPools"] = direct_swap_pools
+    non_normal_swap_pools = [
+        _compact_direct_swap_pool(pool)
+        for pool in pair.get("nonNormalSwapPools") or []
+        if isinstance(pool, dict)
+    ]
+    if non_normal_swap_pools:
+        compact["nonNormalSwapPools"] = non_normal_swap_pools
     return compact
 
 

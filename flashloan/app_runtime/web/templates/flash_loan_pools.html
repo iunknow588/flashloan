@@ -25,7 +25,9 @@
     .pool-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
     .pool-section-title h2 { margin: 0; }
     .section-count { color: #667085; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .pool-pagination { display: flex; justify-content: center; padding: 10px 0 2px; }
+    .pool-pagination { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 10px 0 2px; }
+    .pool-pagination button { min-height: 30px; padding: 0 10px; }
+    .pool-pagination .page-status { font-size: 12px; color: #475467; font-weight: 700; }
     .pool-pagination .hidden { display: none; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
     .chip, .badge { display: inline-flex; align-items: center; min-height: 20px; border-radius: 4px; padding: 0 6px; background: #eef4ff; color: #344054; font-size: 11px; font-weight: 700; }
@@ -90,7 +92,11 @@
               <thead id="stableTableHead"><tr><th>资产/交易对</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>可借/可换流动性</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr></thead>
               <tbody id="stableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
             </table>
-            <div class="pool-pagination"><button id="stableLoadMoreBtn" type="button" class="hidden">加载更多</button></div>
+            <div class="pool-pagination">
+              <button id="stablePrevPageBtn" type="button" class="hidden">上一页</button>
+              <span id="stablePageStatus" class="page-status">0-0 / 0</span>
+              <button id="stableNextPageBtn" type="button" class="hidden">下一页</button>
+            </div>
           </div>
         </section>
         <section class="card" id="nonStableSection">
@@ -105,7 +111,11 @@
               <thead id="nonStableTableHead"><tr><th>资产/交易对</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>可借/可换流动性</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr></thead>
               <tbody id="nonStableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
             </table>
-            <div class="pool-pagination"><button id="nonStableLoadMoreBtn" type="button" class="hidden">加载更多</button></div>
+            <div class="pool-pagination">
+              <button id="nonStablePrevPageBtn" type="button" class="hidden">上一页</button>
+              <span id="nonStablePageStatus" class="page-status">0-0 / 0</span>
+              <button id="nonStableNextPageBtn" type="button" class="hidden">下一页</button>
+            </div>
           </div>
         </section>
         <section class="card" id="targetSection">
@@ -155,10 +165,10 @@
       return `接口错误（${text}）`;
     };
     let refreshInFlight = false;
-    const tableChunkSize = 250;
+    const tablePageSize = 20;
     const tableState = {
-      stable: {rows: [], limit: 0},
-      nonStable: {rows: [], limit: 0}
+      stable: {rows: [], page: 0},
+      nonStable: {rows: [], page: 0}
     };
     const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
     const marketIdChainComponent = marketId => {
@@ -216,7 +226,7 @@
     function setPoolTableHeaders(testnetV4Mode) {
       const header = testnetV4Mode
         ? "<tr><th>币种</th><th>Binance 符号</th><th>可借贷</th><th>PoolManager 余额</th><th>余额 raw</th><th>关联 PoolKey</th><th>来源地址</th></tr>"
-        : "<tr><th>可借币种</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>关联 ETH 池数</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr>";
+        : "<tr><th>可借币种</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>关联池数</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr>";
       $("stableTableHead").innerHTML = header;
       $("nonStableTableHead").innerHTML = header;
     }
@@ -267,17 +277,24 @@
       </tr>`).join("") || '<tr><td colspan="3" class="muted">暂无映射；等待闪电贷可借资产目标缓存生成</td></tr>';
     }
     function renderPoolTable(id, rows, total) {
-      const visible = v4FlashSourceRows(rows.slice(0, tableState[id].limit));
+      const state = tableState[id];
+      const totalPages = Math.max(1, Math.ceil(total / tablePageSize));
+      state.page = Math.min(Math.max(0, state.page || 0), totalPages - 1);
+      const start = state.page * tablePageSize;
+      const visible = v4FlashSourceRows(rows.slice(start, start + tablePageSize));
       $(`${id}Rows`).innerHTML = visible || '<tr><td colspan="7" class="muted">暂无数据</td></tr>';
-      const button = $(`${id}LoadMoreBtn`);
-      button.classList.toggle("hidden", tableState[id].limit >= total);
-      button.textContent = `加载更多（已显示 ${Math.min(tableState[id].limit, total)} / ${total}）`;
+      const pageEnd = Math.min(start + tablePageSize, total);
+      const displayStart = total ? start + 1 : 0;
+      $(`${id}PageStatus`).textContent = total ? `${displayStart}-${pageEnd} / ${total}` : "0-0 / 0";
+      $(`${id}PrevPageBtn`).classList.toggle("hidden", state.page <= 0);
+      $(`${id}NextPageBtn`).classList.toggle("hidden", state.page >= totalPages - 1);
+      $(`${id}PrevPageBtn`).disabled = state.page <= 0;
+      $(`${id}NextPageBtn`).disabled = state.page >= totalPages - 1;
     }
     function resetPoolTableState(stableRows, nonStableRows, testnetV4Mode) {
-      tableState.stable = {rows: testnetV4Mode ? (stableRows || []) : (stableRows || []), limit: 0};
-      tableState.nonStable = {rows: testnetV4Mode ? (nonStableRows || []) : (nonStableRows || []), limit: 0};
+      tableState.stable = {rows: stableRows || [], page: 0};
+      tableState.nonStable = {rows: nonStableRows || [], page: 0};
       ["stable", "nonStable"].forEach(id => {
-        tableState[id].limit = Math.min(tableChunkSize, tableState[id].rows.length);
         renderPoolTable(id, tableState[id].rows, tableState[id].rows.length);
       });
     }
@@ -330,7 +347,7 @@
       $("stableMetricLabel").textContent = testnetV4Mode ? "稳定币可借来源" : (observableMode ? "稳定币待验证证据" : (flashSwapMode ? "稳定币可用 Flash Swap" : "稳定币可用借贷来源"));
       $("nonStableMetricLabel").textContent = testnetV4Mode ? "非稳定币可借来源" : (observableMode ? "非稳定币待验证证据" : (flashSwapMode ? "非稳定币可用 Flash Swap" : "非稳定币可用借贷来源"));
       $("borrowMetricLabel").textContent = testnetV4Mode ? "可借贷代币" : (observableMode ? "候选可借币种" : "闪电贷可借资产");
-      $("targetMetricLabel").textContent = testnetV4Mode ? "关联 PoolKey" : (observableMode ? "关联 ETH 池数" : (flashSourceMode ? "已验证来源" : "目标资产"));
+      $("targetMetricLabel").textContent = testnetV4Mode ? "关联 PoolKey" : (observableMode ? "关联池数" : (flashSourceMode ? "已验证来源" : "目标资产"));
       $("stableCount").textContent = testnetV4Mode ? (summary.stable_borrow_pool_count ?? summary.stable_flash_accounting_source_count ?? stableRows.length) : (observableMode ? (summary.stable_observable_pool_count ?? stableRows.length) : (summary.stable_borrow_pool_count ?? 0));
       $("nonStableCount").textContent = testnetV4Mode ? (summary.non_stable_borrow_pool_count ?? summary.non_stable_pool_key_count ?? nonStableRows.length) : (observableMode ? (summary.non_stable_observable_pool_count ?? nonStableRows.length) : (summary.non_stable_borrow_pool_count ?? 0));
       $("borrowCount").textContent = testnetV4Mode ? (summary.flash_accounting_asset_count ?? summary.flash_borrowable_asset_count ?? 0) : (observableMode ? (summary.observed_borrow_token_count ?? summary.borrow_asset_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_asset_count ?? 0));
@@ -389,10 +406,14 @@
       if (testnetV4Mode) {
         resetPoolTableState(stableRows, nonStableRows, true);
       } else {
-        tableState.stable = {rows: [], limit: 0};
-        tableState.nonStable = {rows: [], limit: 0};
-        $("stableLoadMoreBtn").classList.add("hidden");
-        $("nonStableLoadMoreBtn").classList.add("hidden");
+        tableState.stable = {rows: [], page: 0};
+        tableState.nonStable = {rows: [], page: 0};
+        $("stablePrevPageBtn").classList.add("hidden");
+        $("stableNextPageBtn").classList.add("hidden");
+        $("nonStablePrevPageBtn").classList.add("hidden");
+        $("nonStableNextPageBtn").classList.add("hidden");
+        $("stablePageStatus").textContent = "0-0 / 0";
+        $("nonStablePageStatus").textContent = "0-0 / 0";
         $("stableRows").innerHTML = assetRows(stableRows);
         $("nonStableRows").innerHTML = assetRows(nonStableRows);
       }
@@ -440,12 +461,20 @@
     $("refreshBtn").onclick = () => refresh().catch(error => { $("message").textContent = zhError(error.message); });
     $("incrementalRefreshBtn").onclick = () => refreshStaticPools(false).catch(error => { $("message").textContent = zhError(error.message); setRefreshBusy(false); });
     $("fullRefreshBtn").onclick = () => refreshStaticPools(true).catch(error => { $("message").textContent = zhError(error.message); setRefreshBusy(false); });
-    $("stableLoadMoreBtn").onclick = () => {
-      tableState.stable.limit += tableChunkSize;
+    $("stablePrevPageBtn").onclick = () => {
+      tableState.stable.page = Math.max(0, tableState.stable.page - 1);
       renderPoolTable("stable", tableState.stable.rows, tableState.stable.rows.length);
     };
-    $("nonStableLoadMoreBtn").onclick = () => {
-      tableState.nonStable.limit += tableChunkSize;
+    $("stableNextPageBtn").onclick = () => {
+      tableState.stable.page += 1;
+      renderPoolTable("stable", tableState.stable.rows, tableState.stable.rows.length);
+    };
+    $("nonStablePrevPageBtn").onclick = () => {
+      tableState.nonStable.page = Math.max(0, tableState.nonStable.page - 1);
+      renderPoolTable("nonStable", tableState.nonStable.rows, tableState.nonStable.rows.length);
+    };
+    $("nonStableNextPageBtn").onclick = () => {
+      tableState.nonStable.page += 1;
       renderPoolTable("nonStable", tableState.nonStable.rows, tableState.nonStable.rows.length);
     };
     window.addEventListener("chainselectionchanged", () => refresh().catch(error => { $("message").textContent = zhError(error.message); }));

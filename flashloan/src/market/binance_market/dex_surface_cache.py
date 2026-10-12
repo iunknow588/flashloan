@@ -40,6 +40,7 @@ def _cache_surface_payload(
     chain_id: int | None,
     protocols: list[str] | None,
     use_static_observation: bool = False,
+    ttl_seconds: float | None = None,
 ) -> None:
     key = _surface_cache_key(
         surface,
@@ -53,7 +54,9 @@ def _cache_surface_payload(
     # will read.
     snapshot = {
         "cached_at": time.time(),
-        "ttl_seconds": _surface_cache_ttl_seconds(),
+        # A zero TTL is intentionally supported for static page snapshots:
+        # they remain valid until an explicit refresh invalidates them.
+        "ttl_seconds": _surface_cache_ttl_seconds() if ttl_seconds is None else max(0.0, float(ttl_seconds)),
         "payload": deepcopy(payload),
     }
     with _DEX_SURFACE_CACHE_LOCK:

@@ -12,7 +12,8 @@ import json
 from pathlib import Path
 import sys
 import time
-from typing import Any
+from typing import Any, Iterable
+from urllib import request as urllib_request
 
 from eth_utils import event_signature_to_log_topic
 from web3 import Web3
@@ -25,6 +26,7 @@ V4_INITIALIZE_TOPIC = "0x" + event_signature_to_log_topic(
 V4_SWAP_TOPIC = "0x" + event_signature_to_log_topic(
     "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"
 ).hex()
+ADAPTIVE_SCAN_CHUNK_SIZES = (5_000_000, 2_000_000, 1_000_000, 500_000, 100_000, 50_000, 10_000, 1_000)
 ERC20_ABI = [
     {"inputs": [], "name": "decimals", "outputs": [{"type": "uint8"}], "stateMutability": "view", "type": "function"},
     {"inputs": [], "name": "symbol", "outputs": [{"type": "string"}], "stateMutability": "view", "type": "function"},
@@ -46,6 +48,269 @@ def _read_json(path: Path) -> dict[str, Any]:
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _redact_url(url: str) -> str:
+    text = str(url or "").strip()
+    if "?" in text:
+        return text.split("?", 1)[0] + "?<redacted>"
+    return text
+
+
+def _is_rpc_limit_error(message: str) -> bool:
+    lowered = str(message or "").lower()
+    if "too many requests" in lowered or "429" in lowered:
+        return False
+    markers = (
+        "limit",
+        "exceeds",
+        "too many",
+        "response size",
+        "query too",
+        "max results",
+        "range",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _is_rpc_permanent_error(message: str) -> bool:
+    lowered = str(message or "").lower()
+    markers = (
+        "http error 400",
+        "http error 401",
+        "http error 403",
+        "http error 404",
+        "http error 405",
+        "forbidden",
+        "bad request",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _is_rpc_retryable_error(message: str) -> bool:
+    lowered = str(message or "").lower()
+    markers = (
+        "timeout",
+        "timed out",
+        "busy",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "429",
+        "503",
+        "502",
+        "504",
+        "overloaded",
+        "quota",
+        "unavailable",
+        "internal error",
+        "upstream",
+        "connection",
+        "eof",
+        "http error",
+        "retry",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _normalized_provider_urls(
+    rpc_url: str,
+    rpc_urls: Iterable[str] | None = None,
+    hyperrpc_url: str = "",
+    prefer_hyperrpc: bool = True,
+) -> list[str]:
+    ordered: list[str] = []
+    extra_urls: tuple[str, ...] = (rpc_url, *(rpc_urls or ()))
+    if prefer_hyperrpc:
+        ordered_urls: Iterable[str] = (hyperrpc_url, *extra_urls)
+    else:
+        ordered_urls = (*extra_urls, hyperrpc_url)
+    for url in ordered_urls:
+        value = str(url or "").strip()
+        if value and value not in ordered:
+            ordered.append(value)
+    return ordered
+
+
+def _jsonrpc_call(
+    url: str,
+    method: str,
+    params: list[Any],
+    *,
+    timeout_seconds: float,
+    user_agent: str,
+) -> Any:
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": method,
+            "params": params,
+        }
+    ).encode("utf-8")
+    req = urllib_request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": user_agent,
+            "Connection": "close",
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=max(1.0, float(timeout_seconds))) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"{method} {_redact_url(url)} failed: {exc}") from exc
+    if isinstance(payload, dict) and payload.get("error") and not payload.get("result"):
+        raise RuntimeError(f"{method} {_redact_url(url)} error: {payload['error']}")
+    return payload.get("result") if isinstance(payload, dict) else payload
+
+
+def _get_logs_jsonrpc(
+    url: str,
+    *,
+    pool_manager: str,
+    topic: str,
+    from_block: int,
+    to_block: int,
+    timeout_seconds: float,
+    user_agent: str,
+) -> list[Any]:
+    params = [
+        {
+            "address": Web3.to_checksum_address(pool_manager),
+            "fromBlock": hex(max(0, int(from_block))),
+            "toBlock": hex(int(to_block)),
+            "topics": [topic],
+        }
+    ]
+    result = _jsonrpc_call(
+        url,
+        "eth_getLogs",
+        params,
+        timeout_seconds=timeout_seconds,
+        user_agent=user_agent,
+    )
+    raw_logs = result if isinstance(result, list) else []
+    normalized = []
+    for log in raw_logs:
+        if not isinstance(log, dict):
+            continue
+        row = dict(log)
+        for key in ("blockNumber", "transactionIndex", "logIndex"):
+            if key not in row:
+                continue
+            raw = row[key]
+            if raw is None:
+                continue
+            try:
+                row[key] = int(str(raw), 16) if str(raw).startswith("0x") else int(raw)
+            except (TypeError, ValueError):
+                row[key] = raw
+        normalized.append(row)
+    return normalized
+
+
+def _fetch_logs_sharded(
+    *,
+    providers: list[str],
+    pool_manager: str,
+    topic: str,
+    from_block: int,
+    to_block: int,
+    initial_chunk_size: int,
+    min_chunk_size: int,
+    timeout_seconds: float,
+    user_agent: str,
+    attempts_per_segment: int = 6,
+) -> list[Any]:
+    if not providers:
+        raise ValueError("no RPC providers configured for V4 Initialize log scan")
+    logs: list[Any] = []
+    failures: list[str] = []
+    cursor = max(0, int(from_block))
+    end_block = int(to_block)
+    step = max(1, int(initial_chunk_size))
+    min_step = max(1, int(min_chunk_size))
+    provider_index = 0
+    healthy_provider_indexes = list(range(len(providers)))
+    unhealthy_providers: set[str] = set()
+    while cursor <= end_block:
+        end = min(end_block, cursor + step - 1)
+        segment_logs = None
+        last_error: Exception | None = None
+        segment_attempts = 0
+        while segment_logs is None and segment_attempts < max(1, int(attempts_per_segment)):
+            segment_attempts += 1
+            healthy_indexes = [
+                index
+                for index in healthy_provider_indexes
+                if providers[index] not in unhealthy_providers
+            ]
+            if not healthy_indexes:
+                unhealthy_providers.clear()
+                healthy_indexes = list(healthy_provider_indexes)
+            provider_index = healthy_indexes[provider_index % len(healthy_indexes)]
+            url = providers[provider_index]
+            try:
+                segment_logs = _get_logs_jsonrpc(
+                    url,
+                    pool_manager=pool_manager,
+                    topic=topic,
+                    from_block=cursor,
+                    to_block=end,
+                    timeout_seconds=timeout_seconds,
+                    user_agent=user_agent,
+                )
+                break
+            except Exception as exc:
+                last_error = exc
+                message = str(exc)
+                failures.append(f"{_redact_url(url)} {cursor}-{end}: {message[:180]}")
+                limit_error = _is_rpc_limit_error(message)
+                if _is_rpc_permanent_error(message):
+                    unhealthy_providers.add(url)
+                if _is_rpc_limit_error(message) and step > min_step:
+                    step = max(min_step, step // 2)
+                    end = min(end_block, cursor + step - 1)
+                elif segment_attempts >= attempts_per_segment and step > min_step:
+                    step = max(min_step, step // 2)
+                    end = min(end_block, cursor + step - 1)
+                if not limit_error:
+                    provider_index += 1
+        if segment_logs is None:
+            raise RuntimeError(
+                f"failed to fetch {topic} logs {cursor}-{end} after {segment_attempts} attempts; "
+                f"last: {last_error}; recent failures: {failures[-3:]}"
+            )
+        logs.extend(segment_logs)
+        cursor = end + 1
+        if len(healthy_provider_indexes) > 1:
+            provider_index = (provider_index + 1) % len(healthy_provider_indexes)
+    return logs
+
+
+def _connect_rpc_from_urls(
+    urls: list[str],
+    *,
+    user_agent: str,
+    timeout_seconds: float,
+    attempts: int,
+) -> Web3:
+    last_exc: Exception | None = None
+    for url in urls:
+        try:
+            return _connect_rpc(
+                url,
+                user_agent=user_agent,
+                timeout_seconds=timeout_seconds,
+                attempts=attempts,
+            )
+        except Exception as exc:
+            last_exc = exc
+    raise RuntimeError("Robinhood V4 RPC providers unavailable") from last_exc
 
 
 def _connect_rpc(
@@ -116,9 +381,13 @@ def _pool_row_from_initialize_log(
 ) -> dict[str, Any]:
     topics = list(log["topics"])
     pool_id = topics[1].hex() if hasattr(topics[1], "hex") else str(topics[1])
+    raw_data = log["data"]
+    decoded_data = bytes(raw_data) if not isinstance(raw_data, str) else bytes.fromhex(
+        raw_data[2:] if raw_data.startswith("0x") else raw_data
+    )
     fee, tick_spacing, hooks, sqrt_price_x96, tick = w3.codec.decode(
         ["uint24", "int24", "address", "uint160", "int24"],
-        bytes(log["data"]),
+        decoded_data,
     )
     currency0 = _topic_address(topics[2])
     currency1 = _topic_address(topics[3])
@@ -139,6 +408,11 @@ def _pool_row_from_initialize_log(
             "metadataOk": currency1.lower() == ZERO_ADDRESS.lower(),
         }
     tx_hash = log["transactionHash"].hex() if hasattr(log["transactionHash"], "hex") else str(log["transactionHash"])
+    raw_block_number = log.get("blockNumber")
+    if isinstance(raw_block_number, str) and raw_block_number.startswith("0x"):
+        initialize_block_number = int(raw_block_number, 16)
+    else:
+        initialize_block_number = int(raw_block_number)
     hooks_address = Web3.to_checksum_address(hooks) if int(str(hooks), 16) else ZERO_ADDRESS
     key: dict[str, Any] = {
         "poolId": pool_id,
@@ -156,7 +430,7 @@ def _pool_row_from_initialize_log(
         "hooks": hooks_address,
         "sqrtPriceX96": str(sqrt_price_x96),
         "tick": int(tick),
-        "initializeBlockNumber": int(log["blockNumber"]),
+        "initializeBlockNumber": initialize_block_number,
         "initializeTransactionHash": tx_hash,
     }
     if include_currency_metadata:
@@ -180,7 +454,7 @@ def _pool_row_from_initialize_log(
         "hooks": hooks_address,
         "sqrtPriceX96": str(sqrt_price_x96),
         "tick": int(tick),
-        "initializeBlockNumber": int(log["blockNumber"]),
+        "initializeBlockNumber": initialize_block_number,
         "initializeTransactionHash": tx_hash,
         "liquidity": "",
         "tvlUsd": 0,
@@ -235,16 +509,35 @@ def _mark_recent_swap_activity(
     pool_manager: str,
     latest_block: int,
     lookback_blocks: int,
+    providers: list[str] | None = None,
+    timeout_seconds: float = 20.0,
+    user_agent: str = "flashloan-robinhood-v4/1.0",
+    initial_chunk_size: int = 100_000,
+    min_chunk_size: int = 1_000,
 ) -> dict[str, Any]:
     from_block = max(0, int(latest_block) - max(1, int(lookback_blocks)))
-    logs = w3.eth.get_logs(
-        {
-            "address": Web3.to_checksum_address(pool_manager),
-            "fromBlock": from_block,
-            "toBlock": int(latest_block),
-            "topics": [V4_SWAP_TOPIC],
-        }
-    )
+    if providers:
+        logs = _fetch_logs_sharded(
+            providers=providers,
+            pool_manager=pool_manager,
+            topic=V4_SWAP_TOPIC,
+            from_block=from_block,
+            to_block=int(latest_block),
+            initial_chunk_size=initial_chunk_size,
+            min_chunk_size=min_chunk_size,
+            timeout_seconds=timeout_seconds,
+            user_agent=user_agent,
+        )
+    else:
+        logs = _get_logs_chunked(
+            w3,
+            pool_manager=pool_manager,
+            topic=V4_SWAP_TOPIC,
+            from_block=from_block,
+            to_block=int(latest_block),
+            chunk_size=initial_chunk_size,
+            min_chunk_size=min_chunk_size,
+        )
     active = {
         (log["topics"][1].hex() if hasattr(log["topics"][1], "hex") else str(log["topics"][1]))
         for log in logs
@@ -282,9 +575,12 @@ def build_v4_pool_index_from_initialize_logs(
     rpc_url: str,
     schema_version: str,
     include_currency_metadata: bool,
+    rpc_urls: Iterable[str] | None = None,
+    hyperrpc_url: str = "",
     from_block: int = 0,
     to_block: int | None = None,
     chunk_size: int = 100_000,
+    min_chunk_size: int = 1_000,
     pool_limit: int = 0,
     non_eth_only: bool = False,
     include_metadata: bool = False,
@@ -294,9 +590,16 @@ def build_v4_pool_index_from_initialize_logs(
     rpc_connect_timeout: float = 20.0,
     rpc_connect_attempts: int = 3,
     rpc_user_agent: str = "flashloan-robinhood-v4/1.0",
+    prefer_hyperrpc: bool = True,
 ) -> dict[str, Any]:
-    w3 = _connect_rpc(
+    providers = _normalized_provider_urls(
         rpc_url,
+        rpc_urls=rpc_urls,
+        hyperrpc_url=hyperrpc_url,
+        prefer_hyperrpc=prefer_hyperrpc,
+    )
+    w3 = _connect_rpc_from_urls(
+        providers,
         user_agent=rpc_user_agent,
         timeout_seconds=rpc_connect_timeout,
         attempts=rpc_connect_attempts,
@@ -306,14 +609,16 @@ def build_v4_pool_index_from_initialize_logs(
         raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {chain_id}")
     latest_block = int(w3.eth.block_number)
     resolved_to_block = latest_block if to_block is None else int(to_block)
-    logs = _get_logs_chunked(
-        w3,
+    logs = _fetch_logs_sharded(
+        providers=providers,
         pool_manager=pool_manager,
         topic=V4_INITIALIZE_TOPIC,
         from_block=max(0, int(from_block)),
         to_block=resolved_to_block,
-        chunk_size=max(1, int(chunk_size)),
-        min_chunk_size=1_000,
+        initial_chunk_size=max(1, int(chunk_size)),
+        min_chunk_size=max(1, int(min_chunk_size)),
+        timeout_seconds=rpc_connect_timeout,
+        user_agent=rpc_user_agent,
     )
     metadata_cache: dict[str, dict[str, Any]] = {}
     pools: list[dict[str, Any]] = []
@@ -363,6 +668,11 @@ def build_v4_pool_index_from_initialize_logs(
             pool_manager=pool_manager,
             latest_block=latest_block,
             lookback_blocks=max(1, int(recent_swap_lookback_blocks)),
+            providers=providers,
+            timeout_seconds=rpc_connect_timeout,
+            user_agent=rpc_user_agent,
+            initial_chunk_size=max(1, int(chunk_size)),
+            min_chunk_size=max(1, int(min_chunk_size)),
         )
     return {
         "schemaVersion": schema_version,
@@ -374,6 +684,9 @@ def build_v4_pool_index_from_initialize_logs(
         "fromBlock": max(0, int(from_block)),
         "toBlock": resolved_to_block,
         "scanChunkSize": int(chunk_size),
+        "minScanChunkSize": int(min_chunk_size),
+        "providerCount": len(providers),
+        "providerUrls": [_redact_url(url) for url in providers],
         "poolLimit": int(pool_limit),
         "nonEthOnly": bool(non_eth_only),
         "includeMetadata": bool(include_metadata),
@@ -385,7 +698,7 @@ def build_v4_pool_index_from_initialize_logs(
         "keepTokenAddressCount": len(keep_token_addresses) if keep_token_addresses else 0,
         "selectedPoolCount": len(pools),
         "discoveryMethod": "poolmanager_initialize_log_index",
-        "rpcUrl": rpc_url,
+        "rpcUrl": _redact_url(providers[0] if providers else rpc_url),
         **activity,
         "poolKeys": pool_keys,
         "pools": pools,

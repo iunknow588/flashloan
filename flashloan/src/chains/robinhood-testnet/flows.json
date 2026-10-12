@@ -22,7 +22,7 @@
     "dex_pool_candidates": {
       "handler": "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload",
       "allowed_protocols": ["uniswap_v4"],
-      "data_file_keys": ["v4_pool_liquidity"],
+      "data_file_keys": ["v4_pool_index", "v4_pool_liquidity"],
       "requires_scope_match": true,
       "uses_pool_manager_flash_accounting": true,
       "mainnet_evidence_allowed": false
@@ -30,7 +30,7 @@
     "market_observation": {
       "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
       "allowed_protocols": ["uniswap_v4"],
-      "data_file_keys": ["market_observation", "v4_pool_index", "v4_pool_liquidity"],
+      "data_file_keys": ["v4_pool_index", "v4_pool_liquidity"],
       "requires_scope_match": true,
       "uses_pool_manager_flash_accounting": true,
       "mainnet_evidence_allowed": false
@@ -38,7 +38,7 @@
     "dex_overview": {
       "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_overview_flow",
       "allowed_protocols": ["uniswap_v4"],
-      "data_file_keys": ["market_observation", "v4_pool_index", "v4_pool_liquidity"],
+      "data_file_keys": ["v4_pool_index", "v4_pool_liquidity"],
       "requires_scope_match": true,
       "uses_pool_manager_flash_accounting": true,
       "mainnet_evidence_allowed": false
@@ -46,7 +46,7 @@
     "dex_quote_routes": {
       "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_routes_flow",
       "allowed_protocols": ["uniswap_v4"],
-      "data_file_keys": ["market_observation", "v4_pool_index", "v4_pool_liquidity", "chain_test"],
+      "data_file_keys": ["v4_pool_index", "v4_pool_liquidity", "chain_test"],
       "requires_scope_match": true,
       "uses_pool_manager_flash_accounting": true,
       "mainnet_evidence_allowed": false
@@ -54,7 +54,7 @@
     "dex_quote_request": {
       "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow",
       "allowed_protocols": ["uniswap_v4"],
-      "data_file_keys": ["market_observation", "v4_pool_index", "v4_pool_liquidity", "chain_test"],
+      "data_file_keys": ["v4_pool_index", "v4_pool_liquidity", "chain_test"],
       "requires_scope_match": true,
       "uses_pool_manager_flash_accounting": true,
       "mainnet_evidence_allowed": false

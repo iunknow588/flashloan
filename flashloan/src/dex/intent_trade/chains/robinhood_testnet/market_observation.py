@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Callable
 
-from core.chain_data_registry import chain_data_file_path
 from dex.intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources import (
     ZERO_ADDRESS,
     v4_flash_accounting_source_rows,
@@ -20,6 +18,23 @@ from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_CHAIN_ID,
     ROBINHOOD_TESTNET_NETWORK,
 )
+from dex.intent_trade.chains.robinhood_common.chain_config import (
+    TESTNET_ANCHOR_SYMBOLS,
+)
+from dex.intent_trade.chains.robinhood_common.market_observation_core import (
+    _db_pool_to_observation_row as _testnet_db_pool_to_observation_row,
+    _observation_pool_usable as _testnet_db_pool_usable,
+    db_closed_loop_routes,
+    db_closed_loop_sequences,
+    load_db_exchange_pools,
+    load_db_observation_pools,
+)
+from core.db.database_path import absolute_database_path as _testnet_db_path
+
+
+TESTNET_DB_ANCHOR_SYMBOLS = TESTNET_ANCHOR_SYMBOLS
+TESTNET_DB_MARKET_ID = f"dex-arbitrage-{ROBINHOOD_TESTNET_CHAIN_ID}-uniswap-v4"
+TESTNET_DB_PROTOCOL = "uniswap_v4"
 
 
 def _symbol(value: object) -> str:
@@ -29,6 +44,19 @@ def _symbol(value: object) -> str:
 def _address(value: object) -> str:
     text = str(value or "").strip()
     return text.lower() if text.startswith("0x") and len(text) == 42 else ""
+
+
+def _json_loads(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return value
+    if value in (None, ""):
+        return {}
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+    return value
 
 
 def _pool_id(pool: dict[str, Any]) -> str:
@@ -48,38 +76,13 @@ def _route_symbol_allowed(symbol: object) -> bool:
     return bool(text) and not text.startswith("ROBINHOOD")
 
 
-def _testnet_observation_scope_token_addresses() -> set[str]:
-    """Return the temporary testnet observation token scope.
-
-    The test network deliberately starts with stablecoins plus native ETH and
-    TZ so the pool graph is small and deterministic. This is a pool-scope
-    constraint, not a route-count cap: whenever stable/TZ pools grow, the
-    closed-loop set grows with them and no hard ``44``/``200`` limit is applied.
-    """
-    addresses = {_address(ZERO_ADDRESS)}
-    try:
-        path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_token_allowlist")
-        if path is None:
-            return addresses
-        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError, TypeError):
-        return addresses
-    tokens = payload.get("tokens") if isinstance(payload.get("tokens"), dict) else {}
-    for symbol, row in tokens.items():
-        if not isinstance(row, dict):
-            continue
-        normalized_symbol = _symbol(symbol)
-        category = _symbol(row.get("category"))
-        if category == "STABLECOIN" or normalized_symbol in {"ETH", "TZ"}:
-            address = _address(row.get("address"))
-            if address:
-                addresses.add(address)
-    return addresses
-
-
 def _protocol_in_scope(protocols: list[str] | None) -> bool:
     protocol_set = {str(protocol or "").strip().lower() for protocol in (protocols or []) if str(protocol or "").strip()}
     return not protocol_set or "uniswap_v4" in protocol_set
+
+
+def _chain_in_scope(chain_id: int | None) -> bool:
+    return int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID
 
 
 def observation_anchor_symbols(
@@ -88,16 +91,13 @@ def observation_anchor_symbols(
     chain_id: int | None,
     protocols: list[str] | None = None,
 ) -> list[str]:
-    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or not _protocol_in_scope(protocols):
+    if not _chain_in_scope(chain_id) or not _protocol_in_scope(protocols):
         return []
-    anchors = {
-        _symbol(group.get("anchorSymbol"))
-        for group in pool_payload.get("anchorGroups") or []
-        if isinstance(group, dict) and _route_symbol_allowed(group.get("anchorSymbol"))
-    }
-    if anchors:
-        return sorted(anchors)
-    return sorted({symbol for symbol in pair_symbol_universe(pool_payload.get("pairs") or []) if _route_symbol_allowed(symbol)})
+    # SQLite is authoritative for the testnet observation scope. The candidate
+    # payload already contains exactly the configured anchors; returning the
+    # fixed configured set keeps the observation surface stable even when the
+    # pool graph is empty for a stablecoin anchor.
+    return sorted({symbol for symbol in TESTNET_DB_ANCHOR_SYMBOLS if _route_symbol_allowed(symbol)})
 
 
 def borrowable_symbols_from_pool_payload(
@@ -106,9 +106,9 @@ def borrowable_symbols_from_pool_payload(
     chain_id: int | None,
     protocols: list[str] | None = None,
 ) -> list[str]:
-    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or not _protocol_in_scope(protocols):
+    if not _chain_in_scope(chain_id) or not _protocol_in_scope(protocols):
         return []
-    return sorted({symbol for symbol in pair_symbol_universe(pool_payload.get("pairs") or []) if _route_symbol_allowed(symbol)})
+    return sorted({symbol for symbol in TESTNET_DB_ANCHOR_SYMBOLS if _route_symbol_allowed(symbol)})
 
 
 def _token_metadata_from_flash_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -505,7 +505,10 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
         pool_index_loader is load_robinhood_testnet_v4_pool_index
         and pool_liquidity_loader is load_robinhood_testnet_v4_pool_liquidity
     ):
-        scope_token_addresses = _testnet_observation_scope_token_addresses()
+        # SQLite is authoritative for the testnet bridge surface. Tests that
+        # inject JSON loaders keep the legacy pool-index bridge builder.
+        normal_pools, _normal_index = _testnet_db_observation_pools()
+        return _testnet_db_bridge_pairs(anchor_groups, normal_pools)
 
     needed_edges: dict[tuple[str, str], tuple[dict[str, Any], dict[str, Any]]] = {}
     token_metadata: dict[str, dict[str, Any]] = {}
@@ -640,6 +643,501 @@ def robinhood_testnet_v4_bridge_pairs_for_anchor_groups(
     }
 
 
+def _testnet_db_observation_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Load the complete testnet Y-Z pool surface from SQLite business tables."""
+    return load_db_observation_pools(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol=TESTNET_DB_PROTOCOL,
+        anchor_symbols=TESTNET_DB_ANCHOR_SYMBOLS,
+        database_url=str(_testnet_db_path()),
+        require_nonempty=False,
+    )
+
+
+def _testnet_db_exchange_pools(
+    *,
+    anchor_addresses: set[str],
+) -> list[dict[str, Any]]:
+    """Return testnet V4 exchange pools adjacent to a configured anchor."""
+    return load_db_exchange_pools(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol=TESTNET_DB_PROTOCOL,
+        database_url=str(_testnet_db_path()),
+        anchor_addresses=anchor_addresses,
+    )
+
+
+def _testnet_db_bridge_pairs(
+    anchor_groups: list[dict[str, Any]],
+    normal_pools: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Build Y-Z bridge pairs from the SQLite observation pool surface."""
+    needed_edges: dict[tuple[str, str], tuple[dict[str, Any], dict[str, Any]]] = {}
+    token_metadata: dict[str, dict[str, Any]] = {}
+    candidate_combination_count = 0
+    for group in anchor_groups:
+        if not isinstance(group, dict):
+            continue
+        for yc_token in _group_direction_tokens(group, "yc"):
+            y_address = _address(yc_token.get("address"))
+            y_symbol = _symbol(yc_token.get("symbol"))
+            if not y_address or not y_symbol or not _route_symbol_allowed(y_symbol):
+                continue
+            token_metadata.setdefault(y_address, yc_token)
+            for zc_token in _group_direction_tokens(group, "zc"):
+                z_address = _address(zc_token.get("address"))
+                z_symbol = _symbol(zc_token.get("symbol"))
+                if not z_address or not z_symbol or not _route_symbol_allowed(z_symbol) or z_address == y_address:
+                    continue
+                candidate_combination_count += 1
+                token_metadata.setdefault(z_address, zc_token)
+                needed_edges.setdefault(tuple(sorted((y_address, z_address))), (yc_token, zc_token))
+
+    if not needed_edges:
+        return [], {
+            "enabled": True,
+            "status": "sqlite_db_no_addressed_yz_edges",
+            "source": "sqlite_db",
+            "candidateCombinationCount": candidate_combination_count,
+            "neededEdgeCount": 0,
+            "matchedEdgeCount": 0,
+            "matchedPoolCount": 0,
+        }
+    pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for pool in normal_pools:
+        edge = _pool_edge(pool)
+        if edge in needed_edges:
+            pools_by_edge.setdefault(edge, []).append(pool)
+
+    bridge_pairs: list[dict[str, Any]] = []
+    for edge, pools in sorted(pools_by_edge.items()):
+        if not pools:
+            continue
+        left_token, right_token = needed_edges[edge]
+        left_symbol = _symbol(left_token.get("symbol"))
+        right_symbol = _symbol(right_token.get("symbol"))
+        left_address = _address(left_token.get("address"))
+        right_address = _address(right_token.get("address"))
+        best_pools = sorted(pools, key=lambda item: str(_pool_id(item)))
+        bridge_pairs.append(
+            {
+                "symbolPair": f"{left_symbol}:{right_symbol}",
+                "addressPair": f"{left_address}:{right_address}",
+                "tokenX": left_address,
+                "tokenY": right_address,
+                "tokenXSymbol": left_symbol,
+                "tokenYSymbol": right_symbol,
+                "preferredPools": best_pools,
+                "executionPools": best_pools[:5],
+                "strictQualityPools": best_pools,
+                "classification": {
+                    "source": "sqlite_db_observation_pools",
+                    "bridgeOnly": True,
+                    "protocol": "uniswap_v4",
+                },
+            }
+        )
+    matched_pool_count = sum(len(pair.get("preferredPools") or []) for pair in bridge_pairs)
+    return bridge_pairs, {
+        "enabled": True,
+        "status": "sqlite_db_observation_bridge_lookup_complete",
+        "source": "sqlite_db",
+        "databasePath": str(_testnet_db_path()),
+        "candidateCombinationCount": candidate_combination_count,
+        "neededEdgeCount": len(needed_edges),
+        "matchedEdgeCount": len(bridge_pairs),
+        "matchedPoolCount": matched_pool_count,
+    }
+
+
+def _testnet_closed_loop_sequences() -> list[dict[str, Any]]:
+    """Return closed-loop sequences from authoritative SQLite loop tables."""
+    return db_closed_loop_sequences(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol=TESTNET_DB_PROTOCOL,
+        market_id=TESTNET_DB_MARKET_ID,
+        kind="robinhood_testnet_closed_loop",
+        database_url=str(_testnet_db_path()),
+    )
+
+
+def _testnet_closed_loop_routes(sequences: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Convert SQLite closed-loop rows into the DEX overview route shape."""
+    if sequences is None:
+        sequences = _testnet_closed_loop_sequences()
+    return db_closed_loop_routes(sequences)
+
+
+def _testnet_db_observation_rows(
+    anchor_groups: list[dict[str, Any]],
+    *,
+    normal_pools: list[dict[str, Any]],
+    non_normal_pools: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Expand SQLite Y-Z rows into direction-level observation page rows.
+
+    Every direction from the candidate YC/ZC set is represented, including
+    directions that currently have no middle-hop pool. ``addressPair`` stays
+    address-sorted so one V4 pool is never duplicated by reverse ordering,
+    while ``tokenX/tokenY`` retain the requested direction for display.
+    """
+    token_rows: dict[str, dict[str, Any]] = {}
+    for group in anchor_groups:
+        if not isinstance(group, dict):
+            continue
+        for token in group.get("sharedTokens") or []:
+            if not isinstance(token, dict):
+                continue
+            address = _address(token.get("address"))
+            if address:
+                token_rows.setdefault(
+                    address,
+                    {"symbol": _symbol(token.get("symbol")), "address": address, "associatedFunds": []},
+                )
+    grouped: dict[str, dict[str, Any]] = {}
+    pool_by_id: dict[str, dict[str, Any]] = {}
+    non_normal_pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for pool in non_normal_pools:
+        edge = _pool_edge(pool)
+        if edge is not None:
+            non_normal_pools_by_edge.setdefault(edge, []).append(pool)
+    token_by_address: dict[str, dict[str, Any]] = {
+        address: dict(row)
+        for address, row in token_rows.items()
+    }
+
+    def token_for(address: str, fallback_symbol: str) -> dict[str, Any]:
+        normalized = _address(address)
+        row = token_rows.get(normalized)
+        if row is not None:
+            return dict(row)
+        return {
+            "symbol": _symbol(fallback_symbol) or (normalized[:8].upper() if normalized else ""),
+            "address": normalized,
+            "associatedFunds": [],
+        }
+
+    for pair in _testnet_db_observation_directions(anchor_groups):
+        if not isinstance(pair, dict):
+            continue
+        anchor_symbol = _symbol(pair.get("anchorSymbol"))
+        anchor_address = _address(pair.get("anchorAddress"))
+        associated_fund_symbols = [anchor_symbol] if anchor_symbol else []
+        address_pair = [
+            address
+            for address in str(pair.get("addressPair") or pair.get("address_pair") or "").split(":")
+            if _address(address)
+        ]
+        if len(address_pair) < 2:
+            continue
+        edge = tuple(sorted((address_pair[0], address_pair[1])))
+        token_x_address = _address(pair.get("tokenX") or pair.get("token_x_address"))
+        token_y_address = _address(pair.get("tokenY") or pair.get("token_y_address"))
+        if not token_x_address or not token_y_address:
+            token_x_address = edge[0]
+            token_y_address = edge[1]
+        token0 = token_for(token_x_address, pair.get("tokenXSymbol") or pair.get("token_x_symbol"))
+        token1 = token_for(token_y_address, pair.get("tokenYSymbol") or pair.get("token_y_symbol"))
+        token0["associatedFunds"] = associated_fund_symbols
+        token1["associatedFunds"] = associated_fund_symbols
+        direction_key = f"{token_x_address}:{token_y_address}"
+        group_key = f"{anchor_symbol}|{direction_key}"
+        row = grouped.get(group_key)
+        if row is None:
+            row = {
+                "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pair",
+                "source": "sqlite_db",
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
+                "symbolPair": f"{token0.get('symbol')}:{token1.get('symbol')}",
+                "addressPair": ":".join(edge),
+                "directionKey": direction_key,
+                "token0": token0,
+                "token1": token1,
+                "associatedFundSymbols": associated_fund_symbols,
+                "poolCount": 0,
+                "directSwapPoolCount": 0,
+                "hasDirectSwapPool": False,
+                "pools": [],
+                "directSwapPools": [],
+                "nonNormalSwapPoolCount": 0,
+                "hasNonNormalSwapPool": False,
+                "nonNormalSwapPools": [],
+                "closedLoopReady": False,
+                "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+                "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
+                "directSwapRequired": True,
+            }
+            grouped[group_key] = row
+        token_by_address.setdefault(edge[0], token0)
+        token_by_address.setdefault(edge[1], token1)
+        bridge_pool_ids = _json_loads(pair.get("poolIds") or pair.get("pool_ids_json") or [])
+        if not isinstance(bridge_pool_ids, list):
+            bridge_pool_ids = []
+        for pool_id in bridge_pool_ids:
+            pool_id_text = str(pool_id or "").strip().lower()
+            pool = next(
+                (
+                    item
+                    for item in normal_pools
+                    if str(_pool_id(item)).lower() == pool_id_text
+                ),
+                None,
+            )
+            if pool is None:
+                continue
+            if pool_id_text and pool_id_text not in pool_by_id:
+                pool_by_id[pool_id_text] = {
+                    **pool,
+                    "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+                    "anchorSymbol": anchor_symbol,
+                    "anchorAddress": anchor_address,
+                    "associatedFundSymbols": associated_fund_symbols,
+                    "token0AssociatedFunds": associated_fund_symbols,
+                    "token1AssociatedFunds": associated_fund_symbols,
+                }
+            direct_pool = {
+                "pool": pool_id_text,
+                "poolId": pool_id_text,
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
+                "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
+                "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
+                "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
+                "fee": pool.get("fee"),
+                "tickSpacing": pool.get("tickSpacing"),
+                "hooks": pool.get("hooks"),
+                "token0": pool.get("token0"),
+                "token1": pool.get("token1"),
+                "token0Decimals": pool.get("token0Decimals"),
+                "token1Decimals": pool.get("token1Decimals"),
+                "token0Symbol": pool.get("token0Symbol"),
+                "token1Symbol": pool.get("token1Symbol"),
+                "symbolPair": pool.get("symbolPair")
+                or f"{pool.get('token0Symbol')}:{pool.get('token1Symbol')}",
+                "addressPair": pool.get("addressPair") or ":".join(edge),
+                "tick": pool.get("tick"),
+                "sqrtPriceX96": pool.get("sqrtPriceX96"),
+                "liquidity": pool.get("liquidity"),
+                "balances": pool.get("balances") or {},
+                "observationUsable": _testnet_db_pool_usable(pool),
+                "usableForObservation": _testnet_db_pool_usable(pool),
+                "associatedFundSymbols": associated_fund_symbols,
+                "token0AssociatedFunds": associated_fund_symbols,
+                "token1AssociatedFunds": associated_fund_symbols,
+                "closedLoopReady": bool(pool.get("closedLoopReady")),
+                "role": "direct_y_z_swap_pool",
+                "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+            }
+            row["pools"].append(direct_pool)
+            row["directSwapPools"].append(direct_pool)
+            row["poolCount"] += 1
+            row["directSwapPoolCount"] += 1
+            row["hasDirectSwapPool"] = True
+            row["closedLoopReady"] = bool(row.get("closedLoopReady") or pool.get("closedLoopReady"))
+        for pool in non_normal_pools_by_edge.get(edge) or []:
+            if not isinstance(pool, dict):
+                continue
+            pool_id = _pool_id(pool)
+            non_normal_pool = {
+                "pool": pool_id,
+                "poolId": pool_id,
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
+                "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
+                "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
+                "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
+                "fee": pool.get("fee"),
+                "feeLabel": pool.get("feeLabel"),
+                "dynamicFee": pool.get("dynamicFee"),
+                "specialFee": pool.get("specialFee"),
+                "tickSpacing": pool.get("tickSpacing"),
+                "hooks": pool.get("hooks"),
+                "token0": pool.get("token0"),
+                "token1": pool.get("token1"),
+                "token0Decimals": pool.get("token0Decimals"),
+                "token1Decimals": pool.get("token1Decimals"),
+                "token0Symbol": pool.get("token0Symbol"),
+                "token1Symbol": pool.get("token1Symbol"),
+                "symbolPair": pool.get("symbolPair")
+                or f"{pool.get('token0Symbol')}:{pool.get('token1Symbol')}",
+                "addressPair": pool.get("addressPair") or ":".join(edge),
+                "tick": pool.get("tick"),
+                "sqrtPriceX96": pool.get("sqrtPriceX96"),
+                "liquidity": pool.get("liquidity"),
+                "balances": pool.get("balances") or {},
+                "observationUsable": _testnet_db_pool_usable(pool),
+                "usableForObservation": _testnet_db_pool_usable(pool),
+                "associatedFundSymbols": associated_fund_symbols,
+                "token0AssociatedFunds": associated_fund_symbols,
+                "token1AssociatedFunds": associated_fund_symbols,
+                "closedLoopReady": False,
+                "role": "non_normal_y_z_swap_pool",
+                "observationReason": "non_normal_y_z_pool",
+            }
+            row["nonNormalSwapPools"].append(non_normal_pool)
+            row["nonNormalSwapPoolCount"] += 1
+            row["hasNonNormalSwapPool"] = True
+        if not row.get("hasDirectSwapPool"):
+            row["observationEmptyReason"] = (
+                "only non-normal Y-Z pools exist"
+                if row.get("hasNonNormalSwapPool")
+                else "no Y-Z swap pool yet"
+            )
+
+    pair_rows = sorted(
+        grouped.values(),
+        key=lambda row: (
+            not bool(row.get("hasDirectSwapPool")),
+            str(row.get("anchorSymbol") or ""),
+            str(row.get("symbolPair") or ""),
+            str(row.get("directionKey") or row.get("addressPair") or ""),
+        ),
+    )
+    token_rows_out = sorted(
+        token_by_address.values(),
+        key=lambda row: (str(row.get("symbol") or ""), str(row.get("address") or "")),
+    )
+    return pair_rows, list(pool_by_id.values()), token_rows_out
+
+
+def _testnet_db_observation_directions(anchor_groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return every ordered Y-Z direction from SQLite market-observation rows."""
+    from core.db.storage_market_observation import load_market_observation as _db_load_market_observation
+
+    database_url = str(_testnet_db_path())
+    directions: list[dict[str, Any]] = []
+    for group in anchor_groups:
+        if not isinstance(group, dict):
+            continue
+        anchor_symbol = _symbol(group.get("anchorSymbol"))
+        if not anchor_symbol:
+            continue
+        payload = _db_load_market_observation(
+            database_url,
+            network=ROBINHOOD_TESTNET_NETWORK,
+            chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+            protocol=TESTNET_DB_PROTOCOL,
+            anchor_symbol=anchor_symbol,
+        )
+        for row in payload.get("pairs") or []:
+            if not isinstance(row, dict):
+                continue
+            token_x = _address(row.get("token_x_address"))
+            token_y = _address(row.get("token_y_address"))
+            if not token_x or not token_y:
+                continue
+            directions.append(
+                {
+                    "anchorSymbol": anchor_symbol,
+                    "anchorAddress": _address(row.get("anchor_address")),
+                    "symbolPair": f"{_symbol(row.get('token_x_symbol') or row.get('tokenXSymbol'))}:{_symbol(row.get('token_y_symbol') or row.get('tokenYSymbol'))}",
+                    "addressPair": row.get("address_pair") or f"{token_x}:{token_y}",
+                    "tokenX": token_x,
+                    "tokenY": token_y,
+                    "tokenXSymbol": row.get("token_x_symbol") or row.get("tokenXSymbol"),
+                    "tokenYSymbol": row.get("token_y_symbol") or row.get("tokenYSymbol"),
+                    "token0": row.get("token_x_address"),
+                    "token1": row.get("token_y_address"),
+                    "poolIds": _json_loads(row.get("pool_ids_json") or []),
+                    "poolCount": len(_json_loads(row.get("pool_ids_json") or [])),
+                    "hasDirectSwapPool": bool(row.get("has_direct_swap_pool")),
+                    "observationEmptyReason": row.get("observation_empty_reason") or "",
+                }
+            )
+    return directions
+
+
+def _testnet_db_fund_anchor_observation(
+    *,
+    anchor_groups: list[dict[str, Any]],
+    normal_pools: list[dict[str, Any]],
+    non_normal_pools: list[dict[str, Any]],
+    closed_loop_sequences: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compose the DB-only testnet market-observation payload."""
+    if closed_loop_sequences is None:
+        closed_loop_sequences = _testnet_closed_loop_sequences()
+    closed_loop_routes = _testnet_closed_loop_routes(closed_loop_sequences)
+    associated_pairs, associated_pools, associated_tokens = _testnet_db_observation_rows(
+        anchor_groups,
+        normal_pools=normal_pools,
+        non_normal_pools=non_normal_pools,
+    )
+    bridge_pairs, _bridge_index = _testnet_db_bridge_pairs(anchor_groups, normal_pools)
+    anchor_addresses = sorted(
+        {
+            _address(address)
+            for group in anchor_groups
+            if isinstance(group, dict)
+            for address in (group.get("anchorAddresses") or [])
+        }
+    )
+    token_count = sum(
+        _int(group.get("sharedTokenCount") or group.get("ycTokenCount") or 0)
+        for group in anchor_groups
+        if isinstance(group, dict)
+    )
+    return {
+        "enabled": True,
+        "status": "robinhood_testnet_v4_db_observation_complete",
+        "source": "sqlite_db",
+        "databasePath": str(_testnet_db_path()),
+        "anchorSymbols": list(TESTNET_DB_ANCHOR_SYMBOLS),
+        "anchorAddresses": anchor_addresses,
+        "recentSwapFilterApplied": False,
+        "liquidityFilterApplied": False,
+        "activePoolIds": sorted({_pool_id(pool).lower() for pool in normal_pools if _pool_id(pool)}),
+        "liquidPoolIds": sorted({_pool_id(pool).lower() for pool in normal_pools if _pool_id(pool)}),
+        "fundAssetCount": len(anchor_groups),
+        "executorSupportedFundAssetCount": 0,
+        "fundAnchorCandidatePairCount": sum(
+            _int(group.get("sharedPoolCount") or group.get("ycPoolCount") or 0)
+            for group in anchor_groups
+            if isinstance(group, dict)
+        ),
+        "associatedFundAnchorPairCount": len(associated_pairs),
+        "associatedObservationCandidatePairCount": len(associated_pairs),
+        "associatedObservationPairCount": len(associated_pairs),
+        "associatedObservationPoolCount": len(associated_pools),
+        "associatedObservationTokenCount": len(associated_tokens),
+        "closedLoopAssociatedFundAnchorPairCount": len(closed_loop_sequences),
+        "nonFundPairCount": sum(
+            _int(group.get("sharedPoolCount") or group.get("ycPoolCount") or 0)
+            for group in anchor_groups
+            if isinstance(group, dict)
+        ),
+        "associatedNonFundPairCount": len(closed_loop_sequences),
+        "closedLoopAssociatedNonFundPairCount": len(closed_loop_sequences),
+        "nonEthPairCount": token_count,
+        "associatedNonEthPairCount": len(closed_loop_sequences),
+        "closedLoopAssociatedNonEthPairCount": len(closed_loop_sequences),
+        "routeCount": len(closed_loop_sequences),
+        "associatedObservationPairs": associated_pairs,
+        "associatedObservationPools": associated_pools,
+        "associatedObservationTokens": associated_tokens,
+        "bridgePairs": bridge_pairs,
+        "observationSequences": closed_loop_sequences,
+        "closedLoopSequences": closed_loop_sequences,
+        "closedLoopRoutes": closed_loop_routes,
+        "summary": {
+            "routeCount": str(len(closed_loop_sequences)),
+            "liquidPoolCount": str(len(normal_pools)),
+            "liquidPoolRouteParticipationCount": str(len(normal_pools)),
+        },
+    }
+
+
+def _int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def robinhood_testnet_v4_fund_anchor_pair_observation(
     *,
     chain_id: int | None,
@@ -650,13 +1148,44 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
     scope_token_addresses: set[str] | None = None,
 ) -> dict[str, Any]:
     protocol_set = {str(protocol or "").strip().lower() for protocol in (protocols or []) if str(protocol or "").strip()}
-    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or (protocol_set and "uniswap_v4" not in protocol_set):
+    if not _chain_in_scope(chain_id) or (protocol_set and "uniswap_v4" not in protocol_set):
         return {"enabled": False, "status": "out_of_scope", "observationSequences": []}
-    if scope_token_addresses is None and (
-        pool_index_loader is load_robinhood_testnet_v4_pool_index
+    if (
+        scope_token_addresses is None
+        and pool_index_loader is load_robinhood_testnet_v4_pool_index
         and pool_liquidity_loader is load_robinhood_testnet_v4_pool_liquidity
     ):
-        scope_token_addresses = _testnet_observation_scope_token_addresses()
+        # SQLite is the authoritative business-data source for the testnet
+        # surface. Tests that inject JSON loaders keep the legacy builder.
+        from market.binance_market.pool_candidates import dex_pool_candidates_payload as _page_candidate_payload
+
+        pool_payload = _page_candidate_payload(chain_id=chain_id, protocols=protocol_set or None)
+        anchor_groups = list(pool_payload.get("anchorGroups") or [])
+        normal_pools, _normal_index = _testnet_db_observation_pools()
+        closed_loop_sequences = _testnet_closed_loop_sequences()
+        if not normal_pools and not closed_loop_sequences:
+            # Skip the full exchange-pool scan when the authoritative
+            # observation surface is empty. The page still returns the
+            # configured five-anchor state without touching 25k pool rows.
+            non_normal_pools = []
+        else:
+            anchor_addresses = {
+                _address(address)
+                for group in anchor_groups
+                if isinstance(group, dict)
+                for address in (group.get("anchorAddresses") or [])
+            }
+            non_normal_pools = [
+                pool
+                for pool in _testnet_db_exchange_pools(anchor_addresses=anchor_addresses)
+                if not _testnet_db_pool_usable(pool)
+            ]
+        return _testnet_db_fund_anchor_observation(
+            anchor_groups=anchor_groups,
+            normal_pools=normal_pools,
+            non_normal_pools=non_normal_pools,
+            closed_loop_sequences=closed_loop_sequences,
+        )
 
     index = pool_index_loader()
     liquidity = pool_liquidity_loader()
@@ -1199,7 +1728,6 @@ def bridge_pairs_for_anchor_groups(
         anchor_groups,
         chain_id=chain_id,
         protocols=protocols,
-        scope_token_addresses=_testnet_observation_scope_token_addresses(),
     )
 
 
@@ -1211,15 +1739,23 @@ def fund_anchor_pair_observation(
     return robinhood_testnet_v4_fund_anchor_pair_observation(
         chain_id=chain_id,
         protocols=protocols,
-        scope_token_addresses=_testnet_observation_scope_token_addresses(),
     )
 
 
 def market_observation_flow(*, request: Any, **_: Any) -> dict[str, Any]:
-    return robinhood_testnet_v4_fund_anchor_pair_observation(
+    from market.binance_market.dex_surfaces import dex_market_observation_surface_payload
+
+    protocol_set = {
+        str(item or "").strip().lower()
+        for item in (request.flow.get("allowed_protocols") or [])
+        if str(item or "").strip()
+    }
+    requested = [str(request.protocol or "").strip().lower()] if request.protocol else sorted(protocol_set)
+    requested = [item for item in requested if item in protocol_set] if protocol_set else requested
+    return dex_market_observation_surface_payload(
         chain_id=request.chain_id,
-        protocols=[request.protocol] if request.protocol else [],
-        scope_token_addresses=_testnet_observation_scope_token_addresses(),
+        protocols=requested,
+        use_static_observation=True,
     )
 
 

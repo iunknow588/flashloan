@@ -9,10 +9,51 @@ from market.binance_market.pool_candidate_filtering import _candidate_pool_sourc
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
+from dex.intent_trade.chains.robinhood import dex_pool_candidates as robinhood_dex_pool_candidates
 from core.chain_data_registry import chain_data_by_chain_id
 from market.strategy.arbitrage import ArbitrageConfig
 from market.binance_market.dex_surface_v4 import _static_depth_available
 from web.data_routes import dex_surface_response
+from core.db import builders
+from core.db import page_payloads
+from core.db.builders import _fixed_fee_no_hook_sql
+from core.db import import_existing_json
+from core.dex_candidate_response import compact_candidate_payload
+from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE, _candidate_fixed_fee_too_high
+from dex.intent_trade.chains.robinhood import market_observation as robinhood_market_observation
+
+
+def _resolve_testnet_database_path():
+    import os
+    import sqlite3
+    from pathlib import Path
+
+    candidates = []
+    env_testnet = os.getenv("FLASHLOAN_TESTNET_KV_PATH", "").strip()
+    if env_testnet:
+        candidates.append(Path(env_testnet))
+    candidates.append(Path(__file__).resolve().parents[3] / "tmp_testnet.sqlite3")
+    env_generic = os.getenv("FLASHLOAN_KV_PATH", "").strip()
+    if env_generic:
+        candidates.append(Path(env_generic))
+    for candidate in candidates:
+        path = Path(candidate).expanduser().resolve()
+        if not path.is_file():
+            continue
+        try:
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                count = connection.execute(
+                    "SELECT COUNT(*) FROM chain_tokens "
+                    "WHERE network = 'robinhood-testnet' AND chain_id = 46630"
+                ).fetchone()[0]
+            finally:
+                connection.close()
+            if int(count or 0) > 0:
+                return path
+        except (OSError, sqlite3.Error):
+            continue
+    return None
 
 
 def _write_json(path, payload):
@@ -58,6 +99,57 @@ def test_robinhood_testnet_candidate_pagination_defaults_to_20_rows(monkeypatch)
         assert quality == "all"
 
 
+def test_candidate_fixed_fee_above_3000_is_skipped_at_storage_stage():
+    assert _candidate_fixed_fee_too_high(3001) is True
+    assert _candidate_fixed_fee_too_high(10000) is True
+    assert _candidate_fixed_fee_too_high(3000) is False
+    assert _candidate_fixed_fee_too_high(2500) is False
+    assert _candidate_fixed_fee_too_high(100001) is True
+    assert _candidate_fixed_fee_too_high(8388608) is True
+
+
+def test_candidate_builder_sql_caps_fixed_fee_at_3000():
+    candidate_sql = _fixed_fee_no_hook_sql(max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
+    observation_sql = _fixed_fee_no_hook_sql(max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
+    assert "p.fee <= 3000" in candidate_sql
+    assert "p.fee <= 100000" not in candidate_sql
+    assert "p.fee <= 3000" in observation_sql
+    assert "p.fee <= 100000" not in observation_sql
+
+
+def test_candidate_representative_pool_rows_bounds_each_pair_to_six():
+    rows = [
+        {
+            "pool_id": f"0x{index:02x}",
+            "liquidity_index": 100 - index,
+            "fee": fee,
+            "price": price,
+        }
+        for index, (fee, price) in enumerate(
+            (
+                (3000, 100),
+                (500, 50),
+                (1000, 10),
+                (2500, 90),
+                (200, 80),
+                (100, 70),
+                (300, 60),
+                (150, 200),
+            ),
+            start=1,
+        )
+    ]
+
+    selected = builders._representative_pool_rows(rows, limit=6)
+
+    assert len(selected) == 6
+    assert selected[0]["pool_id"] == "0x01"
+    selected_ids = {row["pool_id"] for row in selected}
+    assert "0x01" in selected_ids
+    assert "0x08" in selected_ids
+    assert "0x03" in selected_ids
+
+
 def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
     dynamic_row = pool_candidates._robinhood_pool_candidate_row(
         {
@@ -76,6 +168,7 @@ def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
     assert dynamic_row["specialFee"] is True
     assert dynamic_row["feeLabel"] == "dynamic"
     assert dynamic_row["usableForObservation"] is False
+    assert dynamic_row["quality"] == "rejected"
 
     special_row = pool_candidates._robinhood_pool_candidate_row(
         {
@@ -94,6 +187,7 @@ def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
     assert special_row["specialFee"] is True
     assert special_row["feeLabel"] == "special"
     assert special_row["usableForObservation"] is False
+    assert special_row["quality"] == "rejected"
 
     liquid_row = pool_candidates._robinhood_pool_candidate_row(
         {
@@ -112,6 +206,30 @@ def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
     assert liquid_row["feeLabel"] == "3000"
     assert liquid_row["usableForObservation"] is True
     assert liquid_row["depthBand"]["level"] == "liquidity-index"
+    assert liquid_row["quality"] == "pass"
+
+
+def test_page_candidate_pool_row_enforces_fixed_fee_upper_bound():
+    def row(fee, usable=None):
+        return page_payloads._candidate_pool_row(
+            {
+                "token0": "0x" + "1" * 40,
+                "token1": "0x" + "2" * 40,
+                "fee": fee,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "usable_for_observation": usable,
+            },
+            token_symbols={},
+            anchor_address="0x" + "1" * 40,
+            anchor_symbol="ETH",
+        )
+
+    assert row(3000)["quality"] == "pass"
+    assert row(3001)["quality"] == "rejected"
+    assert row(10861)["quality"] == "rejected"
+    assert row(10861, usable=False)["quality"] == "rejected"
+    assert row(3000, usable=True)["quality"] == "pass"
+    assert row(3000, usable=False)["quality"] == "rejected"
 
 
 def test_non_testnet_candidate_pagination_keeps_legacy_default(monkeypatch):
@@ -126,6 +244,394 @@ def test_candidate_pagination_allows_larger_page_size_when_requested(monkeypatch
     with app.test_request_context("/api/dex-pools/candidates?chain_id=46630&page_size=1000"):
         _, page_size, _, _ = dex_surface_response.candidate_pagination_args()
         assert page_size == 1000
+
+
+def test_candidate_payload_paginates_pools_inside_anchor_groups():
+    payload = {
+        "anchorGroups": [
+            {
+                "anchorSymbol": "ETH",
+                "ycZcSameSet": True,
+                "ycPoolsRef": "sharedPools",
+                "zcPoolsRef": "sharedPools",
+                "sharedTokens": [],
+                "sharedPools": [
+                    {"pool": "pool-1", "fee": 500},
+                    {"pool": "pool-2", "fee": 1000},
+                    {"pool": "pool-3", "fee": 3000},
+                ],
+            }
+        ],
+        "pairs": [],
+        "summary": {"anchorGroupCount": "1"},
+    }
+    result = compact_candidate_payload(payload, page=2, page_size=1)
+    group = result["anchorGroups"][0]
+    assert len(group["sharedPools"]) == 1
+    assert group["sharedPools"][0]["pool"] == "pool-2"
+    assert group["poolPagination"]["page"] == 2
+    assert group["poolPagination"]["total_count"] == 3
+    assert result["pagination"]["candidate_groups"]["unit"] == "pool"
+    assert result["pagination"]["candidate_groups"]["total_count"] == 3
+
+
+def test_candidate_payload_paginates_abnormal_tables_independently():
+    payload = {
+        "anchorGroups": [
+            {
+                "anchorSymbol": "ETH",
+                "ycZcSameSet": True,
+                "ycPoolsRef": "sharedPools",
+                "zcPoolsRef": "sharedPools",
+                "sharedTokens": [],
+                "sharedPools": [],
+                "abnormalTokens": [
+                    {"symbol": f"TOKEN-{index}", "address": f"0x{index:040x}", "poolCount": 1}
+                    for index in range(1, 25)
+                ],
+                "abnormalPools": [
+                    {"pool": f"abnormal-{index}", "fee": 5000, "dynamicFee": False}
+                    for index in range(1, 45)
+                ],
+            }
+        ],
+        "pairs": [],
+        "summary": {"anchorGroupCount": "1"},
+    }
+    result = compact_candidate_payload(
+        payload,
+        page=1,
+        page_size=20,
+        abnormal_pool_page=2,
+        abnormal_token_page=2,
+    )
+    group = result["anchorGroups"][0]
+    assert len(group["abnormalTokens"]) == 4
+    assert group["abnormalTokens"][0]["symbol"] == "TOKEN-21"
+    assert group["abnormalTokenPagination"]["page"] == 2
+    assert group["abnormalTokenPagination"]["total_count"] == 24
+    assert len(group["abnormalPools"]) == 20
+    assert group["abnormalPools"][0]["pool"] == "abnormal-21"
+    assert group["abnormalPoolPagination"]["page"] == 2
+    assert group["abnormalPoolPagination"]["total_count"] == 44
+
+
+def test_filter_anchor_group_protocols_filters_abnormal_tables():
+    group = {
+        "anchorSymbol": "ETH",
+        "ycZcSameSet": True,
+        "sharedPools": [
+            {
+                "pool": "normal-v4",
+                "protocol": "uniswap_v4",
+                "counterAddress": "0x" + "1" * 40,
+                "counterSymbol": "A",
+            }
+        ],
+        "sharedTokens": [],
+        "abnormalPools": [
+            {
+                "pool": "abnormal-v4",
+                "protocol": "uniswap_v4",
+                "counterAddress": "0x" + "2" * 40,
+                "counterSymbol": "B",
+            },
+            {
+                "pool": "abnormal-v3",
+                "protocol": "uniswap_v3",
+                "counterAddress": "0x" + "3" * 40,
+                "counterSymbol": "C",
+            },
+        ],
+        "abnormalTokens": [],
+        "abnormalPoolCount": "2",
+        "abnormalTokenCount": "0",
+        "abnormalDirectionCount": "4",
+    }
+
+    filtered = pool_candidate_filtering._filter_anchor_group_protocols(group, {"uniswap_v4"})
+
+    assert [row["pool"] for row in filtered["abnormalPools"]] == ["abnormal-v4"]
+    assert {token["symbol"] for token in filtered["abnormalTokens"]} == {"B"}
+    assert filtered["abnormalPoolCount"] == "1"
+    assert filtered["abnormalTokenCount"] == "1"
+    assert filtered["abnormalDirectionCount"] == "2"
+
+
+def test_filter_payload_protocols_updates_abnormal_summary_counts():
+    payload = {
+        "summary": {},
+        "pairs": [],
+        "anchorGroups": [
+            {
+                "anchorSymbol": "ETH",
+                "ycZcSameSet": True,
+                "sharedPools": [],
+                "sharedTokens": [],
+                "sharedPoolCount": "0",
+                "ycPoolCount": "0",
+                "zcPoolCount": "0",
+                "ycTokenCount": "0",
+                "zcTokenCount": "0",
+                "abnormalPools": [
+                    {
+                        "pool": "abnormal-v4",
+                        "protocol": "uniswap_v4",
+                        "counterAddress": "0x" + "1" * 40,
+                        "counterSymbol": "B",
+                    }
+                ],
+                "abnormalTokens": [],
+                "abnormalPoolCount": "1",
+                "abnormalTokenCount": "0",
+            }
+        ],
+    }
+
+    result = pool_candidate_filtering._filter_payload_protocols(payload, {"uniswap_v4"})
+
+    assert len(result["anchorGroups"]) == 1
+    assert result["summary"]["abnormalStaticPoolCount"] == "1"
+    assert result["summary"]["abnormalStaticTokenCount"] == "1"
+
+
+def test_mark_v4_shared_yc_zc_sets_separates_normal_and_abnormal_pools():
+    zero = "0x0000000000000000000000000000000000000000"
+    token_a = "0x" + "1" * 40
+    token_b = "0x" + "2" * 40
+    normal = {
+        "pool": "0x" + "a1" * 32,
+        "protocol": "uniswap_v4",
+        "dex": "uniswap_v4",
+        "anchorAddress": zero,
+        "anchorSymbol": "ETH",
+        "counterAddress": token_a,
+        "counterSymbol": "TOKEN-A",
+        "fee": 3000,
+        "hooks": zero,
+        "token0": zero,
+        "token1": token_a,
+    }
+    abnormal = {
+        **normal,
+        "pool": "0x" + "b2" * 32,
+        "counterAddress": token_b,
+        "counterSymbol": "TOKEN-B",
+        "fee": 5000,
+    }
+
+    groups = robinhood_dex_pool_candidates._mark_v4_shared_yc_zc_sets(
+        [
+            {
+                "anchorSymbol": "ETH",
+                "ycPools": [normal, abnormal],
+                "zcPools": [normal, abnormal],
+            }
+        ]
+    )
+
+    group = groups[0]
+    assert [row["pool"] for row in group["sharedPools"]] == ["0x" + "a1" * 32]
+    assert [row["pool"] for row in group["abnormalPools"]] == ["0x" + "b2" * 32]
+    assert group["sharedPoolCount"] == "1"
+    assert group["abnormalPoolCount"] == "1"
+    assert {token["symbol"] for token in group["sharedTokens"]} == {"TOKEN-A"}
+    assert {token["symbol"] for token in group["abnormalTokens"]} == {"TOKEN-B"}
+
+
+def test_market_observation_pool_usable_is_static_liquidity_stays_overview_gate():
+    pool = {
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "hasLiquidity": False,
+        "liquidityIndex": 0,
+    }
+    assert robinhood_market_observation._observation_pool_usable(pool) is True
+    assert robinhood_market_observation._pool_usable_for_observation(pool) is True
+    assert robinhood_market_observation._pool_liquidity_qualified(pool) is False
+    assert robinhood_market_observation._observation_pool_usable({**pool, "fee": 3001}) is False
+
+
+def test_import_existing_json_filters_observation_pools_by_fixed_fee_no_hook():
+    allowed = {"fee": 3000, "hooks": "0x0000000000000000000000000000000000000000"}
+    assert import_existing_json._observation_pool_allowed(allowed) is True
+    assert import_existing_json._observation_pool_allowed({**allowed, "fee": 3001}) is False
+    assert import_existing_json._observation_pool_allowed({**allowed, "fee": 100001}) is False
+    assert import_existing_json._observation_pool_allowed({**allowed, "fee": 8388608}) is False
+    assert import_existing_json._observation_pool_allowed({**allowed, "hooks": "0x1"}) is False
+
+
+def test_mainnet_anchor_address_resolution_uses_exact_five_addresses():
+    assert import_existing_json._anchor_address_from_symbol("ETH") == "0x0000000000000000000000000000000000000000"
+    assert import_existing_json._anchor_address_from_symbol("WETH") == "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+    assert import_existing_json._anchor_address_from_symbol("USDG") == "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    assert import_existing_json._anchor_address_from_symbol("USDE") == "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34"
+    assert import_existing_json._anchor_address_from_symbol("TZ") == "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+    assert import_existing_json._anchor_address_from_symbol("usdg") == "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    assert import_existing_json._anchor_address_from_symbol("NOT-CONFIGURED") == ""
+    assert builders._resolve_anchor_address(
+        "USDG",
+        [{"token_symbol": "USDG", "token_address": "0x0000000000000000000000000000000000000000"}],
+        [],
+    ) == "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+
+
+def test_build_loops_requires_all_three_hops_to_have_pools():
+    anchor = "0x" + "a" * 40
+    y = "0x" + "b" * 40
+    z = "0x" + "c" * 40
+
+    def pool(pool_id, token0, token1):
+        return {"pool": pool_id, "token0": token0, "token1": token1}
+
+    candidates = {"tokens": [{"token_address": y}, {"token_address": z}]}
+    complete = {
+        "pools": [
+            pool("yc", anchor, y),
+            pool("yz", y, z),
+            pool("zc", z, anchor),
+        ]
+    }
+
+    loops, hops = import_existing_json._build_loops(
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+        candidates=candidates,
+        observation=complete,
+    )
+
+    assert len(loops) == 2
+    assert len(hops) == 6
+    assert {tuple(loop["pool_ids"]) for loop in loops} == {
+        ("yc", "yz", "zc"),
+        ("zc", "yz", "yc"),
+    }
+    assert {hop["hop_index"] for hop in hops} == {1, 2, 3}
+
+    missing_yz = {"pools": [pool("yc", anchor, y), pool("zc", z, anchor)]}
+    loops, hops = import_existing_json._build_loops(
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+        candidates=candidates,
+        observation=missing_yz,
+    )
+    assert loops == []
+    assert hops == []
+
+
+def test_mainnet_yz_pair_keeps_every_fixed_fee_pool_for_market_observation():
+    token_a = "0x" + "0" * 40
+    token_b = "0x" + "1" * 40
+    anchor = "0x" + "2" * 40
+    pools_by_edge = {
+        (token_a, token_b): [
+            {
+                "pool": f"0xpool-{index}",
+                "token0": token_a,
+                "token1": token_b,
+                "token0Symbol": "A",
+                "token1Symbol": "B",
+                "fee": fee,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            }
+            for index, fee in enumerate((500, 1000, 2000, 2500, 3000, 30, 100), start=1)
+        ]
+    }
+    rows = robinhood_market_observation._mainnet_yz_pairs_from_tokens(
+        pools_by_edge,
+        [{"symbol": "A", "address": token_a}, {"symbol": "B", "address": token_b}],
+        include_directions=False,
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["anchorSymbol"] == "ETH"
+    assert row["anchorAddress"] == anchor
+    assert row["poolCount"] == 7
+    assert len(row["executionPools"]) == 7
+    assert len(row["preferredPools"]) == 7
+    assert len(row["strictQualityPools"]) == 7
+
+
+def test_mainnet_associated_observation_rows_attach_anchor_to_y_and_z():
+    token_a = "0x" + "0" * 40
+    token_b = "0x" + "1" * 40
+    anchor = "0x" + "2" * 40
+    pool = {
+        "pool": "0xpool-anchor-associated",
+        "token0": token_a,
+        "token1": token_b,
+        "token0Symbol": "A",
+        "token1Symbol": "B",
+        "fee": 500,
+        "hooks": "0x0000000000000000000000000000000000000000",
+    }
+    pools_by_edge = {(token_a, token_b): [pool]}
+    bridge_pairs = robinhood_market_observation._mainnet_yz_pairs_from_tokens(
+        pools_by_edge,
+        [{"symbol": "A", "address": token_a}, {"symbol": "B", "address": token_b}],
+        include_directions=True,
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+    )
+    pair_rows, pool_rows, _ = robinhood_market_observation._mainnet_associated_observation_rows(
+        bridge_pairs,
+        [pool],
+    )
+    assert len(pair_rows) == 2
+    for row in pair_rows:
+        assert row["anchorSymbol"] == "ETH"
+        assert row["associatedFundSymbols"] == ["ETH"]
+        assert row["token0"]["associatedFunds"] == ["ETH"]
+        assert row["token1"]["associatedFunds"] == ["ETH"]
+        assert row["directSwapPools"][0]["anchorSymbol"] == "ETH"
+    assert pool_rows[0]["associatedFundSymbols"] == ["ETH"]
+
+
+def test_mainnet_associated_observation_rows_attach_non_normal_pools():
+    token_a = "0x" + "0" * 40
+    token_b = "0x" + "1" * 40
+    anchor = "0x" + "2" * 40
+    bridge_pairs = robinhood_market_observation._mainnet_yz_pairs_from_tokens(
+        {},
+        [{"symbol": "A", "address": token_a}, {"symbol": "B", "address": token_b}],
+        include_directions=True,
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+    )
+    non_normal_pools = [
+        {
+            "pool": f"0xpool-{index}",
+            "token0": token_a,
+            "token1": token_b,
+            "token0Symbol": "A",
+            "token1Symbol": "B",
+            "fee": fee,
+            "hooks": hooks,
+        }
+        for index, (fee, hooks) in enumerate(
+            (
+                (3000, "0x" + "1" * 40),
+                (3001, "0x0000000000000000000000000000000000000000"),
+                (8388608, "0x0000000000000000000000000000000000000000"),
+            ),
+            start=1,
+        )
+    ]
+    pair_rows, pool_rows, _ = robinhood_market_observation._mainnet_associated_observation_rows(
+        bridge_pairs,
+        [],
+        non_normal_pools=non_normal_pools,
+    )
+    assert len(pair_rows) == 2
+    assert pool_rows == []
+    for row in pair_rows:
+        assert row["hasDirectSwapPool"] is False
+        assert row["hasNonNormalSwapPool"] is True
+        assert row["nonNormalSwapPoolCount"] == 3
+        assert len(row["nonNormalSwapPools"]) == 3
+        assert row["observationEmptyReason"] == "仅存在非正常 Y-Z 交易池"
 
 
 def test_robinhood_mainnet_static_quote_routes_keep_protocol_scope():
@@ -258,7 +764,7 @@ def test_static_quote_routes_keeps_unlabelled_closed_loops_and_exposes_liquid_re
 
     monkeypatch.setattr(
         surface_root,
-        "load_market_observation_overview_static",
+        "load_observation_overview_for_scope",
         lambda **kwargs: overview,
     )
     monkeypatch.setattr(
@@ -343,11 +849,11 @@ def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
 
 
 def test_robinhood_mainnet_candidate_source_available_with_relative_data_file(monkeypatch, tmp_path):
-    fake_path = tmp_path / "robinhood_dex_candidates.json"
+    fake_path = tmp_path / "v4_pool_index.json"
     fake_path.write_text("{}", encoding="utf-8")
 
     def fake_chain_data_file_path(network, key, *, chain_id=None, root=None):
-        assert key == "dex_candidates"
+        assert key == "v4_pool_index"
         assert chain_id == 4663
         return fake_path
 
@@ -680,31 +1186,32 @@ def test_pool_candidate_filtering_anchor_tokens_keep_v4_zero_address():
     assert pool_candidate_filtering._is_zero_address(eth_token["address"])
 
 
-def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
+def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow(monkeypatch):
+    testnet_database = _resolve_testnet_database_path()
+    if testnet_database is None:
+        pytest.skip(
+            "testnet SQLite database is not available; "
+            "set FLASHLOAN_TESTNET_KV_PATH or rebuild flashloan/tmp_testnet.sqlite3"
+        )
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", str(testnet_database))
     payload = pool_candidates.dex_pool_candidates_payload(chain_id=46630, protocols=["uniswap_v4"])
 
     assert payload["poolStaticTable"]["network"] == "robinhood-testnet"
     assert payload["poolStaticTable"]["chainId"] == 46630
-    assert payload["poolStaticTable"]["mode"] in {
-        "robinhood_testnet_v4_pool_index",
-        "robinhood_testnet_v4_pool_liquidity",
-        "robinhood_testnet_v4_pool_index_active",
-        "robinhood_testnet_v4_pool_liquidity_fallback",
-        "robinhood_testnet_v4_pool_sources_merged",
-    }
-    assert int(payload["summary"].get("candidateRouteCount") or 0) > 0
+    assert payload["poolStaticTable"]["mode"] == "sqlite_db"
+    assert payload["source"] == "rust_sqlite"
+    assert int(payload["summary"].get("staticPoolCount") or 0) > 0
     assert payload["poolStaticTable"]["exists"] is True
     assert payload["processing"]["handler"] == (
         "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload"
     )
     assert int(payload["summary"]["pairTableCount"]) > 0
     assert int(payload["summary"]["anchorGroupCount"]) > 0
-    assert int(payload["summary"]["anchorGroupCount"]) <= int(payload["summary"]["flashAccountingAssetCount"])
+    assert int(payload["summary"]["anchorGroupCount"]) <= int(payload["summary"]["tokenCount"])
     assert payload["summary"]["candidateSetStorageMode"] == "shared_yc_zc_pool_set"
     assert int(payload["summary"]["ycZcSameSetGroupCount"]) > 0
-    assert 0 < int(payload["summary"]["candidateRouteCount"]) <= int(payload["summary"]["v4IndexedPoolCount"])
-    assert payload["pairs"][0]["identityMode"] == "pool_key"
-    assert payload["pairs"][0]["preferredPools"][0]["poolIdentityMode"] == "pool_id"
+    assert int(payload["summary"]["staticPoolCount"]) > 0
+    assert payload["pairs"][0]["preferredPools"][0]["poolIdentityMode"] == "v4_pool_id"
     assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v4"
     assert payload["anchorGroups"]
     assert payload["anchorGroups"][0]["ycZcSameSet"] is True

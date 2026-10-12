@@ -54,6 +54,7 @@
       uniswap_v4_sdk_exact_input_single: "V4 SDK 单步精确输入",
       uniswap_v4_sdk_exact_input_route: "V4 SDK 路线精确输入",
       quote_request_ready: "报价请求已就绪",
+      uniswapx_fallback_failed: "UniswapX 第二跳回退失败",
     };
     const label = value => labelMap[value] || value || "-";
     labelMap.static_reference_pending_live_review = "静态参考，待链上逐 hop 复核";
@@ -95,6 +96,7 @@
         "rpc_verification_timeout",
         "adapter_required",
         "missing_trigger_block",
+        "uniswapx_fallback_failed",
       ].includes(lower);
     };
     const estimateStageStatus = value => terminalEvidenceStatus(value) ? evidenceStatusEx(value) : "链下估算完成";
@@ -182,6 +184,7 @@
       if (lower === "missing_trigger_block") return "链上复核未执行：缺少触发区块上下文；无法确认";
       if (lower === "adapter_required") return "链上复核失败：缺少 V4 报价适配器；无法完成链上复核";
       if (lower === "live_quote_failed" || lower === "quote_failed") return "链上报价失败，无法进入链上执行";
+      if (lower === "uniswapx_fallback_failed") return "UniswapX 第二跳回退失败：无合适中间池、参数或三跳净收益未达到 1%；按失败终止，不再寻找其他 AMM 池";
       return "链上报价失败，无法进入链上执行";
     };
     const errorChainParts = value => {
@@ -720,13 +723,34 @@
         no_candidate_variants: "无可替换候选",
         no_better_candidate: "无更优候选",
         no_replacement_trigger: "当前路径无需替换",
+        uniswapx_middle_hop_fallback: "中间第二跳改用 UniswapX",
+        uniswapx_unsupported: "UniswapX 不可用，失败终止",
+        uniswapx_middle_hop_missing: "缺少中间第二跳，失败终止",
+        uniswapx_middle_hop_unavailable: "UniswapX 无合适中间池，失败终止",
+        uniswapx_middle_hop_parameters_unavailable: "UniswapX 中间跳参数不可用，失败终止",
+        uniswapx_fallback_profit_below_minimum: "三跳净收益未达 1%，失败终止",
+        uniswapx_fallback_quote_required: "UniswapX 报价缺失，失败终止",
       };
       const replacementText = replacement.attempted
         ? (replacementReasonLabels[replacement.reason] || String(replacement.reason || "已评估候选替换"))
         : "";
       const replacementBadge = replacement.attempted
-        ? `<span class="badge ${replacement.reason === "better_candidate_found" ? "good" : "warn"}">候选替换：${esc(replacementText)}${Array.isArray(replacement.changedLegs) && replacement.changedLegs.length ? ` / 更换 ${esc(replacement.changedLegs.join("、"))}` : ""}</span>`
+        ? `<span class="badge ${replacement.reason === "better_candidate_found" || replacement.reason === "uniswapx_middle_hop_fallback" ? "good" : "fail"}">候选替换：${esc(replacementText)}${Array.isArray(replacement.changedLegs) && replacement.changedLegs.length ? ` / 更换 ${esc(replacement.changedLegs.join("、"))}` : ""}</span>`
         : "";
+      const uniswapxFallback = route.uniswapxFallback && typeof route.uniswapxFallback === "object"
+        ? route.uniswapxFallback
+        : {};
+      const uniswapxMiddleHop = uniswapxFallback.middleHop && typeof uniswapxFallback.middleHop === "object"
+        ? uniswapxFallback.middleHop
+        : {};
+      const uniswapxParams = uniswapxFallback.quoteParameters && typeof uniswapxFallback.quoteParameters === "object"
+        ? uniswapxFallback.quoteParameters
+        : {};
+      const uniswapxBadge = uniswapxFallback.status === "selected"
+        ? `<span class="badge good">UniswapX 中间第二跳：${esc(uniswapxMiddleHop.fromSymbol || "-")} -> ${esc(uniswapxMiddleHop.toSymbol || "-")} / 三跳净收益目标 ≥ 100 bps${uniswapxParams.sellAmount != null ? ` / y=${numeric(uniswapxParams.sellAmount, 8)}` : ""}${uniswapxParams.minBuyAmount != null ? ` / z≥${numeric(uniswapxParams.minBuyAmount, 8)}` : ""}${uniswapxParams.limitPrice != null ? ` / 限价 ${numeric(uniswapxParams.limitPrice, 8)}` : ""}</span>`
+        : uniswapxFallback.status === "failed"
+          ? `<span class="badge fail">UniswapX 第二跳失败：${esc(replacementText)}</span>`
+          : "";
       const pricePreferredLabel = selection.selectionBasis === "best_candidate_net_profit" || temporaryRoute
         ? " / 价格/净利首选"
         : " / 深度首选";
@@ -738,11 +762,12 @@
           const id = String(pool?.pool || pool?.poolId || "-").toLowerCase();
           const preferred = preferredIds.includes(id) ? pricePreferredLabel : "";
           const liquidity = poolExplicitlyUsable(pool) ? "有流动性" : (poolExplicitlyUnusable(pool) ? "无流动性" : "未标注");
-          const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
-          return `<span class="badge ${poolExplicitlyUsable(pool) ? "good" : "warn"}" title="${esc(pool?.pool || pool?.poolId || "-")}">${esc(shortPoolId(pool?.pool || pool?.poolId || "-"))}${esc(preferred)} / ${esc(liquidity)}${tvl > 0 ? ` / $${numeric(tvl, 0)}` : ""}</span>`;
-        }).join("");
+        const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
+        return `<span class="badge ${poolExplicitlyUsable(pool) ? "good" : "warn"}" title="${esc(pool?.pool || pool?.poolId || "-")}">${esc(shortPoolId(pool?.pool || pool?.poolId || "-"))}${esc(preferred)} / ${esc(liquidity)}${tvl > 0 ? ` / $${numeric(tvl, 0)}` : ""}</span>`;
+      }).join("");
+        const venueBadge = candidate.venue === "uniswapx" ? '<span class="badge good">UniswapX</span>' : "";
         return `<tr>
-          <td>${esc(candidate.leg || "-")}</td>
+          <td>${esc(candidate.leg || "-")}${venueBadge}</td>
           <td>${esc(candidate.direction || "-")}</td>
           <td>${esc(candidate.symbolPair || "-")}</td>
           <td>${numeric(candidate.poolCount ?? pools.length, 0)}</td>
@@ -751,7 +776,7 @@
           <td>${chips || '<span class="muted">无候选池明细</span>'}</td>
         </tr>`;
       }).join("");
-      return `<div class="table-wrap hop-candidates"><h4>每跳候选池（路径组合 ${numeric(combinationCount, 0)}，当前选择 ${esc(selection.selectionBasis || "tvl_depth_desc")}）</h4><div class="badges">${summary}${temporaryBadge}${replacementBadge}</div><table>
+      return `<div class="table-wrap hop-candidates"><h4>每跳候选池（路径组合 ${numeric(combinationCount, 0)}，当前选择 ${esc(selection.selectionBasis || "tvl_depth_desc")}）</h4><div class="badges">${summary}${temporaryBadge}${replacementBadge}${uniswapxBadge}</div><table>
         <thead><tr><th>跳</th><th>方向</th><th>交易对</th><th>候选池</th><th>可用池</th><th>当前首选</th><th>池列表</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>`;

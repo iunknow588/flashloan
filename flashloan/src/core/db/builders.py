@@ -7,8 +7,9 @@ requests; initialisation/refresh scripts call :func:`build_all_anchor_data`.
 Rules kept here:
 
 - YC/ZC is a single shared set for V4; UI can display ``ZC/YC``.
-- Fixed fee + no hook are the static YC/ZC constraints; depth/price are
-  dynamic fields refreshed separately and are not static membership filters.
+- Candidate YC/ZC and market observation both use fixed fee <= 3000 plus no
+  hook.  Depth/price are dynamic fields refreshed separately and are not
+  static membership filters; DEX overview applies liquidity later.
 - Market observation must keep every ``N*(N-1)`` direction, including no-pool rows.
 - One V4 pool is one closed-loop hop; reverse directions are not separate loops.
 """
@@ -23,29 +24,50 @@ from typing import Any, Iterable
 from core.db.database_path import absolute_database_path
 from core.db.storage_business_io import delete_rows, query
 from core.db.storage_chain_core import seed_chain_tokens
-from core.db.storage_dex_candidate import replace_dex_candidate_tables
+from core.db.storage_dex_candidate import (
+    MAX_USABLE_CANDIDATE_FIXED_FEE,
+    replace_dex_candidate_abnormal_tables,
+    replace_dex_candidate_tables,
+)
 from core.db.storage_market_observation import (
     delete_market_observation_anchor,
+    replace_market_observation_abnormal_tables,
     replace_market_observation_tables,
 )
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
+from dex.intent_trade.chains.robinhood_common.chain_config import (
+    MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_MARKET_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_MARKET_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+    TESTNET_ANCHOR_ADDRESS_BY_SYMBOL,
+    TESTNET_ANCHOR_SYMBOLS,
+    configured_anchor_address_by_symbol as _shared_anchor_address_map,
+)
 
 
-ROBINHOOD_NETWORK = "robinhood"
-ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_MARKET_ID = "dex-arbitrage-4663-uniswap-v4"
-ANCHOR_SYMBOLS = ("ETH", "USDG", "USDE", "TZ", "WETH")
+ANCHOR_SYMBOLS = tuple(MAINNET_ANCHOR_ADDRESS_BY_SYMBOL)
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-DYNAMIC_FEE_FLAG = 8388608
-MAX_FIXED_FEE = 100_000
-MAX_RECOMMENDATIONS_PER_HOP = 3
-NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
 ROBINHOOD_TOKEN_ALLOWLIST_PATH = (
     Path(__file__).resolve().parents[2]
     / "chains"
     / "robinhood"
     / "v4_token_allowlist.json"
 )
+ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "chains"
+    / "robinhood-testnet"
+    / "v4_token_allowlist.json"
+)
+DYNAMIC_FEE_FLAG = 8388608
+MAX_FIXED_FEE = 100_000
+MAX_RECOMMENDATIONS_PER_HOP = 3
+MAX_CANDIDATE_POOLS_PER_PAIR = 6
+NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
 
 
 def _stamp() -> str:
@@ -83,9 +105,9 @@ def _json_loads(value: str | None) -> Any:
         return {}
 
 
-def _is_fixed_fee(pool: dict[str, Any]) -> bool:
+def _is_fixed_fee(pool: dict[str, Any], *, max_fixed_fee: int = MAX_FIXED_FEE) -> bool:
     fee = _int(pool.get("fee"))
-    return fee > 0 and fee <= MAX_FIXED_FEE and not bool(fee & DYNAMIC_FEE_FLAG)
+    return fee > 0 and fee <= max_fixed_fee and not bool(fee & DYNAMIC_FEE_FLAG)
 
 
 def _has_no_hook(pool: dict[str, Any]) -> bool:
@@ -99,14 +121,15 @@ def _has_depth(pool: dict[str, Any]) -> bool:
     return _float(pool.get("liquidity_index")) > 0 or _float(pool.get("estimated_tvl_usd")) > 0
 
 
-def _fixed_fee_no_hook_sql() -> str:
+def _fixed_fee_no_hook_sql(*, max_fixed_fee: int = MAX_FIXED_FEE) -> str:
     """SQL predicate shared by candidate and observation builders.
 
-    Depth and price are dynamic fields refreshed separately, so the static
-    YC/ZC surface is only constrained by fixed fee and no hook.
+    Callers can tighten ``max_fixed_fee`` for the candidate surface.  Depth
+    and price are dynamic fields refreshed separately, so the static YC/ZC
+    surface is only constrained by fixed fee and no hook.
     """
     return (
-        "p.fee > 0 AND p.fee <= 100000 AND (p.fee & 8388608) = 0 "
+        f"p.fee > 0 AND p.fee <= {int(max_fixed_fee)} AND (p.fee & 8388608) = 0 "
         "AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = '0x0000000000000000000000000000000000000000')"
     )
 
@@ -122,8 +145,19 @@ def _seed_chain_token_symbols(
     The allowlist is chain configuration metadata, not a page data shard.  It
     keeps address-sorted YC/ZC rows readable on pages that read SQLite only.
     """
+    allowlist_path = (
+        ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH
+        if _text(network) == ROBINHOOD_TESTNET_NETWORK
+        else ROBINHOOD_TOKEN_ALLOWLIST_PATH
+    )
+    anchor_symbols = TESTNET_ANCHOR_SYMBOLS if _text(network) == ROBINHOOD_TESTNET_NETWORK else ANCHOR_SYMBOLS
+    stable_symbols = (
+        {"USDG", "USDE", "TZ"}
+        if _text(network) == ROBINHOOD_TESTNET_NETWORK
+        else {"USDG", "USDE", "TZ"}
+    )
     try:
-        payload = json.loads(ROBINHOOD_TOKEN_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+        payload = json.loads(allowlist_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError):
         return
     tokens = payload.get("tokens") if isinstance(payload, dict) else None
@@ -151,10 +185,16 @@ def _seed_chain_token_symbols(
                 else "erc20",
                 "is_native": 1 if category == "native" else 0,
                 "is_wrapped_native": 1 if category == "wrapped_native" else 0,
-                "is_stable": 1 if symbol in {"USDG", "USDE", "TZ"} else 0,
-                "anchor_symbol": symbol if symbol in ANCHOR_SYMBOLS else None,
+                "is_stable": 1 if symbol in stable_symbols else 0,
+                "anchor_symbol": symbol if symbol in anchor_symbols else None,
                 "token_metadata": {"category": category, "source": item.get("source")},
-                "source": {"seed": "robinhood_v4_token_allowlist"},
+                "source": {
+                    "seed": (
+                        "robinhood_testnet_v4_token_allowlist"
+                        if _text(network) == ROBINHOOD_TESTNET_NETWORK
+                        else "robinhood_v4_token_allowlist"
+                    )
+                },
             }
         )
     if rows:
@@ -198,12 +238,22 @@ def _seed_chain_token_symbols(
                     "is_native": 0,
                     "is_wrapped_native": 0,
                     "is_stable": 0,
-                    "anchor_symbol": symbol if symbol in ANCHOR_SYMBOLS else None,
+                    "anchor_symbol": symbol if symbol in anchor_symbols else None,
                     "token_metadata": {
                         "category": meta.get("category") or "test_tokens",
-                        "source": "robinhood_v4_token_allowlist",
+                        "source": (
+                            "robinhood_testnet_v4_token_allowlist"
+                            if _text(network) == ROBINHOOD_TESTNET_NETWORK
+                            else "robinhood_v4_token_allowlist"
+                        ),
                     },
-                    "source": {"seed": "robinhood_v4_token_allowlist"},
+                    "source": {
+                        "seed": (
+                            "robinhood_testnet_v4_token_allowlist"
+                            if _text(network) == ROBINHOOD_TESTNET_NETWORK
+                            else "robinhood_v4_token_allowlist"
+                        )
+                    },
                 }
                 for address, meta in sorted(missing_symbols.items())
             ],
@@ -248,85 +298,25 @@ def _resolve_anchor_address(
     anchor_symbol: str,
     tokens: list[dict[str, Any]],
     pools: list[dict[str, Any]],
-) -> str:
-    """Resolve an anchor address without depending on chain metadata alone.
-
-    Priority is chain metadata, then configured manifest/env, then the pool
-    table itself (a pool that touches the configured anchor symbol set).
-    """
-    from_meta = _anchor_address_for_symbol(anchor_symbol, tokens)
-    if from_meta:
-        return from_meta
-    symbol = _text(anchor_symbol)
-    display_symbol = symbol.upper()
-    if display_symbol in {"ETH", "WETH", "USDG", "USDE", "TZ"}:
-        stable_addresses: dict[str, str] = {}
-        test_addresses: dict[str, str] = {}
-        try:
-            from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
-                _MAINNET_STABLE_ADDRESS_BY_SYMBOL,
-                _MAINNET_TEST_ADDRESS_BY_SYMBOL,
-            )
-
-            stable_addresses = {_text(key): _text(value) for key, value in _MAINNET_STABLE_ADDRESS_BY_SYMBOL.items()}
-            test_addresses = {_text(key): _text(value) for key, value in _MAINNET_TEST_ADDRESS_BY_SYMBOL.items()}
-        except Exception:
-            pass
-        for address in {address for row in pools for address in (_text(row.get("token0")), _text(row.get("token1")))}:
-            if not address:
-                continue
-            if display_symbol == "ETH" and address == ZERO_ADDRESS:
-                return address
-            if display_symbol == "WETH":
-                try:
-                    from dex.intent_trade.chains.robinhood.config import WETH_ADDRESS
-
-                    if address == _text(WETH_ADDRESS):
-                        return address
-                except Exception:
-                    pass
-            if symbol in stable_addresses and address == stable_addresses[symbol]:
-                return address
-            if symbol in test_addresses and address == test_addresses[symbol]:
-                return address
-    return ""
-
-
-def _read_json(path: str | Any) -> dict[str, Any]:
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def _observation_token_addresses_from_files(
     *,
-    runtime_root: str | Any | None = None,
-    anchor_symbol: str,
-) -> list[str]:
-    """Read the 19-token observation set from the existing intermediate file.
+    network: str = ROBINHOOD_NETWORK,
+) -> str:
+    """Return the exact configured anchor address for a symbol.
 
-    The file is used as a bootstrap source only; the database rebuild then
-    owns the full N*(N-1) direction surface.
+    Anchors are fixed on-chain facts for each network; the pool table and
+    chain token metadata are never used to reverse-infer an anchor address.
     """
+    return _configured_anchor_address_by_symbol(network).get(_text(anchor_symbol).upper(), "")
 
-    root = runtime_root if runtime_root is not None else None
-    from core.runtime_paths import default_runtime_dir
 
-    root = Path(root) if root is not None else default_runtime_dir()
-    observation_root = (
-        root
-        / "market_observation"
-        / "robinhood"
-        / "4663"
-        / "uniswap_v4"
-        / "intermediate_pool_files"
-    )
-    payload = _read_json(observation_root / f"{anchor_symbol.upper()}.json")
-    tokens = payload.get("ycZcTokens") or []
-    addresses = [_text(item.get("address")) for item in tokens if _text(item.get("address"))]
-    return _validate_sorted_token_addresses(addresses)
+def _configured_anchor_address_by_symbol(network: str) -> dict[str, str]:
+    return _shared_anchor_address_map(network)
+
+
+def _market_id_for_network(network: str) -> str:
+    if _text(network) == ROBINHOOD_TESTNET_NETWORK:
+        return ROBINHOOD_TESTNET_MARKET_ID
+    return ROBINHOOD_MARKET_ID
 
 
 def _pool_depth(pool: dict[str, Any]) -> float:
@@ -335,6 +325,60 @@ def _pool_depth(pool: dict[str, Any]) -> float:
         _float(pool.get("estimated_tvl_usd")),
         _float(pool.get("depth_score_usd")),
     )
+
+
+def _pool_reference_price(pool: dict[str, Any]) -> float | None:
+    try:
+        price = float(pool.get("price"))
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def _representative_pool_rows(
+    pools: list[dict[str, Any]],
+    *,
+    limit: int = MAX_CANDIDATE_POOLS_PER_PAIR,
+) -> list[dict[str, Any]]:
+    """Keep at most ``limit`` representative pools per token pair.
+
+    Selection prefers the deepest pool, then the highest/lowest reference
+    price when present, then the remaining slots by depth and low fee.  The
+    same rule is applied to abnormal pools so their page surface stays
+    bounded without inventing new token pairs.
+    """
+    if limit <= 0 or len(pools) <= limit:
+        return list(pools)
+    ordered = sorted(
+        pools,
+        key=lambda row: (
+            -_pool_depth(row),
+            _int(row.get("fee")),
+            _pool_id(row),
+        ),
+    )
+    selected: list[dict[str, Any]] = []
+    selected_ids: set[str] = set()
+
+    def _add(row: dict[str, Any]) -> None:
+        pool_id = _pool_id(row)
+        if pool_id:
+            if pool_id in selected_ids:
+                return
+            selected_ids.add(pool_id)
+        selected.append(row)
+
+    if ordered:
+        _add(ordered[0])
+    priced = [row for row in ordered if _pool_reference_price(row) is not None]
+    if len(priced) >= 2:
+        _add(max(priced, key=lambda row: _pool_reference_price(row) or 0.0))
+        _add(min(priced, key=lambda row: _pool_reference_price(row) or 0.0))
+    for row in ordered:
+        if len(selected) >= limit:
+            break
+        _add(row)
+    return selected[:limit]
 
 
 def _select_recommendations(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -380,7 +424,11 @@ def _candidate_rows(
         edge = f"{anchor_address}:{counter}" if anchor_address <= counter else f"{counter}:{anchor_address}"
         pools = pools_by_edge.get(edge, [])
         meta = tokens_meta.get(counter, {})
-        fixed = [pool for pool in pools if _is_fixed_fee(pool) and _has_no_hook(pool)]
+        fixed = [
+            pool
+            for pool in pools
+            if _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool)
+        ]
         first, third = _select_recommendations(fixed)
         yc_pool = first[0]["pool_id"] if first else ""
         zc_pool = third[0]["pool_id"] if third else ""
@@ -483,20 +531,108 @@ def _candidate_rows(
     }
 
 
+def _candidate_abnormal_rows(
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    anchor_scope: str,
+    anchor_symbol: str,
+    anchor_address: str,
+    token_addresses: list[str],
+    pools_by_edge: dict[str, list[dict[str, Any]]],
+    tokens_meta: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Build candidate rows for pools outside the normal fixed-fee/no-hook set."""
+    tokens: list[dict[str, Any]] = []
+    pairs: list[dict[str, Any]] = []
+    pool_rows: list[dict[str, Any]] = []
+    for counter in token_addresses:
+        if counter == anchor_address:
+            continue
+        edge = f"{anchor_address}:{counter}" if anchor_address <= counter else f"{counter}:{anchor_address}"
+        pools = pools_by_edge.get(edge, [])
+        if not pools:
+            continue
+        meta = tokens_meta.get(counter, {})
+        tokens.append(
+            {
+                "token_role": "yc_zc_abnormal",
+                "token_address": counter,
+                "token_symbol": meta.get("token_symbol") or "",
+                "pool_count": len(pools),
+                "has_yc_optimal_pool": False,
+                "has_zc_optimal_pool": False,
+                "yc_optimal_pool_id": "",
+                "zc_optimal_pool_id": "",
+                "yc_zc_same_set": True,
+            }
+        )
+        pairs.append(
+            {
+                "anchor_address": anchor_address,
+                "counter_address": counter,
+                "address_pair": edge,
+                "pool_count": len(pools),
+                "fixed_fee_liquid_pool_count": 0,
+                "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
+                "yc_optimal_pool_id": "",
+                "zc_optimal_pool_id": "",
+                "price_reference": {},
+                "price_outlier_filter": "abnormal_pool",
+            }
+        )
+        for pool in pools:
+            pool_id = _pool_id(pool)
+            pool_rows.append(
+                {
+                    "address_pair": edge,
+                    "pool_id": pool_id,
+                    "pool_key": _json_loads(pool.get("pool_key_json")),
+                    "pool_manager": pool.get("pool_manager") or "",
+                    "token0": pool.get("token0"),
+                    "token1": pool.get("token1"),
+                    "fee": pool.get("fee"),
+                    "fee_label": pool.get("fee_label"),
+                    "dynamic_fee": pool.get("dynamic_fee"),
+                    "special_fee": pool.get("special_fee"),
+                    "tick_spacing": pool.get("tick_spacing"),
+                    "hooks": pool.get("hooks"),
+                    "sqrt_price_x96": pool.get("sqrt_price_x96"),
+                    "tick": pool.get("tick"),
+                    "has_liquidity": pool.get("has_liquidity"),
+                    "liquidity": pool.get("liquidity"),
+                    "liquidity_index": pool.get("liquidity_index"),
+                    "estimated_tvl_usd": pool.get("estimated_tvl_usd"),
+                    "balances": _json_loads(pool.get("balances_json")),
+                    "depth_status": pool.get("depth_status"),
+                    "depth_band": _json_loads(pool.get("depth_band_json")),
+                    "usable_for_observation": False,
+                    "is_first_hop_recommended": False,
+                    "is_third_hop_recommended": False,
+                    "hop_recommendation": {"first": False, "third": False},
+                    "optimal_roles": {"yc": False, "zc": False},
+                    "liquidity_read_at": pool.get("liquidity_read_at"),
+                    "liquidity_block_number": pool.get("liquidity_block_number"),
+                }
+            )
+    return {"tokens": tokens, "pairs": pairs, "pools": pool_rows}
+
+
 def build_candidate_anchor(
     database_url: str,
     *,
     network: str = ROBINHOOD_NETWORK,
     chain_id: int = ROBINHOOD_CHAIN_ID,
     protocol: str = "uniswap_v4",
-    anchor_scope: str = ROBINHOOD_MARKET_ID,
+    anchor_scope: str | None = None,
     anchor_symbol: str,
     token_addresses: list[str] | None = None,
 ) -> dict[str, Any]:
     """Rebuild one anchor's candidate rows from the V4 exchange pool tables."""
 
     resolved = absolute_database_path(database_url)
-    fixed_fee_no_hook = _fixed_fee_no_hook_sql()
+    anchor_scope = anchor_scope or _market_id_for_network(network)
     pools = query(
         str(resolved),
         f"""
@@ -511,7 +647,6 @@ def build_candidate_anchor(
           ON l.network = p.network AND l.chain_id = p.chain_id
          AND l.protocol = p.protocol AND l.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
-          AND {fixed_fee_no_hook}
         ORDER BY p.pool_id
         """,
         (network, chain_id, protocol),
@@ -524,16 +659,44 @@ def build_candidate_anchor(
             (network, chain_id),
         )
     }
-    anchor_address = _resolve_anchor_address(anchor_symbol, list(tokens_meta.values()), pools)
+    anchor_address = _resolve_anchor_address(
+        anchor_symbol,
+        list(tokens_meta.values()),
+        pools,
+        network=network,
+    )
     if not anchor_address:
         raise ValueError(f"anchor symbol {anchor_symbol} has no chain token address")
+    normal_pools = [
+        pool
+        for pool in pools
+        if _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool)
+    ]
+    abnormal_pools = [
+        pool
+        for pool in pools
+        if not (_is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool))
+    ]
     pools_by_edge: dict[str, list[dict[str, Any]]] = {}
-    for pool in pools:
+    for pool in normal_pools:
         token0 = _text(pool.get("token0"))
         token1 = _text(pool.get("token1"))
-        if not token0 or not token1:
-            continue
-        pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+        if token0 and token1:
+            pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+    abnormal_pools_by_edge: dict[str, list[dict[str, Any]]] = {}
+    for pool in abnormal_pools:
+        token0 = _text(pool.get("token0"))
+        token1 = _text(pool.get("token1"))
+        if token0 and token1:
+            abnormal_pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+    pools_by_edge = {
+        edge: _representative_pool_rows(edge_pools)
+        for edge, edge_pools in pools_by_edge.items()
+    }
+    abnormal_pools_by_edge = {
+        edge: _representative_pool_rows(edge_pools)
+        for edge, edge_pools in abnormal_pools_by_edge.items()
+    }
     if token_addresses is None:
         token_set = set()
         for edge, edge_pools in pools_by_edge.items():
@@ -564,11 +727,34 @@ def build_candidate_anchor(
         pools_by_edge=pools_by_edge,
         tokens_meta=tokens_meta,
     )
+    abnormal_token_addresses = _validate_sorted_token_addresses(
+        {
+            address
+            for edge, edge_pools in abnormal_pools_by_edge.items()
+            if anchor_address in edge
+            for address in edge.split(":")
+            if address and address != anchor_address
+        }
+    )
+    abnormal_rows = _candidate_abnormal_rows(
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        anchor_scope=anchor_scope,
+        anchor_symbol=anchor_symbol,
+        anchor_address=anchor_address,
+        token_addresses=abnormal_token_addresses,
+        pools_by_edge=abnormal_pools_by_edge,
+        tokens_meta=tokens_meta,
+    )
     for table in (
         "dex_candidate_pool_recommendations",
         "dex_candidate_pools",
         "dex_candidate_pool_pairs",
         "dex_candidate_anchor_tokens",
+        "dex_candidate_abnormal_pools",
+        "dex_candidate_abnormal_pool_pairs",
+        "dex_candidate_abnormal_anchor_tokens",
     ):
         delete_rows(
             str(resolved),
@@ -588,6 +774,17 @@ def build_candidate_anchor(
         pools=rows["pools"],
         recommendations=rows["recommendations"],
     )
+    abnormal_counts = replace_dex_candidate_abnormal_tables(
+        str(resolved),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        anchor_scope=anchor_scope,
+        anchor_symbol=anchor_symbol,
+        tokens=abnormal_rows["tokens"],
+        pairs=abnormal_rows["pairs"],
+        pools=abnormal_rows["pools"],
+    )
     return {
         "anchorSymbol": anchor_symbol,
         "anchorAddress": anchor_address,
@@ -596,6 +793,10 @@ def build_candidate_anchor(
         "poolCount": len(rows["pools"]),
         "recommendationCount": len(rows["recommendations"]),
         "counts": counts,
+        "abnormalTokenCount": len(abnormal_rows["tokens"]),
+        "abnormalPairCount": len(abnormal_rows["pairs"]),
+        "abnormalPoolCount": len(abnormal_rows["pools"]),
+        "abnormalCounts": abnormal_counts,
     }
 
 
@@ -605,13 +806,14 @@ def build_market_observation_anchor(
     network: str = ROBINHOOD_NETWORK,
     chain_id: int = ROBINHOOD_CHAIN_ID,
     protocol: str = "uniswap_v4",
-    anchor_scope: str = ROBINHOOD_MARKET_ID,
+    anchor_scope: str | None = None,
     anchor_symbol: str,
     token_addresses: list[str] | None = None,
 ) -> dict[str, Any]:
     """Rebuild every Y-Z direction for one anchor, including no-pool rows."""
 
     resolved = absolute_database_path(database_url)
+    anchor_scope = anchor_scope or _market_id_for_network(network)
     _seed_chain_token_symbols(
         str(resolved),
         network=network,
@@ -629,6 +831,25 @@ def build_market_observation_anchor(
         )
         token_addresses = [row["token_address"] for row in token_rows]
     tokens = _validate_sorted_token_addresses(token_addresses)
+    if not tokens:
+        delete_market_observation_anchor(
+            str(resolved),
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            anchor_symbol=anchor_symbol,
+        )
+        return {
+            "anchorSymbol": anchor_symbol,
+            "tokenCount": 0,
+            "directionCount": 0,
+            "noPoolDirectionCount": 0,
+            "poolCount": 0,
+            "counts": {},
+            "abnormalDirectionCount": 0,
+            "abnormalPoolCount": 0,
+            "abnormalCounts": {},
+        }
     placeholders = ",".join("?" for _ in tokens)
     pools = query(
         str(resolved),
@@ -646,7 +867,6 @@ def build_market_observation_anchor(
           ON l.network = p.network AND l.chain_id = p.chain_id
          AND l.protocol = p.protocol AND l.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
-          AND {_fixed_fee_no_hook_sql()}
           AND (p.token0 IN ({placeholders}) OR p.token1 IN ({placeholders}))
         ORDER BY p.pool_id
         """,
@@ -659,10 +879,21 @@ def build_market_observation_anchor(
         token1 = _text(pool.get("token1"))
         if token0 not in token_set or token1 not in token_set:
             continue
-        pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+        if _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool):
+            pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+    abnormal_pools_by_edge: dict[str, list[dict[str, Any]]] = {}
+    for pool in pools:
+        token0 = _text(pool.get("token0"))
+        token1 = _text(pool.get("token1"))
+        if token0 in token_set and token1 in token_set:
+            if not (_is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool)):
+                abnormal_pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
     directions: list[dict[str, Any]] = []
+    abnormal_directions: list[dict[str, Any]] = []
     pool_rows: list[dict[str, Any]] = []
+    abnormal_pool_rows: list[dict[str, Any]] = []
     seen_pool_ids: set[str] = set()
+    seen_abnormal_pool_ids: set[str] = set()
     for token_x in tokens:
         for token_y in tokens:
             if token_x == token_y:
@@ -685,6 +916,24 @@ def build_market_observation_anchor(
                     continue
                 seen_pool_ids.add(pool_id)
                 pool_rows.append(pool)
+            abnormal_matched = abnormal_pools_by_edge.get(edge, [])
+            if abnormal_matched:
+                abnormal_directions.append(
+                    {
+                        "direction_key": f"{token_x}:{token_y}",
+                        "token_x_address": token_x,
+                        "token_y_address": token_y,
+                        "address_pair": edge,
+                        "allPools": abnormal_matched,
+                        "observation_empty_reason": "",
+                    }
+                )
+            for pool in abnormal_matched:
+                pool_id = _pool_id(pool)
+                if pool_id in seen_abnormal_pool_ids:
+                    continue
+                seen_abnormal_pool_ids.add(pool_id)
+                abnormal_pool_rows.append(pool)
     liquidity_rows = [
         {
             "pool_id": _pool_id(pool),
@@ -703,7 +952,7 @@ def build_market_observation_anchor(
             "observed_at": pool.get("observed_at"),
             "refreshed_at": pool.get("refreshed_at"),
         }
-        for pool in pool_rows
+        for pool in [*pool_rows, *abnormal_pool_rows]
     ]
     delete_market_observation_anchor(
         str(resolved),
@@ -723,6 +972,16 @@ def build_market_observation_anchor(
         pools=pool_rows,
         liquidity=liquidity_rows,
     )
+    abnormal_counts = replace_market_observation_abnormal_tables(
+        str(resolved),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        anchor_scope=anchor_scope,
+        anchor_symbol=anchor_symbol,
+        directions=abnormal_directions,
+        pools=abnormal_pool_rows,
+    )
     return {
         "anchorSymbol": anchor_symbol,
         "tokenCount": len(tokens),
@@ -730,6 +989,9 @@ def build_market_observation_anchor(
         "noPoolDirectionCount": sum(1 for direction in directions if not direction["allPools"]),
         "poolCount": len(pool_rows),
         "counts": counts,
+        "abnormalDirectionCount": len(abnormal_directions),
+        "abnormalPoolCount": len(abnormal_pool_rows),
+        "abnormalCounts": abnormal_counts,
     }
 
 
@@ -846,10 +1108,11 @@ def build_closed_loops_anchor(
     network: str = ROBINHOOD_NETWORK,
     chain_id: int = ROBINHOOD_CHAIN_ID,
     protocol: str = "uniswap_v4",
-    market_id: str = ROBINHOOD_MARKET_ID,
+    market_id: str | None = None,
     anchor_symbol: str,
 ) -> dict[str, Any]:
     resolved = absolute_database_path(database_url)
+    market_id = market_id or _market_id_for_network(network)
     candidate_pools = query(
         str(resolved),
         """
@@ -883,6 +1146,36 @@ def build_closed_loops_anchor(
         (network, chain_id, protocol, anchor_symbol),
     )
     token_addresses = _validate_sorted_token_addresses(row["token_address"] for row in token_rows)
+    if not token_addresses:
+        delete_rows(
+            str(resolved),
+            "v4_closed_loop_optimizations",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+            "AND loop_key IN (SELECT loop_key FROM v4_closed_loops "
+            "WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?)",
+            (network, chain_id, protocol, market_id, network, chain_id, protocol, market_id, anchor_symbol),
+        )
+        delete_rows(
+            str(resolved),
+            "v4_closed_loop_hops",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+            "AND loop_key IN (SELECT loop_key FROM v4_closed_loops "
+            "WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?)",
+            (network, chain_id, protocol, market_id, network, chain_id, protocol, market_id, anchor_symbol),
+        )
+        delete_rows(
+            str(resolved),
+            "v4_closed_loops",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?",
+            (network, chain_id, protocol, market_id, anchor_symbol),
+        )
+        return {
+            "anchorSymbol": anchor_symbol,
+            "anchorAddress": "",
+            "loopCount": 0,
+            "hopCount": 0,
+            "counts": {},
+        }
     token_meta = query(
         str(resolved),
         "SELECT token_address, token_symbol FROM chain_tokens WHERE network = ? AND chain_id = ?",
@@ -904,7 +1197,12 @@ def build_closed_loops_anchor(
             """,
             (network, chain_id, protocol),
         )
-        anchor_address = _resolve_anchor_address(anchor_symbol, token_meta, anchor_pools)
+        anchor_address = _resolve_anchor_address(
+            anchor_symbol,
+            token_meta,
+            anchor_pools,
+            network=network,
+        )
     loops, hops = _build_loop_candidates(
         anchor_address=anchor_address,
         anchor_symbol=anchor_symbol,
@@ -920,8 +1218,10 @@ def build_closed_loops_anchor(
     delete_rows(
         str(resolved),
         "v4_closed_loop_optimizations",
-        "network = ? AND chain_id = ? AND protocol = ? AND market_id = ?",
-        (network, chain_id, protocol, market_id),
+        "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+        "AND loop_key IN (SELECT loop_key FROM v4_closed_loops "
+        "WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ? AND anchor_symbol = ?)",
+        (network, chain_id, protocol, market_id, network, chain_id, protocol, market_id, anchor_symbol),
     )
     delete_rows(
         str(resolved),
@@ -961,18 +1261,114 @@ def build_all_anchor_data(
     network: str = ROBINHOOD_NETWORK,
     chain_id: int = ROBINHOOD_CHAIN_ID,
     protocol: str = "uniswap_v4",
-    anchor_scope: str = ROBINHOOD_MARKET_ID,
-    market_id: str = ROBINHOOD_MARKET_ID,
+    anchor_scope: str | None = None,
+    market_id: str | None = None,
     anchors: Iterable[str] = ANCHOR_SYMBOLS,
+    token_universe: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     resolved = absolute_database_path(database_url)
+    anchor_scope = anchor_scope or _market_id_for_network(network)
+    market_id = market_id or _market_id_for_network(network)
     _seed_chain_token_symbols(
         str(resolved),
         network=network,
         chain_id=chain_id,
     )
+    anchor_symbols = tuple(
+        str(item or "").strip().upper()
+        for item in anchors
+        if str(item or "").strip()
+    )
+    universe = sorted({_text(item) for item in token_universe}) if token_universe is not None else None
+    # The full rebuild owns every business row for this network/chain/protocol.
+    # Older interrupted imports may have written rows under the mainnet market
+    # id/anchor scope; deleting by network+chain+protocol removes that residue
+    # before the per-anchor builders run.
+    for table in (
+        "dex_candidate_anchor_tokens",
+        "dex_candidate_pool_pairs",
+        "dex_candidate_pools",
+        "dex_candidate_pool_recommendations",
+        "dex_candidate_abnormal_anchor_tokens",
+        "dex_candidate_abnormal_pool_pairs",
+        "dex_candidate_abnormal_pools",
+        "market_observation_yz_pairs",
+        "market_observation_abnormal_yz_pairs",
+        "market_observation_intermediate_pools",
+        "market_observation_abnormal_intermediate_pools",
+        "market_observation_liquidity_snapshots",
+        "v4_closed_loop_optimizations",
+        "v4_closed_loop_hops",
+        "v4_closed_loops",
+    ):
+        delete_rows(
+            str(resolved),
+            table,
+            "network = ? AND chain_id = ? AND protocol = ?",
+            (network, chain_id, protocol),
+        )
+    if anchor_symbols:
+        placeholders = ",".join("?" for _ in anchor_symbols)
+        for table in (
+            "dex_candidate_anchor_tokens",
+            "dex_candidate_pool_pairs",
+            "dex_candidate_pools",
+            "dex_candidate_pool_recommendations",
+            "dex_candidate_abnormal_anchor_tokens",
+            "dex_candidate_abnormal_pool_pairs",
+            "dex_candidate_abnormal_pools",
+            "market_observation_yz_pairs",
+            "market_observation_abnormal_yz_pairs",
+            "market_observation_intermediate_pools",
+            "market_observation_abnormal_intermediate_pools",
+            "market_observation_liquidity_snapshots",
+        ):
+            delete_rows(
+                str(resolved),
+                table,
+                "network = ? AND chain_id = ? AND protocol = ? "
+                f"AND anchor_symbol NOT IN ({placeholders})",
+                (network, chain_id, protocol, *anchor_symbols),
+            )
+        delete_rows(
+            str(resolved),
+            "v4_closed_loop_optimizations",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ?",
+            (network, chain_id, protocol, market_id),
+        )
+        delete_rows(
+            str(resolved),
+            "v4_closed_loop_hops",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+            "AND loop_key IN (SELECT loop_key FROM v4_closed_loops "
+            "WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+            f"AND anchor_symbol NOT IN ({placeholders}))",
+            (network, chain_id, protocol, market_id, network, chain_id, protocol, market_id, *anchor_symbols),
+        )
+        delete_rows(
+            str(resolved),
+            "v4_closed_loops",
+            "network = ? AND chain_id = ? AND protocol = ? AND market_id = ? "
+            f"AND anchor_symbol NOT IN ({placeholders})",
+            (network, chain_id, protocol, market_id, *anchor_symbols),
+        )
+    # A full rebuild owns every loop row for this network/chain/protocol.
+    # Older interrupted imports may have written rows under a different
+    # market_id (for example the mainnet market id), which would otherwise
+    # survive the per-anchor delete below and duplicate the loop key.
+    for table in (
+        "v4_closed_loop_optimizations",
+        "v4_closed_loop_hops",
+        "v4_closed_loops",
+    ):
+        delete_rows(
+            str(resolved),
+            table,
+            "network = ? AND chain_id = ? AND protocol = ?",
+            (network, chain_id, protocol),
+        )
     reports = []
-    for anchor_symbol in anchors:
+    for anchor_symbol in anchor_symbols:
         # Candidate page owns the YC/ZC token set: only tokens with a direct
         # anchor pool are valid first/third-hop candidates. Market observation
         # must use exactly that set, otherwise direction counts and loop rows
@@ -984,6 +1380,7 @@ def build_all_anchor_data(
             protocol=protocol,
             anchor_scope=anchor_scope,
             anchor_symbol=anchor_symbol,
+            token_addresses=universe,
         )
         observation_token_addresses = [
             row["token_address"]

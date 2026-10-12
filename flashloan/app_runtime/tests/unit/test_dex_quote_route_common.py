@@ -55,6 +55,51 @@ def test_quote_route_common_templates_cover_amm_v4_uniswapx():
     assert bundle["conditions"] == ["framework only", "live verify"]
 
 
+def test_quote_route_common_scopes_uniswapx_request_to_middle_hop():
+    middle_hop = {
+        "middleLeg": "y-z",
+        "fromSymbol": "TK1",
+        "toSymbol": "TK2",
+        "fromAddress": "0x1",
+        "toAddress": "0x2",
+        "symbolPair": "TK1 -> TK2",
+        "quoteParameters": {
+            "sellToken": "TK1",
+            "buyToken": "TK2",
+            "sellAmount": 12.5,
+            "minBuyAmount": 13.0,
+            "limitPrice": 1.04,
+            "targetProfitBps": 100,
+        },
+    }
+
+    requests = build_quote_request_specs(
+        pair_symbol="ETH -> TK1 -> TK2 -> ETH",
+        pools=[{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+        route_symbols=["ETH", "TK1", "TK2", "ETH"],
+        route_addresses=["0x0", "0x1", "0x2", "0x0"],
+        route_tokens=[{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "TK2"}, {"symbol": "ETH"}],
+        amm_quote_mode="overview_route_snapshot",
+        amm_status="waiting_live_price",
+        uniswapx_quote_mode="intent_exact_input",
+        uniswapx_status="waiting_live_price",
+        uniswapx_middle_hop=middle_hop,
+        chain_id=4663,
+        settlement={"uniswapx": {"supported": True, "reactor_family": "exclusive"}},
+    )
+
+    uniswapx_requests = [request for request in requests if request.get("venue") == "uniswapx"]
+    assert len(uniswapx_requests) == 1
+    assert uniswapx_requests[0]["middleHop"] == middle_hop
+    assert uniswapx_requests[0]["routeSymbols"] == ["TK1", "TK2"]
+    assert uniswapx_requests[0]["routeAddresses"] == ["0x1", "0x2"]
+    assert "TK1%20-%3E%20TK2" in uniswapx_requests[0]["quoteRequestUrl"]
+    assert uniswapx_requests[0]["quoteParameters"]["sellAmount"] == 12.5
+    assert uniswapx_requests[0]["minBuyAmount"] == 13.0
+    assert uniswapx_requests[0]["limitPrice"] == 1.04
+    assert uniswapx_requests[0]["targetProfitBps"] == 100
+
+
 def test_quote_route_status_and_request_payload_surface_live_verification():
     overview = {
         "arbitragePaths": [

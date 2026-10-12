@@ -10,10 +10,7 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
     _known_token_pool_ids,
     load_robinhood_testnet_v4_pool_liquidity,
 )
-from core.chain_data_registry import chain_data_file_path
-from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_NETWORK
-from pathlib import Path
-import json
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
 
 
 STABLE_SYMBOLS = {
@@ -48,32 +45,6 @@ def _symbol(value: object) -> str:
 def _address(value: object) -> str:
     text = str(value or "").strip()
     return text if text.startswith("0x") and len(text) == 42 else ""
-
-
-def _testnet_observation_scope_token_addresses() -> set[str]:
-    """Stablecoin + ETH + TZ pool scope for the test network.
-
-    This is a temporary pool-subset switch, not a route-count limit. New stable
-    or TZ pools are picked up automatically and still produce every closed-loop
-    combination from the available graph.
-    """
-    scope = {"0x" + "0" * 40}
-    try:
-        path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_token_allowlist")
-        if path is None:
-            return scope
-        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError, TypeError):
-        return scope
-    for symbol, row in (payload.get("tokens") or {}).items():
-        if not isinstance(row, dict):
-            continue
-        normalized_symbol = _symbol(symbol)
-        if _symbol(row.get("category")) == "STABLECOIN" or normalized_symbol in {"ETH", "TZ"}:
-            address = _address(row.get("address"))
-            if address:
-                scope.add(address.lower())
-    return scope
 
 
 def _number(value: object) -> float | None:
@@ -312,13 +283,6 @@ def _row_uses_flash_asset(row: dict[str, Any], symbols: set[str], addresses: set
     return bool((symbols and row_symbols.intersection(symbols)) or (addresses and row_addresses.intersection(addresses)))
 
 
-def _row_uses_observation_scope(row: dict[str, Any], scope_token_addresses: set[str]) -> bool:
-    return {
-        _address(row.get("token0")).lower(),
-        _address(row.get("token1")).lower(),
-    } <= scope_token_addresses
-
-
 def _candidate_source_pools(pool_index: dict[str, Any], liquidity: dict[str, Any]) -> tuple[list[dict[str, Any]], str, str | None]:
     active_ids = _active_pool_ids(liquidity)
     indexed_pools = [pool for pool in pool_index.get("pools") or [] if isinstance(pool, dict)]
@@ -489,6 +453,21 @@ def dex_pool_candidates_payload(
     pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
     **_: Any,
 ) -> dict[str, Any]:
+    protocol_set = {
+        str(item or "").strip().lower()
+        for item in request.flow.get("allowed_protocols") or []
+    }
+    if (
+        str(request.network or "").strip().lower() == ROBINHOOD_TESTNET_NETWORK
+        and int(request.chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID
+        and (not protocol_set or "uniswap_v4" in protocol_set)
+    ):
+        from core.db.page_payloads import build_candidate_payload as _build_db_candidate_payload
+
+        return _build_db_candidate_payload(
+            chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+            protocols=sorted(protocol_set) if protocol_set else None,
+        )
     pool_index = pool_index_loader()
     liquidity = pool_liquidity_loader()
     index_payload = pool_index.get("payload") if isinstance(pool_index.get("payload"), dict) else {}
@@ -503,7 +482,6 @@ def dex_pool_candidates_payload(
     token_metadata = _metadata_by_address(liquidity_payload)
     liquidity_by_id = _liquidity_by_pool_id(liquidity)
     anchor_symbols, anchor_addresses = _flash_accounting_assets(liquidity, pool_manager)
-    scope_token_addresses = _testnet_observation_scope_token_addresses()
     source_pools, source_mode, source_path = _candidate_source_pools(pool_index, liquidity)
     anchor_symbol_set = set(anchor_symbols)
     rows = [
@@ -518,7 +496,6 @@ def dex_pool_candidates_payload(
         )]
         if row is not None
         and _row_uses_flash_asset(row, anchor_symbol_set, anchor_addresses)
-        and _row_uses_observation_scope(row, scope_token_addresses)
     ]
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:

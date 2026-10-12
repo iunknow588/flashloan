@@ -151,6 +151,21 @@ def static_snapshot_from_observation(
     sequences = _observation_sequences_from_observation(observation)
     dynamic_paths = _dynamic_overview_path_candidates(observation, normalized_chain_id, selected_protocols)
     sequences = _merge_dynamic_hop_candidates_into_sequences(sequences, dynamic_paths)
+    # ``observationSequences`` keeps every directional Y-Z row for the
+    # observation page. ``closedLoopSequences`` is the executable subset:
+    # only three-hop routes with an actual middle pool, deduplicated by bridge
+    # pool address so reverse directions and legacy route duplicates count once.
+    closed_loop_sequences = _dedup_closed_loop_sequences(
+        [
+            sequence
+            for sequence in sequences
+            if isinstance(sequence, dict)
+            and (
+                sequence.get("observationReachable")
+                or sequence.get("observationState") == "reachable"
+            )
+        ]
+    )
     # The external observation file stores every middle-hop Y-Z pool address
     # plus the liquidity snapshot fields already present on each route step.
     # Pool addresses are fixed; later refreshes update liquidity evidence
@@ -194,7 +209,7 @@ def static_snapshot_from_observation(
     ]
     snapshot["summary"] = {
         **(snapshot.get("summary") or {}),
-        "closedLoopSequenceCount": len(sequences),
+        "closedLoopSequenceCount": len(closed_loop_sequences),
         "fundAnchorPairObservationRouteCount": len(sequences),
         "nonEthPairFirstRouteCount": len(sequences),
         "chainSpecificObservationSequenceCount": len(sequences),
@@ -222,11 +237,7 @@ def static_snapshot_from_observation(
     if not isinstance(raw_groups, list):
         raw_groups = observation.get("anchorGroups")
     snapshot["observationSequences"] = sequences
-    snapshot["closedLoopSequences"] = [
-        _compact_observation_sequence(sequence)
-        for sequence in sequences
-        if isinstance(sequence, dict)
-    ]
+    snapshot["closedLoopSequences"] = list(closed_loop_sequences)
     # Rebuild a full pool registry from observation pools so later page reads
     # can hydrate every route, including routes restored from legacy
     # closedLoopRoutes.  Static pool addresses remain stable; liquidity fields
@@ -672,6 +683,7 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
     payload["summary"]["borrowableTokenCount"] = len(payload.get("borrowableSymbols") or [])
     payload["summary"]["candidateObservationGroupCount"] = len(payload.get("candidateObservationGroups") or [])
     payload["summary"]["observationSequenceCount"] = len(payload.get("observationSequences") or [])
+    payload["summary"]["closedLoopSequenceCount"] = len(payload.get("closedLoopSequences") or [])
     payload["summary"]["closedLoopRouteCount"] = len(payload.get("closedLoopRoutes") or [])
     payload["mode"] = payload.get("mode") or "dex_market_observation"
     payload["selected_protocols"] = payload.get("selected_protocols") or snapshot.get("protocols") or []

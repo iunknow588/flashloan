@@ -55,6 +55,7 @@ MAINNET_V4_MANIFEST_PATH = (
 )
 MAINNET_V4_DYNAMIC_FEE_FLAG = 8388608
 MAINNET_V4_SPECIAL_FEE_THRESHOLD = 100_000
+MAINNET_V4_MAX_OBSERVATION_FIXED_FEE = 3000
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -272,7 +273,11 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         "dynamicFee": dynamic_fee,
         "specialFee": special_fee,
         "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else (int(raw_fee_int) if raw_fee_int else row.get("fee")),
-        "usableForObservation": (not special_fee) and has_liquidity,
+        "usableForObservation": (
+            not special_fee
+            and 0 < raw_fee_int <= MAINNET_V4_MAX_OBSERVATION_FIXED_FEE
+            and str(row.get("hooks") or "").strip().lower() in ("", _ZERO_ADDRESS)
+        ),
         "hasLiquidity": row.get("hasLiquidity") if row.get("hasLiquidity") is not None else has_liquidity,
         "liquidityIndex": liquidity_index,
         "estimatedTvlUsd": row.get("estimatedTvlUsd") or balances.get("tvlUsd"),
@@ -316,6 +321,20 @@ def _v4_is_special_fee_candidate(candidate: dict[str, Any]) -> bool:
     return bool(candidate.get("specialFee") or candidate.get("dynamicFee"))
 
 
+def _v4_pool_observation_candidate(candidate: dict[str, Any]) -> bool:
+    """Return whether a V4 pool belongs to the fixed-fee no-hook surface."""
+    if _v4_is_special_fee_candidate(candidate):
+        return False
+    try:
+        fee = int(str(candidate.get("fee") or "0").strip() or 0)
+    except (TypeError, ValueError):
+        return False
+    if fee <= 0 or fee > MAINNET_V4_MAX_OBSERVATION_FIXED_FEE:
+        return False
+    hooks = str(candidate.get("hooks") or "").strip().lower()
+    return not hooks or hooks == _ZERO_ADDRESS
+
+
 def _batch_read_v4_pool_states(
     *,
     rpc_url: str,
@@ -342,7 +361,7 @@ def _batch_read_v4_pool_states(
             continue
         pool_id_bytes = bytes.fromhex(normalized_id[2:])
         state_slot = keccak(pool_id_bytes + V4_POOLS_SLOT)
-        liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+        liquidity_slot = (int.from_bytes(state_slot, "big") + 2).to_bytes(32, "big")
         for slot, kind in ((state_slot, "slot0"), (liquidity_slot, "liquidity")):
             request_id = next_id
             next_id += 1
@@ -446,7 +465,12 @@ def _mainnet_rpc_urls() -> tuple[str, ...]:
         urls = _mainnet_rpc_urls_from_env()
     except Exception:
         urls = ()
-    return tuple(urls)
+    # HyperRPC/HyperSync are log-scanning providers, not eth_call endpoints.
+    return tuple(
+        url
+        for url in urls
+        if "hyperrpc" not in str(url).lower() and "hypersync" not in str(url).lower()
+    )
 
 
 def _mainnet_rpc_url() -> str:
@@ -475,7 +499,7 @@ def _decorate_candidates_with_live_state(
         "liveNoLiquidityPoolCount": 0,
         "error": None,
     }
-    if not rpc_url or not pool_manager:
+    if not pool_manager:
         summary["error"] = "robinhood_mainnet_rpc_or_pool_manager_missing_for_live_state"
         return summary
     fixed_rows = [
@@ -497,28 +521,31 @@ def _decorate_candidates_with_live_state(
         # each batch small while still staying far cheaper than one eth_call
         # per pool. If the primary URL fails, fall back to the next configured
         # RPC before giving up.
-        batch_size = 40
-        rpc_urls = tuple(str(url) for url in ([rpc_url] if rpc_url else _mainnet_rpc_urls()) if url)
-        for candidate_url in rpc_urls:
-            states = {}
-            errors: list[str] = []
-            for start in range(0, len(pool_ids), batch_size):
-                chunk = pool_ids[start:start + batch_size]
+        batch_size = 10
+        provided = tuple(str(url) for url in ([rpc_url] if rpc_url else ()) if url)
+        rpc_urls = tuple(dict.fromkeys(provided + _mainnet_rpc_urls()))
+        states = {}
+        errors: list[str] = []
+        for start in range(0, len(pool_ids), batch_size):
+            chunk = pool_ids[start:start + batch_size]
+            chunk_states: dict[str, dict[str, Any]] = {}
+            for candidate_url in rpc_urls:
                 try:
-                    states.update(
-                        _batch_read_v4_pool_states(
-                            rpc_url=candidate_url,
-                            pool_manager=pool_manager,
-                            pool_ids=chunk,
-                        )
+                    chunk_states = _batch_read_v4_pool_states(
+                        rpc_url=candidate_url,
+                        pool_manager=pool_manager,
+                        pool_ids=chunk,
                     )
                 except Exception as exc:
                     errors.append(str(exc))
                     time.sleep(0.3)
-            if states:
-                break
-        else:
-            raise RuntimeError("; ".join(errors) or "no_rpc_available")
+                    continue
+                if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+                    break
+            if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+                states.update(chunk_states)
+            else:
+                errors.append(f"{chunk[0]}..{chunk[-1]}: no_state_success")
     except Exception as exc:
         summary["error"] = str(exc)
         return summary
@@ -528,16 +555,20 @@ def _decorate_candidates_with_live_state(
         pool_id = str(candidate.get("pool") or candidate.get("poolId") or "").strip().lower()
         state = states.get(pool_id) if pool_id else None
         if state is None or state.get("error"):
-            candidate["hasLiquidity"] = False
-            candidate["liquidityIndex"] = 0
-            candidate["liquidity"] = ""
-            candidate["usableForObservation"] = False
-            candidate["estimatedTvlUsd"] = 0
-            candidate["tvlUsd"] = 0
-            candidate["balances"] = {"tvlUsd": 0}
-            candidate["depthStatus"] = "live_liquidity_unavailable"
+            error_message = str((state or {}).get("error") or "live_state_missing")
+            if "liquidity is zero" in error_message.lower():
+                candidate["hasLiquidity"] = False
+                candidate["liquidityIndex"] = 0
+                candidate["liquidity"] = ""
+                candidate["estimatedTvlUsd"] = 0
+                candidate["tvlUsd"] = 0
+                candidate["balances"] = {"tvlUsd": 0}
+                candidate["depthStatus"] = "live_liquidity_zero"
+            else:
+                candidate["depthStatus"] = "live_liquidity_unavailable"
+            candidate["usableForObservation"] = _v4_pool_observation_candidate(candidate)
             candidate["liquidityError"] = (state or {}).get("error") or "live_state_missing"
-            candidate["liquiditySource"] = "pool_manager_extsload_live_state_batch"
+            candidate["liquiditySource"] = candidate.get("liquiditySource") or "pool_manager_extsload_live_state_batch"
             summary["liveNoLiquidityPoolCount"] = summary.get("liveNoLiquidityPoolCount") or 0
             summary["liveNoLiquidityPoolCount"] += 1
             continue
@@ -546,7 +577,7 @@ def _decorate_candidates_with_live_state(
         candidate["hasLiquidity"] = has_liquidity
         candidate["liquidityIndex"] = float(liquid) if has_liquidity else 0
         candidate["liquidity"] = liquid
-        candidate["usableForObservation"] = has_liquidity and (not _v4_is_special_fee_candidate(candidate))
+        candidate["usableForObservation"] = _v4_pool_observation_candidate(candidate)
         candidate["sqrtPriceX96"] = state.get("sqrtPriceX96") or candidate.get("sqrtPriceX96")
         candidate["tick"] = state.get("tick") if state.get("tick") is not None else candidate.get("tick")
         candidate["liquiditySource"] = state.get("source") or "pool_manager_extsload_live_state_batch"
@@ -684,12 +715,7 @@ def _select_mainnet_representative_candidates(
     def _passes_fee_filter(candidate: dict[str, Any]) -> bool:
         if not fixed_fee_only:
             return True
-        if _v4_is_special_fee_candidate(candidate):
-            return False
-        try:
-            return int(str(candidate.get("fee") or candidate.get("poolKey", {}).get("fee") or "0").strip() or 0) > 0
-        except (TypeError, ValueError):
-            return False
+        return _v4_pool_observation_candidate(candidate)
 
     def _passes_liquidity_filter(candidate: dict[str, Any]) -> bool:
         return bool(candidate.get("usableForObservation")) or _pool_has_liquidity(candidate)
@@ -697,7 +723,7 @@ def _select_mainnet_representative_candidates(
     fixed_fee_candidates = [
         candidate
         for candidate in candidates
-        if _passes_fee_filter(candidate) and (not liquid_only or _passes_liquidity_filter(candidate))
+        if _passes_fee_filter(candidate)
     ]
     grouped: dict[str, list[dict[str, Any]]] = {}
     for candidate in fixed_fee_candidates:
@@ -828,8 +854,26 @@ def build_mainnet_static_candidate_payload(
         fixed_fee_only=fixed_fee_only,
         liquid_only=True,
     )
+    abnormal_candidates = [
+        candidate
+        for candidate in scoped_candidates
+        if not _v4_pool_observation_candidate(candidate)
+    ]
+    abnormal_selected: list[dict[str, Any]] = []
+    if max_candidates_per_pair > 0 and abnormal_candidates:
+        abnormal_selected, _ = _select_mainnet_representative_candidates(
+            abnormal_candidates,
+            max_candidates_per_pair=max_candidates_per_pair,
+            fixed_fee_only=False,
+            liquid_only=False,
+        )
+    selected_source = (
+        scoped_candidates
+        if max_candidates_per_pair <= 0
+        else list(dict.fromkeys([*_selected, *abnormal_selected]))
+    )
     selected = sorted(
-        scoped_candidates,
+        selected_source,
         key=lambda row: (
             _candidate_address_pair(row),
             not _pool_has_liquidity(row),
@@ -853,6 +897,14 @@ def build_mainnet_static_candidate_payload(
             "candidateRouteCount": len(selected),
             "sourceIndexedPoolCount": len(rows),
             "sourceScopedPoolCount": len(scoped_candidates),
+            "normalObservationPoolCount": len(
+                [
+                    candidate
+                    for candidate in scoped_candidates
+                    if _v4_pool_observation_candidate(candidate)
+                ]
+            ),
+            "abnormalObservationPoolCount": len(abnormal_candidates),
             "fixedFeePoolCount": len(
                 [
                     candidate
@@ -1256,10 +1308,17 @@ def _mark_v4_shared_yc_zc_sets(
             marked.append(group)
             continue
         anchor_symbol = _symbol(group.get("anchorSymbol"))
-        shared_pools = [
+        normal_shared_pools = [
             _shared_candidate_row(anchor_symbol, yc_by_key.get(key), zc_by_key.get(key))
             for key in sorted(yc_by_key)
+            if _v4_pool_observation_candidate(yc_by_key.get(key) or {})
         ]
+        abnormal_shared_pools = [
+            _shared_candidate_row(anchor_symbol, yc_by_key.get(key), zc_by_key.get(key))
+            for key in sorted(yc_by_key)
+            if not _v4_pool_observation_candidate(yc_by_key.get(key) or {})
+        ]
+        shared_pools = normal_shared_pools
         shared_anchor_address = _shared_anchor_address(shared_pools)
         shared_tokens = (
             _shared_tokens_from_cache(
@@ -1312,6 +1371,11 @@ def _mark_v4_shared_yc_zc_sets(
                     )
                 )
         shared_pools = _annotate_shared_pool_recommended_hops(shared_pools, shared_tokens)
+        abnormal_anchor_address = _shared_anchor_address(abnormal_shared_pools)
+        abnormal_tokens = _shared_tokens_from_pools(
+            abnormal_shared_pools,
+            anchor_address=abnormal_anchor_address,
+        )
         marked.append(
             {
                 **group,
@@ -1336,6 +1400,11 @@ def _mark_v4_shared_yc_zc_sets(
                 "zcTokenCount": str(len(shared_tokens)),
                 "candidatePoolCount": str(len(shared_pools)),
                 "candidateQueueCount": str(len(shared_pools) * 2),
+                "abnormalPools": abnormal_shared_pools,
+                "abnormalTokens": abnormal_tokens,
+                "abnormalPoolCount": str(len(abnormal_shared_pools)),
+                "abnormalTokenCount": str(len(abnormal_tokens)),
+                "abnormalDirectionCount": str(len(abnormal_shared_pools) * 2),
             }
         )
     return marked
@@ -1346,6 +1415,8 @@ def _mainnet_reconcile_shared_yc_zc_sets(payload: dict[str, Any]) -> dict[str, A
     anchor_groups = _mark_v4_shared_yc_zc_sets(payload.get("anchorGroups") or [])
     shared_group_count = sum(1 for group in anchor_groups if group.get("ycZcSameSet"))
     shared_pool_count = sum(int(group.get("sharedPoolCount") or 0) for group in anchor_groups)
+    abnormal_pool_count = sum(int(group.get("abnormalPoolCount") or 0) for group in anchor_groups)
+    abnormal_token_count = sum(int(group.get("abnormalTokenCount") or 0) for group in anchor_groups)
     summary = dict(payload.get("summary") or {})
     summary.update(
         {
@@ -1355,6 +1426,8 @@ def _mainnet_reconcile_shared_yc_zc_sets(payload: dict[str, Any]) -> dict[str, A
             "zcTokenCount": str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups)),
             "ycZcSameSetGroupCount": str(shared_group_count),
             "sharedPoolSetCount": str(shared_pool_count),
+            "abnormalStaticPoolCount": str(abnormal_pool_count),
+            "abnormalStaticTokenCount": str(abnormal_token_count),
             "candidateSetStorageMode": "shared_yc_zc_pool_set" if shared_group_count else "directional_pool_sets",
         }
     )
@@ -1484,13 +1557,18 @@ def dex_pool_candidates_payload(
     evidence_root: Path | None = None,
     **_: Any,
 ) -> dict[str, Any]:
-    # Candidate pools are a static handoff for this chain. The full V4 index is
-    # a discovery evidence file, not the candidate-pool surface; rebuilding
-    # every historical pool on every page request is what produced multi-thousand
-    # row tables and slow page loads. Robinhood mainnet therefore reads the
-    # compact static candidate file first and only falls back to the index when
-    # that file is unavailable.
     protocol_set = {str(item or "").strip().lower() for item in request.flow.get("allowed_protocols") or []}
+    if (
+        str(request.network or "").strip().lower() == "robinhood"
+        and int(request.chain_id or 0) == 4663
+        and (not protocol_set or "uniswap_v4" in protocol_set)
+    ):
+        from core.db.page_payloads import build_candidate_payload as _build_db_candidate_payload
+
+        return _build_db_candidate_payload(
+            chain_id=4663,
+            protocols=sorted(protocol_set) if protocol_set else None,
+        )
     path = (
         pool_cache_path
         or chain_data_file_path(request.network, "dex_candidates", chain_id=request.chain_id)

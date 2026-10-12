@@ -68,7 +68,7 @@ def _clear_submission_response_cache() -> None:
 
 
 def _closed_loop_groups_for_refresh(*, chain_id, protocols):
-    overview = _root.load_market_observation_overview_static(
+    overview = _root.load_observation_overview_for_scope(
         chain_id=chain_id,
         protocols=protocols,
     )
@@ -711,6 +711,7 @@ def register_dex_pool_routes(app) -> None:
                 flow_name="dex_pool_candidates",
             )
             page, page_size, query, quality = _root.candidate_pagination_args()
+            abnormal_pool_page, abnormal_token_page = _root.section_pagination_args()
             payload = _root.dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
             payload["chain_selection"] = chain_selection
             payload.setdefault("candidates", payload.get("pairs") or [])
@@ -720,7 +721,15 @@ def register_dex_pool_routes(app) -> None:
             g.response_contract_validated = True
             return jsonify(
                 _root._attach_dex_strategy(
-                    _root.paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)
+                    _root.paginate_candidate_payload(
+                        payload,
+                        page=page,
+                        page_size=page_size,
+                        query=query,
+                        quality=quality,
+                        abnormal_pool_page=abnormal_pool_page,
+                        abnormal_token_page=abnormal_token_page,
+                    )
                 )
             )
         except Exception as exc:
@@ -752,6 +761,11 @@ def register_dex_pool_routes(app) -> None:
             "message": "全量刷新进行中" if full_refresh else "增量刷新进行中",
         }
         try:
+            _root._clear_dex_surface_cache(
+                chain_id=selected_chain_id,
+                protocols=protocols,
+                use_static_observation=None,
+            )
             if full_refresh:
                 chain_row = _root.chain_data_by_chain_id(selected_chain_id) if selected_chain_id is not None else None
                 network = str(
@@ -781,9 +795,18 @@ def register_dex_pool_routes(app) -> None:
             payload["refresh_state"] = _root._refresh_state_summary(payload, {**refresh_state, "running": False})
             payload.setdefault("candidates", payload.get("pairs") or [])
             page, page_size, query, quality = _root.candidate_pagination_args()
+            abnormal_pool_page, abnormal_token_page = _root.section_pagination_args()
             return jsonify(
                 _root._attach_dex_strategy(
-                    _root.paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)
+                    _root.paginate_candidate_payload(
+                        payload,
+                        page=page,
+                        page_size=page_size,
+                        query=query,
+                        quality=quality,
+                        abnormal_pool_page=abnormal_pool_page,
+                        abnormal_token_page=abnormal_token_page,
+                    )
                 )
             )
         except Exception as exc:

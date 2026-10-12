@@ -156,6 +156,7 @@ def _build_quote_routes_and_best(
                         or matched_route_index <= route_live_test_policy.live_route_limit
                     )
                 )
+                or (matched_route_index == 1 and route_live_test_policy.probe_best_only)
                 or base_quote_analysis.get("executableCandidate")
             )
         )
@@ -204,6 +205,7 @@ def _build_quote_routes_and_best(
             chain_id=chain_id,
             route_size_analysis_fn=route_size_analysis_fn,
             size_analysis=size_analysis,
+            settlement=settlement,
         )
         route["hopCandidateReplacement"] = replacement
         route_payload = build_quote_route_payload(

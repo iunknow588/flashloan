@@ -258,6 +258,25 @@ def test_robinhood_chain_market_observation_flow_prefers_static_snapshot(monkeyp
     assert calls == {"surface": 1, "overview": 1, "quotes": 1, "request": 1}
 
 
+def test_market_observation_page_payload_reuses_cached_page_snapshot(monkeypatch):
+    from flask import Flask
+    from web.data_routes.dex_surface_orchestration import _market_observation_page_payload
+    from web.data_routes import dex_surface_orchestration as orchestration
+
+    payload = {"chainSpecificObservationPools": list(range(200)), "observationSequences": list(range(10))}
+    monkeypatch.setattr(orchestration, "_cached_surface_payload", lambda *a, **kw: {"from_cache": True})
+
+    app = Flask(__name__)
+    with app.test_request_context("/api/dex/market-observation?chain_id=4663&protocols=uniswap_v4"):
+        result = _market_observation_page_payload(
+            payload,
+            chain_id=4663,
+            protocols=["uniswap_v4"],
+        )
+
+    assert result == {"from_cache": True}
+
+
 def test_dex_opportunity_scanner_warmup_uses_static_overview_for_robinhood_family(monkeypatch):
     from runtime import dex_opportunity_scanner
 
@@ -420,6 +439,11 @@ def test_dex_market_observation_collapses_reverse_closed_loop_directions(monkeyp
             "associatedObservationTokens": [],
         },
     )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_v4_index_bridge_pairs_for_anchor_groups",
+        lambda *args, **kwargs: ([], {"enabled": False, "status": "test_stub"}),
+    )
 
     observation = dex_surfaces.dex_market_observation_payload(
         chain_id=4663,
@@ -575,6 +599,11 @@ def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monk
 
     monkeypatch.setattr(dex_surfaces, "_cached_framework_surface_payload", lambda *args, **kwargs: None)
     monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: snapshot)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_database_first_v4_robinhood",
+        lambda *, chain_id=None, protocols=None: False,
+    )
 
     observation = dex_surfaces.dex_market_observation_surface_payload(
         chain_id=46630,
@@ -586,6 +615,87 @@ def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monk
     assert observation["marketObservationSourceStage"] == "cached_snapshot"
     assert observation["summary"]["closedLoopRouteCount"] == 0
     assert observation["observationAnchorSymbols"] == ["ETH", "USDC"]
+
+
+def test_dex_market_observation_surface_uses_database_for_mainnet_v4(monkeypatch):
+    static_calls = []
+
+    def fail_static(**kwargs):
+        static_calls.append(kwargs)
+        return {"exists": True, "path": "observation.json"}
+
+    monkeypatch.setattr(dex_surfaces, "_cached_framework_surface_payload", lambda *args, **kwargs: None)
+    monkeypatch.setattr(dex_surfaces, "load_market_observation_static", fail_static)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "dex_market_observation_payload",
+        lambda chain_id=None, protocols=None: {
+            "mode": "dex_market_observation",
+            "chain_id": chain_id,
+            "selected_protocols": protocols,
+            "marketObservationSource": "computed",
+            "summary": {"observationSequenceCount": 1},
+            "observationSequences": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
+        },
+    )
+
+    observation = dex_surfaces.dex_market_observation_surface_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
+
+    assert observation["marketObservationSource"] == "computed"
+    assert static_calls == []
+
+
+def test_database_overview_snapshot_backs_mainnet_v4_static_contracts(monkeypatch):
+    overview = {
+        "chain_id": 4663,
+        "selected_protocols": ["uniswap_v4"],
+        "summary": {"closedLoopAnchorSymbols": ["ETH"]},
+        "borrowableSymbols": ["ETH"],
+        "arbitragePaths": [
+            {
+                "routeSymbols": ["ETH", "USDC", "DAI", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "targetSymbol": "DAI",
+                    "pathSymbols": ["ETH", "USDC", "DAI", "ETH"],
+                    "pathAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                    "pathText": "ETH -> USDC -> DAI -> ETH",
+                },
+                "executionPools": [
+                    {
+                        "pool": "0x" + "a" * 64,
+                        "poolId": "0x" + "a" * 64,
+                        "fee": 3000,
+                        "hasLiquidity": True,
+                        "usableForObservation": True,
+                    }
+                ],
+            }
+        ],
+        "liquidPoolRegistry": {},
+        "poolIndexVersion": {"source": "sqlite_db"},
+    }
+    monkeypatch.setattr(
+        dex_surfaces,
+        "dex_overview_payload",
+        lambda chain_id=None, protocols=None, use_static_observation=False: dict(overview),
+    )
+
+    snapshot = dex_surfaces.load_observation_overview_for_scope(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+    )
+
+    assert snapshot["exists"] is True
+    assert snapshot["path"] == "sqlite_db"
+    assert len(snapshot["closedLoopRouteSummaries"]) == 1
+    assert snapshot["closedLoopRouteSummaries"][0]["anchorSymbol"] == "ETH"
+    assert snapshot["poolRegistry"]["0x" + "a" * 64]["hasLiquidity"] is True
 
 
 def test_dex_market_observation_surface_recomputes_when_static_snapshot_is_empty(monkeypatch):

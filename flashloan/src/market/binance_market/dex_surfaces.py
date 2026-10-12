@@ -4,6 +4,7 @@ from copy import deepcopy
 from decimal import Decimal
 from functools import lru_cache
 from importlib import import_module
+import json
 import sys
 from typing import Any
 from urllib.parse import quote
@@ -52,7 +53,6 @@ from market.binance_market.dex_surface_quotes import (
 from market.binance_market.dex_surface_observation import (
     _anchor_group_direction_rows,
     _anchor_group_direction_tokens,
-    _anchor_observation_sequences,
     _best_pool_rows,
     _borrow_anchor_symbols,
     _borrowable_symbols,
@@ -66,6 +66,7 @@ from market.binance_market.dex_surface_observation import (
     _chain_observation_function,
     _chain_observation_module,
     _closed_route_from_sequence,
+    _anchor_observation_sequences,
     _graph_stable_anchor_symbols,
     _group_token_pool_rows,
     _observation_anchor_symbols,
@@ -177,6 +178,41 @@ DEFAULT_AMM_FEE_BPS = 30.0
 ROBINHOOD_CHAIN_ID = _ROBINHOOD_CHAIN_ID
 ROBINHOOD_TESTNET_CHAIN_ID = _ROBINHOOD_TESTNET_CHAIN_ID
 _ROBINHOOD_CHAIN_IDS = {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
+
+
+def _query_count(
+    database_url: str,
+    table: str,
+    conditions: str,
+    params: tuple[Any, ...] = (),
+) -> int:
+    """Return a row count without materialising every row into Python."""
+    from core.db.storage_business_io import query
+
+    allowed_tables = {
+        "market_observation_yz_pairs",
+        "market_observation_abnormal_yz_pairs",
+        "dex_candidate_anchor_tokens",
+    }
+    if table not in allowed_tables:
+        raise ValueError(f"unsupported count table: {table}")
+    rows = query(
+        database_url,
+        f"SELECT COUNT(*) FROM {table} WHERE {conditions}",
+        params,
+    )
+    return int(rows[0]["COUNT(*)"] or 0) if rows else 0
+
+
+def _json_loads(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
 ERC20_DECIMALS_ABI = [
     {
         "inputs": [],
@@ -217,6 +253,17 @@ def _dex_table_route(route: dict[str, Any], observation: dict[str, Any]) -> dict
     }
 
 
+def _database_first_v4_robinhood(*, chain_id: int | None, protocols: list[str] | None) -> bool:
+    """Return whether the Robinhood V4 surface must read SQLite only."""
+    return bool(
+        int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS
+        and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
+    )
+
+
+_database_first_v4_mainnet = _database_first_v4_robinhood
+
+
 def dex_market_observation_surface_payload(
     *,
     chain_id: int | None,
@@ -232,11 +279,8 @@ def dex_market_observation_surface_payload(
     if cached is not None:
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
-    _database_first_v4_mainnet = bool(
-        int(chain_id or 0) == ROBINHOOD_CHAIN_ID
-        and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
-    )
-    if use_static_observation and not _database_first_v4_mainnet:
+    database_first = _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols)
+    if use_static_observation and not database_first:
         static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
         if static_snapshot.get("exists"):
             payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
@@ -273,10 +317,22 @@ def dex_market_observation_surface_payload(
                     chain_id=chain_id,
                     protocols=protocols,
                     use_static_observation=use_static_observation,
+                    ttl_seconds=0,
                 )
                 return payload
     payload = dex_market_observation_payload(chain_id=chain_id, protocols=protocols)
     payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "computed"
+    if database_first:
+        # Keep the same cache key as the legacy static surface so quote routes
+        # and warmers reuse the SQLite-computed payload without rereading JSON.
+        _cache_surface_payload(
+            "dex_market_observation",
+            payload,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+            ttl_seconds=0,
+        )
     return payload
 
 
@@ -300,10 +356,7 @@ def dex_overview_payload(
     use_compact_static_overview = bool(
         use_static_observation
         and chain_id in _ROBINHOOD_CHAIN_IDS
-        and not (
-            int(chain_id or 0) == ROBINHOOD_CHAIN_ID
-            and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
-        )
+        and not _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols)
     )
     scope_protocols = _robinhood_static_scope_protocols(
         chain_id=chain_id,
@@ -419,6 +472,7 @@ def dex_overview_payload(
                 chain_id=chain_id,
                 protocols=protocols,
                 use_static_observation=use_static_observation,
+                ttl_seconds=0,
             )
             return payload
         # The overview index owns route summaries, while the observation
@@ -453,11 +507,17 @@ def dex_overview_payload(
             },
         }
     else:
-        observation = dex_market_observation_surface_payload(
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
+        if _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols):
+            observation = _database_first_robinhood_observation_payload(
+                chain_id=chain_id,
+                protocols=protocols,
+            )
+        else:
+            observation = dex_market_observation_surface_payload(
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
     price_map = _price_map_from_pairs(observation.get("pairs") or observation.get("bridgePairs") or [])
     frame_context = _route_framework_context_from_observation(
         observation,
@@ -576,8 +636,112 @@ def dex_overview_payload(
         chain_id=chain_id,
         protocols=protocols,
         use_static_observation=use_static_observation,
+        ttl_seconds=0,
     )
     return payload
+
+
+def database_overview_snapshot(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> dict[str, Any]:
+    """Expose a static-snapshot-compatible view backed by SQLite.
+
+    Mainnet V4 pages historically consumed ``overview.json`` for a few
+    grouping endpoints.  Keep those response contracts while making SQLite
+    the only business-data source for the mainnet V4 scope.
+    """
+    if not _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols):
+        return {}
+    overview = dex_overview_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=False,
+    )
+    summaries: list[dict[str, Any]] = []
+    pool_registry: dict[str, dict[str, Any]] = {}
+    for route in overview.get("arbitragePaths") or []:
+        if not isinstance(route, dict):
+            continue
+        route_view = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+        path_symbols = list(route_view.get("pathSymbols") or route.get("routeSymbols") or [])
+        path_addresses = list(route_view.get("pathAddresses") or route.get("routeAddresses") or [])
+        if len(path_symbols) < 4 or path_symbols[0] != path_symbols[-1]:
+            continue
+        route_pools = [
+            pool
+            for pool in (
+                route.get("executionPools")
+                or route.get("preferredPools")
+                or route.get("strictQualityPools")
+                or []
+            )
+            if isinstance(pool, dict)
+        ]
+        for pool in route_pools:
+            pool_id = _pool_address(pool)
+            if pool_id:
+                pool_registry[pool_id.lower()] = pool
+        summaries.append(
+            {
+                "anchorSymbol": route_view.get("anchorBorrowSymbol") or path_symbols[0],
+                "counterSymbol": route_view.get("targetSymbol") or path_symbols[-2],
+                "pathSymbols": path_symbols,
+                "pathText": route_view.get("pathText") or route.get("symbolPair") or " -> ".join(path_symbols),
+                "routeAddresses": path_addresses,
+                "poolIds": list(route.get("poolIds") or [_pool_address(pool) for pool in route_pools]),
+                "routePools": route_pools,
+            }
+        )
+    liquid_registry = overview.get("liquidPoolRegistry")
+    if isinstance(liquid_registry, dict):
+        for pool_id, pool in liquid_registry.items():
+            if isinstance(pool, dict):
+                pool_registry.setdefault(str(pool_id).lower(), pool)
+    summary = overview.get("summary") if isinstance(overview.get("summary"), dict) else {}
+    borrowable = (
+        overview.get("borrowableSymbols")
+        or summary.get("closedLoopAnchorSymbols")
+        or summary.get("observationAnchorSymbols")
+        or []
+    )
+    return {
+        "exists": True,
+        "path": "sqlite_db",
+        "source": "sqlite_db",
+        "network": _chain_network_name(chain_id) or "robinhood",
+        "chain_id": chain_id,
+        "protocols": protocols or [],
+        "borrowableSymbols": list(borrowable),
+        "summary": summary,
+        "closedLoopRouteSummaries": summaries,
+        "poolRegistry": pool_registry,
+        "liquidPoolRegistry": liquid_registry if isinstance(liquid_registry, dict) else {},
+        "poolIndexVersion": overview.get("poolIndexVersion") or {},
+    }
+
+
+def load_observation_overview_for_scope(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> dict[str, Any]:
+    """Return the overview snapshot for a page request.
+
+    Robinhood mainnet V4 uses the SQLite-backed snapshot; other scopes keep
+    reading the persisted static overview.
+    """
+    database_snapshot = database_overview_snapshot(
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    if database_snapshot:
+        return database_snapshot
+    return load_market_observation_overview_static(
+        chain_id=chain_id,
+        protocols=protocols,
+    )
 
 
 def dex_market_observation_payload(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
@@ -588,6 +752,771 @@ def dex_market_observation_payload(*, chain_id: int | None = None, protocols: li
         chain_id=chain_id,
         protocols=protocols,
     )
+
+
+def _database_first_market_observation_payload(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    anchor: str | None = None,
+) -> dict[str, Any]:
+    """Return the SQLite-backed observation payload for Robinhood V4."""
+    payload = dex_market_observation_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    if anchor:
+        try:
+            database_url = str(_database_path_for_scope(chain_id=chain_id))
+        except Exception:
+            database_url = ""
+        synthetic = _synthetic_db_observation_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+            anchor=anchor,
+            database_url=database_url,
+        )
+        if synthetic.get("anchorGroups") or synthetic.get("closedLoopRoutes"):
+            payload = synthetic
+    return payload
+
+
+def _database_path_for_scope(*, chain_id: int | None) -> str:
+    from core.db.database_path import absolute_database_path
+
+    return str(absolute_database_path())
+
+
+def _synthetic_db_observation_payload(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    anchor: str,
+    database_url: str = "",
+) -> dict[str, Any]:
+    from core.db.database_path import absolute_database_path
+    from core.db.storage_business_io import query
+    from core.db.storage_chain_core import load_chain_tokens
+    from core.db.storage_dex_candidate import load_dex_candidate_pools as _storage_candidate_load
+    from core.db.storage_market_observation import load_market_observation as _storage_observation_load
+
+    db = str(absolute_database_path(database_url)) if database_url else str(absolute_database_path())
+    network = "robinhood-testnet" if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID else "robinhood"
+    symbol = str(anchor or "").strip().upper()
+    token_rows = load_chain_tokens(db, network=network, chain_id=int(chain_id or 0))
+    tokens_by_address = {
+        str(row.get("token_address") or "").lower(): str(row.get("token_symbol") or "")
+        for row in token_rows
+        if str(row.get("token_address") or "")
+    }
+    candidate = _storage_candidate_load(
+        db,
+        network=network,
+        chain_id=int(chain_id or 0),
+        protocol="uniswap_v4",
+        anchor_symbol=symbol,
+    )
+    anchor_token_rows = candidate.get("anchorTokens") or []
+    if not anchor_token_rows:
+        return {
+            "mode": "dex_market_observation",
+            "chain_id": chain_id,
+            "selected_protocols": protocols or [],
+            "anchorGroups": [],
+            "observationSequences": [],
+            "closedLoopSequences": [],
+            "closedLoopRoutes": [],
+            "chainSpecificObservationPairs": [],
+            "chainSpecificObservationPools": [],
+            "chainSpecificObservationTokens": [],
+            "summary": {"anchorBorrowSymbols": [symbol], "observationAnchorSymbols": [symbol]},
+        }
+    observation = _storage_observation_load(
+        db,
+        network=network,
+        chain_id=int(chain_id or 0),
+        protocol="uniswap_v4",
+        anchor_symbol=symbol,
+    )
+    pools = observation.get("pools") or []
+    anchor_tokens = anchor_token_rows
+    pools_by_edge: dict[str, list[dict[str, Any]]] = {}
+    for pool in pools:
+        edge_key = "|".join(
+            sorted(
+                str(pool.get("token0") or "").lower(),
+                str(pool.get("token1") or "").lower(),
+            )
+        )
+        pools_by_edge.setdefault(edge_key, []).append(pool)
+    closed_loop_rows = query(
+        db,
+        """
+        SELECT loop_key, anchor_address, anchor_symbol, path_text,
+               path_addresses_json, path_symbols_json, pool_ids_json,
+               status, recommendation_basis
+        FROM v4_closed_loops
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ?
+          AND anchor_symbol = ?
+        ORDER BY loop_key
+        """,
+        (network, int(chain_id or 0), "uniswap_v4", f"dex-arbitrage-{int(chain_id or 0)}-uniswap-v4", symbol),
+    )
+    sequences: list[dict[str, Any]] = []
+    routes: list[dict[str, Any]] = []
+    for row in closed_loop_rows:
+        path_symbols = _json_loads(row.get("path_symbols_json") or row.get("pathSymbols") or [])
+        path_text = str(row.get("path_text") or row.get("pathText") or "")
+        pool_ids = _json_loads(row.get("pool_ids_json") or row.get("poolIds") or [])
+        if len(pool_ids) != 3:
+            continue
+        route_pools = []
+        for pool_id in pool_ids:
+            for pool in pools:
+                if str(pool.get("pool_id") or pool.get("poolId") or "").lower() == str(pool_id).lower():
+                    route_pools.append(pool)
+                    break
+        if len(route_pools) != 3:
+            continue
+        sequences.append(
+            {
+                "kind": "robinhood_database_closed_loop",
+                "source": "v4_closed_loop_db",
+                "anchorSymbol": symbol,
+                "anchorAddress": row.get("anchor_address") or "",
+                "pathSymbols": path_symbols,
+                "pathText": path_text,
+                "pool": pool_ids[1] if len(pool_ids) > 1 else "",
+                "routePools": route_pools,
+                "hopCandidates": [],
+                "hopCandidateCounts": {"x-y": 1, "y-z": 1, "z-x": 1},
+                "hopCandidateCombinationCount": 1,
+                "candidatePoolCount": "3",
+                "matchedPoolCount": "3",
+                "recommendedFirstPriority": True,
+            }
+        )
+        routes.append(
+            {
+                "kind": "bridge_closed_loop",
+                "closedLoop": True,
+                "borrowSymbol": symbol,
+                "anchorSymbol": symbol,
+                "bridgeSymbol": path_symbols[1] if len(path_symbols) > 1 else "",
+                "targetSymbol": path_symbols[-2] if len(path_symbols) > 2 else "",
+                "pathSymbols": path_symbols,
+                "pathText": path_text,
+                "routePools": route_pools,
+                "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
+                "hopCandidates": [],
+                "hopCandidateCounts": {"x-y": 1, "y-z": 1, "z-x": 1},
+                "hopCandidateCombinationCount": 1,
+                "poolPathKey": "|".join(str(pool_id).lower() for pool_id in pool_ids),
+                "recommendedFirstPriority": True,
+                "routeRecommendationBasis": "fixed_fee_no_hook_low_fee",
+                "source": "v4_closed_loop_db",
+            }
+        )
+    directions = observation.get("pairs") or []
+    pairs = [
+        {
+            "symbolPair": "|".join(
+                sorted(
+                    tokens_by_address.get(str(row.get("token_x_address") or "").lower(), "")
+                    or str(row.get("token_x_address") or "")[:8],
+                    tokens_by_address.get(str(row.get("token_y_address") or "").lower(), "")
+                    or str(row.get("token_y_address") or "")[:8],
+                )
+            ),
+            "addressPair": row.get("address_pair") or "",
+            "tokenX": row.get("token_x_address") or "",
+            "tokenY": row.get("token_y_address") or "",
+            "tokenXSymbol": tokens_by_address.get(str(row.get("token_x_address") or "").lower(), ""),
+            "tokenYSymbol": tokens_by_address.get(str(row.get("token_y_address") or "").lower(), ""),
+            "allPools": row.get("allPools") or [],
+            "preferredPools": row.get("allPools") or [],
+            "strictQualityPools": row.get("allPools") or [],
+            "executionPools": (row.get("allPools") or [])[:5],
+            "poolCount": len(row.get("allPools") or []),
+        }
+        for row in directions
+    ]
+    anchor_group = {
+        "anchorSymbol": symbol,
+        "anchorAddresses": [str(row.get("anchor_address") or "") for row in anchor_token_rows[:1]],
+        "candidateSetMode": "bidirectional_same_pool_key_set",
+        "ycZcSameSet": True,
+        "sharedTokens": anchor_tokens,
+        "sharedPools": candidate.get("pools") or [],
+        "sharedPoolCount": str(len(candidate.get("pools") or [])),
+        "sharedTokenCount": str(len(anchor_tokens)),
+        "abnormalTokens": candidate.get("abnormalAnchorTokens") or [],
+        "abnormalPools": candidate.get("abnormalPools") or [],
+        "abnormalTokenCount": str(len(candidate.get("abnormalAnchorTokens") or [])),
+        "abnormalPoolCount": str(len(candidate.get("abnormalPools") or [])),
+        "observationSequences": sequences,
+        "closedLoopSequences": sequences,
+        "observationSequenceCount": str(len(sequences)),
+        "closedLoopRouteCount": str(len(routes)),
+        "observationState": {
+            "status": "reachable" if sequences else "partial",
+            "reachable": bool(sequences),
+        },
+    }
+    return {
+        "mode": "dex_market_observation",
+        "chain_id": chain_id,
+        "selected_protocols": protocols or [],
+        "marketObservationSource": "sqlite_db",
+        "marketObservationSourceStage": "sqlite_db",
+        "tableSource": "ob_table",
+        "referencedTable": "ch_table",
+        "poolIndexVersion": {"path": db, "network": network, "chainId": chain_id, "source": "sqlite_db"},
+        "marketObservationStaticTable": {
+            "exists": True,
+            "network": network,
+            "chain_id": chain_id,
+            "protocols": protocols or [],
+            "path": db,
+            "source": "sqlite_db",
+        },
+        "borrowableSymbols": [symbol],
+        "observationAnchorSymbols": [symbol],
+        "anchorGroups": [anchor_group],
+        "pairs": pairs,
+        "bridgePairs": pairs,
+        "observationSequences": sequences,
+        "closedLoopSequences": sequences,
+        "closedLoopRoutes": routes,
+        "chainSpecificObservationPairs": [],
+        "chainSpecificObservationPools": pools,
+        "chainSpecificObservationTokens": anchor_tokens,
+        "summary": {
+            "borrowableTokenCount": "1",
+            "observationAnchorCount": "1",
+            "candidateObservationGroupCount": str(len([anchor_group])),
+            "closedLoopSequenceCount": str(len(sequences)),
+            "closedLoopRouteCount": str(len(routes)),
+            "observationSequenceCount": str(len(sequences)),
+            "candidateObservationSequenceCount": str(len(sequences)),
+            "directPairCount": str(len(pairs)),
+            "fundAnchorPairObservationRouteCount": str(len(sequences)),
+            "anchorBorrowSymbols": [symbol],
+            "observationAnchorSymbols": [symbol],
+            "closedLoopAnchorSymbols": [symbol],
+        },
+    }
+
+
+def _database_first_robinhood_observation_payload(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Build a compact DB-first observation payload from the loop tables.
+
+    The full market-observation surface can enumerate hundreds of thousands of
+    YC x ZC direction combinations even when SQLite only contains a handful of
+    real three-hop loops. Overview and quote routing only need the authoritative
+    closed-loop set, so this helper reads ``v4_closed_loops`` directly and
+    leaves the full direction surface to the market-observation page.
+    """
+    from core.db.database_path import absolute_database_path
+    from core.db.storage_business_io import query
+    from core.db.storage_chain_core import load_chain_tokens
+    from core.db.storage_dex_candidate import load_dex_candidate_pools
+    from dex.intent_trade.chains.robinhood_common.market_observation_core import (
+        db_closed_loop_routes,
+        db_closed_loop_sequences,
+    )
+
+    db = str(absolute_database_path(database_url))
+    network = _chain_network_name(chain_id) or (
+        "robinhood-testnet" if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID else "robinhood"
+    )
+    chain = int(chain_id or 0)
+    market_id = f"dex-arbitrage-{chain}-uniswap-v4"
+    sequences = db_closed_loop_sequences(
+        network=network,
+        chain_id=chain,
+        protocol="uniswap_v4",
+        market_id=market_id,
+        kind=(
+            "robinhood_testnet_closed_loop"
+            if chain == ROBINHOOD_TESTNET_CHAIN_ID
+            else "robinhood_closed_loop"
+        ),
+        database_url=db,
+    )
+    chain_token_rows = load_chain_tokens(db, network=network, chain_id=chain)
+    tokens_by_address = {
+        str(row.get("token_address") or "").lower(): row
+        for row in chain_token_rows
+        if str(row.get("token_address") or "")
+    }
+    anchor_symbol_rows = query(
+        db,
+        """
+        SELECT DISTINCT anchor_symbol
+        FROM dex_candidate_anchor_tokens
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        ORDER BY anchor_symbol
+        """,
+        (network, chain, "uniswap_v4"),
+    )
+    anchor_groups: list[dict[str, Any]] = []
+    borrowable_symbols: list[str] = []
+    for row in anchor_symbol_rows:
+        symbol = _norm_symbol(row.get("anchor_symbol"))
+        if not symbol:
+            continue
+        borrowable_symbols.append(symbol)
+        candidate = load_dex_candidate_pools(
+            db,
+            network=network,
+            chain_id=chain,
+            protocol="uniswap_v4",
+            anchor_symbol=symbol,
+        )
+        shared_pools: list[dict[str, Any]] = []
+        for pool_row in candidate.get("pools") or []:
+            if not isinstance(pool_row, dict):
+                continue
+            pool = dict(pool_row)
+            pool["pool"] = str(pool_row.get("pool_id") or pool_row.get("poolId") or "").strip()
+            pool["poolId"] = pool["pool"]
+            pool["poolKey"] = pool_row.get("pool_key_json") or pool_row.get("poolKey") or {}
+            pool["tickSpacing"] = pool_row.get("tick_spacing") or pool_row.get("tickSpacing")
+            pool["hooks"] = pool_row.get("hooks")
+            pool["sqrtPriceX96"] = pool_row.get("sqrt_price_x96") or pool_row.get("sqrtPriceX96")
+            pool["tick"] = pool_row.get("tick")
+            pool["liquidity"] = pool_row.get("liquidity")
+            pool["liquidityIndex"] = pool_row.get("liquidity_index") or pool_row.get("liquidityIndex")
+            pool["estimatedTvlUsd"] = pool_row.get("estimated_tvl_usd") or pool_row.get("estimatedTvlUsd")
+            pool["balances"] = _json_loads(pool_row.get("balances_json") or pool_row.get("balances") or {})
+            pool["depthStatus"] = pool_row.get("depth_status") or pool_row.get("depthStatus")
+            pool["depthBand"] = _json_loads(pool_row.get("depth_band_json") or pool_row.get("depthBand") or {})
+            pool["liquidityReadAt"] = pool_row.get("liquidity_read_at") or pool_row.get("liquidityReadAt")
+            pool["liquidityBlockNumber"] = (
+                pool_row.get("liquidity_block_number") or pool_row.get("liquidityBlockNumber")
+            )
+            pool["hasLiquidity"] = bool(pool_row.get("has_liquidity") or pool_row.get("hasLiquidity"))
+            pool["usableForObservation"] = bool(
+                pool_row.get("usable_for_observation") or pool_row.get("usableForObservation")
+            )
+            pool["addressPair"] = pool_row.get("address_pair") or pool_row.get("addressPair")
+            shared_pools.append(pool)
+        shared_tokens: list[dict[str, Any]] = []
+        token_buckets: dict[str, dict[str, Any]] = {}
+        for pool in shared_pools:
+            for index in (0, 1):
+                address = str(pool.get(f"token{index}") or "").lower()
+                if not address:
+                    continue
+                token_row = tokens_by_address.get(address)
+                token_symbol = _norm_symbol(
+                    pool.get(f"token{index}Symbol")
+                    or (token_row.get("token_symbol") if token_row else "")
+                )
+                if not token_symbol:
+                    continue
+                bucket = token_buckets.setdefault(
+                    token_symbol,
+                    {
+                        "symbol": token_symbol,
+                        "address": address,
+                        "poolCount": "0",
+                        "pools": [],
+                    },
+                )
+                if not bucket.get("address"):
+                    bucket["address"] = address
+                bucket["pools"].append(pool)
+        for token in sorted(token_buckets.values(), key=lambda item: str(item.get("symbol") or "")):
+            token["poolCount"] = str(len(token.get("pools") or []))
+            shared_tokens.append(token)
+        anchor_address = ""
+        if symbol == "ETH":
+            anchor_address = "0x0000000000000000000000000000000000000000"
+        else:
+            for token in shared_tokens:
+                if _norm_symbol(token.get("symbol")) == symbol:
+                    anchor_address = str(token.get("address") or "")
+                    break
+        if not anchor_address:
+            for token_row in chain_token_rows:
+                if _norm_symbol(token_row.get("token_symbol")) == symbol:
+                    anchor_address = str(token_row.get("token_address") or "").lower()
+                    break
+        anchor_groups.append(
+            {
+                "anchorSymbol": symbol,
+                "anchorAddresses": [anchor_address] if anchor_address else [],
+                "candidateSetMode": "bidirectional_same_pool_key_set",
+                "ycZcSameSet": True,
+                "ycZcSharedPoolSet": True,
+                "sharedPools": shared_pools,
+                "sharedTokens": shared_tokens,
+                "sharedPoolCount": str(len(shared_pools)),
+                "sharedTokenCount": str(len(shared_tokens)),
+                "ycPools": [],
+                "zcPools": [],
+                "ycTokens": [],
+                "zcTokens": [],
+                "ycPoolsRef": "sharedPools",
+                "zcPoolsRef": "sharedPools",
+                "ycTokensRef": "sharedTokens",
+                "zcTokensRef": "sharedTokens",
+                "ycPoolCount": str(len(shared_pools)),
+                "zcPoolCount": str(len(shared_pools)),
+                "ycTokenCount": str(len(shared_tokens)),
+                "zcTokenCount": str(len(shared_tokens)),
+                "candidatePoolCount": str(len(shared_pools)),
+                "candidateQueueCount": str(len(shared_pools) * 2),
+            }
+        )
+
+    groups_by_anchor: dict[str, dict[str, Any]] = {}
+    for group in anchor_groups:
+        if isinstance(group, dict):
+            symbol = _norm_symbol(group.get("anchorSymbol"))
+            if symbol:
+                groups_by_anchor[symbol] = group
+
+    # A closed loop is direction-sensitive: X-Y-Z-X and X-Z-Y-X can use
+    # different first/third-hop pools and only one direction is profitable.
+    # Build both directions from the loop table, letting each direction pick
+    # its own best pools from the candidate set.
+    extended_sequences: list[dict[str, Any]] = []
+    seen_extended: set[tuple[str, ...]] = set()
+    for sequence in sequences:
+        path_symbols = [_norm_symbol(symbol) for symbol in sequence.get("pathSymbols") or []]
+        if len(path_symbols) != 4 or path_symbols[0] != path_symbols[-1]:
+            continue
+        anchor_symbol = path_symbols[0]
+        y_symbol = path_symbols[1]
+        z_symbol = path_symbols[2]
+        group = groups_by_anchor.get(anchor_symbol) or {}
+        tokens_by_symbol = {
+            _norm_symbol(token.get("symbol")): token
+            for token in group.get("sharedTokens") or []
+            if isinstance(token, dict)
+        }
+        y_token = tokens_by_symbol.get(y_symbol)
+        z_token = tokens_by_symbol.get(z_symbol)
+        bridge_step = next(
+            (
+                step
+                for step in sequence.get("routePools") or []
+                if isinstance(step, dict)
+                and str(step.get("direction") or "").lower() == "bridge"
+            ),
+            None,
+        )
+        if not bridge_step or y_token is None or z_token is None:
+            extended_sequences.append(sequence)
+            continue
+        anchor_address = _token_address(
+            (sequence.get("anchorAddresses") or [""])[0]
+            or (group.get("anchorAddresses") or [""])[0]
+        )
+        bridge_pair = {
+            "symbolPair": f"{_norm_symbol(y_token.get('symbol'))}:{_norm_symbol(z_token.get('symbol'))}",
+            "addressPair": f"{_token_address(y_token.get('address'))}:{_token_address(z_token.get('address'))}",
+            "tokenX": _token_address(y_token.get("address")),
+            "tokenY": _token_address(z_token.get("address")),
+            "tokenXSymbol": _norm_symbol(y_token.get("symbol")),
+            "tokenYSymbol": _norm_symbol(z_token.get("symbol")),
+            "preferredPools": [bridge_step],
+            "executionPools": [bridge_step],
+            "strictQualityPools": [bridge_step],
+            "classification": {"bridgeOnly": True, "protocol": "uniswap_v4"},
+        }
+        mini_group = {
+            **group,
+            "anchorSymbol": anchor_symbol,
+            "anchorAddresses": [anchor_address] if anchor_address else list(group.get("anchorAddresses") or []),
+            "sharedTokens": [y_token, z_token],
+            "ycPools": [],
+            "zcPools": [],
+            "ycTokens": [],
+            "zcTokens": [],
+            "ycPoolsRef": "sharedPools",
+            "zcPoolsRef": "sharedPools",
+            "ycTokensRef": "sharedTokens",
+            "zcTokensRef": "sharedTokens",
+        }
+        direction_sequences: list[dict[str, Any]] = []
+        for forward in (True, False):
+            if forward:
+                direction_group = mini_group
+            else:
+                direction_group = dict(mini_group)
+                direction_group["sharedTokens"] = [z_token, y_token]
+            generated = [
+                item
+                for item in _anchor_observation_sequences([direction_group], [bridge_pair])
+                if item.get("observationReachable")
+                or item.get("observationState") == "reachable"
+            ]
+            if generated:
+                direction_sequences.append(generated[0])
+        if not direction_sequences:
+            extended_sequences.append(sequence)
+            continue
+        for direction_sequence in direction_sequences:
+            key = (
+                anchor_symbol,
+                tuple(
+                    _norm_symbol(symbol)
+                    for symbol in direction_sequence.get("pathSymbols") or []
+                ),
+                str(direction_sequence.get("pool") or ""),
+            )
+            if key in seen_extended:
+                continue
+            seen_extended.add(key)
+            direction_sequence["source"] = "v4_closed_loop_db"
+            direction_sequence["kind"] = (
+                "robinhood_testnet_closed_loop"
+                if chain == ROBINHOOD_TESTNET_CHAIN_ID
+                else "robinhood_closed_loop"
+            )
+            extended_sequences.append(direction_sequence)
+    sequences = extended_sequences
+    routes = db_closed_loop_routes(sequences)
+
+    sequences_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    routes_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    for sequence in sequences:
+        symbol = _norm_symbol(sequence.get("anchorSymbol"))
+        if symbol:
+            sequences_by_anchor.setdefault(symbol, []).append(sequence)
+    for route in routes:
+        symbol = _norm_symbol(route.get("anchorSymbol"))
+        if symbol:
+            routes_by_anchor.setdefault(symbol, []).append(route)
+
+    observed_anchors = sorted(sequences_by_anchor)
+    if anchor_groups:
+        observed_anchors = sorted(
+            {
+                symbol
+                for symbol in (
+                    observed_anchors
+                    + [
+                        _norm_symbol(group.get("anchorSymbol"))
+                        for group in anchor_groups
+                        if isinstance(group, dict)
+                    ]
+                )
+                if symbol
+            }
+        )
+
+    groups: list[dict[str, Any]] = []
+    for group in anchor_groups:
+        if not isinstance(group, dict):
+            continue
+        symbol = _norm_symbol(group.get("anchorSymbol"))
+        if not symbol:
+            continue
+        copied = dict(group)
+        group_sequences = sequences_by_anchor.get(symbol, [])
+        group_routes = routes_by_anchor.get(symbol, [])
+        copied["observationSequences"] = group_sequences
+        copied["closedLoopSequences"] = group_sequences
+        copied["observationSequenceCount"] = str(len(group_sequences))
+        copied["closedLoopRouteCount"] = str(len(group_routes))
+        copied["observationState"] = {
+            "status": "reachable" if group_sequences else group.get("observationState", {}).get("status"),
+            "reachable": bool(group_sequences),
+        }
+        groups.append(copied)
+    for symbol, group_sequences in sequences_by_anchor.items():
+        if any(_norm_symbol(group.get("anchorSymbol")) == symbol for group in groups):
+            continue
+        group_routes = routes_by_anchor.get(symbol, [])
+        groups.append(
+            {
+                "anchorSymbol": symbol,
+                "anchorAddresses": [
+                    str(sequence.get("anchorAddress") or "")
+                    for sequence in group_sequences
+                    if str(sequence.get("anchorAddress") or "")
+                ],
+                "sharedTokens": [],
+                "sharedPools": [],
+                "sharedPoolCount": "0",
+                "sharedTokenCount": "0",
+                "abnormalTokens": [],
+                "abnormalPools": [],
+                "observationSequences": group_sequences,
+                "closedLoopSequences": group_sequences,
+                "observationSequenceCount": str(len(group_sequences)),
+                "closedLoopRouteCount": str(len(group_routes)),
+                "observationState": {
+                    "status": "reachable" if group_sequences else "partial",
+                    "reachable": bool(group_sequences),
+                },
+            }
+        )
+    groups.sort(key=lambda group: str(group.get("anchorSymbol") or ""))
+
+    pool_rows: list[dict[str, Any]] = []
+    seen_pools: set[str] = set()
+    pair_rows: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    tokens_by_address: dict[str, dict[str, Any]] = {}
+    for group in groups:
+        for token in group.get("sharedTokens") or []:
+            if not isinstance(token, dict):
+                continue
+            address = _token_address(token.get("address"))
+            if address:
+                tokens_by_address.setdefault(address.lower(), token)
+    for route in routes:
+        for step in route.get("routePools") or []:
+            if not isinstance(step, dict):
+                continue
+            pool_id = _pool_address(step)
+            if pool_id and pool_id.lower() not in seen_pools:
+                seen_pools.add(pool_id.lower())
+                pool_rows.append(step)
+            pair = _sequence_pair_row(step)
+            pair_key = (str(pair.get("symbolPair") or ""), str(pair.get("pool") or "").lower())
+            if pair_key[0] and pair_key not in seen_pairs:
+                seen_pairs.add(pair_key)
+                pair_rows.append(pair)
+
+    total_direction_count = 0
+    try:
+        total_direction_count = int(
+            _query_count(
+                db,
+                "market_observation_yz_pairs",
+                "network = ? AND chain_id = ? AND protocol = ?",
+                (network, chain, "uniswap_v4"),
+            )
+        )
+    except Exception:
+        total_direction_count = len(pair_rows)
+
+    summary = {
+        "anchorBorrowSymbols": observed_anchors,
+        "observationAnchorSymbols": observed_anchors,
+        "closedLoopAnchorSymbols": observed_anchors,
+        "observationAnchorCount": str(len(observed_anchors)),
+        "candidateObservationGroupCount": str(len(groups)),
+        "directPairCount": str(len(pair_rows)),
+        "observationSequenceCount": str(total_direction_count),
+        "chainSpecificObservationSequenceCount": str(total_direction_count),
+        "candidateObservationSequenceCount": str(total_direction_count),
+        "closedLoopSequenceCount": str(len(sequences)),
+        "closedLoopRouteCount": str(len(routes)),
+        "fundAnchorPairObservationRouteCount": str(len(routes)),
+        "fundAnchorPairObservationAssociatedPairCount": str(len(pair_rows)),
+        "fundAnchorPairObservationAssociatedObservationPoolCount": str(len(pool_rows)),
+        "fundAnchorPairObservationAssociatedObservationTokenCount": str(len(tokens_by_address)),
+    }
+    return {
+        "mode": "dex_market_observation",
+        "chain_id": chain_id,
+        "selected_protocols": protocols or [],
+        "marketObservationSource": "sqlite_db",
+        "marketObservationSourceStage": "sqlite_db",
+        "tableSource": "ob_table",
+        "referencedTable": "ch_table",
+        "poolIndexVersion": {
+            "path": db,
+            "network": network,
+            "chainId": chain,
+            "source": "sqlite_db",
+        },
+        "marketObservationStaticTable": {
+            "exists": True,
+            "network": network,
+            "chain_id": chain,
+            "protocols": protocols or [],
+            "path": db,
+            "source": "sqlite_db",
+        },
+        "borrowableSymbols": borrowable_symbols or observed_anchors,
+        "observationAnchorSymbols": observed_anchors,
+        "anchorGroups": groups,
+        "pairs": pair_rows,
+        "bridgePairs": pair_rows,
+        "observationSequences": sequences,
+        "closedLoopSequences": sequences,
+        "closedLoopRoutes": routes,
+        "chainSpecificObservationPairs": pair_rows,
+        "chainSpecificObservationPools": pool_rows,
+        "chainSpecificObservationTokens": list(tokens_by_address.values()),
+        "summary": summary,
+    }
+
+
+def _filter_observation_payload_by_anchor(payload: dict[str, Any], anchor: str) -> dict[str, Any]:
+    normalized = str(anchor or "").strip().upper()
+    anchor_groups = [
+        group
+        for group in payload.get("anchorGroups") or []
+        if str(group.get("anchorSymbol") or "").strip().upper() == normalized
+    ]
+    if not anchor_groups:
+        payload["anchorGroups"] = []
+        payload["observationSequences"] = []
+        payload["closedLoopSequences"] = []
+        payload["chainSpecificObservationPairs"] = []
+        payload["chainSpecificObservationPools"] = []
+        payload["chainSpecificObservationTokens"] = []
+        payload["summary"] = {
+            **dict(payload.get("summary") or {}),
+            "anchorBorrowSymbols": [normalized],
+            "observationAnchorSymbols": [normalized],
+            "closedLoopAnchorSymbols": [normalized],
+            "candidateObservationGroupCount": "0",
+            "observationSequenceCount": "0",
+            "closedLoopSequenceCount": "0",
+            "closedLoopRouteCount": "0",
+        }
+        payload["mode"] = "dex_market_observation"
+        return payload
+    payload["anchorGroups"] = anchor_groups
+    allowed_anchors = {normalized}
+    payload["observationSequences"] = [
+        sequence
+        for sequence in payload.get("observationSequences") or []
+        if str(sequence.get("anchorSymbol") or "").strip().upper() in allowed_anchors
+    ]
+    payload["closedLoopSequences"] = [
+        sequence
+        for sequence in payload.get("closedLoopSequences") or []
+        if str(sequence.get("anchorSymbol") or "").strip().upper() in allowed_anchors
+    ]
+    payload["closedLoopRoutes"] = [
+        route
+        for route in payload.get("closedLoopRoutes") or []
+        if str(route.get("anchorSymbol") or "").strip().upper() in allowed_anchors
+    ]
+    payload["chainSpecificObservationPairs"] = [
+        row
+        for row in payload.get("chainSpecificObservationPairs") or []
+        if str(row.get("anchorSymbol") or row.get("counterAnchorSymbol") or "").strip().upper() in allowed_anchors
+    ]
+    payload["summary"] = {
+        **dict(payload.get("summary") or {}),
+        "anchorBorrowSymbols": [normalized],
+        "observationAnchorSymbols": [normalized],
+        "closedLoopAnchorSymbols": [normalized],
+        "candidateObservationGroupCount": str(len(anchor_groups)),
+        "observationSequenceCount": str(len(payload["observationSequences"])),
+        "closedLoopSequenceCount": str(len(payload["closedLoopSequences"])),
+        "closedLoopRouteCount": str(len(payload["closedLoopRoutes"])),
+    }
+    payload["mode"] = "dex_market_observation"
+    return payload
 
 
 def dex_quote_routes_payload(
@@ -649,6 +1578,7 @@ def dex_quote_routes_payload(
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
         anchor=anchor,
+        best_per_anchor_direction=True,
     )
     payload["marketObservationSource"] = observation.get("marketObservationSource") or "computed"
     payload["marketObservationSourceStage"] = (
@@ -785,7 +1715,9 @@ def dex_submission_review_payload(
 
 __all__ = [
     "dex_market_observation_payload",
+    "database_overview_snapshot",
     "dex_overview_payload",
+    "load_observation_overview_for_scope",
     "dex_quote_request_payload",
     "dex_quote_routes_payload",
     "dex_submission_review_payload",

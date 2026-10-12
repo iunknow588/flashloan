@@ -46,6 +46,45 @@ def test_compact_observation_pair_keeps_direct_swap_pool_display_fields():
     assert compact["directSwapPools"][0]["depthBand"] == {"label": "active"}
 
 
+def test_compact_observation_pair_keeps_non_normal_swap_pool_display_fields():
+    pair = {
+        "symbolPair": "AAA:BBB",
+        "addressPair": "0xaaa:0xbbb",
+        "hasDirectSwapPool": False,
+        "directSwapPoolCount": 0,
+        "hasNonNormalSwapPool": True,
+        "nonNormalSwapPoolCount": 1,
+        "observationEmptyReason": "仅存在非正常 Y-Z 交易池",
+        "nonNormalSwapPools": [
+            {
+                "pool": "pool-2",
+                "poolId": "pool-2",
+                "protocol": "uniswap_v4",
+                "dex": "uniswap_v4",
+                "fee": 5000,
+                "dynamicFee": False,
+                "specialFee": False,
+                "hooks": "0x" + "1" * 40,
+                "token0": "0xaaa",
+                "token1": "0xbbb",
+                "token0Symbol": "AAA",
+                "token1Symbol": "BBB",
+                "symbolPair": "AAA:BBB",
+                "addressPair": "0xaaa:0xbbb",
+            }
+        ],
+    }
+
+    compact = _compact_observation_pair(pair)
+
+    assert compact["hasDirectSwapPool"] is False
+    assert compact["hasNonNormalSwapPool"] is True
+    assert compact["nonNormalSwapPoolCount"] == 1
+    assert compact["nonNormalSwapPools"][0]["fee"] == 5000
+    assert compact["nonNormalSwapPools"][0]["hooks"] == "0x" + "1" * 40
+    assert compact["observationEmptyReason"] == "仅存在非正常 Y-Z 交易池"
+
+
 def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
     first = {
         "mode": "dex_market_observation",
@@ -399,6 +438,8 @@ def test_static_snapshot_collapses_reverse_direction_pool_address_closed_loops()
         ("0xa", "0xc", "0xb", "0xa"),
         ("0xa_alt", "0xb", "0xc", "0xa_alt"),
     }
+    assert len(snapshot["closedLoopSequences"]) == 2
+    assert snapshot["summary"]["closedLoopSequenceCount"] == 2
     assert len(overview["closedLoopRouteSummaries"]) == 2
 
 

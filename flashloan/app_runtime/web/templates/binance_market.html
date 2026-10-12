@@ -32,6 +32,7 @@
     button, select, input { user-select: none; }
     .positive { color: #15803d; }
     .negative { color: #b42318; }
+    .hidden { display: none !important; }
     .muted { color: #667085; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; }
     .context { color: #475467; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -164,6 +165,11 @@
             <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
             <tbody id="cowSupportedTopBody"></tbody>
           </table>
+          <div class="review-pager" id="cowSupportedPager">
+            <button id="cowSupportedPrevPageBtn" type="button" class="hidden">上一页</button>
+            <span id="cowSupportedPageStatus" class="hidden">-</span>
+            <button id="cowSupportedNextPageBtn" type="button" class="hidden">下一页</button>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -218,6 +224,7 @@
             <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
             <tbody id="rawTopBody"></tbody>
           </table>
+          <div id="rawTopPager" class="review-pager"></div>
         </div>
       </div>
       <div class="card">
@@ -228,6 +235,7 @@
             <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
             <tbody id="rawBottomBody"></tbody>
           </table>
+          <div id="rawBottomPager" class="review-pager"></div>
         </div>
       </div>
     </section>
@@ -298,6 +306,7 @@
           <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
           <tbody id="aaveBody"></tbody>
         </table>
+        <div id="aavePager" class="review-pager"></div>
       </div>
     </section>
   </main>

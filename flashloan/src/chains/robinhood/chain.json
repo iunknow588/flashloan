@@ -21,7 +21,7 @@
   },
   "defaults": {
     "v4_quote_adapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-    "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_observation_pool_ids",
+    "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_initialize_logs",
     "v4_pool_liquidity_writer": "intent_trade.chains.robinhood.v4_pool_liquidity:write_v4_pool_liquidity_from_contract_evidence"
   },
   "contracts": {
@@ -69,8 +69,6 @@
   },
   "data_files": {
     "flash_liquidity": "runtime/cache/robinhood/flash_loan_pool_discovery_snapshot.json",
-    "dex_candidates": "runtime/cache/robinhood/robinhood_dex_candidates.json",
-    "dex_market_pools": "runtime/cache/robinhood/robinhood_dex_market_pools.json",
     "dex_discovery": "runtime/evidence/robinhood/dex_discovery",
     "v4_pool_index": "runtime/evidence/robinhood/v4_pool_index/latest.json",
     "v4_pool_snapshot": "runtime/evidence/robinhood/v4_pool_snapshot/latest.json",
@@ -79,7 +77,6 @@
     "v4_token_metadata": "runtime/evidence/robinhood/v4_token_metadata.json",
     "eth_pair_tokens": "runtime/evidence/robinhood/eth_pair_tokens.json",
     "yc_zc_tokens": "runtime/evidence/robinhood/yc_zc_tokens.json",
-    "market_observation": "runtime/market_observation/robinhood/4663/all/observation.json",
     "chain_test": "runtime/evidence/robinhood/chain_test/latest/plan.json"
   },
   "processing_handlers": {

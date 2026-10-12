@@ -9,6 +9,7 @@ SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.env_loader import load_chain_env_files  # noqa: E402
 from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
     build_v4_pool_index_from_initialize_logs,
     build_v4_pool_index_from_observation_pool_ids,
@@ -21,6 +22,7 @@ from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
 
 
 def main() -> int:
+    load_chain_env_files(Path(__file__).resolve())
     parser = argparse.ArgumentParser(
         description="Build Robinhood Mainnet Uniswap V4 pool index evidence."
     )
@@ -113,12 +115,24 @@ def main() -> int:
 
     if args.no_write:
         if args.scope == "full":
-            payload = build_v4_pool_index_from_initialize_logs(**{k: v for k, v in kwargs.items() if k != "output_path"})
+            payload = build_v4_pool_index_from_initialize_logs(
+                **{
+                    k: v
+                    for k, v in kwargs.items()
+                    if k != "output_path" and k != "recent_swap_lookback_days"
+                }
+            )
         else:
             payload = build_v4_pool_index_from_observation_pool_ids(**{k: v for k, v in kwargs.items() if k != "output_path"})
     else:
         if args.scope == "full":
-            payload = write_v4_pool_index_from_initialize_logs(**kwargs)
+            payload = write_v4_pool_index_from_initialize_logs(
+                **{
+                    k: v
+                    for k, v in kwargs.items()
+                    if k != "recent_swap_lookback_days"
+                }
+            )
         else:
             payload = write_v4_pool_index_from_observation_pool_ids(**kwargs)
 

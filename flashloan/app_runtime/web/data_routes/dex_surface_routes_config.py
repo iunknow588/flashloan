@@ -6,6 +6,7 @@ from core.chain_data_registry import chain_supported_protocols
 from core.chain_selection import ChainSelectionError
 from web.data_routes import dex_surfaces as _root
 from web.data_routes.dex_surface_orchestration import _market_observation_static_metadata
+from market.binance_market.dex_surface_cache import _cached_surface_payload
 
 
 def _protocol_not_supported_response(chain_id: int | None, protocols: list[str]):
@@ -135,7 +136,7 @@ def register_dex_overview_routes(app) -> None:
             "yes",
             "on",
         }
-        snapshot = _root.load_market_observation_overview_static(
+        snapshot = _root.load_observation_overview_for_scope(
             chain_id=selected_chain_id,
             protocols=protocols,
         )
@@ -172,6 +173,20 @@ def register_dex_overview_routes(app) -> None:
         rejected = _protocol_not_supported_response(selected_chain_id, protocols)
         if rejected is not None:
             return rejected
+        # The page view is a trimmed in-memory snapshot.  Serve it directly so
+        # a repeated GET never touches the full 100MB+ observation payload.
+        include_all = str(request.args.get("include_all") or "").strip().lower() in {"1", "true", "yes", "all"}
+        if not include_all and selected_chain_id is not None:
+            cached_page = _cached_surface_payload(
+                "dex_market_observation_page",
+                chain_id=selected_chain_id,
+                protocols=protocols,
+                use_static_observation=True,
+            )
+            if cached_page is not None:
+                cached_page["chain_selection"] = chain_selection
+                cached_page.setdefault("mode", "dex_market_observation")
+                return jsonify(_root._attach_dex_strategy(cached_page))
         _root._bootstrap_dex_surface_dependencies(
             chain_id=selected_chain_id,
             protocols=protocols,
@@ -204,7 +219,11 @@ def register_dex_overview_routes(app) -> None:
                     "list_counts": static_table.get("list_counts") or {},
                 }
             )
-        payload = _root._market_observation_page_payload(payload)
+        payload = _root._market_observation_page_payload(
+            payload,
+            chain_id=selected_chain_id,
+            protocols=protocols,
+        )
         payload["chain_selection"] = chain_selection
         payload.setdefault("mode", "dex_market_observation")
         return jsonify(_root._attach_dex_strategy(payload))
@@ -221,6 +240,11 @@ def register_dex_overview_routes(app) -> None:
             return rejected
         full_refresh = str(request.args.get("full") or "").strip().lower() in {"1", "true", "yes", "full"}
         refresh_mode = "full" if full_refresh else "incremental"
+        _root._clear_dex_surface_cache(
+            chain_id=selected_chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        )
         payload = _root._dex_surface_payload_for_chain(
             flow_name="market_observation",
             mode="dex_market_observation",
@@ -249,6 +273,10 @@ def register_dex_overview_routes(app) -> None:
             "routeCount": (payload.get("marketObservationStaticTable") or {}).get("summary", {}).get("closedLoopRouteCount"),
             "associatedPairCount": (payload.get("marketObservationStaticTable") or {}).get("summary", {}).get("fundAnchorPairObservationAssociatedPairCount"),
         }
-        payload = _root._market_observation_page_payload(payload)
+        payload = _root._market_observation_page_payload(
+            payload,
+            chain_id=selected_chain_id,
+            protocols=protocols,
+        )
         payload.setdefault("mode", "dex_market_observation")
         return jsonify(_root._attach_dex_strategy(payload))

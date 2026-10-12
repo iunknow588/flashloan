@@ -346,17 +346,26 @@
       $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.3"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 复盘记录全部候选`;
       $("pairCount").textContent = totalPairs;
       $("bestPair").textContent = totalPairs ? "等待 CoW 报价" : "-";
-      $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">暂无原始涨幅数据</td></tr>';
-      $("rawBottomBody").innerHTML = (data.raw_bottom || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">暂无原始跌幅数据</td></tr>';
+      const rawTop = data.raw_top || [];
+      const rawBottom = data.raw_bottom || [];
+      const rawTopPage = Math.min(Math.max(0, binanceMarketTablePages.rawTop || 0), Math.max(0, Math.ceil(rawTop.length / BINANCE_MARKET_PAGE_SIZE) - 1));
+      const rawBottomPage = Math.min(Math.max(0, binanceMarketTablePages.rawBottom || 0), Math.max(0, Math.ceil(rawBottom.length / BINANCE_MARKET_PAGE_SIZE) - 1));
+      $("rawTopBody").innerHTML = rawTop.slice(rawTopPage * BINANCE_MARKET_PAGE_SIZE, (rawTopPage + 1) * BINANCE_MARKET_PAGE_SIZE).map((row, index) => rowHtml(row, rawTopPage * BINANCE_MARKET_PAGE_SIZE + index + 1)).join("") || '<tr><td colspan="6">暂无原始涨幅数据</td></tr>';
+      $("rawBottomBody").innerHTML = rawBottom.slice(rawBottomPage * BINANCE_MARKET_PAGE_SIZE, (rawBottomPage + 1) * BINANCE_MARKET_PAGE_SIZE).map((row, index) => rowHtml(row, rawBottomPage * BINANCE_MARKET_PAGE_SIZE + index + 1)).join("") || '<tr><td colspan="6">暂无原始跌幅数据</td></tr>';
       $("rawTopTitle").textContent = `Binance 原始涨幅前 ${data.top_limit || 50}`;
       $("rawBottomTitle").textContent = `Binance 原始跌幅前 ${data.bottom_limit || 50}`;
+      renderBinanceTablePager("rawTopPager", rawTop.length, rawTopPage, page => { binanceMarketTablePages.rawTop = page; renderMarket(data, network); });
+      renderBinanceTablePager("rawBottomPager", rawBottom.length, rawBottomPage, page => { binanceMarketTablePages.rawBottom = page; renderMarket(data, network); });
       renderCowSupportedOverview(data.cow_supported_overview || null);
       renderNetworkClaims(data.cow_network_claims || []);
       $("pairTitle").textContent = "每条选中链仅展示 1 组 CoW 支持稳定币闭环套利候选路径";
-      $("aaveBody").innerHTML = (data.aave_rows || []).map(row => `<tr>
+      const aaveRows = data.aave_rows || [];
+      const aavePage = Math.min(Math.max(0, binanceMarketTablePages.aave || 0), Math.max(0, Math.ceil(aaveRows.length / BINANCE_MARKET_PAGE_SIZE) - 1));
+      $("aaveBody").innerHTML = aaveRows.slice(aavePage * BINANCE_MARKET_PAGE_SIZE, (aavePage + 1) * BINANCE_MARKET_PAGE_SIZE).map(row => `<tr>
         <td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
         <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${row.window_ready ? "已就绪" : "等待中"}</td><td>${row.tracked ? "已跟踪" : "未跟踪"}</td>
       </tr>`).join("") || '<tr><td colspan="6">暂无 Aave 映射资产</td></tr>';
+      renderBinanceTablePager("aavePager", aaveRows.length, aavePage, page => { binanceMarketTablePages.aave = page; renderMarket(data, network); });
       renderNetworkOpportunityCards();
       renderCowIdentity();
       if (!Array.from(networkPanels.values()).some(panel => panel?.quotes)) {

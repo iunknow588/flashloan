@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument(
         "--max-per-pair",
         type=int,
-        default=0,
+        default=6,
         help="Maximum representative pools kept per token pair; 0 keeps every initialized V4 pool.",
     )
     parser.add_argument(

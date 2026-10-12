@@ -118,15 +118,23 @@ def rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]
     if default:
         return tuple(default)
     row = _chain_row("robinhood")
-    rpc_urls = tuple(
+    rpc_urls = list(
         str(url).strip()
         for url in row.get("rpc_urls") or []
         if str(url).strip()
     )
+    rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+    primary = str(rpc_block.get("primary") or "").strip()
+    if primary and primary not in rpc_urls:
+        rpc_urls.append(primary)
+    for url in rpc_block.get("fallbacks") or []:
+        value = str(url).strip()
+        if value and value not in rpc_urls:
+            rpc_urls.append(value)
     rpc_url = _chain_value("robinhood", "rpc_url", "ROBINHOOD_RPC_URL")
     if rpc_url and rpc_url not in rpc_urls:
-        rpc_urls = (*rpc_urls, rpc_url)
-    return rpc_urls
+        rpc_urls.append(rpc_url)
+    return tuple(rpc_urls)
 
 
 def v3_quoter_addresses_from_env(default: tuple[str, ...] = ()) -> tuple[str, ...]:

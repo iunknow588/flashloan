@@ -126,6 +126,99 @@ def quote_v4_exact_input_single(*args: Any, **kwargs: Any):
     return _default_quote_v4_exact_input_single(*args, **kwargs)
 
 
+def _uniswapx_fallback_context(route: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    fallback = route.get("uniswapxFallback") if isinstance(route.get("uniswapxFallback"), dict) else {}
+    middle_hop = fallback.get("middleHop") if isinstance(fallback.get("middleHop"), dict) else {}
+    status = str(fallback.get("status") or "").strip().lower()
+    selected = status in {"selected", "filled_via_uniswapx_middle_hop"}
+    return fallback, middle_hop, selected
+
+
+def _uniswapx_middle_hop_matches(
+    middle_hop: dict[str, Any],
+    index: int,
+    from_symbol: str,
+    to_symbol: str,
+) -> bool:
+    middle_from = str(middle_hop.get("fromSymbol") or "").strip().upper()
+    middle_to = str(middle_hop.get("toSymbol") or "").strip().upper()
+    if middle_from and middle_to:
+        return middle_from == str(from_symbol).upper() and middle_to == str(to_symbol).upper()
+    return index == 2
+
+
+def _uniswapx_middle_hop_step(
+    *,
+    fallback: dict[str, Any],
+    middle_hop: dict[str, Any],
+    index: int,
+    from_symbol: str,
+    to_symbol: str,
+    from_address: str | None,
+    to_address: str | None,
+    input_amount: float | None,
+    input_usd: float,
+    price_map: dict[str, float],
+) -> dict[str, Any]:
+    result = fallback.get("quoteResult") if isinstance(fallback.get("quoteResult"), dict) else {}
+    output_amount = _optional_number(result.get("outputAmount") or result.get("buyAmount"))
+    output_usd = _optional_number(result.get("outputUsd"))
+    if output_amount is not None and output_amount <= 0:
+        output_amount = None
+    if output_usd is not None and output_usd <= 0:
+        output_usd = None
+    if output_amount is None and output_usd is None:
+        return {
+            "hop": index,
+            "fromSymbol": from_symbol,
+            "toSymbol": to_symbol,
+            "tokenIn": from_address or "",
+            "tokenOut": to_address or "",
+            "status": "uniswapx_quote_required",
+            "venue": "uniswapx",
+            "fillModel": "dutch_auction_reactor",
+            "quoteSource": "uniswapx_intent_quote_required",
+            "executionTrust": "uniswapx_quote_required",
+            "inputAmount": input_amount,
+            "inputUsd": input_usd,
+            "outputAmount": None,
+            "outputUsd": None,
+            "trustedUsdPrice": False,
+        }
+    if output_usd is None and output_amount is not None:
+        output_price = _number(price_map.get(to_symbol))
+        if output_price > 0:
+            output_usd = output_amount * output_price
+    effective_rate = (
+        output_amount / input_amount
+        if output_amount is not None and input_amount is not None and input_amount > 0
+        else None
+    )
+    quote_parameters = fallback.get("quoteParameters") if isinstance(fallback.get("quoteParameters"), dict) else {}
+    return {
+        "hop": index,
+        "fromSymbol": from_symbol,
+        "toSymbol": to_symbol,
+        "tokenIn": from_address or "",
+        "tokenOut": to_address or "",
+        "status": "quoted",
+        "venue": "uniswapx",
+        "fillModel": "dutch_auction_reactor",
+        "quoteSource": "uniswapx_intent_quote",
+        "executionTrust": "uniswapx_intent_quote",
+        "inputAmount": input_amount,
+        "inputUsd": input_usd,
+        "outputAmount": output_amount,
+        "outputUsd": output_usd,
+        "effectiveRate": effective_rate,
+        "trustedUsdPrice": bool(output_usd is not None),
+        "tokenDecimalsTrusted": True,
+        "minBuyAmount": result.get("minBuyAmount") or quote_parameters.get("minBuyAmount"),
+        "limitPrice": result.get("limitPrice") or quote_parameters.get("limitPrice"),
+        "targetProfitBps": quote_parameters.get("targetProfitBps"),
+    }
+
+
 def _route_quote_analysis(
     route: dict[str, Any],
     *,
@@ -220,20 +313,40 @@ def _route_quote_analysis(
         else token_basis_input_amount
     )
     steps: list[dict[str, Any]] = []
+    uniswapx_fallback, uniswapx_middle_hop, uniswapx_middle_selected = _uniswapx_fallback_context(route)
     for index, (from_symbol, to_symbol) in enumerate(zip(route_symbols, route_symbols[1:]), start=1):
         from_address = route_addresses[index - 1] if index - 1 < len(route_addresses) else ""
         to_address = route_addresses[index] if index < len(route_addresses) else ""
-        quote = _best_edge_quote(
-            pools=pools,
-            from_symbol=from_symbol,
-            to_symbol=to_symbol,
-            from_address=from_address,
-            to_address=to_address,
-            input_amount=current_amount,
-            input_usd=current_usd,
-            price_map=price_map,
-            chain_id=chain_id,
-        )
+        if uniswapx_middle_selected and _uniswapx_middle_hop_matches(
+            uniswapx_middle_hop,
+            index,
+            from_symbol,
+            to_symbol,
+        ):
+            quote = _uniswapx_middle_hop_step(
+                fallback=uniswapx_fallback,
+                middle_hop=uniswapx_middle_hop,
+                index=index,
+                from_symbol=from_symbol,
+                to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
+                input_amount=current_amount,
+                input_usd=current_usd,
+                price_map=price_map,
+            )
+        else:
+            quote = _best_edge_quote(
+                pools=pools,
+                from_symbol=from_symbol,
+                to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
+                input_amount=current_amount,
+                input_usd=current_usd,
+                price_map=price_map,
+                chain_id=chain_id,
+            )
         if quote is None:
             steps.append(
                 {
@@ -250,6 +363,14 @@ def _route_quote_analysis(
                 }
             )
             warnings.append(f"hop_{index}_quote_missing")
+            break
+        if str(quote.get("status") or "").strip() == "uniswapx_quote_required":
+            quote["hop"] = index
+            quote.setdefault("tokenIn", from_address)
+            quote.setdefault("tokenOut", to_address)
+            steps.append(quote)
+            warnings.append(f"hop_{index}_uniswapx_quote_required")
+            warnings.append(f"route_truncated_at_hop_{index}_uniswapx_quote_required")
             break
         quote["hop"] = index
         quote["status"] = "quoted"
@@ -304,6 +425,15 @@ def _route_quote_analysis(
             warnings.append(f"route_truncated_at_hop_{index}_zero_output")
             break
     complete = len(steps) == max(0, len(route_symbols) - 1) and all(step.get("status") == "quoted" for step in steps)
+    uniswapx_quote_required = any(
+        str(step.get("status") or "").strip() == "uniswapx_quote_required"
+        for step in steps
+    )
+    fallback_parameters = (
+        uniswapx_fallback.get("quoteParameters")
+        if isinstance(uniswapx_fallback.get("quoteParameters"), dict)
+        else None
+    )
     requires_live_quoter = any(
         step.get("executionTrust")
         in {
@@ -313,6 +443,7 @@ def _route_quote_analysis(
             "pool_not_initialized",
             "rpc_verification_failed",
             "rpc_verification_timeout",
+            "uniswapx_quote_required",
         }
         for step in steps
     )
@@ -582,6 +713,11 @@ def _route_quote_analysis(
         "complete": complete,
         "requiresLiveQuoter": requires_live_quoter,
         "adapterRequired": adapter_required,
+        "uniswapxFallbackStatus": uniswapx_fallback.get("status"),
+        "uniswapxMiddleHop": uniswapx_middle_hop or None,
+        "uniswapxQuoteRequired": uniswapx_quote_required,
+        "uniswapxQuoteResultApplied": bool(uniswapx_middle_selected and uniswapx_fallback.get("quoteResult")),
+        "uniswapxMinProfitBps": fallback_parameters.get("targetProfitBps") if isinstance(fallback_parameters, dict) else None,
         "stepCount": len(steps),
         "steps": steps,
         "finalOutputUsd": final_output_usd,

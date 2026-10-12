@@ -536,7 +536,12 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
         },
     }
 
-def _path_candidates_from_market_observation(observation: dict[str, Any], *, chain_id: int | None) -> list[dict[str, Any]]:
+def _path_candidates_from_market_observation(
+    observation: dict[str, Any],
+    *,
+    chain_id: int | None,
+    reverse_symmetric: bool = True,
+) -> list[dict[str, Any]]:
     routes = [
         route
         for route in observation.get("closedLoopRoutes") or []
@@ -548,7 +553,10 @@ def _path_candidates_from_market_observation(observation: dict[str, Any], *, cha
     seen: set[tuple[str, tuple[str, ...]]] = set()
     deduped: list[dict[str, Any]] = []
     for candidate in candidates:
-        key = _route_candidate_dedup_key(candidate)
+        key = _route_candidate_dedup_key(
+            candidate,
+            reverse_symmetric=reverse_symmetric,
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -557,7 +565,11 @@ def _path_candidates_from_market_observation(observation: dict[str, Any], *, cha
     return deduped
 
 
-def _route_candidate_dedup_key(candidate: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+def _route_candidate_dedup_key(
+    candidate: dict[str, Any],
+    *,
+    reverse_symmetric: bool = True,
+) -> tuple[str, tuple[str, ...]]:
     overview_route = candidate.get("overviewRoute") if isinstance(candidate.get("overviewRoute"), dict) else {}
     route_symbols = [
         _norm_symbol(value)
@@ -576,7 +588,7 @@ def _route_candidate_dedup_key(candidate: dict[str, Any]) -> tuple[str, tuple[st
         mids = tuple(route_addresses[1:-1]) if len(route_addresses) >= 3 else tuple(route_addresses)
     else:
         mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
-    if mids and tuple(reversed(mids)) < mids:
+    if reverse_symmetric and mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
     # Reversing B/C produces the same route in the opposite direction.
     return (anchor, mids)
@@ -709,25 +721,42 @@ def _overview_path_candidates_from_observation_sets(
             chain_id=chain_id,
             protocols=protocols,
         )
-    sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
-    candidates: list[dict[str, Any]] = []
-    seen: set[tuple[str, tuple[str, ...]]] = set()
-    for sequence in sequences:
-        # Market observation builds every Y-Z direction combination, including
-        # combinations without a middle-hop pool. DEX overview must only select
-        # closed loops that have a real Y-Z bridge pool; no-pool rows remain on
-        # the observation page as discovery state and must not become paths.
-        if not (sequence.get("observationReachable") or sequence.get("observationState") == "reachable"):
-            continue
-        route = _closed_route_from_sequence(sequence)
-        candidate = _observation_route_to_path_candidate(route, chain_id=chain_id)
-        if not candidate.get("routeTokenPath") or not _route_pools(candidate):
-            continue
-        key = _route_candidate_dedup_key(candidate)
-        if key in seen:
-            continue
-        seen.add(key)
-        candidates.append(candidate)
+    closed_loop_routes = [
+        route
+        for route in observation.get("closedLoopRoutes") or []
+        if isinstance(route, dict) and route.get("closedLoop") is not False
+    ]
+    if closed_loop_routes:
+        # DB-first surfaces carry the authoritative three-hop loop set from
+        # SQLite. Consume those routes directly instead of re-enumerating every
+        # YC x ZC direction combination, which can reach hundreds of thousands
+        # of rows on a live chain even when only a handful of loops are real.
+        candidates = _path_candidates_from_market_observation(
+            observation,
+            chain_id=chain_id,
+            reverse_symmetric=False,
+        )
+    else:
+        sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
+        candidates: list[dict[str, Any]] = []
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        for sequence in sequences:
+            # Market observation builds every Y-Z direction combination,
+            # including combinations without a middle-hop pool. DEX overview
+            # must only select closed loops that have a real Y-Z bridge pool;
+            # no-pool rows remain on the observation page as discovery state
+            # and must not become paths.
+            if not (sequence.get("observationReachable") or sequence.get("observationState") == "reachable"):
+                continue
+            route = _closed_route_from_sequence(sequence)
+            candidate = _observation_route_to_path_candidate(route, chain_id=chain_id)
+            if not candidate.get("routeTokenPath") or not _route_pools(candidate):
+                continue
+            key = _route_candidate_dedup_key(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(candidate)
     candidates.sort(key=_route_score, reverse=True)
     watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
     used_pair_symbols = {
@@ -736,10 +765,11 @@ def _overview_path_candidates_from_observation_sets(
         for pair_symbol in (candidate.get("overviewRoute") or {}).get("candidatePairSymbols") or []
         if pair_symbol
     }
-    for pair in pairs:
-        symbol = str(pair.get("symbolPair") or "").strip()
-        if symbol and symbol not in used_pair_symbols:
-            watch_pairs.append(pair)
+    if not closed_loop_routes:
+        for pair in pairs:
+            symbol = str(pair.get("symbolPair") or "").strip()
+            if symbol and symbol not in used_pair_symbols:
+                watch_pairs.append(pair)
     watch_pairs = watch_pairs[:12]
     anchors = sorted(
         {

@@ -187,6 +187,9 @@ def load_dex_candidate_pools(
                 "pairs": _rust_rows(payload, "pairs"),
                 "pools": _rust_rows(payload, "pools"),
                 "recommendations": _rust_rows(payload, "recommendations"),
+                "abnormalAnchorTokens": _rust_rows(payload, "abnormalAnchorTokens"),
+                "abnormalPairs": _rust_rows(payload, "abnormalPairs"),
+                "abnormalPools": _rust_rows(payload, "abnormalPools"),
             }
             return {**_source_meta([], None), **rows}
         except Exception as exc:
@@ -227,6 +230,8 @@ def load_market_observation(
                 "pairs": _rust_rows(payload, "pairs"),
                 "pools": _rust_rows(payload, "pools"),
                 "liquidity": _rust_rows(payload, "liquidity"),
+                "abnormalPairs": _rust_rows(payload, "abnormalPairs"),
+                "abnormalPools": _rust_rows(payload, "abnormalPools"),
             }
             return {**_source_meta([], None), **rows}
         except Exception as exc:

@@ -97,18 +97,22 @@
     <section class="card">
       <small>候选清算对</small>
       <div class="table-wrap"><table><thead><tr><th>抵押资产</th><th>抵押单价</th><th>可清算数量 / 折算价值</th><th>债务资产</th><th>债务单价</th><th>借款数量 / 折算价值</th><th>可清偿债务 / 折算价值</th><th>协议费</th><th>预估净收益</th></tr></thead><tbody id="candidateBody"></tbody></table></div>
+      <div id="candidatePager" class="pagination"></div>
     </section>
     <section class="card">
       <small>当前持仓与借贷</small>
       <div class="table-wrap"><table><thead><tr><th>资产</th><th>资产角色</th><th>单价</th><th>供应数量 / 折算价值</th><th>稳定利率借款 / 折算价值</th><th>浮动利率借款 / 折算价值</th><th>借款合计 / 折算价值</th><th>供应计入抵押</th><th>健康色带</th></tr></thead><tbody id="positionBody"></tbody></table></div>
+      <div id="positionPager" class="pagination"></div>
     </section>
     <section class="card">
       <small>本账户执行尝试</small>
 <div class="table-wrap"><table><thead><tr><th>ID</th><th>模式</th><th>状态</th><th>阶段</th><th>交易（Tx）</th><th>回执（Receipt）</th><th>阻断原因</th><th>错误</th><th>时间</th></tr></thead><tbody id="accountAttemptBody"></tbody></table></div>
+      <div id="accountAttemptPager" class="pagination"></div>
     </section>
     <section class="card">
       <small>本账户失败样本</small>
 <div class="table-wrap"><table><thead><tr><th>ID</th><th>类型</th><th>阶段</th><th>交易</th><th>回执</th><th>可重试</th><th>原因</th><th>债务资产</th><th>抵押资产</th><th>时间</th></tr></thead><tbody id="accountSampleBody"></tbody></table></div>
+      <div id="accountSamplePager" class="pagination"></div>
     </section>
   </main>
   <script>
@@ -117,6 +121,45 @@
     let actionRunning = false;
     let monitorTimer = null;
     let monitorCount = 0;
+    let candidatePage = 0;
+    let positionPage = 0;
+    let accountAttemptPage = 0;
+    let accountSamplePage = 0;
+    let latestAccountAttemptRows = [];
+    let latestAccountSampleRows = [];
+    function renderAccountTablePager(id, total, page, onPage) {
+      const node = $(id);
+      if (!node) return;
+      const pageSize = 20;
+      const pageCount = Math.max(1, Math.ceil(total / pageSize));
+      const safePage = Math.min(Math.max(0, page), pageCount - 1);
+      if (pageCount <= 1) {
+        node.innerHTML = "";
+        return;
+      }
+      const start = safePage * pageSize + 1;
+      const end = Math.min((safePage + 1) * pageSize, total);
+      node.innerHTML = `<button type="button" data-account-page="prev" ${safePage <= 0 ? "disabled" : ""}>上一页</button><span>${start}-${end} / ${total}</span><button type="button" data-account-page="next" ${safePage >= pageCount - 1 ? "disabled" : ""}>下一页</button>`;
+      node.querySelector('[data-account-page="prev"]').onclick = () => onPage(Math.max(0, safePage - 1));
+      node.querySelector('[data-account-page="next"]').onclick = () => onPage(Math.min(pageCount - 1, safePage + 1));
+    }
+    function renderAccountAuditTable(bodyId, pagerId, pageKey, rows, colspan) {
+      const pageSize = 20;
+      const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+      const state = {
+        accountAttemptPage,
+        accountSamplePage
+      }[pageKey];
+      const safePage = Math.min(Math.max(0, state || 0), pageCount - 1);
+      if (pageKey === "accountAttemptPage") accountAttemptPage = safePage;
+      if (pageKey === "accountSamplePage") accountSamplePage = safePage;
+      $(bodyId).innerHTML = rows.slice(safePage * pageSize, (safePage + 1) * pageSize).join("") || `<tr><td colspan="${colspan}">暂无记录</td></tr>`;
+      renderAccountTablePager(pagerId, rows.length, safePage, page => {
+        if (pageKey === "accountAttemptPage") accountAttemptPage = page;
+        if (pageKey === "accountSamplePage") accountSamplePage = page;
+        renderAccountAuditTable(bodyId, pagerId, pageKey, rows, colspan);
+      });
+    }
     const pageParams = new URLSearchParams(location.search);
     // Compatibility markers for static navigation tests: params.get("account"), /api/liquidation/account?account=
     const marketIdChainComponent = marketId => {
@@ -335,12 +378,16 @@
         : (report && report.cached ? `核心库 ${core.payload_state || "-"} | 报价 ${core.quote_viable ? "可用" : "等待中"}` : "-");
       $("accountRecommendation").textContent = recommended ? `${displayAssetSymbol(recommended.collateral_symbol)} / ${displayAssetSymbol(recommended.debt_symbol)}` : (core.best_collateral_asset || core.best_debt_asset ? `${displayAssetSymbol(core.best_collateral_asset)} / ${displayAssetSymbol(core.best_debt_asset)}` : "暂无可执行资产对");
       $("accountProfit").textContent = Number.isFinite(profit) ? `预估净收益 ${profit.toFixed(2)}U` : "等待更低 HF";
-      $("candidateBody").innerHTML = candidates.map(row => {
+      const candidateRows = candidates.map(row => {
         const p = row.estimated_profit || {};
         const collateralAmount = row.max_collateral_to_liquidate_amount ?? row.max_collateral_to_liquidate;
         const debtToCover = row.amount_to_pass_to_liquidation_call_amount ?? row.max_debt_to_liquidate_amount ?? row.max_debt_to_liquidate;
         return `<tr><td>${displayAssetSymbol(row.collateral_symbol)}</td><td>${stableUnitPriceText(row.collateral_symbol,row.collateral_price)}</td><td>${tokenValueText(collateralAmount,row.collateral_symbol,Number(collateralAmount)*Number(row.collateral_price),{showDustNote:true})}</td><td>${displayAssetSymbol(row.debt_symbol)}</td><td>${stableUnitPriceText(row.debt_symbol,row.debt_price)}</td><td>${tokenValueText(row.debt_amount,row.debt_symbol,Number(row.debt_amount)*Number(row.debt_price))}</td><td>${tokenValueText(debtToCover,row.debt_symbol,Number(debtToCover)*Number(row.debt_price),{showDustNote:true})}</td><td>${amountText(Number(row.liquidation_protocol_fee),4)}</td><td class="${cellCls(p.net_profit_base)}">${Number.isFinite(Number(p.net_profit_base)) ? Number(p.net_profit_base).toFixed(4) : "-"}</td></tr>`;
-      }).join("") || (report && report.cached && core.estimated_operator_net_profit_usd ? '<tr><td colspan="9">缓存显示有清算价值，但缺少可执行资产对；需要实时查询或 quote 后才能构造 payload。</td></tr>' : '<tr><td colspan="9">暂无可执行候选</td></tr>');
+      });
+      const candidatePageCount = Math.max(1, Math.ceil(candidateRows.length / 20));
+      candidatePage = Math.min(Math.max(0, candidatePage), candidatePageCount - 1);
+      $("candidateBody").innerHTML = candidateRows.slice(candidatePage * 20, (candidatePage + 1) * 20).join("") || (report && report.cached && core.estimated_operator_net_profit_usd ? '<tr><td colspan="9">缓存显示有清算价值，但缺少可执行资产对；需要实时查询或 quote 后才能构造 payload。</td></tr>' : '<tr><td colspan="9">暂无可执行候选</td></tr>');
+      renderAccountTablePager("candidatePager", candidateRows.length, candidatePage, page => { candidatePage = page; renderAccount(report); });
       const positionRows = positions.flatMap(row => {
         const symbol = row.symbol || row.token_symbol || "-";
         const tokenPrice = Number(row.current_token_price ?? row.oracle_price);
@@ -361,7 +408,10 @@
         }
         return rendered;
       });
-      $("positionBody").innerHTML = positionRows.join("") || '<tr><td colspan="9">暂无持仓数据</td></tr>';
+      const positionPageCount = Math.max(1, Math.ceil(positionRows.length / 20));
+      positionPage = Math.min(Math.max(0, positionPage), positionPageCount - 1);
+      $("positionBody").innerHTML = positionRows.slice(positionPage * 20, (positionPage + 1) * 20).join("") || '<tr><td colspan="9">暂无持仓数据</td></tr>';
+      renderAccountTablePager("positionPager", positionRows.length, positionPage, page => { positionPage = page; renderAccount(report); });
     }
     function renderActionDetail(data, fallback = "-") {
       $("actionDetail").textContent = userFacingExecutionMessage(data, fallback);
@@ -442,13 +492,14 @@
     async function refreshAccountAudit(account) {
       try {
         const attempts = await api(`/api/liquidation/account/${encodeURIComponent(account)}/attempts?${accountApiQuery(account, {limit: 20})}`, {timeoutMs: 10000});
-        $("accountAttemptBody").innerHTML = (attempts.attempts || []).map(row => {
+        latestAccountAttemptRows = (attempts.attempts || []).map(row => {
           const receipt = row.receipt && row.receipt.status !== undefined ? row.receipt.status : "-";
           const tx = row.tx_hash || "-";
           return `<tr><td>${row.id}</td><td>${row.mode || "-"}</td><td>${userFacingAuditStatus(row)}</td><td>${row.execution_phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td colspan="2">${userFacingAuditStatus(row)}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
-        }).join("") || '<tr><td colspan="9">暂无执行尝试</td></tr>';
+        });
+        renderAccountAuditTable("accountAttemptBody", "accountAttemptPager", "accountAttemptPage", latestAccountAttemptRows, 9);
         const samples = await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?${accountApiQuery(account, {limit: 20})}`, {timeoutMs: 10000});
-        $("accountSampleBody").innerHTML = (samples.samples || []).map(row => {
+        latestAccountSampleRows = (samples.samples || []).map(row => {
           const p = row.payload || {};
           const phase = p.execution_phase || row.execution_phase || "-";
           const tx = p.tx_hash || row.tx_hash || "-";
@@ -456,7 +507,8 @@
           const retry = row.retryable === undefined ? "-" : (row.retryable ? "是" : "否");
           const status = userFacingExecutionMessage({...p, error: row.failure_reason, receipt_status: receipt}, "");
           return `<tr><td>${row.id}</td><td>${row.failure_type || "-"}</td><td>${phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td>${retry}</td><td>${status}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
-        }).join("") || '<tr><td colspan="10">暂无失败样本</td></tr>';
+        });
+        renderAccountAuditTable("accountSampleBody", "accountSamplePager", "accountSamplePage", latestAccountSampleRows, 10);
       } catch (error) {}
     }
     async function action(mode) {

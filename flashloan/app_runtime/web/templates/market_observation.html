@@ -15,6 +15,9 @@
     nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    .pager.market-pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+    .pager.market-pager button { min-height: 30px; min-width: 68px; padding: 0 10px; }
+    .page-status { color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
@@ -89,7 +92,7 @@
       <div class="route-head">
         <div>
           <h2>资金锚点可接入交易对</h2>
-          <div class="route-subtitle">V4 候选观察：从直接 Y-Z 交易对出发，筛选能被可借资金 X 接入并进入 YC / ZC 候选集合的交易对。</div>
+          <div class="route-subtitle">按资金池分表：有正常 Y-Z 池交易对与无正常 Y-Z 池交易对分开展示；无正常池分组同时展示自定义费率、大于 3000 费率或带 hook 的池子。</div>
         </div>
       </div>
       <div id="associatedPairList" class="list"></div>
@@ -98,8 +101,8 @@
     <section class="panel" style="margin-bottom:14px">
       <div class="route-head">
         <div>
-          <h2>候选代币分组</h2>
-          <div class="route-subtitle">每个候选代币对应一组 YC / ZC 集合，以及它映射出的观察组合。</div>
+          <h2>资金池观察分组</h2>
+          <div class="route-subtitle">一级按资金池名称分组；表内按交易对名称展示固定费率 ≤3000、无 Hook 的中间兑换池，流动性由 DEX 总览阶段再校验。</div>
         </div>
       </div>
       <div id="candidateGroupList" class="list"></div>
@@ -137,9 +140,17 @@
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const list = value => Array.isArray(value) ? value : [];
     const OBSERVATION_POOL_PREVIEW_LIMIT = 80;
+    const MARKET_PAGER_SIZE = 20;
+    const marketObservationPages = {};
     const shortAddress = value => {
       const text = String(value || "").trim();
       return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
+    };
+    const num = value => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return "-";
+      if (Math.abs(parsed) >= 1000) return parsed.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return parsed.toLocaleString(undefined, { maximumFractionDigits: 8 });
     };
     const zhError = value => {
       const text = String(value || "请求失败");
@@ -212,8 +223,12 @@
       const depth = pool?.depthBand || {};
       const label = depth.label || pool?.depthStatus || "-";
       const tvl = Number((pool?.balances || {}).tvlUsd ?? pool?.estimatedTvlUsd ?? 0);
-      const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
-      return `${usable === false ? "无流动性 / " : (usable === true ? "有流动性 / " : "流动性未标注 / ")}${label}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
+      const liquidityIndex = Number(pool?.liquidityIndex ?? pool?.liquidity ?? 0);
+      const hasLiquidity = pool?.hasLiquidity != null ? Boolean(pool?.hasLiquidity) : liquidityIndex > 0;
+      const status = pool?.hasLiquidity != null
+        ? (hasLiquidity ? "有流动性 / " : "无流动性 / ")
+        : (liquidityIndex > 0 ? "有流动性 / " : "流动性未标注 / ");
+      return `${status}${label}${tvl > 0 ? ` / $${num(tvl)}` : ""}`;
     }
 
     function poolLabelText(pool) {
@@ -229,10 +244,12 @@
     }
 
     function poolBadgeHtml(pool) {
-      const title = `${poolLabelText(pool)} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}`;
-      const usable = pool?.usableForObservation ?? (pool?.hasLiquidity && !pool?.specialFee && !pool?.dynamicFee);
+      const hooks = String(pool?.hooks || "").trim();
+      const hookText = hooks && hooks.toLowerCase() !== "0x0000000000000000000000000000000000000000" ? " / hook" : "";
+      const title = `${poolLabelText(pool)} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${hookText}`;
+      const usable = pool?.observationUsable ?? pool?.usableForObservation ?? (!pool?.specialFee && !pool?.dynamicFee);
       const cls = usable === true ? "good" : (usable === false ? "warn" : "neutral");
-      return `<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}</span>`;
+      return `<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${esc(hookText)}</span>`;
     }
 
     function associatedPoolFallbackHtml(row) {
@@ -247,7 +264,11 @@
     }
 
     function fundListHtml(rows) {
-      return list(rows).map(row => `<span class="badge neutral" title="${esc(row?.address || "-")}">${esc(row?.symbol || "-")}</span>`).join("") || '<span class="badge neutral">-</span>';
+      const symbols = list(rows).map(row => {
+        if (typeof row === "string") return row;
+        return row?.symbol || "-";
+      });
+      return symbols.map(symbol => `<span class="badge neutral">${esc(symbol)}</span>`).join("") || '<span class="badge neutral">-</span>';
     }
 
     function associatedPairsFromPools(pools) {
@@ -275,6 +296,71 @@
       return Array.from(grouped.values()).sort((left, right) => String(left.symbolPair || "").localeCompare(String(right.symbolPair || "")));
     }
 
+    function associatedPairCanonicalKey(row) {
+      const addresses = [
+        row?.token0?.address,
+        row?.token1?.address,
+        ...String(row?.addressPair || "").split(":"),
+      ].filter(Boolean).map(value => String(value).trim().toLowerCase());
+      const uniqueAddresses = Array.from(new Set(addresses));
+      if (uniqueAddresses.length >= 2) return uniqueAddresses.sort().join(":");
+      const symbols = [row?.token0?.symbol, row?.token1?.symbol]
+        .filter(Boolean)
+        .map(value => String(value).trim().toUpperCase());
+      if (symbols.length === 2) return symbols.sort().join(":");
+      return String(row?.symbolPair || row?.addressPair || row?.pool || row?.poolId || "");
+    }
+
+    function associatedPairCanonicalAddress(row) {
+      const parts = [
+        ...String(row?.addressPair || "").split(":"),
+        row?.token0?.address,
+        row?.token1?.address,
+      ].filter(Boolean).map(value => String(value).trim());
+      const unique = Array.from(new Set(parts)).sort();
+      return unique.length >= 2 ? unique.join(":") : String(row?.addressPair || "-");
+    }
+
+    function dedupePoolsByPoolId(pools) {
+      const unique = new Map();
+      list(pools).forEach(pool => {
+        const key = String(pool?.pool || pool?.poolId || pool?.addressPair || "").toLowerCase();
+        if (key && !unique.has(key)) unique.set(key, pool);
+      });
+      return Array.from(unique.values());
+    }
+
+    function mergeAssociatedPairRows(rows) {
+      const directionRows = list(rows);
+      const first = directionRows[0] || {};
+      const directSwapPools = dedupePoolsByPoolId(directionRows.flatMap(row => {
+        const direct = list(row?.directSwapPools);
+        return direct.length ? direct : list(row?.pools);
+      }));
+      const nonNormalSwapPools = dedupePoolsByPoolId(directionRows.flatMap(row => list(row?.nonNormalSwapPools)));
+      const fundSymbols = Array.from(new Set(directionRows.flatMap(row => list(row?.associatedFundSymbols)))).sort();
+      const anchorSymbol = first?.anchorSymbol || fundSymbols[0] || "-";
+      const pairSymbols = [first?.token0?.symbol, first?.token1?.symbol]
+        .filter(Boolean)
+        .map(value => String(value).trim())
+        .sort();
+      return {
+        ...first,
+        anchorSymbol,
+        symbolPair: pairSymbols.length === 2 ? pairSymbols.join(":") : String(first?.symbolPair || "-"),
+        addressPair: associatedPairCanonicalAddress(first),
+        directions: directionRows,
+        directSwapPools,
+        pools: dedupePoolsByPoolId(directionRows.flatMap(row => list(row?.pools))),
+        directSwapPoolCount: directSwapPools.length,
+        hasDirectSwapPool: directionRows.some(row => pairHasDirectPool(row)),
+        nonNormalSwapPools,
+        nonNormalSwapPoolCount: nonNormalSwapPools.length,
+        hasNonNormalSwapPool: directionRows.some(row => pairHasNonNormalPool(row)),
+        associatedFundSymbols: fundSymbols,
+      };
+    }
+
     function reasonText(reason) {
       const value = String(reason || "");
       if (
@@ -291,46 +377,114 @@
     function associatedPairHtml(row) {
       const pools = list(row?.pools);
       const directSwapPools = list(row?.directSwapPools).length ? list(row?.directSwapPools) : pools;
-      const token0Funds = list(row?.token0?.associatedFunds || row?.token0AssociatedFunds);
-      const token1Funds = list(row?.token1?.associatedFunds || row?.token1AssociatedFunds);
+      const nonNormalSwapPools = list(row?.nonNormalSwapPools);
+      const directions = list(row?.directions).length ? list(row?.directions) : [row];
       const fundSymbols = list(row?.associatedFundSymbols);
+      const anchorSymbol = row?.anchorSymbol || fundSymbols[0] || "-";
+      const directSwapBadges = directSwapPools.map(poolBadgeHtml).join("");
+      const directSwapEmpty = row?.hasDirectSwapPool
+        ? associatedPoolFallbackHtml(row)
+        : (row?.hasNonNormalSwapPool
+          ? '<span class="badge reject">暂无正常 Y-Z 池</span>'
+          : '<span class="badge reject">暂无 Y-Z 池</span>');
+      const nonNormalSwapBadges = nonNormalSwapPools.map(poolBadgeHtml).join("");
+      const showNonNormal = !row?.hasDirectSwapPool && Boolean(nonNormalSwapBadges);
+      const directionLines = directions.map((direction, index) => {
+        const token0Funds = list(direction?.token0?.associatedFunds || direction?.token0AssociatedFunds);
+        const token1Funds = list(direction?.token1?.associatedFunds || direction?.token1AssociatedFunds);
+        const prefix = directions.length > 1 ? `方向 ${index + 1}：` : "";
+        return `<div class="meta-line">${esc(prefix)}起点/终点资金池 ${esc(anchorSymbol)}；Y=${esc(direction?.token0?.symbol || "-")} 关联 ${fundListHtml(token0Funds)}；Z=${esc(direction?.token1?.symbol || "-")} 关联 ${fundListHtml(token1Funds)}。</div>`;
+      }).join("");
       return `<div class="route-card">
         <div class="route-head">
           <div class="route-title">
             <strong>Y-Z 交易对：${esc(row?.symbolPair || "-")}</strong>
-            <div class="route-subtitle">${esc(row?.addressPair || "-")} · ${esc(reasonText(row?.observationReason))}</div>
+            <div class="route-subtitle">资金池 ${esc(anchorSymbol)} · ${esc(row?.addressPair || "-")} · ${esc(reasonText(row?.observationReason))}</div>
           </div>
           <div class="chip-row">
+            <span class="chip">${esc(anchorSymbol)}<small>资金池</small></span>
             <span class="chip">${esc(row?.directSwapPoolCount || directSwapPools.length || 0)}<small>直接 Y-Z 池</small></span>
+            <span class="chip">${esc(directions.length)}<small>交易方向</small></span>
+            ${showNonNormal ? `<span class="chip">${esc(row?.nonNormalSwapPoolCount || nonNormalSwapPools.length || 0)}<small>非正常 Y-Z 池</small></span>` : ""}
             <span class="chip">${esc(fundSymbols.join(", ") || "-")}<small>可借资金锚点 X</small></span>
           </div>
         </div>
         <div class="route-pairs">
           <div class="pair-line">
             <strong>入口/出口锚点</strong>
-            <div class="meta-line">Y=${esc(row?.token0?.symbol || "-")} 关联 ${fundListHtml(token0Funds)}；Z=${esc(row?.token1?.symbol || "-")} 关联 ${fundListHtml(token1Funds)}。</div>
+            ${directionLines}
           </div>
           <div class="pair-line">
             <strong>Y-Z 直接兑换池</strong>
             <div class="pool-list">
-              ${directSwapPools.slice(0, 8).map(poolBadgeHtml).join("") || associatedPoolFallbackHtml(row)}
+              ${directSwapBadges || directSwapEmpty}
             </div>
           </div>
+          ${showNonNormal ? `<div class="pair-line">
+            <strong>非正常 Y-Z 池（自定义费率 / 大于 3000 / hook）</strong>
+            <div class="pool-list">
+              ${nonNormalSwapBadges}
+            </div>
+          </div>` : ""}
         </div>
       </div>`;
+    }
+
+    function pairHasDirectPool(row) {
+      return Boolean(
+        row?.hasDirectSwapPool
+        || Number(row?.directSwapPoolCount || 0) > 0
+        || list(row?.directSwapPools).length > 0
+        || list(row?.pools).length > 0
+      );
+    }
+
+    function pairHasNonNormalPool(row) {
+      return Boolean(
+        row?.hasNonNormalSwapPool
+        || Number(row?.nonNormalSwapPoolCount || 0) > 0
+        || list(row?.nonNormalSwapPools).length > 0
+      );
+    }
+
+    function associatedPairGroupsHtml(rows, hasPool) {
+      const grouped = new Map();
+      list(rows).forEach(row => {
+        if (pairHasDirectPool(row) !== hasPool) return;
+        const anchor = row?.anchorSymbol || list(row?.associatedFundSymbols)[0] || "-";
+        const key = `${anchor}::${associatedPairCanonicalKey(row)}`;
+        if (!grouped.has(anchor)) grouped.set(anchor, new Map());
+        const pairs = grouped.get(anchor);
+        if (!pairs.has(key)) pairs.set(key, []);
+        pairs.get(key).push(row);
+      });
+      return Array.from(grouped.entries())
+        .sort(([left], [right]) => String(left).localeCompare(String(right)))
+        .map(([anchor, pairs]) => {
+          const pairGroups = Array.from(pairs.values())
+            .map(mergeAssociatedPairRows)
+            .sort((left, right) => String(left.symbolPair || "").localeCompare(String(right.symbolPair || "")));
+          return `<div class="item">
+            <strong>${esc(anchor)} · ${hasPool ? "有正常交易对" : "无正常交易对"}（${esc(pairGroups.length)}）</strong>
+            <div class="list">${pairGroups.map(associatedPairHtml).join("")}</div>
+          </div>`;
+        })
+        .join("");
     }
 
     function observationPoolHtml(row) {
       const token0Funds = list(row?.token0AssociatedFunds);
       const token1Funds = list(row?.token1AssociatedFunds);
+      const anchorSymbol = row?.anchorSymbol || row?.associatedFundSymbols?.[0] || "-";
       const symbolPair = row?.symbolPair || [row?.token0Symbol, row?.token1Symbol].filter(Boolean).join(":") || "-";
       return `<div class="route-card">
         <div class="route-head">
           <div class="route-title">
             <strong>${esc(symbolPair)}</strong>
-            <div class="route-subtitle">${esc(poolLabelText(row) || shortAddress(row?.pool || "-"))} · ${esc(row?.observationReason || "关联观察池")}</div>
+            <div class="route-subtitle">资金池 ${esc(anchorSymbol)} · ${esc(poolLabelText(row) || shortAddress(row?.pool || "-"))} · ${esc(reasonText(row?.observationReason || "关联观察池"))}</div>
           </div>
           <div class="chip-row">
+            <span class="chip">${esc(anchorSymbol)}<small>资金池</small></span>
             <span class="chip">${esc(row?.associatedFundSymbols?.length || 0)}<small>资金关联</small></span>
           </div>
         </div>
@@ -344,7 +498,7 @@
     function tokenListHtml(tokens, emptyText) {
       const rows = list(tokens);
       if (!rows.length) return `<div class="empty">${esc(emptyText)}</div>`;
-      return rows.slice(0, 8).map(token => {
+      return rows.map(token => {
         const pools = list(token?.pools);
         const title = [token?.symbol, token?.address].filter(Boolean).join(" / ") || "-";
         return `<span class="badge neutral" title="${esc(title)}">${esc(token?.symbol || "-")} ${esc(token?.poolCount || pools.length || 0)}</span>`;
@@ -378,46 +532,111 @@
       return state === "no_yz_pool" ? "无交易池" : esc(state || "无交易池");
     }
 
-    function combinationPoolBadge(combination) {
-      const bridge = combination?.bridgePool || {};
-      const poolId = shortAddress(bridge?.pool || combination?.pool || "");
-      const fee = marketFeeText(bridge);
-      const liquidity = marketLiquidityText(bridge);
-      const title = `${esc(bridge?.pool || combination?.pool || "-")} / ${fee} / ${liquidity}`;
-      const cls = combination?.observationReachable ? "good" : "reject";
-      return `<span class="badge ${cls}" title="${title}">${esc(poolId || "-")} / ${fee} / ${liquidity}</span>`;
+    function combinationYzCandidate(combination) {
+      return list(combination?.hopCandidates).find(candidate => {
+        const leg = String(candidate?.leg || "").toLowerCase();
+        const direction = String(candidate?.direction || "").toLowerCase();
+        return leg === "y-z" || direction === "bridge" || direction === "y-z";
+      }) || null;
     }
 
-    function combinationRowHtml(combination) {
-      const ycSymbol = combination?.bridgeSymbol || "-";
-      const zcSymbol = combination?.counterSymbol || "-";
-      const hopCounts = combination?.hopCandidateCounts || {};
-      const poolCount = Number(hopCounts["y-z"] ?? combination?.poolCount ?? 0);
-      const bridgePool = combination?.bridgePool || {};
-      const bridgePoolId = bridgePool?.pool || combination?.pool || "";
-      return `<div class="pair-line">
-        <div class="route-head">
-          <div class="route-title">
-            <strong>${esc(pathTextLabel(combination))}</strong>
-            <div class="route-subtitle">${esc(ycSymbol)} / ${esc(zcSymbol)} · 中间池 ${esc(poolCount)} 个</div>
-          </div>
-          <div class="chip-row">
-            <span class="chip">${esc(poolCount)}<small>Y-Z 池</small></span>
-            <span class="chip">${esc(combination?.ycPoolCount || hopCounts["x-y"] || 0)}<small>YC 池</small></span>
-            <span class="chip">${esc(combination?.zcPoolCount || hopCounts["z-x"] || 0)}<small>ZC 池</small></span>
-          </div>
-        </div>
-        <div class="pool-list">
-          ${bridgePoolId ? combinationPoolBadge(combination) : '<span class="badge reject">无交易池</span>'}
-        </div>
-        <div class="meta-line">${combinationStatusText(combination)}</div>
-      </div>`;
+    function combinationPairName(combination) {
+      const candidate = combinationYzCandidate(combination);
+      const symbols = [];
+      const pairText = candidate?.symbolPair || combination?.bridgePool?.symbolPair || "";
+      if (pairText && String(pairText).includes("->")) {
+        symbols.push(...String(pairText).split("->").map(value => String(value || "").trim()));
+      }
+      if (!symbols.length) symbols.push(combination?.bridgeSymbol, combination?.counterSymbol);
+      const unique = Array.from(new Set(symbols.filter(Boolean).map(value => String(value).toUpperCase())));
+      return unique.sort().join(":") || "-";
     }
 
-    function combinationListHtml(combinations) {
-      const rows = list(combinations);
-      if (!rows.length) return '<div class="empty">暂无可观察的 Y-Z 组合。</div>';
-      return rows.slice(0, 120).map(combinationRowHtml).join("");
+    function combinationYzPools(combination) {
+      const candidate = combinationYzCandidate(combination);
+      const rows = list(candidate?.pools);
+      if (rows.length) return rows;
+      const bridge = combination?.bridgePool;
+      return bridge && (bridge?.pool || bridge?.poolId) ? [bridge] : [];
+    }
+
+    function marketPageKey(kind, anchorSymbol) {
+      return `${String(kind)}:${String(anchorSymbol || "")}`;
+    }
+
+    function marketPageFor(kind, anchorSymbol) {
+      return Math.max(1, Number(marketObservationPages[marketPageKey(kind, anchorSymbol)] || 1) || 1);
+    }
+
+    function marketPagerHtml(total, currentPage, kind, anchorSymbol) {
+      if (!total || total <= MARKET_PAGER_SIZE) return "";
+      const pageCount = Math.max(1, Math.ceil(total / MARKET_PAGER_SIZE));
+      const safePage = Math.min(Math.max(1, currentPage), pageCount);
+      const start = (safePage - 1) * MARKET_PAGER_SIZE + 1;
+      const end = Math.min(safePage * MARKET_PAGER_SIZE, total);
+      return `
+        <div class="pager market-pager">
+          <button type="button" data-market-pager-kind="${esc(kind)}" data-market-pager-anchor="${esc(anchorSymbol)}" data-market-pager-delta="-1" ${safePage <= 1 ? "disabled" : ""}>上一页</button>
+          <span class="page-status">${end ? `${start}-${end}` : "0"} / ${total}</span>
+          <button type="button" data-market-pager-kind="${esc(kind)}" data-market-pager-anchor="${esc(anchorSymbol)}" data-market-pager-delta="1" ${safePage >= pageCount ? "disabled" : ""}>下一页</button>
+        </div>
+      `.trim();
+    }
+
+    function bindMarketPagerEvents() {
+      document.querySelectorAll("[data-market-pager-kind]").forEach(button => {
+        button.addEventListener("click", () => {
+          const kind = button.dataset.marketPagerKind;
+          const anchor = button.dataset.marketPagerAnchor || "";
+          const delta = Number(button.dataset.marketPagerDelta || 0);
+          const key = marketPageKey(kind, anchor);
+          marketObservationPages[key] = Math.max(1, (Number(marketObservationPages[key] || 1) || 1) + delta);
+          refresh();
+        });
+      });
+    }
+
+    function combinationListHtml(combinations, anchorSymbol = "") {
+      const grouped = new Map();
+      list(combinations).forEach(combination => {
+        const pools = combinationYzPools(combination);
+        if (!pools.length) return;
+        const key = combinationPairName(combination);
+        if (!grouped.has(key)) grouped.set(key, { label: key, pools: new Map() });
+        const group = grouped.get(key);
+        pools.forEach(pool => {
+          const poolId = String(pool?.pool || pool?.poolId || "").toLowerCase();
+          if (poolId) group.pools.set(poolId, pool);
+        });
+      });
+      const rows = Array.from(grouped.values()).sort((left, right) => String(left.label).localeCompare(String(right.label)));
+      if (!rows.length) return '<div class="empty">暂无固定费率 ≤3000 且无 Hook 的中间兑换池。</div>';
+      const currentPage = marketPageFor("combination", anchorSymbol);
+      const pageCount = Math.max(1, Math.ceil(rows.length / MARKET_PAGER_SIZE));
+      const safePage = Math.min(Math.max(1, currentPage), pageCount);
+      const pageRows = rows.slice((safePage - 1) * MARKET_PAGER_SIZE, safePage * MARKET_PAGER_SIZE);
+      const html = pageRows.map(group => {
+        const pools = Array.from(group.pools.values()).sort((left, right) => {
+          const feeDiff = Number(left?.fee || 0) - Number(right?.fee || 0);
+          if (feeDiff) return feeDiff;
+          return String(left?.pool || left?.poolId || "").localeCompare(String(right?.pool || right?.poolId || ""));
+        });
+        return `<div class="pair-line">
+          <div class="route-head">
+            <div class="route-title">
+              <strong>交易对 ${esc(group.label)}</strong>
+              <div class="route-subtitle">${esc(pools.length)} 个不同费率的中间兑换池</div>
+            </div>
+            <div class="chip-row">
+              <span class="chip">${esc(pools.length)}<small>中间池</small></span>
+            </div>
+          </div>
+          <div class="pool-list">
+            ${pools.map(poolBadgeHtml).join("") || '<span class="badge reject">无交易池</span>'}
+          </div>
+        </div>`;
+      }).join("");
+      return `${html}${marketPagerHtml(rows.length, safePage, "combination", anchorSymbol)}`;
     }
 
     function groupHtml(group) {
@@ -425,6 +644,10 @@
       const zcTokens = groupTokens(group, "zc");
       const anchorAddresses = list(group?.anchorAddresses);
       const bridgePoolGroups = list(group?.bridgePoolObservationGroups);
+      const bridgePage = marketPageFor("bridge", group?.anchorSymbol);
+      const bridgePageCount = Math.max(1, Math.ceil(bridgePoolGroups.length / MARKET_PAGER_SIZE));
+      const safeBridgePage = Math.min(Math.max(1, bridgePage), bridgePageCount);
+      const pagedBridgePoolGroups = bridgePoolGroups.slice((safeBridgePage - 1) * MARKET_PAGER_SIZE, safeBridgePage * MARKET_PAGER_SIZE);
       const combinations = list(group?.combinationGroups || group?.observationSequences);
       const state = group?.observationState || {};
       const stateText = state.reachable
@@ -434,7 +657,7 @@
         <div class="route-head">
           <div class="route-title">
             <strong>${esc(group?.anchorSymbol || "-")}</strong>
-            <div class="route-subtitle">YC / ZC 集合与映射观察组合</div>
+            <div class="route-subtitle">资金池名称 ${esc(group?.anchorSymbol || "-")}；按交易对名称分组展示固定费率 ≤3000、无 Hook 的中间兑换池</div>
           </div>
           <div class="chip-row">
             <span class="chip">${esc(group?.candidatePoolCount || 0)}<small>候选池</small></span>
@@ -460,16 +683,17 @@
           <div class="pair-line">
             <strong>中间一跳</strong>
             <div class="pool-list">
-              ${bridgePoolGroups.map(bridgePoolGroupHtml).join("") || '<span class="badge neutral">暂无中间一跳池</span>'}
+              ${pagedBridgePoolGroups.map(bridgePoolGroupHtml).join("") || '<span class="badge neutral">暂无中间一跳池</span>'}
             </div>
+            ${marketPagerHtml(bridgePoolGroups.length, safeBridgePage, "bridge", group?.anchorSymbol)}
           </div>
           <div class="pair-line">
             <strong>观察状态</strong>
             <div class="meta-line">${esc(stateText)}</div>
           </div>
           <div class="pair-line">
-            <strong>全部 Y-Z 组合（含无交易池）</strong>
-            <div class="list">${combinationListHtml(combinations)}</div>
+            <strong>中间兑换池（按交易对名称分组）</strong>
+            <div class="list">${combinationListHtml(combinations, group?.anchorSymbol)}</div>
           </div>
         </div>
       </div>`;
@@ -507,16 +731,25 @@
         $("observationTokenCount").textContent = `关联代币 ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
 
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
-        $("associatedPairList").innerHTML = effectiveAssociatedPairs.map(associatedPairHtml).join("") || '<div class="empty">当前选择下没有资金锚点可接入交易对。</div>';
+        const associatedPairGroups = associatedPairGroupsHtml(effectiveAssociatedPairs, true)
+          + associatedPairGroupsHtml(effectiveAssociatedPairs, false);
+        $("associatedPairList").innerHTML = associatedPairGroups || '<div class="empty">当前选择下没有资金锚点可接入交易对。</div>';
         $("candidateGroupList").innerHTML = candidateGroups.map(groupHtml).join("") || '<div class="empty">当前选择下没有按候选代币分类的观察分组。</div>';
 
         const preview = data.marketObservationPreview || {};
         const totalObservationPools = Number(preview.chainSpecificObservationPoolsTotal || data.marketObservationStaticTable?.list_counts?.chainSpecificObservationPools || associatedObservationPools.length || 0);
-        const poolPreview = associatedObservationPools.slice(0, OBSERVATION_POOL_PREVIEW_LIMIT).map(observationPoolHtml).join("");
-        const poolPreviewNotice = totalObservationPools > associatedObservationPools.length
-          ? `<div class="empty">已生成 ${esc(totalObservationPools)} 个关联观察池，页面仅预览前 ${esc(associatedObservationPools.length)} 个；全量数据保存在市场观察静态文件中。</div>`
+        const poolPage = marketPageFor("observationPools", "all");
+        const poolPageCount = Math.max(1, Math.ceil(totalObservationPools / MARKET_PAGER_SIZE));
+        const safePoolPage = Math.min(Math.max(1, poolPage), poolPageCount);
+        const poolStart = (safePoolPage - 1) * MARKET_PAGER_SIZE;
+        const poolPreviewRows = associatedObservationPools.slice(poolStart, poolStart + MARKET_PAGER_SIZE);
+        const poolPreview = poolPreviewRows.map(observationPoolHtml).join("");
+        const poolPreviewNotice = totalObservationPools > poolPreviewRows.length
+          ? `<div class="empty">已生成 ${esc(totalObservationPools)} 个关联观察池，当前页展示 ${esc(poolPreviewRows.length)} 个；全量数据保存在市场观察静态文件中。</div>`
           : "";
-        $("associatedObservationPoolList").innerHTML = poolPreview + poolPreviewNotice || '<div class="empty">当前选择下没有关联观察池。</div>';
+        $("associatedObservationPoolList").innerHTML = (poolPreview + poolPreviewNotice) || '<div class="empty">当前选择下没有关联观察池。</div>';
+        $("associatedObservationPoolList").insertAdjacentHTML("beforeend", marketPagerHtml(totalObservationPools, safePoolPage, "observationPools", "all"));
+        bindMarketPagerEvents();
 
 
         $("unmatchedList").innerHTML = list(data.unmatchedPools).map(unmatchedHtml).join("") || '<div class="empty">没有未匹配候选池。</div>';

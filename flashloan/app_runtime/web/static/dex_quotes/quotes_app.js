@@ -611,6 +611,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         "pool_not_initialized",
         "not_enough_liquidity",
         "missing_effective_pool",
+        "uniswapx_fallback_failed",
       ].includes(evidenceStatusLower);
       const live = Boolean(!hardEvidenceFailure && (analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified" || liveStatus || liveTrust));
       const gateBlocked = Object.keys(evidence).length > 0
@@ -1077,6 +1078,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         "route_unprofitable",
         "slippage_limit_exceeded",
         "pool_insufficient_for_profitable_execution",
+        "uniswapx_fallback_failed",
       ].includes(String(mergedQuoteStatus || "").toLowerCase());
       const diagnosticBestComputed = payload.bestAmountComputed === true
         || incomingAnalysis.bestAmountComputed === true

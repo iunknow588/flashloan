@@ -14,12 +14,8 @@ from typing import Any
 
 from core.chain_data_registry import chain_data_by_network, chain_data_file_path
 from core.db.database_path import absolute_database_path
-from core.db.storage_chain_core import load_chain_tokens as _db_load_chain_tokens
-from core.market_observation_io import market_observation_static_path as _market_observation_static_path
+from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 from core.market_observation_io import _stamp
-from core.rs_bridge import load_market_observation as _db_load_market_observation
-from core.rs_bridge import load_v4_closed_loop as _db_load_v4_closed_loop
-from core.rs_bridge import load_v4_exchange_pools as _db_load_v4_exchange_pools
 from dex.intent_trade.chains.robinhood.config import (
     CHAIN_ID as ROBINHOOD_CHAIN_ID,
     WETH_ADDRESS,
@@ -29,6 +25,13 @@ from dex.intent_trade.chains.robinhood.v4_pool_index import (
     default_v4_pool_index_path,
 )
 from dex.intent_trade.chains.robinhood.v4_pool_snapshot import load_v4_pool_snapshot
+from dex.intent_trade.chains.robinhood_common.market_observation_core import (
+    _db_pool_to_observation_row,
+    db_closed_loop_routes as _common_db_closed_loop_routes,
+    db_closed_loop_sequences as _common_db_closed_loop_sequences,
+    load_db_exchange_pools as _common_load_db_exchange_pools,
+    load_db_observation_pools as _common_load_db_observation_pools,
+)
 _ROBINHOOD_ROW = chain_data_by_network("robinhood") or {}
 _ROBINHOOD_CONTRACTS = _ROBINHOOD_ROW.get("contracts") if isinstance(_ROBINHOOD_ROW.get("contracts"), dict) else {}
 
@@ -49,19 +52,6 @@ _MAINNET_STABLE_MANIFEST_PATH = Path(__file__).resolve().parents[6] / "test-toke
 # depth, high/low price extremes, and low-fee liquidity. Quote/routing still
 # receives every kept pool for price-based temporary replacement.
 _MAINNET_HOP_CANDIDATE_LIMIT = 6
-INTERMEDIATE_POOL_FILES_DIR = "intermediate_pool_files"
-INTERMEDIATE_POOL_FILE_SCHEMA = "robinhood-mainnet-intermediate-swap-pools-v1"
-
-
-def _mainnet_static_candidate_path() -> Path | None:
-    try:
-        path = chain_data_file_path("robinhood", "dex_candidates", chain_id=ROBINHOOD_CHAIN_ID)
-        if path is not None:
-            return Path(path)
-    except (TypeError, ValueError, OSError):
-        pass
-    fallback = Path(__file__).resolve().parents[4] / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json"
-    return fallback if fallback.exists() else None
 
 
 def _mainnet_test_token_addresses() -> dict[str, str]:
@@ -173,18 +163,29 @@ def _pool_fee_label(pool: dict[str, Any]) -> str | int | None:
     return _pool_fee(pool)
 
 
-def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+def _observation_pool_usable(pool: dict[str, Any]) -> bool:
+    """Return whether a pool belongs to the market-observation surface.
+
+    The static surface is fixed fee <= 3000 and no hook.  Liquidity is a
+    dynamic field refreshed separately and is not a pool-formation condition;
+    DEX overview applies liquidity later when it builds executable loops.
+    """
     fee = _pool_fee(pool)
-    if fee is None or fee <= 0 or _pool_special_fee(pool):
+    if fee is None or fee <= 0 or fee > MAX_USABLE_CANDIDATE_FIXED_FEE or _pool_dynamic_fee(pool):
         return False
     hooks = str(pool.get("hooks") or "").strip()
     if hooks and hooks.lower() != ZERO_ADDRESS.lower():
-        # A non-zero hook can intercept beforeSwap/beforeSwapReturnDelta and
-        # charge hidden fees or revert the official runArbitrage path. Market
-        # observation may still display these pools as candidates, but they are
-        # not executable fixed-fee closed-loop hops until hook semantics are
-        # modelled. This keeps the recommended first-priority route on
-        # static-fee pools with no arbitrary callback.
+        return False
+    return True
+
+
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    return _observation_pool_usable(pool)
+
+
+def _pool_liquidity_qualified(pool: dict[str, Any]) -> bool:
+    """Return whether a fixed-fee no-hook pool also has current liquidity."""
+    if not _observation_pool_usable(pool):
         return False
     has_liquidity = pool.get("hasLiquidity")
     if has_liquidity is not None:
@@ -251,7 +252,7 @@ def _active_pool_ids(pools: list[dict[str, Any]]) -> set[str]:
         _pool_id(pool).lower()
         for pool in pools
         if _pool_id(pool)
-        and _pool_usable_for_observation(pool)
+        and _pool_liquidity_qualified(pool)
     }
 
 
@@ -466,26 +467,6 @@ def _load_mainnet_v4_index() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return pools, payload
 
 
-def _load_mainnet_static_candidate_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Return the static candidate cache as observation pool rows."""
-    path = _mainnet_static_candidate_path()
-    if path is None or not path.exists():
-        return [], {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return [], {}
-    if not isinstance(payload, dict):
-        return [], {}
-    pools = [
-        _pool_row(pool, source="robinhood_mainnet_static_dex_candidates")
-        for pool in payload.get("pools") or []
-        if isinstance(pool, dict)
-    ]
-    pools = [pool for pool in pools if pool is not None]
-    return pools, payload
-
-
 def _json_loads(value: Any) -> Any:
     if isinstance(value, (dict, list)):
         return value
@@ -503,196 +484,39 @@ def _market_observation_database_path() -> str:
     return str(absolute_database_path())
 
 
-def _db_chain_token_symbol_map() -> dict[str, str]:
-    rows = _db_load_chain_tokens(
-        _market_observation_database_path(),
-        network="robinhood",
-        chain_id=ROBINHOOD_CHAIN_ID,
-    )
-    return {_address(row.get("token_address")): _symbol(row.get("token_symbol")) for row in rows}
-
-
-def _db_pool_to_observation_row(
-    pool: dict[str, Any],
-    liquidity: dict[str, Any] | None,
-    *,
-    symbol_map: dict[str, str],
-) -> dict[str, Any] | None:
-    """Convert one market-observation SQLite pool row into page pool shape."""
-    pool_id = _pool_id(pool)
-    token0 = _address(pool.get("token0") or pool.get("currency0"))
-    token1 = _address(pool.get("token1") or pool.get("currency1"))
-    if not pool_id or not token0 or not token1:
-        return None
-    fee = _pool_fee(pool)
-    dynamic_fee = _pool_dynamic_fee(pool)
-    special_fee = _pool_special_fee(pool)
-    token0_symbol = symbol_map.get(token0) or _known_symbol(token0, pool.get("token0Symbol") or pool.get("token0_symbol"))
-    token1_symbol = symbol_map.get(token1) or _known_symbol(token1, pool.get("token1Symbol") or pool.get("token1_symbol"))
-    balances = _json_loads((liquidity or {}).get("balances_json") or pool.get("balances_json") or {})
-    if not isinstance(balances, dict):
-        balances = {}
-    depth_band = _json_loads((liquidity or {}).get("depth_band_json") or pool.get("depth_band_json") or {})
-    if not isinstance(depth_band, dict):
-        depth_band = {}
-    return {
-        "pool": pool_id,
-        "poolId": pool_id,
-        "poolIdentityMode": pool.get("pool_identity_mode") or pool.get("poolIdentityMode") or "v4_pool_id",
-        "protocol": "uniswap_v4",
-        "dex": "uniswap_v4",
-        "fee": fee,
-        "dynamicFee": dynamic_fee,
-        "specialFee": special_fee,
-        "feeLabel": _pool_fee_label(pool),
-        "usableForObservation": not dynamic_fee and not special_fee,
-        "tickSpacing": pool.get("tick_spacing") or pool.get("tickSpacing"),
-        "hooks": pool.get("hooks"),
-        "poolManager": pool.get("pool_manager") or pool.get("poolManager") or "",
-        "poolKey": _json_loads(pool.get("pool_key_json") or {}),
-        "token0": token0,
-        "token1": token1,
-        "token0Symbol": token0_symbol,
-        "token1Symbol": token1_symbol,
-        "token0Decimals": None,
-        "token1Decimals": None,
-        "sqrtPriceX96": (liquidity or {}).get("sqrt_price_x96") or pool.get("sqrt_price_x96"),
-        "tick": (liquidity or {}).get("tick") if (liquidity or {}).get("tick") is not None else pool.get("tick"),
-        "liquidity": (liquidity or {}).get("liquidity") or "",
-        "liquidityIndex": (liquidity or {}).get("liquidity_index"),
-        "hasLiquidity": (liquidity or {}).get("has_liquidity"),
-        "estimatedTvlUsd": (liquidity or {}).get("estimated_tvl_usd"),
-        "balances": balances,
-        "liquiditySource": "sqlite_db",
-        "liquidityReadAt": (liquidity or {}).get("liquidity_read_at") or pool.get("liquidity_read_at"),
-        "liquidityBlockNumber": (liquidity or {}).get("liquidity_block_number"),
-        "depthStatus": (liquidity or {}).get("depth_status") or pool.get("depth_status") or "",
-        "depthBand": depth_band,
-        "recentSwapActive": (liquidity or {}).get("recent_swap_active"),
-        "symbolPair": f"{token0_symbol}:{token1_symbol}" if token0_symbol and token1_symbol else "",
-        "addressPair": pool.get("address_pair") or f"{token0}:{token1}",
-        "source": "sqlite_db",
-        "status": "initialized_pool",
-    }
-
-
-def _closed_loop_step_row(
-    pool: dict[str, Any],
-    *,
-    from_address: str,
-    to_address: str,
-    from_symbol: str,
-    to_symbol: str,
-    direction: str,
-    symbol_map: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    """Convert one SQLite exchange-pool row into a closed-loop route step."""
-    pool_id = _pool_id(pool)
-    fee = _pool_fee(pool)
-    symbol_map = symbol_map or {}
-    token0 = _address(pool.get("token0") or pool.get("currency0"))
-    token1 = _address(pool.get("token1") or pool.get("currency1"))
-    usable = bool(
-        fee is not None
-        and 0 < fee <= V4_SPECIAL_FEE_THRESHOLD
-        and not bool(fee & V4_DYNAMIC_FEE_FLAG)
-        and _text(pool.get("hooks") or "") in {"", _text(ZERO_ADDRESS)}
-    )
-    return {
-        "pool": pool_id,
-        "poolId": pool_id,
-        "direction": direction,
-        "anchorSymbol": from_symbol,
-        "anchorAddress": from_address,
-        "counterSymbol": to_symbol,
-        "counterAddress": to_address,
-        "routeSymbols": [from_symbol, to_symbol],
-        "routeAddresses": [from_address, to_address],
-        "routeText": f"{from_symbol} -> {to_symbol}",
-        "poolIdentityMode": pool.get("pool_identity_mode") or "v4_pool_id",
-        "protocol": "uniswap_v4",
-        "dex": "uniswap_v4",
-        "fee": pool.get("fee"),
-        "dynamicFee": _pool_dynamic_fee(pool),
-        "specialFee": _pool_special_fee(pool),
-        "feeLabel": _pool_fee_label(pool),
-        "usableForObservation": usable,
-        "tickSpacing": pool.get("tick_spacing"),
-        "hooks": pool.get("hooks") or "",
-        "poolManager": pool.get("pool_manager") or "",
-        "poolKey": _json_loads(pool.get("pool_key_json") or {}),
-        "token0": token0,
-        "token1": token1,
-        "token0Symbol": symbol_map.get(token0) or _known_symbol(token0, ""),
-        "token1Symbol": symbol_map.get(token1) or _known_symbol(token1, ""),
-        "source": "v4_closed_loop_db",
-        "status": "fixed_fee_no_hook_observable",
-        "liquidity": (pool.get("liquidity") or ""),
-        "liquidityIndex": pool.get("liquidity_index"),
-        "hasLiquidity": pool.get("has_liquidity"),
-        "estimatedTvlUsd": pool.get("estimated_tvl_usd"),
-        "balances": _json_loads(pool.get("balances_json") or {}),
-        "depthBand": _json_loads(pool.get("depth_band_json") or {}),
-        "depthStatus": pool.get("depth_status") or "",
-        "sqrtPriceX96": pool.get("sqrt_price_x96"),
-        "tick": pool.get("tick"),
-        "recentSwapActive": pool.get("recent_swap_active"),
-        "liquidityReadAt": pool.get("liquidity_read_at"),
-        "liquidityBlockNumber": pool.get("liquidity_block_number"),
-        "poolIdentityMode": pool.get("pool_identity_mode") or "v4_pool_id",
-    }
-
-
 def _load_mainnet_db_observation_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Load the complete Y-Z pool surface from the SQLite business tables.
 
     SQLite is authoritative; a read failure or an empty table raises instead
     of silently falling back to JSON/old candidate caches.
     """
-    database_url = _market_observation_database_path()
-    symbol_map = _db_chain_token_symbol_map()
-    merged_pools: dict[str, dict[str, Any]] = {}
-    total_pairs = 0
-    for anchor_symbol in MAINNET_CONFIGURED_ANCHOR_SYMBOLS:
-        payload = _db_load_market_observation(
-            "robinhood",
-            ROBINHOOD_CHAIN_ID,
-            "uniswap_v4",
-            anchor_symbol,
-            database_url=database_url,
-        )
-        pools = payload.get("pools") or []
-        liquidity = payload.get("liquidity") or []
-        total_pairs += len(payload.get("pairs") or [])
-        liquidity_by_pool_id = {_pool_id(row): row for row in liquidity if _pool_id(row)}
-        for pool in pools:
-            pool_id = _pool_id(pool)
-            if not pool_id:
-                continue
-            row = _db_pool_to_observation_row(
-                pool,
-                liquidity_by_pool_id.get(pool_id),
-                symbol_map=symbol_map,
-            )
-            if row is not None:
-                merged_pools[pool_id] = row
-    pool_rows = sorted(merged_pools.values(), key=lambda row: _pool_id(row))
-    if not pool_rows:
-        raise RuntimeError(
-            "market observation SQLite tables are empty for robinhood/4663/uniswap_v4; "
-            "run refresh_hypersync_v4_snapshot.py before reading the page"
-        )
-    return pool_rows, {
-        "source": "rust_sqlite",
-        "databasePath": database_url,
-        "pools": pool_rows,
-        "directionCount": total_pairs,
-    }
+    return _common_load_db_observation_pools(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        protocol="uniswap_v4",
+        anchor_symbols=MAINNET_CONFIGURED_ANCHOR_SYMBOLS,
+        database_url=_market_observation_database_path(),
+        require_nonempty=True,
+    )
 
 
 def _load_mainnet_observation_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return observation pools from SQLite without reading JSON shards."""
     return _load_mainnet_db_observation_pools()
+
+
+def _load_mainnet_db_exchange_pools() -> list[dict[str, Any]]:
+    """Return every SQLite V4 exchange pool, including non-normal pools.
+
+    Market observation uses this only to annotate pairs that have no usable
+    fixed-fee no-hook pool but do have dynamic/special, high-fee or hook pools.
+    """
+    return _common_load_db_exchange_pools(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        protocol="uniswap_v4",
+        database_url=_market_observation_database_path(),
+    )
 
 
 def _anchor_neighbors(
@@ -887,6 +711,7 @@ def _mainnet_observation_sequences(
             "dynamicFee": _pool_dynamic_fee(pool),
             "specialFee": _pool_special_fee(pool),
             "feeLabel": _pool_fee_label(pool),
+            "observationUsable": _observation_pool_usable(pool),
             "usableForObservation": _pool_usable_for_observation(pool),
             "tickSpacing": pool.get("tickSpacing"),
             "hooks": pool.get("hooks") or "",
@@ -1074,166 +899,20 @@ def _mainnet_closed_loop_sequences() -> list[dict[str, Any]]:
     tables are the validated pool-address handoff that DEX overview consumes:
     one pool-address loop is never duplicated as two reverse-direction loops.
     """
-    database_url = _market_observation_database_path()
-    symbol_map = _db_chain_token_symbol_map()
-    payload = _db_load_v4_closed_loop(
-        "robinhood",
-        ROBINHOOD_CHAIN_ID,
-        "uniswap_v4",
-        "dex-arbitrage-4663-uniswap-v4",
-        database_url=database_url,
+    return _common_db_closed_loop_sequences(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        protocol="uniswap_v4",
+        market_id="dex-arbitrage-4663-uniswap-v4",
+        kind="robinhood_mainnet_closed_loop",
+        database_url=_market_observation_database_path(),
     )
-    loops = payload.get("loops") or []
-    hops = payload.get("hops") or []
-    hops_by_loop: dict[str, list[dict[str, Any]]] = {}
-    for hop in hops:
-        loop_key = _text(hop.get("loop_key") or hop.get("loopKey"))
-        if loop_key:
-            hops_by_loop.setdefault(loop_key, []).append(hop)
-    for group in hops_by_loop.values():
-        group.sort(key=lambda row: _int(row.get("hop_index") or row.get("hopIndex") or 0))
-    exchange_rows = _db_load_v4_exchange_pools(
-        "robinhood",
-        ROBINHOOD_CHAIN_ID,
-        "uniswap_v4",
-        database_url=database_url,
-    )
-    pool_by_id = {_pool_id(row): row for row in exchange_rows if _pool_id(row)}
-    sequences: list[dict[str, Any]] = []
-    for loop in loops:
-        loop_key = _text(loop.get("loop_key") or loop.get("loopKey"))
-        path_addresses = _json_loads(loop.get("path_addresses_json") or loop.get("pathAddresses") or [])
-        path_symbols = _json_loads(loop.get("path_symbols_json") or loop.get("pathSymbols") or [])
-        path_text = str(loop.get("path_text") or loop.get("pathText") or "")
-        anchor_address = _address(loop.get("anchor_address") or loop.get("anchorAddress"))
-        anchor_symbol = _symbol(loop.get("anchor_symbol") or loop.get("anchorSymbol"))
-        if not anchor_address or len(path_addresses) < 4 or not path_text:
-            continue
-        route_rows: list[dict[str, Any]] = []
-        hop_candidates: list[dict[str, Any]] = []
-        candidate_counts = {"x-y": 0, "y-z": 0, "z-x": 0}
-        for index, hop in enumerate(hops_by_loop.get(loop_key) or []):
-            direction = {
-                1: "yc",
-                2: "bridge",
-                3: "zc",
-            }.get(_int(hop.get("hop_index")), "")
-            if not direction:
-                continue
-            pool_id = _text(hop.get("pool_id") or hop.get("poolId"))
-            pool = pool_by_id.get(pool_id)
-            if pool is None:
-                continue
-            from_address = _address(hop.get("input_address") or hop.get("inputAddress"))
-            to_address = _address(hop.get("output_address") or hop.get("outputAddress"))
-            if not from_address or not to_address:
-                continue
-            from_symbol = symbol_map.get(from_address) or _known_symbol(from_address, "")
-            to_symbol = symbol_map.get(to_address) or _known_symbol(to_address, "")
-            route_step = _closed_loop_step_row(
-                pool,
-                from_address=from_address,
-                to_address=to_address,
-                from_symbol=from_symbol,
-                to_symbol=to_symbol,
-                direction=direction,
-                symbol_map=symbol_map,
-            )
-            route_rows.append(route_step)
-            leg = {"yc": "x-y", "bridge": "y-z", "zc": "z-x"}[direction]
-            candidate_counts[leg] = 1
-            hop_candidates.append(
-                {
-                    "leg": leg,
-                    "direction": direction,
-                    "fromSymbol": from_symbol,
-                    "toSymbol": to_symbol,
-                    "fromAddress": from_address,
-                    "toAddress": to_address,
-                    "symbolPair": f"{from_symbol} -> {to_symbol}",
-                    "poolCount": 1,
-                    "usablePoolCount": 1,
-                    "selectionBasis": "fixed_fee_no_hook_low_fee",
-                    "preferredPoolId": pool_id,
-                    "preferredPoolUsable": True,
-                    "pools": [route_step],
-                }
-            )
-        if len(route_rows) != 3:
-            continue
-        yc_step = next((step for step in route_rows if str(step.get("direction") or "").lower() == "yc"), None)
-        bridge_step = next((step for step in route_rows if str(step.get("direction") or "").lower() == "bridge"), None)
-        zc_step = next((step for step in route_rows if str(step.get("direction") or "").lower() == "zc"), None)
-        bridge_symbol = _symbol(bridge_step.get("counterSymbol")) if bridge_step else ""
-        counter_symbol = _symbol(zc_step.get("fromSymbol") if zc_step else "")
-        sequences.append(
-            {
-                "kind": "robinhood_mainnet_closed_loop",
-                "source": "v4_closed_loop_db",
-                "anchorSymbol": anchor_symbol,
-                "anchorAddress": anchor_address,
-                "counterSymbol": counter_symbol or path_symbols[-2],
-                "bridgeSymbol": bridge_symbol or path_symbols[1],
-                "pathSymbols": path_symbols,
-                "pathText": path_text,
-                "pool": _pool_id(bridge_step) if bridge_step else "",
-                "ycPool": yc_step,
-                "bridgePool": bridge_step,
-                "zcPool": zc_step,
-                "routePools": route_rows,
-                "hopCandidates": hop_candidates,
-                "hopCandidateCounts": candidate_counts,
-                "hopCandidateCombinationCount": 1,
-                "candidatePoolCount": "3",
-                "matchedPoolCount": "3",
-                "anchorAddresses": [anchor_address],
-                "counterTokenCount": "2",
-                "recommendedFirstPriority": True,
-                "routeRecommendationBasis": "fixed_fee_no_hook_low_fee",
-                "executorSupported": False,
-                "poolManagerBalance": None,
-                "poolManagerBalanceRaw": None,
-            }
-        )
-    return sequences
 
 
 def _mainnet_closed_loop_routes() -> list[dict[str, Any]]:
     """Convert SQLite closed-loop rows into the DEX overview route shape."""
     sequences = _mainnet_closed_loop_sequences()
-    routes: list[dict[str, Any]] = []
-    for sequence in sequences:
-        route_pools = [step for step in sequence.get("routePools") or [] if isinstance(step, dict)]
-        route_boundaries = list(sequence.get("pathSymbols") or [])
-        anchor = _symbol(sequence.get("anchorSymbol"))
-        bridge = _symbol(sequence.get("bridgeSymbol"))
-        target = _symbol(sequence.get("counterSymbol"))
-        routes.append(
-            {
-                "kind": "bridge_closed_loop",
-                "closedLoop": True,
-                "borrowSymbol": anchor,
-                "anchorSymbol": anchor,
-                "bridgeSymbol": bridge,
-                "targetSymbol": target,
-                "pathSymbols": route_boundaries,
-                "pathText": sequence.get("pathText") or " -> ".join(route_boundaries),
-                "routePools": route_pools,
-                "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
-                "hopCandidates": list(sequence.get("hopCandidates") or []),
-                "hopCandidateCounts": dict(sequence.get("hopCandidateCounts") or {}),
-                "hopCandidateCombinationCount": 1,
-                "poolPathKey": "|".join(
-                    str(_pool_id(pool)).lower()
-                    for pool in route_pools
-                    if _pool_id(pool)
-                ),
-                "recommendedFirstPriority": True,
-                "routeRecommendationBasis": "fixed_fee_no_hook_low_fee",
-                "source": "v4_closed_loop_db",
-            }
-        )
-    return routes
+    return _common_db_closed_loop_routes(sequences)
 
 
 def _mainnet_bridge_pairs(
@@ -1249,6 +928,8 @@ def _mainnet_yz_pairs_from_tokens(
     tokens: list[dict[str, Any]],
     *,
     include_directions: bool = True,
+    anchor_symbol: str = "",
+    anchor_address: str = "",
 ) -> list[dict[str, Any]]:
     """Return complete Y-Z direction or undirected pair rows for a token set.
 
@@ -1288,6 +969,8 @@ def _mainnet_yz_pairs_from_tokens(
             edge_pools = list(pools_by_edge.get(edge) or [])
             depth_pool_count = sum(1 for pool in edge_pools if _pool_has_depth(pool))
             row = {
+                "anchorSymbol": _symbol(anchor_symbol),
+                "anchorAddress": _address(anchor_address),
                 "symbolPair": f"{y_token['symbol']}:{z_token['symbol']}",
                 "addressPair": ":".join(edge),
                 "tokenX": y_address,
@@ -1299,7 +982,10 @@ def _mainnet_yz_pairs_from_tokens(
                 "token0Symbol": y_token["symbol"] if edge[0] == y_address else z_token["symbol"],
                 "token1Symbol": z_token["symbol"] if edge[1] == z_address else y_token["symbol"],
                 "preferredPools": edge_pools,
-                "executionPools": edge_pools[:5],
+                # Market observation keeps every fixed-fee no-hook Y-Z pool so
+                # the page can group all fee tiers.  Liquidity and execution
+                # truncation are DEX overview/quote-routing decisions.
+                "executionPools": edge_pools,
                 "strictQualityPools": edge_pools,
                 "allPools": edge_pools,
                 "poolCount": len(edge_pools),
@@ -1320,16 +1006,8 @@ def _mainnet_yz_pairs_from_tokens(
 
 
 def _mainnet_observation_yz_pairs(pools: list[dict[str, Any]], tokens: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """Return every YC-ZC pair reachable from the configured anchor set.
-
-    The market observation page owns the complete depth surface, so this set
-    intentionally includes every pool address, including dynamic/special fee
-    pools and pools without a current liquidity snapshot.  Pool addresses are
-    fixed on-chain facts; liquidity is dynamic and is refreshed separately.
-    Each row keeps ``fee``/``dynamicFee``/``specialFee`` and depth markers;
-    the DEX overview and quote routing later choose only fixed-fee liquid
-    pools when they build closed loops.
-    """
+    """Return every fixed-fee no-hook YC-ZC pair for the configured anchors."""
+    pools = [pool for pool in pools if _observation_pool_usable(pool)]
     pools_by_edge = _pools_by_edge(pools)
     if tokens:
         return _mainnet_yz_pairs_from_tokens(pools_by_edge, tokens, include_directions=False)
@@ -1416,253 +1094,6 @@ def _mainnet_validate_anchor_groups(anchor_groups: list[dict[str, Any]]) -> dict
     return errors
 
 
-def _mainnet_intermediate_pool_file_path(anchor_symbol: str) -> Path:
-    base = _market_observation_static_path(
-        network="robinhood",
-        chain_id=ROBINHOOD_CHAIN_ID,
-        protocols=["uniswap_v4"],
-    ).parent
-    return base / INTERMEDIATE_POOL_FILES_DIR / f"{_symbol(anchor_symbol)}.json"
-
-
-def _mainnet_intermediate_pool_files_complete(
-    anchor_groups: list[dict[str, Any]],
-) -> tuple[bool, list[dict[str, Any]]]:
-    """Check whether every anchor's external swap-pool file is complete."""
-    reports: list[dict[str, Any]] = []
-    complete = True
-    for group in anchor_groups:
-        if not isinstance(group, dict):
-            continue
-        anchor_symbol = _symbol(group.get("anchorSymbol"))
-        tokens, errors = _mainnet_candidate_yc_zc_tokens(group)
-        if not anchor_symbol or errors:
-            complete = False
-            reports.append({"anchorSymbol": anchor_symbol, "complete": False, "errors": errors})
-            continue
-        path = _mainnet_intermediate_pool_file_path(anchor_symbol)
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            payload = {}
-        expected_direction_count = len(tokens) * max(0, len(tokens) - 1)
-        file_tokens = payload.get("ycZcTokens") if isinstance(payload, dict) else []
-        if not isinstance(file_tokens, list):
-            file_tokens = []
-        file_token_addresses = {_address(row.get("address")) for row in file_tokens if isinstance(row, dict)}
-        actual_direction_count = len(payload.get("directions") or []) if isinstance(payload, dict) else 0
-        file_complete = bool(
-            isinstance(payload, dict)
-            and payload.get("schemaVersion") == INTERMEDIATE_POOL_FILE_SCHEMA
-            and file_token_addresses == {token["address"] for token in tokens}
-            and actual_direction_count == expected_direction_count
-        )
-        complete = complete and file_complete
-        reports.append(
-            {
-                "anchorSymbol": anchor_symbol,
-                "path": str(path),
-                "complete": file_complete,
-                "expectedDirectionCount": expected_direction_count,
-                "actualDirectionCount": actual_direction_count,
-                "expectedTokenCount": len(tokens),
-                "actualTokenCount": len(file_token_addresses),
-            }
-        )
-    return complete, reports
-
-
-def _mainnet_build_anchor_intermediate_pool_file(
-    group: dict[str, Any],
-    pools: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Build one external swap-pool file for one candidate anchor group."""
-    anchor_symbol = _symbol(group.get("anchorSymbol"))
-    tokens, errors = _mainnet_candidate_yc_zc_tokens(group)
-    if errors:
-        raise RuntimeError(f"YC/ZC candidate order validation failed for {anchor_symbol}: {errors}")
-    pools_by_edge = _pools_by_edge(pools)
-    directions = _mainnet_yz_pairs_from_tokens(
-        pools_by_edge,
-        tokens,
-        include_directions=True,
-    )
-    undirected = _mainnet_yz_pairs_from_tokens(
-        pools_by_edge,
-        tokens,
-        include_directions=False,
-    )
-    pool_rows: list[dict[str, Any]] = []
-    seen_pools: set[str] = set()
-    for pair in directions:
-        for pool in pair.get("allPools") or []:
-            pool_id = str(_pool_id(pool) or "").lower()
-            if not pool_id or pool_id in seen_pools:
-                continue
-            seen_pools.add(pool_id)
-            pool_rows.append(
-                {
-                    "pool": pool_id,
-                    "poolId": pool_id,
-                    "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
-                    "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
-                    "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
-                    "fee": pool.get("fee"),
-                    "dynamicFee": _pool_dynamic_fee(pool),
-                    "specialFee": _pool_special_fee(pool),
-                    "feeLabel": _pool_fee_label(pool),
-                    "tickSpacing": pool.get("tickSpacing"),
-                    "hooks": pool.get("hooks"),
-                    "token0": pool.get("token0"),
-                    "token1": pool.get("token1"),
-                    "token0Symbol": pool.get("token0Symbol"),
-                    "token1Symbol": pool.get("token1Symbol"),
-                    "addressPair": pool.get("addressPair") or "",
-                    "liquidity": pool.get("liquidity") or "",
-                    "liquidityIndex": pool.get("liquidityIndex"),
-                    "hasLiquidity": pool.get("hasLiquidity"),
-                    "estimatedTvlUsd": pool.get("estimatedTvlUsd"),
-                    "balances": pool.get("balances") or {},
-                    "depthBand": pool.get("depthBand") or {},
-                    "depthStatus": pool.get("depthStatus") or "",
-                    "recentSwapActive": pool.get("recentSwapActive"),
-                    "liquidityReadAt": pool.get("liquidityReadAt"),
-                    "liquidityBlockNumber": pool.get("liquidityBlockNumber"),
-                    "tick": pool.get("tick"),
-                    "sqrtPriceX96": pool.get("sqrtPriceX96"),
-                }
-            )
-    payload = {
-        "schemaVersion": INTERMEDIATE_POOL_FILE_SCHEMA,
-        "network": "robinhood",
-        "chainId": ROBINHOOD_CHAIN_ID,
-        "protocols": ["uniswap_v4"],
-        "anchorSymbol": anchor_symbol,
-        "generatedAt": _stamp(),
-        "ycZcTokens": tokens,
-        "ycTokenCount": len(tokens),
-        "zcTokenCount": len(tokens),
-        "directionCount": len(directions),
-        "undirectedPairCount": len(undirected),
-        "directions": directions,
-        "undirectedPairs": undirected,
-        "poolCount": len(pool_rows),
-        "pools": pool_rows,
-    }
-    path = _mainnet_intermediate_pool_file_path(anchor_symbol)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
-    return {**payload, "path": str(path)}
-
-
-def initialize_market_observation_pool_files(
-    *,
-    chain_id: int | None = None,
-    protocols: list[str] | None = None,
-) -> dict[str, Any]:
-    """Initialize the five per-anchor external swap-pool files.
-
-    Uses the candidate page's YC/ZC sets.  Order errors are raised instead of
-    being silently corrected.  Existing complete files are kept; incomplete or
-    outdated files are rebuilt.
-    """
-    if int(chain_id or 0) != ROBINHOOD_CHAIN_ID:
-        return {"ok": False, "error": "chain_scope_invalid", "chain_id": chain_id}
-    from market.binance_market.pool_candidates import dex_pool_candidates_payload as _page_candidate_payload
-
-    pool_payload = _page_candidate_payload(chain_id=chain_id, protocols=protocols)
-    anchor_groups = list(pool_payload.get("anchorGroups") or [])
-    complete, reports = _mainnet_intermediate_pool_files_complete(anchor_groups)
-    if complete:
-        return {
-            "ok": True,
-            "initialized": False,
-            "complete": True,
-            "anchorFiles": reports,
-            "detail": "external intermediate pool files already complete",
-        }
-    validation_errors = _mainnet_validate_anchor_groups(anchor_groups)
-    if validation_errors:
-        return {
-            "ok": False,
-            "initialized": False,
-            "complete": False,
-            "validationErrors": validation_errors,
-            "detail": "candidate YC/ZC order validation failed; refusing to build files",
-        }
-    pools, _index = _load_mainnet_observation_pools()
-    built: list[dict[str, Any]] = []
-    for group in anchor_groups:
-        if not isinstance(group, dict):
-            continue
-        anchor_symbol = _symbol(group.get("anchorSymbol"))
-        if not anchor_symbol:
-            continue
-        built.append(_mainnet_build_anchor_intermediate_pool_file(group, pools))
-    return {
-        "ok": True,
-        "initialized": True,
-        "complete": True,
-        "anchorFiles": built,
-        "detail": "external intermediate pool files initialized",
-    }
-
-
-def _mainnet_load_intermediate_pool_files(
-    anchor_groups: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Load every complete per-anchor external swap-pool file.
-
-    A file is only usable when its YC/ZC token set and direction count match
-    the candidate page's current shared token set.  Stale or incomplete files
-    are reported as missing instead of being silently consumed.
-    """
-    files: list[dict[str, Any]] = []
-    missing: list[dict[str, Any]] = []
-    for group in anchor_groups:
-        if not isinstance(group, dict):
-            continue
-        anchor_symbol = _symbol(group.get("anchorSymbol"))
-        if not anchor_symbol:
-            continue
-        tokens, _errors = _mainnet_candidate_yc_zc_tokens(group)
-        path = _mainnet_intermediate_pool_file_path(anchor_symbol)
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, json.JSONDecodeError):
-            payload = {}
-        file_tokens = payload.get("ycZcTokens") if isinstance(payload, dict) else []
-        if not isinstance(file_tokens, list):
-            file_tokens = []
-        file_token_addresses = {_address(row.get("address")) for row in file_tokens if isinstance(row, dict)}
-        expected_token_addresses = {token["address"] for token in tokens}
-        expected_direction_count = len(tokens) * max(0, len(tokens) - 1)
-        actual_direction_count = len(payload.get("directions") or []) if isinstance(payload, dict) else 0
-        usable = bool(
-            isinstance(payload, dict)
-            and payload.get("schemaVersion") == INTERMEDIATE_POOL_FILE_SCHEMA
-            and file_token_addresses == expected_token_addresses
-            and actual_direction_count == expected_direction_count
-        )
-        if usable:
-            files.append({**payload, "path": str(path)})
-        else:
-            missing.append(
-                {
-                    "anchorSymbol": anchor_symbol,
-                    "path": str(path),
-                    "reason": "stale_or_incomplete"
-                    if isinstance(payload, dict)
-                    else "unreadable",
-                    "expectedDirectionCount": expected_direction_count,
-                    "actualDirectionCount": actual_direction_count,
-                }
-            )
-    return files, missing
-
-
 def _mainnet_db_intermediate_pool_reports(
     anchor_groups: list[dict[str, Any]],
     pools: list[dict[str, Any]],
@@ -1675,6 +1106,7 @@ def _mainnet_db_intermediate_pool_reports(
     """
     files: list[dict[str, Any]] = []
     missing: list[dict[str, Any]] = []
+    pools = [pool for pool in pools if _observation_pool_usable(pool)]
     pools_by_edge = _pools_by_edge(pools)
     for group in anchor_groups:
         if not isinstance(group, dict):
@@ -1696,6 +1128,8 @@ def _mainnet_db_intermediate_pool_reports(
             pools_by_edge,
             tokens,
             include_directions=True,
+            anchor_symbol=anchor_symbol,
+            anchor_address=_address((group.get("anchorAddresses") or [""])[0]),
         )
         pool_ids = {
             _pool_id(pool)
@@ -1722,6 +1156,7 @@ def _mainnet_associated_observation_rows(
     pools: list[dict[str, Any]],
     *,
     token_rows: dict[str, dict[str, Any]] | None = None,
+    non_normal_pools: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Expand bridge-pair rows into direction-level page rows.
 
@@ -1734,6 +1169,7 @@ def _mainnet_associated_observation_rows(
     tokens = dict(token_rows or {})
     grouped: dict[str, dict[str, Any]] = {}
     pool_by_id: dict[str, dict[str, Any]] = {}
+    non_normal_pools_by_edge = _pools_by_edge(non_normal_pools or [])
     token_by_address: dict[str, dict[str, Any]] = {
         address: dict(row)
         for address, row in tokens.items()
@@ -1753,6 +1189,9 @@ def _mainnet_associated_observation_rows(
     for pair in bridge_pairs:
         if not isinstance(pair, dict):
             continue
+        anchor_symbol = _symbol(pair.get("anchorSymbol"))
+        anchor_address = _address(pair.get("anchorAddress"))
+        associated_fund_symbols = [anchor_symbol] if anchor_symbol else []
         address_pair = [address for address in str(pair.get("addressPair") or "").split(":") if _address(address)]
         if len(address_pair) < 2:
             continue
@@ -1764,29 +1203,37 @@ def _mainnet_associated_observation_rows(
             token_y_address = edge[1]
         token0 = token_for(token_x_address, pair.get("tokenXSymbol"))
         token1 = token_for(token_y_address, pair.get("tokenYSymbol"))
+        token0["associatedFunds"] = associated_fund_symbols
+        token1["associatedFunds"] = associated_fund_symbols
         direction_key = f"{token_x_address}:{token_y_address}"
-        row = grouped.get(direction_key)
+        group_key = f"{anchor_symbol}|{direction_key}"
+        row = grouped.get(group_key)
         if row is None:
             row = {
                 "kind": "robinhood_mainnet_v4_associated_fund_anchor_observation_pair",
                 "source": "robinhood_mainnet_v4_pool_index",
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
                 "symbolPair": f"{token0.get('symbol')}:{token1.get('symbol')}",
                 "addressPair": ":".join(edge),
                 "directionKey": direction_key,
                 "token0": token0,
                 "token1": token1,
-                "associatedFundSymbols": [],
+                "associatedFundSymbols": associated_fund_symbols,
                 "poolCount": 0,
                 "directSwapPoolCount": 0,
                 "hasDirectSwapPool": False,
                 "pools": [],
                 "directSwapPools": [],
+                "nonNormalSwapPoolCount": 0,
+                "hasNonNormalSwapPool": False,
+                "nonNormalSwapPools": [],
                 "closedLoopReady": False,
                 "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
                 "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 "directSwapRequired": True,
             }
-            grouped[direction_key] = row
+            grouped[group_key] = row
         token_by_address.setdefault(edge[0], token0)
         token_by_address.setdefault(edge[1], token1)
         bridge_pools = (
@@ -1804,13 +1251,17 @@ def _mainnet_associated_observation_rows(
                 pool_by_id[pool_id] = {
                     **pool,
                     "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
-                    "associatedFundSymbols": [],
-                    "token0AssociatedFunds": [],
-                    "token1AssociatedFunds": [],
+                    "anchorSymbol": anchor_symbol,
+                    "anchorAddress": anchor_address,
+                    "associatedFundSymbols": associated_fund_symbols,
+                    "token0AssociatedFunds": associated_fund_symbols,
+                    "token1AssociatedFunds": associated_fund_symbols,
                 }
             direct_pool = {
                 "pool": pool_id,
                 "poolId": pool_id,
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
                 "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
                 "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
                 "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
@@ -1830,6 +1281,11 @@ def _mainnet_associated_observation_rows(
                 "sqrtPriceX96": pool.get("sqrtPriceX96"),
                 "liquidity": pool.get("liquidity"),
                 "balances": pool.get("balances") or {},
+                "observationUsable": pool.get("observationUsable"),
+                "usableForObservation": pool.get("usableForObservation"),
+                "associatedFundSymbols": associated_fund_symbols,
+                "token0AssociatedFunds": associated_fund_symbols,
+                "token1AssociatedFunds": associated_fund_symbols,
                 "closedLoopReady": bool(pool.get("closedLoopReady")),
                 "role": "direct_y_z_swap_pool",
                 "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
@@ -1840,13 +1296,61 @@ def _mainnet_associated_observation_rows(
             row["directSwapPoolCount"] += 1
             row["hasDirectSwapPool"] = True
             row["closedLoopReady"] = bool(row.get("closedLoopReady") or pool.get("closedLoopReady"))
+        for pool in non_normal_pools_by_edge.get(edge) or []:
+            if not isinstance(pool, dict):
+                continue
+            pool_id = _pool_id(pool)
+            non_normal_pool = {
+                "pool": pool_id,
+                "poolId": pool_id,
+                "anchorSymbol": anchor_symbol,
+                "anchorAddress": anchor_address,
+                "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
+                "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
+                "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
+                "fee": pool.get("fee"),
+                "feeLabel": pool.get("feeLabel"),
+                "dynamicFee": pool.get("dynamicFee"),
+                "specialFee": pool.get("specialFee"),
+                "tickSpacing": pool.get("tickSpacing"),
+                "hooks": pool.get("hooks"),
+                "token0": pool.get("token0"),
+                "token1": pool.get("token1"),
+                "token0Decimals": pool.get("token0Decimals"),
+                "token1Decimals": pool.get("token1Decimals"),
+                "token0Symbol": pool.get("token0Symbol"),
+                "token1Symbol": pool.get("token1Symbol"),
+                "symbolPair": pool.get("symbolPair")
+                or f"{pool.get('token0Symbol')}:{pool.get('token1Symbol')}",
+                "addressPair": pool.get("addressPair") or ":".join(edge),
+                "tick": pool.get("tick"),
+                "sqrtPriceX96": pool.get("sqrtPriceX96"),
+                "liquidity": pool.get("liquidity"),
+                "balances": pool.get("balances") or {},
+                "observationUsable": _observation_pool_usable(pool),
+                "usableForObservation": _pool_usable_for_observation(pool),
+                "associatedFundSymbols": associated_fund_symbols,
+                "token0AssociatedFunds": associated_fund_symbols,
+                "token1AssociatedFunds": associated_fund_symbols,
+                "closedLoopReady": False,
+                "role": "non_normal_y_z_swap_pool",
+                "observationReason": "non_normal_y_z_pool",
+            }
+            row["nonNormalSwapPools"].append(non_normal_pool)
+            row["nonNormalSwapPoolCount"] += 1
+            row["hasNonNormalSwapPool"] = True
         if not row.get("hasDirectSwapPool"):
-            row["observationEmptyReason"] = "YC 与 ZC 之间暂无 Y-Z 交易池"
+            row["observationEmptyReason"] = (
+                "仅存在非正常 Y-Z 交易池"
+                if row.get("hasNonNormalSwapPool")
+                else "YC 与 ZC 之间暂无 Y-Z 交易池"
+            )
 
     pair_rows = sorted(
         grouped.values(),
         key=lambda row: (
             not bool(row.get("hasDirectSwapPool")),
+            str(row.get("anchorSymbol") or ""),
             str(row.get("symbolPair") or ""),
             str(row.get("directionKey") or row.get("addressPair") or ""),
         ),
@@ -1863,7 +1367,9 @@ def _mainnet_fund_anchor_observation(
     *,
     route_limit: int | None = None,
     anchor_groups: list[dict[str, Any]] | None = None,
+    non_normal_pools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    pools = [pool for pool in pools if _observation_pool_usable(pool)]
     sequences, _legacy_bridge_pairs = _mainnet_observation_sequences(pools, route_limit=route_limit)
     db_closed_loop_sequences = _mainnet_closed_loop_sequences()
     db_closed_loop_routes = _mainnet_closed_loop_routes()
@@ -1901,6 +1407,8 @@ def _mainnet_fund_anchor_observation(
                     pools_by_edge,
                     tokens,
                     include_directions=True,
+                    anchor_symbol=anchor_symbol,
+                    anchor_address=_address((group.get("anchorAddresses") or [""])[0]),
                 )
             )
         neighbors = {
@@ -1939,11 +1447,23 @@ def _mainnet_fund_anchor_observation(
             if _pool_id(pool)
         }
     )
+    related_addresses = {
+        _address(address)
+        for pair in bridge_pairs
+        for address in str(pair.get("addressPair") or "").split(":")
+        if _address(address)
+    }
+    non_normal_pools = [
+        pool
+        for pool in (non_normal_pools or [])
+        if _pool_edge(pool) and set(_pool_edge(pool)) <= related_addresses
+    ]
     associated_observation_pairs, associated_observation_pools, associated_observation_tokens = (
         _mainnet_associated_observation_rows(
             bridge_pairs,
             pools,
             token_rows=neighbors,
+            non_normal_pools=non_normal_pools,
         )
     )
     active_pool_ids = sorted(
@@ -1968,7 +1488,7 @@ def _mainnet_fund_anchor_observation(
         ],
         "missingIntermediatePoolFiles": missing_files,
         "recentSwapFilterApplied": False,
-        "liquidityFilterApplied": True,
+        "liquidityFilterApplied": False,
         "recentSwapActivePoolCount": len(active_pool_ids),
         "liquidPoolIdCount": len(active_pool_ids),
         "recentSwapIndexedPoolCount": indexed_pool_count,
@@ -2052,6 +1572,7 @@ def bridge_pairs_for_anchor_groups(
             },
         )
     pools, _index = _load_mainnet_observation_pools()
+    pools = [pool for pool in pools if _observation_pool_usable(pool)]
     pool_files, missing_files = _mainnet_db_intermediate_pool_reports(anchor_groups, pools)
     bridge_pairs: list[dict[str, Any]] = []
     pool_file_index: dict[str, dict[str, Any]] = {
@@ -2079,6 +1600,8 @@ def bridge_pairs_for_anchor_groups(
                 pools_by_edge,
                 tokens,
                 include_directions=True,
+                anchor_symbol=anchor_symbol,
+                anchor_address=_address((group.get("anchorAddresses") or [""])[0]),
             )
         )
     if missing_files:
@@ -2120,7 +1643,7 @@ def bridge_pairs_for_anchor_groups(
         ],
         "missingIntermediatePoolFiles": missing_files,
         "recentSwapFilterApplied": False,
-        "liquidityFilterApplied": True,
+        "liquidityFilterApplied": False,
         "recentSwapActivePoolCount": len(active_pool_ids),
         "liquidPoolIdCount": len(active_pool_ids),
         "activePoolIds": active_pool_ids,
@@ -2159,7 +1682,16 @@ def fund_anchor_pair_observation(
     pool_payload = _page_candidate_payload(chain_id=chain_id, protocols=protocols)
     anchor_groups = list(pool_payload.get("anchorGroups") or [])
     pools, index = _load_mainnet_observation_pools()
-    return _mainnet_fund_anchor_observation(pools, anchor_groups=anchor_groups)
+    non_normal_pools = [
+        pool
+        for pool in _load_mainnet_db_exchange_pools()
+        if not _observation_pool_usable(pool)
+    ]
+    return _mainnet_fund_anchor_observation(
+        pools,
+        anchor_groups=anchor_groups,
+        non_normal_pools=non_normal_pools,
+    )
 
 
 __all__ = [

@@ -443,6 +443,98 @@ BUSINESS_DDL: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS dex_candidate_abnormal_anchor_tokens (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL,
+        anchor_scope TEXT NOT NULL,
+        anchor_symbol TEXT NOT NULL,
+        token_role TEXT NOT NULL DEFAULT 'yc_zc_abnormal',
+        token_address TEXT NOT NULL,
+        pool_count INTEGER NOT NULL DEFAULT 0,
+        has_yc_optimal_pool INTEGER NOT NULL DEFAULT 0,
+        has_zc_optimal_pool INTEGER NOT NULL DEFAULT 0,
+        yc_optimal_pool_id TEXT,
+        zc_optimal_pool_id TEXT,
+        yc_zc_same_set INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, token_role, token_address),
+        FOREIGN KEY (network, chain_id, token_address)
+            REFERENCES chain_tokens (network, chain_id, token_address)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dex_candidate_abnormal_pool_pairs (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL,
+        anchor_scope TEXT NOT NULL,
+        anchor_symbol TEXT NOT NULL,
+        anchor_address TEXT NOT NULL,
+        counter_address TEXT NOT NULL,
+        address_pair TEXT NOT NULL,
+        pool_count INTEGER NOT NULL DEFAULT 0,
+        fixed_fee_liquid_pool_count INTEGER NOT NULL DEFAULT 0,
+        priced_pool_count INTEGER NOT NULL DEFAULT 0,
+        yc_optimal_pool_id TEXT,
+        zc_optimal_pool_id TEXT,
+        price_reference_json TEXT,
+        price_outlier_filter TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, address_pair),
+        FOREIGN KEY (network, chain_id, anchor_address)
+            REFERENCES chain_tokens (network, chain_id, token_address),
+        FOREIGN KEY (network, chain_id, counter_address)
+            REFERENCES chain_tokens (network, chain_id, token_address)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dex_candidate_abnormal_pools (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL,
+        anchor_scope TEXT NOT NULL,
+        anchor_symbol TEXT NOT NULL,
+        address_pair TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        pool_key_json TEXT,
+        pool_manager TEXT,
+        token0 TEXT,
+        token1 TEXT,
+        fee INTEGER,
+        fee_label TEXT,
+        dynamic_fee INTEGER NOT NULL DEFAULT 0,
+        special_fee INTEGER NOT NULL DEFAULT 0,
+        tick_spacing INTEGER,
+        hooks TEXT,
+        sqrt_price_x96 TEXT,
+        tick INTEGER,
+        has_liquidity INTEGER,
+        liquidity TEXT,
+        liquidity_index REAL,
+        estimated_tvl_usd REAL,
+        balances_json TEXT,
+        depth_status TEXT,
+        depth_band_json TEXT,
+        usable_for_observation INTEGER NOT NULL DEFAULT 0,
+        is_first_hop_recommended INTEGER NOT NULL DEFAULT 0,
+        is_third_hop_recommended INTEGER NOT NULL DEFAULT 0,
+        hop_recommendation_json TEXT,
+        optimal_roles_json TEXT,
+        liquidity_read_at TEXT,
+        liquidity_block_number INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, address_pair, pool_id),
+        FOREIGN KEY (network, chain_id, token0)
+            REFERENCES chain_tokens (network, chain_id, token_address),
+        FOREIGN KEY (network, chain_id, token1)
+            REFERENCES chain_tokens (network, chain_id, token_address)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS market_observation_yz_pairs (
         network TEXT NOT NULL,
         chain_id INTEGER NOT NULL,
@@ -468,6 +560,59 @@ BUSINESS_DDL: tuple[str, ...] = (
     """,
     """
     CREATE TABLE IF NOT EXISTS market_observation_intermediate_pools (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL,
+        anchor_scope TEXT NOT NULL,
+        anchor_symbol TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        pool_identity_mode TEXT NOT NULL DEFAULT 'v4_pool_id',
+        pool_manager TEXT,
+        pool_key_json TEXT,
+        token0 TEXT,
+        token1 TEXT,
+        fee INTEGER,
+        fee_label TEXT,
+        dynamic_fee INTEGER NOT NULL DEFAULT 0,
+        special_fee INTEGER NOT NULL DEFAULT 0,
+        tick_spacing INTEGER,
+        hooks TEXT,
+        address_pair TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id),
+        FOREIGN KEY (network, chain_id, token0)
+            REFERENCES chain_tokens (network, chain_id, token_address),
+        FOREIGN KEY (network, chain_id, token1)
+            REFERENCES chain_tokens (network, chain_id, token_address)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_observation_abnormal_yz_pairs (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL,
+        anchor_scope TEXT NOT NULL,
+        anchor_symbol TEXT NOT NULL,
+        direction_key TEXT NOT NULL,
+        token_x_address TEXT NOT NULL,
+        token_y_address TEXT NOT NULL,
+        address_pair TEXT NOT NULL,
+        has_non_normal_swap_pool INTEGER NOT NULL DEFAULT 0,
+        non_normal_swap_pool_count INTEGER NOT NULL DEFAULT 0,
+        pool_ids_json TEXT NOT NULL DEFAULT '[]',
+        observation_empty_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key),
+        FOREIGN KEY (network, chain_id, token_x_address)
+            REFERENCES chain_tokens (network, chain_id, token_address),
+        FOREIGN KEY (network, chain_id, token_y_address)
+            REFERENCES chain_tokens (network, chain_id, token_address)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_observation_abnormal_intermediate_pools (
         network TEXT NOT NULL,
         chain_id INTEGER NOT NULL,
         protocol TEXT NOT NULL,

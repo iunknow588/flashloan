@@ -213,6 +213,127 @@ def replace_market_observation_tables(
     return {"pairs": len(pair_rows), "pools": len(pool_rows), "liquidity": len(liquidity_rows)}
 
 
+def replace_market_observation_abnormal_tables(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    anchor_scope: str,
+    anchor_symbol: str,
+    directions: list[dict[str, Any]],
+    pools: list[dict[str, Any]],
+) -> dict[str, int]:
+    """Write non-normal market-observation Y-Z pools and direction rows.
+
+    These rows are informational only.  Closed-loop construction and DEX
+    overview must keep consuming the normal ``market_observation_yz_pairs`` and
+    ``market_observation_intermediate_pools`` tables.
+    """
+    now = _stamp()
+    pair_rows = []
+    for direction in directions:
+        token_x = _text(direction.get("token_x_address") or direction.get("tokenX"))
+        token_y = _text(direction.get("token_y_address") or direction.get("tokenY"))
+        direction_key = _text(direction.get("direction_key") or direction.get("directionKey"))
+        if not token_x or not token_y:
+            continue
+        if not direction_key:
+            direction_key = f"{token_x}:{token_y}"
+        address_pair = _text(direction.get("address_pair") or direction.get("addressPair"))
+        if not address_pair:
+            address_pair = f"{token_x}:{token_y}" if token_x <= token_y else f"{token_y}:{token_x}"
+        all_pools = direction.get("allPools") or direction.get("all_pools") or []
+        pool_ids = [str(item.get("poolId") or item.get("pool_id") or item.get("pool") or "").lower() for item in all_pools if item]
+        pool_ids = sorted({item for item in pool_ids if item})
+        pair_rows.append(
+            (
+                network, chain_id, protocol, anchor_scope, anchor_symbol,
+                direction_key, token_x, token_y, address_pair,
+                _bool(bool(pool_ids)),
+                len(pool_ids),
+                _json_dumps(pool_ids),
+                direction.get("observation_empty_reason") or direction.get("observationEmptyReason"),
+                now, now,
+            )
+        )
+    pool_rows = []
+    for pool in pools:
+        pool_id = _text(pool.get("pool_id") or pool.get("poolId") or pool.get("pool"))
+        token0 = _text(pool.get("token0") or pool.get("currency0"))
+        token1 = _text(pool.get("token1") or pool.get("currency1"))
+        if not pool_id or not token0 or not token1:
+            continue
+        fee = _int_none(pool.get("fee"))
+        dynamic_fee = bool(fee is not None and fee & 8388608)
+        special_fee = bool(fee is None or fee == 0 or dynamic_fee or (fee or 0) > 100_000)
+        fee_label = "dynamic" if dynamic_fee else ("special" if special_fee else fee)
+        pool_rows.append(
+            (
+                network, chain_id, protocol, anchor_scope, anchor_symbol,
+                pool_id, pool.get("pool_identity_mode") or "v4_pool_id",
+                _text(pool.get("pool_manager")),
+                _json_dumps(pool.get("pool_key") or pool.get("poolKey") or {}),
+                token0, token1, fee, fee_label,
+                _bool(dynamic_fee), _bool(special_fee),
+                _int_none(pool.get("tick_spacing") or pool.get("tickSpacing")),
+                _text(pool.get("hooks")),
+                pool.get("address_pair") or pool.get("addressPair") or f"{token0}:{token1}",
+                now, now,
+            )
+        )
+    if pair_rows:
+        executemany(
+            database_url,
+            """
+            INSERT INTO market_observation_abnormal_yz_pairs (
+                network, chain_id, protocol, anchor_scope, anchor_symbol,
+                direction_key, token_x_address, token_y_address, address_pair,
+                has_non_normal_swap_pool, non_normal_swap_pool_count, pool_ids_json,
+                observation_empty_reason, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key)
+            DO UPDATE SET token_x_address = excluded.token_x_address,
+                token_y_address = excluded.token_y_address,
+                address_pair = excluded.address_pair,
+                has_non_normal_swap_pool = excluded.has_non_normal_swap_pool,
+                non_normal_swap_pool_count = excluded.non_normal_swap_pool_count,
+                pool_ids_json = excluded.pool_ids_json,
+                observation_empty_reason = excluded.observation_empty_reason,
+                updated_at = excluded.updated_at
+            """,
+            pair_rows,
+        )
+    if pool_rows:
+        executemany(
+            database_url,
+            """
+            INSERT INTO market_observation_abnormal_intermediate_pools (
+                network, chain_id, protocol, anchor_scope, anchor_symbol,
+                pool_id, pool_identity_mode, pool_manager, pool_key_json,
+                token0, token1, fee, fee_label, dynamic_fee, special_fee,
+                tick_spacing, hooks, address_pair, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
+            DO UPDATE SET pool_identity_mode = excluded.pool_identity_mode,
+                pool_manager = excluded.pool_manager,
+                pool_key_json = excluded.pool_key_json,
+                token0 = excluded.token0,
+                token1 = excluded.token1,
+                fee = excluded.fee,
+                fee_label = excluded.fee_label,
+                dynamic_fee = excluded.dynamic_fee,
+                special_fee = excluded.special_fee,
+                tick_spacing = excluded.tick_spacing,
+                hooks = excluded.hooks,
+                address_pair = excluded.address_pair,
+                updated_at = excluded.updated_at
+            """,
+            pool_rows,
+        )
+    return {"pairs": len(pair_rows), "pools": len(pool_rows)}
+
+
 def load_market_observation(
     database_url: str,
     *,
@@ -261,7 +382,39 @@ def load_market_observation(
         """,
         (network, chain_id, protocol, anchor_symbol),
     )
-    return {"pairs": pairs, "pools": pools, "liquidity": liquidity}
+    abnormal_pairs = query(
+        database_url,
+        """
+        SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
+               direction_key, token_x_address, token_y_address, address_pair,
+               has_non_normal_swap_pool, non_normal_swap_pool_count, pool_ids_json,
+               observation_empty_reason, created_at, updated_at
+        FROM market_observation_abnormal_yz_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY direction_key
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    abnormal_pools = query(
+        database_url,
+        """
+        SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
+               pool_id, pool_identity_mode, pool_manager, pool_key_json,
+               token0, token1, fee, fee_label, dynamic_fee, special_fee,
+               tick_spacing, hooks, address_pair, created_at, updated_at
+        FROM market_observation_abnormal_intermediate_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    return {
+        "pairs": pairs,
+        "pools": pools,
+        "liquidity": liquidity,
+        "abnormalPairs": abnormal_pairs,
+        "abnormalPools": abnormal_pools,
+    }
 
 
 def delete_market_observation_anchor(
@@ -272,7 +425,13 @@ def delete_market_observation_anchor(
     protocol: str,
     anchor_symbol: str,
 ) -> None:
-    for table in ("market_observation_yz_pairs", "market_observation_intermediate_pools", "market_observation_liquidity_snapshots"):
+    for table in (
+        "market_observation_yz_pairs",
+        "market_observation_intermediate_pools",
+        "market_observation_abnormal_yz_pairs",
+        "market_observation_abnormal_intermediate_pools",
+        "market_observation_liquidity_snapshots",
+    ):
         execute(
             database_url,
             f"DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?",
@@ -283,5 +442,6 @@ def delete_market_observation_anchor(
 __all__ = [
     "delete_market_observation_anchor",
     "load_market_observation",
+    "replace_market_observation_abnormal_tables",
     "replace_market_observation_tables",
 ]

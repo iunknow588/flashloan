@@ -273,13 +273,13 @@ def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=46630, protocols=["uniswap_v4"])
 
-    expected_symbols = ["CCOX", "ETH", "FRAX", "USDC"]
+    expected_symbols = ["ETH", "TZ", "USDE", "USDG", "WETH"]
     assert overview["decisionBasis"] in {
         "robinhood_testnet_market_observation_closed_loop",
         "symbol_anchor_to_non_anchor_candidate_path",
     }
     assert overview["summary"]["anchorBorrowSymbols"] == expected_symbols
-    assert observation["summary"]["observationAnchorCount"] == 4
+    assert observation["summary"]["observationAnchorCount"] == 5
     assert observation["observationAnchorSymbols"] == expected_symbols
     assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
     assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols
@@ -825,46 +825,27 @@ def test_dex_overview_payload_reuses_cached_framework_payload(monkeypatch):
     assert second["arbitragePaths"][0]["pathSource"] == "market_observation"
 
 
-def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebuild(monkeypatch):
-    compact_snapshot = {
-        "exists": True,
-        "chain_id": 46630,
-        "protocols": ["uniswap_v4"],
-        "snapshot_kind": "dex_overview_compact",
-        "summary": {"closedLoopRouteCount": 1},
-        "closedLoopRouteSummaries": [{"pathText": "ETH -> USDC -> DAI -> ETH", "pathSymbols": ["ETH", "USDC", "DAI", "ETH"]}],
-        "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
-        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
-        "flashLoanLiquidity": {"available_protocols": ["venus_core"]},
-    }
-    observation_snapshot = {
-        "exists": True,
-        "chain_id": 46630,
-        "protocols": ["uniswap_v4"],
-        "summary": {"closedLoopRouteCount": 1},
-        "observationSequences": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
-        "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
-        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
-        "flashLoanLiquidity": {"available_protocols": ["venus_core"]},
-    }
-    calls = {"context": 0}
+def test_robinhood_testnet_overview_builds_from_database_candidate_pools(monkeypatch):
+    calls = {"candidate": 0, "context": 0}
 
-    monkeypatch.setattr(dex_surfaces, "load_market_observation_overview_static", lambda **kwargs: compact_snapshot)
-    monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: observation_snapshot)
-    monkeypatch.setattr(
-        dex_surfaces,
-        "_candidate_payload",
-        lambda *args, **kwargs: pytest.fail("overview must not rebuild pool candidates from a compact snapshot"),
-    )
+    def fake_candidate_payload(chain_id, protocols=None):
+        calls["candidate"] += 1
+        assert chain_id == 46630
+        assert protocols == ["uniswap_v4"]
+        return {
+            "pairs": [],
+            "summary": {},
+            "dexSettlement": {},
+            "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True, "generatedAt": "2026-01-01T00:00:00Z"},
+            "flashLoanLiquidity": {"available_protocols": ["venus_core"]},
+        }
 
     def fake_context(observation, pool_payload, **kwargs):
         calls["context"] += 1
-        assert observation["marketObservationSource"] == "cached_snapshot"
-        assert observation["marketObservationSnapshotKind"] == "dex_overview_compact"
-        assert pool_payload["flashLoanLiquidity"]["available_protocols"] == ["venus_core"]
+        assert pool_payload is None
         return {
             "overview_paths": [],
-            "watch_pairs": list(observation["chainSpecificObservationPairs"]),
+            "watch_pairs": [],
             "anchor_symbols": ["ETH"],
             "closed_loop_anchor_symbols": ["ETH"],
             "observation_anchor_symbols": ["ETH"],
@@ -872,6 +853,7 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
             "used_market_observation": True,
         }
 
+    monkeypatch.setattr(dex_surfaces, "_candidate_payload", fake_candidate_payload)
     monkeypatch.setattr(dex_surfaces, "_route_framework_context_from_observation", fake_context)
 
     overview = dex_surfaces.dex_overview_payload(
@@ -880,12 +862,12 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
         use_static_observation=True,
     )
 
-    assert calls["context"] == 0
-    assert overview["marketObservationSource"] == "cached_snapshot"
-    assert overview["marketObservationSnapshotKind"] == "dex_overview_compact"
-    assert overview["flashLoanLiquidity"]["available_protocols"] == ["venus_core"]
-    assert overview["summary"]["arbitragePathCount"] == 1
-    assert overview["arbitragePaths"][0]["overviewProfit"]["recommendationLevel"] == "requires_live_quote"
+    # Robinhood testnet V4 is database-first: the overview reads the same
+    # candidate tables instead of falling back to a static compact snapshot.
+    assert calls == {"candidate": 1, "context": 1}
+    assert overview["routeFrameworkSource"] == "market_observation"
+    assert overview["summary"]["arbitragePathCount"] == 0
+    assert overview["arbitragePaths"] == []
 
 
 def test_robinhood_mainnet_overview_builds_from_database_candidate_pools(monkeypatch):

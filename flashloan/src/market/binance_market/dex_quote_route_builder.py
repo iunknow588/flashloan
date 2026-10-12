@@ -31,6 +31,13 @@ def build_quote_route_payload(
 ) -> dict[str, Any]:
     linkage = route.get("flashLoanLinkage") or {}
     overview_route = route.get("overviewRoute") or {}
+    uniswapx_fallback = route.get("uniswapxFallback") if isinstance(route.get("uniswapxFallback"), dict) else {}
+    uniswapx_middle_hop = (
+        uniswapx_fallback.get("middleHop")
+        if isinstance(uniswapx_fallback.get("middleHop"), dict)
+        and uniswapx_fallback.get("status") in {"selected", "filled_via_uniswapx_middle_hop"}
+        else None
+    )
     quote_analysis = build_quote_analysis_defaults(
         quote_analysis=quote_analysis,
         route_symbols=route_symbols,
@@ -57,6 +64,7 @@ def build_quote_route_payload(
         v4_status="sdk_adapter_required" if quote_analysis.get("requiresLiveQuoter") else "quoteable_after_static_probe",
         uniswapx_quote_mode="intent_exact_input",
         uniswapx_status="quoteable_after_static_probe",
+        uniswapx_middle_hop=uniswapx_middle_hop,
         chain_id=chain_id,
         settlement=settlement,
         adapter_hints=[
@@ -130,6 +138,7 @@ def build_quote_route_payload(
             ],
         },
         "hopCandidateReplacement": dict(route.get("hopCandidateReplacement") or {}),
+        "uniswapxFallback": dict(uniswapx_fallback),
         "temporaryRoute": bool(route.get("temporaryRoute")),
         "temporaryRoutePolicy": dict(route.get("temporaryRoutePolicy") or {}),
         "temporaryRouteSnapshot": dict(route.get("temporaryRouteSnapshot") or {}),
