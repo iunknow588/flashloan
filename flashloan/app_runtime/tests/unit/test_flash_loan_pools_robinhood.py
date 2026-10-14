@@ -896,10 +896,11 @@ ROBINHOOD_MAINNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
 ROBINHOOD_WETH = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 ROBINHOOD_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
 ROBINHOOD_AAPL = "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9"
+ROBINHOOD_NET = "0xca9c78dd337a67f6e0077f65f5e9218719d30edf"
 ROBINHOOD_ZERO = "0x0000000000000000000000000000000000000000"
 
 
-def _seed_mainnet_v4_db(tmp_path, *, include_stock=False):
+def _seed_mainnet_v4_db(tmp_path, *, include_stock=False, include_net=False):
     from core.db.storage_business_schema import ensure_business_schema
     from core.db.storage_chain_core import seed_chain_tokens
     from core.db.storage_v4_exchange import (
@@ -921,6 +922,15 @@ def _seed_mainnet_v4_db(tmp_path, *, include_stock=False):
                 "token_symbol": "AAPL",
                 "token_decimals": 18,
                 "token_metadata_json": {"category": "robinhood_stock"},
+            }
+        )
+    if include_net:
+        token_rows.append(
+            {
+                "token_address": ROBINHOOD_NET,
+                "token_symbol": "NET",
+                "token_decimals": 9,
+                "token_metadata_json": {"category": "yc_zc"},
             }
         )
     seed_chain_tokens(
@@ -961,6 +971,25 @@ def _seed_mainnet_v4_db(tmp_path, *, include_stock=False):
                 },
                 "token0": ROBINHOOD_ZERO,
                 "token1": ROBINHOOD_AAPL,
+                "fee": 3000,
+                "hooks": ROBINHOOD_ZERO,
+                "tick_spacing": 60,
+            }
+        )
+    if include_net:
+        pool_rows.append(
+            {
+                "pool_id": "0x" + "c" * 64,
+                "pool_identity_mode": "v4_pool_id",
+                "pool_manager": ROBINHOOD_MAINNET_V4_POOL_MANAGER,
+                "pool_key": {
+                    "currency0": ROBINHOOD_USDG,
+                    "currency1": ROBINHOOD_NET,
+                    "fee": 3000,
+                    "hooks": ROBINHOOD_ZERO,
+                },
+                "token0": ROBINHOOD_USDG,
+                "token1": ROBINHOOD_NET,
                 "fee": 3000,
                 "hooks": ROBINHOOD_ZERO,
                 "tick_spacing": 60,
@@ -1100,6 +1129,45 @@ def test_flash_loan_pools_mainnet_v4_stock_assets_come_from_sqlite_only(tmp_path
     ]
     assert len(stock_rows) == 1
     assert stock_rows[0]["source"] == "robinhood_mainnet_v4_sqlite_stock_token"
+
+
+def test_flash_loan_pools_mainnet_v4_excludes_non_anchor_yc_zc_asset(tmp_path, monkeypatch):
+    _robinhood_mainnet_v4_market(monkeypatch)
+    db = _seed_mainnet_v4_db(tmp_path, include_stock=True, include_net=True)
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        database_url=db,
+    )
+
+    view = payload["protocol_views"][0]
+    all_assets = [*view["stable_borrow_pools"], *view["non_stable_borrow_pools"]]
+    assert not any(row["token_symbol"] == "NET" for row in all_assets)
+    usdg = next(row for row in all_assets if row["token_symbol"] == "USDG")
+    assert usdg["pool_count"] == 2
+    assert usdg["paired_symbol_count"] == 2
+    assert view["summary"]["borrow_asset_count"] == 6
+
+
+def test_robinhood_v4_token_symbol_uses_static_chain_tokens_without_rpc():
+    from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+        _robinhood_v4_token_symbol,
+    )
+
+    assert (
+        _robinhood_v4_token_symbol(
+            ROBINHOOD_NET,
+            symbols_by_address={ROBINHOOD_NET.lower(): "NET"},
+        )
+        == "NET"
+    )
+    assert (
+        _robinhood_v4_token_symbol(
+            ROBINHOOD_NET,
+            symbols_by_address={},
+        ).startswith("0X")
+    )
 
 
 def test_flash_loan_pools_mainnet_v4_sqlite_empty_is_not_json_fallback(tmp_path, monkeypatch):

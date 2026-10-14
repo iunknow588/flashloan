@@ -1180,6 +1180,13 @@
       "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
       "symbol": "OTTO"
     },
+    "0xca9c": {
+      "address": "0xca9c78dd337a67f6e0077f65f5e9218719d30edf",
+      "category": "yc_zc",
+      "decimals": 9,
+      "source": "onchain-erc20-metadata",
+      "symbol": "NET"
+    },
     "0xcc92": {
       "address": "0xcc926aaa4ac404f626a23aedc4ed16f67a437236",
       "category": "yc_zc",

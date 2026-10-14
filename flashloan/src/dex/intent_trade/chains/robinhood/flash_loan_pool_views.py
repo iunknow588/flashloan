@@ -206,6 +206,22 @@ def _stock_metadata_from_db_rows(
     return result
 
 
+def _static_token_symbol_map_from_db_rows(
+    token_rows: list[dict[str, Any]],
+) -> dict[str, str]:
+    """Return static chain-token symbols without dynamic on-chain lookups."""
+    result: dict[str, str] = {}
+    for row in token_rows:
+        if not isinstance(row, dict):
+            continue
+        address = str(row.get("token_address") or "").strip().lower()
+        symbol = str(row.get("token_symbol") or "").strip().upper()
+        if not address or not symbol or symbol.startswith("0X"):
+            continue
+        result[address] = symbol
+    return result
+
+
 def _robinhood_v4_sqlite_payload(
     database_url: str | None = None,
     *,
@@ -252,6 +268,7 @@ def _robinhood_v4_token_symbol(
     fallback: str = "",
     contracts: dict[str, Any] | None = None,
     stock_by_address: dict[str, dict[str, Any]] | None = None,
+    symbols_by_address: dict[str, str] | None = None,
 ) -> str:
     normalized = str(address or "").strip().lower()
     if normalized == "0x0000000000000000000000000000000000000000":
@@ -274,6 +291,9 @@ def _robinhood_v4_token_symbol(
         return "WETH"
     if normalized == str(contracts.get("usdg") or "").strip().lower():
         return "USDG"
+    static_symbol = (symbols_by_address or {}).get(normalized)
+    if static_symbol:
+        return static_symbol
     fallback_symbol = str(fallback or "").strip()
     if fallback_symbol:
         return fallback_symbol.upper()
@@ -321,6 +341,7 @@ def _robinhood_v4_borrow_asset_rows(
     anchors = _mainnet_v4_anchor_assets()
     stock_metadata_by_address = _stock_metadata_from_db_rows(token_rows)
     stock_registry_by_address = stock_metadata_by_address
+    symbol_map_by_address = _static_token_symbol_map_from_db_rows(token_rows)
     stock_assets = []
     for address, meta in stock_metadata_by_address.items():
         symbol = str(meta.get("symbol") or "").strip().upper()
@@ -416,12 +437,14 @@ def _robinhood_v4_borrow_asset_rows(
             pool.get("token0Symbol"),
             contracts=contracts,
             stock_by_address=stock_registry_by_address,
+            symbols_by_address=symbol_map_by_address,
         )
         token1_symbol = anchor_symbol_by_address.get(token1_address) or _robinhood_v4_token_symbol(
             token1_address,
             pool.get("token1Symbol"),
             contracts=contracts,
             stock_by_address=stock_registry_by_address,
+            symbols_by_address=symbol_map_by_address,
         )
         for symbol in matched_anchor_symbols:
             row = anchor_rows.get(symbol)
