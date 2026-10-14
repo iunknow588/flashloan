@@ -60,13 +60,13 @@ def test_scanner_dedupes_same_closed_loop_route_by_addresses():
     assert deduped[0]["quoteStatus"] == "rpc_verification_timeout"
 
 
-def test_scanner_dedupes_reverse_direction_closed_loop_as_one_route():
+def test_scanner_keeps_reverse_direction_closed_loops_distinct():
     from dex.runtime.dex_opportunity_snapshot import _closed_loop_key_from_tokens
 
     forward = ["0xTZ", "0xTB", "0xTA", "0xTZ"]
     reverse = ["0xTZ", "0xTA", "0xTB", "0xTZ"]
 
-    assert _closed_loop_key_from_tokens(forward) == _closed_loop_key_from_tokens(reverse)
+    assert _closed_loop_key_from_tokens(forward) != _closed_loop_key_from_tokens(reverse)
 
 
 def test_scanner_dedupe_keeps_default_and_temporary_replacement_distinct():

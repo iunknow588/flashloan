@@ -22,18 +22,13 @@ def _route_simple_key(route: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def _closed_loop_key_from_tokens(selected: list[str]) -> tuple[Any, ...]:
-    """Return a direction-normalized key for a closed token path.
+    """Return the directed identity of a closed token path.
 
-    ``A -> B -> C -> A`` and ``A -> C -> B -> A`` are the same closed loop,
-    so the middle segment is sorted by its lexicographically smaller reverse.
+    The database stores ``anchor:y:z`` as an ordered direction.  Reversing
+    the middle hops changes the swap sequence and must therefore produce a
+    different scanner identity, even when both paths use the same tokens.
     """
-    if len(selected) < 3 or selected[0] != selected[-1]:
-        return tuple(selected)
-    anchor = selected[0]
-    mids = tuple(selected[1:-1])
-    if mids and tuple(reversed(mids)) < mids:
-        mids = tuple(reversed(mids))
-    return (anchor, *mids)
+    return tuple(selected)
 
 
 def _route_evidence_richness(route: dict[str, Any]) -> int:

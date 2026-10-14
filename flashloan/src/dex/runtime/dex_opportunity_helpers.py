@@ -167,16 +167,10 @@ def _route_addresses_from_route(route: dict[str, Any]) -> list[str]:
 
 
 def _closed_loop_path_key(parts: list[str]) -> tuple[str, ...]:
-    """Normalize reverse execution directions to one closed-loop identity."""
+    """Return a directed execution path identity without reversing hops."""
     if not parts:
         return ("",)
-    if len(parts) < 3 or parts[0] != parts[-1]:
-        return tuple(parts)
-    anchor = parts[0]
-    mids = tuple(parts[1:-1])
-    if mids and tuple(reversed(mids)) < mids:
-        mids = tuple(reversed(mids))
-    return (anchor, *mids)
+    return tuple(parts)
 
 
 def _route_evidence_dedup_key(route: dict[str, Any]) -> str:

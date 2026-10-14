@@ -19,7 +19,7 @@ def _stop_background_review_pipelines():
     _SCANNERS.clear()
 
 
-def test_route_evidence_dedup_key_collapses_reverse_direction():
+def test_route_evidence_dedup_key_keeps_reverse_direction():
     from dex.runtime.dex_opportunity_helpers import _route_evidence_dedup_key
 
     forward = {"routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"]}
@@ -27,8 +27,8 @@ def test_route_evidence_dedup_key_collapses_reverse_direction():
     symbol_forward = {"routeSymbols": ["TZ", "TB", "TA", "TZ"]}
     symbol_reverse = {"routeSymbols": ["TZ", "TA", "TB", "TZ"]}
 
-    assert _route_evidence_dedup_key(forward) == _route_evidence_dedup_key(reverse)
-    assert _route_evidence_dedup_key(symbol_forward) == _route_evidence_dedup_key(symbol_reverse)
+    assert _route_evidence_dedup_key(forward) != _route_evidence_dedup_key(reverse)
+    assert _route_evidence_dedup_key(symbol_forward) != _route_evidence_dedup_key(symbol_reverse)
 
 
 def test_order_attempts_for_execution_keeps_temporary_routes_last():
