@@ -39,6 +39,9 @@ from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
 from dex.intent_trade.chains.robinhood.v4_pool_liquidity import (  # noqa: E402
     write_v4_pool_liquidity_from_contract_evidence,
 )
+from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E402
+    clear_robinhood_v4_pool_cache,
+)
 from market.binance_market.dex_surface_cache import _clear_dex_surface_cache  # noqa: E402
 
 
@@ -137,6 +140,10 @@ def main() -> int:
         cleared = _clear_dex_surface_cache(chain_id=4663, protocols=["uniswap_v4"])
     except Exception as exc:
         errors.append(f"dex_surface_cache: {exc}")
+    try:
+        cleared += clear_robinhood_v4_pool_cache(database_url=str(database))
+    except Exception as exc:
+        errors.append(f"robinhood_v4_pool_cache: {exc}")
 
     report = {
         "ok": not errors,

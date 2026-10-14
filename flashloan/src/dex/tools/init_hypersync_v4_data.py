@@ -22,6 +22,9 @@ from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
 from core.db.import_existing_json import import_existing_json  # noqa: E402
 from core.db import builders  # noqa: E402
+from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E402
+    clear_robinhood_v4_pool_cache,
+)
 
 
 def main() -> int:
@@ -52,6 +55,7 @@ def main() -> int:
         report = builders.verify_anchor_integrity(str(database), anchors=anchors)
     else:
         report = builders.build_all_anchor_data(str(database), anchors=anchors)
+    clear_robinhood_v4_pool_cache(database_url=str(database))
     print(
         json.dumps(
             {

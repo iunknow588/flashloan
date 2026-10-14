@@ -1,332 +1,115 @@
 {
   "anchorSymbol": "ETH",
   "chainId": 4663,
-  "generatedAt": "2026-10-03T01:29:49.103934Z",
+  "generatedAt": "2026-10-12T14:59:23.454493Z",
   "network": "robinhood",
   "schemaVersion": "robinhood-yc-zc-token-cache-v1",
-  "tokenCount": 213,
+  "tokenCount": 57,
   "tokens": [
     {
       "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
       "decimals": 6,
-      "poolCount": "570",
+      "poolCount": "71",
       "source": "v4_token_metadata",
       "symbol": "USDG"
     },
     {
-      "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
-      "decimals": 18,
-      "poolCount": "20",
-      "source": "v4_token_metadata",
-      "symbol": "USDE"
-    },
-    {
-      "address": "0x098e9f2c512e7723c7ec55eaec8488d7a1e7c63b",
+      "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
       "decimals": 18,
       "poolCount": "16",
       "source": "v4_token_metadata",
-      "symbol": "AIGYR"
+      "symbol": "NVDA"
     },
     {
-      "address": "0x104cfd504e878141e251025d2d2c88d28edc6cb5",
+      "address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
       "decimals": 18,
       "poolCount": "8",
       "source": "v4_token_metadata",
-      "symbol": "FIX6900"
+      "symbol": "SPCX"
     },
     {
-      "address": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
-      "decimals": 18,
-      "poolCount": "6",
-      "source": "v4_token_metadata",
-      "symbol": "BEHALF"
-    },
-    {
-      "address": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
-      "decimals": 18,
-      "poolCount": "6",
-      "source": "v4_token_metadata",
-      "symbol": "DIG"
-    },
-    {
-      "address": "0x4a61706f211eabad31cd142610a385e04f848295",
-      "decimals": 18,
-      "poolCount": "6",
-      "source": "v4_token_metadata",
-      "symbol": "SAEGIS"
-    },
-    {
-      "address": "0xc780d8611723d154e8ca0e31c12efedb71155777",
+      "address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
       "decimals": 18,
       "poolCount": "5",
       "source": "v4_token_metadata",
-      "symbol": "FISH"
+      "symbol": "SPY"
     },
     {
-      "address": "0x1c03ced29e2ca7e063f6fd61e0a8c6aeb1c696a7",
+      "address": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
       "decimals": 18,
       "poolCount": "5",
       "source": "v4_token_metadata",
-      "symbol": "MOONLET"
+      "symbol": "TSLA"
     },
     {
-      "address": "0x0f90d8f5a9a89ba362537555d9dd4217fe8945f4",
+      "address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
       "decimals": 18,
-      "poolCount": "5",
+      "poolCount": "4",
       "source": "v4_token_metadata",
-      "symbol": "SQUEEZE"
+      "symbol": "AAPL"
     },
     {
-      "address": "0xc406938756478f9401ef30a2b2337f3e7a8a0b03",
+      "address": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
       "decimals": 18,
-      "poolCount": "5",
+      "poolCount": "4",
       "source": "v4_token_metadata",
-      "symbol": "UMBRELLA"
+      "symbol": "CRCL"
     },
     {
-      "address": "0xd6470223588ba5f6a60776f6c335a47a10f30b19",
+      "address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+      "decimals": 18,
+      "poolCount": "4",
+      "source": "v4_token_metadata",
+      "symbol": "GME"
+    },
+    {
+      "address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "decimals": 18,
+      "poolCount": "4",
+      "source": "v4_token_metadata",
+      "symbol": "GOOGL"
+    },
+    {
+      "address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
       "decimals": 18,
       "poolCount": "3",
       "source": "v4_token_metadata",
-      "symbol": ">_"
+      "symbol": "META"
     },
     {
-      "address": "0x6bde8a5aa75440f60b22dbe90835cbfc133bd0c1",
+      "address": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
       "decimals": 18,
       "poolCount": "3",
       "source": "v4_token_metadata",
-      "symbol": "DYNAMITE"
+      "symbol": "MU"
     },
     {
-      "address": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
       "decimals": 18,
       "poolCount": "3",
       "source": "v4_token_metadata",
-      "symbol": "TMF"
+      "symbol": "WETH"
     },
     {
-      "address": "0xe76284f7480675de4393ee159270853fec0c0777",
+      "address": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
       "decimals": 18,
       "poolCount": "2",
       "source": "v4_token_metadata",
-      "symbol": "BILI"
+      "symbol": "COIN"
     },
     {
-      "address": "0x244bd118a64ddd1fbbab24acc9fe3c1cfcd4e0e0",
+      "address": "0x2d427692e928fa156ec22acfabafa0447c5805b7",
       "decimals": 18,
       "poolCount": "2",
       "source": "v4_token_metadata",
-      "symbol": "BRYL"
+      "symbol": "GLXY"
     },
     {
-      "address": "0x8b3e04a657af9d141e8f61df56560e3f7f971a50",
+      "address": "0xec262a75e413fafd0df80480274532c79d42da09",
       "decimals": 18,
       "poolCount": "2",
       "source": "v4_token_metadata",
-      "symbol": "CLVC"
-    },
-    {
-      "address": "0xd2e00809caf0c07b0c34bf797d08f37ba9d99929",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "COZY"
-    },
-    {
-      "address": "0x820012a9bfb19db161a1a059a6d83c2777fc0777",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "DJT"
-    },
-    {
-      "address": "0x575faee721e8537b91a8ee507dc8a789397c4636",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "DOMA"
-    },
-    {
-      "address": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "HONKADE"
-    },
-    {
-      "address": "0xd5dbcf88bbbca7948d53a025e9e22e9fbf1ebe3f",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "LEAKED"
-    },
-    {
-      "address": "0x480b924fdc7291c0348fe79aba2c75470bd3d960",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "LIEGE"
-    },
-    {
-      "address": "0xe58005b0bb7fe59895f8868562ad13cf58004e9c",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "NTTL"
-    },
-    {
-      "address": "0x1339d98c7ee6c3cd6ab964572b066d9301651e18",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "ORBACLE"
-    },
-    {
-      "address": "0xe1ed24b06b83cea27676c6b26ad9268e81531e18",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "PACKZ"
-    },
-    {
-      "address": "0xf1ab029b898d4d55bcca5d1815e565422056edba",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "PLMP"
-    },
-    {
-      "address": "0xb86e6600623ea5dc5123dd20c2557bba4e7c9150",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "POND"
-    },
-    {
-      "address": "0x498a30269f4b5527a661d7e3694536673f49ad55",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "PONMATH"
-    },
-    {
-      "address": "0xce9976a1bd5ac404d079822e861871bb5f1fed73",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "POT"
-    },
-    {
-      "address": "0x058e7009bd76e92b5e026872d5a0e43b5c0ca5ab",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "PRGE"
-    },
-    {
-      "address": "0xedbf91223639800bcd5756815caf908df3b890be",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "PRIORS"
-    },
-    {
-      "address": "0x2a5c7bb9086888ec16604b169c54caf5216e15ae",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "QRTZ"
-    },
-    {
-      "address": "0x276aca021b8003b9a9b27ebd9801d9c9b8881e18",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "RUSH"
-    },
-    {
-      "address": "0x0c4c6bcaaa3520a14d10184df2c8e0e9a5c0d777",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "STONKERS"
-    },
-    {
-      "address": "0x52b73fbd9287af8d5c08df9e2b81b2850faa1e18",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "SURGE"
-    },
-    {
-      "address": "0x9e795209be691654fb908ab86b3a651551939e16",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "TALON"
-    },
-    {
-      "address": "0x396452c1e11b7869cf7a19c8c5030323133834b7",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "TLLW"
-    },
-    {
-      "address": "0x01725ae97af327922b40afcc6bfa1c75d95e7afd",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "TRUMPTV"
-    },
-    {
-      "address": "0x3d40cef9f3186eec44404e3e3429fa0d71486ba3",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "UNDERDOG"
-    },
-    {
-      "address": "0xd9b2a397b2d5fec1c1788fb9416297ea7dc2bd0c",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "URSV"
-    },
-    {
-      "address": "0x6df1d7ad52f7702d09b059e34f152d6d2ccbc776",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "WITNESS"
-    },
-    {
-      "address": "0xb957b31b3fcbb0acdd1f16c4965a89ca684693e9",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "XENC"
-    },
-    {
-      "address": "0x020d42f87e3a7b647d450dd8f08c574f5448ebaf",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "YZUY"
-    },
-    {
-      "address": "0x131dc101bee62c8dfdbbf706922d2d4edf60abed",
-      "decimals": 18,
-      "poolCount": "2",
-      "source": "v4_token_metadata",
-      "symbol": "ZAFF"
-    },
-    {
-      "address": "0xa16ec9a9d796a1415b05d689243b48292d708979",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "32145SA"
+      "symbol": "MSTR"
     },
     {
       "address": "0xa09d3998641b078c1198e147544a982b3fe04777",
@@ -343,32 +126,11 @@
       "symbol": "AGENT"
     },
     {
-      "address": "0x500ae7e10210763d6f5b8583eb8524200d5afcef",
+      "address": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "AGNET"
-    },
-    {
-      "address": "0x903165be11f0e847297fa32530c51b396abd1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "AIGYRAI"
-    },
-    {
-      "address": "0xbd395e2b24422c1e05521a59bfa83acfb2ad1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "AIGYRCOIN"
-    },
-    {
-      "address": "0xa4ddf89a40a35264e9d7f896a1ef01c59b1e977a",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ANYR"
+      "symbol": "AMD"
     },
     {
       "address": "0x21289353d3822d6181152d3d1bbb28b7d5110404",
@@ -378,20 +140,6 @@
       "symbol": "ART"
     },
     {
-      "address": "0x6a6a57d1e94eb586c5b505a1c81434bda3d6ed97",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BABY"
-    },
-    {
-      "address": "0x673f253836b849576542ca395e13958471e53b1d",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BDBID"
-    },
-    {
       "address": "0xbade75ad15f357199410b8f0e9bcce7c127f4163",
       "decimals": 18,
       "poolCount": "1",
@@ -399,46 +147,11 @@
       "symbol": "BEEZIE"
     },
     {
-      "address": "0x2ad60243c1bfd46a2851d1e1368457a739061e18",
+      "address": "0xe76284f7480675de4393ee159270853fec0c0777",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "BEHALFCOIN"
-    },
-    {
-      "address": "0x56b8bbcc0c462ef3e07920525e2e36ea2e372b6a",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BLACKMINE"
-    },
-    {
-      "address": "0x9c41c25355434c7f2aaa7bcad7d1b5d991b8cb44",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BNTEST"
-    },
-    {
-      "address": "0xb329b5c03be16a939ceed25e74135b1a83f4bd93",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BOB"
-    },
-    {
-      "address": "0xbe7e289ca1c9cf1aae8936a19734dda7ff4e6001",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BRMBT"
-    },
-    {
-      "address": "0x9c57e13c4105c4f64ab4cb19ace21ec3b91ce635",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BROCCOLI"
+      "symbol": "BILI"
     },
     {
       "address": "0xfcec6838d80374aa520ca9c353c0ea495d7c3ab7",
@@ -448,88 +161,11 @@
       "symbol": "BRUME"
     },
     {
-      "address": "0xe2e0d27c7771c9dbbf7f6d9a6fb47f4e2424906e",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BRYLT"
-    },
-    {
-      "address": "0xf511244704908abb16d10b2a3986f301b839fb87",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "BZL"
-    },
-    {
-      "address": "0xc4fc18e88950deb61be0cf2b602f6de63e361e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CHAINSCORE"
-    },
-    {
-      "address": "0x5c15614e5cbef0bfb75555a27d59ca4dc687692c",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CLVCT"
-    },
-    {
-      "address": "0x69fd9ed7504cabe1a961bbd0c347db1aa579e7ae",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CORVUS"
-    },
-    {
-      "address": "0x285a9ddf53bef60ebcc55f5752724a30ef7b2d17",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CRADLE"
-    },
-    {
-      "address": "0x07f036f09f7a1c760a4f4409df5eda4e4d0088c2",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CREATURE"
-    },
-    {
-      "address": "0xd2b642c0f013c4efab500649f63f2a808c1848a5",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CROSSRATE"
-    },
-    {
       "address": "0x1259b5249dd034f348609d719c41b0753efc9085",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "CSI"
-    },
-    {
-      "address": "0x52f15b8600781f1db181825da552b244626e1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "CUACKY"
-    },
-    {
-      "address": "0xb2f9955fbd040b51ee9098bf71b0731749e0decd",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "DAPL"
-    },
-    {
-      "address": "0x789f48eb09e9def503e8e8fb604e5acd7f42992d",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "DAPLT"
     },
     {
       "address": "0x0c603e21bed70b173bf4ec1a8be5d57a3dbbfa2f",
@@ -539,11 +175,18 @@
       "symbol": "DEXTINY"
     },
     {
-      "address": "0x190329f185a3b1f7e16656d3d2f9bd6211d21e18",
+      "address": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "DIGCOIN"
+      "symbol": "DIG"
+    },
+    {
+      "address": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "decimals": 18,
+      "poolCount": "1",
+      "source": "v4_token_metadata",
+      "symbol": "DJT"
     },
     {
       "address": "0xbeb4e112eb724df0613444e4c9ed2d6e10b58777",
@@ -553,25 +196,11 @@
       "symbol": "DKNG"
     },
     {
-      "address": "0xb97817b76cc1319a4d96f7e3fc179ea005171e18",
+      "address": "0x575faee721e8537b91a8ee507dc8a789397c4636",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "DOTTY"
-    },
-    {
-      "address": "0x84c83162f943a9675b67f311f6aec19552b21e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "EAGIE"
-    },
-    {
-      "address": "0x44395baa91820399b97e7fba11fc733e785f1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "EAGLECOIN"
+      "symbol": "DOMA"
     },
     {
       "address": "0x06476873f2cb13877994329be67f05b1c25d7777",
@@ -581,46 +210,11 @@
       "symbol": "EGGSTEIN"
     },
     {
-      "address": "0x08a6f336d965949cb9f36e03c84f60ec1af2ec88",
+      "address": "0xc780d8611723d154e8ca0e31c12efedb71155777",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "EIDR"
-    },
-    {
-      "address": "0x4dd967055ac0e9b9c64f3bcb4dfbc92f29e9f6d8",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "EIDRT"
-    },
-    {
-      "address": "0x6d1766b9dbca19ff6437cb4fe4763cb24a96e490",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FEEL"
-    },
-    {
-      "address": "0x67bc49e8dfa46026485d8038f6abcfe2e2660036",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FGMT"
-    },
-    {
-      "address": "0xd166f2c802febb0a56286157fd8f9f39245750e0",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FGMTT"
-    },
-    {
-      "address": "0xa5d19247ef8b3105ca6af724416d8d70b2728f4f",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FILLED"
+      "symbol": "FISH"
     },
     {
       "address": "0x22955aa52f8b732c0f118c9fe859e13869eed355",
@@ -630,20 +224,6 @@
       "symbol": "FOLY"
     },
     {
-      "address": "0xd24c9093515e654cf1a502a13a260b2eb1b25b0d",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FOMOEGG"
-    },
-    {
-      "address": "0x70e7ff5ac5c6ee358dbae755b1072d5fc5ca80d7",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "FOMOGPT"
-    },
-    {
       "address": "0x8479560358bc8b0a44965d80a0126a47fdbfc22f",
       "decimals": 18,
       "poolCount": "1",
@@ -651,46 +231,11 @@
       "symbol": "FUGU"
     },
     {
-      "address": "0x7859dfc99f4db48e1aecd8cb1a42f1ba0b0a7012",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "GENIE"
-    },
-    {
-      "address": "0x33cc97fe06d2c1933d1397c4689e86e3e4c44266",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "GLMT"
-    },
-    {
-      "address": "0x2cadf817458b86099b3743414a61be504ace3dce",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "GLMTT"
-    },
-    {
       "address": "0x0b329adf43200107ce85d9fff1748ef184e12c8d",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "GROK"
-    },
-    {
-      "address": "0x2e22c90fe7f7070491ebce18506a1b3f39a6d85c",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "HARDLEDGER"
-    },
-    {
-      "address": "0x5aee6f4eed7038bd06dc95deed5f0385f07fbc2b",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "HARMONIC"
     },
     {
       "address": "0x35c52ef8069ae2827b458dba12066fcafa78c777",
@@ -707,109 +252,11 @@
       "symbol": "HUMAN"
     },
     {
-      "address": "0xe0dd1e6bb68adc7182a080de694463fbc1f3c948",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "HYAC"
-    },
-    {
-      "address": "0xf2271d31b2e8e9cc40fc2ea3d482c752ee036c97",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "HYACT"
-    },
-    {
       "address": "0x1f858a3b92164434d858970be5d794ab64048bb4",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "IGGY"
-    },
-    {
-      "address": "0x50e53e8a02f12557c069d51e775fe300879503bd",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "INVESTINU"
-    },
-    {
-      "address": "0x4821f878aafddfb909d66718305ba089f2a3f6f4",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "IPTZ"
-    },
-    {
-      "address": "0xcc926aaa4ac404f626a23aedc4ed16f67a437236",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "IRWK"
-    },
-    {
-      "address": "0x2876498a4fad8799ceb68684552067fa900c0f12",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "IRWKT"
-    },
-    {
-      "address": "0xed6860f23a9b638689d496f2de433e00dc4fd591",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "JBLM"
-    },
-    {
-      "address": "0x3d78f4f0ff8337d1596a1a5ac2926795d2b13a41",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "JBLMT"
-    },
-    {
-      "address": "0xee84b6fcdabb5881c7ce3658f6e3506f1f50d7c5",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "JSON"
-    },
-    {
-      "address": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "KARAT"
-    },
-    {
-      "address": "0xe7f5069b406a8cf2a386db331e36c776e837a00a",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "KASPAFUN"
-    },
-    {
-      "address": "0x0afb2a60a63d3534d29a15a67b2902ec38d0bfb3",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "KLPK"
-    },
-    {
-      "address": "0xafabf90a7b31fc258a3e7d69b8f26e73bf1eeaab",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "KLPKT"
-    },
-    {
-      "address": "0x80877fe12ede96f807422d5d4ee4f4c47cebc8ff",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "KUDO"
     },
     {
       "address": "0x3715530b3d0ed3686d765257bae25ff37b64d22e",
@@ -819,179 +266,11 @@
       "symbol": "LAGPROBE"
     },
     {
-      "address": "0xc4d95b584b08f10f82f0a07009a0988987be1e18",
+      "address": "0x4e62068525ab11fe768e29dfd00ef909b9803016",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "LEAKEDCOIN"
-    },
-    {
-      "address": "0xc4223e465e131276ceeb8163e4c7fd578d521e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LEAKEDFILE"
-    },
-    {
-      "address": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LEMON"
-    },
-    {
-      "address": "0x8ff07c49307ffa3a5ece14adceae19be0b141e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LETSWAGR"
-    },
-    {
-      "address": "0x34e7ccf5f4a4310b3bfeadd05e2beee21bc4bbc1",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LPS"
-    },
-    {
-      "address": "0x037723199b6201c789d19e948f751cf704ed3e62",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LTSL"
-    },
-    {
-      "address": "0xa3b66a03b10b847984a2d55035e38d32f9884fba",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "LTSLT"
-    },
-    {
-      "address": "0x4aae2ab9aca596d368aa5410e90ce458b5321e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MARKETRUSH"
-    },
-    {
-      "address": "0x7e8ec4c88fbc002bf77d4e622834c39184561e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MATTRESS"
-    },
-    {
-      "address": "0xd0c07b64c9810888d8a1dc665f270edaa4da1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MATTRESSCOIN"
-    },
-    {
-      "address": "0xff74a64905f68048b3886ade27486b0ada99153f",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MNQL"
-    },
-    {
-      "address": "0x5e04ad8a48db28e9921e3478e6e85614c334c334",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MNQLT"
-    },
-    {
-      "address": "0x2c8da977c47cf0bd262d3e38edf5cc65fe0978a4",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MNTD"
-    },
-    {
-      "address": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MONTAGE"
-    },
-    {
-      "address": "0xdfe9d23a2a0e028e8db85349cce4e737b66e13ec",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "MOONVEIL"
-    },
-    {
-      "address": "0xd1c5bbde0a0a988e5b41ca338330ea91e9561e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "NOTOAI"
-    },
-    {
-      "address": "0xeafac31fe1334e3656211b7f01aae28f7a82513c",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "NTTLT"
-    },
-    {
-      "address": "0xbe5d432a0b30443987d261b664cc6bb8bccb80d6",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "OGATE"
-    },
-    {
-      "address": "0xf8c662c796a7e7afb215da93357d2c43bff11e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ORBACLECOIN"
-    },
-    {
-      "address": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ORBIOBOOK"
-    },
-    {
-      "address": "0x6a82aade87c2df2dd27064eda60fa8619a739774",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ORCA"
-    },
-    {
-      "address": "0x71e5a08054a4e7fdead7fd099fb06a7513cd0d90",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ORCAT"
-    },
-    {
-      "address": "0xc849fbe9f292c9db201012993a95a3f70e1e1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "OTTO"
-    },
-    {
-      "address": "0xa7e751c3c613a9f725b89f9347fade4df42a1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "OTTOBOTFUN"
-    },
-    {
-      "address": "0x3c570fb67334c8cc51f3fd07a88facc8972b1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "OTTOCOIN"
+      "symbol": "LULU"
     },
     {
       "address": "0x2c35a15ca2baf95a36d0c1c1b8de82ae6c8f4070",
@@ -1001,25 +280,11 @@
       "symbol": "OVT"
     },
     {
-      "address": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "OZZY"
-    },
-    {
       "address": "0xfdcf99b76e0317ab34f181b9cb0567b4f1fb89f5",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "P2"
-    },
-    {
-      "address": "0xea50eef25586df54c3ccc1f1d1e925862a1b1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PACKZCOIN"
     },
     {
       "address": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
@@ -1029,46 +294,11 @@
       "symbol": "PEPE"
     },
     {
-      "address": "0x37a2afaa98648f2e13658623885f821ac8365609",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PGLD5X"
-    },
-    {
-      "address": "0x24a6b60caec571b3cf18cb89b19cecd3af30dbcc",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PHIDEV"
-    },
-    {
       "address": "0xf1d086505f25099138987073b8137b7a455181dd",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "PIE"
-    },
-    {
-      "address": "0x4d23f07b11497d00765847a2e1eb86c774a43463",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PIPO"
-    },
-    {
-      "address": "0xfc887ca73df1f6ba3e4c35c732fe652ac182ed06",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PLMPT"
-    },
-    {
-      "address": "0x1232da38a953dfc4c4a926ec3e52a4440bafec0b",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "POCKET"
     },
     {
       "address": "0x9da615898459ffd65b239eebfd87fa8a6e42be01",
@@ -1078,18 +308,11 @@
       "symbol": "POKEMON"
     },
     {
-      "address": "0xa471ba8b55783ba1c8e7720aaff064f8330c4104",
+      "address": "0xb86e6600623ea5dc5123dd20c2557bba4e7c9150",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "PONSUNI"
-    },
-    {
-      "address": "0x935f5a0f72301f1dc70c28f777629df5782c5bfc",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "PPERP"
+      "symbol": "POND"
     },
     {
       "address": "0x799d391a9eb47c11050baef1002634927617ead5",
@@ -1099,53 +322,11 @@
       "symbol": "PRWS"
     },
     {
-      "address": "0x3ff353217aff145daf0e3973baa7b641b47ce7af",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "QRTZT"
-    },
-    {
-      "address": "0x6b63ce33c9a276c854ecab3c352caeab84e61e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "QUOTED"
-    },
-    {
-      "address": "0x0c8890df6c91923cc1935b4ea3d797114a7e1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "QUOTEDCOIN"
-    },
-    {
       "address": "0x898e1a7d99fd8f4b3ed0b36f0fee0d59a693beee",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "RECURVE"
-    },
-    {
-      "address": "0x886171bd2fa8a77aa2132aeb213cb2090374a733",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "RMC"
-    },
-    {
-      "address": "0x1bf64a21733ccbc66e6181b0ec4e451492db3bd1",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "RNRK"
-    },
-    {
-      "address": "0x1c91b92cbeab3bd5b413555eecae4663e66edd00",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "RNRKT"
     },
     {
       "address": "0xff25c8b29340eb00efbebb8896b4884e1fee0031",
@@ -1155,55 +336,6 @@
       "symbol": "RSVL"
     },
     {
-      "address": "0x03d53a253bc346e7661e75fe423d4153d89d1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "RUSHCOIN"
-    },
-    {
-      "address": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SABLE"
-    },
-    {
-      "address": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SC"
-    },
-    {
-      "address": "0x1221f5e12f3ae43b2d7aa485a2ba4cbce3131e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SCORE"
-    },
-    {
-      "address": "0xb9dcfe5004590278c8d74ef714bedaa747821e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SCORECOIN"
-    },
-    {
-      "address": "0xa968d072f131672d4d76e79442441fde485bbcd3",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SEDG"
-    },
-    {
-      "address": "0x72402ac1d04e913e7770cd20523f6b64b331e49f",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SEDGT"
-    },
-    {
       "address": "0x3a0a00618217e21dbc833d9f0f35c4ffcbd83cce",
       "decimals": 18,
       "poolCount": "1",
@@ -1211,46 +343,11 @@
       "symbol": "SGI"
     },
     {
-      "address": "0x238e40b75ae78a1388a14e517d855893e92e58db",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SGT"
-    },
-    {
-      "address": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SHROOMSFUN"
-    },
-    {
-      "address": "0xba1a2d9783ebe2b76493c5c12eb9813a0e062843",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SI"
-    },
-    {
-      "address": "0xe64ad9de48bf5c7e571b3d36fd9862537767b755",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SI.GOV"
-    },
-    {
       "address": "0xece632f25940ecfd48e9ccef071eee0cfe642bec",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "SIGH"
-    },
-    {
-      "address": "0x177306b1938cdb6ff7ec4322b2c6356e6e818188",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SLOWLY"
     },
     {
       "address": "0xeb2aff211c1cf136e2e7abe5c30ce4959b5b6dcf",
@@ -1267,39 +364,11 @@
       "symbol": "SPROUT"
     },
     {
-      "address": "0x72cd188ed6d73d1cc55eaf6e5dda653381f61e18",
+      "address": "0x0c4c6bcaaa3520a14d10184df2c8e0e9a5c0d777",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "SURGECOIN"
-    },
-    {
-      "address": "0x5372c70d42f01d10451c0436cecfff26b50d1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "SURGEPAD"
-    },
-    {
-      "address": "0x5884f5ec3d7a1de50d7f86dd5b965c3f64766163",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TEST12"
-    },
-    {
-      "address": "0xd860a87d463f7792d79036146375bebe2d7c8e24",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TESTER1"
-    },
-    {
-      "address": "0x7bc5a81458453de233ee3204169e053767deb3ca",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "THESEAN"
+      "symbol": "STONKERS"
     },
     {
       "address": "0xe84433717b4b08d3259bf730062ff07f55ca1777",
@@ -1309,20 +378,6 @@
       "symbol": "TLC"
     },
     {
-      "address": "0xd5027a5b0e9a8285f9b37a77964cf6c9a95a529b",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TLLWT"
-    },
-    {
-      "address": "0x9b4cf34f9f5c62f2882a44a54c3e8587414d1e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TMFCOIN"
-    },
-    {
       "address": "0xdea5d38ccab0e03b43fe8911f4d0fb0cc09b0777",
       "decimals": 18,
       "poolCount": "1",
@@ -1330,102 +385,18 @@
       "symbol": "TOPENAI"
     },
     {
-      "address": "0xed73ee61d3b2bdee20f7394501956741537a3514",
+      "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "TRENCH"
+      "symbol": "USDE"
     },
     {
-      "address": "0x590ed9b6c439e260320674e9fd3de316477f1e18",
+      "address": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
       "decimals": 18,
       "poolCount": "1",
       "source": "v4_token_metadata",
-      "symbol": "TRYDIGFUN"
-    },
-    {
-      "address": "0xe551960e504c0a09dda59cf596fc8d4829bba000",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TUBION"
-    },
-    {
-      "address": "0xb0ab82fe5bca923695a93718ed6eaa8febde759e",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "TYESDSTRE"
-    },
-    {
-      "address": "0x3e17c94ba8112380ef81a43fc33b08ca6284fb33",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "U"
-    },
-    {
-      "address": "0xab2135bfa61c5f08372feb89e2f90408cf7290da",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "URSVT"
-    },
-    {
-      "address": "0x951fe06f8059f2a9073fa5d22c775787fda3ed5d",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VEIL"
-    },
-    {
-      "address": "0x6f77b013d951bf50ce1de9c61b91a49efdd00334",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VERV"
-    },
-    {
-      "address": "0x13fa7c4353479cc2bcdf0524fa218e4a088496d3",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VERVT"
-    },
-    {
-      "address": "0x59e8ae5c2e1edf77d2169e0ae67524c43aaca393",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VISOR"
-    },
-    {
-      "address": "0x746644da151e9b7de5345690440b078a0ca5073f",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VRAD"
-    },
-    {
-      "address": "0x94641b97010608c3827fb058074889f19868ff33",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "VRAX"
-    },
-    {
-      "address": "0xd4505321820e9bd25b1991dd460442c206671e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WAGR"
-    },
-    {
-      "address": "0xe4979be27d9eda383622d0fb068c401b1d071e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WAGRCOIN"
+      "symbol": "USO"
     },
     {
       "address": "0x9ecf5c82d754787fcb640930d594ab55b5412ffd",
@@ -1433,69 +404,6 @@
       "poolCount": "1",
       "source": "v4_token_metadata",
       "symbol": "WEB1"
-    },
-    {
-      "address": "0x0d0a2a82f0d3897600902cd08e6a5be1b65f74d1",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WHATS"
-    },
-    {
-      "address": "0x4e03ae17e8d879c99a33a4e8dbe07085b52abbc2",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WINK"
-    },
-    {
-      "address": "0x38b5f0562d40431df2c96df8be0316979cf81e18",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WITNESSCOIN"
-    },
-    {
-      "address": "0x5dbdd21e484f6bbc34a9ba09402b46ca4c115210",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WLWP"
-    },
-    {
-      "address": "0xaed853349282c6047a103b990a623b866c9333d2",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "WLWPT"
-    },
-    {
-      "address": "0xae4dcbe4e84a92b581a0bdfde32946e16e53ad5b",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "XENCT"
-    },
-    {
-      "address": "0x126fb199219dda5d7f11aab50f64d64ab9fbf7fa",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "YZUYT"
-    },
-    {
-      "address": "0x10e29e1ac407a559c70610da855ee8b73e8ece76",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ZAFFT"
-    },
-    {
-      "address": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
-      "decimals": 18,
-      "poolCount": "1",
-      "source": "v4_token_metadata",
-      "symbol": "ZKD"
     }
   ]
 }

@@ -3,11 +3,13 @@
   "errors": [],
   "generatedAt": "2026-10-02T23:36:28.741511Z",
   "metadataMissingCount": 0,
-  "metadataOkCount": 554,
+  "metadataOkCount": 726,
   "network": "robinhood",
   "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
   "schemaVersion": "robinhood-v4-token-metadata-v1",
-  "tokenAddressCount": 554,
+  "stockTokenCount": 194,
+  "stockTokenSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\chains\\robinhood\\robinhood_stock_tokens.json",
+  "tokenAddressCount": 726,
   "tokens": {
     "0x0000000000000000000000000000000000000000": {
       "address": "0x0000000000000000000000000000000000000000",
@@ -58,12 +60,32 @@
       "source": "chain_live_erc20",
       "symbol": "LTSL"
     },
+    "0x03bc731ffb162cdd7b98d3c6542bfc291126075d": {
+      "address": "0x03BC731Ffb162cdd7B98D3C6542bFC291126075d",
+      "decimals": 18,
+      "isin": "US31816X1063",
+      "metadataOk": true,
+      "name": "Firefly Aerospace Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FLY"
+    },
     "0x03d53a253bc346e7661e75fe423d4153d89d1e18": {
       "address": "0x03d53a253Bc346e7661e75FE423D4153D89D1e18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "RUSHCOIN"
+    },
+    "0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80": {
+      "address": "0x03DfbBE0AC4E7bCDaFd08eD41A400326B77D8c80",
+      "decimals": 18,
+      "isin": "US4781601046",
+      "metadataOk": true,
+      "name": "Johnson & Johnson • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "JNJ"
     },
     "0x04196f09f18993b093f17345b1cb061ad0441e18": {
       "address": "0x04196f09F18993b093f17345b1CB061aD0441E18",
@@ -86,6 +108,36 @@
       "source": "chain_live_erc20",
       "symbol": "PRGE"
     },
+    "0x0594134df3f171a354d9c85ebd65b7a6148f6d09": {
+      "address": "0x0594134DF3f171a354D9C85eBD65b7A6148F6D09",
+      "decimals": 18,
+      "isin": "US9229087690",
+      "metadataOk": true,
+      "name": "Vanguard Morningstar Total Stock Market ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "VTI"
+    },
+    "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b": {
+      "address": "0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B",
+      "decimals": 18,
+      "isin": "US00165C3025",
+      "metadataOk": true,
+      "name": "AMC Entertainment • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AMC"
+    },
+    "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c": {
+      "address": "0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C",
+      "decimals": 18,
+      "isin": "US75734B1008",
+      "metadataOk": true,
+      "name": "Reddit • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RDDT"
+    },
     "0x06476873f2cb13877994329be67f05b1c25d7777": {
       "address": "0x06476873F2cB13877994329be67F05b1c25d7777",
       "decimals": 18,
@@ -99,6 +151,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "FIX6900"
+    },
+    "0x072f979c2cac8e1391b0162a87fee094bf8744a0": {
+      "address": "0x072f979c2CAc8e1391B0162a87Fee094bF8744a0",
+      "decimals": 18,
+      "isin": "US92189F6768",
+      "metadataOk": true,
+      "name": "VanEck Semiconductor ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SMH"
     },
     "0x07311b164c4d66f532a3e239d4153e7dc8416f91": {
       "address": "0x07311B164C4D66F532a3e239D4153E7Dc8416F91",
@@ -163,12 +225,32 @@
       "source": "chain_live_erc20",
       "symbol": "Grok"
     },
+    "0x0b5fb4031cae9163db10b169ee72685f0edc8545": {
+      "address": "0x0b5fb4031cae9163db10B169Ee72685F0EdC8545",
+      "decimals": 18,
+      "isin": "US88339J1051",
+      "metadataOk": true,
+      "name": "Trade Desk • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TTD"
+    },
     "0x0bd7d308f8e1639fab988df18a8011f41eacad73": {
       "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "WETH"
+    },
+    "0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14": {
+      "address": "0x0C3260aF4B8f13a69c4c2dFb84fD667890CDFa14",
+      "decimals": 18,
+      "isin": "US81762P1021",
+      "metadataOk": true,
+      "name": "ServiceNow • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NOW"
     },
     "0x0c4c6bcaaa3520a14d10184df2c8e0e9a5c0d777": {
       "address": "0x0c4C6bcAaa3520A14D10184DF2c8E0e9A5c0d777",
@@ -204,6 +286,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "WHATS"
+    },
+    "0x0e6e67ba88e7b5d9b67636a215c76779b948de79": {
+      "address": "0x0E6e67Ba88e7b5d9B67636A215c76779B948dE79",
+      "decimals": 18,
+      "isin": "US9108734057",
+      "metadataOk": true,
+      "name": "United Microelectronics • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "UMC"
+    },
+    "0x0f17206447090e464c277571124dd2688e48aea9": {
+      "address": "0x0f17206447090e464C277571124dD2688E48AEA9",
+      "decimals": 18,
+      "isin": "US7475251036",
+      "metadataOk": true,
+      "name": "Qualcomm • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "QCOM"
     },
     "0x0f90d8f5a9a89ba362537555d9dd4217fe8945f4": {
       "address": "0x0f90D8F5a9A89ba362537555D9DD4217fe8945F4",
@@ -247,11 +349,24 @@
       "source": "chain_live_erc20",
       "symbol": "AIGYR"
     },
+    "0x116f00968269b7bfbad4109ce591d6e74c0601d4": {
+      "address": "0x116F00968269B7bfbaD4109cE591d6E74c0601d4",
+      "decimals": 18,
+      "isin": "US18915M1071",
+      "metadataOk": true,
+      "name": "Cloudflare, Inc. Class A common stock • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NET"
+    },
     "0x117cc2133c37b721f49de2a7a74833232b3b4c0c": {
       "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
       "decimals": 18,
+      "isin": "US78462F1030",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "SPDR S&P 500 ETF Trust • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "SPY"
     },
     "0x1221f5e12f3ae43b2d7aa485a2ba4cbce3131e18": {
@@ -289,6 +404,26 @@
       "source": "chain_live_erc20",
       "symbol": "FATCOIN"
     },
+    "0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993": {
+      "address": "0x12e3c047bf9AeCAF9dDC98c05C31BFD1dd043993",
+      "decimals": 18,
+      "isin": "US5002551043",
+      "metadataOk": true,
+      "name": "Kohls Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "KSS"
+    },
+    "0x12f190a9f9d7d37a250758b26824b97ce941bf54": {
+      "address": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+      "decimals": 18,
+      "isin": "US0231351067",
+      "metadataOk": true,
+      "name": "Amazon • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AMZN"
+    },
     "0x131dc101bee62c8dfdbbf706922d2d4edf60abed": {
       "address": "0x131dc101bEe62C8DfdBBf706922D2d4edF60aBEd",
       "decimals": 18,
@@ -324,6 +459,16 @@
       "source": "chain_live_erc20",
       "symbol": "TLLW"
     },
+    "0x141eea040c2250eec0314e336975e81f85f6585e": {
+      "address": "0x141eEa040c2250eEc0314e336975e81f85f6585e",
+      "decimals": 18,
+      "isin": "US00246W1036",
+      "metadataOk": true,
+      "name": "AXT • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AXTI"
+    },
     "0x149dd3c19d88bbeaab78d79d9986734d9bc01ba3": {
       "address": "0x149dD3c19d88bBeaaB78D79D9986734D9bC01ba3",
       "decimals": 18,
@@ -337,6 +482,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "FILLED"
+    },
+    "0x156e175dd063a8ce274c50654ef40e0032b3fbcf": {
+      "address": "0x156E175DD063a8cE274C50654eF40e0032b3fbcF",
+      "decimals": 18,
+      "isin": "US11135F1012",
+      "metadataOk": true,
+      "name": "Broadcom • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AVGO"
+    },
+    "0x15cd20759ce7f3285c29a319de2d1a2e098c6f43": {
+      "address": "0x15Cd20759CE7F3285c29A319dE2D1A2e098c6f43",
+      "decimals": 18,
+      "isin": "US81369Y8030",
+      "metadataOk": true,
+      "name": "State Street Technology Select Sector SPDR ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "XLK"
     },
     "0x16ac04153cc97b2a051e277edee69d5929b3e909": {
       "address": "0x16ac04153CC97b2a051E277EDEE69D5929b3e909",
@@ -373,11 +538,24 @@
       "source": "chain_live_erc20",
       "symbol": "ANTHROPICx1L"
     },
+    "0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137": {
+      "address": "0x1AF6446f07eb1d97c546AFC8c9544cBDF3AD5137",
+      "decimals": 18,
+      "isin": "US00217D1000",
+      "metadataOk": true,
+      "name": "AST SpaceMobile • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ASTS"
+    },
     "0x1b0e319c6a659f002271b69db8a7df2f911c153e": {
       "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
       "decimals": 18,
+      "isin": "US36467W1099",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "GameStop • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "GME"
     },
     "0x1b7dc1f35d81645ff3819c0367679101544e4d7a": {
@@ -408,6 +586,16 @@
       "source": "chain_live_erc20",
       "symbol": "MOONLET"
     },
+    "0x1c690498150252222c275a5ced69d3a6b1f52d5e": {
+      "address": "0x1c690498150252222C275A5CEd69d3A6b1f52D5E",
+      "decimals": 18,
+      "isin": "US46434G7723",
+      "metadataOk": true,
+      "name": "iShares MSCI Taiwan Capped ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "EWT"
+    },
     "0x1c91b92cbeab3bd5b413555eecae4663e66edd00": {
       "address": "0x1c91b92CbEab3bd5b413555EEcAe4663E66EDd00",
       "decimals": 18,
@@ -415,11 +603,24 @@
       "source": "chain_live_erc20",
       "symbol": "RNRKT"
     },
+    "0x1cdad396db64bda184d5182a97dd9b3c62100b7d": {
+      "address": "0x1Cdad396DB64BDa184d5182A97Dd9B3C62100b7D",
+      "decimals": 18,
+      "isin": "US74624M1027",
+      "metadataOk": true,
+      "name": "Everpure • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "P"
+    },
     "0x1d11f0496982706c5e14a514d4e79f2e6bde4516": {
       "address": "0x1D11f0496982706C5e14A514D4E79F2e6BdE4516",
       "decimals": 18,
+      "isin": "US25400Q1058",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Trump Media & Technology Group • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "DJT"
     },
     "0x1d96d5f47a9fd120a4953604fc2926c1fad01e18": {
@@ -428,6 +629,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "PENCILINU"
+    },
+    "0x1eebee7f74517e0279dfb09d25b0407beec3fdd6": {
+      "address": "0x1Eebee7F74517e0279dFb09d25B0407bEEc3FDd6",
+      "decimals": 18,
+      "isin": "US67079K1007",
+      "metadataOk": true,
+      "name": "NuScale Power • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SMR"
     },
     "0x1f858a3b92164434d858970be5d794ab64048bb4": {
       "address": "0x1f858A3b92164434D858970bE5D794Ab64048BB4",
@@ -492,12 +703,32 @@
       "source": "chain_live_erc20",
       "symbol": "FOLY"
     },
+    "0x232b8ed6377be97813853b0ac104c4cda8378d1b": {
+      "address": "0x232B8ed6377BE97813853B0Ac104c4Cda8378d1B",
+      "decimals": 18,
+      "isin": "US00724F1012",
+      "metadataOk": true,
+      "name": "Adobe • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ADBE"
+    },
     "0x235b050f4661258cc94243d4113306dab8761e18": {
       "address": "0x235B050F4661258CC94243d4113306dab8761e18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "MOSS"
+    },
+    "0x237c16d66590f67b886d978acd362eaead8b18c7": {
+      "address": "0x237c16D66590F67B886d978ACD362EAeaD8B18c7",
+      "decimals": 18,
+      "isin": "US7391281067",
+      "metadataOk": true,
+      "name": "Powell Industries • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "POWL"
     },
     "0x238e40b75ae78a1388a14e517d855893e92e58db": {
       "address": "0x238E40b75Ae78A1388A14e517D855893e92e58db",
@@ -520,6 +751,16 @@
       "source": "chain_live_erc20",
       "symbol": "PHIDEV"
     },
+    "0x25c288e6d899b9bc30160965ad9644c67e73be0c": {
+      "address": "0x25C288E6D899b9BC30160965aD9644c67e73bE0C",
+      "decimals": 18,
+      "isin": "US3453708600",
+      "metadataOk": true,
+      "name": "Ford Motor • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "F"
+    },
     "0x260b9e972d4c6bed6664e210060397b610a91e18": {
       "address": "0x260B9e972D4C6bED6664e210060397B610A91E18",
       "decimals": 18,
@@ -533,6 +774,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "nops"
+    },
+    "0x26dcbfb34fc83cabd6990f449674efdc6097ff85": {
+      "address": "0x26dCbfb34FC83CAbD6990f449674efDc6097fF85",
+      "decimals": 18,
+      "isin": "US92552V1008",
+      "metadataOk": true,
+      "name": "ViaSat • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "VSAT"
     },
     "0x2719c7d315ac467cc362ebde1d96351b4366998f": {
       "address": "0x2719C7d315ac467Cc362eBdE1d96351b4366998f",
@@ -548,12 +799,62 @@
       "source": "chain_live_erc20",
       "symbol": "RUSH"
     },
+    "0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c": {
+      "address": "0x2778C5024D5cA2CdB0f8eAD671ffc69963AdCD9C",
+      "decimals": 18,
+      "isin": "US8807701029",
+      "metadataOk": true,
+      "name": "Teradyne • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TER"
+    },
+    "0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958": {
+      "address": "0x27c99fBde9D0d2AA4f4Bfb4943f237843DdF6958",
+      "decimals": 18,
+      "isin": "US23804L1035",
+      "metadataOk": true,
+      "name": "Datadog • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "DDOG"
+    },
+    "0x282e87451e10fa6679bc7d76c69be44cd3fc777c": {
+      "address": "0x282e87451E10fA6679BC7D76C69BE44cD3fC777C",
+      "decimals": 18,
+      "isin": "US34379V1035",
+      "metadataOk": true,
+      "name": "Fluence Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FLNC"
+    },
+    "0x284358abc07f9359f19f4b5b4ac91901be2597ba": {
+      "address": "0x284358abc07F9359f19f4b5b4aC91901Be2597Ba",
+      "decimals": 18,
+      "isin": "US76655K1034",
+      "metadataOk": true,
+      "name": "Rigetti Computing • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RGTI"
+    },
     "0x285a9ddf53bef60ebcc55f5752724a30ef7b2d17": {
       "address": "0x285A9ddf53BEF60ebCC55f5752724A30eF7b2D17",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "CRADLE"
+    },
+    "0x285b231728c7e4333799183df1094d775246a535": {
+      "address": "0x285b231728c7E4333799183DF1094d775246a535",
+      "decimals": 18,
+      "isin": "US81642T2096",
+      "metadataOk": true,
+      "name": "SELLAS Life Sciences • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SLS"
     },
     "0x2876498a4fad8799ceb68684552067fa900c0f12": {
       "address": "0x2876498a4FAd8799CeB68684552067fa900C0F12",
@@ -568,6 +869,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "PDF"
+    },
+    "0x28babd556b60e53663b8615036479a29c2cdd1bf": {
+      "address": "0x28bABD556b60E53663B8615036479a29c2CDd1Bf",
+      "decimals": 18,
+      "isin": "US0404132054",
+      "metadataOk": true,
+      "name": "Arista • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ANET"
     },
     "0x299c56137871b8e9fe5193b5a370cf4249df52a5": {
       "address": "0x299c56137871b8e9fe5193B5A370CF4249DF52A5",
@@ -646,6 +957,16 @@
       "source": "chain_live_erc20",
       "symbol": "GLMTT"
     },
+    "0x2d427692e928fa156ec22acfabafa0447c5805b7": {
+      "address": "0x2D427692E928fa156ec22acfaBaFA0447C5805B7",
+      "decimals": 18,
+      "isin": "US36317J2096",
+      "metadataOk": true,
+      "name": "Galaxy Digital Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "GLXY"
+    },
     "0x2d5065a6261ab27696d2e2afa14eb6eeb4e61e18": {
       "address": "0x2D5065a6261Ab27696d2E2afA14eB6EeB4e61E18",
       "decimals": 18,
@@ -667,6 +988,16 @@
       "source": "chain_live_erc20",
       "symbol": "MONTAGE"
     },
+    "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": {
+      "address": "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3",
+      "decimals": 18,
+      "isin": "US02079K3059",
+      "metadataOk": true,
+      "name": "Alphabet Class A • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "GOOGL"
+    },
     "0x2e22c90fe7f7070491ebce18506a1b3f39a6d85c": {
       "address": "0x2E22c90FE7f7070491ebCe18506a1B3F39a6D85c",
       "decimals": 18,
@@ -680,6 +1011,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "AI"
+    },
+    "0x2f62fc9fabb470c690f141c28340ed832bb27020": {
+      "address": "0x2F62fC9fAbb470C690f141c28340eD832bB27020",
+      "decimals": 18,
+      "isin": "US9219378356",
+      "metadataOk": true,
+      "name": "Vanguard Total Bond Market ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BND"
     },
     "0x2fc2d122631fbc0681dd27e68fca6dfde2338ea7": {
       "address": "0x2FC2D122631fbc0681dD27E68FCa6dfde2338ea7",
@@ -716,12 +1057,35 @@
       "source": "chain_live_erc20",
       "symbol": "PUPPY"
     },
+    "0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e": {
+      "address": "0x3139D77Ace0cbAA5bDfD38bD1F1911a794AF0B0e",
+      "decimals": 18,
+      "isin": "CA00288U1066",
+      "metadataOk": true,
+      "name": "Abcellera Biologics • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ABCL"
+    },
     "0x322f0929c4625ed5bad873c95208d54e1c003b2d": {
       "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
       "decimals": 18,
+      "isin": "US88160R1014",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Tesla • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "TSLA"
+    },
+    "0x329fcaceb9ad6f9580dd5f643fed0646900d043c": {
+      "address": "0x329fcACEb9AD6F9580DD5F643fed0646900D043c",
+      "decimals": 18,
+      "isin": "US5398301094",
+      "metadataOk": true,
+      "name": "Lockheed • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LMT"
     },
     "0x32ac8c1d7672667d5ebdea22935f7b06fc8d496f": {
       "address": "0x32aC8C1D7672667D5EbdEa22935F7B06fC8D496f",
@@ -751,6 +1115,16 @@
       "source": "chain_live_erc20",
       "symbol": "JUPITER"
     },
+    "0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd": {
+      "address": "0x348Be1A8663f15edDe5CDf8A96BB69078f7aB6Fd",
+      "decimals": 18,
+      "isin": "US88080T1043",
+      "metadataOk": true,
+      "name": "TeraWulf • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "WULF"
+    },
     "0x34e7ccf5f4a4310b3bfeadd05e2beee21bc4bbc1": {
       "address": "0x34E7cCf5f4A4310b3BfeADd05E2BeeE21Bc4bbC1",
       "decimals": 18,
@@ -772,6 +1146,16 @@
       "source": "chain_live_erc20",
       "symbol": "HOOKED"
     },
+    "0x36046893810a7e7fce501229d57dc3fc8c8716d0": {
+      "address": "0x36046893810a7E7fCE501229d57dc3FC8c8716d0",
+      "decimals": 18,
+      "isin": "US0382221051",
+      "metadataOk": true,
+      "name": "Applied Materials • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AMAT"
+    },
     "0x36dd20bdd916c096a93da9ff8f6870b080dcc058": {
       "address": "0x36dD20bDd916C096A93dA9fF8f6870b080Dcc058",
       "decimals": 18,
@@ -785,6 +1169,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "LAGPROBE"
+    },
+    "0x373c06c4f7bde527d7dae4ba169e42b55e393ced": {
+      "address": "0x373C06c4f7BDe527D7Dae4BA169E42b55E393CeD",
+      "decimals": 18,
+      "isin": "US0517741072",
+      "metadataOk": true,
+      "name": "Aurora Innovation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AUR"
     },
     "0x375cfe9a751deef76a7e0f5e1cfdb42b286e5174": {
       "address": "0x375cfe9a751dEEf76A7e0F5e1CFdb42B286E5174",
@@ -821,6 +1215,16 @@
       "source": "chain_live_erc20",
       "symbol": "TLLW"
     },
+    "0x39ec44bee4f6a116c6f9b8de566848a985c53c60": {
+      "address": "0x39EC44Bee4F6A116c6F9B8De566848a985C53C60",
+      "decimals": 18,
+      "isin": "US26856L1035",
+      "metadataOk": true,
+      "name": "e.l.f. Beauty • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ELF"
+    },
     "0x3a0a00618217e21dbc833d9f0f35c4ffcbd83cce": {
       "address": "0x3A0A00618217e21dbc833d9f0F35c4ffCbD83cce",
       "decimals": 18,
@@ -834,6 +1238,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "AIGYR"
+    },
+    "0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2": {
+      "address": "0x3b14C39E89D60D627b42a1A4CA45b5bb45Fc12e2",
+      "decimals": 18,
+      "isin": "US7731211089",
+      "metadataOk": true,
+      "name": "Rocket Lab Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RKLB"
     },
     "0x3c570fb67334c8cc51f3fd07a88facc8972b1e18": {
       "address": "0x3c570FB67334c8CC51f3Fd07A88FAcc8972b1e18",
@@ -905,6 +1319,16 @@
       "source": "chain_live_erc20",
       "symbol": "DIG"
     },
+    "0x3fb8976980d486084b2eb4a404bd12e72823958f": {
+      "address": "0x3FB8976980d486084b2eb4a404BD12e72823958f",
+      "decimals": 18,
+      "isin": "US34959E1091",
+      "metadataOk": true,
+      "name": "Fortinet • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FTNT"
+    },
     "0x3ff353217aff145daf0e3973baa7b641b47ce7af": {
       "address": "0x3FF353217aFF145Daf0e3973BAA7B641b47Ce7af",
       "decimals": 18,
@@ -912,12 +1336,62 @@
       "source": "chain_live_erc20",
       "symbol": "QRTZT"
     },
+    "0x408c14038a04f7bd235329e26d2bf569ee20e250": {
+      "address": "0x408c14038a04f7bD235329E26d2bf569ee20e250",
+      "decimals": 18,
+      "isin": "KYG6683N1034",
+      "metadataOk": true,
+      "name": "Nu • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NU"
+    },
     "0x40bd44f364bce2b3f842462041cdd9356aedf0c6": {
       "address": "0x40bD44F364bce2b3f842462041cdd9356Aedf0c6",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "PRIORS"
+    },
+    "0x40e7a279850e443f582059ae5dc1c3b6563e6395": {
+      "address": "0x40E7a279850e443f582059ae5dC1c3b6563E6395",
+      "decimals": 18,
+      "isin": "US68989M2026",
+      "metadataOk": true,
+      "name": "Ouster • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "OUST"
+    },
+    "0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f": {
+      "address": "0x411eFb0E7f985935DAec3D4C3ebaEa0d0AD7D89f",
+      "decimals": 18,
+      "isin": "US46428Q1094",
+      "metadataOk": true,
+      "name": "iShares Silver Trust • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SLV"
+    },
+    "0x4189f0c66ebbb0bfef1c31f763131361ef32f77c": {
+      "address": "0x4189F0c66EBBB0bfeF1C31f763131361EF32f77C",
+      "decimals": 18,
+      "isin": "US71424F1057",
+      "metadataOk": true,
+      "name": "Permian Resources • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PR"
+    },
+    "0x41f4267525a8aff329540ef24fd83d9044758b33": {
+      "address": "0x41F4267525a8AFf329540eF24fD83d9044758B33",
+      "decimals": 18,
+      "isin": "US3168411052",
+      "metadataOk": true,
+      "name": "Figma • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FIG"
     },
     "0x424a5a21d7669a55d7bb3a3a2f9d71bda12c3ad4": {
       "address": "0x424A5a21D7669a55d7Bb3A3a2f9D71bda12C3AD4",
@@ -943,8 +1417,11 @@
     "0x43b07d15ce533bec5476d70c22a78a1b2b662155": {
       "address": "0x43B07D15cE533bEc5476d70C22a78a1B2B662155",
       "decimals": 18,
+      "isin": "US60770K1079",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Moderna • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "MRNA"
     },
     "0x4431eff9f1f7421fa5f179c3f7b672acf654e03c": {
@@ -968,6 +1445,26 @@
       "source": "chain_live_erc20",
       "symbol": "SAEGIS"
     },
+    "0x44c4f142009036cf477ed2d09932051843137cf1": {
+      "address": "0x44c4F142009036cF477eD2d09932051843137CF1",
+      "decimals": 18,
+      "isin": "US98980L1017",
+      "metadataOk": true,
+      "name": "Zoom • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ZM"
+    },
+    "0x44f6d488021f8233b9416294d1fe9b1fee28382d": {
+      "address": "0x44f6D488021f8233B9416294d1FE9b1fEe28382d",
+      "decimals": 18,
+      "isin": "US1717793095",
+      "metadataOk": true,
+      "name": "Ciena • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CIEN"
+    },
     "0x46210bc18919e162743f7f48d7cadd4d416e0345": {
       "address": "0x46210BC18919e162743f7F48D7CaDd4D416e0345",
       "decimals": 18,
@@ -989,6 +1486,16 @@
       "source": "chain_live_erc20",
       "symbol": "RBC"
     },
+    "0x47f93d52cbec7c6d2cfc080e154002370a60daea": {
+      "address": "0x47F93d52cBeC7C6D2CfC080e154002370a60dAEA",
+      "decimals": 18,
+      "isin": "USN070592100",
+      "metadataOk": true,
+      "name": "ASML Holding NV • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ASML"
+    },
     "0x480b924fdc7291c0348fe79aba2c75470bd3d960": {
       "address": "0x480b924FDC7291C0348Fe79AbA2c75470BD3D960",
       "decimals": 18,
@@ -1009,6 +1516,36 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "FAAHHH"
+    },
+    "0x48961813349333209994750ffa89b3c5c22ec969": {
+      "address": "0x48961813349333209994750ffA89b3c5C22eC969",
+      "decimals": 18,
+      "isin": "US57776J1007",
+      "metadataOk": true,
+      "name": "MaxLinear • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MXL"
+    },
+    "0x48d60243c66437c6ac3c2495be94747aed5dfe25": {
+      "address": "0x48d60243c66437c6ac3c2495Be94747aEd5Dfe25",
+      "decimals": 18,
+      "isin": "US5024311095",
+      "metadataOk": true,
+      "name": "L3Harris • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LHX"
+    },
+    "0x48e39e56acdba37b09020c0b734a613c9a2f100a": {
+      "address": "0x48E39E56aCdbA37b09020C0b734A613C9a2f100A",
+      "decimals": 18,
+      "isin": "CA09228F1036",
+      "metadataOk": true,
+      "name": "Blackberry • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BB"
     },
     "0x48fd4ee9d44e3db726512658436cfd64eacd1e18": {
       "address": "0x48FD4Ee9d44e3Db726512658436CFd64eACd1E18",
@@ -1041,8 +1578,11 @@
     "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea": {
       "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
       "decimals": 18,
+      "isin": "US84615Q1031",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Space Exploration Technologies Corp. Class A Common Stock • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "SPCX"
     },
     "0x4a61706f211eabad31cd142610a385e04f848295": {
@@ -1101,6 +1641,16 @@
       "source": "chain_live_erc20",
       "symbol": "AIGYR"
     },
+    "0x4d21483a44bf67a86b77e3da301411880797d452": {
+      "address": "0x4D21483a44Bf67a86b77E3dA301411880797D452",
+      "decimals": 18,
+      "isin": "US0970231058",
+      "metadataOk": true,
+      "name": "Boeing • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BA"
+    },
     "0x4d23f07b11497d00765847a2e1eb86c774a43463": {
       "address": "0x4D23F07B11497D00765847a2e1EB86c774A43463",
       "decimals": 18,
@@ -1122,6 +1672,16 @@
       "source": "chain_live_erc20",
       "symbol": "FIX6900"
     },
+    "0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b": {
+      "address": "0x4D67253bc223e6b0e104F1084c1fb2b669dDC41b",
+      "decimals": 18,
+      "isin": "KYG254571055",
+      "metadataOk": true,
+      "name": "Credo Technology Group • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CRDO"
+    },
     "0x4dd967055ac0e9b9c64f3bcb4dfbc92f29e9f6d8": {
       "address": "0x4DD967055AC0e9b9c64f3BCb4DFbC92f29E9F6D8",
       "decimals": 18,
@@ -1135,6 +1695,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "WINK"
+    },
+    "0x4e62068525ab11fe768e29dfd00ef909b9803016": {
+      "address": "0x4e62068525Ab11FE768e29dfD00ef909B9803016",
+      "decimals": 18,
+      "isin": "US5500211090",
+      "metadataOk": true,
+      "name": "Lululemon • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LULU"
+    },
+    "0x4ea005168d7f09a7a0ba9d1def21a479950e44c2": {
+      "address": "0x4EA005168D7F09a7A0Ba9D1DEf21a479950E44C2",
+      "decimals": 18,
+      "isin": "US22160K1051",
+      "metadataOk": true,
+      "name": "Costco • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "COST"
     },
     "0x4eb990547bce4a982432ca88cf5fae7eed1a2d35": {
       "address": "0x4Eb990547BCe4a982432CA88Cf5fae7EED1A2d35",
@@ -1220,6 +1800,16 @@
       "source": "chain_live_erc20",
       "symbol": "FUCK"
     },
+    "0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e": {
+      "address": "0x521Cf887E6531c6F667b5BC4D896E5d9bfE8EB2E",
+      "decimals": 18,
+      "isin": "US03823U1025",
+      "metadataOk": true,
+      "name": "Applied Optoelectronics • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AAOI"
+    },
     "0x5220990497298c87d17aa85cbdcce9e3b4611e18": {
       "address": "0x5220990497298C87d17aa85CBdcce9e3b4611E18",
       "decimals": 18,
@@ -1255,6 +1845,16 @@
       "source": "chain_live_erc20",
       "symbol": "SURGE"
     },
+    "0x52d50d0280ad1054b43f052bd70a49a212a1b128": {
+      "address": "0x52D50D0280AD1054b43f052bD70a49a212A1b128",
+      "decimals": 18,
+      "isin": "US6098391054",
+      "metadataOk": true,
+      "name": "Monolithic Power Systems • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MPWR"
+    },
     "0x52f15b8600781f1db181825da552b244626e1e18": {
       "address": "0x52F15b8600781F1Db181825da552b244626E1E18",
       "decimals": 18,
@@ -1276,12 +1876,32 @@
       "source": "chain_live_erc20",
       "symbol": "OAI"
     },
+    "0x558378e000d634a36593e338ebacdd6207640efe": {
+      "address": "0x558378E000D634A36593E338eBacdd6207640EfE",
+      "decimals": 18,
+      "isin": "US46222L1089",
+      "metadataOk": true,
+      "name": "IonQ • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "IONQ"
+    },
     "0x55c2fa2aaa626fa06b765b60cd22a7c01f501e12": {
       "address": "0x55C2FA2Aaa626fA06B765b60cD22A7C01f501e12",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "NTTL"
+    },
+    "0x561e2a49212b7ccf47f2744ccb83e200722fadbc": {
+      "address": "0x561e2a49212b7cCF47f2744Ccb83e200722fADBc",
+      "decimals": 18,
+      "isin": "US92840M1027",
+      "metadataOk": true,
+      "name": "Vistra • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "VST"
     },
     "0x56248dff26c41897d0d891d72248ea00a00960e3": {
       "address": "0x56248Dff26C41897d0d891D72248ea00A00960E3",
@@ -1303,6 +1923,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "BLACKMINE"
+    },
+    "0x56d23bee5f41a7120170b0c603dae30128e460e9": {
+      "address": "0x56d23beE5f41A7120170b0c603Dae30128e460e9",
+      "decimals": 18,
+      "isin": "US4612021034",
+      "metadataOk": true,
+      "name": "Intuit • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "INTU"
     },
     "0x56e3ff0bfcc4f0e5b919685eaeaa5ca74e591e18": {
       "address": "0x56E3FF0bFcC4F0e5b919685eaEaA5Ca74e591e18",
@@ -1332,6 +1962,16 @@
       "source": "chain_live_erc20",
       "symbol": "FOMO"
     },
+    "0x57b0030166db0c31690d1a5aa167e2e26e2c29a4": {
+      "address": "0x57b0030166DB0C31690d1A5aA167e2e26e2C29a4",
+      "decimals": 18,
+      "isin": "US5128073062",
+      "metadataOk": true,
+      "name": "Lam Research Corp • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LRCX"
+    },
     "0x57ee62995f170a6ec8e8bd70722b37fea4a71e18": {
       "address": "0x57Ee62995f170A6EC8E8BD70722b37Fea4A71E18",
       "decimals": 18,
@@ -1353,6 +1993,16 @@
       "source": "chain_live_erc20",
       "symbol": "TEST12"
     },
+    "0x58ffe4a942d3885baa22d7520691f611ef09e7aa": {
+      "address": "0x58FfE4a942d3885bAa22D7520691F611EF09e7AA",
+      "decimals": 18,
+      "isin": "US8740391003",
+      "metadataOk": true,
+      "name": "Taiwan Semiconductor Manufacturing • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TSM"
+    },
     "0x590ed9b6c439e260320674e9fd3de316477f1e18": {
       "address": "0x590ED9B6C439E260320674e9Fd3DE316477F1E18",
       "decimals": 18,
@@ -1366,6 +2016,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "SICOIN"
+    },
+    "0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4": {
+      "address": "0x59818904ab4cE163b3cE4FfB64f2D6Ca02c434B4",
+      "decimals": 18,
+      "isin": "US74766W1080",
+      "metadataOk": true,
+      "name": "Quantum Computing • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "QUBT"
+    },
+    "0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1": {
+      "address": "0x59dd09d4900C2E4B5F75b7c0d4E6796fcc234Cb1",
+      "decimals": 18,
+      "isin": "US42824C1099",
+      "metadataOk": true,
+      "name": "HP Enterprise • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "HPE"
     },
     "0x59e8ae5c2e1edf77d2169e0ae67524c43aaca393": {
       "address": "0x59e8ae5c2E1edF77D2169e0ae67524C43AaCa393",
@@ -1395,12 +2065,32 @@
       "source": "chain_live_erc20",
       "symbol": "ROOT"
     },
+    "0x5b97476b922f3305131b8f0b9d333172e87f4aae": {
+      "address": "0x5B97476b922F3305131B8f0B9D333172E87f4aaE",
+      "decimals": 18,
+      "isin": "US0494681010",
+      "metadataOk": true,
+      "name": "Atlassian Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TEAM"
+    },
     "0x5c15614e5cbef0bfb75555a27d59ca4dc687692c": {
       "address": "0x5C15614E5CbEF0bfb75555a27d59cA4dc687692C",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "CLVCT"
+    },
+    "0x5c90450bbb4273d7b2f17cf6917aeb237a569679": {
+      "address": "0x5c90450Bbb4273D7b2f17CF6917AEB237A569679",
+      "decimals": 18,
+      "isin": "US15675D1037",
+      "metadataOk": true,
+      "name": "Cerebras Systems • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CBRS"
     },
     "0x5ce5a7f7dd779c37c80e67e5a5ff08b68be01e18": {
       "address": "0x5ce5A7f7dD779C37C80e67E5A5fF08b68bE01E18",
@@ -1433,8 +2123,11 @@
     "0x5e81213613b6b86eab4c6c50d718d34359459786": {
       "address": "0x5e81213613b6B86EaB4c6c50d718d34359459786",
       "decimals": 18,
+      "isin": "US8740541094",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Take-Two Interactive Software • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "TTWO"
     },
     "0x5ed466082e190cb4adac62136a2fdb1b63a060a3": {
@@ -1444,12 +2137,42 @@
       "source": "chain_live_erc20",
       "symbol": "FIX6900"
     },
+    "0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3": {
+      "address": "0x5f10A1C971B69e47e059e1dC91901B59b3fB49C3",
+      "decimals": 18,
+      "isin": "US21873S1087",
+      "metadataOk": true,
+      "name": "CoreWeave • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CRWV"
+    },
+    "0x5f604fba1162193a4388a5dfa56f556f3e133cc2": {
+      "address": "0x5F604fBA1162193A4388A5DFa56F556f3E133cC2",
+      "decimals": 18,
+      "isin": "US00760J1088",
+      "metadataOk": true,
+      "name": "Aehr • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AEHR"
+    },
     "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
       "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
       "decimals": 6,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "USDG"
+    },
+    "0x6006ed4b2f94110851ff7509d97d034f0eed9226": {
+      "address": "0x6006ed4B2F94110851ff7509D97D034f0EeD9226",
+      "decimals": 18,
+      "isin": "US9258151029",
+      "metadataOk": true,
+      "name": "Vicor • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "VICR"
     },
     "0x61054b6ea37a76a5847e2a1a089c16bcb7fd2dea": {
       "address": "0x61054B6Ea37A76a5847e2a1a089c16bcB7fD2DeA",
@@ -1472,6 +2195,16 @@
       "source": "chain_live_erc20",
       "symbol": "BEHALF"
     },
+    "0x62200915e7deab1ec7f79fb246dadbb80eacddd0": {
+      "address": "0x62200915e7DEab1eC7f79fb246daDbB80eACdDd0",
+      "decimals": 18,
+      "isin": "US18914F1030",
+      "metadataOk": true,
+      "name": "Clover Health Investments • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CLOV"
+    },
     "0x6245e67affa44a23077f0ea7f981a8dc743a0c47": {
       "address": "0x6245e67affA44a23077f0Ea7f981a8DC743a0c47",
       "decimals": 18,
@@ -1493,12 +2226,52 @@
       "source": "chain_live_erc20",
       "symbol": "TRUMPTV"
     },
+    "0x62fd0668e10d8b72339be2dcf7643001688ff13b": {
+      "address": "0x62fd0668e10D8B72339BE2DCF7643001688ff13B",
+      "decimals": 18,
+      "isin": "US5738741041",
+      "metadataOk": true,
+      "name": "Marvell Technology • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MRVL"
+    },
+    "0x6330d8c3178a418788df01a47479c0ce7ccf450b": {
+      "address": "0x6330D8C3178a418788dF01a47479c0ce7CCF450b",
+      "decimals": 18,
+      "isin": "US19260Q1076",
+      "metadataOk": true,
+      "name": "Coinbase • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "COIN"
+    },
     "0x6347f5029ba13272deaae62dc84ed24e0cc01e18": {
       "address": "0x6347F5029bA13272deAAe62DC84eD24E0cC01e18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "RUNNERS"
+    },
+    "0x63b814ddbd6bf339f25fed8c36158a008d5b373e": {
+      "address": "0x63b814DDBd6BF339f25Fed8c36158a008D5B373e",
+      "decimals": 18,
+      "isin": "US3696043013",
+      "metadataOk": true,
+      "name": "General Electric • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "GE"
+    },
+    "0x63d5a3b6939a33f1e75d8bcd85759858239600db": {
+      "address": "0x63D5a3b6939a33f1e75d8Bcd85759858239600DB",
+      "decimals": 18,
+      "isin": "US1924461023",
+      "metadataOk": true,
+      "name": "Cognizant • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CTSH"
     },
     "0x645c94c5a4a9d6dc9e69c0a75fda3e3efb42f796": {
       "address": "0x645C94C5A4a9d6Dc9e69C0a75fDa3E3eFB42F796",
@@ -1668,6 +2441,16 @@
       "source": "chain_live_erc20",
       "symbol": "WITNESS"
     },
+    "0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54": {
+      "address": "0x6E3Dfd9f7e1649BaA14D25cac18C94d62dB10A54",
+      "decimals": 18,
+      "isin": "US8361001071",
+      "metadataOk": true,
+      "name": "SoundHound AI • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SOUN"
+    },
     "0x6e5145ab63946ebea7c65f54434737f3d1071e18": {
       "address": "0x6E5145AB63946eBEa7C65F54434737f3D1071e18",
       "decimals": 18,
@@ -1713,8 +2496,11 @@
     "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e": {
       "address": "0x7066A64c24e4206CD62E83bf198c1E7EB361F51e",
       "decimals": 18,
+      "isin": "US7170811035",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Pfizer • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "PFE"
     },
     "0x708f333a45e7acedeb59f6e577b80d8f70588777": {
@@ -1808,6 +2594,16 @@
       "source": "chain_live_erc20",
       "symbol": "VRAD"
     },
+    "0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc": {
+      "address": "0x748c32c3ca24eDf31ea597Db1F3d330a7a6DA3Dc",
+      "decimals": 18,
+      "isin": "US04626A1034",
+      "metadataOk": true,
+      "name": "Astera Labs, Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ALAB"
+    },
     "0x74a7b5be176805d870c98bb02ba54e87d0ab6777": {
       "address": "0x74a7B5BE176805D870C98BB02Ba54e87d0Ab6777",
       "decimals": 18,
@@ -1821,6 +2617,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "VLADBOT"
+    },
+    "0x756bc80af765c82da966a788858d65adf14f3793": {
+      "address": "0x756Bc80af765C82da966a788858d65aDF14f3793",
+      "decimals": 18,
+      "isin": "US86771W1053",
+      "metadataOk": true,
+      "name": "Sunrun • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RUN"
+    },
+    "0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38": {
+      "address": "0x75742c18BC1f1C5c5f448f4C9D9C6F66dafAAa38",
+      "decimals": 18,
+      "isin": "US4642875235",
+      "metadataOk": true,
+      "name": "iShares Semiconductor ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SOXX"
     },
     "0x76785982426da4982cca74c1ff8842de1a8692f3": {
       "address": "0x76785982426Da4982Cca74c1ff8842dE1A8692F3",
@@ -1849,6 +2665,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "AIGYR"
+    },
+    "0x77e655e37f4d913fb9540e0d541d824171a60e81": {
+      "address": "0x77E655E37F4d913fB9540e0d541D824171a60e81",
+      "decimals": 18,
+      "isin": "US82706C1080",
+      "metadataOk": true,
+      "name": "Silicon Motion • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SIMO"
     },
     "0x7859dfc99f4db48e1aecd8cb1a42f1ba0b0a7012": {
       "address": "0x7859dfc99F4DB48e1AECD8CB1a42f1Ba0b0a7012",
@@ -1927,6 +2753,26 @@
       "source": "chain_live_erc20",
       "symbol": "RARA"
     },
+    "0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6": {
+      "address": "0x7c04E6A3368F2A1DE3874f0e80d2e0A1a9915da6",
+      "decimals": 18,
+      "isin": "US2193501051",
+      "metadataOk": true,
+      "name": "Corning • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "GLW"
+    },
+    "0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf": {
+      "address": "0x7c148F74ac7445D1F28366b7FcDC6792a9Fcd0Cf",
+      "decimals": 18,
+      "isin": "US45256X1037",
+      "metadataOk": true,
+      "name": "ImmunityBio, • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "IBRX"
+    },
     "0x7ce0468ac8e7ef66f504bebf32c9ef66b569effc": {
       "address": "0x7CE0468AC8E7eF66F504bEBf32C9eF66B569eFFC",
       "decimals": 18,
@@ -1955,6 +2801,16 @@
       "source": "chain_live_erc20",
       "symbol": "CLSK"
     },
+    "0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7": {
+      "address": "0x7dc013eB55e436f30d7ED1AFE4E36d6e45e3c3f7",
+      "decimals": 18,
+      "isin": "US98980G1022",
+      "metadataOk": true,
+      "name": "Zscaler • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ZS"
+    },
     "0x7e8ec4c88fbc002bf77d4e622834c39184561e18": {
       "address": "0x7e8Ec4C88fBC002BF77D4e622834C39184561E18",
       "decimals": 18,
@@ -1969,12 +2825,42 @@
       "source": "chain_live_erc20",
       "symbol": "ARTHUR"
     },
+    "0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc": {
+      "address": "0x7f0aBeF0C07280F82c6a08ead09dEd6BAE2C13Fc",
+      "decimals": 18,
+      "isin": "US4642867729",
+      "metadataOk": true,
+      "name": "iShares MSCI South Korea fund • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "EWY"
+    },
     "0x7fa6d2b81743f90e544fc794396d90b12d81b2dc": {
       "address": "0x7FA6d2B81743f90E544fC794396d90b12D81B2dC",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "CHOFF"
+    },
+    "0x7fd06a4d81ccfa3f351394e144d5191874c31313": {
+      "address": "0x7FD06a4d81cCfA3F351394E144d5191874C31313",
+      "decimals": 18,
+      "isin": "US50077B2079",
+      "metadataOk": true,
+      "name": "Kratos Defense & Security Solutions • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "KTOS"
+    },
+    "0x8005d266423c7ea827372c9c864491e5786600ea": {
+      "address": "0x8005d266423c7ea827372c9c864491e5786600ea",
+      "decimals": 18,
+      "isin": "US5324571083",
+      "metadataOk": true,
+      "name": "Eli Lilly • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LLY"
     },
     "0x80877fe12ede96f807422d5d4ee4f4c47cebc8ff": {
       "address": "0x80877Fe12eDE96F807422D5D4Ee4f4c47cebC8Ff",
@@ -2011,6 +2897,16 @@
       "source": "chain_live_erc20",
       "symbol": "SILICON"
     },
+    "0x822cc93ffd030293e9842c30bbd678f530701867": {
+      "address": "0x822CC93fFD030293E9842c30BBD678F530701867",
+      "decimals": 18,
+      "isin": "US0937121079",
+      "metadataOk": true,
+      "name": "Bloom Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BE"
+    },
     "0x82590018699e5f95fd8ac2ffcd1e069f001d1e18": {
       "address": "0x82590018699e5F95Fd8AC2FfcD1e069F001D1e18",
       "decimals": 18,
@@ -2024,6 +2920,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "XDC"
+    },
+    "0x82da4646242e1d962e96e932269dc644c94a9caa": {
+      "address": "0x82DA4646242e1D962e96e932269Dc644c94a9CaA",
+      "decimals": 18,
+      "isin": "US98138H1014",
+      "metadataOk": true,
+      "name": "Workday • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "WDAY"
     },
     "0x8321b9e81ff401020d9a3fde12e15b8c48e61e18": {
       "address": "0x8321B9e81ff401020D9a3fdE12E15b8c48e61e18",
@@ -2067,6 +2973,16 @@
       "source": "chain_live_erc20",
       "symbol": "EAGIE"
     },
+    "0x84cab63bc87912e71ad199ff14a0ba45de68fef8": {
+      "address": "0x84CAb63bc87912E71ad199ff14A0bA45de68FeF8",
+      "decimals": 18,
+      "isin": "US78392B2060",
+      "metadataOk": true,
+      "name": "SK hynix Inc. American Depositary Shares • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SKHY"
+    },
     "0x85344554b757da79f314d11202a2559d4deb1e18": {
       "address": "0x85344554b757DA79f314d11202A2559d4dEb1e18",
       "decimals": 18,
@@ -2087,6 +3003,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "Agent"
+    },
+    "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc": {
+      "address": "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC",
+      "decimals": 18,
+      "isin": "US0079031078",
+      "metadataOk": true,
+      "name": "AMD • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AMD"
     },
     "0x86ff439d2d5f81d6c6e60129fc75d51940611e18": {
       "address": "0x86Ff439D2D5F81d6c6E60129fc75D51940611e18",
@@ -2130,6 +3056,26 @@
       "source": "chain_live_erc20",
       "symbol": "LEELON"
     },
+    "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a": {
+      "address": "0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A",
+      "decimals": 18,
+      "isin": "US69608A1088",
+      "metadataOk": true,
+      "name": "Palantir Technologies • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PLTR"
+    },
+    "0x89776d4cd68193597a2fc132cfac1fde36ccea8a": {
+      "address": "0x89776d4Cd68193597A2fC132cfaC1fDe36CCeA8a",
+      "decimals": 18,
+      "isin": "IL0010823792",
+      "metadataOk": true,
+      "name": "Tower Semiconductor • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TSEM"
+    },
     "0x898e1a7d99fd8f4b3ed0b36f0fee0d59a693beee": {
       "address": "0x898e1a7D99Fd8F4B3eD0B36f0feE0D59A693BeEe",
       "decimals": 18,
@@ -2172,6 +3118,16 @@
       "source": "chain_live_erc20",
       "symbol": "MAN"
     },
+    "0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774": {
+      "address": "0x8B2f88497f15A18E9D4FFa1a8fFB8538399aE774",
+      "decimals": 18,
+      "isin": "US02156V1098",
+      "metadataOk": true,
+      "name": "Oklo • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "OKLO"
+    },
     "0x8b3e04a657af9d141e8f61df56560e3f7f971a50": {
       "address": "0x8b3e04a657Af9D141e8f61df56560e3f7F971A50",
       "decimals": 18,
@@ -2193,6 +3149,16 @@
       "source": "chain_live_erc20",
       "symbol": "DGOT"
     },
+    "0x8cf07c5a878945185d327aaa6e33faa95f95e7bf": {
+      "address": "0x8cF07C5A878945185d327aAa6e33FAa95F95e7bF",
+      "decimals": 18,
+      "isin": "US15118V2079",
+      "metadataOk": true,
+      "name": "Celsius • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CELH"
+    },
     "0x8d1612b4b78ebf08cfbf01a04fa270ccbb0509a2": {
       "address": "0x8d1612b4B78eBf08CFBf01A04Fa270CCbB0509A2",
       "decimals": 18,
@@ -2207,12 +3173,32 @@
       "source": "chain_live_erc20",
       "symbol": "PLAGUEINUCOIN"
     },
+    "0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c": {
+      "address": "0x8eF20885F94e3D9bc7eB3080279188Bd5ED7c08C",
+      "decimals": 18,
+      "isin": "US55024U1097",
+      "metadataOk": true,
+      "name": "Lumentum • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LITE"
+    },
     "0x8ff07c49307ffa3a5ece14adceae19be0b141e18": {
       "address": "0x8FF07C49307ffa3A5ecE14ADCEAE19be0b141E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "LETSWAGR"
+    },
+    "0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef": {
+      "address": "0x8ff63eAeEe3fE54Ba450c4F5538064Ec5A893Aef",
+      "decimals": 18,
+      "isin": "US6833441057",
+      "metadataOk": true,
+      "name": "Onto Innovation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ONTO"
     },
     "0x903165be11f0e847297fa32530c51b396abd1e18": {
       "address": "0x903165bE11F0e847297fA32530C51B396aBD1e18",
@@ -2256,11 +3242,34 @@
       "source": "chain_live_erc20",
       "symbol": "musebook"
     },
+    "0x92ef19e82bd8ff36661de838d5eae7e5cef0effe": {
+      "address": "0x92Ef19E82bD8fF36661DE838D5eaE7e5CEF0EfFE",
+      "decimals": 18,
+      "isin": "US75776W1036",
+      "metadataOk": true,
+      "name": "Redwire • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RDW"
+    },
+    "0x92f9f459f1a9a5ad266b182be7bffd1c6c666894": {
+      "address": "0x92F9F459F1a9a5AD266b182BE7Bffd1C6c666894",
+      "decimals": 18,
+      "isin": "US19247G1076",
+      "metadataOk": true,
+      "name": "Coherent • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "COHR"
+    },
     "0x92fd66527192e3e61d4ddd13322aa222de86f9b5": {
       "address": "0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5",
       "decimals": 18,
+      "isin": "US46436E7186",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "iShares 0-3 Month Treasury Bond • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "SGOV"
     },
     "0x935f5a0f72301f1dc70c28f777629df5782c5bfc": {
@@ -2269,6 +3278,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "PPERP"
+    },
+    "0x93dbb1d2dc5d63f4abacff30485273f538df68ac": {
+      "address": "0x93Dbb1d2Dc5D63F4abACFF30485273f538Df68Ac",
+      "decimals": 18,
+      "isin": "US1999081045",
+      "metadataOk": true,
+      "name": "Comfort Systems • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FIX"
+    },
+    "0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd": {
+      "address": "0x941AE714EC6D8130c7B75d67160Ca08f1e7d11Dd",
+      "decimals": 18,
+      "isin": "US24703L2025",
+      "metadataOk": true,
+      "name": "Dell • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "DELL"
     },
     "0x94641b97010608c3827fb058074889f19868ff33": {
       "address": "0x94641b97010608C3827fB058074889f19868FF33",
@@ -2284,12 +3313,72 @@
       "source": "chain_live_erc20",
       "symbol": "MMRNM"
     },
+    "0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9": {
+      "address": "0x94B8AAE43A1cCc08Aa64B7D1F29b4D920aF4a0C9",
+      "decimals": 18,
+      "isin": "US36828A1016",
+      "metadataOk": true,
+      "name": "GE Vernova • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "GEV"
+    },
+    "0x95052ddcd5dc25641657424a8cf04834997e1730": {
+      "address": "0x95052ddcd5DC25641657424A8Cf04834997E1730",
+      "decimals": 18,
+      "isin": "US2787681061",
+      "metadataOk": true,
+      "name": "EchoStar • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SATS"
+    },
     "0x951fe06f8059f2a9073fa5d22c775787fda3ed5d": {
       "address": "0x951FE06f8059F2A9073Fa5d22c775787FdA3eD5D",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "VEIL"
+    },
+    "0x9651342cea770ae9a2969ba2a52611523146aef9": {
+      "address": "0x9651342CeA770aE9a2969Ba2A52611523146aef9",
+      "decimals": 18,
+      "isin": "BMG2004J1036",
+      "metadataOk": true,
+      "name": "Carnival Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CCL"
+    },
+    "0x96b933c74ecb4a0926b9210cef7b743ef46be2e9": {
+      "address": "0x96b933C74eCB4A0926b9210cef7b743EF46be2E9",
+      "decimals": 18,
+      "isin": "US4824801009",
+      "metadataOk": true,
+      "name": "KLA • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "KLAC"
+    },
+    "0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619": {
+      "address": "0x980dcf6766FA79f5Cf0c4AAdb3ab477ff15a9619",
+      "decimals": 18,
+      "isin": "US4592001014",
+      "metadataOk": true,
+      "name": "IBM • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "IBM"
+    },
+    "0x98e75885157c80992a8d41b696d8c9c6fb30a926": {
+      "address": "0x98E75885157C80992A8D41b696D8c9C6Fb30A926",
+      "decimals": 18,
+      "isin": "US83406F1021",
+      "metadataOk": true,
+      "name": "SoFi Technologies • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SOFI"
     },
     "0x992450b070e1c0a0e2f80ccb9e46bea7211fc378": {
       "address": "0x992450B070E1C0a0E2F80cCB9E46BeA7211fC378",
@@ -2301,9 +3390,32 @@
     "0x99d9d8663545151603863c5acbd6fc3218899009": {
       "address": "0x99D9D8663545151603863C5AcbD6FC3218899009",
       "decimals": 18,
+      "isin": "KYG037AX1015",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Ambarella • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "AMBA"
+    },
+    "0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd": {
+      "address": "0x9Ab02Ead789b6903c3c44d0ED32F9c707CDF12FD",
+      "decimals": 18,
+      "isin": "US74762E1029",
+      "metadataOk": true,
+      "name": "Quanta • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PWR"
+    },
+    "0x9b23573b156b52565012f5ce02cdf60afbaa70be": {
+      "address": "0x9b23573b156B52565012F5cE02CDF60AFBaa70Be",
+      "decimals": 18,
+      "isin": "US7069151055",
+      "metadataOk": true,
+      "name": "Penguin Solutions • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PENG"
     },
     "0x9b4cf34f9f5c62f2882a44a54c3e8587414d1e18": {
       "address": "0x9B4Cf34F9F5c62f2882A44A54C3e8587414d1e18",
@@ -2340,6 +3452,16 @@
       "source": "chain_live_erc20",
       "symbol": "ROBONAUTCOIN"
     },
+    "0x9d9c6684f596f66a64c030b93a886d51fd4d7931": {
+      "address": "0x9D9c6684F596F66a64C030B93A886D51Fd4D7931",
+      "decimals": 18,
+      "isin": "NL0009805522",
+      "metadataOk": true,
+      "name": "Nebius Group • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NBIS"
+    },
     "0x9da615898459ffd65b239eebfd87fa8a6e42be01": {
       "address": "0x9da615898459FFd65b239eeBfd87fa8A6E42be01",
       "decimals": 18,
@@ -2367,6 +3489,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "TALON"
+    },
+    "0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e": {
+      "address": "0x9e7ABD3C9139D14E4c86DcE0e455AAB7A0C2FB3E",
+      "decimals": 18,
+      "isin": "KYG961151035",
+      "metadataOk": true,
+      "name": "WhiteFiber, Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "WYFI"
+    },
+    "0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc": {
+      "address": "0x9ECe29A4A2397C0a35fb5fA8EE2b9509130a98cc",
+      "decimals": 18,
+      "isin": "US3377381088",
+      "metadataOk": true,
+      "name": "Fiserv • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FISV"
     },
     "0x9ecf5c82d754787fcb640930d594ab55b5412ffd": {
       "address": "0x9eCf5C82D754787fCb640930D594aB55b5412ffD",
@@ -2431,12 +3573,32 @@
       "source": "chain_live_erc20",
       "symbol": "RBLXDOGE"
     },
+    "0xa249baf1063af884807c1e1400aef7784836917e": {
+      "address": "0xA249BAF1063Af884807C1E1400AEf7784836917E",
+      "decimals": 18,
+      "isin": "US03831W1080",
+      "metadataOk": true,
+      "name": "AppLovin • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "APP"
+    },
     "0xa2bf5b242e1dedb6d029d817d697bf7467391e18": {
       "address": "0xA2Bf5B242E1DedB6d029D817D697Bf7467391E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "CHICKSTEIN"
+    },
+    "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344": {
+      "address": "0xa30FA36Db767ad9eD3f7a60fC79526fB4d56D344",
+      "decimals": 18,
+      "isin": "US91232N2071",
+      "metadataOk": true,
+      "name": "United States Oil Fund • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "USO"
     },
     "0xa3b66a03b10b847984a2d55035e38d32f9884fba": {
       "address": "0xA3b66A03B10B847984A2d55035E38D32f9884FbA",
@@ -2452,6 +3614,16 @@
       "source": "chain_live_erc20",
       "symbol": "PONSUNI"
     },
+    "0xa48f22a46c0f1c46ca7d111cb6c137c271987180": {
+      "address": "0xa48F22A46C0F1C46CA7D111CB6c137c271987180",
+      "decimals": 18,
+      "isin": "US3032501047",
+      "metadataOk": true,
+      "name": "Fair Isaac • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FICO"
+    },
     "0xa4ddf89a40a35264e9d7f896a1ef01c59b1e977a": {
       "address": "0xa4dDF89A40A35264E9D7F896a1ef01C59b1e977a",
       "decimals": 18,
@@ -2459,12 +3631,32 @@
       "source": "chain_live_erc20",
       "symbol": "ANYR"
     },
+    "0xa4f319104089fe321dc8093c6e707d4fe190a988": {
+      "address": "0xa4f319104089FE321dc8093C6E707d4fE190A988",
+      "decimals": 18,
+      "isin": "US1468691027",
+      "metadataOk": true,
+      "name": "Carvana • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CVNA"
+    },
     "0xa5d19247ef8b3105ca6af724416d8d70b2728f4f": {
       "address": "0xA5D19247Ef8b3105cA6aF724416D8d70b2728F4F",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "FILLED"
+    },
+    "0xa5d4968421ba94814be3b136b15cf422101ac1a3": {
+      "address": "0xa5D4968421bA94814Be3B136b15cf422101aC1a3",
+      "decimals": 18,
+      "isin": "US46125A1007",
+      "metadataOk": true,
+      "name": "Intuitive Machines • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "LUNR"
     },
     "0xa6982fe77de736fe37525e0cdbba2e84225d1e18": {
       "address": "0xA6982Fe77De736fE37525E0cDbBA2E84225d1e18",
@@ -2501,6 +3693,16 @@
       "source": "chain_live_erc20",
       "symbol": "CLOAKSWAP"
     },
+    "0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289": {
+      "address": "0xA8eB3BCcbf2017eE7CBfb652eB51CF2E1B153289",
+      "decimals": 18,
+      "isin": "CA98390R1029",
+      "metadataOk": true,
+      "name": "Xanadu Quantum • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "XNDU"
+    },
     "0xa968d072f131672d4d76e79442441fde485bbcd3": {
       "address": "0xa968D072f131672D4D76e79442441fdE485BbCD3",
       "decimals": 18,
@@ -2514,6 +3716,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "ORBIO"
+    },
+    "0xaa4d64474c172010ab57719cb9951e6142a100d3": {
+      "address": "0xAA4d64474c172010aB57719cb9951E6142a100d3",
+      "decimals": 18,
+      "isin": "US72703X1063",
+      "metadataOk": true,
+      "name": "Planet Labs • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PL"
     },
     "0xaa85077d1e943d8f31d75e2b767617d67ef21e18": {
       "address": "0xAA85077D1e943D8f31d75e2B767617D67eF21e18",
@@ -2557,12 +3769,42 @@
       "source": "chain_live_erc20",
       "symbol": "BBB"
     },
+    "0xacef2e09adb47ad6abebad9ff06689e60615c2b6": {
+      "address": "0xACEF2e09adb47aD6aBeBAD9fF06689E60615C2B6",
+      "decimals": 18,
+      "isin": "US46429B5984",
+      "metadataOk": true,
+      "name": "iShares MSCI India ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "INDA"
+    },
+    "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4": {
+      "address": "0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4",
+      "decimals": 18,
+      "isin": "US01609W1027",
+      "metadataOk": true,
+      "name": "Alibaba • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BABA"
+    },
     "0xad4941514f751a4699aad84206ac046a88131e18": {
       "address": "0xAD4941514F751a4699AAD84206AC046a88131E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "OPENAI"
+    },
+    "0xad622320e520de39e72d41ef07438c3fd3354875": {
+      "address": "0xAd622320e520de39e72d41EF07438C3Fd3354875",
+      "decimals": 18,
+      "isin": "US46138E3392",
+      "metadataOk": true,
+      "name": "Invesco S&P 500 Momentum ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SPMO"
     },
     "0xae240352fcd0dd7dc3f6bce51243573356b11e18": {
       "address": "0xAe240352FcD0dd7DC3f6BCe51243573356b11E18",
@@ -2578,12 +3820,32 @@
       "source": "chain_live_erc20",
       "symbol": "XENCT"
     },
+    "0xae517a2903e68bd929dfd15be875f8369d53e94a": {
+      "address": "0xaE517A2903E68bd929Dfd15be875F8369D53e94a",
+      "decimals": 18,
+      "isin": "US21037T1097",
+      "metadataOk": true,
+      "name": "Constellation Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CEG"
+    },
     "0xae7b9048f5481c394ae4d75324094fffdf1e152f": {
       "address": "0xAE7b9048F5481C394aE4D75324094fffDf1E152f",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "NIMORI"
+    },
+    "0xaea445c5f3db1a462998ccc422a875a361ee5d99": {
+      "address": "0xAEa445c5F3DB1a462998ccC422A875A361ee5d99",
+      "decimals": 18,
+      "isin": "US4432011082",
+      "metadataOk": true,
+      "name": "Howmet Aerospace • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "HWM"
     },
     "0xaec5e81f55bc97d2c26a1b0d02d795a41813f54f": {
       "address": "0xAEC5E81F55bC97D2C26a1B0D02D795A41813F54F",
@@ -2609,8 +3871,11 @@
     "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": {
       "address": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
       "decimals": 18,
+      "isin": "US0378331005",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Apple • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "AAPL"
     },
     "0xafabf90a7b31fc258a3e7d69b8f26e73bf1eeaab": {
@@ -2619,6 +3884,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "KLPKT"
+    },
+    "0xb039597ed45cba7b6e2fb9e8be51802969cee5be": {
+      "address": "0xB039597eD45CBa7B6E2fb9E8BE51802969CEe5Be",
+      "decimals": 18,
+      "isin": "US6974351057",
+      "metadataOk": true,
+      "name": "Palo Alto Networks • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PANW"
     },
     "0xb065f620eee5122e6de2603d3c492790d1801e18": {
       "address": "0xb065f620EEe5122E6dE2603D3C492790d1801E18",
@@ -2630,8 +3905,11 @@
     "0xb0992820e760d836549ba69bc7598b4af75dee03": {
       "address": "0xb0992820E760d836549ba69BC7598b4af75dEE03",
       "decimals": 18,
+      "isin": "US68389X1054",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Oracle • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "ORCL"
     },
     "0xb0ab82fe5bca923695a93718ed6eaa8febde759e": {
@@ -2644,9 +3922,32 @@
     "0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d": {
       "address": "0xb1969f6604CA1AE7a2cD3F1827876e914594CA2D",
       "decimals": 18,
+      "isin": "US35834F1049",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "T1 Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "TE"
+    },
+    "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b": {
+      "address": "0xB1BF26c1D20ff267A4f93550d1E0d06ac40a114B",
+      "decimals": 18,
+      "isin": "US76954A1034",
+      "metadataOk": true,
+      "name": "Rivian Automotive • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RIVN"
+    },
+    "0xb1cc0ec7db69cf43539119814df40071b9d61793": {
+      "address": "0xB1CC0EC7Db69Cf43539119814df40071b9d61793",
+      "decimals": 18,
+      "isin": "US88023B1035",
+      "metadataOk": true,
+      "name": "Tempus AI • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "TEM"
     },
     "0xb23b61e3eca11cb8dff1dcdd7fbaf3f5c99f1e18": {
       "address": "0xb23b61e3ECA11cB8DFF1DCDD7fbaf3f5c99f1E18",
@@ -2668,6 +3969,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "BOB"
+    },
+    "0xb334c5ce741b80b5b671f47f5c269cb193fe8e24": {
+      "address": "0xb334C5cE741B80B5B671F47F5C269Cb193fe8E24",
+      "decimals": 18,
+      "isin": "KYG651631007",
+      "metadataOk": true,
+      "name": "Joby Aviation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "JOBY"
     },
     "0xb4630ca07be5ab574f5726ad8c724082f8b024a4": {
       "address": "0xB4630cA07be5aB574f5726Ad8C724082F8b024a4",
@@ -2746,6 +4057,16 @@
       "source": "chain_live_erc20",
       "symbol": "NOMISTAKES"
     },
+    "0xb853bc83a753342a4f8320ea680b4b1e84118d21": {
+      "address": "0xB853bC83a753342a4f8320ea680b4B1E84118D21",
+      "decimals": 18,
+      "isin": "US45676K1034",
+      "metadataOk": true,
+      "name": "Infleqtion • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "INFQ"
+    },
     "0xb8660b9797593bc28129e972050796478c538440": {
       "address": "0xb8660B9797593Bc28129e972050796478c538440",
       "decimals": 18,
@@ -2759,6 +4080,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "POND"
+    },
+    "0xb8dbf92f9741c9ac1c32115e78581f23509916fd": {
+      "address": "0xb8DBf92F9741c9ac1c32115E78581f23509916FD",
+      "decimals": 18,
+      "isin": "US0381692070",
+      "metadataOk": true,
+      "name": "Applied Digital • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "APLD"
+    },
+    "0xb90a19ff0af67f7779aff50a882a9cff42446400": {
+      "address": "0xB90A19fF0Af67f7779afF50A882A9CfF42446400",
+      "decimals": 18,
+      "isin": "US80004C2008",
+      "metadataOk": true,
+      "name": "Sandisk Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SNDK"
     },
     "0xb90d56c1518a007f214ba4a141270ffba4fe1e18": {
       "address": "0xb90d56c1518a007f214ba4A141270ffbA4FE1e18",
@@ -2802,6 +4143,16 @@
       "source": "chain_live_erc20",
       "symbol": "R"
     },
+    "0xba0cab75495255d0cb58e22b648bfed4ecd1f47e": {
+      "address": "0xBa0CAB75495255d0cB58E22B648bFED4ECD1F47E",
+      "decimals": 18,
+      "isin": "US8334451098",
+      "metadataOk": true,
+      "name": "Snowflake • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SNOW"
+    },
     "0xba1a2d9783ebe2b76493c5c12eb9813a0e062843": {
       "address": "0xba1A2d9783eBE2B76493c5C12eB9813a0e062843",
       "decimals": 18,
@@ -2815,6 +4166,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "BEEZIE"
+    },
+    "0xbbd09f72b025360fee5c928053dca6248d35be54": {
+      "address": "0xbBD09F72b025360FeE5C928053Dca6248d35be54",
+      "decimals": 18,
+      "isin": "US6821891057",
+      "metadataOk": true,
+      "name": "ON Semiconductor • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "ON"
     },
     "0xbcce8e671a4c0723a3bce772f2aaf1e8390d8301": {
       "address": "0xbcCe8e671a4c0723a3bce772f2aAF1E8390D8301",
@@ -2851,12 +4212,32 @@
       "source": "chain_live_erc20",
       "symbol": "AIGYR"
     },
+    "0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8": {
+      "address": "0xBE274710Bf3d9567e1B290eF6a5F9f90ca016FD8",
+      "decimals": 18,
+      "isin": "US4642874576",
+      "metadataOk": true,
+      "name": "iShares 1-3 Year Treasury Bond ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SHY"
+    },
     "0xbe5d432a0b30443987d261b664cc6bb8bccb80d6": {
       "address": "0xBe5D432A0b30443987d261B664cc6bB8BCcB80D6",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "OGATE"
+    },
+    "0xbe6702d7b70315376dc48a3293f24f0982f86386": {
+      "address": "0xbE6702d7b70315376dC48a3293f24f0982F86386",
+      "decimals": 18,
+      "isin": "US63942X1063",
+      "metadataOk": true,
+      "name": "Navitas Semiconductor • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NVTS"
     },
     "0xbe7e289ca1c9cf1aae8936a19734dda7ff4e6001": {
       "address": "0xBe7e289Ca1C9Cf1aaE8936a19734dDA7fF4E6001",
@@ -2882,9 +4263,22 @@
     "0xbef75684c43c4ea7bd18dd532a2244674ee8b926": {
       "address": "0xBEF75684C43c4ea7BD18Dd532a2244674Ee8b926",
       "decimals": 18,
+      "isin": "US63010H1086",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Nano Nuclear Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "NNE"
+    },
+    "0xbf449977089c718c004a66c554b26b94ef3ad4de": {
+      "address": "0xBf449977089c718C004a66C554B26B94ef3Ad4De",
+      "decimals": 18,
+      "isin": "CA15101Q2071",
+      "metadataOk": true,
+      "name": "Celestica • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CLS"
     },
     "0xbf7fdddd0d1e17880ca72b176f8b99a30be66fe4": {
       "address": "0xBf7FDdDD0D1e17880cA72b176F8b99A30BE66fE4",
@@ -2893,11 +4287,34 @@
       "source": "chain_live_erc20",
       "symbol": "SAEGIS"
     },
+    "0xc01aa1fecec0605b13bc84874ff7256c0f5f562a": {
+      "address": "0xc01aA1fECeC0605b13bc84874ff7256C0f5F562a",
+      "decimals": 18,
+      "isin": "US86800U3023",
+      "metadataOk": true,
+      "name": "Super Micro Computer • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SMCI"
+    },
+    "0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd": {
+      "address": "0xc02f12B9fe9E707079EC0d546f3050d3F6C1F8bD",
+      "decimals": 18,
+      "isin": "US25402D1028",
+      "metadataOk": true,
+      "name": "DigitalOcean • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "DOCN"
+    },
     "0xc0d6457c16cc70d6790dd43521c899c87ce02f35": {
       "address": "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35",
       "decimals": 18,
+      "isin": "US30303M1027",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Meta Platforms • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "META"
     },
     "0xc15495d1b03ca1440b0cdeebebb691a1959c2d06": {
@@ -2920,6 +4337,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "GME"
+    },
+    "0xc27dbd474af5181c5a8777903690d8d262d12648": {
+      "address": "0xC27dBD474aF5181c5A8777903690D8D262D12648",
+      "decimals": 18,
+      "isin": "US05464C1018",
+      "metadataOk": true,
+      "name": "Axon • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AXON"
     },
     "0xc406938756478f9401ef30a2b2337f3e7a8a0b03": {
       "address": "0xc406938756478f9401ef30A2B2337f3e7A8A0B03",
@@ -2963,6 +4390,16 @@
       "source": "chain_live_erc20",
       "symbol": "WITNESS"
     },
+    "0xc583c60aef9dc401da72cec1b404743a93cea1cc": {
+      "address": "0xC583c60aeF9Dc401Da72cEC1B404743a93cea1Cc",
+      "decimals": 18,
+      "isin": "US26740W1099",
+      "metadataOk": true,
+      "name": "D-Wave Quantum Inc. Common Stock • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "QBTS"
+    },
     "0xc589d988197cedf32bd6377fbccff7f85a3c1e18": {
       "address": "0xC589D988197CeDF32bd6377FbCcfF7F85A3C1e18",
       "decimals": 18,
@@ -2976,6 +4413,26 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "VRAX"
+    },
+    "0xc6cbad1016b38b797610c25e1dc7d95988b1f362": {
+      "address": "0xc6Cbad1016b38B797610c25E1dc7D95988B1f362",
+      "decimals": 18,
+      "isin": "US6078281002",
+      "metadataOk": true,
+      "name": "Modine • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MOD"
+    },
+    "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681": {
+      "address": "0xc72b96e0E48ecd4DC75E1e45396e26300BC39681",
+      "decimals": 18,
+      "isin": "US4581401001",
+      "metadataOk": true,
+      "name": "Intel • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "INTC"
     },
     "0xc780d8611723d154e8ca0e31c12efedb71155777": {
       "address": "0xC780d8611723d154E8cA0E31c12EfEdb71155777",
@@ -3012,6 +4469,16 @@
       "source": "chain_live_erc20",
       "symbol": "ENDAI"
     },
+    "0xc93f4d80e268ab922e871bd169156c3cc41894e6": {
+      "address": "0xC93f4d80e268AB922e871bd169156C3CC41894e6",
+      "decimals": 18,
+      "isin": "US55405Y1001",
+      "metadataOk": true,
+      "name": "MACOM • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MTSI"
+    },
     "0xc944a9af85f391697db14d963cd63cccf2af1e18": {
       "address": "0xC944A9Af85f391697Db14D963cD63CCcF2af1E18",
       "decimals": 18,
@@ -3029,8 +4496,11 @@
     "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e": {
       "address": "0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e",
       "decimals": 18,
+      "isin": "US78463V1070",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "SPDR Gold Trust • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "GLD"
     },
     "0xca57741f43777d775573a595d8cf5df9587e1e18": {
@@ -3064,8 +4534,11 @@
     "0xcbb95bbf36099d34da091dc6fa6f49efa257cee3": {
       "address": "0xcBB95BBF36099d34dA091dc6Fa6F49EfA257Cee3",
       "decimals": 18,
+      "isin": "US18452B2097",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "CleanSpark • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "CLSK"
     },
     "0xcc6dd4ebeb559416ed903997475142fcafdbed9d": {
@@ -3085,8 +4558,11 @@
     "0xccee82fe024c36fa15e1005ede3e9e4787e23d09": {
       "address": "0xCceE82fE024c36fA15E1005edE3E9e4787e23D09",
       "decimals": 18,
+      "isin": "US4330001060",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Hims & Hers Health • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "HIMS"
     },
     "0xcd13351437022372a1fc7173d5b852fcc98e1e18": {
@@ -3131,12 +4607,42 @@
       "source": "chain_live_erc20",
       "symbol": "POT"
     },
+    "0xcef9027c7d6985b85f0ba431125073529a947a68": {
+      "address": "0xceF9027c7d6985b85f0BA431125073529A947A68",
+      "decimals": 18,
+      "isin": "KYG9572D1034",
+      "metadataOk": true,
+      "name": "Webull • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "BULL"
+    },
+    "0xcf364ea52787e289de6f32077834056e3e70d6a8": {
+      "address": "0xcF364ea52787e289De6F32077834056E3E70D6A8",
+      "decimals": 18,
+      "isin": "US91324P1021",
+      "metadataOk": true,
+      "name": "UnitedHealth • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "UNH"
+    },
     "0xcf3d41f9671dc2e86ee4c0271b79ae6fdce36c05": {
       "address": "0xcf3d41f9671DC2E86Ee4c0271B79ae6Fdce36c05",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "PARLEY"
+    },
+    "0xcf6b2d875361be807eafa57458c80f28521f9333": {
+      "address": "0xcf6B2D875361be807EAfa57458c80f28521F9333",
+      "decimals": 18,
+      "isin": "CA73044W3021",
+      "metadataOk": true,
+      "name": "POET Technologies • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "POET"
     },
     "0xd02e26f106bab3a93234feeaba74bf314dbd4c75": {
       "address": "0xd02E26F106Bab3a93234FEEaba74BF314dBd4c75",
@@ -3155,8 +4661,11 @@
     "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": {
       "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
       "decimals": 18,
+      "isin": "US67066G1040",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "NVIDIA • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "NVDA"
     },
     "0xd06479a926ad1be5e7572293b748aafa88251e18": {
@@ -3278,6 +4787,26 @@
       "source": "chain_live_erc20",
       "symbol": "LEAKED"
     },
+    "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68": {
+      "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "decimals": 18,
+      "isin": "US46090E1038",
+      "metadataOk": true,
+      "name": "Invesco QQQ • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "QQQ"
+    },
+    "0xd63abb2c13d7a8421a8017a712802053568e3c1d": {
+      "address": "0xd63ABB2C13d7a8421a8017a712802053568e3C1D",
+      "decimals": 18,
+      "isin": "US8085247976",
+      "metadataOk": true,
+      "name": "Schwab US Dividend Equity ETF • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SCHD"
+    },
     "0xd6470223588ba5f6a60776f6c335a47a10f30b19": {
       "address": "0xd6470223588ba5F6A60776F6C335a47A10f30B19",
       "decimals": 18,
@@ -3320,12 +4849,32 @@
       "source": "chain_live_erc20",
       "symbol": "TESTER1"
     },
+    "0xd917b029c761d264c6a312bbbcda868658ef86a6": {
+      "address": "0xd917B029C761D264c6A312BBbcDA868658eF86a6",
+      "decimals": 18,
+      "isin": "US91733P1075",
+      "metadataOk": true,
+      "name": "USA Rare Earth • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "USAR"
+    },
     "0xd92feadd1f4962f850da5495f0ba152ba3f51e18": {
       "address": "0xd92feaDd1f4962f850dA5495F0BA152ba3f51E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "NIKA"
+    },
+    "0xd95b44124e475743a7589e68f3d74008a5536d44": {
+      "address": "0xd95B44124e475743a7589e68F3D74008A5536D44",
+      "decimals": 18,
+      "isin": "US79466L3024",
+      "metadataOk": true,
+      "name": "Salesforce • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CRM"
     },
     "0xd96bfa490e7ac3d72bf4b2c5749fde47a1a16812": {
       "address": "0xd96bFa490e7ac3D72Bf4b2C5749fDE47A1A16812",
@@ -3369,12 +4918,32 @@
       "source": "chain_live_erc20",
       "symbol": "CAMELS"
     },
+    "0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b": {
+      "address": "0xDd356AA38F40A7b7076755aC854B6FBb1F0D305B",
+      "decimals": 18,
+      "isin": "US0316521006",
+      "metadataOk": true,
+      "name": "Amkor Technology • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AMKR"
+    },
     "0xdd70288b51797ee166d3dcc0a6fd058e07951e18": {
       "address": "0xdD70288B51797Ee166D3DCc0a6Fd058E07951e18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "ASTRACOIN"
+    },
+    "0xddf2266b79abf0b48898959b0ed6e6adf512be74": {
+      "address": "0xDdf2266b79abf0B48898959B0ed6E6adf512be74",
+      "decimals": 18,
+      "isin": "US60937P1066",
+      "metadataOk": true,
+      "name": "MongoDB • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MDB"
     },
     "0xde3ee6a289d4eed5b524eebdaa7fba727cd518e3": {
       "address": "0xDE3EE6A289D4Eed5B524EEBDaA7Fba727cd518e3",
@@ -3390,12 +4959,32 @@
       "source": "chain_live_erc20",
       "symbol": "tOpenAI"
     },
+    "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5": {
+      "address": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",
+      "decimals": 18,
+      "isin": "US1725731079",
+      "metadataOk": true,
+      "name": "Circle Internet Group • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CRCL"
+    },
     "0xdfe9d23a2a0e028e8db85349cce4e737b66e13ec": {
       "address": "0xdfE9d23A2a0E028e8Db85349Cce4e737B66e13eC",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "MOONVEIL"
+    },
+    "0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8": {
+      "address": "0xE0444EF8BF4eD74f74FD73686e2ddF4C1c5591E8",
+      "decimals": 18,
+      "isin": "US64110L1061",
+      "metadataOk": true,
+      "name": "Netflix • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NFLX"
     },
     "0xe0801c832aa0826790fd9826d0a1991a876d1e18": {
       "address": "0xe0801c832aA0826790fd9826D0a1991a876d1e18",
@@ -3512,8 +5101,11 @@
     "0xe93237c50d904957cf27e7b1133b510c669c2e74": {
       "address": "0xe93237C50D904957Cf27E7B1133b510C669c2e74",
       "decimals": 18,
+      "isin": "US5949181045",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Microsoft • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "MSFT"
     },
     "0xe98002b2e60766940c585972617a315671618777": {
@@ -3537,6 +5129,16 @@
       "source": "chain_live_erc20",
       "symbol": "PACKZCOIN"
     },
+    "0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931": {
+      "address": "0xea72Ecca2d0f6bFA1394DBBCff85b52CD4233931",
+      "decimals": 18,
+      "isin": "US22788C1053",
+      "metadataOk": true,
+      "name": "CrowdStrike Holdings • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CRWD"
+    },
     "0xeab4f8a83dfb03c794b9061347f4501006b72fff": {
       "address": "0xEaB4f8A83dFb03C794b9061347F4501006B72fFf",
       "decimals": 18,
@@ -3550,6 +5152,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "GOODHAND"
+    },
+    "0xeaf2512dfc1beac608f8794b3793cd4e02894aa6": {
+      "address": "0xEAf2512dFC1bEAc608F8794B3793CD4E02894Aa6",
+      "decimals": 18,
+      "isin": "US4663131039",
+      "metadataOk": true,
+      "name": "Jabil Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "JBL"
     },
     "0xeafac31fe1334e3656211b7f01aae28f7a82513c": {
       "address": "0xEaFac31FE1334e3656211B7F01AAE28f7A82513c",
@@ -3565,12 +5177,42 @@
       "source": "chain_live_erc20",
       "symbol": "SOCKET"
     },
+    "0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d": {
+      "address": "0xeB30663bDFf0622Ef4e4E5cBb4E975F19f33f51D",
+      "decimals": 18,
+      "isin": "US36118L1061",
+      "metadataOk": true,
+      "name": "Futu Holdings • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "FUTU"
+    },
+    "0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d": {
+      "address": "0xEB61c0Ed490A367d4E3631cCf8a74B3bfc7E775D",
+      "decimals": 18,
+      "isin": "US4464131063",
+      "metadataOk": true,
+      "name": "Huntington Ingalls • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "HII"
+    },
     "0xeb64d5168802e5b4700d86e99f34d8071a4a1e18": {
       "address": "0xEb64d5168802E5B4700D86E99F34D8071A4A1E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "BBJC"
+    },
+    "0xec262a75e413fafd0df80480274532c79d42da09": {
+      "address": "0xec262a75e413fAfD0dF80480274532C79D42da09",
+      "decimals": 18,
+      "isin": "US5949724083",
+      "metadataOk": true,
+      "name": "Strategy Inc. • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "MSTR"
     },
     "0xece632f25940ecfd48e9ccef071eee0cfe642bec": {
       "address": "0xEcE632F25940EcfD48e9ccEF071EEe0cFe642bec",
@@ -3628,11 +5270,24 @@
       "source": "chain_live_erc20",
       "symbol": "KEKE"
     },
+    "0xf0ab0c93be6f41369d302e55db1a96b3c430212d": {
+      "address": "0xF0AB0c93bE6F41369d302e55db1A96b3c430212D",
+      "decimals": 18,
+      "isin": "AU0000185993",
+      "metadataOk": true,
+      "name": "IREN Limited • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "IREN"
+    },
     "0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8": {
       "address": "0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8",
       "decimals": 18,
+      "isin": "US7710491033",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Roblox • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "RBLX"
     },
     "0xf10df442f712912e4d1ad79852b3f9695dd989d8": {
@@ -3648,6 +5303,16 @@
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "SC"
+    },
+    "0xf1953dab6fad537488d5a022361ffaa8b4c95ec6": {
+      "address": "0xf1953DAB6FaD537488d5A022361FfAa8B4c95eC6",
+      "decimals": 18,
+      "isin": "US4576422053",
+      "metadataOk": true,
+      "name": "Innodata • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "INOD"
     },
     "0xf1aa19049e34d81d6ea8a9cf078114ceaf801e18": {
       "address": "0xf1aa19049E34d81D6eA8a9CF078114cEAf801E18",
@@ -3684,6 +5349,16 @@
       "source": "chain_live_erc20",
       "symbol": "HYACT"
     },
+    "0xf23250dac154d05bb671cb0d0ebef3c635c79ce2": {
+      "address": "0xf23250dac154D05Bb671CB0d0eBEf3c635c79CE2",
+      "decimals": 18,
+      "isin": "US9113121068",
+      "metadataOk": true,
+      "name": "UPS • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "UPS"
+    },
     "0xf2e210e8d904453bb47f6c93c0eb7dcb02d51e18": {
       "address": "0xF2e210e8D904453Bb47f6C93C0EB7DCB02d51e18",
       "decimals": 18,
@@ -3705,6 +5380,36 @@
       "source": "chain_live_erc20",
       "symbol": "BZL"
     },
+    "0xf52597345a8edf418bc4071b4a35112472277d3e": {
+      "address": "0xF52597345A8Edf418bc4071b4a35112472277D3e",
+      "decimals": 18,
+      "isin": "US9581021055",
+      "metadataOk": true,
+      "name": "Western Digital • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "WDC"
+    },
+    "0xf53f66751b1eff985311b693531e3290f600c410": {
+      "address": "0xF53F66751B1Eff985311b693531E3290F600c410",
+      "decimals": 18,
+      "isin": "CA82509L1076",
+      "metadataOk": true,
+      "name": "Shopify • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SHOP"
+    },
+    "0xf543967eebb6f1917992ef0e68de63ab07a5a0da": {
+      "address": "0xF543967EEBB6f1917992eF0E68De63ab07a5a0dA",
+      "decimals": 18,
+      "isin": "US17275R1023",
+      "metadataOk": true,
+      "name": "Cisco Systems • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "CSCO"
+    },
     "0xf62694e52cd867bc52a9b5bcc4785c9e91fe0fec": {
       "address": "0xf62694e52Cd867BC52a9b5bcc4785c9E91FE0Fec",
       "decimals": 18,
@@ -3712,12 +5417,42 @@
       "source": "chain_live_erc20",
       "symbol": "HONKADE"
     },
+    "0xf6290b5e7c26502e2da514c31509849718ea76a5": {
+      "address": "0xF6290b5e7C26502e2dA514C31509849718EA76A5",
+      "decimals": 18,
+      "isin": "US0080731088",
+      "metadataOk": true,
+      "name": "AeroVironment • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AVAV"
+    },
+    "0xf6589f11bc40b669e584073f428b05562f568733": {
+      "address": "0xF6589F11Bc40b669e584073F428B05562F568733",
+      "decimals": 18,
+      "isin": "US83304A1060",
+      "metadataOk": true,
+      "name": "Snap • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "SNAP"
+    },
     "0xf6e606a1f2628d63cc3de3534b5d2f0789ea1e18": {
       "address": "0xf6E606A1F2628d63Cc3DE3534B5D2F0789eA1e18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "LAUNCHES"
+    },
+    "0xf7181b63fdb858558a74ba96bc42732684cd7965": {
+      "address": "0xf7181b63Fdb858558A74ba96BC42732684cd7965",
+      "decimals": 18,
+      "isin": "US6391931010",
+      "metadataOk": true,
+      "name": "Navan • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "NAVN"
     },
     "0xf8224361c84f563894d7fe91f4a3dd19b5dd1e18": {
       "address": "0xF8224361C84F563894D7fE91F4A3Dd19B5DD1e18",
@@ -3747,6 +5482,16 @@
       "source": "chain_live_erc20",
       "symbol": "DGREM"
     },
+    "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5": {
+      "address": "0xf9B46d3D1B22199D4D1025a9cEDB540A33F1a2d5",
+      "decimals": 18,
+      "isin": "US30233Q1085",
+      "metadataOk": true,
+      "name": "ExxonMobil Holdings Corporation • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "XOM"
+    },
     "0xf9f0192591e9ed89a79860f05acc47753f6440e4": {
       "address": "0xF9F0192591e9Ed89a79860F05AcC47753F6440E4",
       "decimals": 18,
@@ -3761,12 +5506,42 @@
       "source": "chain_live_erc20",
       "symbol": "BEAKINU"
     },
+    "0xfa78c12e6488814a0262e4e802749a4a737d5fb7": {
+      "address": "0xFA78C12E6488814A0262E4e802749a4a737d5fB7",
+      "decimals": 18,
+      "isin": "US92537N1081",
+      "metadataOk": true,
+      "name": "Vertiv • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "VRT"
+    },
+    "0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612": {
+      "address": "0xfAf9cb261B5FCC1f404Bb10CD39C5c6C1974E612",
+      "decimals": 18,
+      "isin": "US0079731008",
+      "metadataOk": true,
+      "name": "Advanced Energy • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "AEIS"
+    },
     "0xfb23d14ab160a116bacf5b4fe05299e3a0f21e18": {
       "address": "0xfB23d14AB160A116bACf5b4fE05299e3A0F21E18",
       "decimals": 18,
       "metadataOk": true,
       "source": "chain_live_erc20",
       "symbol": "SPACEXSI"
+    },
+    "0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda": {
+      "address": "0xfb2664f07B6Aadd29ea7a59D8859b1AeB8645cDa",
+      "decimals": 18,
+      "isin": "US90364P1057",
+      "metadataOk": true,
+      "name": "UiPath • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "PATH"
     },
     "0xfb9f7c7e7381b6def54f101d60807c7949405659": {
       "address": "0xFB9f7C7E7381B6deF54F101D60807C7949405659",
@@ -3838,6 +5613,16 @@
       "source": "chain_live_erc20",
       "symbol": "P2"
     },
+    "0xfde6b5d9bb419b10c23268c74e369abff39c0460": {
+      "address": "0xFDE6b5d9BB419B10C23268c74e369AbFF39C0460",
+      "decimals": 18,
+      "isin": "US75644T1007",
+      "metadataOk": true,
+      "name": "Red Cat • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
+      "symbol": "RCAT"
+    },
     "0xfe09fb328be1c286b4f597ed34764b7472ae72c5": {
       "address": "0xfe09Fb328bE1c286B4f597eD34764b7472ae72c5",
       "decimals": 18,
@@ -3862,8 +5647,11 @@
     "0xff080c8ce2e5feadaca0da81314ae59d232d4afd": {
       "address": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",
       "decimals": 18,
+      "isin": "US5951121038",
       "metadataOk": true,
-      "source": "chain_live_erc20",
+      "name": "Micron Technology • Robinhood Token",
+      "source": "robinhood_stock_official",
+      "status": "ASSET_STATUS_ACTIVE",
       "symbol": "MU"
     },
     "0xff25c8b29340eb00efbebb8896b4884e1fee0031": {

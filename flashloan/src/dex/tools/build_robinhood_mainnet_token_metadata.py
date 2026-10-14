@@ -18,6 +18,9 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.chain_data_registry import chain_data_file_path  # noqa: E402
 from dex.intent_trade.chains.robinhood_common.eth_pair_tokens_core import ZERO_ADDRESS  # noqa: E402
+from dex.intent_trade.chains.robinhood_common.stock_token_registry import (  # noqa: E402
+    merge_stock_registry_into_metadata,
+)
 
 
 NETWORK = "robinhood"
@@ -194,7 +197,7 @@ def _build_metadata(
             if row.get("metadataOk") is False:
                 errors.append(f"{address}:{row.get('error') or row.get('source') or 'unavailable'}")
     symbol_ok = sum(1 for row in rows.values() if row.get("metadataOk"))
-    return {
+    payload = {
         "schemaVersion": "robinhood-v4-token-metadata-v1",
         "network": NETWORK,
         "chainId": CHAIN_ID,
@@ -206,6 +209,7 @@ def _build_metadata(
         "errors": errors[:100],
         "tokens": rows,
     }
+    return merge_stock_registry_into_metadata(payload)
 
 
 def _merge_metadata_into_pool_index(index: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
@@ -270,11 +274,36 @@ def main() -> int:
     parser.add_argument("--metadata-output", default="")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument(
+        "--merge-existing-only",
+        action="store_true",
+        help="Merge the stock registry into the existing metadata file without RPC refresh.",
+    )
     args = parser.parse_args()
 
     pool_index_path = Path(args.idx) if args.idx else _default_pool_index_path()
-    index = _read_json(pool_index_path)
     metadata_output = Path(args.metadata_output) if args.metadata_output else _default_token_metadata_path()
+    if args.merge_existing_only:
+        metadata = _read_json(metadata_output)
+        if not metadata:
+            raise SystemExit(f"metadata file missing: {metadata_output}")
+        merged = merge_stock_registry_into_metadata(metadata)
+        if not args.no_write:
+            _write_json(metadata_output, merged)
+        print(
+            json.dumps(
+                {
+                    "metadataOutput": str(metadata_output),
+                    "tokenAddressCount": merged.get("tokenAddressCount"),
+                    "metadataOkCount": merged.get("metadataOkCount"),
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    index = _read_json(pool_index_path)
     metadata = _build_metadata(
         rpc_url=args.rpc_url,
         index=index,
