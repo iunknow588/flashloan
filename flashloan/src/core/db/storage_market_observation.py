@@ -26,6 +26,15 @@ def _bool(value: Any) -> int:
     return 1 if bool(value) else 0
 
 
+def _bool_tri(value: Any) -> int | None:
+    """Return 1/0 for explicit evidence and None when the row has no signal."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return 1 if value.strip().lower() in {"1", "true", "yes"} else 0
+    return 1 if bool(value) else 0
+
+
 def _text(value: Any) -> str:
     return str(value or "").strip().lower()
 
@@ -93,7 +102,6 @@ def replace_market_observation_tables(
         for item in scored_pools:
             if not has_confirmed_liquidity(
                 item,
-                token_x,
                 min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
                 fallback_token_base=1.0,
             ):
@@ -105,6 +113,17 @@ def replace_market_observation_tables(
                 if len(pool_ids) >= MAX_OBSERVATION_POOLS_PER_DIRECTION:
                     break
         optimal_pool_id = pool_ids[0] if pool_ids else ""
+        empty_reason = (
+            direction.get("observation_empty_reason")
+            or direction.get("observationEmptyReason")
+            or ""
+        )
+        if not pool_ids and not empty_reason:
+            empty_reason = (
+                "no_confirmed_liquidity"
+                if all_pools
+                else "no_reachable_v4_pool"
+            )
         pair_rows.append(
             (
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
@@ -113,7 +132,7 @@ def replace_market_observation_tables(
                 len(pool_ids),
                 _json_dumps(pool_ids),
                 optimal_pool_id,
-                direction.get("observation_empty_reason") or direction.get("observationEmptyReason"),
+                empty_reason,
                 now, now,
             )
         )
@@ -151,7 +170,11 @@ def replace_market_observation_tables(
             (
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
                 pool_id,
-                _bool(row.get("has_liquidity") or row.get("hasLiquidity")),
+                _bool_tri(
+                    row.get("has_liquidity")
+                    if row.get("has_liquidity") is not None
+                    else row.get("hasLiquidity")
+                ),
                 row.get("liquidity") or "",
                 _float_none(row.get("liquidity_index") or row.get("liquidityIndex")),
                 _float_none(row.get("estimated_tvl_usd") or row.get("estimatedTvlUsd")),
@@ -162,7 +185,11 @@ def replace_market_observation_tables(
                 _int_none(row.get("tick")),
                 row.get("liquidity_read_at") or row.get("liquidityReadAt"),
                 _int_none(row.get("liquidity_block_number") or row.get("liquidityBlockNumber")),
-                _bool(row.get("recent_swap_active") or row.get("recentSwapActive")),
+                _bool_tri(
+                    row.get("recent_swap_active")
+                    if row.get("recent_swap_active") is not None
+                    else row.get("recentSwapActive")
+                ),
                 row.get("observed_at") or now,
                 row.get("refreshed_at") or now,
             )
@@ -229,19 +256,60 @@ def replace_market_observation_tables(
                 recent_swap_active, observed_at, refreshed_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
-            DO UPDATE SET has_liquidity = excluded.has_liquidity,
-                liquidity = excluded.liquidity,
-                liquidity_index = excluded.liquidity_index,
-                estimated_tvl_usd = excluded.estimated_tvl_usd,
-                balances_json = excluded.balances_json,
-                depth_status = excluded.depth_status,
-                depth_band_json = excluded.depth_band_json,
-                sqrt_price_x96 = excluded.sqrt_price_x96,
-                tick = excluded.tick,
-                liquidity_read_at = excluded.liquidity_read_at,
-                liquidity_block_number = excluded.liquidity_block_number,
-                recent_swap_active = excluded.recent_swap_active,
-                observed_at = excluded.observed_at,
+            DO UPDATE SET has_liquidity = CASE
+                WHEN excluded.has_liquidity IS NULL
+                THEN market_observation_liquidity_snapshots.has_liquidity
+                ELSE excluded.has_liquidity
+            END,
+                liquidity = CASE
+                    WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
+                    THEN market_observation_liquidity_snapshots.liquidity
+                    ELSE excluded.liquidity
+                END,
+                liquidity_index = COALESCE(
+                    excluded.liquidity_index,
+                    market_observation_liquidity_snapshots.liquidity_index
+                ),
+                estimated_tvl_usd = COALESCE(
+                    excluded.estimated_tvl_usd,
+                    market_observation_liquidity_snapshots.estimated_tvl_usd
+                ),
+                balances_json = COALESCE(
+                    excluded.balances_json,
+                    market_observation_liquidity_snapshots.balances_json
+                ),
+                depth_status = CASE
+                    WHEN excluded.depth_status IS NULL OR excluded.depth_status = ''
+                    THEN market_observation_liquidity_snapshots.depth_status
+                    ELSE excluded.depth_status
+                END,
+                depth_band_json = COALESCE(
+                    excluded.depth_band_json,
+                    market_observation_liquidity_snapshots.depth_band_json
+                ),
+                sqrt_price_x96 = CASE
+                    WHEN excluded.sqrt_price_x96 IS NULL OR excluded.sqrt_price_x96 = ''
+                    THEN market_observation_liquidity_snapshots.sqrt_price_x96
+                    ELSE excluded.sqrt_price_x96
+                END,
+                tick = COALESCE(excluded.tick, market_observation_liquidity_snapshots.tick),
+                liquidity_read_at = COALESCE(
+                    excluded.liquidity_read_at,
+                    market_observation_liquidity_snapshots.liquidity_read_at
+                ),
+                liquidity_block_number = COALESCE(
+                    excluded.liquidity_block_number,
+                    market_observation_liquidity_snapshots.liquidity_block_number
+                ),
+                recent_swap_active = CASE
+                    WHEN excluded.recent_swap_active IS NULL
+                    THEN market_observation_liquidity_snapshots.recent_swap_active
+                    ELSE excluded.recent_swap_active
+                END,
+                observed_at = COALESCE(
+                    excluded.observed_at,
+                    market_observation_liquidity_snapshots.observed_at
+                ),
                 refreshed_at = excluded.refreshed_at
             """,
             liquidity_rows,
@@ -299,7 +367,6 @@ def replace_market_observation_abnormal_tables(
         for item in scored_pools:
             if not has_confirmed_liquidity(
                 item,
-                token_x,
                 min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
                 fallback_token_base=1.0,
             ):
@@ -311,6 +378,17 @@ def replace_market_observation_abnormal_tables(
                 if len(pool_ids) >= MAX_OBSERVATION_POOLS_PER_DIRECTION:
                     break
         optimal_pool_id = pool_ids[0] if pool_ids else ""
+        empty_reason = (
+            direction.get("observation_empty_reason")
+            or direction.get("observationEmptyReason")
+            or ""
+        )
+        if not pool_ids and not empty_reason:
+            empty_reason = (
+                "no_confirmed_liquidity"
+                if all_pools
+                else "no_reachable_v4_pool"
+            )
         pair_rows.append(
             (
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
@@ -319,7 +397,7 @@ def replace_market_observation_abnormal_tables(
                 len(pool_ids),
                 _json_dumps(pool_ids),
                 optimal_pool_id,
-                direction.get("observation_empty_reason") or direction.get("observationEmptyReason"),
+                empty_reason,
                 now, now,
             )
         )

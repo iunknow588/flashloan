@@ -166,35 +166,87 @@ def _liquidity_rows(v4_liquidity: dict[str, Any]) -> list[dict[str, Any]]:
             has_liquidity = raw.get("hasLiquidity")
         if has_liquidity is None and raw.get("liquidity"):
             has_liquidity = True
+        if has_liquidity is not None and raw.get("liquidityError"):
+            error_text = str(raw.get("liquidityError") or "").lower()
+            if "liquidity is zero" not in error_text:
+                has_liquidity = None
         liquidity_index = _number(raw.get("liquidityIndex"))
         if liquidity_index is None and raw.get("liquidity") not in (None, ""):
             try:
                 liquidity_index = float(raw.get("liquidity"))
             except (TypeError, ValueError):
                 liquidity_index = None
-        rows.append(
-            {
-                "pool_id": _pool_id(raw),
-                "has_liquidity": has_liquidity,
-                "liquidity": raw.get("liquidity") or "",
-                "liquidity_index": liquidity_index,
-                "estimated_tvl_usd": _number(
-                    raw.get("estimatedTvlUsd")
-                    or (raw.get("balances") or {}).get("tvlUsd")
-                    if isinstance(raw.get("balances"), dict)
-                    else raw.get("estimatedTvlUsd")
-                ),
-                "balances": raw.get("balances") or {},
-                "depth_status": raw.get("depthStatus") or "",
-                "depth_band": raw.get("depthBand") or {},
-                "sqrt_price_x96": raw.get("sqrtPriceX96") or "",
-                "tick": raw.get("tick"),
-                "liquidity_read_at": raw.get("liquidityReadAt"),
-                "liquidity_block_number": raw.get("liquidityBlockNumber"),
-                "recent_swap_active": raw.get("recentSwapActive") or False,
-                "observed_at": observed_at,
-            }
-        )
+        row = {
+            "pool_id": _pool_id(raw),
+            "has_liquidity": has_liquidity,
+            "liquidity": raw.get("liquidity") or "",
+            "liquidity_index": liquidity_index,
+            "estimated_tvl_usd": _number(
+                raw.get("estimatedTvlUsd")
+                or (raw.get("balances") or {}).get("tvlUsd")
+                if isinstance(raw.get("balances"), dict)
+                else raw.get("estimatedTvlUsd")
+            ),
+            "balances": raw.get("balances") or {},
+            "depth_status": raw.get("depthStatus") or "",
+            "depth_band": raw.get("depthBand") or {},
+            "sqrt_price_x96": raw.get("sqrtPriceX96") or "",
+            "tick": raw.get("tick"),
+            "liquidity_read_at": raw.get("liquidityReadAt"),
+            "liquidity_block_number": raw.get("liquidityBlockNumber"),
+            "observed_at": observed_at,
+        }
+        if raw.get("recentSwapActive") is not None:
+            row["recent_swap_active"] = raw.get("recentSwapActive")
+        rows.append(row)
+    return rows
+
+
+def _liquidity_rows_from_index(index: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract liquidity evidence stored on pool index rows.
+
+    The index is the canonical on-chain pool source and carries live
+    ``pool_manager_extsload_live_state_batch`` markers on mainnet. Importing
+    those rows after the liquidity file prevents a stale or swap-log-only
+    liquidity file from silently turning real depth into ``has_liquidity=0``.
+    """
+    rows = []
+    for raw in index.get("pools") or []:
+        if not isinstance(raw, dict):
+            continue
+        key = raw.get("poolKey") if isinstance(raw.get("poolKey"), dict) else raw
+        has_liquidity = raw.get("has_liquidity")
+        if has_liquidity is None:
+            has_liquidity = raw.get("hasLiquidity")
+        if has_liquidity is not None and raw.get("liquidityError"):
+            error_text = str(raw.get("liquidityError") or "").lower()
+            if "liquidity is zero" not in error_text:
+                has_liquidity = None
+        liquidity = raw.get("liquidity")
+        liquidity_index = _number(raw.get("liquidityIndex"))
+        if liquidity_index is None and liquidity not in (None, ""):
+            try:
+                liquidity_index = float(liquidity)
+            except (TypeError, ValueError):
+                liquidity_index = None
+        row = {
+            "pool_id": _pool_id(raw),
+            "has_liquidity": has_liquidity,
+            "liquidity": liquidity or "",
+            "liquidity_index": liquidity_index,
+            "estimated_tvl_usd": _number(raw.get("estimatedTvlUsd")),
+            "balances": raw.get("balances") if isinstance(raw.get("balances"), dict) else {},
+            "depth_status": raw.get("depthStatus") or "",
+            "depth_band": raw.get("depthBand") or {},
+            "sqrt_price_x96": raw.get("sqrtPriceX96") or key.get("sqrtPriceX96") or "",
+            "tick": raw.get("tick") if raw.get("tick") is not None else key.get("tick"),
+            "liquidity_read_at": raw.get("liquidityReadAt"),
+            "liquidity_block_number": raw.get("liquidityBlockNumber"),
+            "observed_at": index.get("generatedAt") or index.get("liquidityScanAt"),
+        }
+        if raw.get("recentSwapActive") is not None:
+            row["recent_swap_active"] = raw.get("recentSwapActive")
+        rows.append(row)
     return rows
 
 
@@ -271,7 +323,6 @@ def _build_loops(
             for row in rows
             if has_confirmed_liquidity(
                 row,
-                _text(input_address),
                 min_usd=1000.0,
                 fallback_token_base=1.0,
             )
@@ -361,7 +412,6 @@ def _find_pool_for_hop(
         == {input_address, output_address}
         and has_confirmed_liquidity(
             pool,
-            input_address,
             min_usd=1000.0,
             fallback_token_base=1.0,
         )
@@ -427,12 +477,23 @@ def import_existing_json(
         protocol="uniswap_v4",
         pool_rows=_v4_pool_rows_from_index(index),
     )
+    # The liquidity file is written first, then the index liquidity rows.
+    # Index rows carry the authoritative extsload markers where available;
+    # unknown values are preserved by the storage upsert instead of becoming
+    # false negatives.
     upsert_v4_liquidity_snapshots(
         database_url,
         network=wanted_network,
         chain_id=wanted_chain_id,
         protocol="uniswap_v4",
         rows=_liquidity_rows(liquidity),
+    )
+    upsert_v4_liquidity_snapshots(
+        database_url,
+        network=wanted_network,
+        chain_id=wanted_chain_id,
+        protocol="uniswap_v4",
+        rows=_liquidity_rows_from_index(index),
     )
 
     upsert_initialization(

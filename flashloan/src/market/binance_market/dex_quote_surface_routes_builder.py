@@ -20,7 +20,7 @@ from market.binance_market.dex_quote_route_common import (
 from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 
 
-def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+def _pool_usable_state(pool: dict[str, Any]) -> bool | None:
     if pool.get("usableForObservation") is not None:
         return bool(pool.get("usableForObservation"))
     if pool.get("specialFee") or pool.get("dynamicFee"):
@@ -29,9 +29,17 @@ def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
     if has_liquidity is not None:
         return bool(has_liquidity)
     try:
-        return float(pool.get("liquidityIndex") or pool.get("liquidity") or 0) > 0
+        raw_liquidity = pool.get("liquidityIndex") or pool.get("liquidity")
+        if raw_liquidity is None or str(raw_liquidity).strip() == "":
+            return None
+        return float(str(raw_liquidity)) > 0
     except (TypeError, ValueError):
-        return False
+        return None
+
+
+def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
+    state = _pool_usable_state(pool)
+    return bool(state) if state is not None else False
 
 
 def _build_quote_routes_and_best(
@@ -90,7 +98,7 @@ def _build_quote_routes_and_best(
         if hop_candidates:
             route["hopCandidates"] = hop_candidates
         if path.get("routeUsableForObservation") is True:
-            pools = [pool for pool in pools if _pool_usable_for_observation(pool)]
+            pools = [pool for pool in pools if _pool_usable_state(pool) is not False]
         base_quote_analysis = route.get("quoteAnalysis") or route.get("overviewProfit") or {}
         quote_analysis = build_quote_analysis_defaults(
             quote_analysis=base_quote_analysis,

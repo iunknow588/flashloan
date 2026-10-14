@@ -524,6 +524,93 @@ def test_build_loops_requires_all_three_hops_to_have_pools():
     assert hops == []
 
 
+def test_find_pool_for_hop_keeps_mirror_direction_symmetry():
+    """A physical pool must never be selected for one hop direction while its
+    mirror direction has no pool, even when one-token capacity differs."""
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    pool = {
+        "pool_id": "pool-dir-thin",
+        "token0": anchor,
+        "token1": counter,
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "liquidity_index": 0.1,
+        "estimated_tvl_usd": 0,
+        "liquidity": "100000000000000000",
+        "sqrt_price_x96": "1",
+    }
+
+    forward = import_existing_json._find_pool_for_hop(
+        {"pool-dir-thin": pool},
+        anchor,
+        counter,
+    )
+    reverse = import_existing_json._find_pool_for_hop(
+        {"pool-dir-thin": pool},
+        counter,
+        anchor,
+    )
+    assert forward == ""
+    assert reverse == ""
+
+    deep = dict(pool)
+    deep["liquidity_index"] = 1000.0
+    deep["estimated_tvl_usd"] = 1_000_000
+    forward = import_existing_json._find_pool_for_hop(
+        {"pool-dir-thin": deep},
+        anchor,
+        counter,
+    )
+    reverse = import_existing_json._find_pool_for_hop(
+        {"pool-dir-thin": deep},
+        counter,
+        anchor,
+    )
+    assert forward == "pool-dir-thin"
+    assert reverse == "pool-dir-thin"
+
+
+def test_build_loops_keeps_two_directions_symmetric_when_depth_is_thin():
+    """Thin depth must not leave only one directed loop in the imported JSON
+    path.  The old direction-as-liquidity gate could create anchor:y:z while
+    the mirror anchor:z:y stayed empty."""
+    anchor = "0x" + "1" * 40
+    y = "0x" + "2" * 40
+    z = "0x" + "3" * 40
+
+    def pool(pool_id, token0, token1):
+        return {
+            "pool": pool_id,
+            "token0": token0,
+            "token1": token1,
+            "fee": 3000,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "liquidity_index": 0.1,
+            "estimated_tvl_usd": 0,
+            "liquidity": "100000000000000000",
+            "sqrt_price_x96": "1",
+        }
+
+    candidates = {"tokens": [{"token_address": y}, {"token_address": z}]}
+    observation = {
+        "pools": [
+            pool("yc", anchor, y),
+            pool("yz", y, z),
+            pool("zc", z, anchor),
+        ]
+    }
+    loops, hops = import_existing_json._build_loops(
+        anchor_symbol="ETH",
+        anchor_address=anchor,
+        candidates=candidates,
+        observation=observation,
+    )
+
+    assert loops == []
+    assert hops == []
+
+
 def test_mainnet_yz_pair_keeps_every_fixed_fee_pool_for_market_observation():
     token_a = "0x" + "0" * 40
     token_b = "0x" + "1" * 40

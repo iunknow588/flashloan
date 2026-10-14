@@ -80,6 +80,18 @@ def query_flash_loan_pool_discovery(*args: Any, **kwargs: Any):
     return _default_query_flash_loan_pool_discovery(*args, **kwargs)
 
 
+def _chain_db_first_only(chain_id: int | None, protocols: list[str] | None = None) -> bool:
+    try:
+        chain_is_robinhood = int(chain_id) in {4663, 46630}
+    except (TypeError, ValueError):
+        return False
+    if not chain_is_robinhood:
+        return False
+    if not protocols:
+        return True
+    return "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in protocols}
+
+
 def _route_quote_analysis(*args: Any, **kwargs: Any):
     compatibility = None
     try:
@@ -746,7 +758,10 @@ def _overview_path_candidates_from_observation_sets(
             reverse_symmetric=False,
         )
     else:
-        sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
+        if _chain_db_first_only(chain_id, protocols=protocols):
+            sequences = []
+        else:
+            sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
         candidates: list[dict[str, Any]] = []
         seen: set[tuple[str, tuple[str, ...]]] = set()
         for sequence in sequences:

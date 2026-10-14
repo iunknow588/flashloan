@@ -84,17 +84,19 @@ def pool_depth_usd(pool: dict[str, Any]) -> float:
 
 def has_confirmed_liquidity(
     pool: dict[str, Any],
-    token_in: object | None = None,
     *,
     min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
-    decimals_by_address: dict[str, object] | None = None,
 ) -> bool:
-    """Confirm a pool has enough depth for one directed hop.
+    """Confirm a physical pool has enough depth.
+
+    Depth is a two-sided market fact. Direction may change the score and the
+    preferred pool, but it must never change whether a pool is included, so
+    this gate deliberately has no ``token_in`` parameter.
 
     USD evidence is the primary gate (default 1000 USDC). When the pool has no
     USD pricing because neither side is a stable token or ETH, the fallback is
-    one whole token unit, i.e. raw liquidity divided by ``10 ** decimals``.
+    the published liquidity index, or one whole token unit from raw liquidity.
     """
     depth_usd = pool_depth_usd(pool)
     if depth_usd > 0:
@@ -107,18 +109,6 @@ def has_confirmed_liquidity(
         liquidity_index = max(liquidity_index, raw_liquidity / (10 ** DEFAULT_DECIMALS))
     if liquidity_index >= fallback_token_base:
         return True
-    if token_in is not None:
-        sqrt_price = _spot_sqrt_price(pool)
-        if sqrt_price > 0:
-            capacity = _liquidity_capacity(
-                pool,
-                token_in=_text(token_in),
-                sqrt_price=sqrt_price,
-            )
-            if capacity is not None and capacity > 0:
-                decimals = _token_decimals(_text(token_in), decimals_by_address)
-                if capacity / (10 ** decimals) >= fallback_token_base:
-                    return True
     return False
 
 
@@ -211,6 +201,11 @@ def select_directional_pool_ids(
     replacement for the stored primary pool when the original recommendation
     has lost liquidity.  The caller decides whether to keep the pool id as a
     backup; this helper never returns an id that fails the depth gate.
+
+    Pool inclusion is deliberately direction-independent.  A physical V4 pool
+    either exists as a two-sided market or it does not; direction may change
+    the score/order, but it must never make one side of the pair look
+    "has pools" while the mirror side looks "no pools".
     """
     if limit <= 0:
         return []
@@ -228,10 +223,8 @@ def select_directional_pool_ids(
             continue
         if not has_confirmed_liquidity(
             pool,
-            token_in,
             min_usd=min_usd,
             fallback_token_base=fallback_token_base,
-            decimals_by_address=decimals_by_address,
         ):
             continue
         score = score_pool_by_direction(

@@ -523,10 +523,19 @@ def _pools_by_edge(pools: list[dict[str, Any]]) -> dict[tuple[str, str], list[di
 def _anchor_to_token_pool(anchor_address: str, token_address: str, pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]]) -> dict[str, Any] | None:
     edge = tuple(sorted((anchor_address, token_address)))
     rows = pools_by_edge.get(edge) or []
+
+    def _recent_swap_rank(row: dict[str, Any]) -> int:
+        value = row.get("recentSwapActive")
+        if value is True:
+            return 0
+        if value is None:
+            return 1
+        return 2
+
     rows.sort(
         key=lambda row: (
             not _pool_usable_for_observation(row),
-            not bool(row.get("recentSwapActive")),
+            _recent_swap_rank(row),
             _number_liquidity(row),
             float((row.get("balances") or {}).get("tvlUsd") or row.get("estimatedTvlUsd") or 0),
             str(_pool_id(row)),

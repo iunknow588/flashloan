@@ -469,7 +469,7 @@ def _enrich_pool_liquidity(
         )
     ]
     errors: list[str] = []
-    errors_lock = None
+    confirmed_ids: list[str] = []
 
     def enrich_one(pool: dict[str, Any]) -> None:
         try:
@@ -487,11 +487,14 @@ def _enrich_pool_liquidity(
                 pool["liquidityError"] = None
                 pool["depthStatus"] = "no_liquidity"
                 pool["status"] = "initialized_pool_no_liquidity"
+                pool["hasLiquidity"] = False
+                pool["liquidityIndex"] = 0
             else:
                 pool["liquidityError"] = error_message[:240]
                 pool["depthStatus"] = "liquidity_read_failed"
-            pool["hasLiquidity"] = False
-            pool["liquidityIndex"] = 0
+                # A read failure is unknown, not proven empty. Preserve any
+                # existing evidence instead of flipping the pool to false.
+                pool["hasLiquidity"] = pool.get("hasLiquidity")
             errors.append(f"{pool.get('poolId')}:{str(exc)[:160]}")
             return
         pool["liquidity"] = str(state.get("liquidity") or "")
@@ -510,29 +513,25 @@ def _enrich_pool_liquidity(
             if pool.get("hasLiquidity"):
                 pool["tvlUsd"] = pool.get("estimatedTvlUsd") or 0
                 pool["status"] = "initialized_pool_with_liquidity"
+                confirmed_ids.append(str(pool.get("poolId") or "").lower())
             else:
                 pool["status"] = "initialized_pool_no_liquidity"
         except Exception as exc:
             pool["liquidityError"] = str(exc)[:240]
-            pool["hasLiquidity"] = False
-            pool["liquidityIndex"] = 0
             pool["depthStatus"] = "liquidity_math_failed"
+            pool["hasLiquidity"] = pool.get("hasLiquidity")
 
     with ThreadPoolExecutor(max_workers=min(6, max(1, len(selected)))) as executor:
         for _ in executor.map(enrich_one, selected, chunksize=1):
             pass
-    marked = sum(1 for pool in selected if pool.get("hasLiquidity"))
+    marked = len(confirmed_ids)
     return {
         "liquidityMarkerActive": True,
         "liquidityMarkedPoolCount": marked,
         "liquidityErrorCount": len(errors),
         "liquidityErrors": errors[:20],
         "liquidityScanAt": _stamp(),
-        "liquidityPoolIds": sorted(
-            str(pool.get("poolId") or "").lower()
-            for pool in selected
-            if pool.get("hasLiquidity")
-        ),
+        "liquidityPoolIds": sorted(confirmed_ids),
     }
 
 

@@ -59,6 +59,59 @@ pub fn load_v4_exchange_pools(
     )
 }
 
+pub fn load_v4_exchange_pool_rows_for_view(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT network, chain_id, protocol, pool_id, pool_manager, token0, token1, \
+         fee, hooks, tick_spacing \
+         FROM v4_exchange_pools \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         ORDER BY pool_id",
+        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+    )
+}
+
+pub fn load_v4_exchange_pool_pair_counts(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT token0, token1, \
+         COUNT(DISTINCT CASE WHEN COALESCE(pool_id, '') <> '' THEN pool_id \
+             ELSE token0 || ':' || token1 || ':' || COALESCE(CAST(fee AS TEXT), '') END) AS pool_count \
+         FROM v4_exchange_pools \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         GROUP BY token0, token1 \
+         ORDER BY token0, token1",
+        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+    )
+}
+
+pub fn load_v4_exchange_pool_manager(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Option<Value>, String> {
+    let results = rows(
+        connection,
+        "SELECT pool_manager \
+         FROM v4_exchange_pools \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         ORDER BY pool_id LIMIT 1",
+        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+    )?;
+    Ok(results.into_iter().next())
+}
+
 pub fn load_v4_pool_liquidity(
     connection: &Connection,
     network: &str,
@@ -71,6 +124,25 @@ pub fn load_v4_pool_liquidity(
          liquidity_index, estimated_tvl_usd, balances_json, depth_status, depth_band_json, \
          depth_score_usd, sqrt_price_x96, price, tick, liquidity_read_at, \
          liquidity_block_number, recent_swap_active, observed_at, refreshed_at \
+         FROM v4_exchange_pool_liquidity_snapshots \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         ORDER BY pool_id",
+        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+    )
+}
+
+pub fn load_v4_pool_liquidity_rows_for_view(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT pool_id, has_liquidity, liquidity, liquidity_index, \
+         estimated_tvl_usd, depth_status, sqrt_price_x96, tick, \
+         liquidity_read_at, liquidity_block_number, recent_swap_active, \
+         observed_at, refreshed_at \
          FROM v4_exchange_pool_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
@@ -409,6 +481,67 @@ mod tests {
         let liquidity = load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4").expect("load liquidity");
         assert_eq!(liquidity.len(), 1);
         assert_eq!(liquidity[0]["has_liquidity"].as_i64().unwrap(), 1);
+    }
+
+    #[test]
+    fn sqlite_read_keeps_unknown_liquidity_as_null() {
+        let dir = tempfile::tempdir().expect("temporary dir");
+        let path = dir.path().join("unknown-liquidity.sqlite3");
+        let path_text = path.to_string_lossy().into_owned();
+        let connection = Connection::open(&path).expect("open test database");
+        connection
+            .execute_batch(
+                "
+                CREATE TABLE v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    has_liquidity INTEGER,
+                    liquidity TEXT,
+                    liquidity_index REAL,
+                    estimated_tvl_usd REAL,
+                    balances_json TEXT,
+                    depth_status TEXT,
+                    depth_band_json TEXT,
+                    depth_score_usd REAL,
+                    sqrt_price_x96 TEXT,
+                    price REAL,
+                    tick INTEGER,
+                    liquidity_read_at TEXT,
+                    liquidity_block_number INTEGER,
+                    recent_swap_active INTEGER,
+                    observed_at TEXT NOT NULL,
+                    refreshed_at TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                );
+                ",
+            )
+            .expect("create liquidity table");
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    "robinhood", 4663_i64, "uniswap_v4",
+                    "0x2222222222222222222222222222222222222222222222222222222222222222",
+                    Option::<i64>::None, "", Option::<f64>::None, Option::<f64>::None,
+                    "{}", "", "{}", Option::<f64>::None,
+                    "", Option::<f64>::None, Option::<i64>::None,
+                    Option::<String>::None, Option::<i64>::None,
+                    Option::<i64>::None,
+                    "2026-10-09T00:00:00.000Z", "2026-10-09T00:00:00.000Z"
+                ],
+            )
+            .expect("insert unknown liquidity row");
+        drop(connection);
+
+        let connection = open_readonly(&path_text).expect("open read-only");
+        let liquidity =
+            load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4").expect("load liquidity");
+        assert_eq!(liquidity.len(), 1);
+        assert!(liquidity[0]["has_liquidity"].is_null());
+        assert!(liquidity[0]["recent_swap_active"].is_null());
+        assert!(liquidity[0]["liquidity_read_at"].is_null());
     }
 
     #[test]

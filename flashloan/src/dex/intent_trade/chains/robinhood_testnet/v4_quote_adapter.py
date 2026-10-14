@@ -506,6 +506,26 @@ def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
     return None
 
 
+def _pool_liquidity_evidence(pool: dict[str, Any]) -> bool | None:
+    """Return True/False for explicit depth evidence and None when unknown."""
+    raw = pool.get("hasLiquidity")
+    if raw is None:
+        raw = pool.get("has_liquidity")
+    if raw is not None:
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes"}
+        return bool(raw)
+    for key in ("liquidity", "liquidityIndex"):
+        value = pool.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            return float(str(value)) > 0
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _pool_lookup(pool_address: str, network: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
     wanted = _normalize_pool_id(pool_address)
     for pool in _pool_rows(network, chain_id):
@@ -544,35 +564,25 @@ def _pool_lookup_by_tokens(
             return False
         return bool(fee & 0x800000) or fee > 100_000
 
-    def has_liquidity(pool: dict[str, Any]) -> bool:
-        if pool.get("hasLiquidity") is not None:
-            return bool(pool.get("hasLiquidity"))
-        try:
-            return float(str(pool.get("liquidity") or pool.get("liquidityIndex") or "0")) > 0
-        except (TypeError, ValueError):
-            return False
-
     usable = [pool for pool in rows if not is_special_fee(pool)]
     if not usable:
         return {}
-    preferred = [
-        pool
-        for pool in usable
-        if has_liquidity(pool)
-        and _normalize_address(pool.get("hooks") or pool.get("poolKey", {}).get("hooks")) == zero_hooks
-    ]
-    if preferred:
-        return preferred[0]
-    liquid_fallback = [pool for pool in usable if has_liquidity(pool)]
-    if liquid_fallback:
-        return liquid_fallback[0]
-    no_hook_fallback = [
-        pool
-        for pool in usable
-        if _normalize_address(pool.get("hooks") or pool.get("poolKey", {}).get("hooks")) == zero_hooks
-    ]
-    if no_hook_fallback:
-        return no_hook_fallback[0]
+    for bucket in (
+        [pool for pool in usable if _pool_liquidity_evidence(pool) is True],
+        [pool for pool in usable if _pool_liquidity_evidence(pool) is None],
+        [pool for pool in usable if _pool_liquidity_evidence(pool) is False],
+    ):
+        if not bucket:
+            continue
+        no_hook_bucket = [
+            pool
+            for pool in bucket
+            if _normalize_address(pool.get("hooks") or pool.get("poolKey", {}).get("hooks")) == zero_hooks
+        ]
+        if no_hook_bucket:
+            return no_hook_bucket[0]
+        if bucket:
+            return bucket[0]
     return usable[0]
 
 

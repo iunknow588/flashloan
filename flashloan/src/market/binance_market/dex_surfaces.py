@@ -1132,10 +1132,12 @@ def _database_first_robinhood_observation_payload(
             pool["liquidityBlockNumber"] = (
                 pool_row.get("liquidity_block_number") or pool_row.get("liquidityBlockNumber")
             )
-            pool["hasLiquidity"] = bool(pool_row.get("has_liquidity") or pool_row.get("hasLiquidity"))
-            pool["usableForObservation"] = bool(
-                pool_row.get("usable_for_observation") or pool_row.get("usableForObservation")
-            )
+            pool["hasLiquidity"] = pool_row.get("has_liquidity")
+            if pool["hasLiquidity"] is None:
+                pool["hasLiquidity"] = pool_row.get("hasLiquidity")
+            pool["usableForObservation"] = pool_row.get("usable_for_observation")
+            if pool["usableForObservation"] is None:
+                pool["usableForObservation"] = pool_row.get("usableForObservation")
             pool["addressPair"] = pool_row.get("address_pair") or pool_row.get("addressPair")
             shared_pools.append(pool)
         shared_tokens: list[dict[str, Any]] = []

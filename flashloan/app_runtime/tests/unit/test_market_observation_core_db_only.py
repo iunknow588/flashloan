@@ -16,6 +16,29 @@ TZ = "0x0000000000000000000000000000000000000001"
 TB = "0x0000000000000000000000000000000000000002"
 
 
+def _real_runtime_database() -> str | None:
+    import os
+    from pathlib import Path
+
+    env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
+    if env_path:
+        candidate = Path(env_path)
+    else:
+        candidate = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "runtime"
+            / "local_store.sqlite3"
+        )
+    if not candidate.exists():
+        return None
+    try:
+        candidate.resolve(strict=True)
+    except OSError:
+        return None
+    return str(candidate)
+
+
 def _pool(pool_id, token0, token1, *, liquid=True):
     return {
         "pool_id": pool_id,
@@ -238,6 +261,66 @@ def test_db_closed_loop_sequences_does_not_force_backup_when_only_one_pool(tmp_p
     assert yc["poolIds"] == ["0x" + "0" * 63 + "1"]
     assert yc["backupPoolIds"] == []
     assert yc["poolCount"] == 1
+
+
+def test_real_runtime_db_directed_closed_loop_contract():
+    import sqlite3
+    from pathlib import Path
+
+    db = _real_runtime_database()
+    if db is None:
+        import pytest
+
+        pytest.skip("real runtime sqlite database is not present")
+    con = sqlite3.connect(f"file:{Path(db).as_posix()}?mode=ro", uri=True)
+    cur = con.cursor()
+    try:
+        mainnet_rows = cur.execute(
+            """
+            SELECT loop_key, path_symbols_json
+            FROM v4_closed_loops
+            WHERE network = 'robinhood' AND chain_id = 4663
+              AND protocol = 'uniswap_v4'
+            ORDER BY loop_key
+            """
+        ).fetchall()
+        assert len(mainnet_rows) == 22
+        assert all("0X" not in str(row[1]).upper() for row in mainnet_rows)
+        symbols = {tuple(json.loads(row[1])) for row in mainnet_rows}
+        assert len(symbols) == 22
+        reversed_symbols = {
+            (path[0], path[2], path[1], path[0])
+            for path in symbols
+            if len(path) == 4
+        }
+        assert reversed_symbols <= symbols
+
+        hop_rows = cur.execute(
+            """
+            SELECT h.hop_name, h.pool_id
+            FROM v4_closed_loops c
+            JOIN v4_closed_loop_hops h
+              ON h.loop_key = c.loop_key
+             AND h.market_id = c.market_id
+            WHERE c.network = 'robinhood' AND c.chain_id = 4663
+              AND c.protocol = 'uniswap_v4'
+            """
+        ).fetchall()
+        assert len(hop_rows) == 66
+        assert all(str(row[0]) in {"yc", "y-z", "zc"} for row in hop_rows)
+        assert all(str(row[1]).strip() for row in hop_rows)
+
+        testnet_count = cur.execute(
+            """
+            SELECT count(*)
+            FROM v4_closed_loops
+            WHERE network = 'robinhood-testnet' AND chain_id = 46630
+              AND protocol = 'uniswap_v4'
+            """
+        ).fetchone()[0]
+        assert testnet_count == 2
+    finally:
+        con.close()
 
 
 def test_mainnet_observation_skips_legacy_enumeration_when_db_closed_loops_exist(monkeypatch):

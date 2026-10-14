@@ -4,6 +4,8 @@ from core.db.direction_pool_score import (
     has_confirmed_liquidity,
     select_directional_pool_ids,
 )
+from core.db.storage_business_io import query
+from core.db.storage_market_observation import replace_market_observation_tables
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
@@ -14,19 +16,15 @@ from core.db.storage_v4_exchange import (
 def test_minimum_liquidity_confirmation_uses_usd_then_one_token_fallback():
     assert has_confirmed_liquidity(
         {"estimated_tvl_usd": 1000, "liquidity_index": 0},
-        "0x1",
     ) is True
     assert has_confirmed_liquidity(
         {"estimated_tvl_usd": 999, "liquidity_index": 0},
-        "0x1",
     ) is False
     assert has_confirmed_liquidity(
         {"estimated_tvl_usd": 0, "liquidity_index": 1.0},
-        "0x1",
     ) is True
     assert has_confirmed_liquidity(
         {"estimated_tvl_usd": 0, "liquidity_index": 0.9, "liquidity": ""},
-        "0x1",
     ) is False
 
 
@@ -363,6 +361,255 @@ def test_select_directional_pool_ids_skips_dead_pools_and_keeps_primary_order():
     )
 
     assert selected == ["pool-high", "pool-low"]
+
+
+def test_directional_selection_keeps_pool_inclusion_symmetric():
+    """A physical pool must never make one side of a pair look available while
+    the mirror side looks empty.
+
+    Direction-specific output capacity can be asymmetric at extreme prices,
+    but the V4 market itself is two-sided.  Pool inclusion therefore uses the
+    same depth gate for both directions; direction only changes scoring.
+    """
+    q96 = 1 << 96
+    anchor = "0x" + "a" * 40
+    counter = "0x" + "b" * 40
+    # Raw liquidity is below one token and USD evidence is missing, so the pool
+    # is below the confirmed-depth gate even though one direction has enough
+    # raw input capacity at the current extreme sqrt price.
+    asymmetric = {
+        "pool_id": "pool-asymmetric",
+        "token0": anchor,
+        "token1": counter,
+        "fee": 3000,
+        "fee_label": 3000,
+        "dynamic_fee": False,
+        "special_fee": False,
+        "tick_spacing": 60,
+        "hooks": "",
+        "sqrt_price_x96": str(q96 // 1000),
+        "has_liquidity": True,
+        "liquidity": "100000000000000000",
+        "liquidity_index": 0.1,
+        "estimated_tvl_usd": 0,
+        "balances_json": "{}",
+        "depth_status": "thin",
+        "depth_band_json": "{}",
+        "liquidity_read_at": "2026-10-12T00:00:00Z",
+        "liquidity_block_number": 1,
+    }
+    forward = select_directional_pool_ids([asymmetric], anchor, counter)
+    reverse = select_directional_pool_ids([asymmetric], counter, anchor)
+    assert forward == []
+    assert reverse == []
+
+    # Same physical pool with confirmed depth is available in both directions;
+    # only the score/order may differ.
+    deep = dict(asymmetric)
+    deep["liquidity_index"] = 1000.0
+    deep["estimated_tvl_usd"] = 1_000_000
+    forward = select_directional_pool_ids([deep], anchor, counter)
+    reverse = select_directional_pool_ids([deep], counter, anchor)
+    assert forward == ["pool-asymmetric"]
+    assert reverse == ["pool-asymmetric"]
+
+
+def test_candidate_rows_keep_mirror_optimal_symmetry():
+    """Builder recommendations must produce an optimal for both directions
+    whenever the pair has any usable pool, or neither."""
+    q96 = 1 << 96
+    anchor = "0xaaa"
+    counter = "0xbbb"
+    pool = {
+        "pool_id": "pool-only",
+        "token0": anchor,
+        "token1": counter,
+        "fee": 3000,
+        "fee_label": 3000,
+        "dynamic_fee": False,
+        "special_fee": False,
+        "tick_spacing": 60,
+        "hooks": "",
+        "sqrt_price_x96": str(q96),
+        "has_liquidity": True,
+        "liquidity": "1000000000000000000000",
+        "liquidity_index": 1000,
+        "estimated_tvl_usd": 1_000_000,
+        "balances_json": "{}",
+        "depth_status": "liquid",
+        "depth_band_json": "{}",
+        "liquidity_read_at": "2026-10-12T00:00:00Z",
+        "liquidity_block_number": 1,
+    }
+    dead = dict(pool)
+    dead["pool_id"] = "pool-dead"
+    dead["estimated_tvl_usd"] = 0
+    dead["liquidity_index"] = 0
+    dead["liquidity"] = ""
+    dead["depth_status"] = "empty"
+    rows = _candidate_rows(
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        anchor_scope="dex-arbitrage-46630-uniswap-v4",
+        anchor_symbol="TZ",
+        anchor_address=anchor,
+        token_addresses=[counter],
+        pools_by_edge={f"{anchor}:{counter}": [pool, dead]},
+        tokens_meta={},
+    )
+    forward = next(pair for pair in rows["pairs"] if pair["direction_key"] == f"{anchor}:{counter}")
+    reverse = next(pair for pair in rows["pairs"] if pair["direction_key"] == f"{counter}:{anchor}")
+    assert forward["yc_optimal_pool_id"] == "pool-only"
+    assert reverse["zc_optimal_pool_id"] == "pool-only"
+    assert bool(forward["yc_optimal_pool_id"]) == bool(reverse["zc_optimal_pool_id"])
+
+
+def test_market_observation_storage_keeps_mirror_direction_symmetry(tmp_path):
+    """Observation storage must never make one direction empty while its mirror
+    has pools, even when directional one-token capacity differs at price."""
+    db = str(tmp_path / "observation-symmetry.sqlite3")
+    ensure_database_schema(db)
+    token_a = "0x" + "a" * 40
+    token_b = "0x" + "b" * 40
+    q96 = 1 << 96
+    pool = {
+        "pool_id": "pool-only",
+        "poolId": "pool-only",
+        "token0": token_a,
+        "token1": token_b,
+        "fee": 3000,
+        "fee_label": 3000,
+        "dynamic_fee": False,
+        "special_fee": False,
+        "tick_spacing": 60,
+        "hooks": "",
+        "has_liquidity": True,
+        "liquidity": "100000000000000000",
+        "liquidity_index": 0.1,
+        "estimated_tvl_usd": 0,
+        "sqrt_price_x96": str(1),
+        "sqrtPriceX96": str(1),
+        "balances": {},
+        "depth_status": "thin",
+        "depth_band": {},
+        "liquidity_read_at": "2026-10-12T00:00:00Z",
+        "liquidity_block_number": 1,
+    }
+
+    def directions(pool_row):
+        return [
+            {
+                "token_x_address": token_a,
+                "token_y_address": token_b,
+                "direction_key": f"{token_a}:{token_b}",
+                "all_pools": [pool_row],
+            },
+            {
+                "token_x_address": token_b,
+                "token_y_address": token_a,
+                "direction_key": f"{token_b}:{token_a}",
+                "all_pools": [pool_row],
+            },
+        ]
+
+    replace_market_observation_tables(
+        db,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        anchor_scope="dex-arbitrage-46630-uniswap-v4",
+        anchor_symbol="TZ",
+        directions=directions(pool),
+        pools=[pool],
+    )
+    rows = query(
+        db,
+        """
+        SELECT direction_key, has_direct_swap_pool, direct_swap_pool_count,
+               pool_ids_json, optimal_pool_id, observation_empty_reason
+        FROM market_observation_yz_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY direction_key
+        """,
+        ("robinhood-testnet", 46630, "uniswap_v4", "TZ"),
+    )
+    assert len(rows) == 2
+    assert all(row["has_direct_swap_pool"] == 0 for row in rows)
+    assert all(row["direct_swap_pool_count"] == 0 for row in rows)
+    assert all(row["pool_ids_json"] == "[]" for row in rows)
+    assert all(not row["optimal_pool_id"] for row in rows)
+    assert all(row["observation_empty_reason"] == "no_confirmed_liquidity" for row in rows)
+
+    deep = dict(pool)
+    deep["liquidity_index"] = 1000.0
+    deep["estimated_tvl_usd"] = 1_000_000
+    replace_market_observation_tables(
+        db,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        anchor_scope="dex-arbitrage-46630-uniswap-v4",
+        anchor_symbol="TZ",
+        directions=directions(deep),
+        pools=[deep],
+    )
+    rows = query(
+        db,
+        """
+        SELECT direction_key, has_direct_swap_pool, direct_swap_pool_count,
+               pool_ids_json, optimal_pool_id, observation_empty_reason
+        FROM market_observation_yz_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY direction_key
+        """,
+        ("robinhood-testnet", 46630, "uniswap_v4", "TZ"),
+    )
+    assert len(rows) == 2
+    assert all(row["has_direct_swap_pool"] == 1 for row in rows)
+    assert all(row["direct_swap_pool_count"] == 1 for row in rows)
+    assert all('"pool-only"' in row["pool_ids_json"] for row in rows)
+    assert all(row["optimal_pool_id"] == "pool-only" for row in rows)
+    assert all(not row["observation_empty_reason"] for row in rows)
+
+
+def test_direction_symmetry_violations_detect_all_one_sided_surfaces():
+    violations = builders._direction_symmetry_violations(
+        candidate_pairs=[
+            {
+                "direction_key": "0xaaa:0xbbb",
+                "yc_optimal_pool_id": "pool-fwd",
+                "zc_optimal_pool_id": "",
+                "yc_backup_pool_ids_json": '["pool-backup"]',
+                "zc_backup_pool_ids_json": "[]",
+            },
+            {
+                "direction_key": "0xbbb:0xaaa",
+                "yc_optimal_pool_id": "",
+                "zc_optimal_pool_id": "",
+                "yc_backup_pool_ids_json": "[]",
+                "zc_backup_pool_ids_json": "[]",
+            },
+        ],
+        observation_directions=[
+            {
+                "direction_key": "0xccc:0xddd",
+                "has_direct_swap_pool": 1,
+                "direct_swap_pool_count": 1,
+            },
+            {
+                "direction_key": "0xddd:0xccc",
+                "has_direct_swap_pool": 0,
+                "direct_swap_pool_count": 0,
+            },
+        ],
+        loop_keys=["0xeee:0xfff:0x111"],
+    )
+    assert {item["table"] for item in violations} == {
+        "dex_candidate_pool_pairs",
+        "market_observation_yz_pairs",
+        "v4_closed_loops",
+    }
 
 
 def test_testnet_db_observation_rows_use_primary_and_backup_without_no_depth_item(monkeypatch):

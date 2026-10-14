@@ -227,6 +227,54 @@ fn load_v4_exchange_pools(
 
 #[pyfunction]
 #[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_exchange_pool_rows_for_view(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let rows = sqlite_read::load_v4_exchange_pool_rows_for_view(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"pools": rows})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_exchange_pool_pair_counts(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let rows = sqlite_read::load_v4_exchange_pool_pair_counts(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"pairs": rows})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_exchange_pool_manager(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let manager = sqlite_read::load_v4_exchange_pool_manager(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"manager": manager})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
 fn load_v4_pool_liquidity(
     py: Python<'_>,
     network: String,
@@ -237,6 +285,22 @@ fn load_v4_pool_liquidity(
     let path = database_path.unwrap_or_else(default_database_path);
     let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
     let rows = sqlite_read::load_v4_pool_liquidity(&connection, &network, chain_id, &protocol)
+        .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, serde_json::json!({"liquidity": rows})))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, database_path=None))]
+fn load_v4_pool_liquidity_rows_for_view(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = sqlite_read::open_readonly(&path).map_err(as_py_error)?;
+    let rows = sqlite_read::load_v4_pool_liquidity_rows_for_view(&connection, &network, chain_id, &protocol)
         .map_err(as_py_error)?;
     Ok(json_result_to_py(py, serde_json::json!({"liquidity": rows})))
 }
@@ -299,7 +363,11 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(build_v4_pool_index, module)?)?;
     module.add_function(wrap_pyfunction!(find_pools_between_tokens, module)?)?;
     module.add_function(wrap_pyfunction!(load_v4_exchange_pools, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_exchange_pool_rows_for_view, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_exchange_pool_pair_counts, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_exchange_pool_manager, module)?)?;
     module.add_function(wrap_pyfunction!(load_v4_pool_liquidity, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_pool_liquidity_rows_for_view, module)?)?;
     module.add_function(wrap_pyfunction!(load_dex_candidate_pools, module)?)?;
     module.add_function(wrap_pyfunction!(load_market_observation, module)?)?;
     module.add_function(wrap_pyfunction!(load_v4_closed_loop, module)?)?;

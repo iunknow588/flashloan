@@ -24,6 +24,15 @@ def _bool(value: Any) -> int:
     return 1 if bool(value) else 0
 
 
+def _bool_tri(value: Any) -> int | None:
+    """Return 1/0 for explicit evidence and None when the row has no signal."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return 1 if value.strip().lower() in {"1", "true", "yes"} else 0
+    return 1 if bool(value) else 0
+
+
 def _text(value: Any) -> str:
     return str(value or "").strip().lower()
 
@@ -225,14 +234,22 @@ def replace_dex_candidate_tables(
                 _text(pool.get("hooks")),
                 pool.get("sqrt_price_x96") or pool.get("sqrtPriceX96") or "",
                 _int_none(pool.get("tick")),
-                _bool(pool.get("has_liquidity") or pool.get("hasLiquidity")),
+                _bool_tri(
+                    pool.get("has_liquidity")
+                    if pool.get("has_liquidity") is not None
+                    else pool.get("hasLiquidity")
+                ),
                 pool.get("liquidity") or "",
                 _float_none(pool.get("liquidity_index") or pool.get("liquidityIndex")),
                 _float_none(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd")),
                 _json_dumps(pool.get("balances") or pool.get("balances_json") or {}),
                 pool.get("depth_status") or pool.get("depthStatus") or "",
                 _json_dumps(pool.get("depth_band") or pool.get("depthBand") or {}),
-                _bool(pool.get("usable_for_observation") or pool.get("usableForObservation")),
+                _bool_tri(
+                    pool.get("usable_for_observation")
+                    if pool.get("usable_for_observation") is not None
+                    else pool.get("usableForObservation")
+                ),
                 _bool(pool.get("is_first_hop_recommended") or pool.get("isFirstHopRecommended")),
                 _bool(pool.get("is_third_hop_recommended") or pool.get("isThirdHopRecommended")),
                 _json_dumps(pool.get("hop_recommendation") or pool.get("hop_recommendation_json") or {}),
@@ -341,20 +358,54 @@ def replace_dex_candidate_tables(
                 hooks = excluded.hooks,
                 sqrt_price_x96 = excluded.sqrt_price_x96,
                 tick = excluded.tick,
-                has_liquidity = excluded.has_liquidity,
-                liquidity = excluded.liquidity,
-                liquidity_index = excluded.liquidity_index,
-                estimated_tvl_usd = excluded.estimated_tvl_usd,
-                balances_json = excluded.balances_json,
-                depth_status = excluded.depth_status,
-                depth_band_json = excluded.depth_band_json,
-                usable_for_observation = excluded.usable_for_observation,
+                has_liquidity = CASE
+                    WHEN excluded.has_liquidity IS NULL
+                    THEN dex_candidate_pools.has_liquidity
+                    ELSE excluded.has_liquidity
+                END,
+                liquidity = CASE
+                    WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
+                    THEN dex_candidate_pools.liquidity
+                    ELSE excluded.liquidity
+                END,
+                liquidity_index = COALESCE(
+                    excluded.liquidity_index,
+                    dex_candidate_pools.liquidity_index
+                ),
+                estimated_tvl_usd = COALESCE(
+                    excluded.estimated_tvl_usd,
+                    dex_candidate_pools.estimated_tvl_usd
+                ),
+                balances_json = COALESCE(
+                    excluded.balances_json,
+                    dex_candidate_pools.balances_json
+                ),
+                depth_status = CASE
+                    WHEN excluded.depth_status IS NULL OR excluded.depth_status = ''
+                    THEN dex_candidate_pools.depth_status
+                    ELSE excluded.depth_status
+                END,
+                depth_band_json = COALESCE(
+                    excluded.depth_band_json,
+                    dex_candidate_pools.depth_band_json
+                ),
+                usable_for_observation = CASE
+                    WHEN excluded.usable_for_observation IS NULL
+                    THEN dex_candidate_pools.usable_for_observation
+                    ELSE excluded.usable_for_observation
+                END,
                 is_first_hop_recommended = excluded.is_first_hop_recommended,
                 is_third_hop_recommended = excluded.is_third_hop_recommended,
                 hop_recommendation_json = excluded.hop_recommendation_json,
                 optimal_roles_json = excluded.optimal_roles_json,
-                liquidity_read_at = excluded.liquidity_read_at,
-                liquidity_block_number = excluded.liquidity_block_number,
+                liquidity_read_at = COALESCE(
+                    excluded.liquidity_read_at,
+                    dex_candidate_pools.liquidity_read_at
+                ),
+                liquidity_block_number = COALESCE(
+                    excluded.liquidity_block_number,
+                    dex_candidate_pools.liquidity_block_number
+                ),
                 updated_at = excluded.updated_at
             """,
             pool_rows,
@@ -475,14 +526,22 @@ def replace_dex_candidate_abnormal_tables(
                 _text(pool.get("hooks")),
                 pool.get("sqrt_price_x96") or pool.get("sqrtPriceX96") or "",
                 _int_none(pool.get("tick")),
-                _bool(pool.get("has_liquidity") or pool.get("hasLiquidity")),
+                _bool_tri(
+                    pool.get("has_liquidity")
+                    if pool.get("has_liquidity") is not None
+                    else pool.get("hasLiquidity")
+                ),
                 pool.get("liquidity") or "",
                 _float_none(pool.get("liquidity_index") or pool.get("liquidityIndex")),
                 _float_none(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd")),
                 _json_dumps(pool.get("balances") or pool.get("balances_json") or {}),
                 pool.get("depth_status") or pool.get("depthStatus") or "",
                 _json_dumps(pool.get("depth_band") or pool.get("depthBand") or {}),
-                _bool(pool.get("usable_for_observation") or pool.get("usableForObservation")),
+                _bool_tri(
+                    pool.get("usable_for_observation")
+                    if pool.get("usable_for_observation") is not None
+                    else pool.get("usableForObservation")
+                ),
                 _bool(pool.get("is_first_hop_recommended") or pool.get("isFirstHopRecommended")),
                 _bool(pool.get("is_third_hop_recommended") or pool.get("isThirdHopRecommended")),
                 _json_dumps(pool.get("hop_recommendation") or pool.get("hop_recommendation_json") or {}),
@@ -564,20 +623,54 @@ def replace_dex_candidate_abnormal_tables(
                 hooks = excluded.hooks,
                 sqrt_price_x96 = excluded.sqrt_price_x96,
                 tick = excluded.tick,
-                has_liquidity = excluded.has_liquidity,
-                liquidity = excluded.liquidity,
-                liquidity_index = excluded.liquidity_index,
-                estimated_tvl_usd = excluded.estimated_tvl_usd,
-                balances_json = excluded.balances_json,
-                depth_status = excluded.depth_status,
-                depth_band_json = excluded.depth_band_json,
-                usable_for_observation = excluded.usable_for_observation,
+                has_liquidity = CASE
+                    WHEN excluded.has_liquidity IS NULL
+                    THEN dex_candidate_abnormal_pools.has_liquidity
+                    ELSE excluded.has_liquidity
+                END,
+                liquidity = CASE
+                    WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
+                    THEN dex_candidate_abnormal_pools.liquidity
+                    ELSE excluded.liquidity
+                END,
+                liquidity_index = COALESCE(
+                    excluded.liquidity_index,
+                    dex_candidate_abnormal_pools.liquidity_index
+                ),
+                estimated_tvl_usd = COALESCE(
+                    excluded.estimated_tvl_usd,
+                    dex_candidate_abnormal_pools.estimated_tvl_usd
+                ),
+                balances_json = COALESCE(
+                    excluded.balances_json,
+                    dex_candidate_abnormal_pools.balances_json
+                ),
+                depth_status = CASE
+                    WHEN excluded.depth_status IS NULL OR excluded.depth_status = ''
+                    THEN dex_candidate_abnormal_pools.depth_status
+                    ELSE excluded.depth_status
+                END,
+                depth_band_json = COALESCE(
+                    excluded.depth_band_json,
+                    dex_candidate_abnormal_pools.depth_band_json
+                ),
+                usable_for_observation = CASE
+                    WHEN excluded.usable_for_observation IS NULL
+                    THEN dex_candidate_abnormal_pools.usable_for_observation
+                    ELSE excluded.usable_for_observation
+                END,
                 is_first_hop_recommended = excluded.is_first_hop_recommended,
                 is_third_hop_recommended = excluded.is_third_hop_recommended,
                 hop_recommendation_json = excluded.hop_recommendation_json,
                 optimal_roles_json = excluded.optimal_roles_json,
-                liquidity_read_at = excluded.liquidity_read_at,
-                liquidity_block_number = excluded.liquidity_block_number,
+                liquidity_read_at = COALESCE(
+                    excluded.liquidity_read_at,
+                    dex_candidate_abnormal_pools.liquidity_read_at
+                ),
+                liquidity_block_number = COALESCE(
+                    excluded.liquidity_block_number,
+                    dex_candidate_abnormal_pools.liquidity_block_number
+                ),
                 updated_at = excluded.updated_at
             """,
             pool_rows,

@@ -8,6 +8,18 @@ from core.market_observation_store import (
 )
 
 
+def _chain_db_first_only(chain_id: int | None, protocols: list[str] | None = None) -> bool:
+    try:
+        chain_is_robinhood = int(chain_id) in {4663, 46630}
+    except (TypeError, ValueError):
+        return False
+    if not chain_is_robinhood:
+        return False
+    if not protocols:
+        return True
+    return "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in protocols}
+
+
 def build_market_observation_payload(
     surface: Any,
     *,
@@ -52,17 +64,19 @@ def build_market_observation_payload(
         protocols=protocols,
     )
     fund_anchor_pair_observation = _chain_fund_anchor_pair_observation(chain_id=chain_id, protocols=protocols)
-    # YC/ZC candidate sets are provided by the candidate-pool page.  Market
-    # observation keeps every liquid YC-ZC bridge pool and builds the concrete
-    # middle-hop exchange pools here, so the page can show the depth surface
-    # before the DEX overview selects the best direction/pool.
-    observation_sequences = _anchor_observation_sequences(anchor_groups, pairs + bridge_pairs)
-    chain_observation_sequences = list(observation_sequences)
     closed_loop_sequences = list(
         fund_anchor_pair_observation.get("closedLoopSequences")
         or fund_anchor_pair_observation.get("observationSequences")
         or []
     )
+    if _chain_db_first_only(chain_id, protocols=protocols):
+        observation_sequences = list(closed_loop_sequences)
+    else:
+        observation_sequences = list(closed_loop_sequences) or _anchor_observation_sequences(
+            anchor_groups,
+            pairs + bridge_pairs,
+        )
+    chain_observation_sequences = list(observation_sequences)
     active_pool_ids = {
         str(pool_id).lower()
         for pool_id in fund_anchor_pair_observation.get("activePoolIds") or []

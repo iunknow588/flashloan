@@ -315,7 +315,18 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
             liquidity_index = float(str(row.get("liquidity") or "0"))
         except ValueError:
             liquidity_index = 0
-    has_liquidity = bool(row.get("hasLiquidity")) or (liquidity_index is not None and liquidity_index > 0)
+    raw_has_liquidity = row.get("hasLiquidity")
+    if raw_has_liquidity is None:
+        raw_has_liquidity = row.get("has_liquidity")
+    if raw_has_liquidity is not None:
+        if isinstance(raw_has_liquidity, str):
+            has_liquidity = raw_has_liquidity.strip().lower() in {"1", "true", "yes"}
+        else:
+            has_liquidity = bool(raw_has_liquidity)
+    elif liquidity_index is not None and liquidity_index > 0:
+        has_liquidity = True
+    else:
+        has_liquidity = None
     balances = row.get("balances")
     if not isinstance(balances, dict):
         balances = {"tvlUsd": row.get("estimatedTvlUsd") or row.get("tvlUsd") or 0}
@@ -336,7 +347,7 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
             and 0 < raw_fee_int <= MAINNET_V4_MAX_OBSERVATION_FIXED_FEE
             and str(row.get("hooks") or "").strip().lower() in ("", _ZERO_ADDRESS)
         ),
-        "hasLiquidity": row.get("hasLiquidity") if row.get("hasLiquidity") is not None else has_liquidity,
+        "hasLiquidity": has_liquidity,
         "liquidityIndex": liquidity_index,
         "estimatedTvlUsd": row.get("estimatedTvlUsd") or balances.get("tvlUsd"),
         "depthStatus": row.get("depthStatus") or "",

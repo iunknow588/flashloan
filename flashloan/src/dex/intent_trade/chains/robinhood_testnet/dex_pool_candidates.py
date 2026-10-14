@@ -200,18 +200,30 @@ def _pool_candidate_row(
     liquidity_evidence = (pool_liquidity_by_id or {}).get(pool_id_lower) or {}
     if liquidity_evidence:
         liquidity_text = str(pool.get("liquidity") or liquidity_evidence.get("liquidity") or "")
-        has_liquidity = bool(
-            liquidity_evidence.get("hasLiquidity")
-            or str(liquidity_evidence.get("status") or "") == "observable_poolid_nonzero_liquidity_swap"
-        )
+        raw_has_liquidity = liquidity_evidence.get("hasLiquidity")
+        if raw_has_liquidity is None:
+            raw_has_liquidity = liquidity_evidence.get("has_liquidity")
+        if raw_has_liquidity is not None:
+            if isinstance(raw_has_liquidity, str):
+                has_liquidity = raw_has_liquidity.strip().lower() in {"1", "true", "yes"}
+            else:
+                has_liquidity = bool(raw_has_liquidity)
+        elif str(liquidity_evidence.get("status") or "") == "observable_poolid_nonzero_liquidity_swap":
+            has_liquidity = True
+        else:
+            has_liquidity = None
         try:
             liquidity_index = float(liquidity_text)
         except (TypeError, ValueError):
             liquidity_index = float(liquidity_evidence.get("liquidityIndex") or 0) if liquidity_evidence.get("liquidityIndex") is not None else 0.0
+        row_has_liquidity = row.get("hasLiquidity")
+        merged_has_liquidity = (
+            row_has_liquidity if row_has_liquidity is not None else has_liquidity
+        )
         row.update(
             {
                 "liquidity": liquidity_text,
-                "hasLiquidity": bool(row.get("hasLiquidity")) or has_liquidity,
+                "hasLiquidity": merged_has_liquidity,
                 "liquidityIndex": liquidity_index,
                 "depthStatus": str(
                     liquidity_evidence.get("depthStatus")
@@ -219,7 +231,7 @@ def _pool_candidate_row(
                     or pool.get("depthStatus")
                     or ""
                 ),
-                "usableForObservation": has_liquidity,
+                "usableForObservation": merged_has_liquidity,
             }
         )
     row.update(_classification(token0_symbol, token1_symbol))

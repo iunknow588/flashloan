@@ -21,7 +21,11 @@ from core.db.database_path import absolute_database_path
 from core.db.storage_v4_exchange import (
     find_v4_pools_between_tokens as _py_find_v4_pools,
     load_v4_exchange_pools as _py_load_v4_exchange_pools,
+    load_v4_exchange_pool_manager as _py_load_v4_exchange_pool_manager,
+    load_v4_exchange_pool_pair_counts as _py_load_v4_exchange_pool_pair_counts,
+    load_v4_exchange_pool_rows_for_view as _py_load_v4_exchange_pool_rows_for_view,
     load_v4_pool_liquidity as _py_load_v4_pool_liquidity,
+    load_v4_pool_liquidity_rows_for_view as _py_load_v4_pool_liquidity_rows_for_view,
 )
 from core.db.storage_dex_candidate import load_dex_candidate_pools as _py_load_dex_candidate_pools
 from core.db.storage_market_observation import load_market_observation as _py_load_market_observation
@@ -116,13 +120,17 @@ def clear_v4_exchange_pool_cache(
         _V4_EXCHANGE_POOL_CACHE.clear()
         return cleared
     path = _database_path(database_url)
+    candidate_protocols = {
+        str(protocol or "").strip().lower(),
+        f"{str(protocol or '').strip().lower()}:view",
+    }
     keys = [
         key
         for key in _V4_EXCHANGE_POOL_CACHE
         if key[0] == path
         and (network is None or key[1] == str(network).strip().lower())
         and (chain_id is None or key[2] == int(chain_id))
-        and (protocol is None or key[3] == str(protocol).strip().lower())
+        and (protocol is None or key[3] in candidate_protocols)
     ]
     for key in keys:
         del _V4_EXCHANGE_POOL_CACHE[key]
@@ -173,6 +181,112 @@ def load_v4_exchange_pools(
     return rows
 
 
+def load_v4_exchange_pool_rows_for_view(
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+    *,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    cache_key = (
+        _database_path(database_url),
+        str(network or "").strip().lower(),
+        int(chain_id or 0),
+        f"{str(protocol or '').strip().lower()}:view",
+    )
+    cached = _V4_EXCHANGE_POOL_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    _load_rust()
+    if _RUST_MODULE is not None and hasattr(_RUST_MODULE, "load_v4_exchange_pool_rows_for_view"):
+        try:
+            payload = _RUST_MODULE.load_v4_exchange_pool_rows_for_view(
+                network,
+                chain_id,
+                protocol,
+                _database_path(database_url),
+            )
+            rows = [_convert_rust_dict(row) for row in _rust_rows(payload, "pools")]
+        except Exception as exc:
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_exchange_pool_rows_for_view; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+    else:
+        rows = _py_load_v4_exchange_pool_rows_for_view(
+            _database_path(database_url),
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+        )
+    _V4_EXCHANGE_POOL_CACHE[cache_key] = rows
+    return rows
+
+
+def load_v4_exchange_pool_pair_counts(
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+    *,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    _load_rust()
+    if _RUST_MODULE is not None and hasattr(_RUST_MODULE, "load_v4_exchange_pool_pair_counts"):
+        try:
+            payload = _RUST_MODULE.load_v4_exchange_pool_pair_counts(
+                network,
+                chain_id,
+                protocol,
+                _database_path(database_url),
+            )
+            return [_convert_rust_dict(row) for row in _rust_rows(payload, "pairs")]
+        except Exception as exc:
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_exchange_pool_pair_counts; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+    return _py_load_v4_exchange_pool_pair_counts(
+        _database_path(database_url),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    )
+
+
+def load_v4_exchange_pool_manager(
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    _load_rust()
+    if _RUST_MODULE is not None and hasattr(_RUST_MODULE, "load_v4_exchange_pool_manager"):
+        try:
+            payload = _RUST_MODULE.load_v4_exchange_pool_manager(
+                network,
+                chain_id,
+                protocol,
+                _database_path(database_url),
+            )
+            manager = payload.get("manager") if isinstance(payload, dict) else payload
+            return manager if isinstance(manager, dict) else {}
+        except Exception as exc:
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_exchange_pool_manager; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+    return _py_load_v4_exchange_pool_manager(
+        _database_path(database_url),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    )
+
+
 def load_v4_pool_liquidity(
     network: str,
     chain_id: int,
@@ -197,6 +311,37 @@ def load_v4_pool_liquidity(
                 f"{type(exc).__name__}: {exc}"
             ) from exc
     return _py_load_v4_pool_liquidity(
+        _database_path(database_url),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    )
+
+
+def load_v4_pool_liquidity_rows_for_view(
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+    *,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    _load_rust()
+    if _RUST_MODULE is not None and hasattr(_RUST_MODULE, "load_v4_pool_liquidity_rows_for_view"):
+        try:
+            payload = _RUST_MODULE.load_v4_pool_liquidity_rows_for_view(
+                network,
+                chain_id,
+                protocol,
+                _database_path(database_url),
+            )
+            return [_convert_rust_dict(row) for row in _rust_rows(payload, "liquidity")]
+        except Exception as exc:
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_pool_liquidity_rows_for_view; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+    return _py_load_v4_pool_liquidity_rows_for_view(
         _database_path(database_url),
         network=network,
         chain_id=chain_id,
@@ -414,7 +559,11 @@ __all__ = [
     "load_market_observation",
     "load_v4_closed_loop",
     "load_v4_exchange_pools",
+    "load_v4_exchange_pool_manager",
+    "load_v4_exchange_pool_pair_counts",
+    "load_v4_exchange_pool_rows_for_view",
     "load_v4_pool_liquidity",
+    "load_v4_pool_liquidity_rows_for_view",
     "page_payload_from_rows",
     "rust_available",
     "rust_load_error",

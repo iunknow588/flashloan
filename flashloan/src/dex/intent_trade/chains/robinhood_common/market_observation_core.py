@@ -713,7 +713,6 @@ def db_closed_loop_sequences(
                 if candidate_key not in depth_confirmed_pool_ids:
                     if not has_confirmed_liquidity(
                         candidate,
-                        from_address,
                         min_usd=1000.0,
                         fallback_token_base=1.0,
                     ):

@@ -196,10 +196,18 @@ def _pool_contains(pool: dict[str, Any], address: str) -> bool:
 def _best_pool(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
 
+    def _recent_swap_rank(row: dict[str, Any]) -> int:
+        value = row.get("recentSwapActive")
+        if value is True:
+            return 0
+        if value is None:
+            return 1
+        return 2
+
     candidates.sort(
         key=lambda row: (
             not _pool_usable(row),
-            not bool(row.get("recentSwapActive")),
+            _recent_swap_rank(row),
             -float((row.get("balances") or {}).get("tvlUsd") or 0),
             str(_pool_id(row)),
         ),
@@ -218,10 +226,19 @@ def _ordered_pools(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     the recommended closed loop is not profitable.
     """
     candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
+
+    def _recent_swap_rank(row: dict[str, Any]) -> int:
+        value = row.get("recentSwapActive")
+        if value is True:
+            return 0
+        if value is None:
+            return 1
+        return 2
+
     candidates.sort(
         key=lambda row: (
             not _pool_usable(row),
-            not bool(row.get("recentSwapActive")),
+            _recent_swap_rank(row),
             -float((row.get("balances") or {}).get("tvlUsd") or 0),
             -float(row.get("liquidityIndex") or 0),
             str(_pool_id(row)),
@@ -289,12 +306,11 @@ def _testnet_db_pool_has_liquidity(row: dict[str, Any]) -> bool:
         return False
 
 
-def _testnet_db_direction_usable(row: dict[str, Any], token_in: str) -> bool:
+def _testnet_db_pool_usable_with_depth(row: dict[str, Any]) -> bool:
     return (
         _testnet_db_pool_usable(row)
         and _testnet_db_has_confirmed_liquidity(
             row,
-            token_in,
             min_usd=1000.0,
             fallback_token_base=1.0,
         )
@@ -981,7 +997,7 @@ def _testnet_db_observation_rows(
             pool = normal_pool_by_id.get(pool_id_text)
             if pool is None:
                 continue
-            if not _testnet_db_direction_usable(pool, token_x_address):
+            if not _testnet_db_pool_usable_with_depth(pool):
                 continue
             seen_active_ids.add(pool_id_text)
             active_pool_ids.append(pool_id_text)

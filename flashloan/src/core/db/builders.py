@@ -23,6 +23,9 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
+from core.db.direction_integrity import (
+    direction_symmetry_violations as _direction_symmetry_violations,
+)
 from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
 from core.db.storage_business_io import delete_rows, query
 from core.db.storage_chain_core import seed_chain_tokens
@@ -469,14 +472,18 @@ def _select_recommendations(
     token_in: str,
     token_out: str,
 ) -> list[dict[str, Any]]:
-    """Return up to N directional recommendations, best static output first."""
+    """Return up to N directional recommendations, best static output first.
+
+    Pool inclusion is the same for both directions: a physical V4 pool exists
+    as a two-sided market, so ``has_confirmed_liquidity`` is called without a
+    direction.  Direction only changes the output score/order.
+    """
     return sorted(
         (
             pool
             for pool in pools
             if has_confirmed_liquidity(
                 pool,
-                token_in,
                 min_usd=1000.0,
                 fallback_token_base=1.0,
             )
@@ -1741,8 +1748,29 @@ def verify_anchor_integrity(
             """
             SELECT loop_key FROM v4_closed_loops
             WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ?
+              AND anchor_symbol = ?
             """,
-            (network, chain_id, protocol, market_id),
+            (network, chain_id, protocol, market_id, anchor_symbol),
+        )
+        candidate_pairs = query(
+            str(resolved),
+            """
+            SELECT direction_key, yc_optimal_pool_id, zc_optimal_pool_id,
+                   yc_backup_pool_ids_json, zc_backup_pool_ids_json
+            FROM dex_candidate_pool_pairs
+            WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+            """,
+            (network, chain_id, protocol, anchor_symbol),
+        )
+        observation_directions = query(
+            str(resolved),
+            """
+            SELECT direction_key, has_direct_swap_pool, direct_swap_pool_count,
+                   pool_ids_json
+            FROM market_observation_yz_pairs
+            WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+            """,
+            (network, chain_id, protocol, anchor_symbol),
         )
         no_pool_directions = [row for row in directions if not row.get("has_direct_swap_pool")]
         missing_reason = [
@@ -1750,6 +1778,11 @@ def verify_anchor_integrity(
             for row in no_pool_directions
             if not row.get("observation_empty_reason")
         ]
+        symmetry_violations = _direction_symmetry_violations(
+            candidate_pairs=candidate_pairs,
+            observation_directions=observation_directions,
+            loop_keys=[row.get("loop_key") for row in loops],
+        )
         report = {
             "anchorSymbol": anchor_symbol,
             "tokenCount": token_count,
@@ -1757,7 +1790,12 @@ def verify_anchor_integrity(
             "directionCount": len(directions),
             "noPoolDirectionCount": len(no_pool_directions),
             "loopCount": len(loops),
-            "complete": len(directions) == token_count * (token_count - 1) and not missing_reason,
+            "symmetryViolations": symmetry_violations,
+            "complete": (
+                len(directions) == token_count * (token_count - 1)
+                and not missing_reason
+                and not symmetry_violations
+            ),
         }
         reports.append(report)
         ok = ok and report["complete"]
