@@ -23,12 +23,12 @@ from core.market_config import (
 from web.chain_selection import inject_chain_selector_markup
 from web.app_shell import inject_app_shell_markup
 from core.dex_provenance import inject_dex_provenance_markup
-from dex.intent_trade.chains.robinhood.shared import (
-    ROBINHOOD_CHAIN_ID,
-    ROBINHOOD_TESTNET_CHAIN_ID,
-)
 from core.market_page_registry import resolve_market_page_variant
 from core.workflow_context import inject_workflow_context_markup
+
+
+ROBINHOOD_CHAIN_ID = 4663
+ROBINHOOD_TESTNET_CHAIN_ID = 46630
 
 
 def _request_scope_defaults(

@@ -14,15 +14,6 @@ from core.flash_loan_pool_discovery import (
 )
 from core.market_config import DEFAULT_ROBINHOOD_CHAIN_ID, DEFAULT_ROBINHOOD_DEX_MARKET_ID
 from core.market_identity import canonical_market_id_from_legacy
-from bot.account_pool import account_pool_state_payload
-from bot.page_state import (
-    account_scan_state_payload,
-    debt_pool_state_payload,
-    execution_state_payload,
-    market_observation_state_payload,
-)
-from dex.runtime.dex_opportunity_scanner import get_dex_opportunity_scanner
-from web.flash_loan_pools import flash_loan_pools_payload
 from web.page_routes_helpers import (
     _current_static_pool_store,
     _default_scope_kwargs,
@@ -239,6 +230,8 @@ def register_page_routes(app, panel) -> None:
     def status():
         with panel.observer_start_lock:
             panel.clear_stale_observer_start()
+        from dex.runtime.dex_opportunity_scanner import get_dex_opportunity_scanner
+
         running = panel.quick_observer_running()
         binance_extremes = panel.safe_latest(panel.latest_binance_extremes_file)
         control_status_current = panel.control_status_payload()
@@ -281,22 +274,32 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/api/debt-pool/state")
     def debt_pool_state():
+        from bot.page_state import debt_pool_state_payload
+
         return jsonify(debt_pool_state_payload(panel))
 
     @app.get("/api/account-pool/state")
     def account_pool_state():
+        from bot.account_pool import account_pool_state_payload
+
         return jsonify(account_pool_state_payload(panel))
 
     @app.get("/api/account-scan/state")
     def account_scan_state():
+        from bot.page_state import account_scan_state_payload
+
         return jsonify(account_scan_state_payload(panel))
 
     @app.get("/api/market-observation/state")
     def market_observation_state():
+        from bot.page_state import market_observation_state_payload
+
         return jsonify(market_observation_state_payload(panel))
 
     @app.get("/api/execution/state")
     def execution_state():
+        from bot.page_state import execution_state_payload
+
         return jsonify(execution_state_payload(panel))
 
     @app.get("/api/flash-loan/pool-discovery")
@@ -319,6 +322,8 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/api/flash-loan/pools")
     def flash_loan_pools_api():
+        from web.flash_loan_pools import flash_loan_pools_payload
+
         start_flash_loan_pool_discovery_idle_worker(
             initial_delay_seconds=2.0,
             refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
@@ -334,7 +339,6 @@ def register_page_routes(app, panel) -> None:
             for item in protocol_options_for_chain(chain_id=chain_id)
         ] if chain_id is not None else None
         protocols = _request_protocols()
-        rebuild_view = _request_bool_arg("rebuild")
         return jsonify(
             flash_loan_pools_payload(
                 database_url=_panel_database_url(panel),
@@ -342,12 +346,13 @@ def register_page_routes(app, panel) -> None:
                 chain_id=chain_id,
                 protocols=protocols,
                 discovered_protocols=discovered_protocols,
-                use_static_cache=not rebuild_view,
             )
         )
 
     @app.post("/api/flash-loan/pools/refresh")
     def flash_loan_pools_refresh_api():
+        from web.flash_loan_pools import flash_loan_pools_payload
+
         try:
             chain_id = _request_chain_id()
         except ChainSelectionError as exc:

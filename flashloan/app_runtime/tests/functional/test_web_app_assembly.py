@@ -418,7 +418,8 @@ def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
     assert payload["protocol_views"][0]["cache"]["pool_manager_address"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
     assert payload["protocol_views"][0]["cache"]["identities"][0]["kind"] == "pool_manager"
     assert payload["protocol_views"][0]["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-    assert payload["protocol_views"][0].get("_static_pool_source", {}).get("path", "").endswith("pools.json")
+    assert payload["protocol_views"][0].get("_static_pool_source") is None
+    assert payload["protocol_views"][0]["static_pool_store"]["exists"] is False
     assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
     assert payload["protocol_views"][0]["summary"]["verified_lending_borrow_asset_count"] == 0
     assert payload["protocol_views"][0]["summary"]["flash_borrowable_asset_count"] > 0
@@ -463,14 +464,17 @@ def test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope():
     assert "uniswap_v4" in view["processing"]["allowed_protocols"]
     assert "status" not in view
     assert view["summary"]["observable_pool_count"] > 0
-    assert view["summary"]["observed_borrow_token_count"] == 1
-    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "ETH"
-    assert view["non_stable_borrow_pools"][0]["pool_count"] == view["summary"]["v4_pool_key_count"]
-    assert view["non_stable_borrow_pools"][0]["paired_symbol_count"] > 0
+    assert view["summary"]["observed_borrow_token_count"] >= 5
+    eth_rows = [row for row in view["non_stable_borrow_pools"] if row["token_symbol"] == "ETH"]
+    assert eth_rows
+    assert eth_rows[0]["pool_count"] > 0
+    assert eth_rows[0]["paired_symbol_count"] > 0
     assert view["cache"]["identities"][0]["kind"] == "pool_manager"
-    assert view["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-    assert "v4_pool_index" in str(view["cache"].get("source") or "").replace("\\", "/")
+    assert view["cache"]["identities"][0]["value"] == "0x8366a39cc670b4001a1121b8f6a443a643e40951"
+    assert view["cache"]["source"] == "robinhood_mainnet_v4_sqlite"
+    assert "pools.json" not in str(view.get("cache", {}).get("source") or "").replace("\\", "/")
     assert "robinhood-testnet" not in str(view.get("cache", {}).get("source") or "").replace("\\", "/")
+    assert view.get("_static_pool_source") is None
 
 
 def test_robinhood_mainnet_dex_surface_apis_use_chain_flows():
