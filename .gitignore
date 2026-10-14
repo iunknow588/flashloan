@@ -69,6 +69,11 @@ data_info/**/*.log
 local_store.sqlite3
 local_store.sqlite3-shm
 local_store.sqlite3-wal
+local_store_*.sqlite3*
+tmp_*.sqlite3*
+*.sqlite3.bak
+data_info/_build/
+flashloan/rs-src/target/
 flashloan/src/runtime/logs/
 flashloan/src/runtime/logs/observer_*.log
 
