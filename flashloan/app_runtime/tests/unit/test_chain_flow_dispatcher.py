@@ -29,7 +29,90 @@ def test_robinhood_mainnet_v4_flash_loan_pool_flow_uses_mainnet_handler():
     assert view["processing"]["handler"] == request.handler
 
 
-def test_robinhood_dex_surface_flows_are_chain_dispatchable():
+def test_robinhood_dex_surface_flows_are_chain_dispatchable(monkeypatch):
+    import market.binance_market.dex_surfaces as dex_surfaces
+
+    surface_payloads = {
+        "dex_market_observation": {
+            "mode": "dex_market_observation",
+            "chain_id": 4663,
+            "processing": {
+                "network": "robinhood",
+                "chain_id": 4663,
+                "handler": "intent_trade.chains.robinhood.dex_surfaces:",
+                "requires_scope_match": True,
+            },
+        },
+        "dex_overview": {
+            "mode": "dex_overview",
+            "chain_id": 4663,
+            "processing": {
+                "network": "robinhood",
+                "chain_id": 4663,
+                "handler": "intent_trade.chains.robinhood.dex_surfaces:",
+                "requires_scope_match": True,
+            },
+        },
+        "dex_quote_routes": {
+            "mode": "dex_quote_routes",
+            "chain_id": 4663,
+            "processing": {
+                "network": "robinhood",
+                "chain_id": 4663,
+                "handler": "intent_trade.chains.robinhood.dex_surfaces:",
+                "requires_scope_match": True,
+            },
+        },
+        "dex_quote_request": {
+            "mode": "dex_quote_request",
+            "chain_id": 4663,
+            "processing": {
+                "network": "robinhood",
+                "chain_id": 4663,
+                "handler": "intent_trade.chains.robinhood.dex_surfaces:",
+                "requires_scope_match": True,
+            },
+        },
+    }
+
+    def fake_surface_payload(kind: str):
+        def _fake(*args, **kwargs):
+            return dict(surface_payloads[kind])
+
+        return _fake
+
+    def fake_flow(kind: str):
+        def _fake(**kwargs):
+            return dict(surface_payloads[kind])
+
+        return _fake
+
+    monkeypatch.setattr(dex_surfaces, "dex_market_observation_surface_payload", fake_surface_payload("dex_market_observation"))
+    monkeypatch.setattr(dex_surfaces, "dex_overview_payload", fake_surface_payload("dex_overview"))
+    monkeypatch.setattr(dex_surfaces, "dex_quote_routes_payload", fake_surface_payload("dex_quote_routes"))
+    monkeypatch.setattr(dex_surfaces, "dex_quote_request_payload", fake_surface_payload("dex_quote_request"))
+    flow_modules = [
+        import_module("dex.intent_trade.chains._dex_surface_flows"),
+        import_module("dex.intent_trade.chains.robinhood.dex_surfaces"),
+    ]
+    for module in flow_modules:
+        monkeypatch.setattr(
+            module,
+            "dex_market_observation_surface_payload",
+            fake_surface_payload("dex_market_observation"),
+        )
+        monkeypatch.setattr(module, "dex_overview_payload", fake_surface_payload("dex_overview"))
+        monkeypatch.setattr(module, "dex_quote_routes_payload", fake_surface_payload("dex_quote_routes"))
+        monkeypatch.setattr(module, "dex_quote_request_payload", fake_surface_payload("dex_quote_request"))
+    testnet_flows = import_module("dex.intent_trade.chains.robinhood_testnet.dex_surfaces")
+    for flow_name, mode in (
+        ("market_observation_flow", "dex_market_observation"),
+        ("dex_overview_flow", "dex_overview"),
+        ("dex_quote_routes_flow", "dex_quote_routes"),
+        ("dex_quote_request_flow", "dex_quote_request"),
+    ):
+        monkeypatch.setattr(testnet_flows, flow_name, fake_flow(mode))
+
     cases = (
         (4663, "robinhood", "intent_trade.chains.robinhood.dex_surfaces:"),
         (46630, "robinhood-testnet", "intent_trade.chains.robinhood_testnet.dex_surfaces:"),
@@ -42,6 +125,11 @@ def test_robinhood_dex_surface_flows_are_chain_dispatchable():
             ("dex_quote_routes", "dex_quote_routes"),
             ("dex_quote_request", "dex_quote_request"),
         ):
+            payload = surface_payloads[mode]
+            payload["chain_id"] = chain_id
+            payload["processing"]["network"] = network
+            payload["processing"]["chain_id"] = chain_id
+            payload["processing"]["handler"] = handler_prefix
             result = dispatch_chain_flow(chain_id=chain_id, flow_name=flow_name, protocol="uniswap_v4")
 
             assert result["mode"] == mode

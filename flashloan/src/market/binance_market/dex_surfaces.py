@@ -51,6 +51,7 @@ from market.binance_market.dex_surface_quotes import (
 )
 
 from market.binance_market.dex_surface_observation import (
+    _anchor_observation_sequences,
     _anchor_group_direction_rows,
     _anchor_group_direction_tokens,
     _best_pool_rows,
@@ -66,7 +67,6 @@ from market.binance_market.dex_surface_observation import (
     _chain_observation_function,
     _chain_observation_module,
     _closed_route_from_sequence,
-    _anchor_observation_sequences,
     _graph_stable_anchor_symbols,
     _group_token_pool_rows,
     _observation_anchor_symbols,
@@ -257,7 +257,10 @@ def _database_first_v4_robinhood(*, chain_id: int | None, protocols: list[str] |
     """Return whether the Robinhood V4 surface must read SQLite only."""
     return bool(
         int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS
-        and "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in (protocols or [])}
+        and (
+            not protocols
+            or "uniswap_v4" in {str(protocol or "").strip().lower() for protocol in protocols}
+        )
     )
 
 
@@ -280,6 +283,25 @@ def dex_market_observation_surface_payload(
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
     database_first = _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols)
+    if database_first:
+        payload = _database_first_robinhood_observation_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+        payload["marketObservationSourceStage"] = (
+            payload.get("marketObservationSourceStage")
+            or payload.get("marketObservationSource")
+            or "computed"
+        )
+        _cache_surface_payload(
+            "dex_market_observation",
+            payload,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+            ttl_seconds=0,
+        )
+        return payload
     if use_static_observation and not database_first:
         static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
         if static_snapshot.get("exists"):
@@ -320,19 +342,11 @@ def dex_market_observation_surface_payload(
                     ttl_seconds=0,
                 )
                 return payload
-    payload = dex_market_observation_payload(chain_id=chain_id, protocols=protocols)
+    payload = dex_market_observation_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+    )
     payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "computed"
-    if database_first:
-        # Keep the same cache key as the legacy static surface so quote routes
-        # and warmers reuse the SQLite-computed payload without rereading JSON.
-        _cache_surface_payload(
-            "dex_market_observation",
-            payload,
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=True,
-            ttl_seconds=0,
-        )
     return payload
 
 
@@ -1080,12 +1094,17 @@ def _database_first_robinhood_observation_payload(
             anchor_symbol=symbol,
         )
         shared_pools: list[dict[str, Any]] = []
+        seen_shared_pool_ids: set[str] = set()
         for pool_row in candidate.get("pools") or []:
             if not isinstance(pool_row, dict):
                 continue
             pool = dict(pool_row)
             pool["pool"] = str(pool_row.get("pool_id") or pool_row.get("poolId") or "").strip()
             pool["poolId"] = pool["pool"]
+            if pool["pool"] and pool["pool"] in seen_shared_pool_ids:
+                continue
+            if pool["pool"]:
+                seen_shared_pool_ids.add(pool["pool"])
             pool["poolKey"] = pool_row.get("pool_key_json") or pool_row.get("poolKey") or {}
             pool["tickSpacing"] = pool_row.get("tick_spacing") or pool_row.get("tickSpacing")
             pool["hooks"] = pool_row.get("hooks")
@@ -1184,107 +1203,9 @@ def _database_first_robinhood_observation_payload(
             if symbol:
                 groups_by_anchor[symbol] = group
 
-    # A closed loop is direction-sensitive: X-Y-Z-X and X-Z-Y-X can use
-    # different first/third-hop pools and only one direction is profitable.
-    # Build both directions from the loop table, letting each direction pick
-    # its own best pools from the candidate set.
-    extended_sequences: list[dict[str, Any]] = []
-    seen_extended: set[tuple[str, ...]] = set()
-    for sequence in sequences:
-        path_symbols = [_norm_symbol(symbol) for symbol in sequence.get("pathSymbols") or []]
-        if len(path_symbols) != 4 or path_symbols[0] != path_symbols[-1]:
-            continue
-        anchor_symbol = path_symbols[0]
-        y_symbol = path_symbols[1]
-        z_symbol = path_symbols[2]
-        group = groups_by_anchor.get(anchor_symbol) or {}
-        tokens_by_symbol = {
-            _norm_symbol(token.get("symbol")): token
-            for token in group.get("sharedTokens") or []
-            if isinstance(token, dict)
-        }
-        y_token = tokens_by_symbol.get(y_symbol)
-        z_token = tokens_by_symbol.get(z_symbol)
-        bridge_step = next(
-            (
-                step
-                for step in sequence.get("routePools") or []
-                if isinstance(step, dict)
-                and str(step.get("direction") or "").lower() == "bridge"
-            ),
-            None,
-        )
-        if not bridge_step or y_token is None or z_token is None:
-            extended_sequences.append(sequence)
-            continue
-        anchor_address = _token_address(
-            (sequence.get("anchorAddresses") or [""])[0]
-            or (group.get("anchorAddresses") or [""])[0]
-        )
-        bridge_pair = {
-            "symbolPair": f"{_norm_symbol(y_token.get('symbol'))}:{_norm_symbol(z_token.get('symbol'))}",
-            "addressPair": f"{_token_address(y_token.get('address'))}:{_token_address(z_token.get('address'))}",
-            "tokenX": _token_address(y_token.get("address")),
-            "tokenY": _token_address(z_token.get("address")),
-            "tokenXSymbol": _norm_symbol(y_token.get("symbol")),
-            "tokenYSymbol": _norm_symbol(z_token.get("symbol")),
-            "preferredPools": [bridge_step],
-            "executionPools": [bridge_step],
-            "strictQualityPools": [bridge_step],
-            "classification": {"bridgeOnly": True, "protocol": "uniswap_v4"},
-        }
-        mini_group = {
-            **group,
-            "anchorSymbol": anchor_symbol,
-            "anchorAddresses": [anchor_address] if anchor_address else list(group.get("anchorAddresses") or []),
-            "sharedTokens": [y_token, z_token],
-            "ycPools": [],
-            "zcPools": [],
-            "ycTokens": [],
-            "zcTokens": [],
-            "ycPoolsRef": "sharedPools",
-            "zcPoolsRef": "sharedPools",
-            "ycTokensRef": "sharedTokens",
-            "zcTokensRef": "sharedTokens",
-        }
-        direction_sequences: list[dict[str, Any]] = []
-        for forward in (True, False):
-            if forward:
-                direction_group = mini_group
-            else:
-                direction_group = dict(mini_group)
-                direction_group["sharedTokens"] = [z_token, y_token]
-            generated = [
-                item
-                for item in _anchor_observation_sequences([direction_group], [bridge_pair])
-                if item.get("observationReachable")
-                or item.get("observationState") == "reachable"
-            ]
-            if generated:
-                direction_sequences.append(generated[0])
-        if not direction_sequences:
-            extended_sequences.append(sequence)
-            continue
-        for direction_sequence in direction_sequences:
-            key = (
-                anchor_symbol,
-                tuple(
-                    _norm_symbol(symbol)
-                    for symbol in direction_sequence.get("pathSymbols") or []
-                ),
-                str(direction_sequence.get("pool") or ""),
-            )
-            if key in seen_extended:
-                continue
-            seen_extended.add(key)
-            direction_sequence["source"] = "v4_closed_loop_db"
-            direction_sequence["kind"] = (
-                "robinhood_testnet_closed_loop"
-                if chain == ROBINHOOD_TESTNET_CHAIN_ID
-                else "robinhood_closed_loop"
-            )
-            extended_sequences.append(direction_sequence)
-    sequences = extended_sequences
+    # The loop table already contains X-Y-Z-X and X-Z-Y-X as independent
+    # directed rows. Do not synthesize the reverse direction in memory here;
+    # each SQLite row is the authoritative ordered hop for quote routing.
     routes = db_closed_loop_routes(sequences)
 
     sequences_by_anchor: dict[str, list[dict[str, Any]]] = {}

@@ -149,7 +149,10 @@ def test_import_existing_json_writes_mainnet_v4_counts(tmp_path):
 
     # The shard/intermediate JSON import path no longer writes business rows.
     # Candidate, observation and loop tables are rebuilt from SQLite instead.
-    build_result = builders.build_all_anchor_data(database)
+    build_result = builders.build_all_anchor_data(
+        database,
+        anchors=("ETH",),
+    )
     assert build_result["ok"] is True
     anchor_reports = {report["anchorSymbol"]: report for report in build_result["anchors"]}
     assert "ETH" in anchor_reports

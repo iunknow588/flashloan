@@ -72,7 +72,7 @@ def test_bootstrap_dex_surface_dependencies_walks_backwards(monkeypatch):
         flow_name="dex_quote_request",
     )
 
-    assert calls == ["candidates", "surface", "overview", "quotes"]
+    assert calls == ["candidates", "overview", "quotes"]
 
 
 def test_bootstrap_dex_market_observation_skips_pool_candidates_warmup(monkeypatch):
@@ -628,12 +628,13 @@ def test_dex_market_observation_surface_uses_database_for_mainnet_v4(monkeypatch
     monkeypatch.setattr(dex_surfaces, "load_market_observation_static", fail_static)
     monkeypatch.setattr(
         dex_surfaces,
-        "dex_market_observation_payload",
+        "_database_first_robinhood_observation_payload",
         lambda chain_id=None, protocols=None: {
             "mode": "dex_market_observation",
             "chain_id": chain_id,
             "selected_protocols": protocols,
-            "marketObservationSource": "computed",
+            "marketObservationSource": "sqlite_db",
+            "marketObservationSourceStage": "sqlite_db",
             "summary": {"observationSequenceCount": 1},
             "observationSequences": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
         },
@@ -645,7 +646,8 @@ def test_dex_market_observation_surface_uses_database_for_mainnet_v4(monkeypatch
         use_static_observation=True,
     )
 
-    assert observation["marketObservationSource"] == "computed"
+    assert observation["marketObservationSource"] == "sqlite_db"
+    assert observation["marketObservationSourceStage"] == "sqlite_db"
     assert static_calls == []
 
 
@@ -741,9 +743,11 @@ def test_dex_market_observation_surface_recomputes_when_static_snapshot_is_empty
     monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: empty_snapshot)
     monkeypatch.setattr(
         dex_surfaces,
-        "dex_market_observation_payload",
+        "_database_first_robinhood_observation_payload",
         lambda chain_id=None, protocols=None: dict(computed),
     )
+    computed["marketObservationSource"] = "sqlite_db"
+    computed["marketObservationSourceStage"] = "sqlite_db"
 
     observation = dex_surfaces.dex_market_observation_surface_payload(
         chain_id=46630,
@@ -753,7 +757,7 @@ def test_dex_market_observation_surface_recomputes_when_static_snapshot_is_empty
 
     assert observation["observationAnchorSymbols"] == ["TZ", "TA", "TB"]
     assert observation["summary"]["observationSequenceCount"] == 2
-    assert observation["marketObservationSourceStage"] == "computed"
+    assert observation["marketObservationSourceStage"] == "sqlite_db"
 
 
 def test_dex_market_observation_links_yc_to_zc_when_yz_pair_exists(monkeypatch):
@@ -944,6 +948,79 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
     assert group["observationCombinationCount"] == 1
     assert len(group.get("bridgePoolObservationGroups") or []) == 1
     assert (group.get("bridgePoolObservationGroups") or [{}])[0]["directionCount"] == 2
+    db_observation = {
+        "mode": "dex_market_observation",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "marketObservationSource": "sqlite_db",
+        "marketObservationSourceStage": "sqlite_db",
+        "observationAnchorSymbols": ["USDC"],
+        "anchorGroups": [
+            {
+                "anchorSymbol": "USDC",
+                "observationSequences": [
+                    {
+                        "kind": "robinhood_database_closed_loop",
+                        "source": "v4_closed_loop_db",
+                        "anchorSymbol": "USDC",
+                        "pathSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                        "pathText": "USDC -> WETH -> DAI -> USDC",
+                        "hopCandidates": [],
+                        "matchedPoolCount": "3",
+                        "recommendedFirstPriority": True,
+                    }
+                ],
+            }
+        ],
+        "closedLoopRoutes": [
+            {
+                "kind": "bridge_closed_loop",
+                "closedLoop": True,
+                "anchorSymbol": "USDC",
+                "pathSymbols": ["USDC", "WETH", "DAI", "USDC"],
+                "pathText": "USDC -> WETH -> DAI -> USDC",
+                "routeTokenPath": [
+                    {"symbol": "USDC", "address": usdc},
+                    {"symbol": "WETH", "address": weth},
+                    {"symbol": "DAI", "address": dai},
+                    {"symbol": "USDC", "address": usdc},
+                ],
+                "routeAddresses": [usdc, weth, dai, usdc],
+                "routePools": [
+                    {
+                        "pool": "0x" + "a" * 40,
+                        "protocol": "uniswap_v4",
+                        "fee": 100,
+                        "routeSymbols": ["USDC", "WETH"],
+                        "routeAddresses": [usdc, weth],
+                    },
+                    {
+                        "pool": "0x" + "b" * 40,
+                        "protocol": "uniswap_v4",
+                        "fee": 30,
+                        "routeSymbols": ["WETH", "DAI"],
+                        "routeAddresses": [weth, dai],
+                    },
+                    {
+                        "pool": "0x" + "c" * 40,
+                        "protocol": "uniswap_v4",
+                        "fee": 5,
+                        "routeSymbols": ["DAI", "USDC"],
+                        "routeAddresses": [dai, usdc],
+                    },
+                ],
+                "routePairs": [],
+            }
+        ],
+        "pairs": [],
+        "bridgePairs": [],
+        "summary": {"observationAnchorCount": "1", "closedLoopRouteCount": "1"},
+    }
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_database_first_robinhood_observation_payload",
+        lambda **kwargs: db_observation,
+    )
     overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v4"])
     assert any(
         (path.get("overviewRoute") or {}).get("pathSymbols") == ["USDC", "WETH", "DAI", "USDC"]

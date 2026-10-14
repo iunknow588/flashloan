@@ -12,11 +12,16 @@ reads page JSON shards.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
+from core.db.direction_pool_score import select_directional_pool_ids
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
+from dex.intent_trade.chains.robinhood_common.chain_config import (
+    all_anchor_addresses_by_symbol,
+    all_anchor_symbols,
+)
 from core.rs_bridge import (
     load_dex_candidate_pools,
     load_market_observation,
@@ -89,10 +94,29 @@ def _token_symbol_map(database_url: str, *, chain_id: int = ROBINHOOD_CHAIN_ID) 
     return {_lower(row.get("token_address")): _text(row.get("token_symbol")) for row in rows}
 
 
-def _anchor_rows(db: str, *, chain_id: int = ROBINHOOD_CHAIN_ID) -> list[dict[str, Any]]:
+def _default_anchor_symbols(
+    chain_id: int,
+    *,
+    database_url: str | None = None,
+) -> list[str]:
+    network = _network_for_chain_id(chain_id)
+    return list(
+        all_anchor_symbols(
+            network,
+            database_url=database_url,
+        )
+    )
+
+
+def _anchor_rows(
+    db: str,
+    *,
+    chain_id: int = ROBINHOOD_CHAIN_ID,
+    anchors: Iterable[str] | None = None,
+) -> list[dict[str, Any]]:
     from core.db.storage_business_io import query
 
-    return query(
+    rows = query(
         str(db),
         """
         SELECT DISTINCT anchor_symbol, anchor_address
@@ -102,10 +126,80 @@ def _anchor_rows(db: str, *, chain_id: int = ROBINHOOD_CHAIN_ID) -> list[dict[st
         """,
         (_network_for_chain_id(chain_id), chain_id, ROBINHOOD_PROTOCOL),
     )
+    allowed = None if anchors is None else {_text(symbol).upper() for symbol in anchors}
+    if allowed is None:
+        return rows
+    addresses_by_symbol = all_anchor_addresses_by_symbol(
+        _network_for_chain_id(chain_id),
+        database_url=db,
+    )
+    return [
+        row
+        for row in rows
+        if (
+            _text(row.get("anchor_symbol") or row.get("anchorSymbol")).upper() in allowed
+            and _lower(row.get("anchor_address") or row.get("anchorAddress"))
+            == _lower(addresses_by_symbol.get(_text(row.get("anchor_symbol")).upper()) or "")
+        )
+    ]
 
 
 def _pool_address(pool: dict[str, Any]) -> str:
     return _text(pool.get("pool_id") or pool.get("poolId") or pool.get("pool"))
+
+
+def _active_direction_pool_ids(
+    payload: dict[str, Any],
+) -> dict[tuple[str, str], list[str]]:
+    """Re-select primary and backup pools for every stored recommendation.
+
+    The stored recommendation table is treated as the candidate scope for a
+    direction.  Each read applies the current liquidity snapshots again, so a
+    primary pool that lost depth is replaced by the next usable backup and a
+    backup that also lost depth is refreshed from the stored pool surface.
+    """
+    pools = payload.get("pools") or []
+    selections: dict[tuple[str, str], list[str]] = {}
+    pools_by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for pool in pools:
+        token0 = _lower(pool.get("token0"))
+        token1 = _lower(pool.get("token1"))
+        if not token0 or not token1:
+            continue
+        pair_key = tuple(sorted((token0, token1)))
+        pools_by_pair.setdefault(pair_key, []).append(pool)
+    for rec in payload.get("recommendations") or []:
+        direction_key = _text(rec.get("direction_key") or rec.get("directionKey"))
+        hop = _text(rec.get("hop"))
+        if not direction_key or not hop or ":" not in direction_key:
+            continue
+        token_in, token_out = direction_key.split(":", 1)
+        if not token_in or not token_out:
+            continue
+        key = (direction_key, hop)
+        if key in selections:
+            continue
+        scope_pools = pools_by_pair.get(tuple(sorted((token_in, token_out))), [])
+        selections[key] = select_directional_pool_ids(
+            scope_pools,
+            token_in,
+            token_out,
+            limit=3,
+        )
+    return selections
+
+
+def _pool_role(
+    pool_id: str,
+    active_ids: list[str],
+) -> str:
+    if not active_ids:
+        return ""
+    if active_ids[0] == pool_id:
+        return "primary"
+    if pool_id in active_ids[1:3]:
+        return "backup"
+    return ""
 
 
 def _symbol_for_address(address: str, token_symbols: dict[str, str]) -> str:
@@ -118,6 +212,7 @@ def _candidate_pool_row(
     token_symbols: dict[str, str],
     anchor_address: str,
     anchor_symbol: str,
+    pool_role: str = "",
 ) -> dict[str, Any]:
     token0 = _lower(pool.get("token0"))
     token1 = _lower(pool.get("token1"))
@@ -148,6 +243,13 @@ def _candidate_pool_row(
         optimal_roles = {
             "yc": _bool(pool.get("yc_optimal_pool_id") or pool.get("ycOptimalPoolId")) or first_recommended,
             "zc": _bool(pool.get("zc_optimal_pool_id") or pool.get("zcOptimalPoolId")) or third_recommended,
+        }
+    if pool_role in {"primary", "backup"}:
+        first_recommended = True
+        third_recommended = True
+        optimal_roles = {
+            "yc": pool_role == "primary",
+            "zc": pool_role == "primary",
         }
     pool_id = _pool_address(pool)
     fixed_fee_candidate = not dynamic_fee and not special_fee
@@ -206,6 +308,11 @@ def _candidate_pool_row(
         "optimalRole": optimal_roles,
         "isFirstHopRecommended": first_recommended,
         "isThirdHopRecommended": third_recommended,
+        "recommendedPoolRole": pool_role,
+        "recommendedPoolRoleLabel": {
+            "primary": "推荐池",
+            "backup": "备用池",
+        }.get(pool_role, ""),
         "liquidityReadAt": pool.get("liquidity_read_at") or pool.get("liquidityReadAt"),
         "liquidityBlockNumber": pool.get("liquidity_block_number") or pool.get("liquidityBlockNumber"),
     }
@@ -217,19 +324,83 @@ def _candidate_group(
     pools: list[dict[str, Any]],
     *,
     token_symbols: dict[str, str],
+    active_selection: dict[tuple[str, str], list[str]] | None = None,
 ) -> dict[str, Any]:
     anchor_symbol = _text(anchor.get("anchor_symbol") or anchor.get("anchorSymbol"))
     anchor_address = _text(anchor.get("anchor_address") or anchor.get("anchorAddress"))
-    rows = [
-        _candidate_pool_row(
+    active_selection = active_selection or {}
+    active_pool_ids = {
+        _lower(pool_id)
+        for pool_ids in active_selection.values()
+        for pool_id in pool_ids
+    }
+    pools = [pool for pool in pools if _lower(_pool_address(pool)) in active_pool_ids]
+    rows_by_pool: dict[str, dict[str, Any]] = {}
+    for pool in pools:
+        token0 = _lower(pool.get("token0"))
+        token1 = _lower(pool.get("token1"))
+        counter_for_pool = token1 if token0 == _lower(anchor_address) else token0
+        pool_id = _lower(_pool_address(pool))
+        yc_key = (f"{_lower(anchor_address)}:{counter_for_pool}", "first")
+        zc_key = (f"{counter_for_pool}:{_lower(anchor_address)}", "third")
+        yc_role = _pool_role(pool_id, list(active_selection.get(yc_key) or []))
+        zc_role = _pool_role(pool_id, list(active_selection.get(zc_key) or []))
+        pool_role = "primary" if yc_role == "primary" or zc_role == "primary" else "backup" if yc_role == "backup" or zc_role == "backup" else ""
+        row = _candidate_pool_row(
             pool,
             token_symbols=token_symbols,
             anchor_address=anchor_address,
             anchor_symbol=anchor_symbol,
+            pool_role=pool_role,
         )
-        for pool in pools
-    ]
+        row["ycPoolRole"] = yc_role
+        row["zcPoolRole"] = zc_role
+        existing = rows_by_pool.get(pool_id)
+        if existing is None:
+            rows_by_pool[pool_id] = row
+            continue
+        existing["ycPoolRole"] = yc_role or existing.get("ycPoolRole")
+        existing["zcPoolRole"] = zc_role or existing.get("zcPoolRole")
+        existing["hopRecommendation"]["first"] = bool(
+            existing.get("hopRecommendation", {}).get("first")
+            or row.get("hopRecommendation", {}).get("first")
+        )
+        existing["hopRecommendation"]["third"] = bool(
+            existing.get("hopRecommendation", {}).get("third")
+            or row.get("hopRecommendation", {}).get("third")
+        )
+        existing["optimalRole"]["yc"] = bool(
+            existing.get("optimalRole", {}).get("yc")
+            or row.get("optimalRole", {}).get("yc")
+        )
+        existing["optimalRole"]["zc"] = bool(
+            existing.get("optimalRole", {}).get("zc")
+            or row.get("optimalRole", {}).get("zc")
+        )
+        existing["isFirstHopRecommended"] = bool(
+            existing.get("isFirstHopRecommended") or row.get("isFirstHopRecommended")
+        )
+        existing["isThirdHopRecommended"] = bool(
+            existing.get("isThirdHopRecommended") or row.get("isThirdHopRecommended")
+        )
+    rows = list(rows_by_pool.values())
     rows.sort(key=lambda row: (-_number(row.get("liquidityIndex")), _int(row.get("fee")), _text(row.get("pool"))))
+    backup_by_counter: dict[str, dict[str, list[str]]] = {}
+    for pair in pairs:
+        counter_address = _lower(pair.get("counter_address") or pair.get("counterAddress") or pair.get("counter"))
+        if not counter_address:
+            continue
+        forward_key = f"{_lower(anchor_address)}:{counter_address}"
+        reverse_key = f"{counter_address}:{_lower(anchor_address)}"
+        forward_active = list(active_selection.get((forward_key, "first")) or [])
+        reverse_active = list(active_selection.get((reverse_key, "third")) or [])
+        backup_by_counter.setdefault(
+            counter_address,
+            {
+                "yc": forward_active[1:3],
+                "zc": reverse_active[1:3],
+            },
+        )
     tokens_by_address: dict[str, dict[str, Any]] = {}
     for row in rows:
         counter_address = _lower(row.get("counterAddress"))
@@ -245,14 +416,25 @@ def _candidate_group(
                 "pools": [],
                 "ycOptimalPoolId": "",
                 "zcOptimalPoolId": "",
+                "ycBackupPoolIds": list(backup_by_counter.get(counter_address, {}).get("yc") or []),
+                "zcBackupPoolIds": list(backup_by_counter.get(counter_address, {}).get("zc") or []),
             },
         )
         token["poolCount"] += 1
         token["pools"].append(row)
-        if row.get("isFirstHopRecommended") and not token["ycOptimalPoolId"]:
+        if row.get("ycPoolRole") == "primary" and not token["ycOptimalPoolId"]:
             token["ycOptimalPoolId"] = row.get("poolId") or ""
-        if row.get("isThirdHopRecommended") and not token["zcOptimalPoolId"]:
+        if row.get("zcPoolRole") == "primary" and not token["zcOptimalPoolId"]:
             token["zcOptimalPoolId"] = row.get("poolId") or ""
+    for counter_address, token in tokens_by_address.items():
+        forward_key = f"{_lower(anchor_address)}:{counter_address}"
+        reverse_key = f"{counter_address}:{_lower(anchor_address)}"
+        forward_active = list(active_selection.get((forward_key, "first")) or [])
+        reverse_active = list(active_selection.get((reverse_key, "third")) or [])
+        if forward_active:
+            token["ycOptimalPoolId"] = forward_active[0]
+        if reverse_active:
+            token["zcOptimalPoolId"] = reverse_active[0]
     shared_tokens = sorted(tokens_by_address.values(), key=lambda item: _lower(item.get("address")))
     shared_pool_count = len(rows)
     shared_token_count = len(shared_tokens)
@@ -340,25 +522,28 @@ def _candidate_pair_report(
     token_symbols: dict[str, str],
     anchor_symbol: str,
     anchor_address: str,
+    active_selection: dict[tuple[str, str], list[str]] | None = None,
+    pools_by_counter: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     counter_address = _text(pair.get("counter_address") or pair.get("counterAddress"))
     anchor_key = _lower(anchor_address)
     counter_key = _lower(counter_address)
-    pair_pools = [
-        pool
-        for pool in pools
-        if counter_key
-        and (
-            (
-                _lower(pool.get("token0")) == anchor_key
-                and _lower(pool.get("token1")) == counter_key
-            )
-            or (
-                _lower(pool.get("token0")) == counter_key
-                and _lower(pool.get("token1")) == anchor_key
-            )
-        )
-    ]
+    direction_key = _text(pair.get("direction_key") or pair.get("directionKey"))
+    if not direction_key:
+        direction_key = f"{anchor_key}:{counter_key}"
+    hop = "first" if direction_key == f"{anchor_key}:{counter_key}" else "third"
+    active_ids = list((active_selection or {}).get((direction_key, hop)) or [])
+    active_ids_lower = {_lower(pool_id) for pool_id in active_ids}
+    if pools_by_counter is None:
+        pools_by_counter = {}
+        for pool in pools:
+            token0 = _lower(pool.get("token0"))
+            token1 = _lower(pool.get("token1"))
+            if token0 == anchor_key and token1:
+                pools_by_counter.setdefault(token1, []).append(pool)
+            elif token1 == anchor_key and token0:
+                pools_by_counter.setdefault(token0, []).append(pool)
+    pair_pools = pools_by_counter.get(counter_key, [])
     counter_symbol = _symbol_for_address(counter_address, token_symbols)
     preferred = [
         _candidate_pool_row(
@@ -368,10 +553,24 @@ def _candidate_pair_report(
             anchor_symbol=anchor_symbol,
         )
         for pool in pair_pools
-        if not _bool(pool.get("dynamic_fee") or pool.get("dynamicFee")) and not _bool(pool.get("special_fee") or pool.get("specialFee"))
+        if not _bool(pool.get("dynamic_fee") or pool.get("dynamicFee"))
+        and not _bool(pool.get("special_fee") or pool.get("specialFee"))
+        and _lower(_pool_address(pool)) in active_ids_lower
     ]
-    preferred.sort(key=lambda row: (-_number(row.get("liquidityIndex")), _int(row.get("fee"))))
+    preferred.sort(
+        key=lambda row: (
+            _pool_role(_lower(row.get("poolId") or row.get("pool")), active_ids) == "",
+            _pool_role(_lower(row.get("poolId") or row.get("pool")), active_ids) != "primary",
+            _int(row.get("fee")),
+            _text(row.get("pool")),
+        )
+    )
     strict = list(preferred)
+    backup_rows = [
+        row
+        for row in preferred
+        if _pool_role(_lower(row.get("poolId") or row.get("pool")), active_ids) == "backup"
+    ]
     return {
         "symbolPair": f"{anchor_symbol}:{counter_symbol}" if anchor_symbol and counter_symbol else "",
         "addressPair": _text(pair.get("address_pair") or pair.get("addressPair")),
@@ -385,14 +584,38 @@ def _candidate_pair_report(
         "preferredPoolCount": str(len(preferred)),
         "executionPoolCount": str(min(5, len(preferred))),
         "rejectedPoolCount": str(max(0, len(pair_pools) - len(preferred))),
+        "recommendedPoolCount": str(sum(1 for row in preferred if _pool_role(_lower(row.get("poolId") or row.get("pool")), active_ids) == "primary")),
+        "backupPoolCount": str(len(backup_rows)),
         "hasStrictQualityPools": bool(strict),
         "hasPreferredPools": bool(preferred),
+        "hasBackupPools": bool(backup_rows),
         "strictQualityPools": strict,
         "preferredPools": preferred,
+        "recommendedPools": [
+            row
+            for row in preferred
+            if _pool_role(_lower(row.get("poolId") or row.get("pool")), active_ids) == "primary"
+        ],
+        "backupPools": backup_rows,
         "executionPools": preferred[:5],
         "rejectedPools": [],
         "rejectReasonCounts": {},
     }
+
+
+def _pools_by_counter(
+    pools: list[dict[str, Any]],
+    anchor_key: str,
+) -> dict[str, list[dict[str, Any]]]:
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for pool in pools:
+        token0 = _lower(pool.get("token0"))
+        token1 = _lower(pool.get("token1"))
+        if token0 == anchor_key and token1:
+            indexed.setdefault(token1, []).append(pool)
+        elif token1 == anchor_key and token0:
+            indexed.setdefault(token0, []).append(pool)
+    return indexed
 
 
 STABLE_SYMBOLS = {"ETH", "WETH", "USDG", "USDE", "USDT", "USDC", "TZ", "DAI"}
@@ -403,19 +626,28 @@ def build_candidate_payload(
     chain_id: int = ROBINHOOD_CHAIN_ID,
     protocols: list[str] | None = None,
     database_url: str | None = None,
+    anchors: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     db = str(absolute_database_path(database_url))
     token_symbols = _token_symbol_map(db, chain_id=chain_id)
-    anchors = _anchor_rows(db, chain_id=chain_id)
+    anchor_rows = _anchor_rows(
+        db,
+        chain_id=chain_id,
+        anchors=anchors if anchors is not None else _default_anchor_symbols(
+            chain_id,
+            database_url=db,
+        ),
+    )
     groups: list[dict[str, Any]] = []
     pair_reports: list[dict[str, Any]] = []
     all_tokens: list[dict[str, Any]] = []
     total_pairs = 0
     total_pools = 0
-    for anchor in anchors:
+    for anchor in anchor_rows:
         symbol = _text(anchor.get("anchor_symbol") or anchor.get("anchorSymbol"))
         if not symbol:
             continue
+        anchor_key = _lower(anchor.get("anchor_address") or anchor.get("anchorAddress"))
         payload = load_dex_candidate_pools(
             _network_for_chain_id(chain_id),
             chain_id,
@@ -426,15 +658,42 @@ def build_candidate_payload(
         tokens = payload.get("anchorTokens") or []
         pairs = payload.get("pairs") or []
         pools = payload.get("pools") or []
+        pools_by_counter = _pools_by_counter(pools, anchor_key)
         abnormal_pools = payload.get("abnormalPools") or []
         abnormal_pairs = payload.get("abnormalPairs") or []
+        active_selection = _active_direction_pool_ids(payload)
+        active_pool_ids = {
+            _lower(pool_id)
+            for pool_ids in active_selection.values()
+            for pool_id in pool_ids
+        }
+        visible_pools = [
+            pool
+            for pool in pools
+            if _lower(_pool_address(pool)) in active_pool_ids
+        ]
         all_tokens.extend(tokens)
         total_pairs += len(pairs)
-        total_pools += len(pools)
-        group = _candidate_group(anchor, pairs, pools, token_symbols=token_symbols)
-        abnormal_group = _abnormal_candidate_group(anchor, abnormal_pools, token_symbols=token_symbols)
-        group.update(abnormal_group)
-        group["abnormalDirectionCount"] = str(len(abnormal_pairs))
+        total_pools += len(visible_pools)
+        group = _candidate_group(
+            anchor,
+            pairs,
+            pools,
+            token_symbols=token_symbols,
+            active_selection=active_selection,
+        )
+        # No-depth/abnormal pools are no longer a separate page observation
+        # item.  They stay in storage for diagnostics, but the page surfaces
+        # only primary and backup pools selected per direction.
+        group.update(
+            {
+                "abnormalTokenCount": "0",
+                "abnormalPoolCount": "0",
+                "abnormalTokens": [],
+                "abnormalPools": [],
+                "abnormalDirectionCount": "0",
+            }
+        )
         groups.append(group)
         pair_reports.extend(
             _candidate_pair_report(
@@ -443,6 +702,8 @@ def build_candidate_payload(
                 token_symbols=token_symbols,
                 anchor_symbol=symbol,
                 anchor_address=_text(anchor.get("anchor_address") or anchor.get("anchorAddress")),
+                active_selection=active_selection,
+                pools_by_counter=pools_by_counter,
             )
             for pair in pairs
         )

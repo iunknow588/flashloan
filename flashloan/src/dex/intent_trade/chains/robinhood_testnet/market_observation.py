@@ -19,7 +19,7 @@ from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_NETWORK,
 )
 from dex.intent_trade.chains.robinhood_common.chain_config import (
-    TESTNET_ANCHOR_SYMBOLS,
+    all_anchor_symbols,
 )
 from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     _db_pool_to_observation_row as _testnet_db_pool_to_observation_row,
@@ -30,9 +30,18 @@ from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     load_db_observation_pools,
 )
 from core.db.database_path import absolute_database_path as _testnet_db_path
+from core.db.direction_pool_score import (
+    has_confirmed_liquidity as _testnet_db_has_confirmed_liquidity,
+    select_directional_pool_ids as _testnet_db_select_directional_pool_ids,
+)
 
 
-TESTNET_DB_ANCHOR_SYMBOLS = TESTNET_ANCHOR_SYMBOLS
+TESTNET_DB_ANCHOR_SYMBOLS = tuple(
+    all_anchor_symbols(
+        ROBINHOOD_TESTNET_NETWORK,
+        database_url=str(_testnet_db_path()),
+    )
+)
 TESTNET_DB_MARKET_ID = f"dex-arbitrage-{ROBINHOOD_TESTNET_CHAIN_ID}-uniswap-v4"
 TESTNET_DB_PROTOCOL = "uniswap_v4"
 
@@ -271,6 +280,27 @@ def _pool_has_explicit_no_liquidity(row: dict[str, Any]) -> bool:
     return False
 
 
+def _testnet_db_pool_has_liquidity(row: dict[str, Any]) -> bool:
+    if row.get("hasLiquidity") is not None:
+        return bool(row.get("hasLiquidity"))
+    try:
+        return float(row.get("liquidityIndex") or row.get("liquidity") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _testnet_db_direction_usable(row: dict[str, Any], token_in: str) -> bool:
+    return (
+        _testnet_db_pool_usable(row)
+        and _testnet_db_has_confirmed_liquidity(
+            row,
+            token_in,
+            min_usd=1000.0,
+            fallback_token_base=1.0,
+        )
+    )
+
+
 def _fund_associations(
     token_address: str,
     *,
@@ -372,7 +402,10 @@ def _associated_observation_pair_rows(pools: list[dict[str, Any]]) -> list[dict[
             "liquidity": pool.get("liquidity"),
             "balances": pool.get("balances") or {},
             "closedLoopReady": bool(pool.get("closedLoopReady")),
-            "role": "direct_y_z_swap_pool",
+            "role": "primary_direct_y_z_swap_pool",
+            "recommendedPoolRole": "primary",
+            "poolRank": 1,
+            "backupPoolIds": [],
         }
         row["pools"].append(direct_pool)
         row["directSwapPools"].append(direct_pool)
@@ -720,7 +753,58 @@ def _testnet_db_bridge_pairs(
         right_symbol = _symbol(right_token.get("symbol"))
         left_address = _address(left_token.get("address"))
         right_address = _address(right_token.get("address"))
-        best_pools = sorted(pools, key=lambda item: str(_pool_id(item)))
+        usable_pools = [
+            pool
+            for pool in pools
+            if _testnet_db_pool_has_liquidity(pool)
+            and _testnet_db_pool_usable(pool)
+        ]
+        best_pool_ids: list[str] = []
+        seen_best_ids: set[str] = set()
+        for pool_id in _testnet_db_select_directional_pool_ids(
+            usable_pools,
+            left_address,
+            right_address,
+            limit=3,
+            min_usd=1000.0,
+            fallback_token_base=1.0,
+        ):
+            if pool_id in seen_best_ids:
+                continue
+            seen_best_ids.add(pool_id)
+            best_pool_ids.append(pool_id)
+        for pool_id in _testnet_db_select_directional_pool_ids(
+            usable_pools,
+            right_address,
+            left_address,
+            limit=3,
+            min_usd=1000.0,
+            fallback_token_base=1.0,
+        ):
+            if pool_id in seen_best_ids:
+                continue
+            seen_best_ids.add(pool_id)
+            best_pool_ids.append(pool_id)
+            if len(best_pool_ids) >= 3:
+                break
+        pool_by_best_id = {
+            str(_pool_id(pool)).lower(): pool
+            for pool in usable_pools
+            if str(_pool_id(pool) or "").strip()
+        }
+        best_pools = []
+        for index, pool_id in enumerate(best_pool_ids):
+            pool = pool_by_best_id.get(pool_id)
+            if pool is None:
+                continue
+            pool_role = "primary" if index == 0 else "backup"
+            pool = dict(pool)
+            pool["recommendedPoolRole"] = pool_role
+            pool["poolRank"] = index + 1
+            pool["backupPoolIds"] = list(best_pool_ids[1:3])
+            best_pools.append(pool)
+        if not best_pools:
+            continue
         bridge_pairs.append(
             {
                 "symbolPair": f"{left_symbol}:{right_symbol}",
@@ -730,6 +814,10 @@ def _testnet_db_bridge_pairs(
                 "tokenXSymbol": left_symbol,
                 "tokenYSymbol": right_symbol,
                 "preferredPools": best_pools,
+                "recommendedPools": best_pools[:1],
+                "backupPools": best_pools[1:3],
+                "primaryPoolIds": best_pool_ids[:1],
+                "backupPoolIds": best_pool_ids[1:3],
                 "executionPools": best_pools[:5],
                 "strictQualityPools": best_pools,
                 "classification": {
@@ -799,6 +887,11 @@ def _testnet_db_observation_rows(
                 )
     grouped: dict[str, dict[str, Any]] = {}
     pool_by_id: dict[str, dict[str, Any]] = {}
+    normal_pool_by_id = {
+        str(_pool_id(item)).lower(): item
+        for item in normal_pools
+        if str(_pool_id(item) or "").strip()
+    }
     non_normal_pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for pool in non_normal_pools:
         edge = _pool_edge(pool)
@@ -877,18 +970,43 @@ def _testnet_db_observation_rows(
         bridge_pool_ids = _json_loads(pair.get("poolIds") or pair.get("pool_ids_json") or [])
         if not isinstance(bridge_pool_ids, list):
             bridge_pool_ids = []
-        for pool_id in bridge_pool_ids:
-            pool_id_text = str(pool_id or "").strip().lower()
-            pool = next(
-                (
-                    item
-                    for item in normal_pools
-                    if str(_pool_id(item)).lower() == pool_id_text
-                ),
-                None,
-            )
+        stored_pool_ids = [
+            str(pool_id or "").strip().lower()
+            for pool_id in bridge_pool_ids
+            if str(pool_id or "").strip()
+        ]
+        active_pool_ids: list[str] = []
+        seen_active_ids: set[str] = set()
+        for pool_id_text in stored_pool_ids:
+            pool = normal_pool_by_id.get(pool_id_text)
             if pool is None:
                 continue
+            if not _testnet_db_direction_usable(pool, token_x_address):
+                continue
+            seen_active_ids.add(pool_id_text)
+            active_pool_ids.append(pool_id_text)
+        if len(active_pool_ids) < 3:
+            refreshed_ids = _testnet_db_select_directional_pool_ids(
+                normal_pools,
+                token_x_address,
+                token_y_address,
+                limit=3,
+                min_usd=1000.0,
+                fallback_token_base=1.0,
+            )
+            for refreshed_id in refreshed_ids:
+                if refreshed_id in seen_active_ids:
+                    continue
+                pool = normal_pool_by_id.get(refreshed_id)
+                if pool is None:
+                    continue
+                seen_active_ids.add(refreshed_id)
+                active_pool_ids.append(refreshed_id)
+                if len(active_pool_ids) >= 3:
+                    break
+        for pool_index, pool_id_text in enumerate(active_pool_ids):
+            pool = normal_pool_by_id[pool_id_text]
+            pool_role = "primary" if pool_index == 0 else "backup"
             if pool_id_text and pool_id_text not in pool_by_id:
                 pool_by_id[pool_id_text] = {
                     **pool,
@@ -929,7 +1047,16 @@ def _testnet_db_observation_rows(
                 "token0AssociatedFunds": associated_fund_symbols,
                 "token1AssociatedFunds": associated_fund_symbols,
                 "closedLoopReady": bool(pool.get("closedLoopReady")),
-                "role": "direct_y_z_swap_pool",
+                "role": f"{pool_role}_direct_y_z_swap_pool",
+                "recommendedPoolRole": pool_role,
+                "poolRank": pool_index + 1,
+                "poolIds": list(active_pool_ids),
+                "backupPoolIds": list(active_pool_ids[1:3]),
+                "dynamicSelectionReason": (
+                    "stored_pool"
+                    if pool_id_text in stored_pool_ids
+                    else "refreshed_from_system"
+                ),
                 "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
             }
             row["pools"].append(direct_pool)
@@ -938,8 +1065,12 @@ def _testnet_db_observation_rows(
             row["directSwapPoolCount"] += 1
             row["hasDirectSwapPool"] = True
             row["closedLoopReady"] = bool(row.get("closedLoopReady") or pool.get("closedLoopReady"))
+        row["primaryPoolIds"] = list(active_pool_ids[:1])
+        row["backupPoolIds"] = list(active_pool_ids[1:3])
         for pool in non_normal_pools_by_edge.get(edge) or []:
             if not isinstance(pool, dict):
+                continue
+            if not _testnet_db_pool_has_liquidity(pool):
                 continue
             pool_id = _pool_id(pool)
             non_normal_pool = {
@@ -983,9 +1114,9 @@ def _testnet_db_observation_rows(
             row["hasNonNormalSwapPool"] = True
         if not row.get("hasDirectSwapPool"):
             row["observationEmptyReason"] = (
-                "only non-normal Y-Z pools exist"
+                "only liquid non-normal Y-Z pools exist"
                 if row.get("hasNonNormalSwapPool")
-                else "no Y-Z swap pool yet"
+                else "no usable Y-Z swap pool yet"
             )
 
     pair_rows = sorted(

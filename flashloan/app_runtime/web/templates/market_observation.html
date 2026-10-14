@@ -249,7 +249,12 @@
       const title = `${poolLabelText(pool)} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${hookText}`;
       const usable = pool?.observationUsable ?? pool?.usableForObservation ?? (!pool?.specialFee && !pool?.dynamicFee);
       const cls = usable === true ? "good" : (usable === false ? "warn" : "neutral");
-      return `<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${esc(hookText)}</span>`;
+      const role = String(pool?.recommendedPoolRole || pool?.poolRole || "").toLowerCase();
+      const roleLabel = pool?.recommendedPoolRoleLabel || (role === "primary" ? "推荐池" : role === "backup" ? "备用池" : "");
+      const roleBadge = roleLabel
+        ? `<span class="badge ${role === "backup" ? "warn" : "good"}">${esc(roleLabel)}</span>`
+        : "";
+      return `${roleBadge}<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${esc(hookText)}</span>`;
     }
 
     function associatedPoolFallbackHtml(row) {
@@ -382,6 +387,8 @@
       const fundSymbols = list(row?.associatedFundSymbols);
       const anchorSymbol = row?.anchorSymbol || fundSymbols[0] || "-";
       const directSwapBadges = directSwapPools.map(poolBadgeHtml).join("");
+      const primaryPoolCount = directSwapPools.filter(pool => String(pool?.recommendedPoolRole || "").toLowerCase() === "primary").length;
+      const backupPoolCount = directSwapPools.filter(pool => String(pool?.recommendedPoolRole || "").toLowerCase() === "backup").length;
       const directSwapEmpty = row?.hasDirectSwapPool
         ? associatedPoolFallbackHtml(row)
         : (row?.hasNonNormalSwapPool
@@ -404,6 +411,8 @@
           <div class="chip-row">
             <span class="chip">${esc(anchorSymbol)}<small>资金池</small></span>
             <span class="chip">${esc(row?.directSwapPoolCount || directSwapPools.length || 0)}<small>直接 Y-Z 池</small></span>
+            ${primaryPoolCount ? `<span class="chip">${esc(primaryPoolCount)}<small>推荐池</small></span>` : ""}
+            ${backupPoolCount ? `<span class="chip">${esc(backupPoolCount)}<small>备用池</small></span>` : ""}
             <span class="chip">${esc(directions.length)}<small>交易方向</small></span>
             ${showNonNormal ? `<span class="chip">${esc(row?.nonNormalSwapPoolCount || nonNormalSwapPools.length || 0)}<small>非正常 Y-Z 池</small></span>` : ""}
             <span class="chip">${esc(fundSymbols.join(", ") || "-")}<small>可借资金锚点 X</small></span>

@@ -7,6 +7,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_business_io import execute, executemany, query
+from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
+
+
+MAX_OBSERVATION_POOLS_PER_DIRECTION = 3
+MIN_OBSERVATION_POOL_DEPTH_USD = 1000.0
 
 
 def _stamp() -> str:
@@ -65,12 +70,41 @@ def replace_market_observation_tables(
             continue
         if not direction_key:
             direction_key = f"{token_x}:{token_y}"
-        address_pair = _text(direction.get("address_pair") or direction.get("addressPair"))
-        if not address_pair:
-            address_pair = f"{token_x}:{token_y}" if token_x <= token_y else f"{token_y}:{token_x}"
+        address_pair = f"{token_x}:{token_y}"
         all_pools = direction.get("allPools") or direction.get("all_pools") or []
-        pool_ids = [str(item.get("poolId") or item.get("pool_id") or item.get("pool") or "").lower() for item in all_pools if item]
-        pool_ids = sorted({item for item in pool_ids if item})
+        scored_pools = sorted(
+            (
+                item
+                for item in all_pools
+                if item
+                and (
+                    item.get("poolId")
+                    or item.get("pool_id")
+                    or item.get("pool")
+                )
+            ),
+            key=lambda item: (
+                -score_pool_by_direction(item, token_x, token_y),
+                _text(item.get("poolId") or item.get("pool_id") or item.get("pool")),
+            ),
+        )
+        pool_ids = []
+        seen_pool_ids: set[str] = set()
+        for item in scored_pools:
+            if not has_confirmed_liquidity(
+                item,
+                token_x,
+                min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
+                fallback_token_base=1.0,
+            ):
+                continue
+            pool_id = _text(item.get("poolId") or item.get("pool_id") or item.get("pool"))
+            if pool_id and pool_id not in seen_pool_ids:
+                seen_pool_ids.add(pool_id)
+                pool_ids.append(pool_id)
+                if len(pool_ids) >= MAX_OBSERVATION_POOLS_PER_DIRECTION:
+                    break
+        optimal_pool_id = pool_ids[0] if pool_ids else ""
         pair_rows.append(
             (
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
@@ -78,6 +112,7 @@ def replace_market_observation_tables(
                 _bool(bool(pool_ids)),
                 len(pool_ids),
                 _json_dumps(pool_ids),
+                optimal_pool_id,
                 direction.get("observation_empty_reason") or direction.get("observationEmptyReason"),
                 now, now,
             )
@@ -140,8 +175,8 @@ def replace_market_observation_tables(
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
                 direction_key, token_x_address, token_y_address, address_pair,
                 has_direct_swap_pool, direct_swap_pool_count, pool_ids_json,
-                observation_empty_reason, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                optimal_pool_id, observation_empty_reason, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key)
             DO UPDATE SET token_x_address = excluded.token_x_address,
                 token_y_address = excluded.token_y_address,
@@ -149,6 +184,7 @@ def replace_market_observation_tables(
                 has_direct_swap_pool = excluded.has_direct_swap_pool,
                 direct_swap_pool_count = excluded.direct_swap_pool_count,
                 pool_ids_json = excluded.pool_ids_json,
+                optimal_pool_id = excluded.optimal_pool_id,
                 observation_empty_reason = excluded.observation_empty_reason,
                 updated_at = excluded.updated_at
             """,
@@ -240,12 +276,41 @@ def replace_market_observation_abnormal_tables(
             continue
         if not direction_key:
             direction_key = f"{token_x}:{token_y}"
-        address_pair = _text(direction.get("address_pair") or direction.get("addressPair"))
-        if not address_pair:
-            address_pair = f"{token_x}:{token_y}" if token_x <= token_y else f"{token_y}:{token_x}"
+        address_pair = f"{token_x}:{token_y}"
         all_pools = direction.get("allPools") or direction.get("all_pools") or []
-        pool_ids = [str(item.get("poolId") or item.get("pool_id") or item.get("pool") or "").lower() for item in all_pools if item]
-        pool_ids = sorted({item for item in pool_ids if item})
+        scored_pools = sorted(
+            (
+                item
+                for item in all_pools
+                if item
+                and (
+                    item.get("poolId")
+                    or item.get("pool_id")
+                    or item.get("pool")
+                )
+            ),
+            key=lambda item: (
+                -score_pool_by_direction(item, token_x, token_y),
+                _text(item.get("poolId") or item.get("pool_id") or item.get("pool")),
+            ),
+        )
+        pool_ids = []
+        seen_pool_ids: set[str] = set()
+        for item in scored_pools:
+            if not has_confirmed_liquidity(
+                item,
+                token_x,
+                min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
+                fallback_token_base=1.0,
+            ):
+                continue
+            pool_id = _text(item.get("poolId") or item.get("pool_id") or item.get("pool"))
+            if pool_id and pool_id not in seen_pool_ids:
+                seen_pool_ids.add(pool_id)
+                pool_ids.append(pool_id)
+                if len(pool_ids) >= MAX_OBSERVATION_POOLS_PER_DIRECTION:
+                    break
+        optimal_pool_id = pool_ids[0] if pool_ids else ""
         pair_rows.append(
             (
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
@@ -253,6 +318,7 @@ def replace_market_observation_abnormal_tables(
                 _bool(bool(pool_ids)),
                 len(pool_ids),
                 _json_dumps(pool_ids),
+                optimal_pool_id,
                 direction.get("observation_empty_reason") or direction.get("observationEmptyReason"),
                 now, now,
             )
@@ -290,8 +356,8 @@ def replace_market_observation_abnormal_tables(
                 network, chain_id, protocol, anchor_scope, anchor_symbol,
                 direction_key, token_x_address, token_y_address, address_pair,
                 has_non_normal_swap_pool, non_normal_swap_pool_count, pool_ids_json,
-                observation_empty_reason, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                optimal_pool_id, observation_empty_reason, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key)
             DO UPDATE SET token_x_address = excluded.token_x_address,
                 token_y_address = excluded.token_y_address,
@@ -299,6 +365,7 @@ def replace_market_observation_abnormal_tables(
                 has_non_normal_swap_pool = excluded.has_non_normal_swap_pool,
                 non_normal_swap_pool_count = excluded.non_normal_swap_pool_count,
                 pool_ids_json = excluded.pool_ids_json,
+                optimal_pool_id = excluded.optimal_pool_id,
                 observation_empty_reason = excluded.observation_empty_reason,
                 updated_at = excluded.updated_at
             """,
@@ -348,7 +415,7 @@ def load_market_observation(
         SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
                direction_key, token_x_address, token_y_address, address_pair,
                has_direct_swap_pool, direct_swap_pool_count, pool_ids_json,
-               observation_empty_reason, created_at, updated_at
+               optimal_pool_id, observation_empty_reason, created_at, updated_at
         FROM market_observation_yz_pairs
         WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
         ORDER BY direction_key
@@ -388,7 +455,7 @@ def load_market_observation(
         SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
                direction_key, token_x_address, token_y_address, address_pair,
                has_non_normal_swap_pool, non_normal_swap_pool_count, pool_ids_json,
-               observation_empty_reason, created_at, updated_at
+               optimal_pool_id, observation_empty_reason, created_at, updated_at
         FROM market_observation_abnormal_yz_pairs
         WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
         ORDER BY direction_key

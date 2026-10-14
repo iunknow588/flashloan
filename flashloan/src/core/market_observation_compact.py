@@ -910,7 +910,7 @@ def _candidate_groups_from_sequences(
             "candidatePoolCount": row.get("candidatePoolCount"),
             "matchedPoolCount": row.get("matchedPoolCount"),
             "hopCandidateCounts": dict(row.get("hopCandidateCounts") or {}),
-            "poolPathKey": row.get("poolPathKey") or "",
+            "poolPathKey": "",
         }
 
     def _compact_count(explicit: object, leg: str, row: dict[str, Any]) -> int:

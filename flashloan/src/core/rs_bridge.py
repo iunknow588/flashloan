@@ -31,6 +31,7 @@ from core.local_kv import store_path
 
 _RUST_MODULE = None
 _RUST_LOAD_ERROR: str | None = None
+_V4_EXCHANGE_POOL_CACHE: dict[tuple[str, str, int, str], list[dict[str, Any]]] = {}
 
 
 def _database_path(database_url: str | None = None) -> str:
@@ -102,6 +103,32 @@ def _convert_rust_dict(row: dict[str, Any]) -> dict[str, Any]:
     return {_rust_snake_to_camel(str(key)): value for key, value in row.items()}
 
 
+def clear_v4_exchange_pool_cache(
+    database_url: str | None = None,
+    *,
+    network: str | None = None,
+    chain_id: int | None = None,
+    protocol: str = "uniswap_v4",
+) -> int:
+    """Drop cached static V4 pool rows after an import/rebuild."""
+    if database_url is None:
+        cleared = len(_V4_EXCHANGE_POOL_CACHE)
+        _V4_EXCHANGE_POOL_CACHE.clear()
+        return cleared
+    path = _database_path(database_url)
+    keys = [
+        key
+        for key in _V4_EXCHANGE_POOL_CACHE
+        if key[0] == path
+        and (network is None or key[1] == str(network).strip().lower())
+        and (chain_id is None or key[2] == int(chain_id))
+        and (protocol is None or key[3] == str(protocol).strip().lower())
+    ]
+    for key in keys:
+        del _V4_EXCHANGE_POOL_CACHE[key]
+    return len(keys)
+
+
 def load_v4_exchange_pools(
     network: str,
     chain_id: int,
@@ -109,6 +136,15 @@ def load_v4_exchange_pools(
     *,
     database_url: str | None = None,
 ) -> list[dict[str, Any]]:
+    cache_key = (
+        _database_path(database_url),
+        str(network or "").strip().lower(),
+        int(chain_id or 0),
+        str(protocol or "").strip().lower(),
+    )
+    cached = _V4_EXCHANGE_POOL_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     _load_rust()
     if _RUST_MODULE is not None:
         try:
@@ -118,19 +154,23 @@ def load_v4_exchange_pools(
                 protocol,
                 _database_path(database_url),
             )
-            return [_convert_rust_dict(row) for row in _rust_rows(payload, "pools")]
+            rows = [_convert_rust_dict(row) for row in _rust_rows(payload, "pools")]
+            _V4_EXCHANGE_POOL_CACHE[cache_key] = rows
+            return rows
         except Exception as exc:
             raise RuntimeError(
                 "flashloan_rs read failed for load_v4_exchange_pools; "
                 "SQLite is authoritative and Rust read errors must not be hidden. "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
-    return _py_load_v4_exchange_pools(
+    rows = _py_load_v4_exchange_pools(
         _database_path(database_url),
         network=network,
         chain_id=chain_id,
         protocol=protocol,
     )
+    _V4_EXCHANGE_POOL_CACHE[cache_key] = rows
+    return rows
 
 
 def load_v4_pool_liquidity(

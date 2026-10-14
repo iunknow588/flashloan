@@ -21,19 +21,22 @@ from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
+from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
 from dex.intent_trade.chains.robinhood_common.chain_config import (
-    MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
     ROBINHOOD_MARKET_ID,
     ROBINHOOD_TESTNET_MARKET_ID,
     ROBINHOOD_TESTNET_NETWORK,
-    TESTNET_ANCHOR_ADDRESS_BY_SYMBOL,
-    TESTNET_ANCHOR_SYMBOLS,
+    all_anchor_addresses_by_symbol,
+    all_anchor_symbols,
+)
+from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
+    apply_stock_token_metadata,
 )
 
 
 ROBINHOOD_NETWORK = "robinhood"
 ROBINHOOD_CHAIN_ID = 4663
-ANCHOR_SYMBOLS = tuple(MAINNET_ANCHOR_ADDRESS_BY_SYMBOL)
+ANCHOR_SYMBOLS = all_anchor_symbols(ROBINHOOD_NETWORK)
 ROBINHOOD_TESTNET_CHAIN_ID = 46630
 
 
@@ -44,8 +47,8 @@ def _network_config(network: str) -> dict[str, Any]:
             "network": ROBINHOOD_TESTNET_NETWORK,
             "chain_id": ROBINHOOD_TESTNET_CHAIN_ID,
             "market_id": ROBINHOOD_TESTNET_MARKET_ID,
-            "anchor_symbols": TESTNET_ANCHOR_SYMBOLS,
-            "anchor_addresses": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL,
+            "anchor_symbols": all_anchor_symbols(ROBINHOOD_TESTNET_NETWORK),
+            "anchor_addresses": all_anchor_addresses_by_symbol(ROBINHOOD_TESTNET_NETWORK),
             "stable_symbols": {"USDG", "USDE", "TZ"},
         }
     return {
@@ -53,7 +56,7 @@ def _network_config(network: str) -> dict[str, Any]:
         "chain_id": ROBINHOOD_CHAIN_ID,
         "market_id": ROBINHOOD_MARKET_ID,
         "anchor_symbols": ANCHOR_SYMBOLS,
-        "anchor_addresses": MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
+        "anchor_addresses": all_anchor_addresses_by_symbol(ROBINHOOD_NETWORK),
         "stable_symbols": {"USDG", "USDE", "TZ"},
     }
 
@@ -109,6 +112,9 @@ def _token_rows_from_v4_index(
     *,
     anchor_symbols: tuple[str, ...],
     stable_symbols: set[str],
+    apply_stock_metadata: bool = True,
+    stock_network: str | None = None,
+    stock_chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
     for raw in index.get("poolKeys") or index.get("pools") or []:
@@ -135,7 +141,18 @@ def _token_rows_from_v4_index(
                 "anchor_symbol": symbol if symbol in anchor_symbols else None,
                 "token_kind": "native" if address == "0x0000000000000000000000000000000000000000" else ("wrapped_native" if symbol == "WETH" else "erc20"),
             }
-    return list(rows.values())
+    token_rows = list(rows.values())
+    if apply_stock_metadata:
+        token_rows = apply_stock_token_metadata(
+            token_rows,
+            network=stock_network,
+            chain_id=stock_chain_id,
+        )
+        for row in token_rows:
+            symbol = _symbol(row.get("token_symbol"))
+            if symbol in anchor_symbols:
+                row["anchor_symbol"] = symbol
+    return token_rows
 
 
 def _liquidity_rows(v4_liquidity: dict[str, Any]) -> list[dict[str, Any]]:
@@ -214,7 +231,7 @@ def _anchor_address_from_symbol(
     anchor_addresses: dict[str, str] | None = None,
 ) -> str:
     """Resolve an anchor from the exact per-network address set."""
-    return (anchor_addresses or MAINNET_ANCHOR_ADDRESS_BY_SYMBOL).get(
+    return (anchor_addresses or all_anchor_addresses_by_symbol(ROBINHOOD_NETWORK)).get(
         _symbol(symbol),
         "",
     )
@@ -235,19 +252,42 @@ def _build_loops(
         if _text(row.get("token_address") or row.get("address"))
     ]
     token_addresses = sorted(set(address for address in token_addresses if address != anchor_address))
-    pools_by_edge: dict[tuple[str, str], dict[str, Any]] = {}
+    pools_by_edge: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in observation.get("pools") or []:
         token0 = _text(row.get("token0"))
         token1 = _text(row.get("token1"))
         if token0 and token1:
-            pools_by_edge.setdefault(tuple(sorted((token0, token1))), row)
+            pools_by_edge.setdefault(tuple(sorted((token0, token1))), []).append(row)
     loops: list[dict[str, Any]] = []
     hops: list[dict[str, Any]] = []
 
     def _representative_pool(input_address: str, output_address: str) -> str:
         edge = tuple(sorted((_text(input_address), _text(output_address))))
-        row = pools_by_edge.get(edge)
-        return _pool_id(row) if row else ""
+        rows = pools_by_edge.get(edge, [])
+        if not rows:
+            return ""
+        eligible = [
+            row
+            for row in rows
+            if has_confirmed_liquidity(
+                row,
+                _text(input_address),
+                min_usd=1000.0,
+                fallback_token_base=1.0,
+            )
+        ]
+        if not eligible:
+            return ""
+        return _pool_id(
+            max(
+                eligible,
+                key=lambda row: score_pool_by_direction(
+                    row,
+                    _text(input_address),
+                    _text(output_address),
+                ),
+            )
+        )
 
     for y_address in token_addresses:
         for z_address in token_addresses:
@@ -295,7 +335,9 @@ def _build_loops(
                         "output_address": output_address,
                         "pool_id": pool_id,
                         "base_pool_id": pool_id,
-                        "pool_selection_basis": "imported_existing_json",
+                        "pool_selection_basis": (
+                            f"imported_directional_static_score:{input_address}:{output_address}"
+                        ),
                         "temporary_override": 0,
                     }
                 )
@@ -307,13 +349,35 @@ def _find_pool_for_hop(
     input_address: str,
     output_address: str,
 ) -> str:
-    edge = tuple(sorted((_text(input_address), _text(output_address))))
-    for pool in pools_by_id.values():
-        token0 = _text(pool.get("token0"))
-        token1 = _text(pool.get("token1"))
-        if tuple(sorted((token0, token1))) == edge:
-            return _pool_id(pool)
-    return ""
+    input_address = _text(input_address)
+    output_address = _text(output_address)
+    candidates = [
+        pool
+        for pool in pools_by_id.values()
+        if {
+            _text(pool.get("token0")),
+            _text(pool.get("token1")),
+        }
+        == {input_address, output_address}
+        and has_confirmed_liquidity(
+            pool,
+            input_address,
+            min_usd=1000.0,
+            fallback_token_base=1.0,
+        )
+    ]
+    if not candidates:
+        return ""
+    return _pool_id(
+        max(
+            candidates,
+            key=lambda pool: score_pool_by_direction(
+                pool,
+                input_address,
+                output_address,
+            ),
+        )
+    )
 
 
 def import_existing_json(
@@ -338,6 +402,12 @@ def import_existing_json(
         index,
         anchor_symbols=anchor_symbols,
         stable_symbols=stable_symbols,
+        apply_stock_metadata=(
+            wanted_network in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}
+            and wanted_chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
+        ),
+        stock_network=wanted_network,
+        stock_chain_id=wanted_chain_id,
     )
     seed_chain_tokens(
         database_url,

@@ -393,6 +393,11 @@ def test_direct_circuit_breaker_success_clears_route_group(monkeypatch, tmp_path
 
 def test_submit_cow_intent_trade_reports_incomplete_direct_protocol_without_cow_fallback(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setattr(
+        direct,
+        "_unified_executor_address_for_network",
+        lambda network: "",
+    )
 
     def fail_cow_submit(**_kwargs):
         raise AssertionError("direct-onchain intent must not fall back to cow order submission")

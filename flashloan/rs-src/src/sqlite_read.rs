@@ -107,7 +107,8 @@ pub fn load_dex_candidate_pools(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, token_role, \
          token_address, pool_count, has_yc_optimal_pool, has_zc_optimal_pool, \
-         yc_optimal_pool_id, zc_optimal_pool_id, yc_zc_same_set, created_at, updated_at \
+         yc_optimal_pool_id, zc_optimal_pool_id, yc_backup_pool_ids_json, \
+         zc_backup_pool_ids_json, yc_zc_same_set, created_at, updated_at \
          FROM dex_candidate_anchor_tokens \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY token_address",
@@ -116,8 +117,9 @@ pub fn load_dex_candidate_pools(
     let pairs = rows(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, anchor_address, \
-         counter_address, address_pair, pool_count, fixed_fee_liquid_pool_count, \
-         priced_pool_count, yc_optimal_pool_id, zc_optimal_pool_id, price_reference_json, \
+         counter_address, address_pair, direction_key, pool_count, fixed_fee_liquid_pool_count, \
+         priced_pool_count, yc_optimal_pool_id, zc_optimal_pool_id, \
+         yc_backup_pool_ids_json, zc_backup_pool_ids_json, price_reference_json, \
          price_outlier_filter, created_at, updated_at \
          FROM dex_candidate_pool_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
@@ -127,7 +129,7 @@ pub fn load_dex_candidate_pools(
     let pools = rows(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, address_pair, \
-         pool_id, pool_key_json, pool_manager, token0, token1, fee, fee_label, dynamic_fee, \
+         direction_key, direction_address_pair, pool_id, pool_key_json, pool_manager, token0, token1, fee, fee_label, dynamic_fee, \
          special_fee, tick_spacing, hooks, sqrt_price_x96, tick, has_liquidity, liquidity, \
          liquidity_index, estimated_tvl_usd, balances_json, depth_status, depth_band_json, \
          usable_for_observation, is_first_hop_recommended, is_third_hop_recommended, \
@@ -141,7 +143,7 @@ pub fn load_dex_candidate_pools(
     let recommendations = rows(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, counter_address, \
-         hop, rank, pool_id, depth_score, price, fee, selection_basis, created_at, updated_at \
+         direction_key, hop, rank, pool_id, depth_score, price, fee, selection_basis, created_at, updated_at \
          FROM dex_candidate_pool_recommendations \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY counter_address, hop, rank",
@@ -160,9 +162,9 @@ pub fn load_dex_candidate_pools(
     let abnormal_pairs = rows(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, anchor_address, \
-         counter_address, address_pair, pool_count, fixed_fee_liquid_pool_count, \
-         priced_pool_count, yc_optimal_pool_id, zc_optimal_pool_id, price_reference_json, \
-         price_outlier_filter, created_at, updated_at \
+         counter_address, address_pair, direction_key, pool_count, fixed_fee_liquid_pool_count, \
+         priced_pool_count, yc_optimal_pool_id, zc_optimal_pool_id, \
+         price_reference_json, price_outlier_filter, created_at, updated_at \
          FROM dex_candidate_abnormal_pool_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY counter_address",
@@ -171,7 +173,7 @@ pub fn load_dex_candidate_pools(
     let abnormal_pools = rows(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, address_pair, \
-         pool_id, pool_key_json, pool_manager, token0, token1, fee, fee_label, dynamic_fee, \
+         direction_key, direction_address_pair, pool_id, pool_key_json, pool_manager, token0, token1, fee, fee_label, dynamic_fee, \
          special_fee, tick_spacing, hooks, sqrt_price_x96, tick, has_liquidity, liquidity, \
          liquidity_index, estimated_tvl_usd, balances_json, depth_status, depth_band_json, \
          usable_for_observation, is_first_hop_recommended, is_third_hop_recommended, \
@@ -204,7 +206,7 @@ pub fn load_market_observation(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key, \
          token_x_address, token_y_address, address_pair, has_direct_swap_pool, \
-         direct_swap_pool_count, pool_ids_json, observation_empty_reason, created_at, updated_at \
+         direct_swap_pool_count, pool_ids_json, optimal_pool_id, observation_empty_reason, created_at, updated_at \
          FROM market_observation_yz_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY direction_key",
@@ -235,7 +237,7 @@ pub fn load_market_observation(
         connection,
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key, \
          token_x_address, token_y_address, address_pair, has_non_normal_swap_pool, \
-         non_normal_swap_pool_count, pool_ids_json, observation_empty_reason, created_at, updated_at \
+         non_normal_swap_pool_count, pool_ids_json, optimal_pool_id, observation_empty_reason, created_at, updated_at \
          FROM market_observation_abnormal_yz_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY direction_key",

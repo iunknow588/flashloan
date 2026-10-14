@@ -715,7 +715,16 @@ def _overview_path_candidates_from_observation_sets(
         anchor_groups = []
     pairs = _candidate_pairs(observation.get("pairs") or [])
     bridge_pairs = list(observation.get("bridgePairs") or [])
-    if not bridge_pairs and anchor_groups:
+    observation_source = str(
+        observation.get("marketObservationSource")
+        or observation.get("marketObservationSourceStage")
+        or ""
+    ).strip().lower()
+    if (
+        not bridge_pairs
+        and anchor_groups
+        and observation_source != "sqlite_db"
+    ):
         bridge_pairs, _bridge_index = _v4_index_bridge_pairs_for_anchor_groups(
             anchor_groups,
             chain_id=chain_id,

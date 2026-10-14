@@ -319,6 +319,17 @@
       return statusBadge(row.quality || row.status);
     }
 
+    function poolRoleBadge(row) {
+      const role = String(row?.recommendedPoolRole || row?.poolRole || "").toLowerCase();
+      if (role === "primary") {
+        return '<span class="badge good" title="当前方向动态选出的主池，优先用于报价与执行">推荐池</span>';
+      }
+      if (role === "backup") {
+        return '<span class="badge warn" title="主池失去流动性时按序替换的备用池，刷新时可从系统中重新选择">备用池</span>';
+      }
+      return '<span class="badge neutral">未入选</span>';
+    }
+
     function hopRecommendationBadge(row) {
       const first = "yc_anchor_to_counter_highest_price";
       const third = "zc_counter_to_anchor_lowest_price";
@@ -395,7 +406,7 @@
       return `<div class="table-wrap"><table>
         <thead>
           <tr>
-            <th>路径</th><th>池</th><th>对手代币</th><th>协议</th><th>费率</th><th>TVL</th><th>流动性</th><th>推荐跳</th><th>质量</th>
+            <th>路径</th><th>池</th><th>对手代币</th><th>协议</th><th>费率</th><th>TVL</th><th>流动性</th><th>角色</th><th>推荐跳</th><th>质量</th>
           </tr>
         </thead>
         <tbody>${items.map(row => {
@@ -409,6 +420,7 @@
             <td>${poolFeeText(row)}</td>
             <td>${num(balances.tvlUsd)}</td>
             <td title="${esc(liquidityText(row))}">${liquidityText(row)}</td>
+            <td>${poolRoleBadge(row)}</td>
             <td>${hopRecommendationBadge(row)}</td>
             <td>${poolCandidateBadge(row)}</td>
           </tr>`;
@@ -548,7 +560,9 @@
       }
       $("groupList").innerHTML = groups.map(group => {
         const sameSet = Boolean(group.ycZcSameSet || group.candidateSetMode === "bidirectional_same_pool_key_set");
-        const abnormalSection = renderAbnormalSection(group);
+        // No-depth/abnormal pools are replaced by per-direction backup pools;
+        // they are no longer rendered as a separate observation section.
+        const abnormalSection = "";
         if (($("qualityFilter").value || "all") === "with_liquidity" && !groupHasLiquidity(group) && !group.poolPagination) return "";
         const sections = sameSet
           ? renderBidirectionalSection(group)

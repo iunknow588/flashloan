@@ -11,7 +11,8 @@ Rules kept here:
   hook.  Depth/price are dynamic fields refreshed separately and are not
   static membership filters; DEX overview applies liquidity later.
 - Market observation must keep every ``N*(N-1)`` direction, including no-pool rows.
-- One V4 pool is one closed-loop hop; reverse directions are not separate loops.
+- One V4 pool is one physical hop row, but ``Y:Z`` and ``Z:Y`` are separate
+  directed loops that may choose different best pools.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
+from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
 from core.db.storage_business_io import delete_rows, query
 from core.db.storage_chain_core import seed_chain_tokens
 from core.db.storage_dex_candidate import (
@@ -36,6 +38,7 @@ from core.db.storage_market_observation import (
 )
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
 from dex.intent_trade.chains.robinhood_common.chain_config import (
+    MAINNET_ANCHOR_SYMBOLS,
     MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
     ROBINHOOD_CHAIN_ID,
     ROBINHOOD_MARKET_ID,
@@ -45,11 +48,17 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (
     ROBINHOOD_TESTNET_NETWORK,
     TESTNET_ANCHOR_ADDRESS_BY_SYMBOL,
     TESTNET_ANCHOR_SYMBOLS,
+    all_anchor_addresses_by_symbol,
+    all_anchor_symbols,
     configured_anchor_address_by_symbol as _shared_anchor_address_map,
+    configured_stock_anchor_address_by_symbol as _stock_anchor_address_map,
+)
+from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
+    default_stock_token_registry_path as _stock_token_registry_path,
+    load_stock_token_registry as _load_stock_token_registry,
 )
 
 
-ANCHOR_SYMBOLS = tuple(MAINNET_ANCHOR_ADDRESS_BY_SYMBOL)
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 ROBINHOOD_TOKEN_ALLOWLIST_PATH = (
     Path(__file__).resolve().parents[2]
@@ -65,9 +74,24 @@ ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH = (
 )
 DYNAMIC_FEE_FLAG = 8388608
 MAX_FIXED_FEE = 100_000
+# Each directed hop has exactly one recommended pool.  The candidate table can
+# keep a few physical representatives for diagnostics; recommendation/loop
+# construction only consumes the single best directional row.
 MAX_RECOMMENDATIONS_PER_HOP = 3
-MAX_CANDIDATE_POOLS_PER_PAIR = 6
+MAX_CANDIDATE_POOLS_PER_PAIR = 3
 NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
+
+
+def _stock_anchor_address_by_symbol(network: str) -> dict[str, str]:
+    return _stock_anchor_address_map(_text(network) or ROBINHOOD_NETWORK)
+
+
+def _all_anchor_symbols(network: str) -> tuple[str, ...]:
+    normalized = str(network or "").strip().lower()
+    return all_anchor_symbols(normalized or ROBINHOOD_NETWORK)
+
+
+ANCHOR_SYMBOLS = _all_anchor_symbols(ROBINHOOD_NETWORK)
 
 
 def _stamp() -> str:
@@ -150,7 +174,7 @@ def _seed_chain_token_symbols(
         if _text(network) == ROBINHOOD_TESTNET_NETWORK
         else ROBINHOOD_TOKEN_ALLOWLIST_PATH
     )
-    anchor_symbols = TESTNET_ANCHOR_SYMBOLS if _text(network) == ROBINHOOD_TESTNET_NETWORK else ANCHOR_SYMBOLS
+    anchor_symbols = _all_anchor_symbols(network)
     stable_symbols = (
         {"USDG", "USDE", "TZ"}
         if _text(network) == ROBINHOOD_TESTNET_NETWORK
@@ -203,6 +227,58 @@ def _seed_chain_token_symbols(
             network=network,
             chain_id=chain_id,
             token_rows=rows,
+        )
+    stock_payload = (
+        _load_stock_token_registry(
+            network=_text(network),
+            chain_id=int(chain_id),
+        )
+        if _text(network) in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}
+        and int(chain_id) in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
+        else {}
+    )
+    stock_rows = []
+    for item in (stock_payload.get("tokens") or {}).values():
+        if not isinstance(item, dict):
+            continue
+        address = _text(item.get("address"))
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if not address or not symbol:
+            continue
+        stock_rows.append(
+            {
+                "token_address": address,
+                "token_symbol": symbol,
+                "token_name": item.get("name") or symbol,
+                "token_decimals": item.get("decimals"),
+                "token_kind": "erc20",
+                "is_native": 0,
+                "is_wrapped_native": 0,
+                "is_stable": 0,
+                "anchor_symbol": symbol if symbol in anchor_symbols else None,
+                "token_metadata": {
+                    "category": "robinhood_stock",
+                    "source": item.get("source") or "robinhood_stock_token_registry",
+                    "isin": item.get("isin"),
+                    "status": item.get("status"),
+                },
+                "source": {
+                    "seed": "robinhood_stock_token_registry",
+                    "sourcePath": str(
+                        _stock_token_registry_path(
+                            network=_text(network),
+                            chain_id=int(chain_id),
+                        )
+                    ),
+                },
+            }
+        )
+    if stock_rows:
+        seed_chain_tokens(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            token_rows=stock_rows,
         )
     existing_addresses = {
         _text(row.get("token_address"))
@@ -310,13 +386,21 @@ def _resolve_anchor_address(
 
 
 def _configured_anchor_address_by_symbol(network: str) -> dict[str, str]:
-    return _shared_anchor_address_map(network)
+    return all_anchor_addresses_by_symbol(_text(network) or ROBINHOOD_NETWORK)
 
 
 def _market_id_for_network(network: str) -> str:
     if _text(network) == ROBINHOOD_TESTNET_NETWORK:
         return ROBINHOOD_TESTNET_MARKET_ID
     return ROBINHOOD_MARKET_ID
+
+
+def _base_anchor_symbols(network: str) -> tuple[str, ...]:
+    return (
+        TESTNET_ANCHOR_SYMBOLS
+        if _text(network) == ROBINHOOD_TESTNET_NETWORK
+        else MAINNET_ANCHOR_SYMBOLS
+    )
 
 
 def _pool_depth(pool: dict[str, Any]) -> float:
@@ -338,24 +422,28 @@ def _pool_reference_price(pool: dict[str, Any]) -> float | None:
 def _representative_pool_rows(
     pools: list[dict[str, Any]],
     *,
+    token_in: str | None = None,
+    token_out: str | None = None,
     limit: int = MAX_CANDIDATE_POOLS_PER_PAIR,
 ) -> list[dict[str, Any]]:
-    """Keep at most ``limit`` representative pools per token pair.
+    """Keep directional representatives, best static output first."""
+    def _sort_key(row: dict[str, Any]):
+        if token_in and token_out:
+            return (
+                -score_pool_by_direction(row, token_in, token_out),
+                _int(row.get("fee")),
+                _pool_id(row),
+            )
+        return (-_pool_depth(row), _int(row.get("fee")), _pool_id(row))
 
-    Selection prefers the deepest pool, then the highest/lowest reference
-    price when present, then the remaining slots by depth and low fee.  The
-    same rule is applied to abnormal pools so their page surface stays
-    bounded without inventing new token pairs.
-    """
     if limit <= 0 or len(pools) <= limit:
-        return list(pools)
+        return sorted(
+            pools,
+            key=_sort_key,
+        )
     ordered = sorted(
         pools,
-        key=lambda row: (
-            -_pool_depth(row),
-            _int(row.get("fee")),
-            _pool_id(row),
-        ),
+        key=_sort_key,
     )
     selected: list[dict[str, Any]] = []
     selected_ids: set[str] = set()
@@ -368,12 +456,6 @@ def _representative_pool_rows(
             selected_ids.add(pool_id)
         selected.append(row)
 
-    if ordered:
-        _add(ordered[0])
-    priced = [row for row in ordered if _pool_reference_price(row) is not None]
-    if len(priced) >= 2:
-        _add(max(priced, key=lambda row: _pool_reference_price(row) or 0.0))
-        _add(min(priced, key=lambda row: _pool_reference_price(row) or 0.0))
     for row in ordered:
         if len(selected) >= limit:
             break
@@ -381,25 +463,43 @@ def _representative_pool_rows(
     return selected[:limit]
 
 
-def _select_recommendations(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return up to three first/third-hop recommendations, low fee first.
+def _select_recommendations(
+    pools: list[dict[str, Any]],
+    *,
+    token_in: str,
+    token_out: str,
+) -> list[dict[str, Any]]:
+    """Return up to N directional recommendations, best static output first."""
+    return sorted(
+        (
+            pool
+            for pool in pools
+            if has_confirmed_liquidity(
+                pool,
+                token_in,
+                min_usd=1000.0,
+                fallback_token_base=1.0,
+            )
+        ),
+        key=lambda item: (
+            -score_pool_by_direction(item, token_in, token_out),
+            _int(item.get("fee")),
+            _pool_id(item),
+        ),
+    )[:MAX_RECOMMENDATIONS_PER_HOP]
 
-    Depth and price are refreshed dynamically, so the static recommendation
-    only requires a fixed-fee no-hook pool.
-    """
 
-    liquid = list(pools)
-    first: list[dict[str, Any]] = []
-    third: list[dict[str, Any]] = []
-    for pool in sorted(liquid, key=lambda item: (_int(item.get("fee")), _pool_id(item))):
-        if len(first) >= MAX_RECOMMENDATIONS_PER_HOP:
-            break
-        first.append(pool)
-    for pool in sorted(liquid, key=lambda item: (_int(item.get("fee")), _pool_id(item))):
-        if len(third) >= MAX_RECOMMENDATIONS_PER_HOP:
-            break
-        third.append(pool)
-    return first, third
+def _pools_for_token_pair(
+    pools_by_edge: dict[str, list[dict[str, Any]]],
+    token_x: str,
+    token_y: str,
+) -> list[dict[str, Any]]:
+    """Return physical pools regardless of which token the JSON stored first."""
+    x = _text(token_x)
+    y = _text(token_y)
+    if not x or not y:
+        return []
+    return pools_by_edge.get(f"{x}:{y}") or pools_by_edge.get(f"{y}:{x}") or []
 
 
 def _candidate_rows(
@@ -421,108 +521,175 @@ def _candidate_rows(
     for counter in token_addresses:
         if counter == anchor_address:
             continue
-        edge = f"{anchor_address}:{counter}" if anchor_address <= counter else f"{counter}:{anchor_address}"
-        pools = pools_by_edge.get(edge, [])
+        pools = _pools_for_token_pair(pools_by_edge, anchor_address, counter)
         meta = tokens_meta.get(counter, {})
         fixed = [
             pool
             for pool in pools
             if _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool)
         ]
-        first, third = _select_recommendations(fixed)
-        yc_pool = first[0]["pool_id"] if first else ""
-        zc_pool = third[0]["pool_id"] if third else ""
+        if not fixed:
+            continue
+        forward_key = f"{anchor_address}:{counter}"
+        reverse_key = f"{counter}:{anchor_address}"
+        forward_pools = _representative_pool_rows(
+            fixed,
+            token_in=anchor_address,
+            token_out=counter,
+        )
+        reverse_pools = _representative_pool_rows(
+            fixed,
+            token_in=counter,
+            token_out=anchor_address,
+        )
+        forward_recommendations = _select_recommendations(
+            fixed,
+            token_in=anchor_address,
+            token_out=counter,
+        )
+        reverse_recommendations = _select_recommendations(
+            fixed,
+            token_in=counter,
+            token_out=anchor_address,
+        )
+        forward_pool_id = forward_recommendations[0]["pool_id"] if forward_recommendations else ""
+        reverse_pool_id = reverse_recommendations[0]["pool_id"] if reverse_recommendations else ""
+        forward_backup_pool_ids = [
+            _pool_id(item)
+            for item in forward_recommendations[1:3]
+            if _pool_id(item)
+        ]
+        reverse_backup_pool_ids = [
+            _pool_id(item)
+            for item in reverse_recommendations[1:3]
+            if _pool_id(item)
+        ]
         tokens.append(
             {
+                "token_role": "yc_zc",
                 "token_address": counter,
                 "token_symbol": meta.get("token_symbol") or "",
                 "pool_count": len(pools),
-                "has_yc_optimal_pool": bool(yc_pool),
-                "has_zc_optimal_pool": bool(zc_pool),
-                "yc_optimal_pool_id": yc_pool,
-                "zc_optimal_pool_id": zc_pool,
-                "yc_zc_same_set": True,
+                "has_yc_optimal_pool": bool(forward_pool_id),
+                "has_zc_optimal_pool": bool(reverse_pool_id),
+                "yc_optimal_pool_id": forward_pool_id,
+                "zc_optimal_pool_id": reverse_pool_id,
+                "yc_backup_pool_ids": forward_backup_pool_ids,
+                "zc_backup_pool_ids": reverse_backup_pool_ids,
+                "yc_zc_same_set": forward_pool_id == reverse_pool_id,
             }
         )
         pairs.append(
             {
                 "anchor_address": anchor_address,
                 "counter_address": counter,
-                "address_pair": edge,
+                "address_pair": forward_key,
+                "direction_key": forward_key,
                 "pool_count": len(pools),
                 "fixed_fee_liquid_pool_count": len(fixed),
                 "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
-                "yc_optimal_pool_id": yc_pool,
-                "zc_optimal_pool_id": zc_pool,
+                "yc_optimal_pool_id": forward_pool_id,
+                "zc_optimal_pool_id": "",
+                "yc_backup_pool_ids": forward_backup_pool_ids,
+                "zc_backup_pool_ids": [],
                 "price_reference": {},
                 "price_outlier_filter": "fixed_fee_no_hook_low_fee",
             }
         )
-        for pool in pools:
+        pairs.append(
+            {
+                "anchor_address": counter,
+                "counter_address": anchor_address,
+                "address_pair": reverse_key,
+                "direction_key": reverse_key,
+                "pool_count": len(pools),
+                "fixed_fee_liquid_pool_count": len(fixed),
+                "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
+                "yc_optimal_pool_id": "",
+                "zc_optimal_pool_id": reverse_pool_id,
+                "yc_backup_pool_ids": [],
+                "zc_backup_pool_ids": reverse_backup_pool_ids,
+                "price_reference": {},
+                "price_outlier_filter": "fixed_fee_no_hook_low_fee",
+            }
+        )
+        first_recommended_ids = {_pool_id(item) for item in forward_recommendations}
+        third_recommended_ids = {_pool_id(item) for item in reverse_recommendations}
+        first_best_pool_id = _pool_id(forward_recommendations[0]) if forward_recommendations else ""
+        third_best_pool_id = _pool_id(reverse_recommendations[0]) if reverse_recommendations else ""
+        pool_rows_by_id: dict[str, dict[str, Any]] = {}
+        for pool in fixed:
             pool_id = _pool_id(pool)
-            is_first = pool_id in {item["pool_id"] for item in first}
-            is_third = pool_id in {item["pool_id"] for item in third}
-            pool_rows.append(
-                {
-                    "address_pair": edge,
-                    "pool_id": pool_id,
-                    "pool_key": _json_loads(pool.get("pool_key_json")),
-                    "pool_manager": pool.get("pool_manager") or "",
-                    "token0": pool.get("token0"),
-                    "token1": pool.get("token1"),
-                    "fee": pool.get("fee"),
-                    "fee_label": pool.get("fee_label"),
-                    "dynamic_fee": pool.get("dynamic_fee"),
-                    "special_fee": pool.get("special_fee"),
-                    "tick_spacing": pool.get("tick_spacing"),
-                    "hooks": pool.get("hooks"),
-                    "sqrt_price_x96": pool.get("sqrt_price_x96"),
-                    "tick": pool.get("tick"),
-                    "has_liquidity": pool.get("has_liquidity"),
-                    "liquidity": pool.get("liquidity"),
-                    "liquidity_index": pool.get("liquidity_index"),
-                    "estimated_tvl_usd": pool.get("estimated_tvl_usd"),
-                    "balances": _json_loads(pool.get("balances_json")),
-                    "depth_status": pool.get("depth_status"),
-                    "depth_band": _json_loads(pool.get("depth_band_json")),
-                    "usable_for_observation": bool(fixed),
-                    "is_first_hop_recommended": is_first,
-                    "is_third_hop_recommended": is_third,
-                    "hop_recommendation": {"first": is_first, "third": is_third},
-                    "optimal_roles": {
-                        "yc": yc_pool == pool_id,
-                        "zc": zc_pool == pool_id,
-                    },
-                    "liquidity_read_at": pool.get("liquidity_read_at"),
-                    "liquidity_block_number": pool.get("liquidity_block_number"),
-                }
+            if not pool_id:
+                continue
+            token0 = _text(pool.get("token0"))
+            token1 = _text(pool.get("token1"))
+            canonical_pair = f"{token0}:{token1}" if token0 and token1 else forward_key
+            is_first = pool_id in first_recommended_ids
+            is_third = pool_id in third_recommended_ids
+            pool_rows_by_id[pool_id] = {
+                "address_pair": canonical_pair,
+                "direction_key": canonical_pair,
+                "direction_address_pair": canonical_pair,
+                "pool_id": pool_id,
+                "pool_key": _json_loads(pool.get("pool_key_json")),
+                "pool_manager": pool.get("pool_manager") or "",
+                "token0": pool.get("token0"),
+                "token1": pool.get("token1"),
+                "fee": pool.get("fee"),
+                "fee_label": pool.get("fee_label"),
+                "dynamic_fee": pool.get("dynamic_fee"),
+                "special_fee": pool.get("special_fee"),
+                "tick_spacing": pool.get("tick_spacing"),
+                "hooks": pool.get("hooks"),
+                "sqrt_price_x96": pool.get("sqrt_price_x96"),
+                "tick": pool.get("tick"),
+                "has_liquidity": pool.get("has_liquidity"),
+                "liquidity": pool.get("liquidity"),
+                "liquidity_index": pool.get("liquidity_index"),
+                "estimated_tvl_usd": pool.get("estimated_tvl_usd"),
+                "balances": _json_loads(pool.get("balances_json")),
+                "depth_status": pool.get("depth_status"),
+                "depth_band": _json_loads(pool.get("depth_band_json")),
+                "usable_for_observation": True,
+                "is_first_hop_recommended": is_first,
+                "is_third_hop_recommended": is_third,
+                "hop_recommendation": {"first": is_first, "third": is_third},
+                "optimal_roles": {
+                    "yc": pool_id == first_best_pool_id,
+                    "zc": pool_id == third_best_pool_id,
+                },
+                "liquidity_read_at": pool.get("liquidity_read_at"),
+                "liquidity_block_number": pool.get("liquidity_block_number"),
+            }
+        pool_rows.extend(pool_rows_by_id.values())
+        for direction_key, in_token, out_token, hop in (
+            (forward_key, anchor_address, counter, "first"),
+            (reverse_key, counter, anchor_address, "third"),
+        ):
+            rec_pools = (
+                forward_recommendations
+                if hop == "first"
+                else reverse_recommendations
             )
-        for rank, pool in enumerate(first, start=1):
-            recommendations.append(
-                {
-                    "counter_address": counter,
-                    "hop": "first",
-                    "rank": rank,
-                    "pool_id": _pool_id(pool),
-                    "depth_score": _pool_depth(pool),
-                    "price": pool.get("price"),
-                    "fee": pool.get("fee"),
-                    "selection_basis": "fixed_fee_no_hook_low_fee_first_hop",
-                }
-            )
-        for rank, pool in enumerate(third, start=1):
-            recommendations.append(
-                {
-                    "counter_address": counter,
-                    "hop": "third",
-                    "rank": rank,
-                    "pool_id": _pool_id(pool),
-                    "depth_score": _pool_depth(pool),
-                    "price": pool.get("price"),
-                    "fee": pool.get("fee"),
-                    "selection_basis": "fixed_fee_no_hook_low_fee_third_hop",
-                }
-            )
+            for rank, rec_pool in enumerate(rec_pools, start=1):
+                recommendations.append(
+                    {
+                        "counter_address": counter
+                        if hop == "first"
+                        else anchor_address,
+                        "direction_key": direction_key,
+                        "hop": hop,
+                        "rank": rank,
+                        "pool_id": _pool_id(rec_pool),
+                        "depth_score": _pool_depth(rec_pool),
+                        "price": rec_pool.get("price"),
+                        "fee": rec_pool.get("fee"),
+                        "selection_basis": (
+                            f"direction_static_score_{hop}_hop:{direction_key}"
+                        ),
+                    }
+                )
     return {
         "tokens": tokens,
         "pairs": pairs,
@@ -550,8 +717,7 @@ def _candidate_abnormal_rows(
     for counter in token_addresses:
         if counter == anchor_address:
             continue
-        edge = f"{anchor_address}:{counter}" if anchor_address <= counter else f"{counter}:{anchor_address}"
-        pools = pools_by_edge.get(edge, [])
+        pools = _pools_for_token_pair(pools_by_edge, anchor_address, counter)
         if not pools:
             continue
         meta = tokens_meta.get(counter, {})
@@ -568,25 +734,37 @@ def _candidate_abnormal_rows(
                 "yc_zc_same_set": True,
             }
         )
-        pairs.append(
-            {
-                "anchor_address": anchor_address,
-                "counter_address": counter,
-                "address_pair": edge,
-                "pool_count": len(pools),
-                "fixed_fee_liquid_pool_count": 0,
-                "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
-                "yc_optimal_pool_id": "",
-                "zc_optimal_pool_id": "",
-                "price_reference": {},
-                "price_outlier_filter": "abnormal_pool",
-            }
-        )
+        for direction_key, direction_anchor, direction_counter in (
+            (f"{anchor_address}:{counter}", anchor_address, counter),
+            (f"{counter}:{anchor_address}", counter, anchor_address),
+        ):
+            pairs.append(
+                {
+                    "anchor_address": direction_anchor,
+                    "counter_address": direction_counter,
+                    "address_pair": direction_key,
+                    "direction_key": direction_key,
+                    "pool_count": len(pools),
+                    "fixed_fee_liquid_pool_count": 0,
+                    "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
+                    "yc_optimal_pool_id": "",
+                    "zc_optimal_pool_id": "",
+                    "price_reference": {},
+                    "price_outlier_filter": "abnormal_pool",
+                }
+            )
         for pool in pools:
             pool_id = _pool_id(pool)
+            if not pool_id:
+                continue
+            token0 = _text(pool.get("token0"))
+            token1 = _text(pool.get("token1"))
+            canonical_pair = f"{token0}:{token1}" if token0 and token1 else f"{anchor_address}:{counter}"
             pool_rows.append(
                 {
-                    "address_pair": edge,
+                    "address_pair": canonical_pair,
+                    "direction_key": canonical_pair,
+                    "direction_address_pair": canonical_pair,
                     "pool_id": pool_id,
                     "pool_key": _json_loads(pool.get("pool_key_json")),
                     "pool_manager": pool.get("pool_manager") or "",
@@ -633,6 +811,22 @@ def build_candidate_anchor(
 
     resolved = absolute_database_path(database_url)
     anchor_scope = anchor_scope or _market_id_for_network(network)
+    tokens_meta = {
+        _text(row.get("token_address")): row
+        for row in query(
+            str(resolved),
+            "SELECT token_address, token_symbol FROM chain_tokens WHERE network = ? AND chain_id = ?",
+            (network, chain_id),
+        )
+    }
+    anchor_address = _resolve_anchor_address(
+        anchor_symbol,
+        list(tokens_meta.values()),
+        [],
+        network=network,
+    )
+    if not anchor_address:
+        raise ValueError(f"anchor symbol {anchor_symbol} has no chain token address")
     pools = query(
         str(resolved),
         f"""
@@ -647,26 +841,11 @@ def build_candidate_anchor(
           ON l.network = p.network AND l.chain_id = p.chain_id
          AND l.protocol = p.protocol AND l.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+          AND (p.token0 = ? OR p.token1 = ?)
         ORDER BY p.pool_id
         """,
-        (network, chain_id, protocol),
+        (network, chain_id, protocol, anchor_address, anchor_address),
     )
-    tokens_meta = {
-        _text(row.get("token_address")): row
-        for row in query(
-            str(resolved),
-            "SELECT token_address, token_symbol FROM chain_tokens WHERE network = ? AND chain_id = ?",
-            (network, chain_id),
-        )
-    }
-    anchor_address = _resolve_anchor_address(
-        anchor_symbol,
-        list(tokens_meta.values()),
-        pools,
-        network=network,
-    )
-    if not anchor_address:
-        raise ValueError(f"anchor symbol {anchor_symbol} has no chain token address")
     normal_pools = [
         pool
         for pool in pools
@@ -689,10 +868,6 @@ def build_candidate_anchor(
         token1 = _text(pool.get("token1"))
         if token0 and token1:
             abnormal_pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
-    pools_by_edge = {
-        edge: _representative_pool_rows(edge_pools)
-        for edge, edge_pools in pools_by_edge.items()
-    }
     abnormal_pools_by_edge = {
         edge: _representative_pool_rows(edge_pools)
         for edge, edge_pools in abnormal_pools_by_edge.items()
@@ -898,14 +1073,13 @@ def build_market_observation_anchor(
         for token_y in tokens:
             if token_x == token_y:
                 continue
-            edge = f"{token_x}:{token_y}" if token_x <= token_y else f"{token_y}:{token_x}"
-            matched = pools_by_edge.get(edge, [])
+            matched = _pools_for_token_pair(pools_by_edge, token_x, token_y)
             directions.append(
                 {
                     "direction_key": f"{token_x}:{token_y}",
                     "token_x_address": token_x,
                     "token_y_address": token_y,
-                    "address_pair": edge,
+                    "address_pair": f"{token_x}:{token_y}",
                     "allPools": matched,
                     "observation_empty_reason": "" if matched else "no_reachable_v4_pool",
                 }
@@ -916,14 +1090,18 @@ def build_market_observation_anchor(
                     continue
                 seen_pool_ids.add(pool_id)
                 pool_rows.append(pool)
-            abnormal_matched = abnormal_pools_by_edge.get(edge, [])
+            abnormal_matched = _pools_for_token_pair(
+                abnormal_pools_by_edge,
+                token_x,
+                token_y,
+            )
             if abnormal_matched:
                 abnormal_directions.append(
                     {
                         "direction_key": f"{token_x}:{token_y}",
                         "token_x_address": token_x,
                         "token_y_address": token_y,
-                        "address_pair": edge,
+                        "address_pair": f"{token_x}:{token_y}",
                         "allPools": abnormal_matched,
                         "observation_empty_reason": "",
                     }
@@ -1002,27 +1180,49 @@ def _build_loop_candidates(
     token_addresses: list[str],
     candidate_pools: dict[str, Any],
     observation_pools: dict[str, Any],
+    observation_pairs: list[dict[str, Any]] | None = None,
     token_symbols: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build hop-1/2/3 closed loops from recommendation and observation rows."""
 
     recommendations = candidate_pools.get("recommendations") or []
+    observation_pair_rows = observation_pairs or []
     token_symbols = token_symbols or {}
-    first_by_counter: dict[str, list[dict[str, Any]]] = {}
-    third_by_counter: dict[str, list[dict[str, Any]]] = {}
+    first_by_direction: dict[str, list[dict[str, Any]]] = {}
+    third_by_direction: dict[str, list[dict[str, Any]]] = {}
     for rec in recommendations:
-        counter = _text(rec.get("counter_address"))
+        direction_key = _text(rec.get("direction_key"))
+        if not direction_key:
+            continue
         hop = _text(rec.get("hop"))
         if hop == "first":
-            first_by_counter.setdefault(counter, []).append(rec)
+            first_by_direction.setdefault(direction_key, []).append(rec)
         elif hop == "third":
-            third_by_counter.setdefault(counter, []).append(rec)
-    pools_by_edge: dict[str, list[dict[str, Any]]] = {}
+            third_by_direction.setdefault(direction_key, []).append(rec)
+    pool_by_id: dict[str, dict[str, Any]] = {}
     for pool in observation_pools.get("pools") or []:
-        token0 = _text(pool.get("token0"))
-        token1 = _text(pool.get("token1"))
-        if token0 and token1:
-            pools_by_edge.setdefault(f"{token0}:{token1}", []).append(pool)
+        pool_id = _pool_id(pool)
+        if pool_id:
+            pool_by_id.setdefault(pool_id, pool)
+    optimal_pool_by_direction: dict[str, str] = {}
+    for row in observation_pair_rows:
+        direction_key = _text(row.get("direction_key"))
+        if not direction_key:
+            continue
+        pool_ids = _json_loads(row.get("pool_ids_json") or "")
+        if not isinstance(pool_ids, list):
+            pool_ids = []
+        optimal_pool_by_direction[direction_key] = _text(
+            row.get("optimal_pool_id")
+        ) or (_text(pool_ids[0]) if pool_ids else "")
+
+    def _middle_pool(input_address: str, output_address: str) -> dict[str, Any] | None:
+        direction_key = f"{_text(input_address)}:{_text(output_address)}"
+        pool_id = optimal_pool_by_direction.get(direction_key, "")
+        if pool_id and pool_id in pool_by_id:
+            return pool_by_id[pool_id]
+        return None
+
     loops: list[dict[str, Any]] = []
     hops: list[dict[str, Any]] = []
     seen_loop_keys: set[str] = set()
@@ -1030,23 +1230,35 @@ def _build_loop_candidates(
     for y_address in token_addresses:
         if y_address == anchor_address:
             continue
-        first_options = first_by_counter.get(y_address, [])
-        if not first_options:
-            continue
         for z_address in token_addresses:
             if z_address in {anchor_address, y_address}:
                 continue
-            third_options = third_by_counter.get(z_address, [])
-            if not third_options:
+            first_options = first_by_direction.get(
+                f"{_text(anchor_address)}:{_text(y_address)}",
+                [],
+            )
+            third_options = third_by_direction.get(
+                f"{_text(z_address)}:{_text(anchor_address)}",
+                [],
+            )
+            if not first_options or not third_options:
                 continue
-            yz_edge = f"{y_address}:{z_address}" if y_address <= z_address else f"{z_address}:{y_address}"
-            yz_pools = pools_by_edge.get(yz_edge, [])
-            if not yz_pools:
+            middle = _middle_pool(y_address, z_address)
+            if not middle:
                 continue
-            middle = yz_pools[0]
             for first in first_options[:1]:
                 for third in third_options[:1]:
                     pool_ids = (first["pool_id"], _pool_id(middle), third["pool_id"])
+                    first_backup_ids = [
+                        _text(item.get("pool_id"))
+                        for item in first_options[1:3]
+                        if _text(item.get("pool_id"))
+                    ]
+                    third_backup_ids = [
+                        _text(item.get("pool_id"))
+                        for item in third_options[1:3]
+                        if _text(item.get("pool_id"))
+                    ]
                     token_path = (anchor_address, y_address, z_address, anchor_address)
                     path_symbols = [
                         anchor_symbol,
@@ -1054,8 +1266,7 @@ def _build_loop_candidates(
                         symbol_for(z_address),
                         anchor_symbol,
                     ]
-                    sorted_tokens = tuple(sorted((anchor_address, y_address, z_address)))
-                    loop_key = "|".join((*sorted_tokens, *sorted(pool_ids)))
+                    loop_key = f"{_text(anchor_address)}:{_text(y_address)}:{_text(z_address)}"
                     if loop_key in seen_loop_keys:
                         continue
                     seen_loop_keys.add(loop_key)
@@ -1070,9 +1281,17 @@ def _build_loop_candidates(
                             "path_symbols": path_symbols,
                             "pool_path_key": ":".join((*token_path, *pool_ids)),
                             "pool_ids": list(pool_ids),
-                            "hop_candidate_counts": {"1": len(first_options), "2": len(yz_pools), "3": len(third_options)},
-                            "hop_candidate_combination_count": len(first_options) * len(yz_pools) * len(third_options),
-                            "recommendation_basis": "fixed_fee_no_hook_low_fee",
+                            "backup_pool_ids": {
+                                "first": first_backup_ids,
+                                "third": third_backup_ids,
+                            },
+                            "hop_candidate_counts": {
+                                "1": len(first_options),
+                                "2": 1,
+                                "3": len(third_options),
+                            },
+                            "hop_candidate_combination_count": len(first_options) * len(third_options),
+                            "recommendation_basis": "directed_fixed_fee_no_hook_static_score",
                             "recommended_first_priority": 1,
                             "status": "active",
                             "source": "database_builder",
@@ -1081,7 +1300,12 @@ def _build_loop_candidates(
                     for hop_index, (input_address, output_address, pool_id, basis) in enumerate(
                         (
                             (anchor_address, y_address, first["pool_id"], first.get("selection_basis") or "first_hop_recommended"),
-                            (y_address, z_address, _pool_id(middle), "observation_middle_hop"),
+                            (
+                                y_address,
+                                z_address,
+                                _pool_id(middle),
+                                f"observation_direction_optimal_pool:{y_address}:{z_address}",
+                            ),
                             (z_address, anchor_address, third["pool_id"], third.get("selection_basis") or "third_hop_recommended"),
                         ),
                         start=1,
@@ -1116,11 +1340,22 @@ def build_closed_loops_anchor(
     candidate_pools = query(
         str(resolved),
         """
-        SELECT counter_address, hop, rank, pool_id, depth_score, price, fee,
-               selection_basis
+        SELECT counter_address, direction_key, hop, rank, pool_id, depth_score,
+               price, fee, selection_basis
         FROM dex_candidate_pool_recommendations
         WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
         ORDER BY counter_address, hop, rank
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    observation_pairs = query(
+        str(resolved),
+        """
+        SELECT direction_key, token_x_address, token_y_address,
+               optimal_pool_id, pool_ids_json
+        FROM market_observation_yz_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY direction_key
         """,
         (network, chain_id, protocol, anchor_symbol),
     )
@@ -1209,6 +1444,7 @@ def build_closed_loops_anchor(
         token_addresses=token_addresses,
         candidate_pools={"recommendations": candidate_pools},
         observation_pools={"pools": observation_pools},
+        observation_pairs=observation_pairs,
         token_symbols=_token_symbol_lookup(
             str(resolved),
             network=network,
@@ -1279,6 +1515,46 @@ def build_all_anchor_data(
         for item in anchors
         if str(item or "").strip()
     )
+    base_symbols = set(_base_anchor_symbols(network))
+    if any(symbol not in base_symbols for symbol in anchor_symbols):
+        pool_addresses = {
+            _text(row.get("token0_address") or row.get("token0"))
+            for row in query(
+                str(resolved),
+                """
+                SELECT token0 AS token0_address, token1 AS token1_address
+                FROM v4_exchange_pools
+                WHERE network = ? AND chain_id = ? AND protocol = ?
+                """,
+                (network, chain_id, protocol),
+            )
+            if _text(row.get("token0_address") or row.get("token0"))
+        }
+        pool_addresses.update(
+            {
+                _text(row.get("token1_address") or row.get("token1"))
+                for row in query(
+                    str(resolved),
+                    """
+                    SELECT token0 AS token0_address, token1 AS token1_address
+                    FROM v4_exchange_pools
+                    WHERE network = ? AND chain_id = ? AND protocol = ?
+                    """,
+                    (network, chain_id, protocol),
+                )
+                if _text(row.get("token1_address") or row.get("token1"))
+            }
+        )
+        addresses_by_symbol = all_anchor_addresses_by_symbol(
+            _text(network) or ROBINHOOD_NETWORK
+        )
+        anchor_symbols = tuple(
+            symbol
+            for symbol in anchor_symbols
+            if symbol in base_symbols
+            or _text(addresses_by_symbol.get(symbol, "")).lower()
+            in pool_addresses
+        )
     universe = sorted({_text(item) for item in token_universe}) if token_universe is not None else None
     # The full rebuild owns every business row for this network/chain/protocol.
     # Older interrupted imports may have written rows under the mainnet market

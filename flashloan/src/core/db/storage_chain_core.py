@@ -132,7 +132,12 @@ def seed_chain_tokens(
                 1 if bool(token.get("is_wrapped_native")) else 0,
                 1 if bool(token.get("is_stable")) else 0,
                 token.get("anchor_symbol"),
-                _json_dumps(token.get("token_metadata") or token.get("metadata") or {}),
+                _json_dumps(
+                    token.get("token_metadata")
+                    or token.get("metadata")
+                    or token.get("token_metadata_json")
+                    or {}
+                ),
                 _json_dumps(token.get("source") or {}),
                 now,
                 now,

@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
-from core.chain_data_registry import chain_data_by_network, chain_data_file_path
+from core.chain_data_registry import chain_data_by_network
 from core.db.database_path import absolute_database_path
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 from core.market_observation_io import _stamp
@@ -20,11 +19,7 @@ from dex.intent_trade.chains.robinhood.config import (
     CHAIN_ID as ROBINHOOD_CHAIN_ID,
     WETH_ADDRESS,
 )
-from dex.intent_trade.chains.robinhood.v4_pool_index import (
-    ZERO_ADDRESS,
-    default_v4_pool_index_path,
-)
-from dex.intent_trade.chains.robinhood.v4_pool_snapshot import load_v4_pool_snapshot
+from dex.intent_trade.chains.robinhood.v4_pool_index import ZERO_ADDRESS
 from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     _db_pool_to_observation_row,
     db_closed_loop_routes as _common_db_closed_loop_routes,
@@ -32,20 +27,24 @@ from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     load_db_exchange_pools as _common_load_db_exchange_pools,
     load_db_observation_pools as _common_load_db_observation_pools,
 )
+from dex.intent_trade.chains.robinhood_common.chain_config import (
+    MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
+    ROBINHOOD_NETWORK,
+    all_anchor_addresses_by_symbol,
+    all_anchor_symbols,
+)
 _ROBINHOOD_ROW = chain_data_by_network("robinhood") or {}
 _ROBINHOOD_CONTRACTS = _ROBINHOOD_ROW.get("contracts") if isinstance(_ROBINHOOD_ROW.get("contracts"), dict) else {}
-
-_ETH_PAIR_TOKENS_META_CACHE: dict[str, Any] | None = None
-_MAINNET_V4_INDEX_CACHE: dict[str, Any] | None = None
 
 V4_DYNAMIC_FEE_FLAG = 8388608
 V4_SPECIAL_FEE_THRESHOLD = 100_000
 MAINNET_STABLE_ANCHOR_SYMBOLS = ("USDG", "USDE")
-MAINNET_CONFIGURED_ANCHOR_SYMBOLS = ("ETH", "WETH", *MAINNET_STABLE_ANCHOR_SYMBOLS, "TZ")
-
-_MAINNET_TEST_MANIFEST_PATH = Path(__file__).resolve().parents[6] / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
-
-_MAINNET_STABLE_MANIFEST_PATH = Path(__file__).resolve().parents[6] / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+MAINNET_CONFIGURED_ANCHOR_SYMBOLS = tuple(
+    all_anchor_symbols(
+        ROBINHOOD_NETWORK,
+        database_url=str(absolute_database_path()),
+    )
+)
 
 # Per-hop candidate lists are the quote/routing replacement universe. They are
 # small because the candidate cache already keeps a representative set: max
@@ -55,75 +54,37 @@ _MAINNET_HOP_CANDIDATE_LIMIT = 6
 
 
 def _mainnet_test_token_addresses() -> dict[str, str]:
-    manifest: dict[str, Any] = {}
-    try:
-        payload = json.loads(_MAINNET_TEST_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest = payload if isinstance(payload, dict) else {}
-    except (OSError, ValueError, json.JSONDecodeError):
-        manifest = {}
-    result: dict[str, str] = {}
-    for symbol, env_name in (
-        ("TZ", "ROBINHOOD_MAINNET_TZ_ADDRESS"),
-        ("TA", "ROBINHOOD_MAINNET_TA_ADDRESS"),
-        ("TB", "ROBINHOOD_MAINNET_TB_ADDRESS"),
-    ):
-        address = str(os.getenv(env_name) or "").strip().lower()
-        if not address:
-            address = str(manifest.get(symbol.lower()) or "").strip().lower()
-        if address:
-            result[symbol] = address
-    return result
+    return {
+        symbol: address
+        for symbol, address in MAINNET_ANCHOR_ADDRESS_BY_SYMBOL.items()
+        if symbol in {"TZ"}
+    }
 
 
 _MAINNET_TEST_ADDRESS_BY_SYMBOL = _mainnet_test_token_addresses()
 
 
 def _mainnet_stable_token_addresses() -> dict[str, str]:
-    """Resolve USDG/USDE from the same manifest used by candidate pools.
-
-    The chain row can contain checksummed addresses, but the mainnet V4 index
-    rows are lowercased. Keeping the same manifest source makes the anchor
-    universe consistent across candidate pools, market observation and flash
-    loan pool views.
-    """
-    manifest: dict[str, Any] = {}
-    try:
-        payload = json.loads(_MAINNET_STABLE_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest = payload if isinstance(payload, dict) else {}
-    except (OSError, ValueError, json.JSONDecodeError):
-        manifest = {}
-    result: dict[str, str] = {}
-    for raw in manifest.get("stableTokens") or []:
-        if not isinstance(raw, dict):
-            continue
-        symbol = str(raw.get("symbol") or "").strip().upper()
-        raw_address = str(raw.get("address") or "").strip()
-        address = raw_address.lower() if raw_address.startswith("0x") and len(raw_address) == 42 else ""
-        if symbol and address:
-            result[symbol] = address
-    raw_usdg = str(_ROBINHOOD_CONTRACTS.get("usdg") or "").strip()
-    usdg = raw_usdg.lower() if raw_usdg.startswith("0x") and len(raw_usdg) == 42 else ""
-    if usdg and "USDG" not in result:
-        result["USDG"] = usdg
-    if "USDE" not in result:
-        result["USDE"] = "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34"
-    return {symbol: address for symbol, address in result.items() if address}
+    return {
+        symbol: address
+        for symbol, address in MAINNET_ANCHOR_ADDRESS_BY_SYMBOL.items()
+        if symbol in {"USDG", "USDE"}
+    }
 
 
 _MAINNET_STABLE_ADDRESS_BY_SYMBOL = _mainnet_stable_token_addresses()
 
 
 def _mainnet_configured_anchor_addresses() -> set[str]:
-    """Return the exact five-anchor mainnet address set."""
-    addresses = {
-        _address(ZERO_ADDRESS),
-        _address(WETH_ADDRESS),
+    """Return every configured mainnet anchor address, including stocks."""
+    return {
+        _address(address)
+        for address in all_anchor_addresses_by_symbol(
+            ROBINHOOD_NETWORK,
+            database_url=str(absolute_database_path()),
+        ).values()
+        if _address(address)
     }
-    addresses.update(_MAINNET_STABLE_ADDRESS_BY_SYMBOL.values())
-    tz_address = _MAINNET_TEST_ADDRESS_BY_SYMBOL.get("TZ")
-    if tz_address:
-        addresses.add(_address(tz_address))
-    return {address for address in addresses if address}
 
 
 def _recent_swap_required() -> bool:
@@ -263,50 +224,20 @@ def _number_liquidity(pool: dict[str, Any]) -> float:
         return 0.0
 
 
-def default_robinhood_eth_pair_tokens_path() -> Path | None:
-    """Return the Robinhood mainnet ETH-paired token evidence path."""
-    try:
-        from core.chain_data_registry import chain_data_file_path
-
-        path = chain_data_file_path("robinhood", "eth_pair_tokens", chain_id=ROBINHOOD_CHAIN_ID)
-        if path is not None:
-            return Path(path)
-    except Exception:
-        pass
-    return Path(__file__).resolve().parents[3] / "runtime" / "evidence" / "robinhood" / "eth_pair_tokens.json"
-
-
-def _load_eth_pair_tokens_meta() -> dict[str, Any]:
-    global _ETH_PAIR_TOKENS_META_CACHE
-    if _ETH_PAIR_TOKENS_META_CACHE is not None:
-        return _ETH_PAIR_TOKENS_META_CACHE
-    path = default_robinhood_eth_pair_tokens_path()
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8-sig")) if path else {}
-    except Exception:
-        payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
-    token_count = int(payload.get("ethPairTokenCount") or 0)
-    if token_count <= 0:
-        token_count = len(payload.get("ycZc") or [])
-    _ETH_PAIR_TOKENS_META_CACHE = {
-        "network": payload.get("network") or "robinhood",
-        "chainId": int(payload.get("chainId") or 0) or ROBINHOOD_CHAIN_ID,
-        "ethPairTokenCount": int(token_count or 0),
-        "initializeLogCount": int(payload.get("initializeLogCount") or 0),
-        "generatedBlockNumber": payload.get("generatedBlockNumber") or 0,
-        "generatedAt": payload.get("generatedAt") or "",
-        "sourcePath": str(path or ""),
-    }
-    return _ETH_PAIR_TOKENS_META_CACHE
-
-
 def _mainnet_eth_pair_token_count() -> int:
-    try:
-        return int(_load_eth_pair_tokens_meta().get("ethPairTokenCount") or 0)
-    except Exception:
-        return 0
+    """Return the SQLite candidate token count for the ETH anchor set."""
+    from core.db.storage_business_io import query
+
+    rows = query(
+        _market_observation_database_path(),
+        """
+        SELECT COUNT(DISTINCT token_address) AS n
+        FROM dex_candidate_anchor_tokens
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        """,
+        ("robinhood", ROBINHOOD_CHAIN_ID, "uniswap_v4", "ETH"),
+    )
+    return int(rows[0]["n"] or 0) if rows else 0
 
 
 def _symbol(value: object) -> str:
@@ -444,27 +375,25 @@ def _pool_row(pool: dict[str, Any], *, source: str) -> dict[str, Any] | None:
 
 
 def _load_mainnet_v4_index() -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    global _MAINNET_V4_INDEX_CACHE
-    if _MAINNET_V4_INDEX_CACHE is not None:
-        cached = dict(_MAINNET_V4_INDEX_CACHE)
-        pools = list(cached.get("pools") or [])
-        return pools, cached
-    path = default_v4_pool_index_path()
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8-sig")) if path else {}
-    except Exception:
-        payload = {}
-    if (
-        not isinstance(payload, dict)
-        or str(payload.get("network") or "").strip().lower() != "robinhood"
-        or int(payload.get("chainId") or payload.get("chain_id") or 0) != ROBINHOOD_CHAIN_ID
-    ):
-        _MAINNET_V4_INDEX_CACHE = {"pools": [], "payload": payload or {}}
-        return [], payload or {}
-    pools = [_pool_row(pool, source="robinhood_mainnet_v4_pool_index") for pool in payload.get("pools") or [] if isinstance(pool, dict)]
-    pools = [pool for pool in pools if pool is not None]
-    _MAINNET_V4_INDEX_CACHE = {"pools": pools, "payload": payload}
-    return pools, payload
+    """Return mainnet V4 pool index metadata counted directly from SQLite."""
+    from core.db.storage_business_io import query
+
+    rows = query(
+        _market_observation_database_path(),
+        """
+        SELECT COUNT(*) AS n
+        FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        ("robinhood", ROBINHOOD_CHAIN_ID, "uniswap_v4"),
+    )
+    pool_count = int(rows[0]["n"] or 0) if rows else 0
+    return [], {
+        "source": "sqlite_db",
+        "network": "robinhood",
+        "chainId": ROBINHOOD_CHAIN_ID,
+        "poolCount": pool_count,
+    }
 
 
 def _json_loads(value: Any) -> Any:
@@ -484,7 +413,9 @@ def _market_observation_database_path() -> str:
     return str(absolute_database_path())
 
 
-def _load_mainnet_db_observation_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _load_mainnet_db_observation_pools(
+    anchor_symbols: Iterable[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Load the complete Y-Z pool surface from the SQLite business tables.
 
     SQLite is authoritative; a read failure or an empty table raises instead
@@ -494,15 +425,21 @@ def _load_mainnet_db_observation_pools() -> tuple[list[dict[str, Any]], dict[str
         network="robinhood",
         chain_id=ROBINHOOD_CHAIN_ID,
         protocol="uniswap_v4",
-        anchor_symbols=MAINNET_CONFIGURED_ANCHOR_SYMBOLS,
+        anchor_symbols=(
+            tuple(anchor_symbols)
+            if anchor_symbols is not None
+            else MAINNET_CONFIGURED_ANCHOR_SYMBOLS
+        ),
         database_url=_market_observation_database_path(),
         require_nonempty=True,
     )
 
 
-def _load_mainnet_observation_pools() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _load_mainnet_observation_pools(
+    anchor_symbols: Iterable[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return observation pools from SQLite without reading JSON shards."""
-    return _load_mainnet_db_observation_pools()
+    return _load_mainnet_db_observation_pools(anchor_symbols=anchor_symbols)
 
 
 def _load_mainnet_db_exchange_pools() -> list[dict[str, Any]]:
@@ -610,17 +547,12 @@ def _mainnet_observation_sequences(
 
     anchor_token_by_symbol: dict[str, dict[str, Any]] = {}
     for symbol in anchor_symbols:
-        address = ""
-        if symbol == "ETH":
-            address = _address(ZERO_ADDRESS)
-        elif symbol == "WETH":
-            address = _address(WETH_ADDRESS)
-        elif symbol == "USDG":
-            address = _MAINNET_STABLE_ADDRESS_BY_SYMBOL.get("USDG") or ""
-        elif symbol == "USDE":
-            address = _MAINNET_STABLE_ADDRESS_BY_SYMBOL.get("USDE") or ""
-        elif symbol in _MAINNET_TEST_ADDRESS_BY_SYMBOL:
-            address = _address(str(_MAINNET_TEST_ADDRESS_BY_SYMBOL.get(symbol) or ""))
+        address = _address(
+            all_anchor_addresses_by_symbol(
+                ROBINHOOD_NETWORK,
+                database_url=str(absolute_database_path()),
+            ).get(symbol, "")
+        )
         if address:
             anchor_token_by_symbol[symbol] = {"symbol": symbol, "address": address}
 
@@ -1370,9 +1302,18 @@ def _mainnet_fund_anchor_observation(
     non_normal_pools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     pools = [pool for pool in pools if _observation_pool_usable(pool)]
-    sequences, _legacy_bridge_pairs = _mainnet_observation_sequences(pools, route_limit=route_limit)
     db_closed_loop_sequences = _mainnet_closed_loop_sequences()
-    db_closed_loop_routes = _mainnet_closed_loop_routes()
+    if db_closed_loop_sequences:
+        # The SQLite closed-loop tables are the authoritative, validated
+        # handoff.  Skipping the legacy YC x ZC enumeration keeps mainnet
+        # observation fast and DB-first on the full production store.
+        sequences = list(db_closed_loop_sequences)
+    else:
+        sequences, _legacy_bridge_pairs = _mainnet_observation_sequences(
+            pools,
+            route_limit=route_limit,
+        )
+    db_closed_loop_routes = _common_db_closed_loop_routes(db_closed_loop_sequences)
     bridge_pairs = []
     pools_by_edge = _pools_by_edge(pools)
     anchor_symbols = list(MAINNET_CONFIGURED_ANCHOR_SYMBOLS)
@@ -1469,8 +1410,8 @@ def _mainnet_fund_anchor_observation(
     active_pool_ids = sorted(
         _active_pool_ids(pools)
     )
-    index, _index_payload = _load_mainnet_v4_index()
-    indexed_pool_count = len(index)
+    _index, index_payload = _load_mainnet_v4_index()
+    indexed_pool_count = int(index_payload.get("poolCount") or 0)
     return {
         "enabled": True,
         "status": "robinhood_mainnet_v4_eth_anchor_observation",
@@ -1571,7 +1512,14 @@ def bridge_pairs_for_anchor_groups(
                 "detail": "candidate YC/ZC address order is invalid; market observation will not use it",
             },
         )
-    pools, _index = _load_mainnet_observation_pools()
+    group_anchor_symbols = {
+        _symbol(group.get("anchorSymbol"))
+        for group in anchor_groups
+        if isinstance(group, dict) and _symbol(group.get("anchorSymbol"))
+    }
+    pools, _index = _load_mainnet_observation_pools(
+        anchor_symbols=group_anchor_symbols or MAINNET_CONFIGURED_ANCHOR_SYMBOLS
+    )
     pools = [pool for pool in pools if _observation_pool_usable(pool)]
     pool_files, missing_files = _mainnet_db_intermediate_pool_reports(anchor_groups, pools)
     bridge_pairs: list[dict[str, Any]] = []
@@ -1681,7 +1629,14 @@ def fund_anchor_pair_observation(
 
     pool_payload = _page_candidate_payload(chain_id=chain_id, protocols=protocols)
     anchor_groups = list(pool_payload.get("anchorGroups") or [])
-    pools, index = _load_mainnet_observation_pools()
+    group_anchor_symbols = {
+        _symbol(group.get("anchorSymbol"))
+        for group in anchor_groups
+        if isinstance(group, dict) and _symbol(group.get("anchorSymbol"))
+    }
+    pools, index = _load_mainnet_observation_pools(
+        anchor_symbols=group_anchor_symbols or MAINNET_CONFIGURED_ANCHOR_SYMBOLS
+    )
     non_normal_pools = [
         pool
         for pool in _load_mainnet_db_exchange_pools()

@@ -11,9 +11,13 @@ import json
 from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
+from core.db.direction_pool_score import (
+    has_confirmed_liquidity,
+)
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 from core.rs_bridge import (
+    load_dex_candidate_pools,
     load_market_observation,
     load_v4_closed_loop,
     load_v4_exchange_pools,
@@ -172,28 +176,46 @@ def _db_pool_to_observation_row(
     )
     balances = _json_loads(
         (liquidity or {}).get("balances_json")
+        or (liquidity or {}).get("balancesJson")
         or pool.get("balances_json")
+        or pool.get("balances")
         or {}
     )
     if not isinstance(balances, dict):
         balances = {}
     depth_band = _json_loads(
         (liquidity or {}).get("depth_band_json")
+        or (liquidity or {}).get("depthBandJson")
         or pool.get("depth_band_json")
+        or pool.get("depthBand")
         or {}
     )
     if not isinstance(depth_band, dict):
         depth_band = {}
     liquidity_index = (liquidity or {}).get("liquidity_index")
     if liquidity_index is None:
+        liquidity_index = (liquidity or {}).get("liquidityIndex")
+    if liquidity_index is None:
         raw_liquidity = (liquidity or {}).get("liquidity")
         if raw_liquidity not in (None, ""):
             try:
                 liquidity_index = float(raw_liquidity)
             except (TypeError, ValueError):
-                liquidity_index = pool.get("liquidity_index")
+                liquidity_index = pool.get("liquidity_index") or pool.get("liquidityIndex")
         else:
-            liquidity_index = pool.get("liquidity_index")
+            liquidity_index = pool.get("liquidity_index") or pool.get("liquidityIndex")
+    has_liquidity = (liquidity or {}).get("has_liquidity")
+    if has_liquidity is None:
+        has_liquidity = (liquidity or {}).get("hasLiquidity")
+    if has_liquidity is None:
+        has_liquidity = pool.get("has_liquidity")
+    if has_liquidity is None:
+        has_liquidity = pool.get("hasLiquidity")
+    estimated_tvl_usd = (liquidity or {}).get("estimated_tvl_usd")
+    if estimated_tvl_usd is None:
+        estimated_tvl_usd = (liquidity or {}).get("estimatedTvlUsd")
+    if estimated_tvl_usd is None:
+        estimated_tvl_usd = pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd")
     return {
         "pool": pool_id,
         "poolId": pool_id,
@@ -213,7 +235,7 @@ def _db_pool_to_observation_row(
         "tickSpacing": pool.get("tick_spacing") or pool.get("tickSpacing"),
         "hooks": pool.get("hooks"),
         "poolManager": pool.get("pool_manager") or pool.get("poolManager") or "",
-        "poolKey": _json_loads(pool.get("pool_key_json") or {}),
+        "poolKey": _json_loads(pool.get("pool_key_json") or pool.get("poolKey") or {}),
         "token0": token0,
         "token1": token1,
         "token0Symbol": token0_symbol,
@@ -222,7 +244,9 @@ def _db_pool_to_observation_row(
         "token1Decimals": pool.get("token1_decimals") or pool.get("token1Decimals"),
         "sqrtPriceX96": (
             (liquidity or {}).get("sqrt_price_x96")
+            or (liquidity or {}).get("sqrtPriceX96")
             or pool.get("sqrt_price_x96")
+            or pool.get("sqrtPriceX96")
             or ""
         ),
         "tick": (
@@ -232,25 +256,39 @@ def _db_pool_to_observation_row(
         ),
         "liquidity": (liquidity or {}).get("liquidity") or "",
         "liquidityIndex": liquidity_index,
-        "hasLiquidity": (liquidity or {}).get("has_liquidity"),
-        "estimatedTvlUsd": (liquidity or {}).get("estimated_tvl_usd"),
+        "hasLiquidity": has_liquidity,
+        "estimatedTvlUsd": estimated_tvl_usd,
         "balances": balances,
         "liquiditySource": "sqlite_db",
         "liquidityReadAt": (
             (liquidity or {}).get("liquidity_read_at")
+            or (liquidity or {}).get("liquidityReadAt")
             or pool.get("liquidity_read_at")
+            or pool.get("liquidityReadAt")
         ),
         "liquidityBlockNumber": (
             (liquidity or {}).get("liquidity_block_number")
+            or (liquidity or {}).get("liquidityBlockNumber")
             or pool.get("liquidity_block_number")
+            or pool.get("liquidityBlockNumber")
         ),
         "depthStatus": (
             (liquidity or {}).get("depth_status")
+            or (liquidity or {}).get("depthStatus")
             or pool.get("depth_status")
+            or pool.get("depthStatus")
             or ""
         ),
         "depthBand": depth_band,
-        "recentSwapActive": (liquidity or {}).get("recent_swap_active"),
+        "recentSwapActive": (
+            (liquidity or {}).get("recent_swap_active")
+            if (liquidity or {}).get("recent_swap_active") is not None
+            else (liquidity or {}).get("recentSwapActive")
+            if (liquidity or {}).get("recentSwapActive") is not None
+            else pool.get("recent_swap_active")
+            if pool.get("recent_swap_active") is not None
+            else pool.get("recentSwapActive")
+        ),
         "symbolPair": (
             f"{token0_symbol}:{token1_symbol}"
             if token0_symbol and token1_symbol
@@ -467,13 +505,12 @@ def db_closed_loop_sequences(
             hops_by_loop.setdefault(loop_key, []).append(hop)
     for group in hops_by_loop.values():
         group.sort(key=lambda row: _int(row.get("hop_index") or row.get("hopIndex")))
-    exchange_rows = load_v4_exchange_pools(
-        network,
-        chain_id,
-        protocol,
-        database_url=database_url,
-    )
-    pool_by_id = {_pool_key(row): row for row in exchange_rows if _pool_key(row)}
+    candidate_pairs_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    observation_rows_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    candidate_pools_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    observation_pools_by_anchor: dict[str, list[dict[str, Any]]] = {}
+    observation_liquidity_by_anchor: dict[str, dict[str, dict[str, Any]]] = {}
+    depth_confirmed_pool_ids: set[str] = set()
     sequences: list[dict[str, Any]] = []
     for loop in loops:
         loop_key = _text(loop.get("loop_key") or loop.get("loopKey")).lower()
@@ -492,9 +529,157 @@ def db_closed_loop_sequences(
         anchor_symbol = _symbol(loop.get("anchor_symbol") or loop.get("anchorSymbol"))
         if not anchor_address or len(path_addresses) < 4 or not path_text:
             continue
+        candidate_pair_rows = candidate_pairs_by_anchor.get(anchor_symbol)
+        candidate_pool_rows: list[dict[str, Any]] = []
+        if candidate_pair_rows is None:
+            candidate_payload = load_dex_candidate_pools(
+                network,
+                chain_id,
+                protocol,
+                anchor_symbol,
+                database_url=database_url,
+            )
+            candidate_pair_rows = candidate_payload.get("pairs") or []
+            candidate_pool_rows = candidate_payload.get("pools") or []
+            candidate_pairs_by_anchor[anchor_symbol] = candidate_pair_rows
+            candidate_pools_by_anchor[anchor_symbol] = candidate_pool_rows
+        else:
+            candidate_pool_rows = candidate_pools_by_anchor.get(anchor_symbol) or []
+        observation_pair_rows = observation_rows_by_anchor.get(anchor_symbol)
+        observation_pool_rows: list[dict[str, Any]] = []
+        observation_liquidity_rows: list[dict[str, Any]] = []
+        if observation_pair_rows is None:
+            observation_payload = load_market_observation(
+                network,
+                chain_id,
+                protocol,
+                anchor_symbol,
+                database_url=database_url,
+            )
+            observation_pair_rows = observation_payload.get("pairs") or []
+            observation_pool_rows = observation_payload.get("pools") or []
+            observation_liquidity_rows = observation_payload.get("liquidity") or []
+            observation_rows_by_anchor[anchor_symbol] = observation_pair_rows
+            observation_pools_by_anchor[anchor_symbol] = observation_pool_rows
+            observation_liquidity_by_anchor[anchor_symbol] = {
+                _pool_key(row): row
+                for row in observation_liquidity_rows
+                if _pool_key(row)
+            }
+        else:
+            observation_pool_rows = observation_pools_by_anchor.get(anchor_symbol) or []
+            observation_liquidity_rows = observation_liquidity_by_anchor.get(anchor_symbol) or {}
+
+        def _pool_by_id_for_anchor() -> dict[str, dict[str, Any]]:
+            pool_rows: list[dict[str, Any]] = list(candidate_pool_rows)
+            pool_rows.extend(observation_pool_rows)
+            merged: dict[str, dict[str, Any]] = {}
+            for row in pool_rows:
+                key = _pool_key(row)
+                if key:
+                    merged.setdefault(key, row)
+            return merged
+
+        anchor_pool_by_id = _pool_by_id_for_anchor()
+
+        def _anchor_candidate_pool(pool_id: str) -> dict[str, Any] | None:
+            normalized_id = str(pool_id or "").strip().lower()
+            pool = anchor_pool_by_id.get(normalized_id)
+            if pool is not None:
+                liquidity = observation_liquidity_by_anchor.get(anchor_symbol, {}).get(normalized_id)
+                if liquidity is not None:
+                    merged = dict(pool)
+                    for key in (
+                        "hasLiquidity",
+                        "has_liquidity",
+                        "liquidity",
+                        "liquidityIndex",
+                        "liquidity_index",
+                        "estimatedTvlUsd",
+                        "estimated_tvl_usd",
+                        "balances",
+                        "balances_json",
+                        "depthStatus",
+                        "depth_status",
+                        "depthBand",
+                        "depth_band_json",
+                        "sqrtPriceX96",
+                        "sqrt_price_x96",
+                        "tick",
+                        "liquidityReadAt",
+                        "liquidity_read_at",
+                        "liquidityBlockNumber",
+                        "liquidity_block_number",
+                    ):
+                        if liquidity.get(key) is not None:
+                            merged[key] = liquidity[key]
+                    return merged
+                return pool
+            return None
+
+        def _direction_scope_ids(
+            direction: str,
+            from_address: str,
+            to_address: str,
+            stored_pool_id: str,
+        ) -> list[str]:
+            direction_key = f"{from_address}:{to_address}"
+            ids = [stored_pool_id]
+            if direction in ("yc", "zc"):
+                for pair in candidate_pair_rows:
+                    if _text(pair.get("direction_key") or pair.get("directionKey")).lower() != direction_key:
+                        continue
+                    if direction == "yc":
+                        primary_id = str(
+                            pair.get("yc_optimal_pool_id")
+                            or pair.get("ycOptimalPoolId")
+                            or ""
+                        ).strip().lower()
+                        backups = _json_loads(
+                            pair.get("yc_backup_pool_ids")
+                            or pair.get("ycBackupPoolIds")
+                            or pair.get("yc_backup_pool_ids_json")
+                            or pair.get("ycBackupPoolIdsJson")
+                            or []
+                        )
+                    else:
+                        primary_id = str(
+                            pair.get("zc_optimal_pool_id")
+                            or pair.get("zcOptimalPoolId")
+                            or ""
+                        ).strip().lower()
+                        backups = _json_loads(
+                            pair.get("zc_backup_pool_ids")
+                            or pair.get("zcBackupPoolIds")
+                            or pair.get("zc_backup_pool_ids_json")
+                            or pair.get("zcBackupPoolIdsJson")
+                            or []
+                        )
+                    if primary_id:
+                        ids.append(primary_id)
+                    for backup_id in backups:
+                        backup_text = str(backup_id or "").strip().lower()
+                        if backup_text and backup_text not in ids:
+                            ids.append(backup_text)
+                    break
+            else:
+                for row in observation_pair_rows:
+                    if _text(row.get("direction_key") or row.get("directionKey")).lower() != direction_key:
+                        continue
+                    optimal_id = str(row.get("optimal_pool_id") or row.get("optimalPoolId") or "").strip().lower()
+                    if optimal_id:
+                        ids.append(optimal_id)
+                    for item in _json_loads(row.get("pool_ids_json") or row.get("poolIds") or []):
+                        item_text = str(item or "").strip().lower()
+                        if item_text and item_text not in ids:
+                            ids.append(item_text)
+                    break
+            return list(dict.fromkeys(item for item in ids if item))
+
         route_rows: list[dict[str, Any]] = []
         hop_candidates: list[dict[str, Any]] = []
         candidate_counts = {"x-y": 0, "y-z": 0, "z-x": 0}
+        dynamic_selection_reasons: list[str] = []
         for hop in hops_by_loop.get(loop_key) or []:
             direction = {
                 1: "yc",
@@ -504,9 +689,6 @@ def db_closed_loop_sequences(
             if not direction:
                 continue
             pool_id = _text(hop.get("pool_id") or hop.get("poolId")).lower()
-            pool = pool_by_id.get(pool_id)
-            if pool is None:
-                continue
             from_address = _address(hop.get("input_address") or hop.get("inputAddress"))
             to_address = _address(hop.get("output_address") or hop.get("outputAddress"))
             if not from_address or not to_address:
@@ -517,8 +699,45 @@ def db_closed_loop_sequences(
             to_symbol = symbol_map.get(to_address) or (
                 "ETH" if to_address == ZERO_ADDRESS.lower() else to_address[:8].upper()
             )
+            scope_ids = _direction_scope_ids(direction, from_address, to_address, pool_id)
+            stored_scope_ids = set(scope_ids)
+            candidate_pools: list[dict[str, Any]] = []
+            seen_candidate_ids: set[str] = set()
+            for candidate_id in scope_ids:
+                candidate = _anchor_candidate_pool(candidate_id)
+                if candidate is None:
+                    continue
+                if not _observation_pool_usable(candidate):
+                    continue
+                candidate_key = _pool_key(candidate)
+                if candidate_key not in depth_confirmed_pool_ids:
+                    if not has_confirmed_liquidity(
+                        candidate,
+                        from_address,
+                        min_usd=1000.0,
+                        fallback_token_base=1.0,
+                    ):
+                        continue
+                    depth_confirmed_pool_ids.add(candidate_key)
+                if candidate_key in seen_candidate_ids:
+                    continue
+                seen_candidate_ids.add(candidate_key)
+                candidate_pools.append(candidate)
+            candidate_pools = candidate_pools[:3]
+            if not candidate_pools:
+                continue
+            selected_pool = candidate_pools[0]
+            selected_id = _pool_key(selected_pool)
+            backup_pool_ids = [_pool_key(item) for item in candidate_pools[1:3]]
+            if selected_id == pool_id:
+                selection_reason = "stored_primary_usable"
+            elif selected_id in stored_scope_ids:
+                selection_reason = "backup_replacement"
+            else:
+                selection_reason = "recommended_primary_usable"
+            dynamic_selection_reasons.append(selection_reason)
             route_step = _db_closed_loop_step_row(
-                pool,
+                selected_pool,
                 from_address=from_address,
                 to_address=to_address,
                 from_symbol=from_symbol,
@@ -528,9 +747,33 @@ def db_closed_loop_sequences(
             )
             if route_step is None:
                 continue
+            route_step["poolIds"] = [_pool_key(item) for item in candidate_pools]
+            route_step["backupPoolIds"] = backup_pool_ids
+            route_step["recommendedPoolRole"] = "primary"
+            route_step["dynamicSelectionReason"] = selection_reason
             route_rows.append(route_step)
             leg = {"yc": "x-y", "bridge": "y-z", "zc": "z-x"}[direction]
-            candidate_counts[leg] = 1
+            candidate_counts[leg] = len(candidate_pools)
+            candidate_steps: list[dict[str, Any]] = []
+            for index, candidate in enumerate(candidate_pools):
+                step = _db_closed_loop_step_row(
+                    candidate,
+                    from_address=from_address,
+                    to_address=to_address,
+                    from_symbol=from_symbol,
+                    to_symbol=to_symbol,
+                    direction=direction,
+                    symbol_map=symbol_map,
+                )
+                if step is None:
+                    continue
+                step["recommendedPoolRole"] = "primary" if index == 0 else "backup"
+                step["backupPoolIds"] = [
+                    _pool_key(item)
+                    for item in candidate_pools
+                    if _pool_key(item) != _pool_key(candidate)
+                ][:2]
+                candidate_steps.append(step)
             hop_candidates.append(
                 {
                     "leg": leg,
@@ -540,12 +783,15 @@ def db_closed_loop_sequences(
                     "fromAddress": from_address,
                     "toAddress": to_address,
                     "symbolPair": f"{from_symbol} -> {to_symbol}",
-                    "poolCount": 1,
-                    "usablePoolCount": 1,
-                    "selectionBasis": "fixed_fee_no_hook_low_fee",
-                    "preferredPoolId": pool_id,
+                    "poolCount": len(candidate_pools),
+                    "usablePoolCount": len(candidate_pools),
+                    "selectionBasis": "directed_fixed_fee_no_hook_live_depth",
+                    "preferredPoolId": selected_id,
                     "preferredPoolUsable": True,
-                    "pools": [route_step],
+                    "poolIds": [_pool_key(item) for item in candidate_pools],
+                    "backupPoolIds": backup_pool_ids,
+                    "pools": [step for step in candidate_steps if step is not None],
+                    "dynamicSelectionReason": selection_reason,
                 }
             )
         if len(route_rows) != 3:
@@ -586,6 +832,14 @@ def db_closed_loop_sequences(
                 "hopCandidates": hop_candidates,
                 "hopCandidateCounts": candidate_counts,
                 "hopCandidateCombinationCount": 1,
+                "backupPoolIds": {
+                    step.get("direction"): list(step.get("backupPoolIds") or [])
+                    for step in route_rows
+                },
+                "dynamicPoolSubstitution": any(
+                    reason != "stored_primary_usable"
+                    for reason in dynamic_selection_reasons
+                ),
                 "candidatePoolCount": "3",
                 "matchedPoolCount": "3",
                 "anchorAddresses": [anchor_address],
