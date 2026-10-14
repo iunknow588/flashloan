@@ -192,12 +192,122 @@ def _enrich_route_pools_from_index(
     return enriched
 
 
+def _overview_path_static_profit(path: dict[str, Any]) -> float | None:
+    """Return the best static profit signal available on an overview path."""
+    analysis = path.get("overviewProfit") if isinstance(path.get("overviewProfit"), dict) else {}
+    if not analysis:
+        analysis = path.get("quoteAnalysis") if isinstance(path.get("quoteAnalysis"), dict) else {}
+    for key in ("observedNetProfitUsd", "netProfitUsd", "referenceNetProfitUsd"):
+        value = analysis.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _best_per_anchor_direction_paths(paths: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep only the highest-static-profit direction set per flash-loan anchor.
+
+    All pool/address variants inside the selected direction remain available
+    as hop candidates and backups; exact duplicate routes are dropped.
+    """
+    selected: list[dict[str, Any]] = []
+    seen_routes: set[tuple[tuple[str, str], tuple[str, ...]]] = set()
+    direction_sets_by_anchor: dict[
+        tuple[str, str],
+        dict[tuple[str, ...], list[tuple[int, dict[str, Any], float | None]]],
+    ] = {}
+    for index, path in enumerate(paths):
+        route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+        symbols = [
+            str(symbol or "").strip().upper()
+            for symbol in path.get("routeSymbols") or route.get("pathSymbols") or []
+            if str(symbol or "").strip()
+        ]
+        anchor_symbol = str(
+            route.get("anchorBorrowSymbol")
+            or (symbols[0] if symbols else "")
+        ).strip().upper()
+        if not anchor_symbol:
+            continue
+        route_addresses = [
+            str(item or "").strip()
+            for item in path.get("routeAddresses") or []
+            if str(item or "").strip()
+        ]
+        anchor_address = str(
+            route.get("anchorBorrowAddress")
+            or route.get("anchorAddress")
+            or ""
+        ).strip().lower()
+        if not anchor_address and route_addresses:
+            anchor_address = route_addresses[0].lower()
+        middle_direction = tuple(symbols[1:-1]) if len(symbols) >= 4 else tuple(symbols)
+        anchor_key = (anchor_symbol, anchor_address)
+        identity_parts = (
+            [address.lower() for address in route_addresses]
+            if route_addresses
+            else list(symbols)
+        )
+        pool_path_key = str(
+            path.get("poolPathKey")
+            or path.get("referencePoolPathKey")
+            or ""
+        ).strip().lower()
+        if pool_path_key:
+            identity_parts.append(pool_path_key)
+        else:
+            identity_parts.extend(
+                str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+                for pool in path.get("executionPools") or path.get("preferredPools") or []
+                if isinstance(pool, dict)
+                and str(pool.get("pool") or pool.get("poolId") or "").strip()
+            )
+        route_identity = tuple(identity_parts)
+        dedup_key = (anchor_key, route_identity)
+        if dedup_key in seen_routes:
+            continue
+        seen_routes.add(dedup_key)
+        direction_sets_by_anchor.setdefault(anchor_key, {}).setdefault(
+            middle_direction, []
+        ).append((index, path, _overview_path_static_profit(path)))
+    for anchor_key in direction_sets_by_anchor:
+        direction_sets = direction_sets_by_anchor[anchor_key]
+        best_direction_key = max(
+            direction_sets,
+            key=lambda direction_key: (
+                max(
+                    (
+                        profit
+                        for _, _, profit in direction_sets[direction_key]
+                        if profit is not None
+                    ),
+                    default=float("-inf"),
+                ),
+                -min(index for index, _, _ in direction_sets[direction_key]),
+            ),
+        )
+        selected.extend(
+            path
+            for _, path, _ in sorted(
+                direction_sets[best_direction_key],
+                key=lambda item: item[0],
+            )
+        )
+    return selected
+
+
 __all__ = [
+    "_best_per_anchor_direction_paths",
     "_enrich_route_pools_from_index",
     "_find_hop_pool",
     "_framework_route_pools",
     "_hop_fee_bps",
     "_number",
+    "_overview_path_static_profit",
     "_pool_address",
     "_static_hop_steps",
     "_v4_pool_index_by_id",

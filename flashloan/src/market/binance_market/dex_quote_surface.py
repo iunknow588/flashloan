@@ -6,6 +6,7 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
 from market.binance_market.dex_quote_surface_helpers import (
+    _best_per_anchor_direction_paths,
     _v4_pool_index_by_id,
 )
 from market.binance_market.dex_quote_surface_routes_builder import _build_quote_routes_and_best
@@ -15,6 +16,7 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_verification_payload,
     quote_route_status,
 )
+
 
 def build_quote_routes_payload_from_overview(
     overview: dict[str, Any],
@@ -46,26 +48,7 @@ def build_quote_routes_payload_from_overview(
         # so the page can show that a best-only review was performed.
         paths = paths[: max(0, int(route_limit))]
     elif best_per_anchor_direction:
-        selected: list[dict[str, Any]] = []
-        seen_directions: set[tuple[str, tuple[str, ...]]] = set()
-        for path in paths:
-            route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
-            symbols = [
-                str(symbol or "").strip().upper()
-                for symbol in path.get("routeSymbols") or route.get("pathSymbols") or []
-                if str(symbol or "").strip()
-            ]
-            anchor_symbol = str(
-                route.get("anchorBorrowSymbol")
-                or (symbols[0] if symbols else "")
-            ).strip().upper()
-            middle_direction = tuple(symbols[1:-1]) if len(symbols) >= 4 else tuple(symbols)
-            key = (anchor_symbol, middle_direction)
-            if key in seen_directions:
-                continue
-            seen_directions.add(key)
-            selected.append(path)
-        paths = selected
+        paths = _best_per_anchor_direction_paths(paths)
     routes: list[dict[str, Any]] = []
     v4_index_by_pool = _v4_pool_index_by_id(chain_id)
     observed_net_profits: list[float] = []

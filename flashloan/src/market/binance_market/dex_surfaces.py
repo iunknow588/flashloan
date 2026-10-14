@@ -1548,6 +1548,7 @@ def _quote_routes_payload_from_overview(
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
         anchor=anchor,
+        best_per_anchor_direction=True,
     )
 
 

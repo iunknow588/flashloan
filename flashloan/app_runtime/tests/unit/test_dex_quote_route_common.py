@@ -810,3 +810,175 @@ def test_quote_routes_payload_anchor_skips_unscoped_cache(monkeypatch):
     assert calls["build"] == 2
     assert third["summary"]["anchorFilter"] == "ETH"
     assert first["summary"]["anchorFilter"] is None
+
+
+def test_quote_routes_best_per_anchor_direction_keeps_highest_static_profit():
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> AAA -> BBB -> ETH",
+                "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "anchorBorrowAddress": "0xA",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 5.0},
+            },
+            {
+                "symbolPair": "ETH -> BBB -> AAA -> ETH",
+                "routeSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                "routeAddresses": ["0xA", "0xC", "0xB", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "anchorBorrowAddress": "0xA",
+                    "pathSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 9.0},
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {},
+        route_size_analysis_fn=lambda route, price_map, chain_id: {},
+        best_per_anchor_direction=True,
+    )
+
+    assert payload["summary"]["unfilteredRouteCount"] == 2
+    assert payload["summary"]["routeCount"] == 1
+    assert [route["symbolPair"] for route in payload["routes"]] == [
+        "ETH -> BBB -> AAA -> ETH"
+    ]
+
+
+def test_quote_routes_best_per_anchor_direction_keeps_one_route_per_anchor():
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> AAA -> BBB -> ETH",
+                "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 5.0},
+            },
+            {
+                "symbolPair": "ETH -> BBB -> AAA -> ETH",
+                "routeSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                "routeAddresses": ["0xA", "0xC", "0xB", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "pathSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 9.0},
+            },
+            {
+                "symbolPair": "USDC -> AAA -> BBB -> USDC",
+                "routeSymbols": ["USDC", "AAA", "BBB", "USDC"],
+                "routeAddresses": ["0xD", "0xB", "0xC", "0xD"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "USDC",
+                    "pathSymbols": ["USDC", "AAA", "BBB", "USDC"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 3.0},
+            },
+            {
+                "symbolPair": "USDC -> BBB -> AAA -> USDC",
+                "routeSymbols": ["USDC", "BBB", "AAA", "USDC"],
+                "routeAddresses": ["0xD", "0xC", "0xB", "0xD"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "USDC",
+                    "pathSymbols": ["USDC", "BBB", "AAA", "USDC"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 7.0},
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {},
+        route_size_analysis_fn=lambda route, price_map, chain_id: {},
+        best_per_anchor_direction=True,
+    )
+
+    assert payload["summary"]["unfilteredRouteCount"] == 4
+    assert payload["summary"]["routeCount"] == 2
+    assert {route["symbolPair"] for route in payload["routes"]} == {
+        "ETH -> BBB -> AAA -> ETH",
+        "USDC -> BBB -> AAA -> USDC",
+    }
+
+
+def test_robinhood_quote_routes_fix_one_direction_per_anchor(monkeypatch):
+    from market.binance_market import dex_surfaces
+
+    old_cache = dict(dex_surfaces._DEX_SURFACE_CACHE)
+    dex_surfaces._DEX_SURFACE_CACHE.clear()
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> AAA -> BBB -> ETH",
+                "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 4.0},
+            },
+            {
+                "symbolPair": "ETH -> BBB -> AAA -> ETH",
+                "routeSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                "routeAddresses": ["0xA", "0xC", "0xB", "0xA"],
+                "overviewRoute": {
+                    "anchorBorrowSymbol": "ETH",
+                    "pathSymbols": ["ETH", "BBB", "AAA", "ETH"],
+                },
+                "overviewProfit": {"observedNetProfitUsd": 8.0},
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+    monkeypatch.setattr(dex_surfaces, "dex_overview_payload", lambda **kwargs: overview)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_cached_framework_surface_payload",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(dex_surfaces, "_cache_surface_payload", lambda *args, **kwargs: None)
+    try:
+        payload = dex_surfaces.dex_quote_routes_payload(
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+        )
+    finally:
+        dex_surfaces._DEX_SURFACE_CACHE.clear()
+        dex_surfaces._DEX_SURFACE_CACHE.update(old_cache)
+
+    assert payload["summary"]["unfilteredRouteCount"] == 2
+    assert payload["summary"]["routeCount"] == 1
+    assert [route["symbolPair"] for route in payload["routes"]] == [
+        "ETH -> BBB -> AAA -> ETH"
+    ]
