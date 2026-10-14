@@ -219,6 +219,27 @@ def test_db_closed_loop_sequences_swaps_backup_only_once(tmp_path):
     assert yc["poolCount"] == 1
 
 
+def test_db_closed_loop_sequences_does_not_force_backup_when_only_one_pool(tmp_path):
+    db = _seed_db(tmp_path)
+
+    sequences = db_closed_loop_sequences(
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        market_id="dex-arbitrage-46630-uniswap-v4",
+        kind="robinhood_testnet_closed_loop",
+        database_url=db,
+    )
+
+    assert len(sequences) == 1
+    sequence = sequences[0]
+    yc = next(hop for hop in sequence["hopCandidates"] if hop["direction"] == "yc")
+    assert yc["preferredPoolId"] == "0x" + "0" * 63 + "1"
+    assert yc["poolIds"] == ["0x" + "0" * 63 + "1"]
+    assert yc["backupPoolIds"] == []
+    assert yc["poolCount"] == 1
+
+
 def test_mainnet_observation_skips_legacy_enumeration_when_db_closed_loops_exist(monkeypatch):
     import dex.intent_trade.chains.robinhood.market_observation as mainnet_observation
 
