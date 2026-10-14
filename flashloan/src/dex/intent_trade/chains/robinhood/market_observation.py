@@ -535,294 +535,6 @@ def _anchor_to_token_pool(anchor_address: str, token_address: str, pools_by_edge
     return rows[0] if rows else None
 
 
-def _mainnet_observation_sequences(
-    pools: list[dict[str, Any]],
-    *,
-    route_limit: int | None = None,
-    hop_candidate_limit: int | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    pools_by_edge = _pools_by_edge(pools)
-    anchor_symbols = list(MAINNET_CONFIGURED_ANCHOR_SYMBOLS)
-    anchor_addresses = _mainnet_configured_anchor_addresses()
-
-    anchor_token_by_symbol: dict[str, dict[str, Any]] = {}
-    for symbol in anchor_symbols:
-        address = _address(
-            all_anchor_addresses_by_symbol(
-                ROBINHOOD_NETWORK,
-                database_url=str(absolute_database_path()),
-            ).get(symbol, "")
-        )
-        if address:
-            anchor_token_by_symbol[symbol] = {"symbol": symbol, "address": address}
-
-    # The middle-hop universe is every token that shares at least one edge with
-    # any configured anchor and has at least one observed-liquid pool. Peer
-    # anchors stay valid middle tokens, so loops such as
-    # ETH -> USDE -> USDG -> ETH are not lost.  Tokens are keyed by address
-    # because the V4 index contains same-symbol tokens at distinct addresses.
-    neighbors = _mainnet_adjacent_token_universe(
-        pools,
-        anchor_addresses=anchor_addresses,
-    )
-    token_by_address = {
-        _address(pool.get("token0")): _token_from_pool(pool, 0)
-        for pool in pools
-    }
-    token_by_address.update(
-        {
-            _address(pool.get("token1")): _token_from_pool(pool, 1)
-            for pool in pools
-        }
-    )
-
-    def _ordered_pools(rows: list[dict[str, Any]], *, limit: int | None = None) -> list[dict[str, Any]]:
-        candidates = [row for row in rows if isinstance(row, dict) and _pool_id(row)]
-        candidates.sort(
-            key=lambda row: (
-                not _pool_usable_for_observation(row),
-                not bool(row.get("recentSwapActive")),
-                -_number_liquidity(row),
-                -(float((row.get("balances") or {}).get("tvlUsd") or row.get("estimatedTvlUsd") or 0)),
-                str(_pool_id(row)),
-            ),
-        )
-        return candidates[:limit] if limit is not None and limit > 0 else candidates
-
-    def _hop_candidates(
-        *,
-        leg: str,
-        direction: str,
-        from_token: dict[str, Any],
-        to_token: dict[str, Any],
-        pools: list[dict[str, Any]],
-        pool_limit: int,
-    ) -> dict[str, Any]:
-        rows = [
-            _step_row(pool, from_token=from_token, to_token=to_token, direction=direction)
-            for pool in _ordered_pools(pools, limit=pool_limit)
-        ]
-        usable_rows = [row for row in rows if _pool_usable_for_observation(row)]
-        preferred = usable_rows[0] if usable_rows else (rows[0] if rows else None)
-        return {
-            "leg": leg,
-            "direction": direction,
-            "fromSymbol": _symbol(from_token.get("symbol")),
-            "toSymbol": _symbol(to_token.get("symbol")),
-            "fromAddress": _address(from_token.get("address")),
-            "toAddress": _address(to_token.get("address")),
-            "symbolPair": f"{_symbol(from_token.get('symbol'))} -> {_symbol(to_token.get('symbol'))}",
-            "poolCount": len(rows),
-            "usablePoolCount": len(usable_rows),
-            "selectionBasis": "tvl_depth_desc",
-            "preferredPoolId": _pool_id(preferred) if preferred else "",
-            "preferredPoolUsable": bool(usable_rows),
-            "pools": rows,
-        }
-
-    def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dict[str, Any], direction: str) -> dict[str, Any]:
-        from_symbol = _symbol(from_token.get("symbol"))
-        to_symbol = _symbol(to_token.get("symbol"))
-        from_address = _address(from_token.get("address"))
-        to_address = _address(to_token.get("address"))
-        return {
-            "pool": _pool_id(pool),
-            "poolId": _pool_id(pool),
-            "direction": direction,
-            "anchorSymbol": from_symbol,
-            "anchorAddress": from_address,
-            "counterSymbol": to_symbol,
-            "counterAddress": to_address,
-            "routeSymbols": [from_symbol, to_symbol],
-            "routeAddresses": [from_address, to_address],
-            "routeText": f"{from_symbol} -> {to_symbol}",
-            "poolIdentityMode": pool.get("poolIdentityMode") or "v4_pool_id",
-            "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
-            "dex": pool.get("dex") or pool.get("protocol") or "uniswap_v4",
-            "fee": pool.get("fee"),
-            "dynamicFee": _pool_dynamic_fee(pool),
-            "specialFee": _pool_special_fee(pool),
-            "feeLabel": _pool_fee_label(pool),
-            "observationUsable": _observation_pool_usable(pool),
-            "usableForObservation": _pool_usable_for_observation(pool),
-            "tickSpacing": pool.get("tickSpacing"),
-            "hooks": pool.get("hooks") or "",
-            "liquidity": pool.get("liquidity") or "",
-            "liquidityIndex": pool.get("liquidityIndex"),
-            "hasLiquidity": pool.get("hasLiquidity"),
-            "estimatedTvlUsd": pool.get("estimatedTvlUsd"),
-            "token0Reserve": pool.get("token0Reserve"),
-            "token1Reserve": pool.get("token1Reserve"),
-            "liquiditySource": pool.get("liquiditySource"),
-            "liquidityReadAt": pool.get("liquidityReadAt"),
-            "liquidityBlockNumber": pool.get("liquidityBlockNumber"),
-            "liquidityError": pool.get("liquidityError"),
-            "depthStatus": pool.get("depthStatus") or "",
-            "depthBand": pool.get("depthBand") or {},
-            "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
-            "poolKey": pool.get("poolKey") or pool.get("pool_key"),
-            "quality": pool.get("quality"),
-            "classification": pool.get("classification") or {},
-            "balances": pool.get("balances") or {},
-            "depthBand": pool.get("depthBand") or {},
-            "depthStatus": pool.get("depthStatus") or "",
-            "quoteSummary": pool.get("quoteSummary") or {},
-            "tick": pool.get("tick"),
-            "sqrtPriceX96": pool.get("sqrtPriceX96"),
-            "liquidity": pool.get("liquidity"),
-            "token0": pool.get("token0"),
-            "token1": pool.get("token1"),
-            "token0Symbol": pool.get("token0Symbol"),
-            "token1Symbol": pool.get("token1Symbol"),
-            "token0Decimals": pool.get("token0Decimals") or pool.get("token0_decimals"),
-            "token1Decimals": pool.get("token1Decimals") or pool.get("token1_decimals"),
-            "pairSymbol": pool.get("symbolPair") or "",
-            "pairAddress": pool.get("addressPair") or "",
-            "source": pool.get("source") or "",
-            "evidence": pool.get("evidence") or {},
-            "recentSwapActive": pool.get("recentSwapActive"),
-        }
-
-    sequences: list[dict[str, Any]] = []
-    bridge_pairs_by_edge: dict[tuple[str, str], dict[str, Any]] = {}
-    seen_edges: set[tuple[str, tuple[str, ...], tuple[str, ...]]] = set()
-    seen_closed_loops: set[tuple[str, tuple[str, ...]]] = set()
-    pool_limit = hop_candidate_limit if hop_candidate_limit is not None and hop_candidate_limit > 0 else _MAINNET_HOP_CANDIDATE_LIMIT
-    ordered_neighbors = sorted(neighbors.items(), key=lambda item: (str(item[1].get("symbol") or ""), str(item[0] or "")))
-    for anchor_symbol, anchor_token in sorted(anchor_token_by_symbol.items()):
-        anchor_address = _address(anchor_token.get("address"))
-        if not anchor_address:
-            continue
-        for y_address, y_token in ordered_neighbors:
-            if y_address == anchor_address:
-                continue
-            xy_pool = _anchor_to_token_pool(anchor_address, y_address, pools_by_edge)
-            if xy_pool is None or not _pool_usable_for_observation(xy_pool):
-                continue
-            for z_address, z_token in ordered_neighbors:
-                if z_address == y_address or z_address == anchor_address:
-                    continue
-                zx_pool = _anchor_to_token_pool(anchor_address, z_address, pools_by_edge)
-                if zx_pool is None or not _pool_usable_for_observation(zx_pool):
-                    continue
-                yz_pool = _anchor_to_token_pool(y_address, z_address, pools_by_edge)
-                if yz_pool is None or not _pool_usable_for_observation(yz_pool):
-                    continue
-                canonical_mids = tuple(sorted((y_address, z_address)))
-                loop_key = (anchor_address, canonical_mids)
-                if loop_key in seen_closed_loops:
-                    continue
-                seen_closed_loops.add(loop_key)
-                # A-B-C-A and A-C-B-A are the same token combination; only pool
-                # selection order differs. Keep one canonical mid order per
-                # anchor so the handoff is a combination set, not every raw
-                # permutation.
-                mid_a, mid_b = y_address, z_address
-                if mid_a > mid_b:
-                    mid_a, mid_b = mid_b, mid_a
-                    y_address, y_token, z_address, z_token = z_address, z_token, y_address, y_token
-                    xy_pool, zx_pool = zx_pool, xy_pool
-                key = (anchor_address, tuple(sorted((_pool_id(xy_pool), _pool_id(yz_pool), _pool_id(zx_pool)))))
-                if key in seen_edges:
-                    continue
-                seen_edges.add(key)
-                path_symbols = [
-                    _symbol(anchor_token.get("symbol")),
-                    _symbol(y_token.get("symbol")),
-                    _symbol(z_token.get("symbol")),
-                    _symbol(anchor_token.get("symbol")),
-                ]
-                route_rows = [
-                    _step_row(xy_pool, from_token=anchor_token, to_token=y_token, direction="yc"),
-                    _step_row(yz_pool, from_token=y_token, to_token=z_token, direction="bridge"),
-                    _step_row(zx_pool, from_token=z_token, to_token=anchor_token, direction="zc"),
-                ]
-                xy_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((anchor_address, y_address)))) or [], limit=pool_limit)
-                yz_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((y_address, z_address)))) or [], limit=pool_limit)
-                zx_rows = _ordered_pools(pools_by_edge.get(tuple(sorted((z_address, anchor_address)))) or [], limit=pool_limit)
-                hop_candidates = [
-                    _hop_candidates(
-                        leg="x-y",
-                        direction="yc",
-                        from_token=anchor_token,
-                        to_token=y_token,
-                        pools=xy_rows,
-                        pool_limit=pool_limit,
-                    ),
-                    _hop_candidates(
-                        leg="y-z",
-                        direction="bridge",
-                        from_token=y_token,
-                        to_token=z_token,
-                        pools=yz_rows,
-                        pool_limit=pool_limit,
-                    ),
-                    _hop_candidates(
-                        leg="z-x",
-                        direction="zc",
-                        from_token=z_token,
-                        to_token=anchor_token,
-                        pools=zx_rows,
-                        pool_limit=pool_limit,
-                    ),
-                ]
-                sequences.append(
-                    {
-                        "kind": "robinhood_mainnet_closed_loop",
-                        "source": "robinhood_mainnet_v4_pool_index",
-                        "anchorSymbol": _symbol(anchor_token.get("symbol")),
-                        "anchorAddress": anchor_address,
-                        "counterSymbol": _symbol(z_token.get("symbol")),
-                        "bridgeSymbol": _symbol(y_token.get("symbol")),
-                        "pathSymbols": path_symbols,
-                        "pathText": " -> ".join(path_symbols),
-                        "pool": _pool_id(yz_pool),
-                        "ycPool": route_rows[0],
-                        "bridgePool": route_rows[1],
-                        "zcPool": route_rows[2],
-                        "routePools": route_rows,
-                        "hopCandidates": hop_candidates,
-                        "hopCandidateCounts": {
-                            "x-y": len(xy_rows),
-                            "y-z": len(yz_rows),
-                            "z-x": len(zx_rows),
-                        },
-                        "hopCandidateCombinationCount": max(1, len(xy_rows) * len(yz_rows) * len(zx_rows)),
-                        "candidatePoolCount": "3",
-                        "matchedPoolCount": "3",
-                        "anchorAddresses": [anchor_address],
-                        "counterTokenCount": "2",
-                        "recommendedFirstPriority": True,
-                        "routeRecommendationBasis": "tvl_depth_desc",
-                        "executorSupported": False,
-                        "poolManagerBalance": None,
-                        "poolManagerBalanceRaw": None,
-                    }
-                )
-                bridge_edge = tuple(sorted((y_address, z_address)))
-                if bridge_edge not in bridge_pairs_by_edge:
-                    yz_bridge_pools = pools_by_edge.get(tuple(sorted((y_address, z_address)))) or []
-                    bridge_pairs_by_edge[bridge_edge] = {
-                        "symbolPair": f"{_symbol(y_token.get('symbol'))}:{_symbol(z_token.get('symbol'))}",
-                        "addressPair": f"{y_address}:{z_address}",
-                        "tokenX": y_address,
-                        "tokenY": z_address,
-                        "tokenXSymbol": _symbol(y_token.get("symbol")),
-                        "tokenYSymbol": _symbol(z_token.get("symbol")),
-                        "preferredPools": yz_bridge_pools,
-                        "executionPools": yz_bridge_pools[:5],
-                        "strictQualityPools": yz_bridge_pools,
-                        "classification": {
-                            "source": "robinhood_mainnet_v4_pool_index",
-                            "bridgeOnly": True,
-                            "protocol": "uniswap_v4",
-                        },
-                    }
-                if route_limit is not None and len(sequences) >= route_limit:
-                    return sequences, list(bridge_pairs_by_edge.values())
-    return sequences, list(bridge_pairs_by_edge.values())
-
-
 def _mainnet_closed_loop_sequences() -> list[dict[str, Any]]:
     """Return closed-loop sequences from the authoritative SQLite tables.
 
@@ -847,12 +559,30 @@ def _mainnet_closed_loop_routes() -> list[dict[str, Any]]:
     return _common_db_closed_loop_routes(sequences)
 
 
+def _mainnet_observation_sequences(
+    pools: list[dict[str, Any]],
+    *,
+    route_limit: int | None = None,
+    hop_candidate_limit: int | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """DB-only compatibility entry for legacy callers.
+
+    The SQLite ``v4_closed_loop`` tables are the single source of validated
+    directed loops; this entry no longer enumerates YC x ZC combinations from
+    the full pool surface.
+    """
+    del pools, route_limit, hop_candidate_limit
+    return _mainnet_closed_loop_sequences(), []
+
+
 def _mainnet_bridge_pairs(
     pools: list[dict[str, Any]],
     *,
     route_limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    return _mainnet_observation_sequences(pools, route_limit=route_limit)[1]
+    """Return no legacy bridge pairs; SQLite closed loops own the handoff."""
+    del pools, route_limit
+    return []
 
 
 def _mainnet_yz_pairs_from_tokens(
@@ -1303,16 +1033,7 @@ def _mainnet_fund_anchor_observation(
 ) -> dict[str, Any]:
     pools = [pool for pool in pools if _observation_pool_usable(pool)]
     db_closed_loop_sequences = _mainnet_closed_loop_sequences()
-    if db_closed_loop_sequences:
-        # The SQLite closed-loop tables are the authoritative, validated
-        # handoff.  Skipping the legacy YC x ZC enumeration keeps mainnet
-        # observation fast and DB-first on the full production store.
-        sequences = list(db_closed_loop_sequences)
-    else:
-        sequences, _legacy_bridge_pairs = _mainnet_observation_sequences(
-            pools,
-            route_limit=route_limit,
-        )
+    sequences = list(db_closed_loop_sequences)
     db_closed_loop_routes = _common_db_closed_loop_routes(db_closed_loop_sequences)
     bridge_pairs = []
     pools_by_edge = _pools_by_edge(pools)

@@ -44,6 +44,7 @@ NON_SECRET_HEX_FIXTURES = (
     "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
     "0x0000000000000000000000001111111111111111111111111111111111111111",
 )
+STOCK_REGISTRY_ID_SUFFIX = "flashloan/src/chains/robinhood/robinhood_stock_tokens.json"
 
 
 def _tracked_files() -> list[Path]:
@@ -81,6 +82,21 @@ def _tracked_files() -> list[Path]:
     return files
 
 
+def _sanitize_public_registry_ids(text: str, path: Path) -> str:
+    """Blank the public ERC-1155 asset ids in the Robinhood stock registry.
+
+    The assets API returns 64-hex token ids that would otherwise match the
+    private-key literal pattern even though they are not key material.
+    """
+    if not str(path).replace("\\", "/").endswith(STOCK_REGISTRY_ID_SUFFIX):
+        return text
+    return re.sub(
+        r'(\n\s*"id"\s*:\s*")0x[a-fA-F0-9]{64}(")',
+        r"\g<1>0x" + "n" * 64 + r"\g<2>",
+        text,
+    )
+
+
 def test_tracked_source_does_not_contain_private_key_literals():
     offenders: list[str] = []
     for path in _tracked_files():
@@ -89,6 +105,7 @@ def test_tracked_source_does_not_contain_private_key_literals():
         except UnicodeDecodeError:
             continue
         sanitized = text
+        sanitized = _sanitize_public_registry_ids(sanitized, path)
         for fixture in NON_SECRET_HEX_FIXTURES:
             sanitized = re.sub(re.escape(fixture), "0x" + "n" * 64, sanitized, flags=re.IGNORECASE)
         for pattern in SECRET_PATTERNS:

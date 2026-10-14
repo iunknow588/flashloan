@@ -257,3 +257,32 @@ def test_mainnet_observation_skips_legacy_enumeration_when_db_closed_loops_exist
     assert payload["observationSequences"] == [db_sequence]
     assert len(payload["closedLoopRoutes"]) == 1
     assert payload["closedLoopRoutes"][0]["source"] == "v4_closed_loop_db"
+
+
+def test_mainnet_observation_returns_empty_without_legacy_enumeration_when_db_empty(monkeypatch):
+    import dex.intent_trade.chains.robinhood.market_observation as mainnet_observation
+
+    monkeypatch.setattr(mainnet_observation, "_mainnet_closed_loop_sequences", lambda: [])
+
+    def fail_legacy_enumeration(*args, **kwargs):
+        raise AssertionError("legacy YC x ZC enumeration must never run for mainnet observation")
+
+    monkeypatch.setattr(mainnet_observation, "_mainnet_observation_sequences", fail_legacy_enumeration)
+    monkeypatch.setattr(mainnet_observation, "_mainnet_validate_anchor_groups", lambda anchor_groups: {})
+    monkeypatch.setattr(mainnet_observation, "_mainnet_db_intermediate_pool_reports", lambda anchor_groups, pools: ([], []))
+    monkeypatch.setattr(mainnet_observation, "_mainnet_candidate_yc_zc_tokens", lambda group: ([], []))
+    monkeypatch.setattr(mainnet_observation, "_mainnet_eth_pair_token_count", lambda: 0)
+    monkeypatch.setattr(mainnet_observation, "_load_mainnet_v4_index", lambda: ({}, {"poolCount": 0}))
+    monkeypatch.setattr(mainnet_observation, "_mainnet_configured_anchor_addresses", lambda: set())
+    monkeypatch.setattr(mainnet_observation, "_anchor_neighbors", lambda pools, anchor_addresses: {})
+    monkeypatch.setattr(mainnet_observation, "_active_pool_ids", lambda pools: [])
+
+    payload = mainnet_observation._mainnet_fund_anchor_observation(
+        [],
+        anchor_groups=[{"anchorSymbol": "ETH", "anchorAddresses": ["0x0000000000000000000000000000000000000000"]}],
+    )
+
+    assert payload["routeCount"] == 0
+    assert payload["closedLoopSequences"] == []
+    assert payload["observationSequences"] == []
+    assert payload["closedLoopRoutes"] == []

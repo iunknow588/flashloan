@@ -196,3 +196,29 @@ def test_robinhood_runtime_page_modules_do_not_import_json_stock_registry():
             if token in source:
                 offenders.append(f"{relative} contains {token}")
     assert offenders == []
+
+
+def test_mainnet_observation_runtime_path_never_uses_legacy_enumeration():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    src_root = root / "src"
+    source = (
+        src_root
+        / "dex"
+        / "intent_trade"
+        / "chains"
+        / "robinhood"
+        / "market_observation.py"
+    ).read_text(encoding="utf-8")
+
+    fund_start = source.index("def _mainnet_fund_anchor_observation(")
+    fund_end = source.index("def fund_anchor_pair_observation(")
+    fund_body = source[fund_start:fund_end]
+    assert "_mainnet_observation_sequences(" not in fund_body
+
+    legacy_start = source.index("def _mainnet_observation_sequences(")
+    legacy_end = source.index("def _mainnet_bridge_pairs(")
+    legacy_body = source[legacy_start:legacy_end]
+    assert "return _mainnet_closed_loop_sequences(), []" in legacy_body
+    assert "pools_by_edge = _pools_by_edge(pools)" not in legacy_body
