@@ -127,6 +127,7 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
         "lending_liquidity",
         "normal_testnet_probe",
         "predeploy_readiness",
+        "robinhood_stock_tokens",
         "v4_pool_index",
         "v4_pool_liquidity",
         "v4_token_allowlist",

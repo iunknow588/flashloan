@@ -8,7 +8,11 @@ import requests
 
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
-from core.flash_loan_pool_discovery import DEFAULT_SNAPSHOT_PATH, load_cached_flash_loan_pool_discovery
+from core.flash_loan_pool_discovery import (
+    DEFAULT_SNAPSHOT_PATH,
+    load_cached_flash_loan_pool_discovery,
+    load_flash_loan_pool_discovery_snapshot_from_sqlite,
+)
 from dex.intent_trade.chains.robinhood import config as robinhood
 
 
@@ -299,6 +303,27 @@ def cached_robinhood_flash_liquidity_snapshot(
     }
 
 
+def robinhood_flash_liquidity_snapshot_from_sqlite(
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Read the Robinhood flash liquidity raw snapshot from SQLite only."""
+    snapshot = load_flash_loan_pool_discovery_snapshot_from_sqlite(database_url=database_url)
+    raw = (snapshot.get("raw_snapshots") or {}).get("robinhood_flash_liquidity")
+    if isinstance(raw, dict):
+        raw = {**raw, "evidence": [*(raw.get("evidence") or []), "sqlite_db"]}
+        return raw
+    return {
+        "ok": False,
+        "network": "robinhood",
+        "chainId": ROBINHOOD_CHAIN_ID,
+        "generatedAt": None,
+        "sources": [],
+        "errors": [{"source": "sqlite_db", "error": "Robinhood flash liquidity SQLite snapshot is not generated"}],
+        "evidence": ["sqlite_db"],
+    }
+
+
 def robinhood_flash_liquidity_discovery_contribution(
     *,
     snapshot_loader: Callable[[], dict[str, Any]] | None = None,
@@ -354,4 +379,5 @@ __all__ = [
     "load_robinhood_flash_liquidity_snapshot",
     "pool_discovery_flow",
     "robinhood_flash_liquidity_discovery_contribution",
+    "robinhood_flash_liquidity_snapshot_from_sqlite",
 ]

@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SNAPSHOT_PATH = APP_ROOT / "runtime" / "cache" / "flash_loan_pool_discovery_snapshot.json"
+DISCOVERY_KV_COLLECTION = "flash_loan_pool_discovery"
+DISCOVERY_KV_KEY = "snapshot|global"
 
 PROTOCOL_ORDER = {
     "morpho_blue": 0,
@@ -381,12 +383,58 @@ def discover_flash_loan_pool_snapshot(
 def refresh_flash_loan_pool_discovery_cache(
     *,
     snapshot_path: Path | None = DEFAULT_SNAPSHOT_PATH,
+    database_url: str | os.PathLike[str] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     snapshot = discover_flash_loan_pool_snapshot(**kwargs)
     if snapshot_path is not None:
         _write_json(snapshot_path, snapshot)
+    store_flash_loan_pool_discovery_snapshot(snapshot, database_url=database_url)
     return snapshot
+
+
+def store_flash_loan_pool_discovery_snapshot(
+    snapshot: dict[str, Any],
+    *,
+    database_url: str | os.PathLike[str] | None = None,
+) -> dict[str, Any]:
+    """Persist the discovery snapshot in SQLite so page reads stay DB-only."""
+    from core.db.database_path import absolute_database_path
+    from core.local_kv import put
+
+    resolved = absolute_database_path(database_url)
+    put(str(resolved), DISCOVERY_KV_COLLECTION, DISCOVERY_KV_KEY, snapshot)
+    return {"database_path": str(resolved), "stored": True}
+
+
+def load_flash_loan_pool_discovery_snapshot_from_sqlite(
+    *,
+    database_url: str | os.PathLike[str] | None = None,
+) -> dict[str, Any]:
+    """Load the discovery snapshot from SQLite without a JSON fallback."""
+    from core.db.database_path import absolute_database_path
+    from core.local_kv import get
+
+    resolved = absolute_database_path(database_url)
+    snapshot = get(str(resolved), DISCOVERY_KV_COLLECTION, DISCOVERY_KV_KEY)
+    if isinstance(snapshot, dict):
+        snapshot = {**snapshot, "source": "sqlite_db", "database_path": str(resolved)}
+        return snapshot
+    return {
+        "ok": False,
+        "schema_version": "flash-loan-pool-discovery-v1",
+        "generated_at": None,
+        "protocol_count": 0,
+        "chain_count": 0,
+        "chains": [],
+        "scanned_chains": [],
+        "protocols": [],
+        "removed_protocols": [],
+        "raw_snapshots": {},
+        "errors": [{"source": "sqlite_db", "error": "flash loan pool discovery SQLite snapshot is not generated"}],
+        "source": "sqlite_db",
+        "database_path": str(resolved),
+    }
 
 
 def load_cached_flash_loan_pool_discovery(
@@ -415,9 +463,13 @@ def query_flash_loan_pool_discovery(
     *,
     chain_id: int | None = None,
     protocol: str | None = None,
-    snapshot_path: Path | None = DEFAULT_SNAPSHOT_PATH,
+    snapshot_path: Path | None = None,
+    database_url: str | os.PathLike[str] | None = None,
 ) -> dict[str, Any]:
-    snapshot = load_cached_flash_loan_pool_discovery(snapshot_path=snapshot_path)
+    if snapshot_path is None:
+        snapshot = load_flash_loan_pool_discovery_snapshot_from_sqlite(database_url=database_url)
+    else:
+        snapshot = load_cached_flash_loan_pool_discovery(snapshot_path=snapshot_path)
     normalized_protocol = str(protocol or "").strip().lower()
     protocols = [
         item
@@ -497,9 +549,14 @@ def query_flash_loan_pool_discovery(
 def protocol_options_for_chain(
     *,
     chain_id: int | None,
-    snapshot_path: Path | None = DEFAULT_SNAPSHOT_PATH,
+    snapshot_path: Path | None = None,
+    database_url: str | os.PathLike[str] | None = None,
 ) -> list[dict[str, str]]:
-    snapshot = query_flash_loan_pool_discovery(chain_id=chain_id, snapshot_path=snapshot_path)
+    snapshot = query_flash_loan_pool_discovery(
+        chain_id=chain_id,
+        snapshot_path=snapshot_path,
+        database_url=database_url,
+    )
     options: list[dict[str, str]] = []
     seen: set[str] = set()
     chain_candidates = _chain_protocol_candidates()

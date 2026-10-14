@@ -2,7 +2,7 @@ import inspect
 import json
 from pathlib import Path
 
-from core.flash_loan_pools import write_flash_loan_pool_static
+from core.flash_loan_pool_presenter_lite import _protocol_display_name
 from web import flash_loan_pools
 
 
@@ -81,7 +81,7 @@ def _robinhood_flash_snapshot():
     }
 
 
-def test_flash_loan_pools_uses_robinhood_uniswap_v3_evidence_pool_table(tmp_path, monkeypatch):
+def test_flash_loan_pools_keeps_robinhood_uniswap_v3_view_sqlite_only(tmp_path, monkeypatch):
     evidence_dir = tmp_path / "robinhood" / "dex_discovery" / "20260824T000000Z"
     evidence_dir.mkdir(parents=True)
     _write_json(
@@ -149,25 +149,10 @@ def test_flash_loan_pools_uses_robinhood_uniswap_v3_evidence_pool_table(tmp_path
     )
 
     view = payload["protocol_views"][0]
-    assert "status" not in view
     assert view["protocol"] == "uniswap_v3"
-    assert view["display_mode"] == "observable_dex_pool"
-    assert view["summary"]["stable_borrow_pool_count"] == 0
-    assert view["summary"]["borrow_target_count"] == 0
-    assert view["summary"]["borrow_asset_count"] == 0
-    assert view["summary"]["stable_observable_pool_count"] == 1
-    assert view["summary"]["observable_pool_count"] == 1
-    assert view["summary"]["flash_capable_pool_count"] == 1
-    assert view["summary"]["flashloan_borrowable_pool_count"] == 0
-    assert view["summary"]["flashloan_unverified_pool_count"] == 1
-    assert view["cache"]["pool_address"] == ""
-    assert view["cache"]["identities"][0]["kind"] == "factory"
-    assert view["cache"]["identities"][0]["value"] == "0x" + "f" * 40
-    assert view["stable_borrow_pools"][0]["token_symbol"] == "WETH:USDG"
-    assert view["stable_borrow_pools"][0]["depth_label"] == "可观察"
-    assert view["stable_borrow_pools"][0]["borrowable"] is False
-    assert view["stable_borrow_pools"][0]["flash_capable"] is True
-    assert view["stable_borrow_pools"][0]["flash_borrowable"] is False
+    assert view["status"] == "protocol_pool_cache_not_available"
+    assert "SQLite" in view["status_message"]
+    assert view["cache"]["source"] == "sqlite_db"
 
 
 def test_flash_loan_pools_defaults_robinhood_to_morpho_when_flash_source_is_available(tmp_path, monkeypatch):
@@ -828,33 +813,28 @@ def test_flash_loan_pools_payload_uses_chain_flow_dispatcher():
     assert signature.parameters["provider_options"].kind == inspect.Parameter.VAR_KEYWORD
 
 
-def test_flash_loan_pools_payload_prefers_static_snapshot_for_ordinary_reads(tmp_path, monkeypatch):
-    static_view = {
-        "protocol": "uniswap_v4",
-        "display_name": "Robinhood Testnet Uniswap V4",
-        "cache": {
-            "chain_id": 46630,
-            "network": "robinhood-testnet",
-            "refreshed_at": "2026-09-01T00:00:00Z",
-        },
-        "summary": {"borrow_asset_count": 2},
-        "stable_v4_flash_source_rows": [{"token_symbol": "USDC"}],
-        "non_stable_v4_flash_source_rows": [{"token_symbol": "ETH"}],
-        "borrow_target_universe": None,
-    }
-    write_flash_loan_pool_static(
-        static_view,
-        chain_id=46630,
-        root=tmp_path,
-        refresh_mode="full",
-    )
+def test_flash_loan_pools_payload_never_reads_static_json_for_ordinary_reads(tmp_path, monkeypatch):
     called = []
 
-    def fail_if_dynamic_dispatch(*args, **kwargs):
+    def record_dispatch(protocol, *, chain_id, database_url=None, **provider_options):
         called.append(True)
-        raise AssertionError("ordinary GET must not rebuild the dynamic view")
+        assert protocol == "uniswap_v4"
+        assert chain_id == 46630
+        return {
+            "protocol": protocol,
+            "display_name": _protocol_display_name(protocol),
+            "cache": {
+                "chain_id": chain_id,
+                "network": "robinhood-testnet",
+                "source": "test-db-only",
+            },
+            "summary": {"borrow_asset_count": 2},
+            "stable_v4_flash_source_rows": [{"token_symbol": "USDC"}],
+            "non_stable_v4_flash_source_rows": [{"token_symbol": "ETH"}],
+            "borrow_target_universe": None,
+        }
 
-    monkeypatch.setattr(flash_loan_pools, "_dispatch_flash_loan_pool_protocol_view", fail_if_dynamic_dispatch)
+    monkeypatch.setattr(flash_loan_pools, "_dispatch_flash_loan_pool_protocol_view", record_dispatch)
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=46630,
         protocols=["uniswap_v4"],
@@ -863,11 +843,12 @@ def test_flash_loan_pools_payload_prefers_static_snapshot_for_ordinary_reads(tmp
     )
 
     view = payload["protocol_views"][0]
-    assert called == []
+    assert called == [True]
     assert view["protocol"] == "uniswap_v4"
     assert view["summary"]["borrow_asset_count"] == 2
-    assert view["_static_pool_source"]["path"].endswith("pools.json")
-    assert view["static_pool_store"]["exists"] is True
+    assert "_static_pool_source" not in view
+    assert view["static_pool_store"]["exists"] is False
+    assert view["cache"]["source"] == "test-db-only"
 
 
 def test_flash_loan_pools_uses_robinhood_uniswap_v2_flash_swap_liquidity(monkeypatch):
@@ -911,7 +892,110 @@ def test_flash_loan_pools_uses_robinhood_uniswap_v2_flash_swap_liquidity(monkeyp
     assert view["cache"]["identities"][0]["value"] == "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
 
 
-def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
+ROBINHOOD_MAINNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+ROBINHOOD_WETH = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+ROBINHOOD_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+ROBINHOOD_AAPL = "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9"
+ROBINHOOD_ZERO = "0x0000000000000000000000000000000000000000"
+
+
+def _seed_mainnet_v4_db(tmp_path, *, include_stock=False):
+    from core.db.storage_business_schema import ensure_business_schema
+    from core.db.storage_chain_core import seed_chain_tokens
+    from core.db.storage_v4_exchange import (
+        upsert_v4_exchange_pools,
+        upsert_v4_liquidity_snapshots,
+    )
+
+    db = str(tmp_path / "mainnet.sqlite3")
+    ensure_business_schema(db)
+    token_rows = [
+        {"token_address": ROBINHOOD_ZERO, "token_symbol": "ETH", "token_decimals": 18, "is_native": 1},
+        {"token_address": ROBINHOOD_WETH, "token_symbol": "WETH", "token_decimals": 18, "is_wrapped_native": 1},
+        {"token_address": ROBINHOOD_USDG, "token_symbol": "USDG", "token_decimals": 6, "is_stable": 1},
+    ]
+    if include_stock:
+        token_rows.append(
+            {
+                "token_address": ROBINHOOD_AAPL,
+                "token_symbol": "AAPL",
+                "token_decimals": 18,
+                "token_metadata_json": {"category": "robinhood_stock"},
+            }
+        )
+    seed_chain_tokens(
+        db,
+        network="robinhood",
+        chain_id=4663,
+        token_rows=token_rows,
+    )
+    pool_rows = [
+        {
+            "pool_id": "0x" + "a" * 64,
+            "pool_identity_mode": "v4_pool_id",
+            "pool_manager": ROBINHOOD_MAINNET_V4_POOL_MANAGER,
+            "pool_key": {
+                "currency0": ROBINHOOD_WETH,
+                "currency1": ROBINHOOD_USDG,
+                "fee": 200,
+                "hooks": ROBINHOOD_ZERO,
+            },
+            "token0": ROBINHOOD_WETH,
+            "token1": ROBINHOOD_USDG,
+            "fee": 200,
+            "hooks": ROBINHOOD_ZERO,
+            "tick_spacing": 10,
+        }
+    ]
+    if include_stock:
+        pool_rows.append(
+            {
+                "pool_id": "0x" + "b" * 64,
+                "pool_identity_mode": "v4_pool_id",
+                "pool_manager": ROBINHOOD_MAINNET_V4_POOL_MANAGER,
+                "pool_key": {
+                    "currency0": ROBINHOOD_ZERO,
+                    "currency1": ROBINHOOD_AAPL,
+                    "fee": 3000,
+                    "hooks": ROBINHOOD_ZERO,
+                },
+                "token0": ROBINHOOD_ZERO,
+                "token1": ROBINHOOD_AAPL,
+                "fee": 3000,
+                "hooks": ROBINHOOD_ZERO,
+                "tick_spacing": 60,
+            }
+        )
+    upsert_v4_exchange_pools(
+        db,
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+        pool_rows=pool_rows,
+    )
+    liquidity_rows = []
+    for pool_id in [row["pool_id"] for row in pool_rows]:
+        liquidity_rows.append(
+            {
+                "pool_id": pool_id,
+                "has_liquidity": 1,
+                "liquidity": "123",
+                "liquidity_index": 123.0,
+                "estimated_tvl_usd": 1000.0,
+                "depth_status": "live_liquid",
+            }
+        )
+    upsert_v4_liquidity_snapshots(
+        db,
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+        rows=liquidity_rows,
+    )
+    return db
+
+
+def _robinhood_mainnet_v4_market(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
@@ -930,43 +1014,15 @@ def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
         ],
     )
 
-    def load_v4_index():
-        return {
-            "schemaVersion": "robinhood-v4-pool-index-v1",
-            "chainId": 4663,
-            "generatedAt": "2026-09-11T03:28:22Z",
-            "generatedBlockNumber": 59938454,
-            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "pools": [
-                {
-                    "protocol": "uniswap_v4",
-                    "poolId": "0x" + "a" * 64,
-                    "pool": "0x" + "a" * 64,
-                    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-                    "poolKeyDecoded": True,
-                    "poolKey": {
-                        "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                        "currency1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
-                        "fee": 200,
-                    },
-                    "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                    "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
-                    "token0Symbol": "0x0Bd7D308",
-                    "token1Symbol": "0x5fc5360D",
-                    "symbolPair": "0x0Bd7D308:0x5fc5360D",
-                    "fee": 200,
-                    "status": "initialized_pool",
-                    "liquidity": "",
-                    "tvlUsd": 0,
-                    "initializeBlockNumber": 11334809,
-                }
-            ],
-        }
+
+def test_flash_loan_pools_uses_robinhood_mainnet_v4_sqlite(tmp_path, monkeypatch):
+    _robinhood_mainnet_v4_market(monkeypatch)
+    db = _seed_mainnet_v4_db(tmp_path)
 
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=4663,
         protocols=["uniswap_v4"],
-        robinhood_v4_pool_index_loader=load_v4_index,
+        database_url=db,
     )
 
     view = payload["protocol_views"][0]
@@ -982,62 +1038,138 @@ def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
     assert view["non_stable_borrow_pools"][2]["pool_count"] == 1
     assert view["non_stable_borrow_pools"][2]["paired_symbol_count"] == 1
     assert view["cache"]["identities"][0]["kind"] == "pool_manager"
-    assert view["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert view["cache"]["identities"][0]["value"] == ROBINHOOD_MAINNET_V4_POOL_MANAGER.lower()
+    assert view["cache"]["source"] == "robinhood_mainnet_v4_sqlite"
+    assert view["static_pool_store"]["exists"] is False
+    assert "_static_pool_source" not in view
 
 
-def test_flash_loan_pools_robinhood_mainnet_v4_rejects_testnet_scoped_index(monkeypatch):
-    monkeypatch.setattr(
-        flash_loan_pools,
-        "supported_market_summaries",
-        lambda database_url=None: [
-            {
-                "market_id": "dex-arbitrage-4663-uniswap-v4",
-                "feature": "dex_arbitrage",
-                "display_name": "Robinhood Uniswap V4",
-                "network": "robinhood",
-                "chain_id": 4663,
-                "market_type": "shadow_chain",
-                "protocol": "uniswap_v4",
-                "protocol_supported": False,
-                "observation_only": True,
-            },
-        ],
-    )
-
-    def load_v4_index():
-        return {
-            "schemaVersion": "robinhood-v4-pool-index-v1",
-            "network": "robinhood-testnet",
-            "chainId": 46630,
-            "generatedAt": "2026-09-11T03:28:22Z",
-            "generatedBlockNumber": 59938454,
-            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "pools": [
-                {
-                    "protocol": "uniswap_v4",
-                    "poolId": "0x" + "a" * 64,
-                    "pool": "0x" + "a" * 64,
-                    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-                    "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                    "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
-                    "token0Symbol": "WETH",
-                    "token1Symbol": "USDG",
-                    "symbolPair": "WETH:USDG",
-                    "fee": 200,
-                    "status": "initialized_pool",
-                }
-            ],
-        }
+def test_flash_loan_pools_mainnet_v4_includes_official_stock_rows(tmp_path, monkeypatch):
+    _robinhood_mainnet_v4_market(monkeypatch)
+    db = _seed_mainnet_v4_db(tmp_path, include_stock=True)
 
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=4663,
         protocols=["uniswap_v4"],
-        robinhood_v4_pool_index_loader=load_v4_index,
+        database_url=db,
+    )
+
+    view = payload["protocol_views"][0]
+    assert "status" not in view
+    stock_rows = [
+        row
+        for row in [*view["stable_borrow_pools"], *view["non_stable_borrow_pools"]]
+        if row["token_symbol"] == "AAPL"
+    ]
+    assert len(stock_rows) == 1
+    assert stock_rows[0]["pool_count"] == 1
+    assert stock_rows[0]["paired_symbol_count"] == 1
+    assert stock_rows[0]["source"] == "robinhood_mainnet_v4_sqlite_stock_token"
+    assert view["summary"]["borrow_asset_count"] >= 6
+    assert view["summary"]["v4_pool_key_count"] == 2
+    assert view["cache"]["source"] == "robinhood_mainnet_v4_sqlite"
+
+
+def test_flash_loan_pools_mainnet_v4_stock_assets_come_from_sqlite_only(tmp_path, monkeypatch):
+    _robinhood_mainnet_v4_market(monkeypatch)
+    db = _seed_mainnet_v4_db(tmp_path, include_stock=True)
+
+    def fail_stock_registry(*args, **kwargs):
+        raise AssertionError("stock JSON registry must not be used by the pool view")
+
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood_common.stock_token_registry.stock_token_by_address",
+        fail_stock_registry,
+    )
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood_common.stock_token_registry.load_stock_token_registry",
+        fail_stock_registry,
+    )
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        database_url=db,
+    )
+
+    view = payload["protocol_views"][0]
+    stock_rows = [
+        row
+        for row in [*view["stable_borrow_pools"], *view["non_stable_borrow_pools"]]
+        if row["token_symbol"] == "AAPL"
+    ]
+    assert len(stock_rows) == 1
+    assert stock_rows[0]["source"] == "robinhood_mainnet_v4_sqlite_stock_token"
+
+
+def test_flash_loan_pools_mainnet_v4_sqlite_empty_is_not_json_fallback(tmp_path, monkeypatch):
+    _robinhood_mainnet_v4_market(monkeypatch)
+    from core.db.storage_business_schema import ensure_business_schema
+
+    db = str(tmp_path / "empty.sqlite3")
+    ensure_business_schema(db)
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        database_url=db,
     )
 
     view = payload["protocol_views"][0]
     assert view["status"] == "protocol_pool_cache_not_available"
-    assert "not scoped" in view.get("status_message", "")
+    assert "SQLite" in view.get("status_message", "")
     assert view["cache"]["asset_count"] == 0
     assert view["stable_borrow_pools"] == []
     assert view["non_stable_borrow_pools"] == []
+    assert view["static_pool_store"]["exists"] is False
+    assert "_static_pool_source" not in view
+
+
+def test_robinhood_v4_static_pool_rows_are_cached_and_dynamic_liquidity_is_reloaded(tmp_path, monkeypatch):
+    from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+        _robinhood_v4_sqlite_payload,
+        clear_robinhood_v4_pool_cache,
+    )
+    from core.rs_bridge import (
+        clear_v4_exchange_pool_cache,
+        load_v4_exchange_pools,
+        load_v4_pool_liquidity,
+    )
+
+    clear_v4_exchange_pool_cache()
+    db = _seed_mainnet_v4_db(tmp_path)
+    calls = {"exchange": 0, "liquidity": 0}
+
+    import core.rs_bridge as rs_bridge
+
+    original_exchange_reader = rs_bridge._py_load_v4_exchange_pools
+
+    def counting_exchange(database_url, *, network, chain_id, protocol):
+        calls["exchange"] += 1
+        return original_exchange_reader(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+        )
+
+    def counting_liquidity(*args, **kwargs):
+        calls["liquidity"] += 1
+        return load_v4_pool_liquidity(*args, **kwargs)
+
+    monkeypatch.setattr(rs_bridge, "_RUST_MODULE", None)
+    monkeypatch.setattr(rs_bridge, "_load_rust", lambda: None)
+    monkeypatch.setattr(rs_bridge, "_py_load_v4_exchange_pools", counting_exchange)
+    monkeypatch.setattr(rs_bridge, "load_v4_pool_liquidity", counting_liquidity)
+
+    first_pools, first_liquidity = _robinhood_v4_sqlite_payload(db)
+    second_pools, second_liquidity = _robinhood_v4_sqlite_payload(db)
+
+    assert calls["exchange"] == 1
+    assert calls["liquidity"] == 2
+    assert len(first_pools) == len(second_pools) == 1
+    assert len(first_liquidity) == len(second_liquidity) == 1
+
+    assert clear_robinhood_v4_pool_cache(database_url=db) == 1
+    _robinhood_v4_sqlite_payload(db)
+    assert calls["exchange"] == 2

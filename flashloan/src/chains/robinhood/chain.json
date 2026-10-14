@@ -74,6 +74,7 @@
     "v4_pool_snapshot": "runtime/evidence/robinhood/v4_pool_snapshot/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood/v4_pool_liquidity/latest.json",
     "v4_token_allowlist": "chains/robinhood/v4_token_allowlist.json",
+    "robinhood_stock_tokens": "chains/robinhood/robinhood_stock_tokens.json",
     "v4_token_metadata": "runtime/evidence/robinhood/v4_token_metadata.json",
     "eth_pair_tokens": "runtime/evidence/robinhood/eth_pair_tokens.json",
     "yc_zc_tokens": "runtime/evidence/robinhood/yc_zc_tokens.json",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, getcontext
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,6 @@ from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
     normalize_address,
     normalize_pool_id,
     pool_index_path,
-    read_json,
     text,
 )
 from dex.intent_trade.chains.robinhood import config as robinhood
@@ -54,10 +54,6 @@ def _normalize_address(value: object) -> str:
 
 def _normalize_pool_id(value: object) -> str:
     return normalize_pool_id(value)
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    return read_json(path)
 
 
 def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> Path | None:
@@ -268,24 +264,101 @@ def _read_live_pool_state_with_w3(
 
 
 def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[dict[str, Any]]:
-    path = _pool_index_path(network, chain_id)
-    if path is None:
-        return []
-    payload = _read_json(path)
+    """Read the V4 pool index from SQLite only."""
+    from core.db.database_path import absolute_database_path
+    from core.rs_bridge import load_v4_exchange_pools, load_v4_pool_liquidity
+
+    _pool_index_path(network, chain_id)
+    resolved_chain_id = int(chain_id or robinhood.CHAIN_ID)
+    database_url = str(absolute_database_path())
+    pool_rows = load_v4_exchange_pools(
+        "robinhood",
+        resolved_chain_id,
+        "uniswap_v4",
+        database_url=database_url,
+    )
+    liquidity_rows = load_v4_pool_liquidity(
+        "robinhood",
+        resolved_chain_id,
+        "uniswap_v4",
+        database_url=database_url,
+    )
+    liquidity_by_id = {
+        str(row.get("pool_id") or row.get("poolId") or "").lower(): row
+        for row in liquidity_rows
+    }
     rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for section_name in ("poolKeys", "pools"):
-        section = payload.get(section_name)
-        if not isinstance(section, list):
+    for row in pool_rows:
+        pool_id = _normalize_pool_id(row.get("pool_id") or row.get("poolId"))
+        if not pool_id:
             continue
-        for item in section:
-            if not isinstance(item, dict):
-                continue
-            pool_id = _normalize_pool_id(item.get("pool") or item.get("poolId"))
-            if not pool_id or pool_id in seen:
-                continue
-            seen.add(pool_id)
-            rows.append(item)
+        raw_key = row.get("pool_key_json") or row.get("poolKeyJson")
+        pool_key = {}
+        if isinstance(raw_key, str) and raw_key:
+            try:
+                pool_key = json.loads(raw_key)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pool_key = {}
+        if not isinstance(pool_key, dict):
+            pool_key = {}
+        liquidity = liquidity_by_id.get(pool_id.lower(), {})
+        has_liquidity = liquidity.get("has_liquidity")
+        if has_liquidity is None:
+            has_liquidity = liquidity.get("hasLiquidity")
+        liquidity_index = liquidity.get("liquidity_index")
+        if liquidity_index is None:
+            liquidity_index = liquidity.get("liquidityIndex")
+        if has_liquidity is None and liquidity_index is not None:
+            try:
+                has_liquidity = float(liquidity_index) > 0
+            except (TypeError, ValueError):
+                has_liquidity = None
+        if isinstance(has_liquidity, str):
+            has_liquidity = has_liquidity.strip().lower() in {"1", "true", "yes"}
+        rows.append(
+            {
+                "pool": pool_id,
+                "poolId": pool_id,
+                "poolManager": row.get("pool_manager") or row.get("poolManager") or pool_key.get("poolManager") or "",
+                "token0": row.get("token0") or pool_key.get("token0") or pool_key.get("currency0"),
+                "token1": row.get("token1") or pool_key.get("token1") or pool_key.get("currency1"),
+                "fee": (
+                    row.get("fee")
+                    if row.get("fee") is not None
+                    else pool_key.get("fee")
+                ),
+                "tickSpacing": (
+                    row.get("tick_spacing")
+                    if row.get("tick_spacing") is not None
+                    else (
+                        row.get("tickSpacing")
+                        if row.get("tickSpacing") is not None
+                        else pool_key.get("tickSpacing")
+                    )
+                ),
+                "hooks": row.get("hooks") or pool_key.get("hooks") or "",
+                "poolKey": pool_key,
+                "token0Symbol": pool_key.get("token0Symbol") or "",
+                "token1Symbol": pool_key.get("token1Symbol") or "",
+                "token0Decimals": pool_key.get("token0Decimals"),
+                "token1Decimals": pool_key.get("token1Decimals"),
+                "sqrtPriceX96": (
+                    liquidity.get("sqrt_price_x96")
+                    or liquidity.get("sqrtPriceX96")
+                    or pool_key.get("sqrtPriceX96")
+                    or ""
+                ),
+                "tick": (
+                    liquidity.get("tick")
+                    if liquidity.get("tick") is not None
+                    else pool_key.get("tick")
+                ),
+                "hasLiquidity": has_liquidity,
+                "liquidity": liquidity.get("liquidity") or liquidity_index or "",
+                "liquidityIndex": liquidity_index,
+                "source": "robinhood_mainnet_v4_sqlite",
+            }
+        )
     return rows
 
 

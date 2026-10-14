@@ -279,6 +279,61 @@ def test_flash_loan_pool_discovery_query_and_robinhood_cache(tmp_path):
     ]
 
 
+def test_flash_loan_pool_discovery_query_is_sqlite_first_without_json_fallback(tmp_path, monkeypatch):
+    db_path = tmp_path / "local_store.sqlite3"
+    snapshot = {
+        "ok": True,
+        "generated_at": "2026-10-13T00:00:00+00:00",
+        "chains": [
+            {
+                "chain_id": 4663,
+                "chain_key": "chain:4663",
+                "network": "robinhood",
+                "protocols": [
+                    {"chain_id": 4663, "protocol": "morpho_blue", "display_name": "Morpho Blue"},
+                    {"chain_id": 4663, "protocol": "uniswap_v2", "display_name": "Uniswap V2"},
+                ],
+            }
+        ],
+        "protocols": [
+            {"chain_id": 4663, "protocol": "morpho_blue", "display_name": "Morpho Blue"},
+            {"chain_id": 4663, "protocol": "uniswap_v2", "display_name": "Uniswap V2"},
+        ],
+        "removed_protocols": [],
+        "scanned_chains": [],
+        "raw_snapshots": {
+            "robinhood_flash_liquidity": {
+                "chainId": 4663,
+                "sources": [
+                    {
+                        "protocol": "morpho_blue",
+                        "source_kind": "flash_loan",
+                        "token_symbol": "USDG",
+                        "flash_borrowable": True,
+                    }
+                ],
+            }
+        },
+        "errors": [],
+    }
+    discovery.store_flash_loan_pool_discovery_snapshot(snapshot, database_url=db_path)
+    monkeypatch.setattr(
+        discovery,
+        "load_cached_flash_loan_pool_discovery",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("JSON fallback must not be used")),
+    )
+
+    scoped = discovery.query_flash_loan_pool_discovery(
+        chain_id=4663,
+        database_url=db_path,
+        snapshot_path=None,
+    )
+
+    assert scoped["source"] == "sqlite_db"
+    assert [item["protocol"] for item in scoped["protocols"]] == ["morpho_blue", "uniswap_v2"]
+    assert "robinhood_flash_liquidity" in scoped["raw_snapshots"]
+
+
 def test_registered_chain_protocol_candidates_are_not_expanded_by_market_rows():
     candidates = discovery._chain_protocol_candidates(
         [

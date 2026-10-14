@@ -16,7 +16,7 @@ def flash_loan_pool_protocol_view(
     request: ChainFlowRequest,
     robinhood_evidence_root: Path | None = None,
     robinhood_flash_liquidity_loader: Callable[[], dict[str, Any]] | None = None,
-    robinhood_v4_pool_index_loader: Callable[[], dict[str, Any]] | None = None,
+    database_url: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     protocol = request.protocol
@@ -24,11 +24,12 @@ def flash_loan_pool_protocol_view(
         return robinhood_flash_protocol_view(
             protocol,
             snapshot_loader=robinhood_flash_liquidity_loader,
+            database_url=database_url,
         )
     if protocol == "uniswap_v4":
         return robinhood_v4_protocol_view(
             protocol,
-            index_loader=robinhood_v4_pool_index_loader,
+            database_url=database_url,
         )
     return robinhood_dex_protocol_view(protocol, evidence_root=robinhood_evidence_root)
 

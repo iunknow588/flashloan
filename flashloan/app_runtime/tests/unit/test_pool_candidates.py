@@ -146,7 +146,7 @@ def test_candidate_representative_pool_rows_bounds_each_pair_to_six():
     assert selected[0]["pool_id"] == "0x01"
     selected_ids = {row["pool_id"] for row in selected}
     assert "0x01" in selected_ids
-    assert "0x08" in selected_ids
+    assert selected_ids == {"0x01", "0x02", "0x03", "0x04", "0x05", "0x06"}
     assert "0x03" in selected_ids
 
 
@@ -482,7 +482,12 @@ def test_build_loops_requires_all_three_hops_to_have_pools():
     z = "0x" + "c" * 40
 
     def pool(pool_id, token0, token1):
-        return {"pool": pool_id, "token0": token0, "token1": token1}
+        return {
+            "pool": pool_id,
+            "token0": token0,
+            "token1": token1,
+            "liquidity_index": 1.0,
+        }
 
     candidates = {"tokens": [{"token_address": y}, {"token_address": z}]}
     complete = {

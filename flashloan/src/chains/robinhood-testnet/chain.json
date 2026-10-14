@@ -50,6 +50,7 @@
     "v4_pool_liquidity": "runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json",
     "v4_pool_index": "runtime/evidence/robinhood-testnet/v4_pool_index/latest.json",
     "v4_token_allowlist": "chains/robinhood-testnet/v4_token_allowlist.json",
+    "robinhood_stock_tokens": "chains/robinhood-testnet/robinhood_stock_tokens.json",
     "normal_testnet_probe": "runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json",
     "predeploy_readiness": "runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
     "chain_test": "runtime/evidence/robinhood-testnet/chain_test/latest/plan.json"

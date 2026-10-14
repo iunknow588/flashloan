@@ -12,6 +12,9 @@ from core.chain_data_registry import chain_data_file_path
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
 from dex.intent_trade.chains.robinhood_common.v4_quote_core import V4_POOLS_SLOT
+from dex.intent_trade.chains.robinhood_common.chain_config import (
+    MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
+)
 from dex.intent_trade.chains.robinhood.config import rpc_urls_from_env as _mainnet_rpc_urls_from_env
 from dex.intent_trade.chains.common.dex_candidate_tables import build_robinhood_pool_candidates, read_json_object
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups, pair_classification
@@ -49,10 +52,6 @@ MAINNET_STABLE_SYMBOLS = ("USDG", "USDE")
 MAINNET_NON_STABLE_SYMBOLS = ("ETH", "WETH", "TZ")
 MAINNET_REPRESENTATIVE_CANDIDATE_LIMIT = 6
 _MAINNET_ETH_ALIASES = {_ZERO_ADDRESS, _WETH_ADDRESS}
-REPO_ROOT = Path(__file__).resolve().parents[6]
-MAINNET_V4_MANIFEST_PATH = (
-    REPO_ROOT / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
-)
 MAINNET_V4_DYNAMIC_FEE_FLAG = 8388608
 MAINNET_V4_SPECIAL_FEE_THRESHOLD = 100_000
 MAINNET_V4_MAX_OBSERVATION_FIXED_FEE = 3000
@@ -66,45 +65,20 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _load_mainnet_v4_manifest() -> dict[str, Any]:
-    return _read_json_object(MAINNET_V4_MANIFEST_PATH)
-
-
 def _mainnet_test_token_addresses() -> dict[str, str]:
-    manifest = _load_mainnet_v4_manifest()
-    result: dict[str, str] = {}
-    for symbol, env_name in (
-        ("TZ", "ROBINHOOD_MAINNET_TZ_ADDRESS"),
-        ("TA", "ROBINHOOD_MAINNET_TA_ADDRESS"),
-        ("TB", "ROBINHOOD_MAINNET_TB_ADDRESS"),
-    ):
-        address = str(os.getenv(env_name) or "").strip().lower()
-        if not address:
-            address = str(manifest.get(symbol.lower()) or "").strip().lower()
-        if address:
-            result[symbol] = address
-    return result
+    return {
+        symbol: address
+        for symbol, address in MAINNET_ANCHOR_ADDRESS_BY_SYMBOL.items()
+        if symbol in {"TZ"}
+    }
 
 
 def _mainnet_stable_token_addresses() -> dict[str, tuple[str, int]]:
-    manifest = _load_mainnet_v4_manifest()
     result: dict[str, tuple[str, int]] = {}
-    for raw in manifest.get("stableTokens") or []:
-        if not isinstance(raw, dict):
-            continue
-        symbol = str(raw.get("symbol") or "").strip().upper()
-        address = str(raw.get("address") or "").strip().lower()
-        try:
-            decimals = int(raw.get("decimals") or 18)
-        except (TypeError, ValueError):
-            decimals = 18
-        if symbol and address:
-            result[symbol] = (address, decimals)
-    if _USDG_ADDRESS and "USDG" not in result:
-        result["USDG"] = (_USDG_ADDRESS, 6)
-    if "USDE" not in result:
-        # Confirmed from the Robinhood mainnet V4 pool index and yc-zc token cache.
-        result["USDE"] = ("0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", 18)
+    for symbol in MAINNET_STABLE_SYMBOLS:
+        address = str(MAINNET_ANCHOR_ADDRESS_BY_SYMBOL.get(symbol) or "").strip().lower()
+        if address:
+            result[symbol] = (address, 6 if symbol == "USDG" else 18)
     return result
 
 
@@ -122,15 +96,82 @@ if _USDG_ADDRESS:
     _MAINNET_SYMBOL_BY_ADDRESS[_USDG_ADDRESS] = "USDG"
 _MAINNET_SYMBOL_BY_ADDRESS.update(_MAINNET_TEST_ADDRESS_BY_SYMBOL)
 _MAINNET_SYMBOL_BY_ADDRESS.update(_MAINNET_STABLE_ADDRESS_BY_SYMBOL)
+_MAINNET_STOCK_TOKEN_BY_ADDRESS: dict[str, dict[str, Any]] = {}
+_MAINNET_STOCK_TOKENS_LOADED = False
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _mainnet_stock_token_by_address() -> dict[str, dict[str, Any]]:
+    """Return official stock anchors from SQLite ``chain_tokens`` only."""
+    global _MAINNET_STOCK_TOKEN_BY_ADDRESS, _MAINNET_STOCK_TOKENS_LOADED
+    if _MAINNET_STOCK_TOKENS_LOADED:
+        return _MAINNET_STOCK_TOKEN_BY_ADDRESS
+    _MAINNET_STOCK_TOKENS_LOADED = True
+    try:
+        from core.db.database_path import absolute_database_path
+        from core.db.storage_chain_core import load_chain_tokens
+
+        rows = load_chain_tokens(
+            str(absolute_database_path()),
+            network="robinhood",
+            chain_id=4663,
+        )
+    except Exception:
+        rows = []
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        address = str(row.get("token_address") or "").strip().lower()
+        symbol = str(row.get("token_symbol") or "").strip().upper()
+        if not address or not symbol:
+            continue
+        metadata = _json_object(row.get("token_metadata_json"))
+        if str(metadata.get("category") or "").strip().lower() != "robinhood_stock":
+            continue
+        try:
+            decimals = int(row.get("token_decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        result[address] = {
+            "symbol": symbol,
+            "address": address,
+            "decimals": decimals,
+        }
+    _MAINNET_STOCK_TOKEN_BY_ADDRESS = result
+    _MAINNET_SYMBOL_BY_ADDRESS.update(
+        {
+            address: str(item.get("symbol") or "").strip().upper()
+            for address, item in result.items()
+            if str(item.get("symbol") or "").strip()
+        }
+    )
+    return result
 
 
 def _mainnet_configured_addresses() -> set[str]:
-    """Return the five configured mainnet anchor addresses."""
+    """Return every configured mainnet anchor address, including stocks."""
     addresses = set(_MAINNET_ETH_ALIASES)
     addresses.update(_MAINNET_STABLE_ADDRESS_BY_SYMBOL.values())
     if "TZ" in _MAINNET_TEST_ADDRESS_BY_SYMBOL:
         addresses.add(_MAINNET_TEST_ADDRESS_BY_SYMBOL["TZ"])
+    addresses.update(_mainnet_stock_token_by_address())
     return {address for address in addresses if address}
+
+
+def _mainnet_stock_token_addresses() -> set[str]:
+    return set(_mainnet_stock_token_by_address())
 
 
 def _mainnet_pair_in_configured_scope(token0: str, token1: str) -> bool:
@@ -153,12 +194,22 @@ def _mainnet_pair_in_candidate_scope(token0: str, token1: str) -> bool:
 
 def _mainnet_configured_symbol_for_address(address: str, fallback: str = "") -> str:
     normalized = str(address or "").strip().lower()
+    stock_item = _mainnet_stock_token_by_address().get(normalized)
+    if stock_item:
+        stock_symbol = str(stock_item.get("symbol") or "").strip().upper()
+        if stock_symbol:
+            return stock_symbol
     return _MAINNET_SYMBOL_BY_ADDRESS.get(normalized, str(fallback or "").strip())
 
 
 def _mainnet_configured_anchor_symbols() -> list[str]:
-    """Return the strict mainnet anchor universe: ETH, WETH, USDG, USDE, TZ."""
-    return list(MAINNET_CONFIGURED_SYMBOLS)
+    """Return base anchors plus official stocks as first-class anchors."""
+    symbols = list(MAINNET_CONFIGURED_SYMBOLS)
+    for item in _mainnet_stock_token_by_address().values():
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    return symbols
 
 
 def _known_v4_token_metadata(address: str) -> tuple[str, int | None] | None:
@@ -175,6 +226,13 @@ def _known_v4_token_metadata(address: str) -> tuple[str, int | None] | None:
     for symbol, (address, decimals) in _MAINNET_STABLE_TOKEN_DECIMALS_BY_SYMBOL.items():
         if normalized and normalized == address:
             return symbol, decimals
+    stock = _mainnet_stock_token_by_address().get(normalized)
+    if stock:
+        try:
+            decimals = int(stock.get("decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        return str(stock.get("symbol") or "").strip().upper() or None, decimals
     return None
 
 
