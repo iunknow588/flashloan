@@ -886,6 +886,9 @@ if __name__ == "__main__":
     os.environ.setdefault("BNB_VENUS_WATCHER_ENABLED", "false")
     os.environ.setdefault("LIQUIDATION_UI_SCAN_ENABLED", "false")
     os.environ.setdefault("LIQUIDATION_BACKGROUND_REFRESH", "false")
+    from web.flash_loan_pool_prewarm import prewarm_robinhood_mainnet_v4_pool_view
+
+    prewarm_robinhood_mainnet_v4_pool_view()
     disable_cow_submission_for_startup()
     initialize_liquidation_runtime()
     initialize_cow_arbitrage_runtime()

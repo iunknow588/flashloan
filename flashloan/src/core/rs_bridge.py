@@ -25,6 +25,7 @@ from core.db.storage_v4_exchange import (
     load_v4_exchange_pool_pair_counts as _py_load_v4_exchange_pool_pair_counts,
     load_v4_exchange_pool_rows_for_view as _py_load_v4_exchange_pool_rows_for_view,
     load_v4_pool_liquidity as _py_load_v4_pool_liquidity,
+    load_v4_pool_liquidity_refreshed_at as _py_load_v4_pool_liquidity_refreshed_at,
     load_v4_pool_liquidity_rows_for_view as _py_load_v4_pool_liquidity_rows_for_view,
 )
 from core.db.storage_dex_candidate import load_dex_candidate_pools as _py_load_dex_candidate_pools
@@ -382,6 +383,38 @@ def load_v4_pool_liquidity_rows_for_view(
     )
 
 
+def load_v4_pool_liquidity_refreshed_at(
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+    *,
+    database_url: str | None = None,
+) -> str | None:
+    _load_rust()
+    if _RUST_MODULE is not None and hasattr(_RUST_MODULE, "load_v4_pool_liquidity_refreshed_at"):
+        try:
+            payload = _RUST_MODULE.load_v4_pool_liquidity_refreshed_at(
+                network,
+                chain_id,
+                protocol,
+                _database_path(database_url),
+            )
+            value = payload.get("refreshedAt", payload.get("refreshed_at")) if isinstance(payload, dict) else payload
+            return str(value) if value not in (None, "") else None
+        except Exception as exc:
+            raise RuntimeError(
+                "flashloan_rs read failed for load_v4_pool_liquidity_refreshed_at; "
+                "SQLite is authoritative and Rust read errors must not be hidden. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+    return _py_load_v4_pool_liquidity_refreshed_at(
+        _database_path(database_url),
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    )
+
+
 def load_dex_candidate_pools(
     network: str,
     chain_id: int,
@@ -608,6 +641,7 @@ __all__ = [
     "load_v4_exchange_pool_pair_counts",
     "load_v4_exchange_pool_rows_for_view",
     "load_v4_pool_liquidity",
+    "load_v4_pool_liquidity_refreshed_at",
     "load_v4_pool_liquidity_rows_for_view",
     "page_payload_from_rows",
     "rust_available",

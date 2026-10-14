@@ -54,6 +54,9 @@ def main() -> None:
     os.environ.setdefault("LIQUIDATION_BACKGROUND_REFRESH", "false")
 
     from web.control_panel import app
+    from web.flash_loan_pool_prewarm import prewarm_robinhood_mainnet_v4_pool_view
+
+    prewarm_robinhood_mainnet_v4_pool_view()
 
     threading.Thread(
         target=_launch_browser_when_ready,

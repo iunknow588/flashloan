@@ -393,6 +393,26 @@ def load_v4_pool_liquidity_rows_for_view(
     )
 
 
+def load_v4_pool_liquidity_refreshed_at(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+) -> str | None:
+    rows = query(
+        database_url,
+        """
+        SELECT MAX(COALESCE(observed_at, refreshed_at)) AS refreshed_at
+        FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    value = rows[0].get("refreshed_at") if rows else None
+    return str(value) if value not in (None, "") else None
+
+
 def find_v4_pools_between_tokens(
     database_url: str,
     *,

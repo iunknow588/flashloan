@@ -12,9 +12,6 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (
     MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
     MAINNET_ANCHOR_SYMBOLS,
 )
-from dex.intent_trade.chains.robinhood.flash_liquidity import (
-    robinhood_flash_liquidity_snapshot_from_sqlite,
-)
 from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _as_float,
     _asset_row,
@@ -36,6 +33,17 @@ _ROBINHOOD_V4_STATIC_CACHE_TTL_SECONDS = 5.0
 _robinhood_v4_protocol_view_cache: dict[tuple[Any, str, int, str], tuple[float, dict[str, Any]]] = {}
 _robinhood_v4_protocol_view_cache_lock = threading.Lock()
 _ROBINHOOD_V4_PROTOCOL_VIEW_CACHE_TTL_SECONDS = 15.0
+
+
+def _sqlite_fingerprint(database_url: str | None) -> tuple[Any, ...]:
+    try:
+        from core.db.database_path import absolute_database_path
+
+        path = absolute_database_path(database_url)
+        stat = path.stat()
+        return (str(path), stat.st_size, stat.st_mtime_ns)
+    except OSError:
+        return (str(database_url or ""), None, None)
 
 
 def _network_for_chain_id(chain_id: int | None) -> str:
@@ -231,9 +239,11 @@ def _stock_metadata_from_db_rows(
         symbol = str(row.get("token_symbol") or "").strip().upper()
         if not address or not symbol:
             continue
-        metadata = _json_object(row.get("token_metadata_json"))
-        is_stock = str(metadata.get("category") or "").strip().lower() == "robinhood_stock"
-        if not is_stock:
+        raw_metadata = str(row.get("token_metadata_json") or "")
+        if '"category"' not in raw_metadata or '"robinhood_stock"' not in raw_metadata:
+            continue
+        metadata = _json_object(raw_metadata)
+        if str(metadata.get("category") or "").strip().lower() != "robinhood_stock":
             continue
         try:
             decimals = int(row.get("token_decimals") or 18)
@@ -714,7 +724,7 @@ def _robinhood_v4_protocol_view(
     **_: Any,
 ) -> dict[str, Any]:
     protocol_key = str(protocol or "").strip().lower()
-    cache_key = (database_url, "robinhood", 4663, protocol_key)
+    cache_key = (_sqlite_fingerprint(database_url), "robinhood", 4663, protocol_key)
     now = time.time()
     with _robinhood_v4_protocol_view_cache_lock:
         cached_at, cached_view = _robinhood_v4_protocol_view_cache.get(cache_key, (None, None))
@@ -741,7 +751,7 @@ def _robinhood_v4_protocol_view_from_sqlite(
         from core.rs_bridge import (
             load_v4_exchange_pool_manager,
             load_v4_exchange_pool_pair_counts,
-            load_v4_pool_liquidity_rows_for_view,
+            load_v4_pool_liquidity_refreshed_at,
         )
         from core.db.database_path import absolute_database_path
         from core.db.storage_chain_core import load_chain_tokens
@@ -752,7 +762,7 @@ def _robinhood_v4_protocol_view_from_sqlite(
             "uniswap_v4",
             database_url=database_url,
         )
-        liquidity_rows = load_v4_pool_liquidity_rows_for_view(
+        refreshed_at = load_v4_pool_liquidity_refreshed_at(
             "robinhood",
             4663,
             "uniswap_v4",
@@ -785,12 +795,6 @@ def _robinhood_v4_protocol_view_from_sqlite(
         pool_manager = manager_row.get("pool_manager") or manager_row.get("poolManager") or ""
     if not pool_manager:
         pool_manager = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-    observed_at_values = [
-        row.get("observed_at") or row.get("refreshed_at")
-        for row in liquidity_rows
-        if isinstance(row, dict)
-    ]
-    refreshed_at = max((value for value in observed_at_values if value), default=None)
     source = "robinhood_mainnet_v4_sqlite"
     if not token_rows:
         view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
@@ -951,7 +955,15 @@ def _robinhood_flash_protocol_view(
     snapshot_loader: Callable[[], dict[str, Any]] | None = None,
     database_url: str | None = None,
 ) -> dict[str, Any]:
-    loader = snapshot_loader or (lambda: robinhood_flash_liquidity_snapshot_from_sqlite(database_url=database_url))
+    if snapshot_loader is None:
+        def loader() -> dict[str, Any]:
+            from dex.intent_trade.chains.robinhood.flash_liquidity import (
+                robinhood_flash_liquidity_snapshot_from_sqlite,
+            )
+
+            return robinhood_flash_liquidity_snapshot_from_sqlite(database_url=database_url)
+    else:
+        loader = snapshot_loader
     try:
         snapshot = loader()
     except Exception as exc:
