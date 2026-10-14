@@ -222,3 +222,23 @@ def test_mainnet_observation_runtime_path_never_uses_legacy_enumeration():
     legacy_body = source[legacy_start:legacy_end]
     assert "return _mainnet_closed_loop_sequences(), []" in legacy_body
     assert "pools_by_edge = _pools_by_edge(pools)" not in legacy_body
+
+
+def test_robinhood_v4_surface_entry_checks_database_before_legacy_import():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    source = (
+        root
+        / "src"
+        / "market"
+        / "binance_market"
+        / "dex_surfaces.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def dex_market_observation_payload(")
+    end = source.index("def _database_first_market_observation_payload(")
+    body = source[start:end]
+    assert body.index("if _database_first_v4_robinhood(") < body.index(
+        "from market.binance_market.dex_observation_surface import build_market_observation_payload"
+    )
+    assert "return _database_first_robinhood_observation_payload(" in body

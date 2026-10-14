@@ -319,7 +319,7 @@ def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
         "symbol_anchor_to_non_anchor_candidate_path",
     }
     assert overview["summary"]["anchorBorrowSymbols"] == expected_symbols
-    assert observation["summary"]["observationAnchorCount"] == len(expected_symbols)
+    assert int(observation["summary"]["observationAnchorCount"]) == len(expected_symbols)
     assert observation["observationAnchorSymbols"] == expected_symbols
     assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
     assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols

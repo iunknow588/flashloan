@@ -759,6 +759,18 @@ def load_observation_overview_for_scope(
 
 
 def dex_market_observation_payload(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
+    """Return SQLite-backed Robinhood V4 observation; other scopes are legacy.
+
+    Robinhood V4 (mainnet and testnet) is the DB-first scope and reads
+    ``v4_closed_loops`` directly.  Non-V4 scopes keep the legacy surface
+    builder, which is intentionally isolated so the DB-first runtime never
+    imports the old YC x ZC enumeration path.
+    """
+    if _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols):
+        return _database_first_robinhood_observation_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+        )
     from market.binance_market.dex_observation_surface import build_market_observation_payload
 
     return build_market_observation_payload(
