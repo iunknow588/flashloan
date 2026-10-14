@@ -57,6 +57,7 @@ flashloan_preview.log
 flashloan_preview.err.log
 flashloan_preview.out.log
 tmp/
+*.json.tmp
 runtime/codex_preview_*
 runtime/codex_page_test/
 runtime/importtime_scan.log
