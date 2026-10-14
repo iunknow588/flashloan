@@ -53,7 +53,7 @@ READ_ONLY_HANDLER_SAMPLES = (
         None,
     ),
     (
-        "/api/robinhood-dex/readiness?market_id=dex-arbitrage-4663-uniswap-v3&chain_id=4663&network=robinhood&protocol=uniswap_v3",
+        "/api/robinhood-dex/readiness?market_id=dex-arbitrage-4663-uniswap-v4&chain_id=4663&network=robinhood&protocol=uniswap_v4",
         None,
     ),
 )

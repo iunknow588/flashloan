@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import copy
+import threading
+import time
 from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
@@ -23,6 +26,17 @@ from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _pool_view_capabilities,
     _protocol_display_name,
 )
+
+
+_robinhood_v4_static_pool_cache: dict[tuple[Any, str, int, str], tuple[float, list[dict[str, Any]]]] = {}
+_robinhood_v4_static_pool_cache_lock = threading.Lock()
+_ROBINHOOD_V4_STATIC_CACHE_TTL_SECONDS = 5.0
+# Display-only cache. It never feeds broadcast quotes, balances, minProfit,
+# or keyset assembly; execution paths always read SQLite directly.
+_robinhood_v4_protocol_view_cache: dict[tuple[Any, str, int, str], tuple[float, dict[str, Any]]] = {}
+_robinhood_v4_protocol_view_cache_lock = threading.Lock()
+_ROBINHOOD_V4_PROTOCOL_VIEW_CACHE_TTL_SECONDS = 15.0
+
 
 def _network_for_chain_id(chain_id: int | None) -> str:
     if chain_id is None:
@@ -88,6 +102,10 @@ def clear_robinhood_v4_pool_cache(
     """Drop cached static V4 pool rows after an import/rebuild."""
     from core.rs_bridge import clear_v4_exchange_pool_cache
 
+    with _robinhood_v4_static_pool_cache_lock:
+        _robinhood_v4_static_pool_cache.clear()
+    with _robinhood_v4_protocol_view_cache_lock:
+        _robinhood_v4_protocol_view_cache.clear()
     protocol = "uniswap_v4"
     return clear_v4_exchange_pool_cache(
         database_url,
@@ -103,14 +121,23 @@ def _robinhood_v4_static_pool_rows(
     network: str = "robinhood",
     chain_id: int = 4663,
 ) -> list[dict[str, Any]]:
-    from core.rs_bridge import load_v4_exchange_pools
+    cache_key = (database_url, network, chain_id, "uniswap_v4")
+    now = time.time()
+    with _robinhood_v4_static_pool_cache_lock:
+        cached_at, cached_rows = _robinhood_v4_static_pool_cache.get(cache_key, (None, None))
+        if cached_at is not None and now - cached_at < _ROBINHOOD_V4_STATIC_CACHE_TTL_SECONDS:
+            return cached_rows or []
+    from core.rs_bridge import load_v4_exchange_pool_rows_for_view
 
-    return load_v4_exchange_pools(
+    rows = load_v4_exchange_pool_rows_for_view(
         network,
         chain_id,
         "uniswap_v4",
         database_url=database_url,
     )
+    with _robinhood_v4_static_pool_cache_lock:
+        _robinhood_v4_static_pool_cache[cache_key] = (now, rows)
+    return rows
 
 
 def _robinhood_v4_pool_rows_with_liquidity(
@@ -131,22 +158,22 @@ def _robinhood_v4_pool_rows_with_liquidity(
         token1 = str(_row_first(row, ("token1", "currency1")) or "").strip().lower()
         if not pool_id or not token0 or not token1:
             continue
-        pool_key = _json_object(_row_first(row, ("pool_key_json", "poolKey")))
-        if not pool_key:
-            pool_key = {
-                "currency0": token0,
-                "currency1": token1,
-                "fee": _row_first(row, ("fee",)),
-                "hooks": _row_first(row, ("hooks",)),
-            }
+        pool_key = {
+            "currency0": token0,
+            "currency1": token1,
+            "fee": _row_first(row, ("fee",)),
+            "hooks": _row_first(row, ("hooks",)),
+        }
         liquidity = liquidity_by_id.get(pool_id.lower(), {})
         liquidity_index = liquidity.get("liquidity_index")
         if liquidity_index is None:
             liquidity_index = _as_float(liquidity.get("liquidity"))
         has_liquidity = liquidity.get("has_liquidity")
         if has_liquidity is None:
-            has_liquidity = bool(liquidity_index and _as_float(liquidity_index) > 0)
-        depth_band = _json_object(_row_first(liquidity, ("depth_band_json", "depthBand")))
+            has_liquidity = liquidity.get("hasLiquidity")
+        if has_liquidity is not None and isinstance(has_liquidity, str):
+            has_liquidity = has_liquidity.strip().lower() in {"1", "true", "yes"}
+        depth_band = {"level": "indexed", "label": "indexed V4 PoolKey"}
         pools.append(
             {
                 "protocol": "uniswap_v4",
@@ -169,8 +196,8 @@ def _robinhood_v4_pool_rows_with_liquidity(
                 "liquidityIndex": liquidity_index or 0,
                 "estimatedTvlUsd": liquidity.get("estimated_tvl_usd") or 0,
                 "depthStatus": liquidity.get("depth_status") or "",
-                "depthBand": depth_band or {"level": "indexed", "label": "indexed V4 PoolKey"},
-                "balances": _json_object(_row_first(liquidity, ("balances_json", "balances"))),
+                "depthBand": depth_band,
+                "balances": {},
                 "sqrtPriceX96": liquidity.get("sqrt_price_x96") or "",
                 "tick": liquidity.get("tick"),
                 "liquidityReadAt": liquidity.get("liquidity_read_at"),
@@ -229,14 +256,14 @@ def _robinhood_v4_sqlite_payload(
     chain_id: int = 4663,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Return static pools with current liquidity plus raw liquidity rows."""
-    from core.rs_bridge import load_v4_pool_liquidity
+    from core.rs_bridge import load_v4_pool_liquidity_rows_for_view
 
     pool_rows = _robinhood_v4_static_pool_rows(
         database_url,
         network=network,
         chain_id=chain_id,
     )
-    liquidity_rows = load_v4_pool_liquidity(
+    liquidity_rows = load_v4_pool_liquidity_rows_for_view(
         network,
         chain_id,
         "uniswap_v4",
@@ -499,6 +526,171 @@ def _robinhood_v4_borrow_asset_rows(
     return assets, total_pool_count
 
 
+def _robinhood_v4_borrow_asset_rows_from_pair_counts(
+    pair_rows: list[dict[str, Any]],
+    token_rows: list[dict[str, Any]],
+    *,
+    pool_manager: str = "",
+) -> tuple[list[dict[str, Any]], int]:
+    """Build the same page assets from SQLite pair-count rows."""
+    if not token_rows:
+        raise ValueError("Robinhood mainnet V4 borrow assets require SQLite chain_tokens rows")
+    try:
+        chain_row = chain_data_by_network("robinhood") or {}
+        contracts = chain_row.get("contracts")
+        contracts = contracts if isinstance(contracts, dict) else {}
+    except Exception:
+        contracts = {}
+    anchors = _mainnet_v4_anchor_assets()
+    stock_metadata_by_address = _stock_metadata_from_db_rows(token_rows)
+    symbol_map_by_address = _static_token_symbol_map_from_db_rows(token_rows)
+    stock_assets = []
+    for address, meta in stock_metadata_by_address.items():
+        symbol = str(meta.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        try:
+            decimals = int(meta.get("decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        stock_assets.append(
+            {
+                "symbol": symbol,
+                "address": address,
+                "decimals": decimals,
+                "stable": False,
+                "source": "robinhood_stock_token_registry",
+            }
+        )
+    stock_assets.sort(key=lambda item: str(item["symbol"]))
+    anchor_symbol_by_address = {
+        anchor["address"].lower(): anchor["symbol"]
+        for anchor in anchors
+        if str(anchor.get("address") or "").strip()
+    }
+    anchor_symbol_by_address.update(
+        {
+            asset["address"].lower(): asset["symbol"]
+            for asset in stock_assets
+            if str(asset.get("address") or "").strip()
+        }
+    )
+    configured_scope = set(anchor_symbol_by_address)
+    anchor_rows: dict[str, dict[str, Any]] = {}
+    for asset in [*anchors, *stock_assets]:
+        if asset["symbol"] in anchor_rows:
+            continue
+        anchor_rows[asset["symbol"]] = _asset_row(
+            {
+                "token_symbol": asset["symbol"],
+                "binance_symbol": asset["symbol"],
+                "is_stable": bool(asset["stable"]),
+                "anchor_symbol": asset["symbol"],
+                "paired_symbol": asset["symbol"],
+                "depth_score_usd": 0.0,
+                "available_liquidity": 0,
+                "pool_count": 0,
+                "token_address": asset["address"],
+                "pool_manager_address": pool_manager,
+                "fee": "",
+                "dex": "uniswap_v4",
+                "flash_capable": True,
+                "flash_borrowable": False,
+                "borrowable": False,
+                "pool_role": "configured_anchor_or_stock_v4_borrow_token",
+                "asset_source": asset["source"],
+                "decimals": asset["decimals"],
+                "observed_block": None,
+                "pool_ids": [],
+                "paired_symbols": [],
+            }
+        )
+    total_pool_count = 0
+    for pair in pair_rows:
+        if not isinstance(pair, dict):
+            continue
+        token0_address = str(pair.get("token0") or "").strip().lower()
+        token1_address = str(pair.get("token1") or "").strip().lower()
+        if token0_address not in configured_scope and token1_address not in configured_scope:
+            continue
+        try:
+            pool_count = max(0, int(pair.get("pool_count") or 0))
+        except (TypeError, ValueError):
+            pool_count = 0
+        if pool_count <= 0:
+            continue
+        matched_anchor_symbols = {
+            symbol
+            for symbol in (
+                anchor_symbol_by_address.get(token0_address, ""),
+                anchor_symbol_by_address.get(token1_address, ""),
+            )
+            if symbol
+        }
+        token0_symbol = anchor_symbol_by_address.get(token0_address) or _robinhood_v4_token_symbol(
+            token0_address,
+            "",
+            contracts=contracts,
+            stock_by_address=stock_metadata_by_address,
+            symbols_by_address=symbol_map_by_address,
+        )
+        token1_symbol = anchor_symbol_by_address.get(token1_address) or _robinhood_v4_token_symbol(
+            token1_address,
+            "",
+            contracts=contracts,
+            stock_by_address=stock_metadata_by_address,
+            symbols_by_address=symbol_map_by_address,
+        )
+        for symbol in matched_anchor_symbols:
+            row = anchor_rows.get(symbol)
+            if row is None:
+                continue
+            row["pool_count"] = int(row.get("pool_count") or 0) + pool_count
+            for address, pool_symbol in (
+                (token0_address, token0_symbol),
+                (token1_address, token1_symbol),
+            ):
+                if not pool_symbol or pool_symbol.upper() == symbol.upper():
+                    continue
+                paired_symbols = row.setdefault("paired_symbols", [])
+                if pool_symbol.upper() not in paired_symbols:
+                    paired_symbols.append(pool_symbol.upper())
+        total_pool_count += pool_count
+    assets = []
+    seen_asset_symbols: set[str] = set()
+    for asset in [*anchors, *stock_assets]:
+        symbol = asset["symbol"]
+        row = anchor_rows.get(symbol)
+        if symbol in seen_asset_symbols or row is None:
+            continue
+        if str(asset.get("source") or "").startswith("robinhood_stock") and int(row.get("pool_count") or 0) <= 0:
+            continue
+        seen_asset_symbols.add(symbol)
+        assets.append(row)
+    for asset in assets:
+        asset["available_liquidity"] = float(asset.get("pool_count") or 0)
+        asset["reserve_data_liquidity"] = 0
+        is_stock = str(asset.get("asset_source") or "").startswith("robinhood_stock")
+        asset["source"] = (
+            "robinhood_mainnet_v4_sqlite_configured_anchor_token"
+            if not is_stock
+            else "robinhood_mainnet_v4_sqlite_stock_token"
+        )
+        asset["depth_status"] = (
+            "initialized_unpriced_anchor_pool"
+            if not is_stock
+            else "initialized_unpriced_stock_pool"
+        )
+        asset.pop("asset_source", None)
+        paired_symbols = asset.pop("paired_symbols", [])
+        asset["paired_symbol_count"] = len(paired_symbols) if isinstance(paired_symbols, list) else int(paired_symbols or 0)
+        if not _as_float(asset.get("depth_score_usd")):
+            asset["depth_level"] = "observable"
+            asset["depth_label"] = "可观察"
+            asset["depth_class"] = "ok"
+    return assets, total_pool_count
+
+
 def _robinhood_v4_sort_key(asset: dict[str, Any]) -> tuple[bool, str]:
     symbol = str(asset.get("token_symbol") or "").strip().upper()
     has_eth = symbol == "ETH" or symbol.startswith("ETH:")
@@ -508,91 +700,97 @@ def _robinhood_v4_sort_key(asset: dict[str, Any]) -> tuple[bool, str]:
 def _robinhood_v4_protocol_view(
     protocol: str,
     *,
-    index_loader: Callable[[], dict[str, Any]] | None = None,
     database_url: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
-    token_rows: list[dict[str, Any]] | None = None
-    if index_loader is not None:
-        # Kept only for legacy injectable readers/tests; the production page
-        # path below reads SQLite only and never falls back to JSON.
-        try:
-            index = index_loader() or {}
-        except Exception as exc:
-            view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
-            view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} pool evidence read failed: {str(exc)[:160]}"
-            return view
-        pools = [pool for pool in index.get("pools") or [] if isinstance(pool, dict)]
-        if not pools:
-            view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
-            view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} pool evidence is empty"
-            return view
-        if not _is_robinhood_mainnet_scope(index):
-            view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
-            view["status_message"] = "Robinhood Uniswap V4 pool index is not scoped to the Robinhood mainnet chain"
-            return view
-        block_number = index.get("generatedBlockNumber")
-        refreshed_at = index.get("generatedAt")
-        schema_version = index.get("schemaVersion")
-        pool_manager = index.get("poolManager")
-        source = "robinhood_mainnet_v4_pool_index"
-        try:
-            from core.db.database_path import absolute_database_path
-            from core.db.storage_chain_core import load_chain_tokens
+    protocol_key = str(protocol or "").strip().lower()
+    cache_key = (database_url, "robinhood", 4663, protocol_key)
+    now = time.time()
+    with _robinhood_v4_protocol_view_cache_lock:
+        cached_at, cached_view = _robinhood_v4_protocol_view_cache.get(cache_key, (None, None))
+        if (
+            cached_at is not None
+            and now - cached_at < _ROBINHOOD_V4_PROTOCOL_VIEW_CACHE_TTL_SECONDS
+            and isinstance(cached_view, dict)
+            and "status" not in cached_view
+        ):
+            return copy.deepcopy(cached_view)
+    view = _robinhood_v4_protocol_view_from_sqlite(protocol, database_url=database_url)
+    if isinstance(view, dict) and "status" not in view:
+        with _robinhood_v4_protocol_view_cache_lock:
+            _robinhood_v4_protocol_view_cache[cache_key] = (now, view)
+    return view
 
-            token_rows = load_chain_tokens(
-                str(absolute_database_path(database_url)),
-                network="robinhood",
-                chain_id=4663,
-            )
-        except Exception:
-            token_rows = []
-    else:
-        try:
-            pools, liquidity_rows = _robinhood_v4_sqlite_payload(
-                database_url,
-                network="robinhood",
-                chain_id=4663,
-            )
-            from core.db.database_path import absolute_database_path
-            from core.db.storage_chain_core import load_chain_tokens
 
-            token_rows = load_chain_tokens(
-                str(absolute_database_path(database_url)),
-                network="robinhood",
-                chain_id=4663,
-            )
-        except Exception as exc:
-            view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
-            view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} SQLite read failed: {str(exc)[:160]}"
-            return view
-        if not pools:
-            view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
-            view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} SQLite pool evidence is empty"
-            return view
-        block_number = None
-        refreshed_at = None
-        schema_version = "robinhood-mainnet-v4-sqlite-v1"
-        pool_manager = ""
-        for row in pools:
-            if isinstance(row, dict):
-                pool_manager = row.get("poolManager") or row.get("pool_manager") or ""
-                if pool_manager:
-                    break
-        if not pool_manager:
-            pool_manager = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-        observed_at_values = [
-            row.get("observed_at") or row.get("refreshed_at")
-            for row in liquidity_rows
-            if isinstance(row, dict)
-        ]
-        refreshed_at = max((value for value in observed_at_values if value), default=None)
-        source = "robinhood_mainnet_v4_sqlite"
+def _robinhood_v4_protocol_view_from_sqlite(
+    protocol: str,
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    try:
+        from core.rs_bridge import (
+            load_v4_exchange_pool_manager,
+            load_v4_exchange_pool_pair_counts,
+            load_v4_pool_liquidity_rows_for_view,
+        )
+        from core.db.database_path import absolute_database_path
+        from core.db.storage_chain_core import load_chain_tokens
+
+        pair_rows = load_v4_exchange_pool_pair_counts(
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            database_url=database_url,
+        )
+        liquidity_rows = load_v4_pool_liquidity_rows_for_view(
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            database_url=database_url,
+        )
+        token_rows = load_chain_tokens(
+            str(absolute_database_path(database_url)),
+            network="robinhood",
+            chain_id=4663,
+        )
+        manager_row = load_v4_exchange_pool_manager(
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            database_url=database_url,
+        )
+    except Exception as exc:
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} SQLite read failed: {str(exc)[:160]}"
+        return view
+    if not pair_rows:
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} SQLite pool evidence is empty"
+        return view
+    block_number = None
+    refreshed_at = None
+    schema_version = "robinhood-mainnet-v4-sqlite-v1"
+    pool_manager = ""
+    if isinstance(manager_row, dict):
+        pool_manager = manager_row.get("pool_manager") or manager_row.get("poolManager") or ""
+    if not pool_manager:
+        pool_manager = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    observed_at_values = [
+        row.get("observed_at") or row.get("refreshed_at")
+        for row in liquidity_rows
+        if isinstance(row, dict)
+    ]
+    refreshed_at = max((value for value in observed_at_values if value), default=None)
+    source = "robinhood_mainnet_v4_sqlite"
     if not token_rows:
         view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
         view["status_message"] = "Robinhood Uniswap V4 SQLite chain_tokens rows are empty"
         return view
-    assets, total_pool_count = _robinhood_v4_borrow_asset_rows(pools, token_rows=token_rows)
+    assets, total_pool_count = _robinhood_v4_borrow_asset_rows_from_pair_counts(
+        pair_rows,
+        token_rows=token_rows,
+        pool_manager=pool_manager,
+    )
     stable_assets = [asset for asset in assets if asset.get("is_stable")]
     non_stable_assets = [asset for asset in assets if not asset.get("is_stable")]
     stable_assets.sort(key=_robinhood_v4_sort_key)

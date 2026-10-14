@@ -33,6 +33,13 @@ from web.page_routes_helpers import (
 )
 
 
+def flash_loan_pools_payload(*args, **kwargs):
+    """Lazy compatibility proxy for the flash-loan pool payload builder."""
+    from web.flash_loan_pools import flash_loan_pools_payload as implementation
+
+    return implementation(*args, **kwargs)
+
+
 CHAIN_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "chain_selector.js"
 DEX_STRATEGY_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "dex_strategy_selector.js"
 APP_SHELL_SCRIPT = Path(__file__).resolve().parent / "static" / "app_shell.js"
@@ -322,8 +329,6 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/api/flash-loan/pools")
     def flash_loan_pools_api():
-        from web.flash_loan_pools import flash_loan_pools_payload
-
         start_flash_loan_pool_discovery_idle_worker(
             initial_delay_seconds=2.0,
             refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
@@ -351,8 +356,6 @@ def register_page_routes(app, panel) -> None:
 
     @app.post("/api/flash-loan/pools/refresh")
     def flash_loan_pools_refresh_api():
-        from web.flash_loan_pools import flash_loan_pools_payload
-
         try:
             chain_id = _request_chain_id()
         except ChainSelectionError as exc:

@@ -359,6 +359,11 @@ def flash_loan_pools_payload(
                 chain_id=view_chain_id,
                 refresh_mode=refresh_mode,
             )
+            # The snapshot helper keeps the source view for optional store
+            # inspection. A response view cannot contain that reference after
+            # the metadata is attached below, otherwise JSON encoding sees a
+            # view -> metadata -> protocol_view -> view cycle.
+            metadata.pop("protocol_view", None)
             metadata["exists"] = False
             metadata["path"] = ""
         view["static_pool_store"] = metadata

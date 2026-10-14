@@ -412,6 +412,21 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
             errors.append(f"{liquidity_source}: {exc}")
             steps.append({"source": liquidity_source, "ok": False, "error": str(exc)})
 
+    if not errors and refresh_v4 and chain_id == ROBINHOOD_CHAIN_ID:
+        try:
+            from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+                clear_robinhood_v4_pool_cache,
+            )
+
+            clear_robinhood_v4_pool_cache(
+                database_url=_panel_database_url(panel),
+                network="robinhood",
+                chain_id=chain_id,
+            )
+        except Exception as exc:
+            errors.append(f"robinhood_v4_pool_cache: {exc}")
+            steps.append({"source": "robinhood_v4_pool_cache", "ok": False, "error": str(exc)})
+
     return {
         "ok": not errors,
         "requested": "full" if full else "incremental",

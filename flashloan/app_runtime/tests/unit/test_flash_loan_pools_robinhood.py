@@ -1200,8 +1200,8 @@ def test_robinhood_v4_static_pool_rows_are_cached_and_dynamic_liquidity_is_reloa
     )
     from core.rs_bridge import (
         clear_v4_exchange_pool_cache,
-        load_v4_exchange_pools,
-        load_v4_pool_liquidity,
+        load_v4_exchange_pool_rows_for_view,
+        load_v4_pool_liquidity_rows_for_view,
     )
 
     clear_v4_exchange_pool_cache()
@@ -1210,7 +1210,7 @@ def test_robinhood_v4_static_pool_rows_are_cached_and_dynamic_liquidity_is_reloa
 
     import core.rs_bridge as rs_bridge
 
-    original_exchange_reader = rs_bridge._py_load_v4_exchange_pools
+    original_exchange_reader = rs_bridge._py_load_v4_exchange_pool_rows_for_view
 
     def counting_exchange(database_url, *, network, chain_id, protocol):
         calls["exchange"] += 1
@@ -1223,12 +1223,12 @@ def test_robinhood_v4_static_pool_rows_are_cached_and_dynamic_liquidity_is_reloa
 
     def counting_liquidity(*args, **kwargs):
         calls["liquidity"] += 1
-        return load_v4_pool_liquidity(*args, **kwargs)
+        return load_v4_pool_liquidity_rows_for_view(*args, **kwargs)
 
     monkeypatch.setattr(rs_bridge, "_RUST_MODULE", None)
     monkeypatch.setattr(rs_bridge, "_load_rust", lambda: None)
-    monkeypatch.setattr(rs_bridge, "_py_load_v4_exchange_pools", counting_exchange)
-    monkeypatch.setattr(rs_bridge, "load_v4_pool_liquidity", counting_liquidity)
+    monkeypatch.setattr(rs_bridge, "_py_load_v4_exchange_pool_rows_for_view", counting_exchange)
+    monkeypatch.setattr(rs_bridge, "load_v4_pool_liquidity_rows_for_view", counting_liquidity)
 
     first_pools, first_liquidity = _robinhood_v4_sqlite_payload(db)
     second_pools, second_liquidity = _robinhood_v4_sqlite_payload(db)
@@ -1241,3 +1241,92 @@ def test_robinhood_v4_static_pool_rows_are_cached_and_dynamic_liquidity_is_reloa
     assert clear_robinhood_v4_pool_cache(database_url=db) == 1
     _robinhood_v4_sqlite_payload(db)
     assert calls["exchange"] == 2
+
+
+def test_robinhood_v4_protocol_view_is_cached_and_clear_drops_it(tmp_path, monkeypatch):
+    from dex.intent_trade.chains.robinhood import flash_loan_pool_views as views
+    from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+        clear_robinhood_v4_pool_cache,
+    )
+
+    db = _seed_mainnet_v4_db(tmp_path)
+    clear_robinhood_v4_pool_cache(database_url=db)
+    calls = {"build": 0}
+    original_build = views._robinhood_v4_protocol_view_from_sqlite
+
+    def counting_build(*args, **kwargs):
+        calls["build"] += 1
+        return original_build(*args, **kwargs)
+
+    monkeypatch.setattr(views, "_robinhood_v4_protocol_view_from_sqlite", counting_build)
+
+    first = views.robinhood_v4_protocol_view("uniswap_v4", database_url=db)
+    second = views.robinhood_v4_protocol_view("uniswap_v4", database_url=db)
+
+    assert calls["build"] == 1
+    assert first is not second
+    assert "status" not in first
+    assert "status" not in second
+    assert second["cache"]["source"] == "robinhood_mainnet_v4_sqlite"
+
+    clear_robinhood_v4_pool_cache(database_url=db)
+    views.robinhood_v4_protocol_view("uniswap_v4", database_url=db)
+    assert calls["build"] == 2
+
+
+def test_robinhood_mainnet_v4_protocol_view_has_no_json_index_entrypoint():
+    import inspect
+
+    from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+        _robinhood_v4_protocol_view,
+    )
+
+    signature = inspect.signature(_robinhood_v4_protocol_view)
+    assert "index_loader" not in signature.parameters
+    assert "database_url" in signature.parameters
+
+
+def test_robinhood_v4_pair_count_assets_match_full_pool_rows(tmp_path):
+    from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (
+        _robinhood_v4_borrow_asset_rows,
+        _robinhood_v4_borrow_asset_rows_from_pair_counts,
+    )
+    from core.db.database_path import absolute_database_path
+    from core.db.storage_chain_core import load_chain_tokens
+    from core.db.storage_v4_exchange import (
+        load_v4_exchange_pool_pair_counts,
+        load_v4_exchange_pool_rows_for_view,
+    )
+
+    db = _seed_mainnet_v4_db(tmp_path, include_stock=True)
+    token_rows = load_chain_tokens(
+        str(absolute_database_path(db)),
+        network="robinhood",
+        chain_id=4663,
+    )
+    pool_rows = load_v4_exchange_pool_rows_for_view(
+        str(absolute_database_path(db)),
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+    )
+    pair_rows = load_v4_exchange_pool_pair_counts(
+        str(absolute_database_path(db)),
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+    )
+
+    full_assets, full_total = _robinhood_v4_borrow_asset_rows(pool_rows, token_rows=token_rows)
+    pair_assets, pair_total = _robinhood_v4_borrow_asset_rows_from_pair_counts(
+        pair_rows,
+        token_rows=token_rows,
+    )
+
+    assert pair_total == full_total
+    full_by_symbol = {row["token_symbol"]: row for row in full_assets}
+    pair_by_symbol = {row["token_symbol"]: row for row in pair_assets}
+    assert pair_by_symbol.keys() == full_by_symbol.keys()
+    for symbol, full_row in full_by_symbol.items():
+        assert pair_by_symbol[symbol]["pool_count"] == full_row["pool_count"]
+        assert pair_by_symbol[symbol]["paired_symbol_count"] == full_row["paired_symbol_count"]

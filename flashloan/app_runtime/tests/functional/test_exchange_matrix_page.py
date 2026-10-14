@@ -22,7 +22,7 @@ def test_exchange_matrix_page_is_standalone():
 def test_control_page_links_exchange_matrix_without_inline_matrix():
     client = app.test_client()
 
-    control_body = client.get("/").get_data(as_text=True)
+    control_body = client.get("/bot").get_data(as_text=True)
 
     assert "/analytics/exchange-matrix" in control_body
     assert 'href="/exchange-matrix"' not in control_body
@@ -45,7 +45,7 @@ def test_opportunity_health_page_is_standalone():
 
 
 def test_control_page_links_opportunity_health_without_inline_table():
-    body = app.test_client().get("/").get_data(as_text=True)
+    body = app.test_client().get("/bot").get_data(as_text=True)
 
     assert "/analytics/opportunity-health" in body
     assert 'href="/opportunity-health"' not in body

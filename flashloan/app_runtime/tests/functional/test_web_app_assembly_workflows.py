@@ -801,7 +801,7 @@ def test_dex_surface_payload_apis_are_distinct():
 
     assert "routeFramework" in submissions
     assert robinhood_testnet_submissions["routeFramework"]["routeFrameworkSource"] == "market_observation"
-    assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
+    assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
     assert robinhood_testnet_submissions["routeFramework"]["topRouteText"]
     assert "arbitragePaths" in overview
     assert overview["decisionBasis"] in {"market_observation_closed_loop", "borrow_anchor_to_non_anchor_candidate_path"}
@@ -828,8 +828,8 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
     assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
-    assert robinhood_testnet_observation["marketObservationSource"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot"}
-    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
+    assert robinhood_testnet_observation["marketObservationSource"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "sqlite_db"}
+    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
     assert len(robinhood_testnet_observation["chainSpecificObservationPools"]) <= 80
     if robinhood_testnet_observation.get("marketObservationPreview"):
         assert robinhood_testnet_observation["marketObservationPreview"]["chainSpecificObservationPoolsTotal"] >= len(
@@ -852,13 +852,13 @@ def test_dex_surface_payload_apis_are_distinct():
     assert "资金锚点可接入交易对" in robinhood_testnet_observation_page
     assert "关联非 ETH 交易对" not in robinhood_testnet_observation_page
     assert "观察状态" in robinhood_testnet_observation_page
-    assert robinhood_testnet_overview["marketObservationSource"] in {"computed", "cached_framework_live_confirmation", "cached_snapshot"}
-    assert robinhood_testnet_overview["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
+    assert robinhood_testnet_overview["marketObservationSource"] in {"computed", "cached_framework_live_confirmation", "cached_snapshot", "sqlite_db"}
+    assert robinhood_testnet_overview["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
     assert robinhood_testnet_overview["summary"]["overviewProbeCompleteCount"] >= 0
     if robinhood_testnet_overview["arbitragePaths"]:
         assert "overviewProfit" in robinhood_testnet_overview["arbitragePaths"][0]
     assert robinhood_testnet_quotes["selected_protocols"] == ["uniswap_v4"]
-    assert robinhood_testnet_quotes["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
+    assert robinhood_testnet_quotes["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
     assert robinhood_testnet_quotes["summary"]["routeCount"] >= 0
     assert robinhood_testnet_quotes["summary"]["pathSource"] == "market_observation"
     if robinhood_testnet_quotes["routes"]:

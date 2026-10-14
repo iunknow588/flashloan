@@ -97,10 +97,11 @@ def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkey
     append_cow_execution_attempts_jsonl(
         path,
         [
-            {
-                "observed_at": "2026-08-24T00:00:00+00:00",
-                "network": "robinhood",
-                "pair": "USDG -> WETH -> USDG",
+                {
+                    "observed_at": "2026-08-24T00:00:00+00:00",
+                    "network": "robinhood",
+                    "chain_id": 4663,
+                    "pair": "USDG -> WETH -> USDG",
                 "state": "quote_required",
                 "execution_phase": "market_candidate",
                 "checks_passed": False,
@@ -174,10 +175,11 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
     append_cow_execution_attempts_jsonl(
         path,
         [
-                {
-                    "observed_at": "2026-08-24T12:54:19+00:00",
-                    "network": "robinhood",
-                    "pair": pair,
+                    {
+                        "observed_at": "2026-08-24T12:54:19+00:00",
+                        "network": "robinhood",
+                        "chain_id": 4663,
+                        "pair": pair,
                     "state": "quote_required",
                     "tx_hash": "0x" + "c" * 64,
                     "execution_phase": "market_candidate",
@@ -192,10 +194,11 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
                     }
                 },
             },
-            {
-                "observed_at": "2026-08-24T12:54:30+00:00",
-                "network": "robinhood",
-                "pair": pair,
+                {
+                    "observed_at": "2026-08-24T12:54:30+00:00",
+                    "network": "robinhood",
+                    "chain_id": 4663,
+                    "pair": pair,
                 "state": "quote_required",
                 "execution_phase": "market_candidate",
                 "checks_passed": False,

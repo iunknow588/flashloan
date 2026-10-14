@@ -219,7 +219,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "/static/dex-strategy-selector.js" in body
         assert "/static/dex-provenance.js" in body
         assert "window.__DEX_PROVENANCE__" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
         assert "window.__DEX_STRATEGY_DEFAULT__" in body
         assert "Binance 速度策略" in body
         assert "闭环扫描策略" in body
@@ -275,7 +275,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
 
 
 def test_system_pages_keep_feature_selection_and_scope():
