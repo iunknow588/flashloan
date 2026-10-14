@@ -29,6 +29,17 @@ def main() -> int:
     )
     parser.add_argument("--rpc-url", default="", help="Optional Robinhood Testnet RPC URL override.")
     parser.add_argument("--skip-rpc-decode", action="store_true", help="Keep poolId-only rows without PoolKey/token metadata.")
+    parser.add_argument(
+        "--skip-liquidity-mark",
+        action="store_true",
+        help="Do not mark live PoolManager extsload liquidity on candidate pools.",
+    )
+    parser.add_argument(
+        "--liquidity-pool-ids",
+        default="",
+        help="Comma-separated poolIds to mark; empty means every fixed-fee no-hook pool in the index.",
+    )
+    parser.add_argument("--liquidity-batch-size", type=int, default=100)
     args = parser.parse_args()
 
     payload = write_v4_pool_liquidity_from_contract_evidence(
@@ -39,6 +50,15 @@ def main() -> int:
         token_balance_scan_scope=args.token_balance_scan_scope,
         decode_pool_keys=not args.skip_rpc_decode,
         rpc_url=args.rpc_url or None,
+        mark_liquidity=not args.skip_liquidity_mark,
+        liquidity_pool_ids=[
+            item.strip()
+            for item in args.liquidity_pool_ids.split(",")
+            if item.strip()
+        ]
+        if args.liquidity_pool_ids
+        else None,
+        liquidity_batch_size=max(1, int(args.liquidity_batch_size)),
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0

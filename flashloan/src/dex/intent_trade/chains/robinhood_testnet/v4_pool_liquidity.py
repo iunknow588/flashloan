@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
@@ -12,6 +13,16 @@ from eth_utils import keccak as _keccak
 from web3 import Web3
 
 from core.chain_data_registry import chain_contracts, chain_data_file_path
+from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
+    _batch_read_live_pool_states,
+    _connect_chain_rpc,
+)
+from dex.intent_trade.chains.robinhood_testnet.v4_liquidity_metrics import (
+    _int_or_none,
+    _is_usable_liquidity_target,
+    _liquidity_depth_status,
+    _liquidity_reserve_metrics,
+)
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     ERC20_ABI,
     MULTICALL3_ABI,
@@ -793,6 +804,147 @@ def _load_best_preflight_report(seed_path: Path, *, allow_fallback: bool) -> tup
     return best_path, best_report
 
 
+def _apply_extsload_liquidity(
+    pools: list[dict[str, Any]],
+    *,
+    w3: Any,
+    rpc_url: str,
+    pool_manager: str,
+    pool_ids: list[str] | None = None,
+    batch_size: int = 100,
+) -> dict[str, Any]:
+    """Mark pool rows with live PoolManager extsload liquidity."""
+    wanted = {str(item).strip().lower() for item in pool_ids or []}
+    selected = [
+        pool
+        for pool in pools
+        if isinstance(pool, dict)
+        and str(pool.get("poolId") or "").startswith("0x")
+        and (not wanted or str(pool.get("poolId") or "").lower() in wanted)
+    ]
+    errors: list[str] = []
+    confirmed_ids: list[str] = []
+    marked = 0
+    for start in range(0, len(selected), max(1, int(batch_size))):
+        batch = selected[start : start + max(1, int(batch_size))]
+        batch_ids = [str(pool.get("poolId") or "") for pool in batch]
+        states = _batch_read_live_pool_states(
+            w3=w3,
+            rpc_url=rpc_url,
+            pool_manager=pool_manager,
+            pool_ids=batch_ids,
+            network=ROBINHOOD_TESTNET_NETWORK,
+            chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        )
+        for pool in batch:
+            state = states.get(str(pool.get("poolId") or "").lower()) or {}
+            if state.get("error"):
+                error_message = str(state.get("error") or "")
+                if "liquidity is zero" in error_message.lower():
+                    pool["liquidityError"] = None
+                    pool["hasLiquidity"] = False
+                    pool["liquidityIndex"] = 0
+                    pool["depthStatus"] = "no_liquidity"
+                    pool["status"] = "initialized_pool_no_liquidity"
+                    pool["liquiditySource"] = state.get("source")
+                else:
+                    pool["liquidityError"] = error_message[:240]
+                    pool["depthStatus"] = "liquidity_read_failed"
+                    pool["hasLiquidity"] = pool.get("hasLiquidity")
+                    errors.append(f"{pool.get('poolId')}:{error_message[:160]}")
+                continue
+            pool["liquidity"] = str(state.get("liquidity") or "")
+            pool["sqrtPriceX96"] = str(state.get("sqrtPriceX96") or "")
+            pool["tick"] = state.get("tick")
+            pool["liquiditySource"] = state.get("source")
+            pool["liquidityReadAt"] = _stamp()
+            pool["liquidityBlockNumber"] = state.get("blockNumber")
+            try:
+                pool.update(_liquidity_reserve_metrics(pool, state))
+                depth = _liquidity_depth_status(pool)
+                pool["depthStatus"] = depth["label"]
+                pool["depthBand"] = depth
+                balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
+                balances["tvlUsd"] = pool.get("estimatedTvlUsd") or 0
+                pool["balances"] = balances
+                if pool.get("hasLiquidity"):
+                    pool["tvlUsd"] = pool.get("estimatedTvlUsd") or 0
+                    pool["status"] = "initialized_pool_with_liquidity"
+                    confirmed_ids.append(str(pool.get("poolId") or "").lower())
+                    marked += 1
+                else:
+                    pool["status"] = "initialized_pool_no_liquidity"
+            except Exception as exc:
+                pool["liquidityError"] = str(exc)[:240]
+                pool["depthStatus"] = "liquidity_math_failed"
+                pool["hasLiquidity"] = pool.get("hasLiquidity")
+    return {
+        "liquidityMarkerActive": True,
+        "liquidityMarkedPoolCount": marked,
+        "liquidityErrorCount": len(errors),
+        "liquidityErrors": errors[:20],
+        "liquidityScanAt": _stamp(),
+        "liquidityPoolIds": sorted(confirmed_ids),
+        "liquiditySource": "pool_manager_extsload_live_state_batch",
+    }
+
+
+def mark_pool_liquidity_for_pool_index(
+    *,
+    rpc_url: str | None = None,
+    pool_manager: str | None = None,
+    output_path: Path | None = None,
+    pool_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Refresh an existing testnet pool index with live PoolManager liquidity."""
+    resolved = output_path or chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_index")
+    if resolved is None:
+        raise ValueError("Robinhood testnet v4_pool_index data file is not configured")
+    payload = _read_json(resolved)
+    if not payload:
+        raise ValueError(f"Robinhood testnet v4_pool_index file is empty or invalid: {resolved}")
+    resolved_pool_manager = Web3.to_checksum_address(
+        pool_manager
+        or payload.get("poolManager")
+        or ROBINHOOD_TESTNET_V4_POOL_MANAGER
+    )
+    if rpc_url:
+        w3 = _web3(rpc_url)
+        resolved_rpc_url = rpc_url
+    else:
+        w3, resolved_rpc_url = _connect_chain_rpc(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+        )
+    actual_chain_id = int(w3.eth.chain_id)
+    if actual_chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
+        raise ValueError(
+            f"RPC returned chainId {actual_chain_id}, expected {ROBINHOOD_TESTNET_CHAIN_ID}"
+        )
+    pools = [pool for pool in payload.get("pools") or [] if isinstance(pool, dict)]
+    scan_ids = [
+        str(pool_id).strip().lower()
+        for pool_id in (pool_ids or [])
+        if str(pool_id or "").strip().startswith("0x")
+    ]
+    activity = _apply_extsload_liquidity(
+        pools,
+        w3=w3,
+        rpc_url=resolved_rpc_url,
+        pool_manager=resolved_pool_manager,
+        pool_ids=scan_ids or None,
+    )
+    if scan_ids:
+        activity["liquidityRequestedPoolIds"] = sorted(scan_ids)
+    payload.update(activity)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {**payload, "outputPath": str(resolved)}
+
+
 def build_v4_pool_liquidity_from_contract_evidence(
     *,
     contract_metadata_path: Path | None = None,
@@ -803,6 +955,9 @@ def build_v4_pool_liquidity_from_contract_evidence(
     token_balance_scan_scope: str = "active_plus_known",
     multicall_chunk_size: int = 400,
     max_token_balance_scan_seconds: int | None = None,
+    mark_liquidity: bool = True,
+    liquidity_pool_ids: list[str] | None = None,
+    liquidity_batch_size: int = 100,
 ) -> dict[str, Any]:
     """Build a page-consumable V4 poolId cache from local Robinhood testnet evidence."""
 
@@ -934,6 +1089,51 @@ def build_v4_pool_liquidity_from_contract_evidence(
         ]
     if token_balance_scan and token_balance_scan.get("tokenBalanceScanComplete") is False:
         blocking_reasons.append("v4_poolmanager_token_balance_scan_incomplete")
+    liquidity_activity: dict[str, Any] = {}
+    if mark_liquidity and pools:
+        try:
+            wanted_ids = {
+                str(item).strip().lower()
+                for item in (liquidity_pool_ids or [])
+                if str(item or "").strip().startswith("0x")
+            }
+            selected = [
+                pool
+                for pool in pools
+                if isinstance(pool, dict)
+                and str(pool.get("poolId") or "").startswith("0x")
+                and (
+                    not wanted_ids
+                    or str(pool.get("poolId") or "").lower() in wanted_ids
+                )
+            ]
+            if not wanted_ids:
+                selected = [pool for pool in selected if _is_usable_liquidity_target(pool)]
+            if selected:
+                if rpc_url:
+                    w3 = _web3(rpc_url)
+                    live_rpc_url = rpc_url
+                else:
+                    w3, live_rpc_url = _connect_chain_rpc(
+                        ROBINHOOD_TESTNET_NETWORK,
+                        ROBINHOOD_TESTNET_CHAIN_ID,
+                    )
+                liquidity_activity = _apply_extsload_liquidity(
+                    selected,
+                    w3=w3,
+                    rpc_url=live_rpc_url,
+                    pool_manager=pool_manager,
+                    batch_size=liquidity_batch_size,
+                )
+        except Exception as exc:
+            liquidity_activity = {
+                "liquidityMarkerActive": True,
+                "liquidityMarkedPoolCount": 0,
+                "liquidityErrorCount": 1,
+                "liquidityErrors": [str(exc)[:240]],
+                "liquidityScanAt": _stamp(),
+                "liquiditySource": "pool_manager_extsload_live_state_batch",
+            }
     return {
         "schemaVersion": "robinhood-testnet-v4-pool-liquidity-v1",
         "network": ROBINHOOD_TESTNET_NETWORK,
@@ -957,6 +1157,7 @@ def build_v4_pool_liquidity_from_contract_evidence(
         "nativePoolManagerBalanceWei": native_balance_wei,
         "flashAccountingSourceCount": len(flash_accounting_sources),
         "flashAccountingSources": flash_accounting_sources,
+        **liquidity_activity,
         "poolKeys": pool_keys,
         "pools": pools,
         "decodeErrors": decode_errors,
@@ -965,6 +1166,7 @@ def build_v4_pool_liquidity_from_contract_evidence(
             "Borrowable V4 flash-accounting assets are currencies with positive PoolManager balance.",
             "Default balance scan is strategic: known configured stable assets plus active PoolKey currencies; full_index expands discovery to every initialized PoolManager currency.",
             "PoolKey rows are trading-pool evidence and do not by themselves prove flash-accounting borrowable funds.",
+            "Liquidity is marked from live PoolManager extsload when enabled; swap logs only record recent activity.",
         ],
     }
 
