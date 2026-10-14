@@ -754,22 +754,93 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
         "_v4_index_bridge_pairs_for_anchor_groups",
         lambda *args, **kwargs: ([], {"enabled": False, "status": "test_stub"}),
     )
+
+    def db_step(pool, from_symbol, from_address, to_symbol, to_address):
+        return {
+            **pool,
+            "anchorSymbol": from_symbol,
+            "anchorAddress": from_address,
+            "counterSymbol": to_symbol,
+            "counterAddress": to_address,
+            "routeSymbols": [from_symbol, to_symbol],
+            "routeAddresses": [from_address, to_address],
+            "source": "v4_closed_loop_db",
+            "usableForObservation": True,
+        }
+
+    def db_route(pool_steps):
+        symbols = [step["routeSymbols"][0] for step in pool_steps] + [pool_steps[-1]["routeSymbols"][1]]
+        return {
+            "kind": "bridge_closed_loop",
+            "closedLoop": True,
+            "borrowSymbol": symbols[0],
+            "anchorSymbol": symbols[0],
+            "bridgeSymbol": symbols[1],
+            "targetSymbol": symbols[2],
+            "pathSymbols": symbols,
+            "pathText": " -> ".join(symbols),
+            "routePools": pool_steps,
+            "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
+            "hopCandidates": [],
+            "hopCandidateCounts": {},
+            "hopCandidateCombinationCount": 1,
+            "poolPathKey": "|".join(str(step.get("pool") or "") for step in pool_steps),
+            "recommendedFirstPriority": True,
+            "routeRecommendationBasis": "fixed_fee_no_hook_low_fee",
+            "source": "v4_closed_loop_db",
+        }
+
+    route_a = db_route(
+        [
+            db_step(weth_vlad_a_pool, "WETH", weth, "VLAD", vlad_a),
+            db_step(vlad_a_usdg_pool, "VLAD", vlad_a, "USDG", usdg),
+            db_step(usdg_weth_pool, "USDG", usdg, "WETH", weth),
+        ]
+    )
+    route_b = db_route(
+        [
+            db_step(weth_vlad_b_pool, "WETH", weth, "VLAD", vlad_b),
+            db_step(vlad_b_usdg_pool, "VLAD", vlad_b, "USDG", usdg),
+            db_step(usdg_weth_pool, "USDG", usdg, "WETH", weth),
+        ]
+    )
+    db_observation = {
+        "mode": "dex_market_observation",
+        "chain_id": 4663,
+        "selected_protocols": [],
+        "marketObservationSource": "sqlite_db",
+        "marketObservationSourceStage": "sqlite_db",
+        "tableSource": "ob_table",
+        "referencedTable": "ch_table",
+        "observationAnchorSymbols": ["WETH", "USDG"],
+        "anchorGroups": payload["anchorGroups"],
+        "pairs": payload["pairs"],
+        "bridgePairs": payload["pairs"],
+        "observationSequences": [],
+        "closedLoopSequences": [],
+        "closedLoopRoutes": [route_a, route_b],
+        "chainSpecificObservationPairs": payload["pairs"],
+        "chainSpecificObservationPools": [
+            usdg_weth_pool,
+            weth_vlad_a_pool,
+            weth_vlad_b_pool,
+            vlad_a_usdg_pool,
+            vlad_b_usdg_pool,
+        ],
+        "chainSpecificObservationTokens": [],
+        "summary": {
+            "anchorBorrowSymbols": ["WETH", "USDG"],
+            "observationAnchorSymbols": ["WETH", "USDG"],
+            "closedLoopAnchorSymbols": ["WETH", "USDG"],
+            "observationSequenceCount": "2",
+            "closedLoopSequenceCount": "2",
+            "closedLoopRouteCount": "2",
+        },
+    }
     monkeypatch.setattr(
         dex_surfaces,
-        "_chain_fund_anchor_pair_observation",
-        lambda chain_id=None, protocols=None: {
-            "enabled": False,
-            "status": "test_stub",
-            "routeCount": 0,
-            "observationSequences": [],
-            "closedLoopSequences": [],
-            "closedLoopRoutes": [],
-            "associatedObservationPairs": [],
-            "associatedObservationPools": [],
-            "associatedObservationTokens": [],
-            "recentSwapFilterApplied": False,
-            "liquidityFilterApplied": False,
-        },
+        "_database_first_robinhood_observation_payload",
+        lambda chain_id=None, protocols=None, database_url=None: db_observation,
     )
     monkeypatch.setattr(
         dex_surfaces,
@@ -807,7 +878,12 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
     vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "WETH -> VLAD -> USDG -> WETH"]
 
-    assert len(vlad_routes) >= 1
+    assert len(vlad_routes) >= 2
+    address_lists = {
+        tuple(str(address).lower() for address in route.get("routeAddresses") or [])
+        for route in vlad_routes
+    }
+    assert {vlad_a, vlad_b} <= {address for addresses in address_lists for address in addresses}
     assert not any(route["symbolPair"] == "WETH -> VLAD -> WETH" for route in quotes["routes"])
 
 

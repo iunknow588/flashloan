@@ -156,7 +156,11 @@ def _build_quote_routes_and_best(
                         or matched_route_index <= route_live_test_policy.live_route_limit
                     )
                 )
-                or (matched_route_index == 1 and route_live_test_policy.probe_best_only)
+                or (
+                    matched_route_index == 1
+                    and route_live_test_policy.probe_best_only
+                    and not base_quote_analysis.get("steps")
+                )
                 or base_quote_analysis.get("executableCandidate")
             )
         )

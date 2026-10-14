@@ -269,17 +269,57 @@ def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
         },
     )
 
+    expected_symbols = ["AMD", "AMZN", "ETH", "NFLX", "PLTR", "TSLA", "TZ", "USDE", "USDG", "WETH"]
+    db_observation = {
+        "mode": "dex_market_observation",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "marketObservationSource": "sqlite_db",
+        "marketObservationSourceStage": "sqlite_db",
+        "summary": {
+            "observationAnchorCount": str(len(expected_symbols)),
+            "observationSequenceCount": 0,
+        },
+        "observationAnchorSymbols": expected_symbols,
+        "anchorGroups": [],
+        "closedLoopRoutes": [],
+        "pairs": [],
+        "bridgePairs": [],
+    }
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_database_first_robinhood_observation_payload",
+        lambda **kwargs: db_observation,
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_observation_anchor_symbols",
+        lambda pool_payload, **kwargs: expected_symbols,
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_route_framework_context_from_observation",
+        lambda observation, pool_payload, **kwargs: {
+            "overview_paths": [],
+            "watch_pairs": [],
+            "anchor_symbols": expected_symbols,
+            "closed_loop_anchor_symbols": expected_symbols,
+            "observation_anchor_symbols": expected_symbols,
+            "path_source": "market_observation",
+            "used_market_observation": True,
+        },
+    )
+
     overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v4"])
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=46630, protocols=["uniswap_v4"])
 
-    expected_symbols = ["ETH", "TZ", "USDE", "USDG", "WETH"]
     assert overview["decisionBasis"] in {
         "robinhood_testnet_market_observation_closed_loop",
         "symbol_anchor_to_non_anchor_candidate_path",
     }
     assert overview["summary"]["anchorBorrowSymbols"] == expected_symbols
-    assert observation["summary"]["observationAnchorCount"] == 5
+    assert observation["summary"]["observationAnchorCount"] == len(expected_symbols)
     assert observation["observationAnchorSymbols"] == expected_symbols
     assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
     assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols
@@ -438,7 +478,10 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     assert analysis["finalOutputUsd"] is None
     assert analysis["netProfitUsd"] is None
     assert analysis["steps"][0]["outputUsd"] is None
-    assert all(step["quoteSource"] != "constant_product_v2_static_reserve" for step in analysis["steps"])
+    assert all(
+        str(step.get("quoteSource") or "") != "constant_product_v2_static_reserve"
+        for step in analysis["steps"]
+    )
 
 
 def test_robinhood_testnet_live_v4_adapter_quotes_mark_live_verified(monkeypatch):
@@ -635,7 +678,7 @@ def test_robinhood_testnet_quote_routes_reuses_cached_overview(monkeypatch):
     assert first["marketObservationSourceStage"] == "cached_snapshot"
 
 
-def test_robinhood_testnet_overview_reuses_cached_market_observation(monkeypatch):
+def test_robinhood_testnet_overview_reads_database_observation(monkeypatch):
     from market.binance_market import dex_surfaces
 
     old_cache = dict(dex_surfaces._DEX_SURFACE_CACHE)
@@ -693,6 +736,15 @@ def test_robinhood_testnet_overview_reuses_cached_market_observation(monkeypatch
         return cached_observation
 
     monkeypatch.setattr(dex_surfaces, "dex_market_observation_payload", fake_market_observation_payload)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_database_first_robinhood_observation_payload",
+        lambda **kwargs: {
+            **cached_observation,
+            "marketObservationSource": "sqlite_db",
+            "marketObservationSourceStage": "sqlite_db",
+        },
+    )
     monkeypatch.setattr(
         dex_surfaces,
         "dex_pool_candidates_payload",
@@ -759,7 +811,7 @@ def test_robinhood_testnet_overview_reuses_cached_market_observation(monkeypatch
 
     assert calls["observation"] == 0
     assert overview["routeFrameworkSource"] == "market_observation"
-    assert overview["marketObservationSource"] == "cached_surface_framework"
+    assert overview["marketObservationSource"] == "sqlite_db"
     assert overview["arbitragePaths"][0]["overviewRoute"]["pathText"] == "USDC -> WETH -> DAI -> USDC"
 
 
@@ -817,9 +869,9 @@ def test_dex_overview_payload_reuses_cached_framework_payload(monkeypatch):
         dex_surfaces._DEX_SURFACE_CACHE.clear()
         dex_surfaces._DEX_SURFACE_CACHE.update(old_cache)
 
-    assert calls == {"candidates": 0, "surface": 1}
+    assert calls == {"candidates": 0, "surface": 0}
     assert first == second
-    assert second["marketObservationSourceStage"] == "computed"
+    assert second["marketObservationSourceStage"] == "sqlite_db"
     assert second["tableSource"] == "dex_table"
     assert second["referencedTable"] == "ob_table"
     assert second["arbitragePaths"][0]["pathSource"] == "market_observation"
@@ -864,7 +916,7 @@ def test_robinhood_testnet_overview_builds_from_database_candidate_pools(monkeyp
 
     # Robinhood testnet V4 is database-first: the overview reads the same
     # candidate tables instead of falling back to a static compact snapshot.
-    assert calls == {"candidate": 1, "context": 1}
+    assert calls == {"candidate": 0, "context": 1}
     assert overview["routeFrameworkSource"] == "market_observation"
     assert overview["summary"]["arbitragePathCount"] == 0
     assert overview["arbitragePaths"] == []
@@ -933,7 +985,7 @@ def test_robinhood_mainnet_overview_builds_from_database_candidate_pools(monkeyp
     # Robinhood mainnet V4 is database-first: the overview reads the same
     # candidate tables instead of falling back to a static compact snapshot.
     # `_candidate_payload` is now a SQLite read, not a rebuild/fallback.
-    assert calls == {"candidate": 1, "context": 1}
+    assert calls == {"candidate": 0, "context": 1}
     assert overview["routeFrameworkSource"] == "market_observation"
     assert overview["summary"]["arbitragePathCount"] == 0
     assert overview["arbitragePaths"] == []

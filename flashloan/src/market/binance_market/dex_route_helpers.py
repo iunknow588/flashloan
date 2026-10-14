@@ -23,6 +23,7 @@ from market.binance_market.dex_best_amount_snapshots import (
 
 ROOT = Path(__file__).resolve().parents[4]
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood_common.stock_token_registry import stock_token_by_symbol
 from core.chain_data_registry import chain_data_by_chain_id
 
 ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = (
@@ -106,6 +107,23 @@ def _load_chain_symbol_addresses(chain_id: int | None) -> tuple[dict[str, str], 
     except Exception:
         mapping = {}
         ambiguous = set()
+    chain_id_value = int(chain_id or 0)
+    if chain_id_value in {4663, 46630}:
+        try:
+            network = "robinhood" if chain_id_value == 4663 else "robinhood-testnet"
+            for symbol, item in stock_token_by_symbol(
+                network=network,
+                chain_id=chain_id_value,
+            ).items():
+                address = str(item.get("address") or "").strip()
+                existing = mapping.get(symbol)
+                if existing is not None and existing.lower() != address.lower():
+                    ambiguous.add(symbol)
+                    mapping.pop(symbol, None)
+                elif existing is None and address:
+                    mapping[symbol] = address
+        except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+            pass
     _SYMBOL_ADDRESS_CACHE[chain_id] = (mapping, ambiguous)
     return mapping, ambiguous
 

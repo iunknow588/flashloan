@@ -298,17 +298,6 @@ def _official_v4_composer_address(chain_id: int | None = None) -> str | None:
     )
 
 
-def _reverse_step(step: dict[str, Any]) -> dict[str, Any]:
-    from dex.runtime.dex_onchain_quote_evidence import _norm_symbol
-
-    reversed_step = dict(step)
-    reversed_step["fromSymbol"] = _norm_symbol(step.get("toSymbol"))
-    reversed_step["toSymbol"] = _norm_symbol(step.get("fromSymbol"))
-    reversed_step["tokenIn"] = step.get("tokenOut") or ""
-    reversed_step["tokenOut"] = step.get("tokenIn") or ""
-    return reversed_step
-
-
 def _official_v4_arb_candidate_route(
     *, route_symbols: list[str], route_addresses: list[str], steps: list[dict[str, Any]], pools: dict[str, dict[str, Any]]
 ) -> tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str]] | None:
@@ -408,7 +397,8 @@ def official_v4_arb_static_hop_rows(
     candidates: list[tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]]] = []
     # Aggregate every closed-loop route in the same flash-loan anchor group into
     # one Candidate so the composer can compare the full group and call the
-    # executor once for that group instead of per route.
+    # executor once for that group instead of per route.  SQLite already stores
+    # X-Y-Z-X and X-Z-Y-X as two directed rows, so no reverse is generated here.
     for group_route in (routes_group or [route]):
         if not isinstance(group_route, dict):
             continue
@@ -423,22 +413,15 @@ def official_v4_arb_static_hop_rows(
             continue
         if not all(_text(step.get("protocol") or step.get("dex") or "").lower() in {"uniswap_v4", "v4"} for step in group_steps):
             continue
-        reverse_symbols = [group_symbols[0], group_symbols[2], group_symbols[1], group_symbols[0]]
-        reverse_addresses = [group_addresses[0], group_addresses[2], group_addresses[1], group_addresses[0]] if len(group_addresses) == 4 else group_addresses
-        reverse_steps = [_reverse_step(group_steps[2]), _reverse_step(group_steps[1]), _reverse_step(group_steps[0])]
-        for candidate_symbols, candidate_addresses, candidate_steps in (
-            (group_symbols, group_addresses, group_steps),
-            (reverse_symbols, reverse_addresses, reverse_steps),
-        ):
-            candidate = _official_v4_arb_candidate_route(
-                route_symbols=candidate_symbols,
-                route_addresses=candidate_addresses,
-                steps=candidate_steps,
-                pools=group_pools,
-            )
-            if candidate is None:
-                continue
-            candidates.append((*candidate, group_pools))
+        candidate = _official_v4_arb_candidate_route(
+            route_symbols=group_symbols,
+            route_addresses=group_addresses,
+            steps=group_steps,
+            pools=group_pools,
+        )
+        if candidate is None:
+            continue
+        candidates.append((*candidate, group_pools))
     if not candidates:
         return None
     keysets = [candidate[3] for candidate in candidates]

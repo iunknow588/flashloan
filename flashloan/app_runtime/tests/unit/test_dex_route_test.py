@@ -8,6 +8,7 @@ from market.binance_market.dex_route_test import (
     _quote_failure_status,
     _raw_amount_to_human,
     _resolve_route_addresses_from_market_payload,
+    _single_direction_contract_sets,
     _step_failure_status,
     estimate_route_live_quote,
     estimate_fixed_amount_pnl,
@@ -17,6 +18,24 @@ from market.binance_market.dex_route_test import (
     recommended_route_test_amount,
     run_official_v4_arb_route_test,
 )
+
+
+def test_single_direction_contract_sets_emit_exactly_one_directed_route():
+    keys = [
+        ["0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e", "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4", 3000, 60, "0x0000000000000000000000000000000000000000"],
+        ["0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4", "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"],
+        ["0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8", "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e", 3000, 60, "0x0000000000000000000000000000000000000000"],
+    ]
+    directions = [True, False, True]
+
+    keysets, directionsets = _single_direction_contract_sets(keys, directions)
+
+    assert len(keysets) == 1
+    assert len(directionsets) == 1
+    assert keysets[0] == keys
+    assert directionsets[0] == directions
+    assert len(keysets[0]) == 3
+    assert len(directionsets[0]) == 3
 
 
 def test_estimate_route_live_quote_marks_unprofitable_even_with_live_adapter(monkeypatch):
@@ -499,6 +518,32 @@ def test_official_route_addresses_resolves_canonical_weth_without_duplicate_ambi
 
 def test_official_route_addresses_rejects_unknown_symbol_instead_of_guessing():
     assert _official_route_addresses(["WETH", "UNKNOWN_BAD_TOKEN", "WETH"], chain_id=46630) == []
+
+
+def test_official_route_addresses_resolve_mainnet_stock_symbols_from_registry():
+    addresses = _official_route_addresses(["AAPL", "NVDA", "MSFT", "AAPL"], chain_id=4663)
+    assert [address.lower() for address in addresses] == [
+        "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+        "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+    ]
+    assert _official_route_addresses(["AAPL"], chain_id=46630) == []
+
+
+def test_official_route_addresses_resolve_testnet_stock_symbols_from_registry():
+    addresses = _official_route_addresses(
+        ["TSLA", "AMZN", "NFLX", "PLTR", "AMD", "TSLA"],
+        chain_id=46630,
+    )
+    assert [address.lower() for address in addresses] == [
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+    ]
 
 
 def test_resolve_route_addresses_from_market_payload_falls_back_to_observed_route(monkeypatch):
@@ -1337,6 +1382,39 @@ def test_run_official_v4_arb_route_test_payload_includes_best_amount_calculation
         }
 
     monkeypatch.setattr(route_test_module, "_routes_payload", fake_routes_payload)
+    addresses = [
+        "0x0000000000000000000000000000000000000101",
+        "0x0000000000000000000000000000000000000102",
+        "0x0000000000000000000000000000000000000103",
+        "0x0000000000000000000000000000000000000101",
+    ]
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_keys",
+        lambda **kwargs: [
+            {
+                "currency0": addresses[1],
+                "currency1": addresses[0],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            {
+                "currency0": addresses[1],
+                "currency1": addresses[2],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            {
+                "currency0": addresses[2],
+                "currency1": addresses[0],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+        ],
+    )
 
     class FakeProc:
         returncode = 0
@@ -1354,6 +1432,7 @@ def test_run_official_v4_arb_route_test_payload_includes_best_amount_calculation
         amount=1.0,
         broadcast=True,
         chain_id=46630,
+        route_addresses=addresses,
     )
 
     assert result["ok"] is True
@@ -1512,6 +1591,39 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
         "_routes_payload",
         lambda **kwargs: {"routes": []},
     )
+    addresses = [
+        "0x0000000000000000000000000000000000000201",
+        "0x0000000000000000000000000000000000000202",
+        "0x0000000000000000000000000000000000000203",
+        "0x0000000000000000000000000000000000000201",
+    ]
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_keys",
+        lambda **kwargs: [
+            {
+                "currency0": addresses[1],
+                "currency1": addresses[0],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            {
+                "currency0": addresses[1],
+                "currency1": addresses[2],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            {
+                "currency0": addresses[2],
+                "currency1": addresses[0],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+        ],
+    )
 
     class FakeProc:
         returncode = 0
@@ -1533,6 +1645,7 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
         amount=1.0,
         broadcast=False,
         chain_id=46630,
+        route_addresses=addresses,
     )
 
     assert result["ok"] is True

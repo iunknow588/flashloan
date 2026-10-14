@@ -164,23 +164,6 @@ def _load_route_context(
     route_symbols = _norm_symbols(route_symbols)
     routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
     route = route if isinstance(route, dict) else _match_route(routes_payload.get("routes") or [], route_symbols)
-    if route is None and route_symbols and route_symbols[0] == route_symbols[-1]:
-        reversed_symbols = list(reversed(route_symbols))
-        reversed_route = _match_route(routes_payload.get("routes") or [], reversed_symbols)
-        if reversed_route:
-            reversed_addresses = [str(item) for item in (reversed_route.get("routeAddresses") or []) if str(item).strip()]
-            route = {
-                **reversed_route,
-                "routeSymbols": route_symbols,
-                "symbolPair": " -> ".join(route_symbols),
-                "routeAddresses": list(reversed(reversed_addresses)) if len(reversed_addresses) == len(route_symbols) else reversed_addresses,
-                "routeTokenPath": [],
-                "overviewRoute": {
-                    **((reversed_route.get("overviewRoute") or {}) if isinstance(reversed_route.get("overviewRoute"), dict) else {}),
-                    "pathSymbols": route_symbols,
-                    "pathTokens": [],
-                },
-            }
     if route is None:
         available = [_route_symbols(item) for item in (routes_payload.get("routes") or [])]
         return (
@@ -210,7 +193,6 @@ def _load_route_context(
 def _choose_direction(
     *,
     quote_analysis_fn: Any,
-    routes_payload: dict[str, Any],
     route: dict[str, Any],
     route_symbols: list[str],
     route_addresses: list[str],
@@ -227,25 +209,6 @@ def _choose_direction(
     route_addresses = [str(item) for item in analysis.get("routeAddresses") or [] if str(item).strip()]
     if not route_addresses:
         route_addresses = _official_route_addresses(route_symbols, chain_id=chain_id)
-    ref_net_profit = analysis.get("referenceNetProfitAmount")
-    if ref_net_profit is not None and float(ref_net_profit) < 0:
-        reversed_symbols = list(reversed(route_symbols))
-        if reversed_symbols and reversed_symbols[0] == reversed_symbols[-1]:
-            rev_route = _match_route(routes_payload.get("routes") or [], reversed_symbols)
-            if rev_route:
-                rev_analysis = quote_analysis_fn(
-                    rev_route,
-                    price_map=price_map,
-                    chain_id=chain_id,
-                    token_basis_input_amount=amount,
-                )
-                rev_profit = rev_analysis.get("referenceNetProfitAmount")
-                if rev_profit is not None and float(rev_profit) > float(ref_net_profit):
-                    analysis = rev_analysis
-                    route_symbols = reversed_symbols
-                    if route_addresses and len(route_addresses) == len(reversed_symbols):
-                        route_addresses = list(reversed(route_addresses))
-                    route = rev_route
     return route_symbols, route, analysis, route_addresses
 
 
@@ -269,7 +232,6 @@ def estimate_route_live_quote(
         return load_error
     route_symbols, route, analysis, route_addresses = _choose_direction(
         quote_analysis_fn=_route_quote_analysis,
-        routes_payload=routes_payload,
         route=route or {},
         route_symbols=route_symbols,
         route_addresses=[],
@@ -625,7 +587,6 @@ def estimate_fixed_amount_pnl(
         return load_error
     route_symbols, route, analysis, route_addresses = _choose_direction(
         quote_analysis_fn=_route_quote_analysis,
-        routes_payload=routes_payload,
         route=route or {},
         route_symbols=route_symbols,
         route_addresses=[],
@@ -922,6 +883,14 @@ _OFFICIAL_V4_RUN_BEST_ABI = [
 ]
 
 
+def _single_direction_contract_sets(
+    keys: list[list[Any]],
+    directions: list[bool],
+) -> tuple[list[list[list[Any]]], list[list[bool]]]:
+    """Wrap one fixed direction set for the official V4 arb arrays."""
+    return [list(keys)], [list(directions)]
+
+
 def _official_v4_preview_python(
     *,
     route_symbols: list[str],
@@ -959,10 +928,7 @@ def _official_v4_preview_python(
     for index in range(3):
         input_token = str(route_addresses[index]).lower()
         directions.append(input_token == keys[index][0].lower())
-    reverse_keys = [keys[2], keys[1], keys[0]]
-    reverse_directions = [not directions[2], not directions[1], not directions[0]]
-    keysets = [keys, reverse_keys]
-    directionsets = [directions, reverse_directions]
+    keysets, directionsets = _single_direction_contract_sets(keys, directions)
     amount_raw = int(Decimal(str(amount)) * (Decimal(10) ** 18))
     selected_amount_method = "onchain_preview_adaptive_best_amount"
     try:
@@ -1093,7 +1059,7 @@ def _official_v4_preview_python(
             selected_profit_raw = profit_raw
             attempted_count = 2
             selected_amount_method = "fixed_amount_runArbitrageBest"
-            selected_symbols = route_symbols if route_index == 0 else [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
+            selected_symbols = route_symbols
             return (
                 {
                     "ok": True,
@@ -1144,7 +1110,7 @@ def _official_v4_preview_python(
                 )
             return None
         return None
-    selected_symbols = route_symbols if route_index == 0 else [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
+    selected_symbols = route_symbols
     return (
         {
             "ok": True,
@@ -1324,17 +1290,8 @@ def _official_v4_broadcast_python(
     for index in range(3):
         input_token = str(route_addresses[index]).lower()
         directions.append(input_token == keys[index][0].lower())
-    reverse_keys = [keys[2], keys[1], keys[0]]
-    reverse_directions = [not directions[2], not directions[1], not directions[0]]
-    keysets = [keys, reverse_keys]
-    directionsets = [directions, reverse_directions]
+    keysets, directionsets = _single_direction_contract_sets(keys, directions)
     route_index = 0
-    try:
-        route_index = int(parsed.get("selectedRouteIndex") or parsed.get("routeIndex") or 0)
-    except (TypeError, ValueError):
-        route_index = 0
-    if route_index >= len(keysets):
-        route_index = 0
     selected_amount_raw = int(parsed.get("selectedAmount") or parsed.get("bestAmountRaw") or 0)
     if selected_amount_raw <= 0:
         selected_amount_raw = int(Decimal(str(parsed.get("bestAmount") or amount)) * (Decimal(10) ** 18))

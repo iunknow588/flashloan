@@ -11,10 +11,7 @@ from market.strategy.arbitrage import ArbitrageConfig
 
 
 def test_testnet_observation_scope_matches_pool_addresses_case_insensitively():
-    from dex.intent_trade.chains.robinhood_testnet.dex_pool_candidates import (
-        _row_uses_flash_asset,
-        _row_uses_observation_scope,
-    )
+    from dex.intent_trade.chains.robinhood_testnet.dex_pool_candidates import _row_uses_flash_asset
 
     row = {
         "token0": "0x58cF1f9aa413aD044109aE6eCAc2AA473218b554",
@@ -31,7 +28,6 @@ def test_testnet_observation_scope_matches_pool_addresses_case_insensitively():
         "0x58CF1F9AA413AD044109AE6ECAC2AA473218B554",
     }
 
-    assert _row_uses_observation_scope(row, scope) is True
     assert _row_uses_flash_asset(row, {"ETH"}, flash_addresses) is True
 
 
@@ -606,7 +602,14 @@ def test_dex_opportunity_snapshot_starts_scanner_for_fresh_review(monkeypatch):
 def test_ensure_dex_opportunity_scanner_running_populates_first_snapshot(monkeypatch):
     from runtime import dex_opportunity_scanner
 
-    calls = {"start": 0, "watch": 0, "snapshot": 0, "quote_payload": 0, "trigger_context": 0}
+    calls = {
+        "start": 0,
+        "watch": 0,
+        "snapshot": 0,
+        "quote_payload": 0,
+        "trigger_context": 0,
+        "overview": 0,
+    }
 
     class FakeScanner:
         def start(self, *args, **kwargs):
@@ -631,11 +634,24 @@ def test_ensure_dex_opportunity_scanner_running_populates_first_snapshot(monkeyp
         _snapshots = {}
 
     monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda: FakeScanner())
+    monkeypatch.setattr(
+        dex_opportunity_scanner,
+        "dex_overview_payload",
+        lambda **kwargs: calls.__setitem__("overview", calls["overview"] + 1)
+        or {"mode": "dex_overview"},
+    )
 
     scanner = dex_opportunity_scanner.ensure_dex_opportunity_scanner_running(chain_id=46630, protocols=["uniswap_v4"])
 
     assert scanner is not None
-    assert calls == {"start": 1, "watch": 0, "snapshot": 1, "quote_payload": 1, "trigger_context": 1}
+    assert calls == {
+        "start": 1,
+        "watch": 0,
+        "snapshot": 1,
+        "quote_payload": 1,
+        "trigger_context": 1,
+        "overview": 1,
+    }
 
 
 def test_dex_opportunity_scanner_limits_routes_to_top_candidates_on_non_testnet():

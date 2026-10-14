@@ -164,8 +164,8 @@ def test_official_v4_group_static_hop_aggregates_closed_loop_routes(monkeypatch)
     token_z, candidates, _amount, _min_profit, _min_deviation = contract.functions.run_best.calls[0]
     assert token_z.lower() == tz.lower()
     assert len(candidates) == 1
-    assert len(candidates[0][0]) == 4
-    assert len(candidates[0][1]) == 4
+    assert len(candidates[0][0]) == 2
+    assert len(candidates[0][1]) == 2
 
 
 def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
@@ -183,7 +183,7 @@ def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
         def __call__(self, *args):
             class CallResult:
                     def call(self, **kwargs):
-                        return (1000, 500, 1200, 200, 1)
+                        return (1000, 500, 1200, 200, 0)
             return CallResult()
 
     class FakeArbFunctions:
@@ -221,4 +221,4 @@ def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
 
     assert result is not None
     _hop_rows, selected_symbols, _selected_addresses, _selected_steps = result
-    assert selected_symbols == ["TZ", "TA", "TB", "TZ"]
+    assert selected_symbols == ["TZ", "TB", "TA", "TZ"]

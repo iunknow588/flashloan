@@ -171,11 +171,16 @@ def test_real_cow_execution_jsonl_rows_keep_consistent_scope():
     if not path.exists():
         pytest.skip("real robinhood-testnet cow execution log is not present")
 
-    rows = [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            # Historical runtime log rows can be truncated after an
+            # interrupted append; scope checks only need complete rows.
+            continue
 
     if not rows:
         pytest.skip("real robinhood-testnet cow execution log is empty")

@@ -920,7 +920,10 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     # commonly only have the requested probe amount, and the UI should show it
     # instead of a blank "最佳交易量".
     terminal_unprofitable_status = status in {"route_unprofitable", "slippage_limit_exceeded"} or terminal_depth_status
-    if costs.get("bestAmountMissing") is True and not terminal_unprofitable_status:
+    if (
+        (costs.get("bestAmountMissing") is True or unconfirmed_fixed_amount)
+        and not terminal_unprofitable_status
+    ):
         best_amount = None
     else:
         best_amount = costs.get("selectedBorrowInputAmount")

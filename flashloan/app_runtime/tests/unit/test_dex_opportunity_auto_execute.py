@@ -2,6 +2,21 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from typing import Any
+
+import pytest
+
+
+_SCANNERS: list[Any] = []
+
+
+@pytest.fixture(autouse=True)
+def _stop_background_review_pipelines():
+    _SCANNERS.clear()
+    yield
+    for scanner in _SCANNERS:
+        scanner.stop()
+    _SCANNERS.clear()
 
 
 def test_route_evidence_dedup_key_collapses_reverse_direction():
@@ -160,7 +175,7 @@ def _profitable_live_evidence(route) -> dict:
     }
 
 
-def _scanner(tmp_path, *, evidence=None, callback=None, enabled=None, cooldown=600.0):
+def _scanner(tmp_path, *, evidence=None, callback=None, enabled=None, cooldown=600.0, background_refresh=True):
     from runtime.dex_opportunity_scanner import DexOpportunityScanner
 
     def onchain_evidence_provider(route, **kwargs):
@@ -168,7 +183,7 @@ def _scanner(tmp_path, *, evidence=None, callback=None, enabled=None, cooldown=6
             return evidence(route, **kwargs)
         return _profitable_live_evidence(route)
 
-    return DexOpportunityScanner(
+    scanner = DexOpportunityScanner(
         quote_payload_provider=lambda *, chain_id=None, protocols=None: _quote_payload_for_robinhood_testnet(),
         onchain_evidence_provider=onchain_evidence_provider,
         trigger_context_provider=lambda **kwargs: {"source": "test", "triggerBlockNumber": 123456},
@@ -179,6 +194,10 @@ def _scanner(tmp_path, *, evidence=None, callback=None, enabled=None, cooldown=6
         record_opportunities=False,
         max_onchain_evidence_routes=1,
     )
+    if not background_refresh:
+        scanner.closed_loop_review_pipeline.refresh_fn = lambda task: {"routes": []}
+    _SCANNERS.append(scanner)
+    return scanner
 
 
 def test_auto_execute_disabled_by_default_keeps_callback_unused(tmp_path, monkeypatch):
@@ -257,7 +276,7 @@ def test_auto_execute_scan_now_defers_to_closed_loop_deep_review(tmp_path):
         calls.append({"route_symbols": route_symbols, "amount": amount, "broadcast": broadcast, "chain_id": chain_id})
         return {"ok": True, "txHash": "0xtx", "routeSymbols": route_symbols}
 
-    scanner = _scanner(tmp_path, callback=callback, enabled=True)
+    scanner = _scanner(tmp_path, callback=callback, enabled=True, background_refresh=False)
     result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
     assert calls == []
@@ -275,7 +294,7 @@ def test_auto_execute_scan_now_skips_old_evidence_timeout_path(tmp_path):
         calls.append(kwargs)
         return {"ok": True, "txHash": "0xtx"}
 
-    scanner = _scanner(tmp_path, callback=callback, enabled=True)
+    scanner = _scanner(tmp_path, callback=callback, enabled=True, background_refresh=False)
     result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
     assert calls == []
@@ -292,7 +311,7 @@ def test_auto_execute_scan_now_does_not_use_legacy_runner_cooldown(tmp_path):
         calls.append({"route_symbols": route_symbols, "amount": amount, "broadcast": broadcast, "chain_id": chain_id})
         return {"ok": True, "txHash": "0xtx", "routeSymbols": route_symbols}
 
-    scanner = _scanner(tmp_path, callback=callback, enabled=True, cooldown=3600.0)
+    scanner = _scanner(tmp_path, callback=callback, enabled=True, cooldown=3600.0, background_refresh=False)
 
     first = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
     second = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
@@ -923,7 +942,7 @@ def test_auto_execute_enabled_skips_old_scan_evidence_probe(tmp_path):
         disabled_skips.append(kwargs.get("skip_execution_size_probe"))
         return _profitable_live_evidence(route)
 
-    enabled_scanner = _scanner(tmp_path, evidence=enabled_evidence, enabled=True)
+    enabled_scanner = _scanner(tmp_path, evidence=enabled_evidence, enabled=True, background_refresh=False)
     enabled_scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
     disabled_scanner = _scanner(tmp_path, evidence=disabled_evidence, enabled=False)
@@ -1114,3 +1133,13 @@ def test_submission_review_surfaces_auto_execute_tx_hash():
     assert payload["attempts"][0]["tx_hash"] == "0x" + "b" * 64
     assert payload["attempts"][0]["review_category"] == "submitted_success"
     assert payload["attempts"][0]["state"] == "submitted_success"
+
+
+def test_auto_execute_tests_do_not_leave_background_refresh_threads():
+    import threading
+
+    assert [
+        thread.name
+        for thread in threading.enumerate()
+        if thread.name.startswith("fixed-closed-loop-refresh")
+    ] == []
