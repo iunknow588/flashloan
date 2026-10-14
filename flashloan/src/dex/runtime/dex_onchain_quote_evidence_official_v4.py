@@ -359,6 +359,22 @@ def _official_v4_route_components(
     return route_symbols, route_addresses, steps, route_pools
 
 
+def _official_v4_route_static_profit(route: dict[str, Any]) -> float | None:
+    """Return the best static profit signal used for direction selection."""
+    analysis = route.get("overviewProfit") if isinstance(route.get("overviewProfit"), dict) else {}
+    if not analysis:
+        analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    for key in ("observedNetProfitUsd", "netProfitUsd", "referenceNetProfitUsd"):
+        value = analysis.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def official_v4_arb_static_hop_rows(
     *,
     w3: Any,
@@ -394,11 +410,17 @@ def official_v4_arb_static_hop_rows(
     token_z = route_addresses[0] if route_addresses else input_token_first
     if not token_z:
         return None
-    candidates: list[tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]]] = []
-    # Aggregate every closed-loop route in the same flash-loan anchor group into
-    # one Candidate so the composer can compare the full group and call the
-    # executor once for that group instead of per route.  SQLite already stores
-    # X-Y-Z-X and X-Z-Y-X as two directed rows, so no reverse is generated here.
+    collected: list[
+        tuple[
+            float | None,
+            int,
+            tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]],
+        ]
+    ] = []
+    # Quote routing already fixes one direction set per flash-loan anchor, but
+    # the group can still contain address/pool variants.  Pick the single
+    # highest-static-profit directed route before assembling contract arrays so
+    # keysets/directionsets always have length 1.
     for group_route in (routes_group or [route]):
         if not isinstance(group_route, dict):
             continue
@@ -421,9 +443,16 @@ def official_v4_arb_static_hop_rows(
         )
         if candidate is None:
             continue
-        candidates.append((*candidate, group_pools))
-    if not candidates:
+        collected.append((_official_v4_route_static_profit(group_route), len(collected), (*candidate, group_pools)))
+    if not collected:
         return None
+    collected.sort(
+        key=lambda item: (
+            -(item[0] if item[0] is not None else float("-inf")),
+            item[1],
+        )
+    )
+    candidates = [collected[0][2]]
     keysets = [candidate[3] for candidate in candidates]
     directionsets = [candidate[4] for candidate in candidates]
     quote_source = "official_v4_arb_static_call"

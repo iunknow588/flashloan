@@ -127,7 +127,50 @@ class FakeW3:
         self.codec = FakeCodec()
 
 
-def test_official_v4_group_static_hop_aggregates_closed_loop_routes(monkeypatch):
+def test_official_v4_group_static_hop_fixes_one_direction_and_uses_static_profit(monkeypatch):
+    tz = "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E"
+    tb = "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4"
+    ta = "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8"
+    pool_a1 = _pool("TZ", tz, "TB", tb, 3000, "0x" + "1" * 64)
+    pool_a2 = _pool("TB", tb, "TA", ta, 3000, "0x" + "2" * 64)
+    pool_a3 = _pool("TA", ta, "TZ", tz, 3000, "0x" + "3" * 64)
+    pool_b1 = _pool("TZ", tz, "TA", ta, 3000, "0x" + "4" * 64)
+    pool_b2 = _pool("TA", ta, "TB", tb, 3000, "0x" + "5" * 64)
+    pool_b3 = _pool("TB", tb, "TZ", tz, 3000, "0x" + "6" * 64)
+    route_a = _route(["TZ", "TB", "TA", "TZ"], [tz, tb, ta, tz], [pool_a1, pool_a2, pool_a3])
+    route_b = _route(["TZ", "TA", "TB", "TZ"], [tz, ta, tb, tz], [pool_b1, pool_b2, pool_b3])
+    route_a["overviewProfit"] = {"observedNetProfitUsd": 5.0}
+    route_b["overviewProfit"] = {"observedNetProfitUsd": 9.0}
+
+    contract = FakeContract()
+    w3 = FakeW3(contract)
+    monkeypatch.setattr(official_v4, "_official_v4_arb_address", lambda chain_id=None: "0x" + "a" * 40)
+    monkeypatch.setattr(official_v4, "_official_v4_composer_address", lambda chain_id=None: "0x" + "b" * 40)
+
+    result = official_v4.official_v4_arb_static_hop_rows(
+        w3=w3,
+        route=route_a,
+        pools={pool["pool"].lower(): pool for pool in [pool_a1, pool_a2, pool_a3]},
+        steps=route_a["quoteAnalysis"]["steps"],
+        amount_in_raw=10**17,
+        chain_id=46630,
+        routes_group=[route_a, route_b],
+    )
+
+    assert result is not None
+    hop_rows, selected_symbols, selected_addresses, _selected_steps = result
+    assert len(hop_rows) == 3
+    assert selected_symbols == ["TZ", "TA", "TB", "TZ"]
+    assert selected_addresses == [tz, ta, tb, tz]
+    assert len(contract.functions.run_best.calls) == 1
+    token_z, candidates, _amount, _min_profit, _min_deviation = contract.functions.run_best.calls[0]
+    assert token_z.lower() == tz.lower()
+    assert len(candidates) == 1
+    assert len(candidates[0][0]) == 1
+    assert len(candidates[0][1]) == 1
+
+
+def test_official_v4_group_static_hop_keeps_first_route_without_profit(monkeypatch):
     tz = "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E"
     tb = "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4"
     ta = "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8"
@@ -156,16 +199,12 @@ def test_official_v4_group_static_hop_aggregates_closed_loop_routes(monkeypatch)
     )
 
     assert result is not None
-    hop_rows, selected_symbols, selected_addresses, _selected_steps = result
-    assert len(hop_rows) == 3
+    _hop_rows, selected_symbols, _selected_addresses, _selected_steps = result
     assert selected_symbols == ["TZ", "TB", "TA", "TZ"]
-    assert selected_addresses == [tz, tb, ta, tz]
-    assert len(contract.functions.run_best.calls) == 1
-    token_z, candidates, _amount, _min_profit, _min_deviation = contract.functions.run_best.calls[0]
-    assert token_z.lower() == tz.lower()
+    _token_z, candidates, _amount, _min_profit, _min_deviation = contract.functions.run_best.calls[0]
     assert len(candidates) == 1
-    assert len(candidates[0][0]) == 2
-    assert len(candidates[0][1]) == 2
+    assert len(candidates[0][0]) == 1
+    assert len(candidates[0][1]) == 1
 
 
 def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
