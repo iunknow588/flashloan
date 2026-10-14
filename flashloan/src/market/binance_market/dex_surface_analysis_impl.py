@@ -257,8 +257,12 @@ def apply_route_overview_profit(
     price_map: dict[str, float],
     chain_id: int | None = None,
     route_quote_analysis_fn: Callable[..., dict[str, Any]],
+    use_static_observation: bool = False,
 ) -> dict[str, Any]:
-    analysis = route_quote_analysis_fn(route, price_map=price_map, chain_id=chain_id)
+    analysis_kwargs: dict[str, Any] = {"price_map": price_map, "chain_id": chain_id}
+    if use_static_observation:
+        analysis_kwargs["use_static_observation"] = True
+    analysis = route_quote_analysis_fn(route, **analysis_kwargs)
     updated = dict(route)
     updated["overviewProfit"] = build_overview_profit_payload(analysis)
     updated["routeFrameworkSource"] = route.get("routeFrameworkSource") or route.get("pathSource") or "market_observation"

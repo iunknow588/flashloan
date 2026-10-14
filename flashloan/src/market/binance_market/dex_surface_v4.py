@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from functools import lru_cache
 import os
+import threading
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
@@ -24,6 +25,8 @@ from market.binance_market.dex_surface_types import (
 from web3 import Web3
 
 DEFAULT_AMM_FEE_BPS = 30.0
+_V4_TOKEN_METADATA_CACHE: dict[tuple[str, int | None], dict[str, dict[str, Any]]] = {}
+_V4_TOKEN_METADATA_CACHE_LOCK = threading.Lock()
 ERC20_DECIMALS_ABI = [
     {
         "inputs": [],
@@ -62,39 +65,53 @@ def _v4_token_metadata_cache(pool_manager: str, *, chain_id: int | None = None) 
     if not normalized_pool_manager:
         return {}
     if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID:
+        cache_key = (normalized_pool_manager, chain_id)
+        with _V4_TOKEN_METADATA_CACHE_LOCK:
+            cached = _V4_TOKEN_METADATA_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
         try:
             from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
 
             cache = _load_token_balance_scan_cache(pool_manager=normalized_pool_manager)
         except Exception:
-            return {}
-    else:
-        # Mainnet V4 does not inherit testnet token-balance evidence. Pool keys
-        # from the mainnet observation snapshot carry decimals when available;
-        # otherwise live ERC20 decimal reads can be enabled explicitly.
-        cache = {}
-    entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
-    metadata: dict[str, dict[str, Any]] = {}
-    for address, entry in entries.items():
-        if not isinstance(entry, dict):
-            continue
-        normalized = _token_address(address) or _token_address(entry.get("address"))
-        if not normalized:
-            continue
-        symbol = _norm_symbol(entry.get("symbol") or entry.get("token_symbol"))
-        decimals = entry.get("decimals")
-        try:
-            decimals = int(decimals) if decimals not in (None, "") else None
-        except (TypeError, ValueError):
-            decimals = None
-        metadata[normalized] = {
-            "address": normalized,
-            "symbol": symbol,
-            "decimals": decimals,
-            "metadataOk": bool(symbol and decimals is not None),
-            "source": "token_balance_scan_cache",
-        }
-    return metadata
+            cache = {}
+        entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
+        metadata: dict[str, dict[str, Any]] = {}
+        for address, entry in entries.items():
+            if not isinstance(entry, dict):
+                continue
+            normalized = _token_address(address) or _token_address(entry.get("address"))
+            if not normalized:
+                continue
+            symbol = _norm_symbol(entry.get("symbol") or entry.get("token_symbol"))
+            decimals = entry.get("decimals")
+            try:
+                decimals = int(decimals) if decimals not in (None, "") else None
+            except (TypeError, ValueError):
+                decimals = None
+            metadata[normalized] = {
+                "address": normalized,
+                "symbol": symbol,
+                "decimals": decimals,
+                "metadataOk": bool(symbol and decimals is not None),
+                "source": "token_balance_scan_cache",
+            }
+        with _V4_TOKEN_METADATA_CACHE_LOCK:
+            _V4_TOKEN_METADATA_CACHE[cache_key] = metadata
+        return metadata
+    # Mainnet V4 does not inherit testnet token-balance evidence. Pool keys
+    # from the mainnet observation snapshot carry decimals when available;
+    # otherwise live ERC20 decimal reads can be enabled explicitly.
+    return {}
+
+
+def clear_v4_token_metadata_cache() -> int:
+    """Drop cached token metadata after a token-balance scan rebuild."""
+    with _V4_TOKEN_METADATA_CACHE_LOCK:
+        cleared = len(_V4_TOKEN_METADATA_CACHE)
+        _V4_TOKEN_METADATA_CACHE.clear()
+        return cleared
 def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int | None = None) -> dict[str, Any]:
     address = _token_address(pool.get(f"token{index}"))
     symbol = _norm_symbol(pool.get(f"token{index}Symbol"))

@@ -545,7 +545,15 @@ def dex_overview_payload(
     anchor_symbols = list(frame_context["anchor_symbols"])
     closed_loop_anchor_symbols = list(frame_context["closed_loop_anchor_symbols"])
     observation_anchor_symbols = list(frame_context["observation_anchor_symbols"])
-    ready_paths = [_route_with_overview_profit(route, price_map=price_map, chain_id=chain_id) for route in ready_paths]
+    ready_paths = [
+        _route_with_overview_profit(
+            route,
+            price_map=price_map,
+            chain_id=chain_id,
+            use_static_observation=use_static_observation,
+        )
+        for route in ready_paths
+    ]
     ready_paths = [_dex_table_route(route, observation) for route in ready_paths]
     overview_path_groups = group_overview_paths_by_flash_loan_token(
         ready_paths,
@@ -823,7 +831,7 @@ def _synthetic_db_observation_payload(
     from core.db.database_path import absolute_database_path
     from core.db.storage_business_io import query
     from core.db.storage_chain_core import load_chain_tokens
-    from core.db.storage_dex_candidate import load_dex_candidate_pools as _storage_candidate_load
+    from core.rs_bridge import load_dex_candidate_pools as _storage_candidate_load
     from core.db.storage_market_observation import load_market_observation as _storage_observation_load
 
     db = str(absolute_database_path(database_url)) if database_url else str(absolute_database_path())
@@ -836,11 +844,11 @@ def _synthetic_db_observation_payload(
         if str(row.get("token_address") or "")
     }
     candidate = _storage_candidate_load(
-        db,
         network=network,
         chain_id=int(chain_id or 0),
         protocol="uniswap_v4",
         anchor_symbol=symbol,
+        database_url=db,
     )
     anchor_token_rows = candidate.get("anchorTokens") or []
     if not anchor_token_rows:
@@ -1051,7 +1059,7 @@ def _database_first_robinhood_observation_payload(
     from core.db.database_path import absolute_database_path
     from core.db.storage_business_io import query
     from core.db.storage_chain_core import load_chain_tokens
-    from core.db.storage_dex_candidate import load_dex_candidate_pools
+    from core.rs_bridge import load_dex_candidate_pools
     from dex.intent_trade.chains.robinhood_common.market_observation_core import (
         db_closed_loop_routes,
         db_closed_loop_sequences,
@@ -1099,11 +1107,11 @@ def _database_first_robinhood_observation_payload(
             continue
         borrowable_symbols.append(symbol)
         candidate = load_dex_candidate_pools(
-            db,
             network=network,
             chain_id=chain,
             protocol="uniswap_v4",
             anchor_symbol=symbol,
+            database_url=db,
         )
         shared_pools: list[dict[str, Any]] = []
         seen_shared_pool_ids: set[str] = set()
@@ -1538,13 +1546,24 @@ def _quote_routes_payload_from_overview(
     protocols: list[str] | None,
     price_map: dict[str, float] | None = None,
     anchor: str | None = None,
+    use_static_observation: bool = False,
 ) -> dict[str, Any]:
+    def _quote_analysis_with_mode(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if use_static_observation:
+            kwargs["use_static_observation"] = True
+        return _route_quote_analysis(*args, **kwargs)
+
+    def _size_analysis_with_mode(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if use_static_observation:
+            kwargs["use_static_observation"] = True
+        return _route_size_analysis(*args, **kwargs)
+
     return build_quote_routes_payload_from_overview(
         overview,
         chain_id=chain_id,
         protocols=protocols,
-        route_quote_analysis_fn=_route_quote_analysis,
-        route_size_analysis_fn=_route_size_analysis,
+        route_quote_analysis_fn=_quote_analysis_with_mode,
+        route_size_analysis_fn=_size_analysis_with_mode,
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
         anchor=anchor,
@@ -1585,6 +1604,7 @@ def _quote_routes_payload_for_robinhood_family(
         protocols=protocols,
         price_map=price_map,
         anchor=anchor,
+        use_static_observation=use_static_observation,
     )
     source_observation = observation if observation is not None else overview
     payload["marketObservationSource"] = source_observation.get("marketObservationSource") or "computed"

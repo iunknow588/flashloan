@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import threading
 import time
 from typing import Any
 
@@ -80,6 +81,8 @@ MULTICALL3_ABI = [
     }
 ]
 TOKEN_BALANCE_SCAN_CACHE_SCHEMA = "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
+_JSON_READ_CACHE: dict[str, tuple[tuple[int, int], dict[str, Any]]] = {}
+_JSON_READ_CACHE_LOCK = threading.Lock()
 
 
 def _stamp() -> str:
@@ -94,14 +97,29 @@ def _as_list(value: object) -> list[dict[str, Any]]:
 
 def _read_json(path: Path) -> dict[str, Any]:
     try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return {}
+    cache_key = (stat.st_mtime_ns, stat.st_size)
+    path_key = str(path)
+    with _JSON_READ_CACHE_LOCK:
+        cached = _JSON_READ_CACHE.get(path_key)
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+    try:
         # Some migrated chain metadata files retain a UTF-8 BOM from the
         # original Windows tooling. Treat it as encoding metadata, not JSON.
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError as exc:
-        return {"_error": f"invalid_json:{exc.msg}"}
-    return payload if isinstance(payload, dict) else {"_error": "invalid_json_root"}
+        payload = {"_error": f"invalid_json:{exc.msg}"}
+    else:
+        if not isinstance(payload, dict):
+            payload = {"_error": "invalid_json_root"}
+    with _JSON_READ_CACHE_LOCK:
+        _JSON_READ_CACHE[path_key] = (cache_key, payload)
+    return payload
 
 
 def _is_address(value: object) -> bool:

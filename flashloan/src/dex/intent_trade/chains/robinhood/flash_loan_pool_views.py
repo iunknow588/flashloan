@@ -101,12 +101,22 @@ def clear_robinhood_v4_pool_cache(
 ) -> int:
     """Drop cached static V4 pool rows after an import/rebuild."""
     from core.rs_bridge import clear_v4_exchange_pool_cache
+    from dex.intent_trade.chains.robinhood.v4_quote_adapter import (
+        clear_robinhood_v4_pool_rows_cache as clear_mainnet_quote_rows,
+    )
+    from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
+        clear_robinhood_v4_pool_rows_cache as clear_testnet_quote_rows,
+    )
+    from market.binance_market.dex_surface_v4 import clear_v4_token_metadata_cache
 
     with _robinhood_v4_static_pool_cache_lock:
         _robinhood_v4_static_pool_cache.clear()
     with _robinhood_v4_protocol_view_cache_lock:
         _robinhood_v4_protocol_view_cache.clear()
     protocol = "uniswap_v4"
+    clear_mainnet_quote_rows()
+    clear_testnet_quote_rows()
+    clear_v4_token_metadata_cache()
     return clear_v4_exchange_pool_cache(
         database_url,
         network=network,

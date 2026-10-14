@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 import json
 import os
+import threading
 import time
 import urllib.request as urllib_request
 
@@ -32,6 +33,9 @@ from dex.intent_trade.chains.robinhood.shared import (
 
 getcontext().prec = 80
 logger = logging.getLogger(__name__)
+
+_POOL_ROWS_CACHE: dict[tuple[str, int, str], list[dict[str, Any]]] = {}
+_POOL_ROWS_CACHE_LOCK = threading.Lock()
 
 _V4_POOLS_SLOT = V4_POOLS_SLOT
 _V4_POOL_MANAGER_EXTSLOAD_ABI = V4_POOL_MANAGER_EXTSLOAD_ABI
@@ -388,7 +392,99 @@ def _batch_read_live_pool_states(
     return results
 
 
-def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[dict[str, Any]]:
+def _pool_rows_cache_key(network: str | None, chain_id: int | None) -> tuple[str, int, str]:
+    from core.db.database_path import absolute_database_path
+
+    resolved_chain_id = int(chain_id or robinhood.TESTNET_CHAIN_ID)
+    return (
+        _canonical_testnet_network(network, chain_id),
+        resolved_chain_id,
+        str(absolute_database_path()).lower(),
+    )
+
+
+def _build_pool_row(
+    pool_row: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Build the merged V4 quote pool row from exchange/liquidity rows."""
+    pool_id = _normalize_pool_id(pool_row.get("pool_id") or pool_row.get("poolId"))
+    if not pool_id:
+        return None
+    raw_key = pool_row.get("pool_key_json") or pool_row.get("poolKeyJson")
+    pool_key = {}
+    if isinstance(raw_key, str) and raw_key:
+        try:
+            pool_key = json.loads(raw_key)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pool_key = {}
+    if not isinstance(pool_key, dict):
+        pool_key = {}
+    has_liquidity = liquidity.get("has_liquidity")
+    if has_liquidity is None:
+        has_liquidity = liquidity.get("hasLiquidity")
+    liquidity_index = liquidity.get("liquidity_index")
+    if liquidity_index is None:
+        liquidity_index = liquidity.get("liquidityIndex")
+    if has_liquidity is None and liquidity_index is not None:
+        try:
+            has_liquidity = float(liquidity_index) > 0
+        except (TypeError, ValueError):
+            has_liquidity = None
+    if isinstance(has_liquidity, str):
+        has_liquidity = has_liquidity.strip().lower() in {"1", "true", "yes"}
+    return {
+        "pool": pool_id,
+        "poolId": pool_id,
+        "poolManager": pool_row.get("pool_manager") or pool_row.get("poolManager") or pool_key.get("poolManager") or "",
+        "token0": pool_row.get("token0") or pool_key.get("token0") or pool_key.get("currency0"),
+        "token1": pool_row.get("token1") or pool_key.get("token1") or pool_key.get("currency1"),
+        "fee": (
+            pool_row.get("fee")
+            if pool_row.get("fee") is not None
+            else pool_key.get("fee")
+        ),
+        "tickSpacing": (
+            pool_row.get("tick_spacing")
+            if pool_row.get("tick_spacing") is not None
+            else (
+                pool_row.get("tickSpacing")
+                if pool_row.get("tickSpacing") is not None
+                else pool_key.get("tickSpacing")
+            )
+        ),
+        "hooks": pool_row.get("hooks") or pool_key.get("hooks") or "",
+        "poolKey": pool_key,
+        "token0Symbol": pool_key.get("token0Symbol") or "",
+        "token1Symbol": pool_key.get("token1Symbol") or "",
+        "token0Decimals": pool_key.get("token0Decimals"),
+        "token1Decimals": pool_key.get("token1Decimals"),
+        "sqrtPriceX96": (
+            liquidity.get("sqrt_price_x96")
+            or liquidity.get("sqrtPriceX96")
+            or pool_key.get("sqrtPriceX96")
+            or ""
+        ),
+        "tick": (
+            liquidity.get("tick")
+            if liquidity.get("tick") is not None
+            else pool_key.get("tick")
+        ),
+        "hasLiquidity": has_liquidity,
+        "liquidity": liquidity.get("liquidity") or liquidity_index or "",
+        "liquidityIndex": liquidity_index,
+        "source": "robinhood_testnet_v4_sqlite",
+    }
+
+
+def _pool_rows(
+    network: str | None = None,
+    chain_id: int | None = None,
+    *,
+    pool_ids: set[str] | None = None,
+    token0: str | None = None,
+    token1: str | None = None,
+) -> list[dict[str, Any]]:
     """Read the V4 pool index from SQLite only."""
     from core.db.database_path import absolute_database_path
     from core.rs_bridge import load_v4_exchange_pools, load_v4_pool_liquidity
@@ -396,6 +492,19 @@ def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[
     _pool_index_path(network, chain_id)
     resolved_chain_id = int(chain_id or robinhood.TESTNET_CHAIN_ID)
     database_url = str(absolute_database_path())
+    cache_key = _pool_rows_cache_key(network, chain_id)
+    with _POOL_ROWS_CACHE_LOCK:
+        cached = _POOL_ROWS_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+    if pool_ids or token0 or token1:
+        return _pool_rows_scoped(
+            network=network,
+            chain_id=chain_id,
+            pool_ids=pool_ids,
+            token0=token0,
+            token1=token1,
+        )
     pool_rows = load_v4_exchange_pools(
         ROBINHOOD_TESTNET_NETWORK,
         resolved_chain_id,
@@ -414,77 +523,112 @@ def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[
     }
     rows: list[dict[str, Any]] = []
     for row in pool_rows:
-        pool_id = _normalize_pool_id(row.get("pool_id") or row.get("poolId"))
-        if not pool_id:
-            continue
-        raw_key = row.get("pool_key_json") or row.get("poolKeyJson")
-        pool_key = {}
-        if isinstance(raw_key, str) and raw_key:
-            try:
-                pool_key = json.loads(raw_key)
-            except (TypeError, ValueError, json.JSONDecodeError):
-                pool_key = {}
-        if not isinstance(pool_key, dict):
-            pool_key = {}
-        liquidity = liquidity_by_id.get(pool_id.lower(), {})
-        has_liquidity = liquidity.get("has_liquidity")
-        if has_liquidity is None:
-            has_liquidity = liquidity.get("hasLiquidity")
-        liquidity_index = liquidity.get("liquidity_index")
-        if liquidity_index is None:
-            liquidity_index = liquidity.get("liquidityIndex")
-        if has_liquidity is None and liquidity_index is not None:
-            try:
-                has_liquidity = float(liquidity_index) > 0
-            except (TypeError, ValueError):
-                has_liquidity = None
-        if isinstance(has_liquidity, str):
-            has_liquidity = has_liquidity.strip().lower() in {"1", "true", "yes"}
-        rows.append(
-            {
-                "pool": pool_id,
-                "poolId": pool_id,
-                "poolManager": row.get("pool_manager") or row.get("poolManager") or pool_key.get("poolManager") or "",
-                "token0": row.get("token0") or pool_key.get("token0") or pool_key.get("currency0"),
-                "token1": row.get("token1") or pool_key.get("token1") or pool_key.get("currency1"),
-                "fee": (
-                    row.get("fee")
-                    if row.get("fee") is not None
-                    else pool_key.get("fee")
-                ),
-                "tickSpacing": (
-                    row.get("tick_spacing")
-                    if row.get("tick_spacing") is not None
-                    else (
-                        row.get("tickSpacing")
-                        if row.get("tickSpacing") is not None
-                        else pool_key.get("tickSpacing")
-                    )
-                ),
-                "hooks": row.get("hooks") or pool_key.get("hooks") or "",
-                "poolKey": pool_key,
-                "token0Symbol": pool_key.get("token0Symbol") or "",
-                "token1Symbol": pool_key.get("token1Symbol") or "",
-                "token0Decimals": pool_key.get("token0Decimals"),
-                "token1Decimals": pool_key.get("token1Decimals"),
-                "sqrtPriceX96": (
-                    liquidity.get("sqrt_price_x96")
-                    or liquidity.get("sqrtPriceX96")
-                    or pool_key.get("sqrtPriceX96")
-                    or ""
-                ),
-                "tick": (
-                    liquidity.get("tick")
-                    if liquidity.get("tick") is not None
-                    else pool_key.get("tick")
-                ),
-                "hasLiquidity": has_liquidity,
-                "liquidity": liquidity.get("liquidity") or liquidity_index or "",
-                "liquidityIndex": liquidity_index,
-                "source": "robinhood_testnet_v4_sqlite",
-            }
-        )
+        built = _build_pool_row(row, liquidity_by_id.get(_normalize_pool_id(row.get("pool_id") or row.get("poolId")).lower(), {}))
+        if built is not None:
+            rows.append(built)
+    with _POOL_ROWS_CACHE_LOCK:
+        _POOL_ROWS_CACHE[cache_key] = rows
     return rows
+
+
+def _pool_rows_scoped(
+    *,
+    network: str | None = None,
+    chain_id: int | None = None,
+    pool_ids: set[str] | None = None,
+    token0: str | None = None,
+    token1: str | None = None,
+) -> list[dict[str, Any]]:
+    """Read only the V4 pools relevant to a quote lookup."""
+    from core.db.database_path import absolute_database_path
+    from core.db.storage_business_io import query
+
+    _pool_index_path(network, chain_id)
+    resolved_chain_id = int(chain_id or robinhood.TESTNET_CHAIN_ID)
+    database_url = str(absolute_database_path())
+    conditions = ["network = ?", "chain_id = ?", "protocol = ?"]
+    params: list[Any] = [ROBINHOOD_TESTNET_NETWORK, resolved_chain_id, "uniswap_v4"]
+    normalized_ids = sorted(
+        {
+            _normalize_pool_id(pool_id).lower()
+            for pool_id in pool_ids or []
+            if _normalize_pool_id(pool_id)
+        }
+    )
+    if normalized_ids:
+        placeholders = ",".join("?" for _ in normalized_ids)
+        conditions.append(f"LOWER(pool_id) IN ({placeholders})")
+        params.extend(normalized_ids)
+    if token0 or token1:
+        normalized_token0 = _normalize_address(token0)
+        normalized_token1 = _normalize_address(token1)
+        if normalized_token0 and normalized_token1:
+            conditions.append(
+                "(LOWER(token0) = ? AND LOWER(token1) = ?)"
+                " OR (LOWER(token0) = ? AND LOWER(token1) = ?)"
+            )
+            params.extend((normalized_token0, normalized_token1, normalized_token1, normalized_token0))
+    pool_rows = query(
+        database_url,
+        f"""
+        SELECT network, chain_id, protocol, pool_id, pool_identity_mode,
+               pool_manager, pool_key_json, token0, token1, fee, fee_label,
+               dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+               created_at, updated_at
+        FROM v4_exchange_pools
+        WHERE {' AND '.join(conditions)}
+        ORDER BY pool_id
+        """,
+        tuple(params),
+    )
+    if not pool_rows:
+        return []
+    liquidity_rows = query(
+        database_url,
+        f"""
+        SELECT network, chain_id, protocol, pool_id, has_liquidity, liquidity,
+               liquidity_index, estimated_tvl_usd, balances_json, depth_status,
+               depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
+               liquidity_read_at, liquidity_block_number, recent_swap_active,
+               observed_at, refreshed_at
+        FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND LOWER(pool_id) IN (
+              {','.join('?' for _ in pool_rows)}
+          )
+        ORDER BY pool_id
+        """,
+        (
+            ROBINHOOD_TESTNET_NETWORK,
+            resolved_chain_id,
+            "uniswap_v4",
+            *[str(_normalize_pool_id(row.get("pool_id") or row.get("poolId")) or "").lower() for row in pool_rows],
+        ),
+    )
+    liquidity_by_id = {
+        str(row.get("pool_id") or row.get("poolId") or "").lower(): row
+        for row in liquidity_rows
+    }
+    rows: list[dict[str, Any]] = []
+    for row in pool_rows:
+        built = _build_pool_row(
+            row,
+            liquidity_by_id.get(str(_normalize_pool_id(row.get("pool_id") or row.get("poolId")) or "").lower(), {}),
+        )
+        if built is not None:
+            rows.append(built)
+    return rows
+
+
+_DEFAULT_POOL_ROWS = _pool_rows
+
+
+def clear_robinhood_v4_pool_rows_cache() -> int:
+    """Drop cached merged pool rows after a SQLite import/rebuild."""
+    with _POOL_ROWS_CACHE_LOCK:
+        cleared = len(_POOL_ROWS_CACHE)
+        _POOL_ROWS_CACHE.clear()
+        return cleared
 
 
 def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
@@ -528,7 +672,14 @@ def _pool_liquidity_evidence(pool: dict[str, Any]) -> bool | None:
 
 def _pool_lookup(pool_address: str, network: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
     wanted = _normalize_pool_id(pool_address)
-    for pool in _pool_rows(network, chain_id):
+    if not wanted:
+        return {}
+    pool_rows = (
+        _pool_rows(network, chain_id)
+        if _pool_rows is not _DEFAULT_POOL_ROWS
+        else _pool_rows(network, chain_id, pool_ids={wanted})
+    )
+    for pool in pool_rows:
         if _normalize_pool_id(pool.get("pool")) == wanted or _normalize_pool_id(pool.get("poolId")) == wanted:
             return pool
     return {}
@@ -543,9 +694,19 @@ def _pool_lookup_by_tokens(
     wanted = {_normalize_address(token_in), _normalize_address(token_out)}
     if not all(wanted):
         return {}
+    pool_rows = (
+        _pool_rows(network, chain_id)
+        if _pool_rows is not _DEFAULT_POOL_ROWS
+        else _pool_rows(
+            network,
+            chain_id,
+            token0=_normalize_address(token_in),
+            token1=_normalize_address(token_out),
+        )
+    )
     rows = [
         pool
-        for pool in _pool_rows(network, chain_id)
+        for pool in pool_rows
         if (
             (pool_token0 := _normalize_address(pool.get("token0")))
             and (pool_token1 := _normalize_address(pool.get("token1")))

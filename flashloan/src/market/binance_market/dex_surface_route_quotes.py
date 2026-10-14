@@ -226,8 +226,9 @@ def _route_quote_analysis(
     chain_id: int | None = None,
     notional_usd: float = QUOTE_PROBE_NOTIONAL_USD,
     token_basis_input_amount: float | None = None,
+    use_static_observation: bool = False,
 ) -> dict[str, Any]:
-    strict_live_price_only = chain_id in _ROBINHOOD_CHAIN_IDS
+    strict_live_price_only = chain_id in _ROBINHOOD_CHAIN_IDS and not use_static_observation
     overview_route = route.get("overviewRoute") or {}
     route_tokens = [token for token in route.get("routeTokenPath") or overview_route.get("pathTokens") or [] if isinstance(token, dict)]
     route_symbols = _route_symbols_from_tokens(route_tokens) if route_tokens else list(overview_route.get("pathSymbols") or route.get("routeSymbols") or [])
@@ -342,7 +343,7 @@ def _route_quote_analysis(
                 to_symbol=to_symbol,
                 from_address=from_address,
                 to_address=to_address,
-                input_amount=current_amount,
+                input_amount=current_amount if not use_static_observation else None,
                 input_usd=current_usd,
                 price_map=price_map,
                 chain_id=chain_id,

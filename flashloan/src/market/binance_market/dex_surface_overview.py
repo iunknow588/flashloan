@@ -338,12 +338,14 @@ def _route_with_overview_profit(
     *,
     price_map: dict[str, float],
     chain_id: int | None = None,
+    use_static_observation: bool = False,
 ) -> dict[str, Any]:
     return apply_route_overview_profit(
         route,
         price_map=price_map,
         chain_id=chain_id,
         route_quote_analysis_fn=_route_quote_analysis,
+        use_static_observation=use_static_observation,
     )
 
 
@@ -587,8 +589,19 @@ def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int
     }
 
 
-def _route_size_analysis(route: dict[str, Any], *, price_map: dict[str, float], chain_id: int | None = None) -> dict[str, Any]:
-    route_analysis = _route_quote_analysis(route, price_map=price_map, chain_id=chain_id)
+def _route_size_analysis(
+    route: dict[str, Any],
+    *,
+    price_map: dict[str, float],
+    chain_id: int | None = None,
+    use_static_observation: bool = False,
+) -> dict[str, Any]:
+    route_analysis = _route_quote_analysis(
+        route,
+        price_map=price_map,
+        chain_id=chain_id,
+        use_static_observation=use_static_observation,
+    )
     execution_size_probe = _route_execution_size_probe(route_analysis, chain_id=chain_id)
 
     def route_quote_analysis_with_probe(
@@ -605,6 +618,7 @@ def _route_size_analysis(route: dict[str, Any], *, price_map: dict[str, float], 
             chain_id=chain_id,
             notional_usd=notional_usd,
             token_basis_input_amount=token_basis_input_amount,
+            use_static_observation=use_static_observation,
         )
         if execution_size_probe and inner_route is route:
             analysis = {**analysis, **execution_size_probe, "executionSizeProbe": execution_size_probe}

@@ -715,6 +715,7 @@ def _testnet_db_exchange_pools(
         protocol=TESTNET_DB_PROTOCOL,
         database_url=str(_testnet_db_path()),
         anchor_addresses=anchor_addresses,
+        usable=False,
     )
 
 

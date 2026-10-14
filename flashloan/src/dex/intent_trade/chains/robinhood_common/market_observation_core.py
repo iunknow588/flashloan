@@ -319,16 +319,14 @@ def load_db_observation_pools(
     merged_pools: dict[str, dict[str, Any]] = {}
     total_pairs = 0
     for anchor_symbol in anchor_symbols:
-        payload = load_market_observation(
-            network,
-            chain_id,
-            protocol,
-            anchor_symbol,
-            database_url=database_url,
+        pools, liquidity, pair_count = _load_market_observation_pool_scope(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            anchor_symbol=anchor_symbol,
         )
-        pools = payload.get("pools") or []
-        liquidity = payload.get("liquidity") or []
-        total_pairs += len(payload.get("pairs") or [])
+        total_pairs += pair_count
         liquidity_by_pool_id = {
             _pool_key(row): row
             for row in liquidity
@@ -359,6 +357,63 @@ def load_db_observation_pools(
     }
 
 
+def _load_market_observation_pool_scope(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    anchor_symbol: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+    """Load only pool rows for an anchor; the Y-Z pair count is computed by SQL.
+
+    The full market-observation read can return hundreds of thousands of
+    direction pairs even when the usable pool surface is small.  Page paths
+    only need the pools and liquidity rows plus a count for summary cards.
+    """
+    from core.db.storage_business_io import query as _query
+
+    db = str(absolute_database_path(database_url))
+    pools = _query(
+        db,
+        """
+        SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
+               pool_id, pool_identity_mode, pool_manager, pool_key_json,
+               token0, token1, fee, fee_label, dynamic_fee, special_fee,
+               tick_spacing, hooks, address_pair, created_at, updated_at
+        FROM market_observation_intermediate_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    liquidity = _query(
+        db,
+        """
+        SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
+               pool_id, has_liquidity, liquidity, liquidity_index,
+               estimated_tvl_usd, balances_json, depth_status, depth_band_json,
+               sqrt_price_x96, tick, liquidity_read_at, liquidity_block_number,
+               recent_swap_active, observed_at, refreshed_at
+        FROM market_observation_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    pair_rows = _query(
+        db,
+        """
+        SELECT COUNT(*) AS count
+        FROM market_observation_yz_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
+        """,
+        (network, chain_id, protocol, anchor_symbol),
+    )
+    pair_count = int((pair_rows[0] or {}).get("count") or 0) if pair_rows else 0
+    return pools, liquidity, pair_count
+
+
 def load_db_exchange_pools(
     *,
     network: str,
@@ -366,6 +421,7 @@ def load_db_exchange_pools(
     protocol: str,
     database_url: str | None = None,
     anchor_addresses: set[str] | None = None,
+    usable: bool | None = None,
 ) -> list[dict[str, Any]]:
     """Return every SQLite V4 exchange pool, optionally anchor-adjacent only."""
     database_url = str(absolute_database_path(database_url))
@@ -374,18 +430,39 @@ def load_db_exchange_pools(
         network=network,
         chain_id=chain_id,
     )
-    rows = load_v4_exchange_pools(
-        network,
-        chain_id,
-        protocol,
-        database_url=database_url,
+    rows = (
+        _load_exchange_pools_scoped(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            anchor_addresses=anchor_addresses,
+            usable=usable,
+        )
+        if anchor_addresses or usable is not None
+        else load_v4_exchange_pools(
+            network,
+            chain_id,
+            protocol,
+            database_url=database_url,
+        )
     )
-    liquidity_rows = load_v4_pool_liquidity(
-        network,
-        chain_id,
-        protocol,
-        database_url=database_url,
-    )
+    pool_ids = {str(_pool_key(pool) or "").lower() for pool in rows if _pool_key(pool)}
+    if anchor_addresses or usable is not None:
+        liquidity_rows = _load_v4_pool_liquidity_scoped(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            pool_ids=pool_ids,
+        )
+    else:
+        liquidity_rows = load_v4_pool_liquidity(
+            network,
+            chain_id,
+            protocol,
+            database_url=database_url,
+        )
     liquidity_by_pool_id = {
         _pool_key(row): row
         for row in liquidity_rows
@@ -405,6 +482,103 @@ def load_db_exchange_pools(
         if row is not None:
             pools.append(row)
     return pools
+
+
+def _load_exchange_pools_scoped(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    anchor_addresses: set[str] | None = None,
+    usable: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Load V4 exchange pools with optional anchor and usability scoping."""
+    from core.db.storage_business_io import query as _query
+
+    db = str(absolute_database_path(database_url))
+    addresses = [
+        str(address or "").strip().lower()
+        for address in (anchor_addresses or [])
+        if str(address or "").strip()
+    ]
+    if not addresses:
+        anchor_sql = ""
+        anchor_params: tuple[Any, ...] = ()
+    else:
+        placeholders = ",".join("?" for _ in addresses)
+        anchor_sql = f"AND (LOWER(token0) IN ({placeholders}) OR LOWER(token1) IN ({placeholders}))"
+        anchor_params = (*addresses, *addresses)
+    usable_sql = ""
+    usable_params: tuple[Any, ...] = ()
+    if usable is True:
+        usable_sql = (
+            "AND fee > 0 AND fee <= ?"
+            " AND (fee & ?) = 0"
+            " AND (hooks IS NULL OR LOWER(hooks) = ?)"
+        )
+        usable_params = (MAX_USABLE_CANDIDATE_FIXED_FEE, V4_DYNAMIC_FEE_FLAG, ZERO_ADDRESS)
+    elif usable is False:
+        usable_sql = (
+            "AND (fee IS NULL OR fee <= 0 OR fee > ?"
+            " OR (fee & ?) != 0"
+            " OR (hooks IS NOT NULL AND LOWER(hooks) != ?))"
+        )
+        usable_params = (MAX_USABLE_CANDIDATE_FIXED_FEE, V4_DYNAMIC_FEE_FLAG, ZERO_ADDRESS)
+    return _query(
+        db,
+        f"""
+        SELECT network, chain_id, protocol, pool_id, pool_identity_mode,
+               pool_manager, pool_key_json, token0, token1, fee, fee_label,
+               dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+               created_at, updated_at
+        FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          {anchor_sql}
+          {usable_sql}
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, *anchor_params, *usable_params),
+    )
+
+
+def _load_v4_pool_liquidity_scoped(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    pool_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Read only the liquidity snapshot rows for a scoped pool set."""
+    from core.db.storage_business_io import query as _query
+
+    db = str(absolute_database_path(database_url))
+    normalized = sorted(
+        {
+            str(pool_id or "").strip().lower()
+            for pool_id in pool_ids
+            if str(pool_id or "").strip()
+        }
+    )
+    if not normalized:
+        return []
+    placeholders = ",".join("?" for _ in normalized)
+    return _query(
+        db,
+        f"""
+        SELECT network, chain_id, protocol, pool_id, has_liquidity, liquidity,
+               liquidity_index, estimated_tvl_usd, balances_json, depth_status,
+               depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
+               liquidity_read_at, liquidity_block_number, recent_swap_active,
+               observed_at, refreshed_at
+        FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND LOWER(pool_id) IN ({placeholders})
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, *normalized),
+    )
 
 
 def _db_closed_loop_step_row(

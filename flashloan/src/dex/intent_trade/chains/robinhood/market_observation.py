@@ -453,6 +453,7 @@ def _load_mainnet_db_exchange_pools() -> list[dict[str, Any]]:
         chain_id=ROBINHOOD_CHAIN_ID,
         protocol="uniswap_v4",
         database_url=_market_observation_database_path(),
+        usable=False,
     )
 
 

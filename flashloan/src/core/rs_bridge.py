@@ -36,6 +36,7 @@ from core.local_kv import store_path
 _RUST_MODULE = None
 _RUST_LOAD_ERROR: str | None = None
 _V4_EXCHANGE_POOL_CACHE: dict[tuple[str, str, int, str], list[dict[str, Any]]] = {}
+_DEX_CANDIDATE_POOLS_CACHE: dict[tuple[str, str, int, str, str], dict[str, Any]] = {}
 
 
 def _database_path(database_url: str | None = None) -> str:
@@ -115,8 +116,14 @@ def clear_v4_exchange_pool_cache(
     protocol: str = "uniswap_v4",
 ) -> int:
     """Drop cached static V4 pool rows after an import/rebuild."""
+    cleared = _clear_dex_candidate_pools_cache(
+        database_url=database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    )
     if database_url is None:
-        cleared = len(_V4_EXCHANGE_POOL_CACHE)
+        cleared += len(_V4_EXCHANGE_POOL_CACHE)
         _V4_EXCHANGE_POOL_CACHE.clear()
         return cleared
     path = _database_path(database_url)
@@ -134,6 +141,32 @@ def clear_v4_exchange_pool_cache(
     ]
     for key in keys:
         del _V4_EXCHANGE_POOL_CACHE[key]
+    return cleared + len(keys)
+
+
+def _clear_dex_candidate_pools_cache(
+    database_url: str | None = None,
+    *,
+    network: str | None = None,
+    chain_id: int | None = None,
+    protocol: str = "uniswap_v4",
+) -> int:
+    """Drop cached static candidate-pool reads after an import/rebuild."""
+    if database_url is None:
+        cleared = len(_DEX_CANDIDATE_POOLS_CACHE)
+        _DEX_CANDIDATE_POOLS_CACHE.clear()
+        return cleared
+    path = _database_path(database_url)
+    keys = [
+        key
+        for key in _DEX_CANDIDATE_POOLS_CACHE
+        if key[0] == path
+        and (network is None or key[1] == str(network).strip().lower())
+        and (chain_id is None or key[2] == int(chain_id))
+        and (protocol is None or key[3] == str(protocol).strip().lower())
+    ]
+    for key in keys:
+        del _DEX_CANDIDATE_POOLS_CACHE[key]
     return len(keys)
 
 
@@ -357,6 +390,16 @@ def load_dex_candidate_pools(
     *,
     database_url: str | None = None,
 ) -> dict[str, Any]:
+    cache_key = (
+        _database_path(database_url),
+        str(network or "").strip().lower(),
+        int(chain_id or 0),
+        str(protocol or "").strip().lower(),
+        str(anchor_symbol or "").strip().upper(),
+    )
+    cached = _DEX_CANDIDATE_POOLS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     _load_rust()
     if _RUST_MODULE is not None:
         try:
@@ -376,7 +419,8 @@ def load_dex_candidate_pools(
                 "abnormalPairs": _rust_rows(payload, "abnormalPairs"),
                 "abnormalPools": _rust_rows(payload, "abnormalPools"),
             }
-            return {**_source_meta([], None), **rows}
+            _DEX_CANDIDATE_POOLS_CACHE[cache_key] = {**_source_meta([], None), **rows}
+            return _DEX_CANDIDATE_POOLS_CACHE[cache_key]
         except Exception as exc:
             raise RuntimeError(
                 "flashloan_rs read failed for load_dex_candidate_pools; "
@@ -390,7 +434,8 @@ def load_dex_candidate_pools(
         protocol=protocol,
         anchor_symbol=anchor_symbol,
     )
-    return {**_source_meta([], "python_sqlite_fallback"), **rows}
+    _DEX_CANDIDATE_POOLS_CACHE[cache_key] = {**_source_meta([], "python_sqlite_fallback"), **rows}
+    return _DEX_CANDIDATE_POOLS_CACHE[cache_key]
 
 
 def load_market_observation(
