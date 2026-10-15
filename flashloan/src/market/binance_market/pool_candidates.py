@@ -755,9 +755,8 @@ def dex_pool_candidates_payload(
             network = str(chain_data.get("network") or "").strip().lower()
             use_generic_candidate_cache = network not in {"robinhood", "robinhood-testnet"}
             if not use_generic_candidate_cache:
-                # Robinhood mainnet V4 candidate surface is now database-first.
-                # The old JSON cache remains only as a compatibility fallback
-                # when the SQLite business tables are not yet available.
+                # Robinhood mainnet/testnet V4 candidate surfaces are
+                # database-only. JSON evidence files are never read here.
                 if network == "robinhood" and int(chain_id) == 4663 and (
                     not protocol_filter or "uniswap_v4" in protocol_filter
                 ):

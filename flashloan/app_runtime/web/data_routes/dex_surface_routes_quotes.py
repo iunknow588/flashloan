@@ -326,6 +326,7 @@ def register_dex_quote_routes(app) -> None:
             str(request.args.get("dex_strategy") or "").strip().lower(),
             request.query_string.decode("utf-8"),
             overview_mtime,
+            str(overview.get("snapshotFingerprint") or ""),
         )
         cached = _STATIC_ROUTE_PAYLOAD_CACHE.get(cache_key)
         if cached is not None:
@@ -448,12 +449,6 @@ def register_dex_quote_routes(app) -> None:
         _merge_manifest_live_evidence_into_routes(routes, chain_id=int(selected_chain_id))
         overview_summary = overview.get("summary") or {}
         overview_liquid = overview.get("liquidityPoolFilter") or {}
-        candidate_liquid_pool_count = int(
-            overview_summary.get("liquidPoolCount")
-            or overview_liquid.get("liquidPoolCount")
-            or overview.get("liquidPoolCount")
-            or 0
-        )
         candidate_liquid_registry = overview.get("liquidPoolRegistry") or {}
         if isinstance(candidate_liquid_registry, dict):
             candidate_liquid_registry = {
@@ -461,6 +456,24 @@ def register_dex_quote_routes(app) -> None:
                 for key, row in candidate_liquid_registry.items()
                 if isinstance(row, dict)
             }
+        if not candidate_liquid_registry:
+            raw_registry = overview.get("poolRegistry") or {}
+            if isinstance(raw_registry, dict):
+                candidate_liquid_registry = {
+                    str(key or "").lower(): row
+                    for key, row in raw_registry.items()
+                    if isinstance(row, dict)
+                }
+            else:
+                candidate_liquid_registry = {
+                    str(pool.get("pool") or pool.get("poolId") or "").strip().lower(): pool
+                    for pool in _registry_pool_rows(raw_registry)
+                    if isinstance(pool, dict)
+                    and str(pool.get("pool") or pool.get("poolId") or "").strip()
+                }
+        candidate_liquid_pool_count = sum(
+            1 for pool in candidate_liquid_registry.values() if _pool_has_liquidity(pool)
+        )
         closed_loop_registry_pool_ids = {
             str(existing_pool.get("pool") or existing_pool.get("poolId") or "").strip().lower()
             for existing_pool in _registry_pool_rows(overview.get("poolRegistry"))

@@ -49,6 +49,32 @@ def _parse_fork_simulation_stdout(stdout: str) -> dict[str, str]:
     return parsed
 
 
+def _liquidation_chain_id() -> int:
+    try:
+        return int(os.getenv("LIQUIDATION_CHAIN_ID", "43114"))
+    except (TypeError, ValueError):
+        return 43114
+
+
+def _fork_simulation_usdc_address(chain_id: int | None = None) -> str:
+    effective_chain_id = chain_id if chain_id is not None else _liquidation_chain_id()
+    if effective_chain_id == 43113:
+        candidates = (
+            os.getenv("LIQUIDATION_USDC_ADDRESS"),
+            os.getenv("DYNAMIC_USDC"),
+            os.getenv("FUJI_USDC_ADDRESS"),
+            os.getenv("FUJI_USDC"),
+            "0x5425890298aed601595a70ab815c96711a31bc65",
+        )
+    else:
+        candidates = (
+            os.getenv("LIQUIDATION_USDC_ADDRESS"),
+            os.getenv("DYNAMIC_USDC"),
+            USDC,
+        )
+    return next((value for value in candidates if value), USDC)
+
+
 def run_liquidation_fork_simulation(
     payload: dict,
     *,
@@ -85,15 +111,7 @@ def run_liquidation_fork_simulation(
         env["LIQUIDATION_PAYLOAD_PATH"] = str(payload_path)
         _set_env_if_blank(env, "AAVE_POOL_ADDRESS", aave_pool_address_fn())
         _set_env_if_blank(env, "DEX_ROUTER_ADDRESS", dex_router_address_fn())
-        _set_env_if_blank(
-            env,
-            "USDC_ADDRESS",
-            os.getenv("LIQUIDATION_USDC_ADDRESS")
-            or os.getenv("DYNAMIC_USDC")
-            or os.getenv("FUJI_USDC_ADDRESS")
-            or os.getenv("FUJI_USDC")
-            or USDC,
-        )
+        _set_env_if_blank(env, "USDC_ADDRESS", _fork_simulation_usdc_address())
         rpc_urls = aave_rpc_urls_fn()
         if rpc_urls:
             _set_env_if_blank(env, "AVALANCHE_RPC_URL", rpc_urls[0])

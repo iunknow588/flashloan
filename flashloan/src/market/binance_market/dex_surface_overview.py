@@ -37,6 +37,7 @@ def _closed_loop_dedup_key(
     anchor: str,
     route_symbols: list[str],
     route_addresses: list[str] | None = None,
+    preserve_direction: bool = False,
 ) -> tuple[str, tuple[str, ...]]:
     route_addresses = [str(value or "").lower() for value in (route_addresses or []) if str(value or "").strip()]
     if route_addresses and len(route_addresses) == len(route_symbols):
@@ -45,11 +46,11 @@ def _closed_loop_dedup_key(
     else:
         anchor_key = anchor
         mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
-    if mids and tuple(reversed(mids)) < mids:
+    if not preserve_direction and mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
-    # A-B-C-A and A-C-B-A are the same closed loop, only executed in the
-    # opposite direction. The key is address-based so same-symbol tokens with
-    # different addresses remain separate routes.
+    # A-B-C-A and A-C-B-A are the same physical closed loop. Legacy compact
+    # snapshots collapse them by default, while SQLite directed loop rows keep
+    # each direction as an independent quote/route candidate.
     return (anchor_key, mids)
 
 
@@ -156,7 +157,12 @@ def group_overview_paths_by_flash_loan_token(
     return result
 
 
-def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: int | None) -> list[dict[str, Any]]:
+def _overview_paths_from_static_summary(
+    snapshot: dict[str, Any],
+    *,
+    chain_id: int | None,
+    preserve_direction: bool = False,
+) -> list[dict[str, Any]]:
     def _pool_usable_for_observation(pool: dict[str, Any]) -> bool:
         if pool.get("usableForObservation") is not None:
             return bool(pool.get("usableForObservation"))
@@ -219,7 +225,12 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
         route_addresses = [str(address or "").strip() for address in summary.get("routeAddresses") or [] if str(address or "").strip()]
         if not route_addresses:
             route_addresses = [str(address or "").strip() for address in summary.get("anchorAddresses") or [] if str(address or "").strip()]
-        dedup_key = _closed_loop_dedup_key(anchor, path_symbols, route_addresses)
+        dedup_key = _closed_loop_dedup_key(
+            anchor,
+            path_symbols,
+            route_addresses,
+            preserve_direction=preserve_direction,
+        )
         if dedup_key in seen_routes:
             continue
         seen_routes.add(dedup_key)

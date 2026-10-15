@@ -605,6 +605,33 @@ def _route_candidate_dedup_key(
     # Reversing B/C produces the same route in the opposite direction.
     return (anchor, mids)
 
+
+def _closed_loop_anchor_symbols_from_paths(paths: list[dict[str, Any]]) -> list[str]:
+    """Return the first/last borrow anchors of real closed-loop routes.
+
+    The overview/quote anchor set must be derived from actual ``overviewRoute``
+    rows, never from observation candidate sets.  TA/TB and other middle-hop
+    tokens are not loop endpoints and therefore never appear here.
+    """
+    symbols: set[str] = set()
+    for path in paths:
+        if not isinstance(path, dict):
+            continue
+        route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+        anchor = _norm_symbol(route.get("anchorBorrowSymbol"))
+        if anchor:
+            symbols.add(anchor)
+            continue
+        path_symbols = [
+            _norm_symbol(value)
+            for value in path.get("routeSymbols") or route.get("pathSymbols") or []
+            if _norm_symbol(value)
+        ]
+        if path_symbols and len(path_symbols) >= 3 and path_symbols[0] == path_symbols[-1]:
+            symbols.add(path_symbols[0])
+    return sorted(symbols)
+
+
 def _route_framework_context_from_observation(
     observation: dict[str, Any],
     pool_payload: dict[str, Any] | None = None,
@@ -646,15 +673,11 @@ def _route_framework_context_from_observation(
         if str(value or "").strip()
     }
     anchor_symbols = sorted(path_anchor_symbols | observed_anchors | set(candidate_anchors))
-    closed_loop_anchor_symbols = sorted(
-        {
-            str(group.get("anchorSymbol") or "").strip().upper()
-            for group in observation.get("anchorGroups") or []
-            if isinstance(group, dict) and str(group.get("anchorSymbol") or "").strip()
-        }
-    )
-    if not closed_loop_anchor_symbols:
-        closed_loop_anchor_symbols = sorted(observed_anchors)
+    # Closed-loop anchors are a property of the actual loop routes. Candidate
+    # groups/observation anchors may include middle-hop tokens and stock
+    # candidates that never become borrow anchors, so they cannot be used to
+    # derive the closed-loop anchor set.
+    closed_loop_anchor_symbols = _closed_loop_anchor_symbols_from_paths(overview_paths)
     observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
     return {
         "overview_paths": overview_paths,

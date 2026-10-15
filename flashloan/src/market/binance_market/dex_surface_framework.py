@@ -105,7 +105,7 @@ def _v4_pool_token_metadata(
                     "symbol": symbol or address[:8].upper(),
                     "decimals": decimals,
                     "metadataOk": bool(symbol and decimals is not None),
-                    "source": "token_balance_scan_cache",
+                    "source": "sqlite_db",
                 }
         if live_token_metadata_enabled():
             live_decimals = live_v4_token_decimals(address, chain_id=chain_id)

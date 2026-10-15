@@ -342,7 +342,6 @@
         const direct = list(row?.directSwapPools);
         return direct.length ? direct : list(row?.pools);
       }));
-      const nonNormalSwapPools = dedupePoolsByPoolId(directionRows.flatMap(row => list(row?.nonNormalSwapPools)));
       const fundSymbols = Array.from(new Set(directionRows.flatMap(row => list(row?.associatedFundSymbols)))).sort();
       const anchorSymbol = first?.anchorSymbol || fundSymbols[0] || "-";
       const pairSymbols = [first?.token0?.symbol, first?.token1?.symbol]
@@ -359,9 +358,6 @@
         pools: dedupePoolsByPoolId(directionRows.flatMap(row => list(row?.pools))),
         directSwapPoolCount: directSwapPools.length,
         hasDirectSwapPool: directionRows.some(row => pairHasDirectPool(row)),
-        nonNormalSwapPools,
-        nonNormalSwapPoolCount: nonNormalSwapPools.length,
-        hasNonNormalSwapPool: directionRows.some(row => pairHasNonNormalPool(row)),
         associatedFundSymbols: fundSymbols,
       };
     }
@@ -382,7 +378,6 @@
     function associatedPairHtml(row) {
       const pools = list(row?.pools);
       const directSwapPools = list(row?.directSwapPools).length ? list(row?.directSwapPools) : pools;
-      const nonNormalSwapPools = list(row?.nonNormalSwapPools);
       const directions = list(row?.directions).length ? list(row?.directions) : [row];
       const fundSymbols = list(row?.associatedFundSymbols);
       const anchorSymbol = row?.anchorSymbol || fundSymbols[0] || "-";
@@ -391,11 +386,7 @@
       const backupPoolCount = directSwapPools.filter(pool => String(pool?.recommendedPoolRole || "").toLowerCase() === "backup").length;
       const directSwapEmpty = row?.hasDirectSwapPool
         ? associatedPoolFallbackHtml(row)
-        : (row?.hasNonNormalSwapPool
-          ? '<span class="badge reject">暂无正常 Y-Z 池</span>'
-          : '<span class="badge reject">暂无 Y-Z 池</span>');
-      const nonNormalSwapBadges = nonNormalSwapPools.map(poolBadgeHtml).join("");
-      const showNonNormal = !row?.hasDirectSwapPool && Boolean(nonNormalSwapBadges);
+        : '<span class="badge reject">暂无 Y-Z 池</span>';
       const directionLines = directions.map((direction, index) => {
         const token0Funds = list(direction?.token0?.associatedFunds || direction?.token0AssociatedFunds);
         const token1Funds = list(direction?.token1?.associatedFunds || direction?.token1AssociatedFunds);
@@ -414,7 +405,6 @@
             ${primaryPoolCount ? `<span class="chip">${esc(primaryPoolCount)}<small>推荐池</small></span>` : ""}
             ${backupPoolCount ? `<span class="chip">${esc(backupPoolCount)}<small>备用池</small></span>` : ""}
             <span class="chip">${esc(directions.length)}<small>交易方向</small></span>
-            ${showNonNormal ? `<span class="chip">${esc(row?.nonNormalSwapPoolCount || nonNormalSwapPools.length || 0)}<small>非正常 Y-Z 池</small></span>` : ""}
             <span class="chip">${esc(fundSymbols.join(", ") || "-")}<small>可借资金锚点 X</small></span>
           </div>
         </div>
@@ -429,12 +419,6 @@
               ${directSwapBadges || directSwapEmpty}
             </div>
           </div>
-          ${showNonNormal ? `<div class="pair-line">
-            <strong>非正常 Y-Z 池（自定义费率 / 大于 3000 / hook）</strong>
-            <div class="pool-list">
-              ${nonNormalSwapBadges}
-            </div>
-          </div>` : ""}
         </div>
       </div>`;
     }
@@ -445,14 +429,6 @@
         || Number(row?.directSwapPoolCount || 0) > 0
         || list(row?.directSwapPools).length > 0
         || list(row?.pools).length > 0
-      );
-    }
-
-    function pairHasNonNormalPool(row) {
-      return Boolean(
-        row?.hasNonNormalSwapPool
-        || Number(row?.nonNormalSwapPoolCount || 0) > 0
-        || list(row?.nonNormalSwapPools).length > 0
       );
     }
 

@@ -12,14 +12,7 @@ from market.binance_market.dex_surface_cache import (
     _cache_surface_payload,
     _clear_dex_surface_cache,
 )
-from dex.intent_trade.chains.robinhood.v4_pool_index import (
-    write_v4_pool_index_from_initialize_logs as write_robinhood_mainnet_v4_pool_index,
-)
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
-from dex.intent_trade.chains.robinhood.v4_pool_liquidity import (
-    write_v4_pool_liquidity_from_contract_evidence as write_robinhood_mainnet_v4_pool_liquidity,
-)
+from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_surfaces import (
     _database_first_v4_mainnet,
@@ -284,7 +277,13 @@ def _attach_chain_flow_processing(
     return payload
 
 
-def _refresh_v4_sources(*, chain_id: int | None = None, network: str = "") -> dict:
+def _refresh_v4_sources(
+    *,
+    chain_id: int | None = None,
+    network: str = "",
+    full: bool = True,
+    database_url: str = "",
+) -> dict:
     network = str(network or "").strip().lower()
     chain_id = int(chain_id) if chain_id is not None else None
     is_mainnet = chain_id == ROBINHOOD_CHAIN_ID or network == ROBINHOOD_NETWORK
@@ -297,70 +296,48 @@ def _refresh_v4_sources(*, chain_id: int | None = None, network: str = "") -> di
             "errors": ["V4 pool index refresh is only enabled for Robinhood mainnet or testnet"],
             "message": "V4 pool index refresh is only enabled for Robinhood mainnet or testnet",
         }
-    steps: list[dict] = []
-    errors: list[str] = []
     try:
-        if is_mainnet:
-            index_result = write_robinhood_mainnet_v4_pool_index(
-                from_block=0,
-                to_block=None,
-                include_metadata=True,
-                mark_recent_swaps=True,
-            )
-        else:
-            index_result = write_v4_pool_index_from_initialize_logs()
-        steps.append(
-            {
-                "source": "v4_pool_index",
-                "ok": True,
-                "outputPath": index_result.get("outputPath"),
-                "poolCount": len(index_result.get("pools") or []),
-                "poolKeyCount": len(index_result.get("pool_keys") or []),
-            }
+        report = refresh_v4_live(
+            database=database_url or "",
+            network=network,
+            chain_id=chain_id,
+            skip_index=not full,
+            skip_liquidity=not full,
+            skip_build=False,
+            clear_cache=True,
         )
     except Exception as exc:
-        message = _friendly_oserror(f"v4_pool_index: {exc}", exc)
-        errors.append(message)
-        steps.append({"source": "v4_pool_index", "ok": False, "error": message})
-
-    try:
-        liquidity_result = {}
-        if is_mainnet:
-            liquidity_result = write_robinhood_mainnet_v4_pool_liquidity()
-        elif is_testnet:
-            liquidity_result = write_v4_pool_liquidity_from_contract_evidence(
-                token_balance_scan_scope="active_plus_known",
-                multicall_chunk_size=200,
-                max_token_balance_scan_seconds=None,
-            )
-        steps.append(
-            {
-                "source": "v4_pool_liquidity",
-                "ok": True,
-                "outputPath": liquidity_result.get("outputPath"),
-                "poolCount": len(liquidity_result.get("pools") or []),
-                "poolKeyCount": len(liquidity_result.get("pool_keys") or []),
-                "tokenBalanceScanComplete": liquidity_result.get("tokenBalanceScanComplete"),
-                "tokenBalanceScanCount": liquidity_result.get("tokenBalanceScanCount"),
-                "tokenBalancePendingCount": liquidity_result.get("tokenBalancePendingCount"),
-            }
-        )
-    except Exception as exc:
-        message = _friendly_oserror(f"v4_pool_liquidity: {exc}", exc)
-        errors.append(message)
-        steps.append({"source": "v4_pool_liquidity", "ok": False, "error": message})
-
+        message = _friendly_oserror("robinhood_v4_sqlite_rebuild", exc)
+        return {
+            "ok": False,
+            "requested": "full" if full else "incremental",
+            "source": "robinhood_v4_rebuild",
+            "steps": [{"source": "robinhood_v4_sqlite_rebuild", "ok": False, "error": message}],
+            "errors": [message],
+            "message": "Robinhood V4 SQLite rebuild completed with errors",
+        }
+    errors = list(report.get("errors") or [])
     return {
-        "ok": not errors,
-        "source": "robinhood_v4_rebuild",
-        "steps": steps,
+        "ok": bool(report.get("ok")) and not errors,
+        "requested": "full" if full else "incremental",
+        "source": "robinhood_testnet_v4_rebuild" if is_testnet else "robinhood_v4_rebuild",
+        "steps": report.get("steps") or [],
         "errors": errors,
-        "message": "Robinhood V4 source files rebuilt" if not errors else "Robinhood V4 rebuild completed with errors",
+        "message": (
+            "Robinhood V4 SQLite rebuilt from live evidence"
+            if not errors
+            else "Robinhood V4 SQLite rebuild completed with errors"
+        ),
     }
 
 
-def _refresh_robinhood_testnet_v4_sources() -> dict:
-    return _refresh_v4_sources(chain_id=ROBINHOOD_TESTNET_CHAIN_ID, network=ROBINHOOD_TESTNET_NETWORK)
+def _refresh_robinhood_testnet_v4_sources(*, full: bool = True, database_url: str = "") -> dict:
+    return _refresh_v4_sources(
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        full=full,
+        database_url=database_url,
+    )
 
 
 def _refresh_state_summary(payload: dict, refresh_state: dict) -> dict:

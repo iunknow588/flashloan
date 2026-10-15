@@ -20,9 +20,14 @@ from core.market_observation_store import (
     load_market_observation_static,
     observation_payload_from_static,
 )
+from core.db.storage_dex_surface_snapshot import (
+    load_dex_overview_snapshot,
+    save_dex_overview_snapshot,
+)
 from bot.execution.uniswap_v4 import build_v4_quote_request
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_quote_surface import (
+    _closed_loop_anchor_symbols_from_paths,
     build_quote_request_payload as build_dex_quote_request_payload,
     build_quote_routes_payload_from_overview,
     build_submission_review_payload as build_dex_submission_review_payload,
@@ -244,12 +249,32 @@ def _candidate_payload(chain_id: int | None, protocols: list[str] | None = None)
 
 def _dex_table_route(route: dict[str, Any], observation: dict[str, Any]) -> dict[str, Any]:
     """Tag a route with the DEX_TABLE provenance contract used by quote pages."""
+    route_pools = [
+        pool
+        for pool in (
+            route.get("routePools")
+            or route.get("executionPools")
+            or route.get("preferredPools")
+            or route.get("strictQualityPools")
+            or []
+        )
+        if isinstance(pool, dict)
+    ]
+    pool_ids = list(route.get("poolIds") or [])
+    if not pool_ids:
+        seen: set[str] = set()
+        for pool in route_pools:
+            pool_id = _pool_address(pool)
+            if pool_id and pool_id not in seen:
+                seen.add(pool_id)
+                pool_ids.append(pool_id)
     return {
         **route,
         "tableSource": "dex_table",
         "referencedTable": "ob_table",
         "poolIndexVersion": observation.get("poolIndexVersion") or {},
         "pathSource": "market_observation",
+        "poolIds": pool_ids,
     }
 
 
@@ -382,6 +407,16 @@ def dex_overview_payload(
         if use_compact_static_overview
         else {}
     )
+    if use_static_observation and _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols):
+        persisted_overview = load_dex_overview_snapshot(
+            network=_chain_network_name(chain_id)
+            or ("robinhood-testnet" if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID else "robinhood"),
+            chain_id=int(chain_id or 0),
+            protocol="uniswap_v4",
+        )
+        if persisted_overview is not None:
+            compact_snapshot = persisted_overview
+            use_compact_static_overview = True
     overview_snapshot_has_route_schema = any(
         key in compact_snapshot
         for key in (
@@ -424,13 +459,25 @@ def dex_overview_payload(
             use_compact_static_overview = False
     if compact_snapshot.get("exists"):
         if compact_snapshot.get("closedLoopRouteSummaries"):
-            overview_paths = _overview_paths_from_static_summary(compact_snapshot, chain_id=chain_id)
+            overview_paths = _overview_paths_from_static_summary(
+                compact_snapshot,
+                chain_id=chain_id,
+                preserve_direction=bool(compact_snapshot.get("path") == "sqlite_db"),
+            )
             overview_paths = [_dex_table_route(route, compact_snapshot) for route in overview_paths]
+            closed_loop_anchor_symbols = _closed_loop_anchor_symbols_from_paths(overview_paths)
             overview_path_groups = group_overview_paths_by_flash_loan_token(
                 overview_paths,
                 borrowable_symbols=compact_snapshot.get("borrowableSymbols") or [],
             )
             pool_payload = _overview_pool_payload_from_static_observation(compact_snapshot)
+            compact_summary = dict(compact_snapshot.get("summary") or {})
+            compact_summary.update(
+                {
+                    "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
+                    "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
+                }
+            )
             payload = {
                 "mode": "dex_overview",
                 "chain_id": chain_id,
@@ -439,7 +486,7 @@ def dex_overview_payload(
                 "referencedTable": "ob_table",
                 "poolIndexVersion": compact_snapshot.get("poolIndexVersion") or {},
                 "summary": {
-                    **(compact_snapshot.get("summary") or {}),
+                    **compact_summary,
                     "arbitragePathCount": len(overview_paths),
                     "candidatePathCount": len(overview_paths),
                     "bridgePathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
@@ -463,8 +510,18 @@ def dex_overview_payload(
                     ),
                 },
                 "decisionBasis": "robinhood_testnet_market_observation_closed_loop" if chain_id == ROBINHOOD_TESTNET_CHAIN_ID else "market_observation_closed_loop",
-                "marketObservationSource": "cached_snapshot",
-                "marketObservationSourceStage": "cached_snapshot",
+                "marketObservationSource": (
+                    "sqlite_db"
+                    if _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols)
+                    and compact_snapshot.get("path") == "sqlite_db"
+                    else "cached_snapshot"
+                ),
+                "marketObservationSourceStage": (
+                    "sqlite_db"
+                    if _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols)
+                    and compact_snapshot.get("path") == "sqlite_db"
+                    else "cached_snapshot"
+                ),
                 "routeFrameworkSource": "market_observation",
                 "marketObservation": {
                     "summary": compact_snapshot.get("summary") or {},
@@ -676,10 +733,20 @@ def database_overview_snapshot(
     """
     if not _database_first_v4_robinhood(chain_id=chain_id, protocols=protocols):
         return {}
+    network = _chain_network_name(chain_id) or (
+        "robinhood-testnet" if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID else "robinhood"
+    )
+    persisted = load_dex_overview_snapshot(
+        network=network,
+        chain_id=int(chain_id or 0),
+        protocol="uniswap_v4",
+    )
+    if persisted is not None:
+        return persisted
     overview = dex_overview_payload(
         chain_id=chain_id,
         protocols=protocols,
-        use_static_observation=False,
+        use_static_observation=True,
     )
     summaries: list[dict[str, Any]] = []
     pool_registry: dict[str, dict[str, Any]] = {}
@@ -728,20 +795,38 @@ def database_overview_snapshot(
         or summary.get("observationAnchorSymbols")
         or []
     )
-    return {
+    market_observation = (
+        overview.get("marketObservation")
+        if isinstance(overview.get("marketObservation"), dict)
+        else {}
+    )
+    chain_specific_observation_pairs = (
+        list(market_observation.get("chainSpecificObservationPairs") or [])
+        or list(overview.get("chainSpecificObservationPairs") or [])
+        or list(overview.get("watchPairs") or [])
+    )
+    snapshot = {
         "exists": True,
         "path": "sqlite_db",
         "source": "sqlite_db",
-        "network": _chain_network_name(chain_id) or "robinhood",
+        "network": network,
         "chain_id": chain_id,
         "protocols": protocols or [],
         "borrowableSymbols": list(borrowable),
         "summary": summary,
         "closedLoopRouteSummaries": summaries,
+        "chainSpecificObservationPairs": chain_specific_observation_pairs,
         "poolRegistry": pool_registry,
         "liquidPoolRegistry": liquid_registry if isinstance(liquid_registry, dict) else {},
         "poolIndexVersion": overview.get("poolIndexVersion") or {},
     }
+    save_dex_overview_snapshot(
+        snapshot,
+        network=network,
+        chain_id=int(chain_id or 0),
+        protocol="uniswap_v4",
+    )
+    return snapshot
 
 
 def load_observation_overview_for_scope(
@@ -1306,6 +1391,7 @@ def _database_first_robinhood_observation_payload(
             }
         )
     groups.sort(key=lambda group: str(group.get("anchorSymbol") or ""))
+    closed_loop_anchor_symbols = sorted(routes_by_anchor)
 
     pool_rows: list[dict[str, Any]] = []
     seen_pools: set[str] = set()
@@ -1349,19 +1435,20 @@ def _database_first_robinhood_observation_payload(
     summary = {
         "anchorBorrowSymbols": observed_anchors,
         "observationAnchorSymbols": observed_anchors,
-        "closedLoopAnchorSymbols": observed_anchors,
-        "observationAnchorCount": str(len(observed_anchors)),
-        "candidateObservationGroupCount": str(len(groups)),
-        "directPairCount": str(len(pair_rows)),
-        "observationSequenceCount": str(total_direction_count),
-        "chainSpecificObservationSequenceCount": str(total_direction_count),
-        "candidateObservationSequenceCount": str(total_direction_count),
-        "closedLoopSequenceCount": str(len(sequences)),
-        "closedLoopRouteCount": str(len(routes)),
-        "fundAnchorPairObservationRouteCount": str(len(routes)),
-        "fundAnchorPairObservationAssociatedPairCount": str(len(pair_rows)),
-        "fundAnchorPairObservationAssociatedObservationPoolCount": str(len(pool_rows)),
-        "fundAnchorPairObservationAssociatedObservationTokenCount": str(len(tokens_by_address)),
+        "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
+        "closedLoopAnchorCount": int(len(closed_loop_anchor_symbols)),
+        "observationAnchorCount": int(len(observed_anchors)),
+        "candidateObservationGroupCount": int(len(groups)),
+        "directPairCount": int(len(pair_rows)),
+        "observationSequenceCount": int(len(sequences)),
+        "chainSpecificObservationSequenceCount": int(total_direction_count),
+        "candidateObservationSequenceCount": int(len(sequences)),
+        "closedLoopSequenceCount": int(len(sequences)),
+        "closedLoopRouteCount": int(len(routes)),
+        "fundAnchorPairObservationRouteCount": int(len(routes)),
+        "fundAnchorPairObservationAssociatedPairCount": int(len(pair_rows)),
+        "fundAnchorPairObservationAssociatedObservationPoolCount": int(len(pool_rows)),
+        "fundAnchorPairObservationAssociatedObservationTokenCount": int(len(tokens_by_address)),
     }
     return {
         "mode": "dex_market_observation",
@@ -1388,6 +1475,7 @@ def _database_first_robinhood_observation_payload(
         "borrowableSymbols": borrowable_symbols or observed_anchors,
         "observationAnchorSymbols": observed_anchors,
         "anchorGroups": groups,
+        "candidateObservationGroups": groups,
         "pairs": pair_rows,
         "bridgePairs": pair_rows,
         "observationSequences": sequences,
@@ -1571,6 +1659,29 @@ def _quote_routes_payload_from_overview(
     )
 
 
+def _legal_closed_loop_endpoint_symbols(chain_id: int | None) -> set[str]:
+    """Return base anchors plus official stock symbols for one Robinhood chain.
+
+    TA/TB and other discovered tokens are never loop endpoints even when they
+    appear inside a loop as middle-hop assets.
+    """
+    from dex.intent_trade.chains.robinhood_common.chain_config import (
+        ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID,
+        ROBINHOOD_NETWORK as _ROBINHOOD_NETWORK,
+        ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
+        ROBINHOOD_TESTNET_NETWORK as _ROBINHOOD_TESTNET_NETWORK,
+        all_anchor_symbols,
+    )
+
+    if int(chain_id or 0) == _ROBINHOOD_TESTNET_CHAIN_ID:
+        network = _ROBINHOOD_TESTNET_NETWORK
+    elif int(chain_id or 0) == _ROBINHOOD_CHAIN_ID:
+        network = _ROBINHOOD_NETWORK
+    else:
+        return set()
+    return {str(symbol or "").strip().upper() for symbol in all_anchor_symbols(network)}
+
+
 def _quote_routes_payload_for_robinhood_family(
     *,
     chain_id: int | None,
@@ -1617,12 +1728,33 @@ def _quote_routes_payload_for_robinhood_family(
         if observation is not None
         else list((overview.get("summary") or {}).get("observationAnchorSymbols") or [])
     )
+    payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     if observed_anchor_symbols:
-        payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
         payload_summary["observationAnchorSymbols"] = observed_anchor_symbols
-        payload_summary.setdefault("anchorBorrowSymbols", observed_anchor_symbols)
-        payload_summary.setdefault("closedLoopAnchorSymbols", observed_anchor_symbols)
-        payload["summary"] = payload_summary
+    # The closed-loop anchor set comes only from actual overview routes. Never
+    # backfill it from observation candidates (stocks/TA/TB can otherwise leak
+    # into quote summary even when no closed loop starts from them).
+    route_anchor_symbols = {
+        str((route.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
+        for route in payload.get("routes") or []
+        if isinstance(route, dict)
+    }
+    route_anchor_symbols.update(
+        str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
+        for path in overview.get("arbitragePaths") or []
+        if isinstance(path, dict)
+    )
+    route_anchor_symbols = {
+        symbol
+        for symbol in route_anchor_symbols
+        if symbol in _legal_closed_loop_endpoint_symbols(chain_id)
+    }
+    if route_anchor_symbols:
+        closed_loop_anchor_symbols = sorted(route_anchor_symbols)
+        payload_summary["closedLoopAnchorSymbols"] = closed_loop_anchor_symbols
+        payload_summary["closedLoopAnchorCount"] = len(closed_loop_anchor_symbols)
+        payload_summary["anchorBorrowSymbols"] = closed_loop_anchor_symbols
+    payload["summary"] = payload_summary
     if not anchor:
         _cache_surface_payload(
             "dex_quote_routes",

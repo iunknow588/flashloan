@@ -170,8 +170,6 @@
     let refreshInFlight = false;
     let candidatePage = Math.max(1, Number(new URLSearchParams(window.location.search).get("page") || 1) || 1);
     let candidatePageSize = Math.max(1, Math.min(1000, Number(new URLSearchParams(window.location.search).get("page_size") || 20) || 20));
-    let abnormalPoolPage = Math.max(1, Number(new URLSearchParams(window.location.search).get("abnormal_pool_page") || 1) || 1);
-    let abnormalTokenPage = Math.max(1, Number(new URLSearchParams(window.location.search).get("abnormal_token_page") || 1) || 1);
     let searchTimer = null;
 
     function marketIdChainComponent(marketId) {
@@ -216,7 +214,7 @@
       const next = new URL(window.location.href);
       Object.entries(updates).forEach(([key, value]) => {
         const text = String(value ?? "").trim();
-        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "20") || (key === "quality" && text === "all") || ((key === "abnormal_pool_page" || key === "abnormal_token_page") && text === "1")) {
+        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "20") || (key === "quality" && text === "all")) {
           next.searchParams.delete(key);
         } else {
           next.searchParams.set(key, text);
@@ -235,10 +233,6 @@
       query.set("page", String(candidatePage));
       query.set("page_size", String(candidatePageSize));
       query.set("quality", $("qualityFilter").value || "all");
-      if (abnormalPoolPage > 1) query.set("abnormal_pool_page", String(abnormalPoolPage));
-      else query.delete("abnormal_pool_page");
-      if (abnormalTokenPage > 1) query.set("abnormal_token_page", String(abnormalTokenPage));
-      else query.delete("abnormal_token_page");
       return query;
     }
 
@@ -482,29 +476,6 @@
       return renderSection("ZC/YC 双向候选", tokens, pools);
     }
 
-    function renderAbnormalSection(group) {
-      const tokens = group.abnormalTokens || [];
-      const pools = group.abnormalPools || [];
-      const poolPagination = group.abnormalPoolPagination || null;
-      const tokenPagination = group.abnormalTokenPagination || null;
-      if (!poolPagination?.total_count && !tokenPagination?.total_count) return "";
-      const tokenChips = renderTokenChips(tokens);
-      return `
-        <div class="section">
-          <div class="section-head">
-            <div>
-              <h3>YC'' / ZC'' 非正常候选</h3>
-              <div class="group-meta">YC'' / ZC'' 非正常候选 方向代币共 ${esc(tokenPagination?.total_count ?? (tokens.length || 0))} 个，当前页 ${esc(tokens.length || 0)} 个；候选池共 ${esc(poolPagination?.total_count ?? (pools.length || 0))} 个，当前页 ${esc(pools.length || 0)} 个</div>
-            </div>
-            <div class="chip-row">${tokenChips}</div>
-          </div>
-          ${tokenPagination ? sectionPaginationButtons(tokenPagination, "abnormal_token_page") : ""}
-          ${renderPoolTable(pools)}
-          ${poolPagination ? sectionPaginationButtons(poolPagination, "abnormal_pool_page") : ""}
-        </div>
-      `;
-    }
-
     function groupMatches(group, query) {
       if (!query) return true;
       const parts = [
@@ -516,8 +487,6 @@
         ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
         ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
         ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
-        ...(group.abnormalTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...(group.abnormalPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
       ].join(" ").toLowerCase();
       return parts.includes(query);
     }
@@ -560,14 +529,11 @@
       }
       $("groupList").innerHTML = groups.map(group => {
         const sameSet = Boolean(group.ycZcSameSet || group.candidateSetMode === "bidirectional_same_pool_key_set");
-        // No-depth/abnormal pools are replaced by per-direction backup pools;
-        // they are no longer rendered as a separate observation section.
-        const abnormalSection = "";
         if (($("qualityFilter").value || "all") === "with_liquidity" && !groupHasLiquidity(group) && !group.poolPagination) return "";
         const sections = sameSet
           ? renderBidirectionalSection(group)
           : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
-        if (($("qualityFilter").value || "all") === "with_liquidity" && !sections.trim() && !abnormalSection.trim() && !group.poolPagination) return "";
+        if (($("qualityFilter").value || "all") === "with_liquidity" && !sections.trim() && !group.poolPagination) return "";
         return `
         <article class="group">
           <div class="group-head">
@@ -587,7 +553,6 @@
             <div class="group-meta">页面只展示候选方向，不做最终盈亏裁决。</div>
           </div>
           ${sections || '<div class="empty">本页暂无候选池</div>'}
-          ${abnormalSection}
         </article>
       `;
       }).join("");
@@ -699,20 +664,6 @@
     $("groupList").addEventListener("click", event => {
       const button = event.target.closest("[data-pager-target]");
       if (!button) return;
-      const target = String(button.dataset.pagerTarget || "");
-      const delta = Number(button.dataset.pagerDelta || 0);
-      if (!target || !delta) return;
-      if (target === "abnormal_pool_page") {
-        const next = abnormalPoolPage + delta;
-        abnormalPoolPage = Math.max(1, next);
-      } else if (target === "abnormal_token_page") {
-        const next = abnormalTokenPage + delta;
-        abnormalTokenPage = Math.max(1, next);
-      } else {
-        return;
-      }
-      replaceUrlParams({ [target]: target === "abnormal_pool_page" ? abnormalPoolPage : abnormalTokenPage });
-      load();
     });
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") load();

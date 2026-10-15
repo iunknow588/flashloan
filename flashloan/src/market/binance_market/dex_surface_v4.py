@@ -62,48 +62,51 @@ def _pool_manager_address(pool: dict[str, Any], chain_id: int | None = None) -> 
     return ""
 def _v4_token_metadata_cache(pool_manager: str, *, chain_id: int | None = None) -> dict[str, dict[str, Any]]:
     normalized_pool_manager = _text(pool_manager).lower()
-    if not normalized_pool_manager:
-        return {}
-    if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID:
-        cache_key = (normalized_pool_manager, chain_id)
-        with _V4_TOKEN_METADATA_CACHE_LOCK:
-            cached = _V4_TOKEN_METADATA_CACHE.get(cache_key)
-        if cached is not None:
-            return cached
-        try:
-            from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
+    cache_key = (normalized_pool_manager, chain_id)
+    with _V4_TOKEN_METADATA_CACHE_LOCK:
+        cached = _V4_TOKEN_METADATA_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        from core.db.database_path import absolute_database_path
+        from core.db.storage_chain_core import load_chain_tokens
 
-            cache = _load_token_balance_scan_cache(pool_manager=normalized_pool_manager)
-        except Exception:
-            cache = {}
-        entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
-        metadata: dict[str, dict[str, Any]] = {}
-        for address, entry in entries.items():
-            if not isinstance(entry, dict):
-                continue
-            normalized = _token_address(address) or _token_address(entry.get("address"))
-            if not normalized:
-                continue
-            symbol = _norm_symbol(entry.get("symbol") or entry.get("token_symbol"))
-            decimals = entry.get("decimals")
-            try:
-                decimals = int(decimals) if decimals not in (None, "") else None
-            except (TypeError, ValueError):
-                decimals = None
-            metadata[normalized] = {
-                "address": normalized,
-                "symbol": symbol,
-                "decimals": decimals,
-                "metadataOk": bool(symbol and decimals is not None),
-                "source": "token_balance_scan_cache",
-            }
-        with _V4_TOKEN_METADATA_CACHE_LOCK:
-            _V4_TOKEN_METADATA_CACHE[cache_key] = metadata
-        return metadata
-    # Mainnet V4 does not inherit testnet token-balance evidence. Pool keys
-    # from the mainnet observation snapshot carry decimals when available;
-    # otherwise live ERC20 decimal reads can be enabled explicitly.
-    return {}
+        resolved_chain_id = int(chain_id or 0)
+        network = (
+            "robinhood-testnet"
+            if resolved_chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+            else "robinhood"
+        )
+        rows = load_chain_tokens(
+            str(absolute_database_path()),
+            network=network,
+            chain_id=resolved_chain_id,
+        )
+    except Exception:
+        rows = []
+    metadata: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized = _token_address(row.get("token_address"))
+        if not normalized:
+            continue
+        symbol = _norm_symbol(row.get("token_symbol"))
+        decimals = row.get("token_decimals")
+        try:
+            decimals = int(decimals) if decimals not in (None, "") else None
+        except (TypeError, ValueError):
+            decimals = None
+        metadata[normalized] = {
+            "address": normalized,
+            "symbol": symbol,
+            "decimals": decimals,
+            "metadataOk": bool(symbol and decimals is not None),
+            "source": "sqlite_db",
+        }
+    with _V4_TOKEN_METADATA_CACHE_LOCK:
+        _V4_TOKEN_METADATA_CACHE[cache_key] = metadata
+    return metadata
 
 
 def clear_v4_token_metadata_cache() -> int:
@@ -144,7 +147,7 @@ def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int |
                     "symbol": symbol or address[:8].upper(),
                     "decimals": decimals,
                     "metadataOk": bool(symbol and decimals is not None),
-                    "source": "token_balance_scan_cache",
+                    "source": "sqlite_db",
                 }
         if _v4_live_token_metadata_enabled():
             live_decimals = _live_v4_token_decimals(address, chain_id=chain_id)

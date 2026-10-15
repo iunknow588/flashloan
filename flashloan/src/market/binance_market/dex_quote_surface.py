@@ -18,6 +18,27 @@ from market.binance_market.dex_quote_route_common import (
 )
 
 
+def _closed_loop_anchor_symbols_from_paths(paths: list[dict[str, Any]]) -> list[str]:
+    """Derive loop anchors from actual overview routes, not observation sets."""
+    symbols: set[str] = set()
+    for path in paths:
+        if not isinstance(path, dict):
+            continue
+        overview_route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+        anchor = str(overview_route.get("anchorBorrowSymbol") or "").strip().upper()
+        if anchor:
+            symbols.add(anchor)
+            continue
+        route_symbols = [
+            str(symbol or "").strip().upper()
+            for symbol in path.get("routeSymbols") or overview_route.get("pathSymbols") or []
+            if str(symbol or "").strip()
+        ]
+        if route_symbols and len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1]:
+            symbols.add(route_symbols[0])
+    return sorted(symbols)
+
+
 def build_quote_routes_payload_from_overview(
     overview: dict[str, Any],
     *,
@@ -93,8 +114,11 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_bps = best_routes_state["best_token_basis_bps"]
     best_token_basis_profit = best_routes_state["best_token_basis_profit"]
     best_token_basis_profit_basis = best_routes_state["best_token_basis_profit_basis"]
+    closed_loop_anchor_symbols = _closed_loop_anchor_symbols_from_paths(paths)
     summary.update(
         {
+            "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
+            "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
             "probeNotionalUsd": quote_probe_notional_usd,
             "routeCount": len(routes),
             "candidateRouteCount": len(routes),

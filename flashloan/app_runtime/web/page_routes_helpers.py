@@ -346,71 +346,44 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
     protocol_set = set(protocols)
     refresh_v4 = chain_id in (ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID) and (not protocol_set or "uniswap_v4" in protocol_set)
     if refresh_v4:
-        source = "robinhood_v4_pool_index"
-        if full:
-            try:
-                if chain_id == ROBINHOOD_CHAIN_ID:
-                    from dex.intent_trade.chains.robinhood.v4_pool_index import write_v4_pool_index_from_initialize_logs as write_mainnet_v4_index
-
-                    result = write_mainnet_v4_index(
-                        from_block=0,
-                        to_block=None,
-                        include_metadata=True,
-                        mark_recent_swaps=True,
-                    )
-                    source = "robinhood_mainnet_v4_pool_index"
-                else:
-                    from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
-
-                    result = write_v4_pool_index_from_initialize_logs()
-                    source = "robinhood_testnet_v4_pool_index"
-                steps.append(
-                    {
-                        "source": source,
-                        "ok": True,
-                        "outputPath": result.get("outputPath"),
-                        "poolCount": len(result.get("pools") or []),
-                        "poolKeyCount": len(result.get("poolKeys") or result.get("pool_keys") or []),
-                    }
-                )
-            except Exception as exc:
-                errors.append(f"{source}: {exc}")
-                steps.append({"source": source, "ok": False, "error": str(exc)})
         try:
-            if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
-                from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
+            from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
 
-                result = write_v4_pool_liquidity_from_contract_evidence(
-                    token_balance_scan_scope="active_plus_known",
-                    multicall_chunk_size=200,
-                    max_token_balance_scan_seconds=None,
-                )
-                steps.append(
-                    {
-                        "source": "robinhood_testnet_v4_pool_liquidity",
-                        "ok": True,
-                        "outputPath": result.get("outputPath"),
-                        "poolCount": len(result.get("pools") or []),
-                        "poolKeyCount": len(result.get("poolKeys") or result.get("pool_keys") or []),
-                        "tokenBalanceScanScope": result.get("tokenBalanceScanScope"),
-                        "tokenBalanceScanCount": result.get("tokenBalanceScanCount"),
-                        "tokenBalanceSourceCount": result.get("tokenBalanceSourceCount"),
-                    }
-                )
-            else:
-                steps.append(
-                    {
-                        "source": "robinhood_mainnet_v4_pool_liquidity",
-                        "ok": True,
-                        "poolCount": 0,
-                        "poolKeyCount": 0,
-                        "message": "主网 V4 只在池索引解码完成后生成流动性证据",
-                    }
-                )
+            network = (
+                "robinhood-testnet"
+                if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+                else "robinhood"
+            )
+            result = refresh_v4_live(
+                database=_panel_database_url(panel) or "",
+                network=network,
+                chain_id=chain_id,
+                skip_index=not full,
+                skip_liquidity=not full,
+                skip_build=False,
+                clear_cache=True,
+            )
+            result_errors = list(result.get("errors") or [])
+            errors.extend(result_errors)
+            steps.append(
+                {
+                    "source": "robinhood_v4_sqlite_rebuild",
+                    "ok": bool(result.get("ok")) and not result_errors,
+                    "poolCount": result.get("import", {}).get("v4PoolCount"),
+                    "anchorCount": len((result.get("build") or {}).get("anchors") or []),
+                    "cacheEntriesCleared": result.get("cacheEntriesCleared"),
+                    "errors": result_errors,
+                }
+            )
         except Exception as exc:
-            liquidity_source = "robinhood_mainnet_v4_pool_liquidity" if chain_id == ROBINHOOD_CHAIN_ID else "robinhood_testnet_v4_pool_liquidity"
-            errors.append(f"{liquidity_source}: {exc}")
-            steps.append({"source": liquidity_source, "ok": False, "error": str(exc)})
+            errors.append(f"robinhood_v4_sqlite_rebuild: {exc}")
+            steps.append(
+                {
+                    "source": "robinhood_v4_sqlite_rebuild",
+                    "ok": False,
+                    "error": str(exc),
+                }
+            )
 
     if not errors and refresh_v4 and chain_id == ROBINHOOD_CHAIN_ID:
         try:
