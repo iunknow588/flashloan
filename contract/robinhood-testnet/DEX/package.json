@@ -32,6 +32,8 @@
     "testnet:v4-official-composer:periodic": "python ../../../test-token_create/scripts/tool/periodic_official_v4_composer.py --broadcast",
     "testnet:v4-official-replenish:preflight": "hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-inject-liquidity-live.js --network robinhoodTestnet",
     "testnet:v4-official-replenish:live": "set ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST=true&& set ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST=true&& hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-inject-liquidity-live.js --network robinhoodTestnet",
+    "testnet:stock-pool-liquidity:preflight": "hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-inject-liquidity-live.js --network robinhoodTestnet",
+    "testnet:stock-pool-liquidity:live": "set ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST=true&& set ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST=true&& hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-inject-liquidity-live.js --network robinhoodTestnet",
     "testnet:v4-official-make-arb:preflight": "hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-make-arb-opportunity-live.js --network robinhoodTestnet",
     "testnet:v4-official-make-arb:live": "set ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST=true&& set ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST=true&& hardhat run ../../../test-token_create/scripts/tool/testnet-v4-official-make-arb-opportunity-live.js --network robinhoodTestnet",
     "testnet:v4-official-diagnose:depth": "set HARDHAT_NETWORK=robinhoodTestnet&& node ../../../test-token_create/scripts/tool/testnet-v4-official-diagnose-live.js --mode depth",

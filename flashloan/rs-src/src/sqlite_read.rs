@@ -123,7 +123,8 @@ pub fn load_v4_pool_liquidity(
         "SELECT network, chain_id, protocol, pool_id, has_liquidity, liquidity, \
          liquidity_index, estimated_tvl_usd, balances_json, depth_status, depth_band_json, \
          depth_score_usd, sqrt_price_x96, price, tick, liquidity_read_at, \
-         liquidity_block_number, recent_swap_active, observed_at, refreshed_at \
+         liquidity_block_number, recent_swap_active, observed_at, refreshed_at, \
+         evidence_source \
          FROM v4_exchange_pool_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
@@ -142,7 +143,7 @@ pub fn load_v4_pool_liquidity_rows_for_view(
         "SELECT pool_id, has_liquidity, liquidity, liquidity_index, \
          estimated_tvl_usd, depth_status, sqrt_price_x96, tick, \
          liquidity_read_at, liquidity_block_number, recent_swap_active, \
-         observed_at, refreshed_at \
+         observed_at, refreshed_at, evidence_source \
          FROM v4_exchange_pool_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
@@ -299,7 +300,8 @@ pub fn load_market_observation(
         "SELECT network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id, \
          has_liquidity, liquidity, liquidity_index, estimated_tvl_usd, balances_json, \
          depth_status, depth_band_json, sqrt_price_x96, tick, liquidity_read_at, \
-         liquidity_block_number, recent_swap_active, observed_at, refreshed_at \
+         liquidity_block_number, recent_swap_active, observed_at, refreshed_at, \
+         evidence_source \
          FROM market_observation_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY pool_id",
@@ -445,6 +447,7 @@ mod tests {
                     recent_swap_active INTEGER,
                     observed_at TEXT NOT NULL,
                     refreshed_at TEXT NOT NULL,
+                    evidence_source TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 ",
@@ -452,7 +455,7 @@ mod tests {
             .expect("create test tables");
         connection
             .execute(
-                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 params![
                     "robinhood", 4663_i64, "uniswap_v4",
                     "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -460,7 +463,8 @@ mod tests {
                     "{}", "liquid", "{}", 1_000.0_f64,
                     "79228162514264337593543950336", 1.0_f64, 0,
                     "2026-10-09T00:00:00.000Z", 4663_i64, 1,
-                    "2026-10-09T00:00:00.000Z", "2026-10-09T00:00:00.000Z"
+                    "2026-10-09T00:00:00.000Z", "2026-10-09T00:00:00.000Z",
+                    "pool_manager_extsload_live_state_batch"
                 ],
             )
             .expect("insert liquidity");
@@ -513,6 +517,7 @@ mod tests {
                     recent_swap_active INTEGER,
                     observed_at TEXT NOT NULL,
                     refreshed_at TEXT NOT NULL,
+                    evidence_source TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 ",
@@ -520,7 +525,7 @@ mod tests {
             .expect("create liquidity table");
         connection
             .execute(
-                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 params![
                     "robinhood", 4663_i64, "uniswap_v4",
                     "0x2222222222222222222222222222222222222222222222222222222222222222",
@@ -529,7 +534,8 @@ mod tests {
                     "", Option::<f64>::None, Option::<i64>::None,
                     Option::<String>::None, Option::<i64>::None,
                     Option::<i64>::None,
-                    "2026-10-09T00:00:00.000Z", "2026-10-09T00:00:00.000Z"
+                    "2026-10-09T00:00:00.000Z", "2026-10-09T00:00:00.000Z",
+                    Option::<String>::None
                 ],
             )
             .expect("insert unknown liquidity row");
