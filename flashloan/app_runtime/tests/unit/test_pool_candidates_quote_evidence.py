@@ -508,6 +508,18 @@ def test_dex_quote_routes_drop_polluted_bridge_symbols(monkeypatch):
             },
         },
     )
+    # This test only exercises route filtering. Keep the route builder on the
+    # static reference path so it never dials a real Robinhood RPC endpoint
+    # through the V4 live-quote adapter.
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_v4_live_quote_enabled",
+        lambda chain_id=None: False,
+    )
+    monkeypatch.setattr(
+        "market.binance_market.dex_surface_route_quotes._v4_live_quote_enabled",
+        lambda chain_id=None: False,
+    )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
 

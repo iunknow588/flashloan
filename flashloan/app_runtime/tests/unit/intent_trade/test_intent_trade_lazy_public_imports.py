@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
+
+
+SRC_ROOT = Path(__file__).resolve().parents[4] / "src"
 
 
 def test_robinhood_pool_view_import_does_not_load_web3():
@@ -16,8 +20,9 @@ assert "requests" not in sys.modules, "requests must not be loaded for the pool 
 from dex.intent_trade import build_cow_intent_trade
 assert callable(build_cow_intent_trade)
 assert "web3" not in sys.modules, "web3 must not be loaded by lazy public names"
-"""
+    """
     env = dict(os.environ)
+    env["PYTHONPATH"] = str(SRC_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     result = subprocess.run(
         [sys.executable, "-c", code],
         cwd=os.getcwd(),

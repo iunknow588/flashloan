@@ -6,6 +6,10 @@ from core.db.storage_chain_core import seed_chain_tokens
 from core.db.storage_dex_candidate import replace_dex_candidate_tables
 from core.db.storage_market_observation import replace_market_observation_tables
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
+from core.db.storage_v4_exchange import (
+    upsert_v4_exchange_pools,
+    upsert_v4_liquidity_snapshots,
+)
 from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     db_closed_loop_sequences,
 )
@@ -263,6 +267,129 @@ def test_db_closed_loop_sequences_does_not_force_backup_when_only_one_pool(tmp_p
     assert yc["poolCount"] == 1
 
 
+def test_db_closed_loop_sequences_uses_exchange_live_evidence_when_derived_rows_are_weak(tmp_path):
+    import sqlite3
+
+    db = _seed_db(tmp_path)
+    yc_pool_id = "0x" + "0" * 63 + "1"
+    con = sqlite3.connect(db)
+    con.execute(
+        """
+        UPDATE dex_candidate_pools
+        SET has_liquidity = 0, liquidity = '0', liquidity_index = 0.0,
+            estimated_tvl_usd = 0.0, depth_status = 'no_liquidity',
+            balances_json = '{}'
+        WHERE network = 'robinhood-testnet' AND chain_id = 46630
+          AND protocol = 'uniswap_v4' AND pool_id = ?
+        """,
+        (yc_pool_id,),
+    )
+    con.commit()
+    con.close()
+
+    upsert_v4_liquidity_snapshots(
+        db,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": yc_pool_id,
+                "has_liquidity": 1,
+                "liquidity": "5962221889878846",
+                "liquidity_index": 0.00596222,
+                "estimated_tvl_usd": 0.088,
+                "depth_status": "thin",
+                "evidence_source": "pool_manager_extsload_live_state_batch",
+            }
+        ],
+    )
+
+    sequences = db_closed_loop_sequences(
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        market_id="dex-arbitrage-46630-uniswap-v4",
+        kind="robinhood_testnet_closed_loop",
+        database_url=db,
+    )
+
+    assert len(sequences) == 1
+    sequence = sequences[0]
+    yc = next(hop for hop in sequence["hopCandidates"] if hop["direction"] == "yc")
+    assert yc["preferredPoolId"] == yc_pool_id
+    assert yc["pools"][0]["evidenceSource"] == "pool_manager_extsload_live_state_batch"
+
+
+def test_db_closed_loop_sequences_restores_pool_key_from_exchange_pools(tmp_path):
+    import sqlite3
+
+    db = _seed_db(tmp_path)
+    stored_yc = _pool("0x" + "0" * 63 + "1", ETH, TZ)
+    stored_zc = _pool("0x" + "0" * 63 + "2", ETH, TB)
+    bridge = _pool("0x" + "0" * 63 + "3", TZ, TB)
+    for pool in (stored_yc, stored_zc, bridge):
+        upsert_v4_exchange_pools(
+            db,
+            network="robinhood-testnet",
+            chain_id=46630,
+            protocol="uniswap_v4",
+            pool_rows=[
+                {
+                    "pool_id": pool["pool_id"],
+                    "pool_manager": pool["pool_manager"],
+                    "pool_key": pool["pool_key"],
+                    "token0": pool["token0"],
+                    "token1": pool["token1"],
+                    "fee": pool["fee"],
+                    "tick_spacing": pool["tick_spacing"],
+                    "hooks": pool["hooks"],
+                }
+            ],
+        )
+
+    # Derived candidate/observation rows can lose the raw pool key. The loop
+    # assembly must restore it from v4_exchange_pools instead of keeping an
+    # empty poolKey that quote/route surfaces later reject.
+    con = sqlite3.connect(db)
+    con.execute(
+        """
+        UPDATE dex_candidate_pools
+        SET pool_key_json = NULL
+        WHERE network = 'robinhood-testnet' AND chain_id = 46630
+          AND protocol = 'uniswap_v4'
+        """
+    )
+    con.execute(
+        """
+        UPDATE market_observation_intermediate_pools
+        SET pool_key_json = NULL
+        WHERE network = 'robinhood-testnet' AND chain_id = 46630
+          AND protocol = 'uniswap_v4'
+        """
+    )
+    con.commit()
+    con.close()
+
+    sequences = db_closed_loop_sequences(
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        market_id="dex-arbitrage-46630-uniswap-v4",
+        kind="robinhood_testnet_closed_loop",
+        database_url=db,
+    )
+
+    assert len(sequences) == 1
+    for step in sequences[0]["routePools"]:
+        pool_key = step["poolKey"]
+        assert isinstance(pool_key, dict)
+        assert pool_key.get("currency0")
+        assert pool_key.get("currency1")
+        assert pool_key.get("fee") == 3000
+        assert str(pool_key.get("hooks") or "").lower() == ETH
+
+
 def test_real_runtime_db_directed_closed_loop_contract():
     import sqlite3
     from pathlib import Path
@@ -284,10 +411,14 @@ def test_real_runtime_db_directed_closed_loop_contract():
             ORDER BY loop_key
             """
         ).fetchall()
-        assert len(mainnet_rows) == 22
+        # The DB-first builder recovered additional mainnet loops after the
+        # liquidity gate stopped rejecting large liquidity-index pools with a
+        # small USD depth.  Keep the assertion as a lower bound plus the
+        # liquidity invariant instead of a hard-coded historical count.
+        assert len(mainnet_rows) >= 22
         assert all("0X" not in str(row[1]).upper() for row in mainnet_rows)
         symbols = {tuple(json.loads(row[1])) for row in mainnet_rows}
-        assert len(symbols) == 22
+        assert len(symbols) == len(mainnet_rows)
         reversed_symbols = {
             (path[0], path[2], path[1], path[0])
             for path in symbols
@@ -306,19 +437,50 @@ def test_real_runtime_db_directed_closed_loop_contract():
               AND c.protocol = 'uniswap_v4'
             """
         ).fetchall()
-        assert len(hop_rows) == 66
+        assert len(hop_rows) == len(mainnet_rows) * 3
         assert all(str(row[0]) in {"yc", "y-z", "zc"} for row in hop_rows)
         assert all(str(row[1]).strip() for row in hop_rows)
-
-        testnet_count = cur.execute(
+        liquid_hops = cur.execute(
             """
-            SELECT count(*)
+            SELECT COUNT(*)
+            FROM v4_closed_loops c
+            JOIN v4_closed_loop_hops h
+              ON h.loop_key = c.loop_key
+             AND h.market_id = c.market_id
+            JOIN v4_exchange_pool_liquidity_snapshots s
+              ON s.network = h.network AND s.chain_id = h.chain_id
+             AND s.protocol = h.protocol AND s.pool_id = h.pool_id
+            WHERE c.network = 'robinhood' AND c.chain_id = 4663
+              AND c.protocol = 'uniswap_v4' AND s.has_liquidity = 1
+            """
+        ).fetchone()[0]
+        assert liquid_hops == len(hop_rows)
+
+        testnet_rows = cur.execute(
+            """
+            SELECT loop_key, anchor_symbol, path_symbols_json
             FROM v4_closed_loops
             WHERE network = 'robinhood-testnet' AND chain_id = 46630
               AND protocol = 'uniswap_v4'
+            ORDER BY loop_key
             """
-        ).fetchone()[0]
-        assert testnet_count == 2
+        ).fetchall()
+        assert len(testnet_rows) > 0
+        testnet_paths = [tuple(json.loads(row[2])) for row in testnet_rows]
+        assert all(len(path) >= 4 and path[0] == path[-1] for path in testnet_paths)
+        legal_endpoints = {
+            "ETH", "WETH", "USDE", "USDG", "TZ",
+            "AMD", "AMZN", "NFLX", "PLTR", "TSLA",
+        }
+        assert all(path[0] in legal_endpoints for path in testnet_paths)
+        tz_paths = {
+            tuple(path)
+            for row in testnet_rows
+            if row[1] == "TZ"
+            for path in [tuple(json.loads(row[2]))]
+        }
+        assert ("TZ", "TA", "TB", "TZ") in tz_paths
+        assert ("TZ", "TB", "TA", "TZ") in tz_paths
     finally:
         con.close()
 

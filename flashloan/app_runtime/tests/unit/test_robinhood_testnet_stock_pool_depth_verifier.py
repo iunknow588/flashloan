@@ -9,28 +9,41 @@ flagged as stale.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from core.db.storage_chain_core import seed_chain_tokens
+from core.db.storage_schema import ensure_database_schema
+from core.db.storage_v4_exchange import (
+    upsert_v4_exchange_pools,
+    upsert_v4_liquidity_snapshots,
+)
 from dex.tools.verify_robinhood_testnet_stock_pool_liquidity import (
-    _load_stock_registry,
+    load_eth_stock_pools_from_sqlite,
     select_eth_stock_pools,
     verify_stock_pool_liquidity,
 )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-REGISTRY = REPO_ROOT / "flashloan" / "src" / "chains" / "robinhood-testnet" / "robinhood_stock_tokens.json"
-EVIDENCE = (
-    REPO_ROOT
-    / "flashloan"
-    / "src"
-    / "runtime"
-    / "evidence"
-    / "robinhood-testnet"
-    / "v4_pool_liquidity"
-    / "latest.json"
-)
+ETH = "0x0000000000000000000000000000000000000000"
+ZERO_HOOKS = "0x" + "00" * 20
+STOCK_ADDRESS = "0x" + "bb" * 20
+
+
+def _real_runtime_database() -> str | None:
+    import os
+
+    env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
+    candidate = Path(env_path) if env_path else (
+        REPO_ROOT / "flashloan" / "src" / "runtime" / "local_store.sqlite3"
+    )
+    if not candidate.exists():
+        return None
+    try:
+        candidate.resolve(strict=True)
+    except OSError:
+        return None
+    return str(candidate)
 
 
 def _pool(pool_id: str, symbol: str, *, address: str | None = None, fee: int = 3000, hooks: str = "0x" + "00" * 20) -> dict:
@@ -151,13 +164,99 @@ def test_verify_flags_evidence_false_negative_when_live_state_nonzero():
     assert result["staleEvidencePools"][0]["poolId"] == pool["poolId"]
 
 
-def test_real_testnet_evidence_has_five_official_stock_pools_and_ten_candidates():
-    if not REGISTRY.exists() or not EVIDENCE.exists():
+def test_load_eth_stock_pools_from_sqlite_merges_stored_liquidity_evidence(tmp_path):
+    database = str(tmp_path / "stock.sqlite3")
+    ensure_database_schema(database)
+    seed_chain_tokens(
+        database,
+        network="robinhood-testnet",
+        chain_id=46630,
+        token_rows=[
+            {"token_address": ETH, "token_symbol": "ETH", "token_decimals": 18, "is_native": 1},
+            {
+                "token_address": STOCK_ADDRESS,
+                "token_symbol": "AMD",
+                "token_decimals": 18,
+                "token_metadata": {"category": "robinhood_stock"},
+            },
+            {"token_address": "0x" + "cc" * 20, "token_symbol": "USDG", "token_decimals": 18},
+        ],
+    )
+    pool_id = "0x" + "dd" * 32
+    non_stock_pool_id = "0x" + "ee" * 32
+    upsert_v4_exchange_pools(
+        database,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        pool_rows=[
+            {
+                "pool_id": pool_id,
+                "token0": ETH,
+                "token1": STOCK_ADDRESS,
+                "fee": 3000,
+                "hooks": ZERO_HOOKS,
+                "tick_spacing": 60,
+            },
+            {
+                "pool_id": non_stock_pool_id,
+                "token0": ETH,
+                "token1": "0x" + "cc" * 20,
+                "fee": 3000,
+                "hooks": ZERO_HOOKS,
+                "tick_spacing": 60,
+            },
+        ],
+    )
+    upsert_v4_liquidity_snapshots(
+        database,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": pool_id,
+                "has_liquidity": True,
+                "liquidity": "123",
+                "liquidity_index": 123.0,
+                "estimated_tvl_usd": 5000.0,
+                "depth_status": "deep",
+                "sqrt_price_x96": "1",
+                "tick": 1,
+                "observed_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "pool_id": non_stock_pool_id,
+                "has_liquidity": False,
+                "liquidity": "",
+                "observed_at": "2026-01-01T00:00:00Z",
+            },
+        ],
+    )
+
+    selected = load_eth_stock_pools_from_sqlite(
+        database,
+        network="robinhood-testnet",
+        chain_id=46630,
+    )
+    assert len(selected) == 1
+    row = selected[0]
+    assert row["stockSymbol"] == "AMD"
+    assert row["poolId"] == pool_id
+    assert row["hasLiquidity"] is True
+    assert row["estimatedTvlUsd"] == 5000.0
+    assert row["currency1Metadata"]["symbol"] == "AMD"
+
+
+def test_real_runtime_sqlite_sources_five_official_stock_pool_candidates():
+    database = _real_runtime_database()
+    if not database:
         return
-    stock_symbols = _load_stock_registry(REGISTRY)
-    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-    pools = evidence.get("pools") or []
-    selected = select_eth_stock_pools(pools, stock_symbols)
+    selected = load_eth_stock_pools_from_sqlite(
+        database,
+        network="robinhood-testnet",
+        chain_id=46630,
+    )
     symbols = {row["stockSymbol"] for row in selected}
     assert {"AMD", "AMZN", "NFLX", "PLTR", "TSLA"} <= symbols
     candidates = [

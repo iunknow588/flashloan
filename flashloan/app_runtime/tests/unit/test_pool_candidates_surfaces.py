@@ -633,6 +633,8 @@ def test_dex_market_observation_surface_uses_database_for_mainnet_v4(monkeypatch
 
 
 def test_database_overview_snapshot_backs_mainnet_v4_static_contracts(monkeypatch):
+    call_kwargs: dict = {}
+
     overview = {
         "chain_id": 4663,
         "selected_protocols": ["uniswap_v4"],
@@ -663,10 +665,24 @@ def test_database_overview_snapshot_backs_mainnet_v4_static_contracts(monkeypatc
         "liquidPoolRegistry": {},
         "poolIndexVersion": {"source": "sqlite_db"},
     }
+    def fake_overview_payload(**kwargs):
+        call_kwargs.update(kwargs)
+        return dict(overview)
+
     monkeypatch.setattr(
         dex_surfaces,
         "dex_overview_payload",
-        lambda chain_id=None, protocols=None, use_static_observation=False: dict(overview),
+        fake_overview_payload,
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "load_dex_overview_snapshot",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        dex_surfaces,
+        "save_dex_overview_snapshot",
+        lambda *args, **kwargs: {"ok": True},
     )
 
     snapshot = dex_surfaces.load_observation_overview_for_scope(
@@ -679,6 +695,7 @@ def test_database_overview_snapshot_backs_mainnet_v4_static_contracts(monkeypatc
     assert len(snapshot["closedLoopRouteSummaries"]) == 1
     assert snapshot["closedLoopRouteSummaries"][0]["anchorSymbol"] == "ETH"
     assert snapshot["poolRegistry"]["0x" + "a" * 64]["hasLiquidity"] is True
+    assert call_kwargs["use_static_observation"] is True
 
 
 def test_dex_market_observation_surface_recomputes_when_static_snapshot_is_empty(monkeypatch):

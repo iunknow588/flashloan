@@ -590,6 +590,25 @@ def test_fork_simulation_requires_configured_executor_when_enabled(monkeypatch, 
         raise AssertionError("missing configured executor should block fork simulation")
 
 
+def test_fork_simulation_uses_fuji_usdc_only_for_fuji_chain(monkeypatch):
+    from web import control_panel_liquidation_support as support
+
+    monkeypatch.setenv("LIQUIDATION_CHAIN_ID", "43113")
+    monkeypatch.setenv("DYNAMIC_USDC", "")
+    monkeypatch.delenv("LIQUIDATION_USDC_ADDRESS", raising=False)
+    monkeypatch.delenv("FUJI_USDC_ADDRESS", raising=False)
+    monkeypatch.delenv("FUJI_USDC", raising=False)
+
+    assert support._fork_simulation_usdc_address() == "0x5425890298aed601595a70ab815c96711a31bc65"
+
+    monkeypatch.setenv("LIQUIDATION_CHAIN_ID", "43114")
+    monkeypatch.setenv("DYNAMIC_USDC", "")
+    monkeypatch.delenv("FUJI_USDC_ADDRESS", raising=False)
+    monkeypatch.delenv("FUJI_USDC", raising=False)
+
+    assert support._fork_simulation_usdc_address() == "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+
+
 def test_liquidation_payload_deadline_covers_required_fork_simulation(monkeypatch):
     from web import control_panel_liquidation_execute as execute
 

@@ -322,7 +322,11 @@ def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
     assert int(observation["summary"]["observationAnchorCount"]) == len(expected_symbols)
     assert observation["observationAnchorSymbols"] == expected_symbols
     assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
-    assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols
+    # closedLoopAnchorSymbols is derived from actual overview routes, not from
+    # the observation candidate set. The mocked overview has no routes, so the
+    # loop anchor set must stay empty even when observationAnchorSymbols is full.
+    assert quotes["summary"]["closedLoopAnchorSymbols"] == []
+    assert quotes["summary"]["closedLoopAnchorCount"] == 0
     assert quotes["summary"]["routeCount"] == 0
     assert quotes["routes"] == []
 
@@ -878,6 +882,10 @@ def test_dex_overview_payload_reuses_cached_framework_payload(monkeypatch):
 
 
 def test_robinhood_testnet_overview_builds_from_database_candidate_pools(monkeypatch):
+    # The real local_store.sqlite3 already contains a persisted compact
+    # overview snapshot.  These tests exercise the DB-first builder path, so
+    # hide the persisted snapshot before calling the surface payload.
+    monkeypatch.setattr(dex_surfaces, "load_dex_overview_snapshot", lambda **kwargs: None)
     calls = {"candidate": 0, "context": 0}
 
     def fake_candidate_payload(chain_id, protocols=None):
@@ -923,6 +931,7 @@ def test_robinhood_testnet_overview_builds_from_database_candidate_pools(monkeyp
 
 
 def test_robinhood_mainnet_overview_builds_from_database_candidate_pools(monkeypatch):
+    monkeypatch.setattr(dex_surfaces, "load_dex_overview_snapshot", lambda **kwargs: None)
     compact_snapshot = {
         "exists": True,
         "chain_id": 4663,

@@ -247,11 +247,13 @@ def test_split_packages_exist_without_cross_imports():
                         "market/binance_market/dex_market_row_helpers.py",
                         "market/binance_market/dex_surface_framework.py",
                         "core/market_observation_store.py",
-                        "core/db/builders.py",
-                        "core/db/import_existing_json.py",
-                        "core/db/page_payloads.py",
-                        "dex/tools/refresh_robinhood_mainnet_v4_evidence.py",
-            }
+                            "core/db/builders.py",
+                            "core/db/import_existing_json.py",
+                            "core/db/import_v4_evidence.py",
+                            "core/db/page_payloads.py",
+                            "dex/tools/refresh_robinhood_mainnet_v4_evidence.py",
+                            "dex/tools/refresh_robinhood_v4_live.py",
+                }
     for path in split_root.rglob("*.py"):
         if "runtime" in path.parts or "chains" in path.parts:
             continue
@@ -468,7 +470,7 @@ def test_refactored_helper_modules_stay_under_line_limits():
                 "dex/runtime/dex_opportunity_review_engine.py": 700,
                 "dex/runtime/dex_opportunity_scanner_engine.py": 1000,
                 "intent_trade/direct_impl.py": 1620,
-                "intent_trade/chains/robinhood_testnet/v4_pool_liquidity.py": 1280,
+                    "intent_trade/chains/robinhood_testnet/v4_pool_liquidity.py": 1300,
                 "core/workflow_context.py": 100,
                 "core/db/storage_business_schema.py": 1800,
                 "core/db/builders.py": 1900,

@@ -892,6 +892,93 @@ def test_static_quote_routes_keeps_unlabelled_closed_loops_and_exposes_liquid_re
     assert payload["liquidPoolRegistry"]["0x" + "g" * 64]["hasLiquidity"] is True
 
 
+def test_static_quote_routes_counts_liquid_pools_from_sqlite_pool_registry(monkeypatch):
+    from web.data_routes.dex_surface_routes_quotes import register_dex_quote_routes
+    from web.data_routes import dex_surfaces as surface_root
+
+    def _pool(pool_id: str, symbols: tuple[str, str]):
+        return {
+            "pool": pool_id,
+            "poolId": pool_id,
+            "poolKey": {
+                "currency0": "0x" + "1" * 40,
+                "currency1": "0x" + "2" * 40,
+                "fee": 500,
+                "tickSpacing": 10,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            "token0Symbol": symbols[0],
+            "token1Symbol": symbols[1],
+            "pairSymbol": f"{symbols[0]}:{symbols[1]}",
+            "symbolPair": f"{symbols[0]}:{symbols[1]}",
+            "routeSymbols": list(symbols),
+            "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40],
+            "fee": 500,
+            "usableForObservation": True,
+            "hasLiquidity": True,
+        }
+
+    pool_rows = {
+        "0x" + "a" * 64: _pool("0x" + "a" * 64, ("ETH", "AAA")),
+        "0x" + "b" * 64: _pool("0x" + "b" * 64, ("AAA", "BBB")),
+        "0x" + "c" * 64: _pool("0x" + "c" * 64, ("BBB", "ETH")),
+    }
+    overview = {
+        "exists": True,
+        "path": "sqlite_db",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "snapshotFingerprint": "sqlite-registry-v1",
+        "summary": {"closedLoopRouteCount": 1},
+        "closedLoopRouteSummaries": [
+            {
+                "anchorSymbol": "ETH",
+                "counterSymbol": "BBB",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+                "routePools": [pool_rows["0x" + "a" * 64], pool_rows["0x" + "b" * 64], pool_rows["0x" + "c" * 64]],
+            },
+        ],
+        "poolRegistry": pool_rows,
+        "liquidPoolRegistry": {},
+    }
+
+    monkeypatch.setattr(
+        surface_root,
+        "load_observation_overview_for_scope",
+        lambda **kwargs: overview,
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "selected_chain_id_from_request",
+        lambda: ({"chain_id": 46630, "market_id": "dex-arbitrage-46630-uniswap-v4"}, 46630),
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "request_dex_protocols_arg",
+        lambda: ["uniswap_v4"],
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "_attach_dex_strategy",
+        lambda payload: payload,
+    )
+
+    app = Flask(__name__)
+    register_dex_quote_routes(app)
+    with app.test_client() as client:
+        response = client.get("/api/dex/quote-routes/static?chain_id=46630&protocols=uniswap_v4")
+        payload = response.get_json()
+
+    assert response.status_code == 200
+    assert len(payload["routes"]) == 1
+    assert payload["summary"]["candidateLiquidPoolCount"] == 3
+    assert payload["summary"]["closedLoopLiquidPoolCount"] == 3
+    assert payload["summary"]["liquidPoolRegistryCount"] == 3
+    assert len(payload["liquidPoolRegistry"]) == 3
+
+
 def test_static_quote_routes_drops_route_with_mixed_explicit_unusable_liquidity(monkeypatch):
     from web.data_routes.dex_surface_routes_quotes import _route_has_explicit_unusable_liquidity
 

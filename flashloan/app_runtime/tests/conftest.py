@@ -26,3 +26,16 @@ def _clear_dex_auto_execute_env():
         os.environ.pop(key, None)
     else:
         os.environ[key] = previous
+
+
+@pytest.fixture(autouse=True)
+def _stop_global_dex_opportunity_scanner():
+    yield
+    try:
+        from dex.runtime.dex_opportunity_scanner import (
+            _reset_dex_opportunity_scanner_for_tests,
+        )
+
+        _reset_dex_opportunity_scanner_for_tests()
+    except Exception:
+        pass

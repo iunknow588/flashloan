@@ -727,7 +727,11 @@ def test_dex_overview_page_drops_conflicting_testnet_market_id_when_chain_is_mai
     assert "dex-arbitrage-4663-uniswap-v4" in body
 
 
-def test_dex_surface_payload_apis_are_distinct():
+def test_dex_surface_payload_apis_are_distinct(monkeypatch):
+    # This functional test verifies payload assembly and the SQLite closed-loop
+    # data. Live V4 RPC verification is a separate acceptance pass; disabling
+    # it here keeps the web assembly test deterministic and fast.
+    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
     client = app.test_client()
 
     overview = client.get("/api/dex/overview?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
@@ -824,7 +828,7 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_observation["selected_protocols"] == ["uniswap_v4"]
     assert robinhood_testnet_observation["summary"]["observationAnchorCount"] > 1
     assert robinhood_testnet_observation["summary"]["candidateObservationGroupCount"] > 0
-    assert robinhood_testnet_observation["summary"]["observationSequenceCount"] == len(robinhood_testnet_observation["observationSequences"])
+    assert robinhood_testnet_observation["summary"]["observationSequenceCount"] == robinhood_testnet_observation["marketObservationPreview"]["observationSequencesTotal"]
     assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
     assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
@@ -863,9 +867,35 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_quotes["summary"]["pathSource"] == "market_observation"
     if robinhood_testnet_quotes["routes"]:
         assert robinhood_testnet_quotes["summary"]["chainSpecificObservationPairCount"] > 0
-        assert {"TA", "TB", "TZ"}.issubset(set(robinhood_testnet_quotes["summary"]["closedLoopAnchorSymbols"] or []))
+        closed_loop_anchors = set(robinhood_testnet_quotes["summary"]["closedLoopAnchorSymbols"] or [])
+        assert "TZ" in closed_loop_anchors
+        assert not closed_loop_anchors.intersection({"TA", "TB"})
         assert robinhood_testnet_quotes["summary"]["completeStaticQuoteCount"] > 0
-        assert {"TA", "TB", "TZ"}.issubset({route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]})
+        assert "TZ" in {route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]}
+        assert not {"TA", "TB"}.intersection(
+            route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]
+        )
+        observed_loop_paths = {
+            tuple(str(symbol or "").strip().upper() for symbol in route.get("pathSymbols") or route.get("routeSymbols") or [])
+            for route in robinhood_testnet_observation.get("closedLoopRoutes") or []
+        }
+        # These two directed TZ loops are the fixed acceptance instances. They
+        # must be produced by the generic loop builder; no code path may
+        # special-case TA/TB/TZ to create them.
+        assert ("TZ", "TA", "TB", "TZ") in observed_loop_paths
+        assert ("TZ", "TB", "TA", "TZ") in observed_loop_paths
+        quote_loop_paths = {
+            tuple(str(symbol or "").strip().upper() for symbol in route.get("routeSymbols") or [])
+            for route in robinhood_testnet_quotes["routes"]
+        }
+        assert quote_loop_paths.issubset(observed_loop_paths)
+        assert ("TZ", "TB", "TA", "TZ") in quote_loop_paths
+        for route in robinhood_testnet_quotes["routes"]:
+            route_symbols = route.get("routeSymbols") or []
+            assert len(route_symbols) >= 3
+            assert route_symbols[0] == route_symbols[-1]
+            assert route_symbols[0] not in {"TA", "TB"}
+            assert route_symbols[0] == route["overviewRoute"]["anchorBorrowSymbol"]
         assert "sizeAnalysis" in robinhood_testnet_quotes["routes"][0]
         assert max(len(route["quoteAnalysis"]["steps"]) for route in robinhood_testnet_quotes["routes"]) > 1
         assert all(

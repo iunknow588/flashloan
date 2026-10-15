@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 
-from core.chain_data_registry import chain_data_file_path
 from core.db import builders
 from core.db.import_existing_json import _token_rows_from_v4_index
 from core.db import page_payloads
+from core.db.database_path import absolute_database_path
+from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_schema import ensure_database_schema
 from dex.tools.build_robinhood_stock_token_registry import build_registry
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
@@ -76,18 +76,31 @@ def test_build_registry_rejects_duplicate_symbol_address():
 
 
 def test_generated_mainnet_metadata_covers_every_official_stock_token():
-    registry = load_stock_token_registry()
-    metadata_path = chain_data_file_path("robinhood", "v4_token_metadata", chain_id=4663)
-    assert metadata_path is not None
-    metadata = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
-    tokens = metadata.get("tokens") or {}
-    assert int(metadata.get("stockTokenCount") or 0) >= 194
-    for item in (registry.get("tokens") or {}).values():
-        row = tokens.get(str(item["address"]).lower())
+    database = str(absolute_database_path())
+    registry = load_stock_token_registry(database_url=database)
+    tokens = registry.get("tokens") or {}
+    assert int(registry.get("token_count") or 0) >= 194
+    rows = load_chain_tokens(
+        database,
+        network="robinhood",
+        chain_id=4663,
+    )
+    rows_by_address = {
+        str(row.get("token_address") or "").strip().lower(): row
+        for row in rows
+    }
+    for item in tokens.values():
+        row = rows_by_address.get(str(item["address"]).lower())
         assert row is not None
-        assert row["symbol"] == str(item["symbol"]).upper()
-        assert row["source"] == "robinhood_stock_official"
-        assert row["metadataOk"] is True
+        assert str(row.get("token_symbol") or "").upper() == str(item["symbol"]).upper()
+        assert int(row.get("token_decimals") or 0) == int(item["decimals"] or 0)
+        metadata = row.get("token_metadata_json") or {}
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                metadata = {}
+        assert str(metadata.get("category") or "").lower() == "robinhood_stock"
 
 
 def test_testnet_stock_registry_has_five_tokens():
@@ -132,6 +145,7 @@ def test_apply_testnet_stock_token_metadata_overrides_placeholder_symbol():
         rows,
         network="robinhood-testnet",
         chain_id=46630,
+        database_url=str(absolute_database_path()),
     )
     assert rows[0]["token_symbol"] == "TSLA"
     assert rows[0]["token_decimals"] == 18

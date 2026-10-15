@@ -28,6 +28,62 @@ def test_minimum_liquidity_confirmation_uses_usd_then_one_token_fallback():
     ) is False
 
 
+def test_live_onchain_extsload_state_confirms_thin_indexed_pool():
+    """PoolManager extsload live state is a generic confirmation of real
+    liquidity even when the derived liquidity index is below one token."""
+    assert has_confirmed_liquidity(
+        {
+            "has_liquidity": True,
+            "liquidity": "123456789012345678",
+            "liquidity_index": 0.123,
+            "estimated_tvl_usd": 0,
+            "evidence_source": "pool_manager_extsload_live_state_batch",
+        }
+    ) is True
+    assert has_confirmed_liquidity(
+        {
+            "has_liquidity": False,
+            "liquidity": "123456789012345678",
+            "liquidity_index": 0.123,
+            "estimated_tvl_usd": 0,
+            "evidence_source": "pool_manager_extsload_live_state_batch",
+        }
+    ) is False
+    assert has_confirmed_liquidity(
+        {
+            "has_liquidity": True,
+            "liquidity": "0",
+            "liquidity_index": 0,
+            "estimated_tvl_usd": 0,
+            "evidence_source": "pool_manager_extsload_live_state_batch",
+        }
+    ) is False
+
+
+def test_confirmed_liquidity_marker_wins_over_small_usd_depth():
+    """A tiny USD depth must not short-circuit the liquidity-index fallback.
+    A confirmed pool with a large published liquidity index stays executable
+    even when its derived USD depth is below the USD-only gate."""
+    assert has_confirmed_liquidity(
+        {
+            "has_liquidity": True,
+            "liquidity": "8820022023676511662838236763075056",
+            "liquidity_index": 8.8e33,
+            "estimated_tvl_usd": 0.08,
+            "evidence_source": "",
+        }
+    ) is True
+    assert has_confirmed_liquidity(
+        {
+            "has_liquidity": True,
+            "liquidity": "",
+            "liquidity_index": 0,
+            "estimated_tvl_usd": 0,
+            "evidence_source": "token_balance_scan",
+        }
+    ) is False
+
+
 def _candidate_pool(
     *,
     pool_id: str,
@@ -610,6 +666,33 @@ def test_direction_symmetry_violations_detect_all_one_sided_surfaces():
         "market_observation_yz_pairs",
         "v4_closed_loops",
     }
+
+
+def test_direction_symmetry_violations_report_invalid_backup_json():
+    violations = builders._direction_symmetry_violations(
+        candidate_pairs=[
+            {
+                "direction_key": "0xaaa:0xbbb",
+                "yc_optimal_pool_id": "pool-fwd",
+                "zc_optimal_pool_id": "",
+                "yc_backup_pool_ids_json": "{}",
+                "zc_backup_pool_ids_json": "{}",
+            },
+            {
+                "direction_key": "0xbbb:0xaaa",
+                "yc_optimal_pool_id": "",
+                "zc_optimal_pool_id": "pool-rev",
+                "yc_backup_pool_ids_json": "{}",
+                "zc_backup_pool_ids_json": "{}",
+            },
+        ],
+        observation_directions=[],
+        loop_keys=[],
+    )
+    assert any(
+        item.get("invalid_backup_json") is True
+        for item in violations
+    )
 
 
 def test_testnet_db_observation_rows_use_primary_and_backup_without_no_depth_item(monkeypatch):
