@@ -21,11 +21,14 @@ from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
     chain_row,
     normalize_address,
     normalize_pool_id,
-    pool_index_path,
     text,
 )
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_NETWORK
+from market.binance_market.dex_session_cache import (
+    session_cached_call,
+    session_fingerprint,
+)
 
 
 getcontext().prec = 80
@@ -58,19 +61,13 @@ def _normalize_pool_id(value: object) -> str:
     return normalize_pool_id(value)
 
 
-def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> Path | None:
+def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> None:
+    """Validate chain scope only; SQLite is the sole pool-index source."""
     if int(chain_id or 0) not in (robinhood.CHAIN_ID, None):
         raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve chain_id={chain_id}")
     if str(network or "").strip().lower() not in ("robinhood", ""):
         raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve network={network}")
-    # v4_quote_adapter.py lives under src/dex/intent_trade/chains/robinhood;
-    # runtime evidence is rooted at src/runtime.
-    fallback = Path(__file__).resolve().parents[4] / "runtime" / "evidence" / "robinhood" / "v4_pool_index" / "latest.json"
-    return pool_index_path(
-        network="robinhood",
-        chain_id=robinhood.CHAIN_ID,
-        fallback=fallback,
-    )
+    return None
 
 
 def _chain_row(network: str | None, chain_id: int | None) -> dict[str, Any]:
@@ -901,56 +898,79 @@ def _quote_v4_exact_input_single(
 
 def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict[str, Any]:
     context = _resolve_v4_quote_context(request)
-    try:
-        amount_out_raw, gas_estimate = _quote_v4_exact_input_single(
-            w3=context["w3"],
-            network=context["network"],
-            chain_id=context["chainId"],
-            quoter_address=context["quoterAddress"],
-            pool_key=context["poolKey"],
-            zero_for_one=context["zeroForOne"],
-            amount_in_raw=context["amountInRaw"],
-            hook_data=context["hookData"],
-            call_from=context["callFrom"],
+    cache_key = (
+        context["network"],
+        (
+            int(context["chainId"])
+            if context["chainId"] not in (None, "")
+            else None
+        ),
+        _normalize_pool_id(context["poolId"]),
+        bool(context["zeroForOne"]),
+        int(context["amountInRaw"]),
+        session_fingerprint(
             block_number=context.get("blockNumber"),
-        )
-    except Exception as exc:
-        label = _chain_label(context["network"], context["chainId"])
-        raise RuntimeError(f"{label} quoter exact-input call failed; {exc}") from exc
-    if amount_out_raw <= 0:
-        label = _chain_label(context["network"], context["chainId"])
-        raise RuntimeError(f"{label} quoter returned a non-positive amountOut")
+            sqrt_price_x96=context["liveState"].get("sqrtPriceX96"),
+        ),
+    )
 
-    return {
-        "status": "quoted",
-        "quoteMethod": "robinhood_mainnet_v4_quoter_quoteExactInputSingle_eth_call",
-        "quoteMode": request.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
-        "amountOutRaw": str(amount_out_raw),
-        "quoterAddress": context["quoterAddress"],
-        "quoterGasEstimate": int(gas_estimate),
-        "quoteSource": "robinhood_mainnet_v4_quoter",
-        "sdkAdapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-        "quoteAdapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-        "poolState": {
-            "protocol": "uniswap_v4",
-            "pool": _normalize_pool_id(context["pool"].get("pool") or context["pool"].get("poolId")),
-            "poolId": context["poolId"],
-            "poolManager": context["poolManager"],
-            "quoter": context["quoterAddress"],
-            "token0": _normalize_address(context["pool"].get("token0")),
-            "token1": _normalize_address(context["pool"].get("token1")),
-            "fee": int(context["pool"].get("fee") or context["liveState"]["lpFee"] or 0),
-            "tickSpacing": int(context["pool"].get("tickSpacing") or 0),
-            "sqrtPriceX96": context["liveState"]["sqrtPriceX96"],
-            "tick": int(context["liveState"]["tick"]),
-            "protocolFee": int(context["liveState"]["protocolFee"]),
-            "lpFee": int(context["liveState"]["lpFee"]),
-            "liquidity": str(context["liveState"]["liquidity"]),
-            "source": context["liveState"]["source"],
-            "blockNumber": context["blockNumber"],
-        },
-        "feeBps": context["feeBps"],
-    }
+    def _build_quote() -> dict[str, Any]:
+        try:
+            amount_out_raw, gas_estimate = _quote_v4_exact_input_single(
+                w3=context["w3"],
+                network=context["network"],
+                chain_id=context["chainId"],
+                quoter_address=context["quoterAddress"],
+                pool_key=context["poolKey"],
+                zero_for_one=context["zeroForOne"],
+                amount_in_raw=context["amountInRaw"],
+                hook_data=context["hookData"],
+                call_from=context["callFrom"],
+                block_number=context.get("blockNumber"),
+            )
+        except Exception as exc:
+            label = _chain_label(context["network"], context["chainId"])
+            raise RuntimeError(f"{label} quoter exact-input call failed; {exc}") from exc
+        if amount_out_raw <= 0:
+            label = _chain_label(context["network"], context["chainId"])
+            raise RuntimeError(f"{label} quoter returned a non-positive amountOut")
+
+        return {
+            "status": "quoted",
+            "quoteMethod": "robinhood_mainnet_v4_quoter_quoteExactInputSingle_eth_call",
+            "quoteMode": request.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
+            "amountOutRaw": str(amount_out_raw),
+            "quoterAddress": context["quoterAddress"],
+            "quoterGasEstimate": int(gas_estimate),
+            "quoteSource": "robinhood_mainnet_v4_quoter",
+            "sdkAdapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+            "quoteAdapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+            "poolState": {
+                "protocol": "uniswap_v4",
+                "pool": _normalize_pool_id(context["pool"].get("pool") or context["pool"].get("poolId")),
+                "poolId": context["poolId"],
+                "poolManager": context["poolManager"],
+                "quoter": context["quoterAddress"],
+                "token0": _normalize_address(context["pool"].get("token0")),
+                "token1": _normalize_address(context["pool"].get("token1")),
+                "fee": int(context["pool"].get("fee") or context["liveState"]["lpFee"] or 0),
+                "tickSpacing": int(context["pool"].get("tickSpacing") or 0),
+                "sqrtPriceX96": context["liveState"]["sqrtPriceX96"],
+                "tick": int(context["liveState"]["tick"]),
+                "protocolFee": int(context["liveState"]["protocolFee"]),
+                "lpFee": int(context["liveState"]["lpFee"]),
+                "liquidity": str(context["liveState"]["liquidity"]),
+                "source": context["liveState"]["source"],
+                "blockNumber": context["blockNumber"],
+            },
+            "feeBps": context["feeBps"],
+        }
+
+    return session_cached_call(
+        kind="robinhood_v4_single_quote",
+        key_parts=cache_key,
+        builder=_build_quote,
+    )
 
 
 def _is_v4_liquidity_revert(exc: Exception) -> bool:

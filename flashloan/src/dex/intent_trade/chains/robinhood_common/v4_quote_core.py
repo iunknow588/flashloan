@@ -114,12 +114,12 @@ def pool_index_path(
     *,
     network: str,
     chain_id: int,
-    fallback: Path,
+    fallback: Path | None = None,
 ) -> Path | None:
     path = chain_data_file_path(network, "v4_pool_index", chain_id=chain_id)
     if path is not None:
         return Path(path)
-    return fallback
+    return None
 
 
 __all__ = [

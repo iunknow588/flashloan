@@ -17,6 +17,9 @@ from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
     _batch_read_live_pool_states,
     _connect_chain_rpc,
 )
+from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+    load_v4_pool_liquidity_payload as _load_db_liquidity_payload,
+)
 from dex.intent_trade.chains.robinhood_testnet.v4_liquidity_metrics import (
     _int_or_none,
     _is_usable_liquidity_target,
@@ -812,6 +815,7 @@ def _apply_extsload_liquidity(
     pool_manager: str,
     pool_ids: list[str] | None = None,
     batch_size: int = 100,
+    block_number: int | None = None,
 ) -> dict[str, Any]:
     """Mark pool rows with live PoolManager extsload liquidity."""
     wanted = {str(item).strip().lower() for item in pool_ids or []}
@@ -835,6 +839,7 @@ def _apply_extsload_liquidity(
             pool_ids=batch_ids,
             network=ROBINHOOD_TESTNET_NETWORK,
             chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+            block_number=block_number,
         )
         for pool in batch:
             state = states.get(str(pool.get("poolId") or "").lower()) or {}
@@ -881,6 +886,7 @@ def _apply_extsload_liquidity(
     return {
         "liquidityMarkerActive": True,
         "liquidityMarkedPoolCount": marked,
+        "scannedPoolCount": len(selected),
         "liquidityErrorCount": len(errors),
         "liquidityErrors": errors[:20],
         "liquidityScanAt": _stamp(),
@@ -1185,6 +1191,11 @@ def write_v4_pool_liquidity_from_contract_evidence(
 
 
 def load_robinhood_testnet_v4_pool_liquidity(path: Path | None = None) -> dict[str, Any]:
+    if path is None:
+        return _load_db_liquidity_payload(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+        )
     resolved = path or chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_liquidity")
     if resolved is None:
         return {

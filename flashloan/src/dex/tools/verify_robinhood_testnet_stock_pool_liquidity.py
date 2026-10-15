@@ -1,10 +1,10 @@
 """Read-only verification for Robinhood Testnet ETH/stock pool depth.
 
-The historical "stock pools have no liquidity" conclusion was derived from
-Swap logs, which skipped initialized pools without recent swaps and produced
-false negatives. This tool re-checks the same pools directly against
-PoolManager.extsload and reports both live liquidity and usable depth without
-writing any evidence file.
+Pool metadata, stock symbols and cached liquidity evidence are read from
+SQLite only; the historical "stock pools have no liquidity" conclusion used
+Swap-log silence and was unreliable.  This tool re-checks the pools stored in
+SQLite directly against PoolManager.extsload and reports both live liquidity
+and usable depth without writing any evidence file.
 """
 
 from __future__ import annotations
@@ -20,11 +20,17 @@ SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.db.database_path import absolute_database_path  # noqa: E402
+from core.db.storage_chain_core import load_chain_tokens  # noqa: E402
+from core.db.storage_v4_exchange import (  # noqa: E402
+    load_v4_exchange_pools,
+    load_v4_pool_liquidity,
+)
+from dex.intent_trade.chains.robinhood_common.stock_token_registry import (  # noqa: E402
+    stock_token_by_address,
+)
 from dex.intent_trade.chains.robinhood_testnet import v4_liquidity_metrics as liquidity_metrics  # noqa: E402
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter as quote_adapter  # noqa: E402
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (  # noqa: E402
-    load_robinhood_testnet_v4_pool_liquidity,
-)
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (  # noqa: E402
     ROBINHOOD_TESTNET_CHAIN_ID,
     ROBINHOOD_TESTNET_NETWORK,
@@ -33,20 +39,103 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (  # noqa: E40
     _rpc_url_from_env_or_default,
 )
 
-
 ETH = ZERO_ADDRESS.lower()
 
 
-def _load_stock_registry(path: Path) -> dict[str, str]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    tokens = payload.get("tokens") or []
-    if isinstance(tokens, dict):
-        tokens = list(tokens.values())
+def _pool_row_from_sqlite(
+    pool: dict[str, Any],
+    liquidity: dict[str, Any],
+    token_meta: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    token0 = str(pool.get("token0") or "").lower()
+    token1 = str(pool.get("token1") or "").lower()
+
+    def metadata(address: str, row: dict[str, Any]) -> dict[str, Any]:
+        try:
+            decimals = int(row.get("token_decimals") or 18)
+        except (TypeError, ValueError):
+            decimals = 18
+        return {
+            "address": address,
+            "decimals": decimals,
+            "symbol": row.get("token_symbol") or "",
+        }
+
+    raw_has_liquidity = liquidity.get("has_liquidity")
+    if raw_has_liquidity is None:
+        has_liquidity = None
+    elif isinstance(raw_has_liquidity, str):
+        has_liquidity = raw_has_liquidity.strip().lower() in {"1", "true", "yes"}
+    else:
+        has_liquidity = bool(raw_has_liquidity)
+
     return {
-        str(token.get("address") or "").lower(): str(token.get("symbol") or "").upper()
-        for token in tokens
-        if isinstance(token, dict) and token.get("address") and token.get("symbol")
+        "poolId": pool.get("pool_id") or "",
+        "currency0": token0,
+        "currency1": token1,
+        "currency0Metadata": metadata(token0, token_meta.get(token0) or {}),
+        "currency1Metadata": metadata(token1, token_meta.get(token1) or {}),
+        "fee": pool.get("fee"),
+        "hooks": pool.get("hooks") or "",
+        "hasLiquidity": has_liquidity,
+        "liquidity": liquidity.get("liquidity") or "",
+        "liquidityIndex": liquidity.get("liquidity_index"),
+        "estimatedTvlUsd": liquidity.get("estimated_tvl_usd"),
+        "depthStatus": liquidity.get("depth_status") or "",
+        "sqrtPriceX96": liquidity.get("sqrt_price_x96") or "",
+        "tick": liquidity.get("tick"),
+        "observedAt": liquidity.get("observed_at") or liquidity.get("refreshed_at"),
     }
+
+
+def load_eth_stock_pools_from_sqlite(
+    database_url: str,
+    *,
+    network: str = ROBINHOOD_TESTNET_NETWORK,
+    chain_id: int = ROBINHOOD_TESTNET_CHAIN_ID,
+    protocol: str = "uniswap_v4",
+) -> list[dict[str, Any]]:
+    """Read ETH/stock pools and cached liquidity evidence from SQLite only."""
+    resolved = str(absolute_database_path(database_url))
+    stock_tokens = stock_token_by_address(
+        database_url=resolved,
+        network=network,
+        chain_id=chain_id,
+    )
+    stock_symbols = {
+        str(address or "").lower(): str(meta.get("symbol") or "").upper()
+        for address, meta in stock_tokens.items()
+        if address and meta.get("symbol")
+    }
+    token_meta = {
+        str(row.get("token_address") or "").lower(): row
+        for row in load_chain_tokens(resolved, network=network, chain_id=chain_id)
+    }
+    liquidity_by_pool = {
+        str(row.get("pool_id") or "").lower(): row
+        for row in load_v4_pool_liquidity(
+            resolved,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+        )
+    }
+    pools = []
+    for pool in load_v4_exchange_pools(
+        resolved,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+    ):
+        pool_id = str(pool.get("pool_id") or "")
+        pools.append(
+            _pool_row_from_sqlite(
+                pool,
+                liquidity_by_pool.get(pool_id.lower()) or {},
+                token_meta,
+            )
+        )
+    return select_eth_stock_pools(pools, stock_symbols)
 
 
 def select_eth_stock_pools(pools: list[dict[str, Any]], stock_symbols: dict[str, str]) -> list[dict[str, Any]]:
@@ -215,27 +304,21 @@ def main() -> int:
         description="Read-only live verification of Robinhood Testnet ETH/stock pool depth."
     )
     parser.add_argument("--rpc-url", default="", help="Optional RPC URL override.")
-    parser.add_argument(
-        "--evidence",
-        default="",
-        help="Optional v4_pool_liquidity latest.json path.",
-    )
+    parser.add_argument("--database", default="", help="SQLite database path (defaults to local_store.sqlite3).")
     args = parser.parse_args()
 
-    evidence_path = Path(args.evidence) if args.evidence else None
-    evidence = load_robinhood_testnet_v4_pool_liquidity(evidence_path)
-    pools = evidence.get("pools") or []
-    stock_path = SRC_ROOT / "chains" / "robinhood-testnet" / "robinhood_stock_tokens.json"
-    stock_symbols = _load_stock_registry(stock_path)
-    selected = select_eth_stock_pools(pools, stock_symbols)
+    database = absolute_database_path(args.database)
+    selected = load_eth_stock_pools_from_sqlite(str(database))
     if not selected:
-        print(json.dumps({"error": "no ETH/stock pools found in evidence"}, ensure_ascii=False, indent=2))
+        print(json.dumps({"error": "no ETH/stock pools found in SQLite", "database": str(database)}, ensure_ascii=False, indent=2))
         return 2
 
     result = verify_stock_pool_liquidity(
         pool_rows=selected,
         rpc_url=args.rpc_url or _rpc_url_from_env_or_default(),
     )
+    result["database"] = str(database)
+    result["evidenceSource"] = "sqlite_db"
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     if result["evidenceStaleFalseNegativeCount"]:
         return 1

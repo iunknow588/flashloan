@@ -63,6 +63,11 @@ def _json_loads(value: Any) -> Any:
     return value
 
 
+def _json_array_loads(value: Any) -> list[Any]:
+    parsed = _json_loads(value if value not in (None, "") else "[]")
+    return parsed if isinstance(parsed, list) else []
+
+
 def _pool_id(pool: dict[str, Any]) -> str:
     return _text(
         pool.get("pool")
@@ -289,6 +294,11 @@ def _db_pool_to_observation_row(
             if pool.get("recent_swap_active") is not None
             else pool.get("recentSwapActive")
         ),
+        "evidenceSource": (
+            (liquidity or {}).get("evidence_source")
+            or pool.get("evidence_source")
+            or pool.get("evidenceSource")
+        ),
         "symbolPair": (
             f"{token0_symbol}:{token1_symbol}"
             if token0_symbol and token1_symbol
@@ -394,7 +404,7 @@ def _load_market_observation_pool_scope(
                pool_id, has_liquidity, liquidity, liquidity_index,
                estimated_tvl_usd, balances_json, depth_status, depth_band_json,
                sqrt_price_x96, tick, liquidity_read_at, liquidity_block_number,
-               recent_swap_active, observed_at, refreshed_at
+               recent_swap_active, observed_at, refreshed_at, evidence_source
         FROM market_observation_liquidity_snapshots
         WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
         ORDER BY pool_id
@@ -571,8 +581,46 @@ def _load_v4_pool_liquidity_scoped(
                liquidity_index, estimated_tvl_usd, balances_json, depth_status,
                depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
                liquidity_read_at, liquidity_block_number, recent_swap_active,
-               observed_at, refreshed_at
+               observed_at, refreshed_at, evidence_source
         FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND LOWER(pool_id) IN ({placeholders})
+        ORDER BY pool_id
+        """,
+        (network, chain_id, protocol, *normalized),
+    )
+
+
+def _load_v4_exchange_pools_scoped(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    pool_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Read exchange pool identity rows only for a scoped pool set."""
+    from core.db.storage_business_io import query as _query
+
+    db = str(absolute_database_path(database_url))
+    normalized = sorted(
+        {
+            str(pool_id or "").strip().lower()
+            for pool_id in pool_ids
+            if str(pool_id or "").strip()
+        }
+    )
+    if not normalized:
+        return []
+    placeholders = ",".join("?" for _ in normalized)
+    return _query(
+        db,
+        f"""
+        SELECT network, chain_id, protocol, pool_id, pool_identity_mode,
+               pool_manager, pool_key_json, token0, token1, fee, fee_label,
+               dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+               created_at, updated_at
+        FROM v4_exchange_pools
         WHERE network = ? AND chain_id = ? AND protocol = ?
           AND LOWER(pool_id) IN ({placeholders})
         ORDER BY pool_id
@@ -642,6 +690,7 @@ def _db_closed_loop_step_row(
         "recentSwapActive": base["recentSwapActive"],
         "liquidityReadAt": base["liquidityReadAt"],
         "liquidityBlockNumber": base["liquidityBlockNumber"],
+        "evidenceSource": base.get("evidenceSource"),
     }
 
 
@@ -672,6 +721,39 @@ def db_closed_loop_sequences(
     hops = payload.get("hops") or []
     if not loops:
         return []
+
+    # The candidate and observation tables are derived views of a pool and do
+    # not always carry the raw evidence provenance.  Every stored loop pool is
+    # also overlaid with the authoritative exchange-level liquidity snapshot
+    # so a live has_liquidity=1 row cannot be rejected because a derived table
+    # omitted evidence_source.
+    loop_pool_ids = {
+        _text(hop.get("pool_id") or hop.get("poolId")).lower()
+        for hop in hops
+        if _text(hop.get("pool_id") or hop.get("poolId"))
+    }
+    exchange_liquidity_by_pool = {
+        _pool_key(row): row
+        for row in _load_v4_pool_liquidity_scoped(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            pool_ids=loop_pool_ids,
+        )
+        if _pool_key(row)
+    }
+    exchange_pool_by_id = {
+        _pool_key(row): row
+        for row in _load_v4_exchange_pools_scoped(
+            database_url,
+            network=network,
+            chain_id=chain_id,
+            protocol=protocol,
+            pool_ids=loop_pool_ids,
+        )
+        if _pool_key(row)
+    }
     hops_by_loop: dict[str, list[dict[str, Any]]] = {}
     for hop in hops:
         loop_key = _text(hop.get("loop_key") or hop.get("loopKey")).lower()
@@ -760,9 +842,9 @@ def db_closed_loop_sequences(
             normalized_id = str(pool_id or "").strip().lower()
             pool = anchor_pool_by_id.get(normalized_id)
             if pool is not None:
+                merged = dict(pool)
                 liquidity = observation_liquidity_by_anchor.get(anchor_symbol, {}).get(normalized_id)
                 if liquidity is not None:
-                    merged = dict(pool)
                     for key in (
                         "hasLiquidity",
                         "has_liquidity",
@@ -784,11 +866,53 @@ def db_closed_loop_sequences(
                         "liquidity_read_at",
                         "liquidityBlockNumber",
                         "liquidity_block_number",
+                        "evidenceSource",
+                        "evidence_source",
                     ):
                         if liquidity.get(key) is not None:
                             merged[key] = liquidity[key]
-                    return merged
-                return pool
+                exchange_liquidity = exchange_liquidity_by_pool.get(normalized_id)
+                if exchange_liquidity is not None:
+                    for key in (
+                        "has_liquidity",
+                        "liquidity",
+                        "liquidity_index",
+                        "estimated_tvl_usd",
+                        "balances_json",
+                        "depth_status",
+                        "depth_band_json",
+                        "depth_score_usd",
+                        "sqrt_price_x96",
+                        "price",
+                        "tick",
+                        "liquidity_read_at",
+                        "liquidity_block_number",
+                        "recent_swap_active",
+                        "observed_at",
+                        "refreshed_at",
+                        "evidence_source",
+                    ):
+                        if exchange_liquidity.get(key) is not None:
+                            merged[key] = exchange_liquidity[key]
+                exchange_pool = exchange_pool_by_id.get(normalized_id)
+                if exchange_pool is not None:
+                    for key in (
+                        "pool_key_json",
+                        "pool_identity_mode",
+                        "pool_manager",
+                        "token0",
+                        "token1",
+                        "fee",
+                        "fee_label",
+                        "dynamic_fee",
+                        "special_fee",
+                        "tick_spacing",
+                        "hooks",
+                        "address_pair",
+                    ):
+                        if exchange_pool.get(key) is not None and exchange_pool.get(key) != "":
+                            merged[key] = exchange_pool[key]
+                return merged
             return None
 
         def _direction_scope_ids(
@@ -809,7 +933,7 @@ def db_closed_loop_sequences(
                             or pair.get("ycOptimalPoolId")
                             or ""
                         ).strip().lower()
-                        backups = _json_loads(
+                        backups = _json_array_loads(
                             pair.get("yc_backup_pool_ids")
                             or pair.get("ycBackupPoolIds")
                             or pair.get("yc_backup_pool_ids_json")
@@ -822,7 +946,7 @@ def db_closed_loop_sequences(
                             or pair.get("zcOptimalPoolId")
                             or ""
                         ).strip().lower()
-                        backups = _json_loads(
+                        backups = _json_array_loads(
                             pair.get("zc_backup_pool_ids")
                             or pair.get("zcBackupPoolIds")
                             or pair.get("zc_backup_pool_ids_json")

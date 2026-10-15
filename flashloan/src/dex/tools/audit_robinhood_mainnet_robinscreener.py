@@ -1,9 +1,10 @@
-"""Reconcile RobinScreener high-liquidity V4 pools with local evidence.
+"""Reconcile RobinScreener high-liquidity V4 pools with local SQLite evidence.
 
 RobinScreener is a verification reference only; production data continues to
-come from on-chain PoolManager Initialize logs. This script normalizes the
-screener items to pool id / token pair / fee / hook / liquidity, then compares
-them against the local V4 pool index and SQLite candidate/liquidity tables.
+come from SQLite. This script normalizes the screener items to pool id / token
+pair / fee / hook / liquidity, then compares them against SQLite pool,
+liquidity and candidate tables. Legacy index/liquidity JSON files are only read
+when explicitly supplied with ``--index``/``--liquidity`` for debugging.
 """
 
 from __future__ import annotations
@@ -201,14 +202,6 @@ def main() -> int:
     items = payload.get("items") or []
     screener_rows = _screener_v4_rows(items)
 
-    index_path = Path(args.index or SRC_ROOT / "runtime" / "evidence" / "robinhood" / "v4_pool_index" / "latest.json")
-    liquidity_path = Path(args.liquidity or SRC_ROOT / "runtime" / "evidence" / "robinhood" / "v4_pool_liquidity" / "latest.json")
-    index_rows = _index_rows(index_path)
-    liquidity_rows = _liquidity_rows(liquidity_path)
-
-    index_by_id = {_lower(row.get("poolId") or row.get("pool")): row for row in index_rows}
-    liquidity_by_id = {_lower(row.get("poolId") or row.get("pool")): row for row in liquidity_rows}
-
     database = absolute_database_path(args.database)
     sqlite_pools = load_v4_exchange_pools(
         str(database),
@@ -224,6 +217,29 @@ def main() -> int:
     )
     sqlite_by_id = {_lower(row.get("pool_id") or row.get("poolId")): row for row in sqlite_pools}
     sqlite_liquidity_by_id = {_lower(row.get("pool_id") or row.get("poolId")): row for row in sqlite_liquidity}
+
+    if args.index:
+        index_rows = _index_rows(Path(args.index))
+        index_by_id = {_lower(row.get("poolId") or row.get("pool")): row for row in index_rows}
+    else:
+        index_rows = [
+            {
+                "poolId": row.get("pool_id"),
+                "token0": row.get("token0"),
+                "token1": row.get("token1"),
+                "fee": row.get("fee"),
+                "hooks": row.get("hooks"),
+                "addressPair": row.get("address_pair"),
+                "source": "sqlite_db",
+            }
+            for row in sqlite_pools
+        ]
+        index_by_id = sqlite_by_id
+    if args.liquidity:
+        liquidity_rows = _liquidity_rows(Path(args.liquidity))
+    else:
+        liquidity_rows = sqlite_liquidity
+
     candidate_path = Path(args.candidates) if args.candidates else None
     candidate_rows = _candidate_rows(candidate_path) if candidate_path is not None else _candidate_rows_from_sqlite(str(database))
     candidate_by_id = {_lower(row.get("poolId") or row.get("pool")): row for row in candidate_rows}

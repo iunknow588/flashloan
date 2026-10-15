@@ -120,7 +120,12 @@ def _is_zero_address(value: str | None) -> bool:
         return False
 
 
-def _token_side(pool: dict[str, Any]) -> tuple[str, str] | None:
+def _token_side(
+    pool: dict[str, Any],
+    *,
+    network: str = NETWORK,
+    chain_id: int = MAINNET_CHAIN_ID,
+) -> tuple[str, str] | None:
     """Return the non-zero token address and label for an ETH V4 pool."""
     pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
     currency0 = pool.get("token0") or pool_key.get("currency0") or pool_key.get("token0") or ""
@@ -128,12 +133,28 @@ def _token_side(pool: dict[str, Any]) -> tuple[str, str] | None:
     symbol0 = pool.get("token0Symbol") or pool_key.get("token0Symbol") or ""
     symbol1 = pool.get("token1Symbol") or pool_key.get("token1Symbol") or ""
     if _is_zero_address(currency0):
-        metadata1 = _metadata_lookup(str(currency1))
-        symbol = str(metadata1.get("symbol") or symbol1 or currency1[:10]).strip()
+        metadata1 = _metadata_lookup(
+            str(currency1),
+            network=network,
+            chain_id=chain_id,
+        )
+        raw_symbol1 = str(symbol1 or "").strip()
+        if raw_symbol1 and not _is_hex_prefix_symbol(raw_symbol1):
+            symbol = raw_symbol1
+        else:
+            symbol = str(metadata1.get("symbol") or raw_symbol1 or currency1[:10]).strip()
         return str(currency1), symbol
     if _is_zero_address(currency1):
-        metadata0 = _metadata_lookup(str(currency0))
-        symbol = str(metadata0.get("symbol") or symbol0 or currency0[:10]).strip()
+        metadata0 = _metadata_lookup(
+            str(currency0),
+            network=network,
+            chain_id=chain_id,
+        )
+        raw_symbol0 = str(symbol0 or "").strip()
+        if raw_symbol0 and not _is_hex_prefix_symbol(raw_symbol0):
+            symbol = raw_symbol0
+        else:
+            symbol = str(metadata0.get("symbol") or raw_symbol0 or currency0[:10]).strip()
         return str(currency0), symbol
     return None
 
@@ -170,13 +191,18 @@ def eth_tokens_from_index(
     *,
     stable_only: bool = False,
     network: str = NETWORK,
+    chain_id: int = MAINNET_CHAIN_ID,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for pool in index.get("pools") or []:
         if not isinstance(pool, dict):
             continue
-        side = _token_side(pool)
+        side = _token_side(
+            pool,
+            network=network,
+            chain_id=chain_id,
+        )
         if side is None:
             continue
         address, symbol = side

@@ -274,6 +274,66 @@ def apply_stock_token_metadata(
     return token_rows
 
 
+def apply_stock_pool_metadata(
+    pool_rows: list[dict[str, Any]],
+    *,
+    path: Path | str | None = None,
+    network: str | None = None,
+    chain_id: int | None = None,
+    database_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Replace address-prefix symbols in V4 pool keys with official stock symbols.
+
+    Robinhood stock tokens are ERC-20s deployed with a truncated on-chain
+    symbol such as ``0x71178B``.  The registered symbol is the canonical
+    business identity; pool keys must never carry the address-prefix value
+    into SQLite-backed pages.
+    """
+    by_address = stock_token_by_address(
+        path=path,
+        network=network,
+        chain_id=chain_id,
+        database_url=database_url,
+    )
+    for row in pool_rows:
+        if not isinstance(row, dict):
+            continue
+        key = row.get("pool_key")
+        if not isinstance(key, dict):
+            reference = row.get("poolKey")
+            if not isinstance(reference, dict):
+                continue
+            key = reference
+            row["pool_key"] = key
+        for side in ("0", "1"):
+            token_key = f"token{side}"
+            currency_key = f"currency{side}"
+            metadata_key = f"currency{side}Metadata"
+            address = str(
+                key.get(currency_key)
+                or key.get(token_key)
+                or ((key.get(metadata_key) or {}).get("address") if isinstance(key.get(metadata_key), dict) else "")
+            ).strip().lower()
+            meta = by_address.get(address)
+            if not meta:
+                continue
+            symbol = str(meta.get("symbol") or "").strip().upper()
+            if not symbol:
+                continue
+            key[token_key] = key.get(token_key) or key.get(currency_key)
+            key[currency_key] = key.get(currency_key) or key.get(token_key)
+            key[f"{token_key}Symbol"] = symbol
+            key[f"{token_key}Decimals"] = meta.get("decimals")
+            key[metadata_key] = {
+                "address": str(meta.get("address") or address),
+                "symbol": symbol,
+                "decimals": meta.get("decimals"),
+                "metadataOk": True,
+                "source": "robinhood_stock_token_registry",
+            }
+    return pool_rows
+
+
 def merge_stock_registry_into_metadata(
     metadata_payload: dict[str, Any],
     *,

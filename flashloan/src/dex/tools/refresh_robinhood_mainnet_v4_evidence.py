@@ -5,14 +5,14 @@ The pipeline runs in a fixed order:
 1. Rebuild the full V4 pool index from PoolManager Initialize logs
    (HyperRPC first, standard RPC fallback, adaptive sharding).
 2. Read live PoolManager liquidity for every indexed pool.
-3. Import the index/liquidity evidence into SQLite and rebuild candidate
-   pools, market observation and closed loops directly from the business
-   tables, then clear in-memory DEX surface caches.
+3. Import the freshly built index/liquidity payloads into SQLite and rebuild
+   candidate pools, market observation and closed loops directly from the
+   business tables, then clear in-memory DEX surface caches.
 
 The old candidate shards, intermediate pool files and market observation
 static snapshots are removed from the runtime tree. This command imports only
-the on-chain index/liquidity evidence into SQLite and rebuilds every business
-table from the database.
+the in-memory on-chain evidence into SQLite and rebuilds every business table
+from the database. No runtime JSON file is read during the refresh.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
-from core.db.import_existing_json import import_existing_json  # noqa: E402
+from core.db.import_v4_evidence import import_v4_evidence_payloads  # noqa: E402
 from core.db import builders  # noqa: E402
 from core.env_loader import load_chain_env_files  # noqa: E402
 from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
@@ -67,7 +67,6 @@ def main() -> int:
         default="",
         help="SQLite path; relative paths are resolved from the repository root.",
     )
-    parser.add_argument("--runtime-root", default="")
     parser.add_argument("--rpc-url", default="")
     parser.add_argument("--hyperrpc-url", default="")
     parser.add_argument("--skip-index", action="store_true")
@@ -81,7 +80,6 @@ def main() -> int:
     load_chain_env_files(Path(__file__).resolve())
     database = absolute_database_path(_normalize_database_arg(args.database))
     ensure_database_schema(str(database))
-    runtime_root = Path(args.runtime_root) if args.runtime_root else None
     steps: list[dict] = []
     errors: list[str] = []
 
@@ -116,15 +114,18 @@ def main() -> int:
 
     if not errors and not args.skip_import:
         try:
-            import_result = import_existing_json(
+            import_result = import_v4_evidence_payloads(
                 str(database),
-                runtime_root=runtime_root,
+                network="robinhood",
+                chain_id=4663,
+                index_payload=index_result if not args.skip_index else None,
+                liquidity_payload=liquidity_result if not args.skip_liquidity else None,
             )
-            steps.append(_step("import_existing_json", import_result))
-            print(json.dumps({"step": "import_existing_json", **import_result}, ensure_ascii=False))
+            steps.append(_step("import_v4_evidence_payloads", import_result))
+            print(json.dumps({"step": "import_v4_evidence_payloads", **import_result}, ensure_ascii=False))
         except Exception as exc:
-            errors.append(f"import_existing_json: {exc}")
-            steps.append({"step": "import_existing_json", "ok": False, "error": str(exc)})
+            errors.append(f"import_v4_evidence_payloads: {exc}")
+            steps.append({"step": "import_v4_evidence_payloads", "ok": False, "error": str(exc)})
 
     if not errors and not args.skip_build:
         try:

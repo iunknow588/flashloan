@@ -18,6 +18,9 @@ from web3 import Web3
 from core.chain_data_registry import chain_data_file_path
 from dex.intent_trade.chains.robinhood.config import CHAIN_ID as ROBINHOOD_CHAIN_ID
 from dex.intent_trade.chains.robinhood.config import NETWORK as ROBINHOOD_NETWORK
+from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+    load_v4_pool_liquidity_payload as _load_db_liquidity_payload,
+)
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
     _connect_rpc,
     _contract_address,
@@ -48,13 +51,12 @@ def _read_json(path: Path | None) -> dict[str, Any]:
 
 
 def _known_token_pool_ids() -> dict[str, list[str]]:
-    """Return token-symbol -> mainnet V4 pool ids from the mainnet index.
+    """Return token-symbol -> mainnet V4 pool ids from SQLite.
 
-    This is a shadow helper. It only reads mainnet evidence and is not allowed
-    to substitute testnet pool ids.
+    This is a shadow helper. SQLite is the only business-data source; JSON
+    evidence files are explicit audit artifacts and are never read here.
     """
-    index_path = chain_data_file_path(ROBINHOOD_NETWORK, "v4_pool_index", chain_id=ROBINHOOD_CHAIN_ID)
-    payload = _read_json(index_path)
+    payload = _load_db_liquidity_payload(ROBINHOOD_NETWORK, ROBINHOOD_CHAIN_ID)
     grouped: dict[str, list[str]] = {}
     for row in payload.get("pools") or []:
         if not isinstance(row, dict):
@@ -70,6 +72,8 @@ def _known_token_pool_ids() -> dict[str, list[str]]:
 
 
 def load_robinhood_v4_pool_liquidity(path: Path | None = None) -> dict[str, Any]:
+    if path is None:
+        return _load_db_liquidity_payload(ROBINHOOD_NETWORK, ROBINHOOD_CHAIN_ID)
     resolved = path or default_v4_pool_liquidity_path()
     payload = _read_json(resolved)
     if payload:

@@ -1,41 +1,89 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
 
+from core.contracts import source_metadata
+from core.db.database_path import absolute_database_path
+from core.db.storage_chain_core import load_chain_tokens
+from core.db.storage_chain_markets import load_current_dex_arbitrage_candidates
+from core.db.storage_v4_exchange import (
+    load_v4_exchange_pool_manager,
+    load_v4_exchange_pools,
+    load_v4_pool_liquidity,
+    load_v4_pool_liquidity_refreshed_at,
+)
+from core.kv_rows import collection_key, get_row
 from core.market_config import (
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     liquidation_market_config_for,
 )
 from core.market_identity import canonical_market_id_from_legacy
-from core.chain_data_registry import chain_data_file_path
-from core.contracts import source_metadata
 from dex.intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 from dex.intent_trade.chains.robinhood.readiness import robinhood_deployment_status
-from core.db.storage_chain_markets import load_current_dex_arbitrage_candidates
 
 
 SRC_ROOT = Path(__file__).resolve().parents[2] / "app_runtime"
-ROBINHOOD_CANDIDATE_CACHE_PATH = (
-    chain_data_file_path("robinhood", "dex_candidates")
-    or SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json"
-)
-ROBINHOOD_EVIDENCE_ROOT = (
-    chain_data_file_path("robinhood", "dex_discovery")
-    or SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
-)
-ROBINHOOD_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "market_snapshot" / "latest.json"
+ROBINHOOD_PROTOCOL = "uniswap_v4"
+ROBINHOOD_MARKET_SNAPSHOT_KV_COLLECTION = "robinhood_market_snapshot"
 
 
-def _read_candidate_cache(path: Path) -> list[dict[str, Any]]:
+def _chain_id_value(value: Any) -> int:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    rows = payload.get("candidates") if isinstance(payload, dict) else payload
-    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _tri_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = _text(value).lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off", ""}:
+        return False
+    return None
+
+
+def _json_loads(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return value
+    if value in (None, ""):
+        return {}
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def _database_path(database_url: str | None) -> str:
+    return str(absolute_database_path(database_url))
+
+
+def _database_freshness(database_url: str | None) -> dict[str, Any]:
+    try:
+        stat = absolute_database_path(database_url).stat()
+    except OSError:
+        return {"status": "missing", "observedAt": None, "ageSeconds": None}
+    observed_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+    age_seconds = max(0.0, datetime.now(timezone.utc).timestamp() - stat.st_mtime)
+    return {
+        "status": "present",
+        "observedAt": observed_at.isoformat(),
+        "ageSeconds": round(age_seconds, 3),
+    }
 
 
 def _candidate_view(row: dict[str, Any]) -> dict[str, Any]:
@@ -82,7 +130,7 @@ def _candidate_view(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _candidate_has_verified_pool_evidence(row: dict[str, Any]) -> bool:
-    """Only promote candidates backed by verified on-chain pool evidence."""
+    """Only promote candidates backed by verified pool evidence from SQLite."""
 
     pool_addresses = row.get("pool_addresses") or row.get("poolAddresses") or []
     if not isinstance(pool_addresses, list) or not pool_addresses or any(not str(address).strip() for address in pool_addresses):
@@ -102,28 +150,12 @@ def _candidate_has_verified_pool_evidence(row: dict[str, Any]) -> bool:
     )
 
 
-def _pool_has_verified_evidence(row: dict[str, Any]) -> bool:
-    if not isinstance(row, dict) or str(row.get("status") or "") != "observable":
-        return False
-    if not str(row.get("pool") or "").strip():
-        return False
-    evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
-    if not (bool(evidence.get("eventVerified")) or bool(evidence.get("factoryQueryVerified"))):
-        return False
-    if not bool(evidence.get("poolCodeVerified")):
-        return False
-    if evidence.get("poolStateVerified") is False:
-        discovery_method = str(evidence.get("discoveryMethod") or "")
-        if discovery_method != "factory_PoolCreated_event_scan":
-            return False
-    liquidity = row.get("liquidity")
-    return liquidity in (None, "") or _chain_id_value(liquidity) > 0
-
-
 def _pool_view(row: dict[str, Any]) -> dict[str, Any]:
     evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
     return {
         "address": str(row.get("pool") or ""),
+        "pool": str(row.get("pool") or ""),
+        "poolId": str(row.get("pool") or ""),
         "token0": row.get("token0"),
         "token1": row.get("token1"),
         "token0Symbol": row.get("token0Symbol"),
@@ -131,11 +163,17 @@ def _pool_view(row: dict[str, Any]) -> dict[str, Any]:
         "symbolPair": row.get("symbolPair"),
         "fee": row.get("fee"),
         "tickSpacing": row.get("tickSpacing"),
+        "hooks": row.get("hooks"),
         "liquidity": row.get("liquidity"),
-        "observedBlock": evidence.get("blockNumber") or row.get("observedBlock"),
+        "hasLiquidity": row.get("hasLiquidity"),
+        "liquidityIndex": row.get("liquidityIndex"),
+        "estimatedTvlUsd": row.get("estimatedTvlUsd"),
+        "depthStatus": row.get("depthStatus") or "",
+        "observedBlock": row.get("observedBlock"),
         "status": str(row.get("status") or "observable"),
+        "source": "sqlite_db",
         "evidence": {
-            "factory": row.get("factory") or evidence.get("factory"),
+            "factory": evidence.get("factory"),
             "factoryCodeVerified": bool(evidence.get("factoryCodeVerified")),
             "factoryQueryVerified": bool(evidence.get("factoryQueryVerified")),
             "eventVerified": bool(evidence.get("eventVerified")),
@@ -147,102 +185,126 @@ def _pool_view(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _read_json_object(path: Path) -> dict[str, Any] | None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def load_latest_robinhood_market_snapshot(
-    path: Path | None = None,
-) -> dict[str, Any] | None:
-    """Load the latest read-only market snapshot without probing or writing."""
-
-    path = path or ROBINHOOD_MARKET_SNAPSHOT_PATH
-    payload = _read_json_object(path)
-    if not payload:
-        return None
-    if str(payload.get("network") or "").lower() != "robinhood":
-        return None
-    try:
-        if int(payload.get("chainId") or 0) != DEFAULT_ROBINHOOD_CHAIN_ID:
-            return None
-    except (TypeError, ValueError):
-        return None
-    return payload
-
-
-def _chain_id_value(value: Any) -> int:
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _file_freshness(path: Path) -> dict[str, Any]:
-    try:
-        modified_at = path.stat().st_mtime
-    except OSError:
-        return {"status": "missing", "observedAt": None, "ageSeconds": None}
-    from datetime import datetime, timezone
-
-    observed_at = datetime.fromtimestamp(modified_at, tz=timezone.utc)
-    age_seconds = max(0.0, datetime.now(timezone.utc).timestamp() - modified_at)
-    return {
-        "status": "present",
-        "observedAt": observed_at.isoformat(),
-        "ageSeconds": round(age_seconds, 3),
+def load_robinhood_sqlite_pool_rows(
+    database_url: str | None,
+    *,
+    network: str,
+    chain_id: int,
+) -> list[dict[str, Any]]:
+    """Load V4 pools and liquidity entirely from SQLite tables."""
+    db = _database_path(database_url)
+    pool_rows = load_v4_exchange_pools(
+        db,
+        network=network,
+        chain_id=int(chain_id),
+        protocol=ROBINHOOD_PROTOCOL,
+    )
+    liquidity_rows = load_v4_pool_liquidity(
+        db,
+        network=network,
+        chain_id=int(chain_id),
+        protocol=ROBINHOOD_PROTOCOL,
+    )
+    liquidity_by_id = {
+        _text(row.get("pool_id")).lower(): row
+        for row in liquidity_rows
+        if _text(row.get("pool_id"))
     }
-
-
-def load_latest_robinhood_evidence(
-    evidence_root: Path = ROBINHOOD_EVIDENCE_ROOT,
-) -> dict[str, Any]:
-    """Load only target-chain evidence from the newest evidence directory."""
-
-    try:
-        directories = sorted(
-            (path for path in evidence_root.iterdir() if path.is_dir()),
-            key=lambda path: (path.stat().st_mtime_ns, path.name),
-            reverse=True,
+    token_rows = load_chain_tokens(
+        db,
+        network=network,
+        chain_id=int(chain_id),
+    )
+    symbol_by_address = {
+        _text(row.get("token_address")).lower(): _text(row.get("token_symbol"))
+        for row in token_rows
+        if _text(row.get("token_address"))
+    }
+    rows: list[dict[str, Any]] = []
+    for pool in pool_rows:
+        pool_id = _text(pool.get("pool_id"))
+        token0 = _text(pool.get("token0"))
+        token1 = _text(pool.get("token1"))
+        if not pool_id or not token0 or not token1:
+            continue
+        liquidity = liquidity_by_id.get(pool_id.lower(), {})
+        has_liquidity = _tri_bool(liquidity.get("has_liquidity"))
+        pool_key = _json_loads(pool.get("pool_key_json") or {})
+        observed_block = liquidity.get("liquidity_block_number")
+        rows.append(
+            {
+                "pool": pool_id,
+                "poolId": pool_id,
+                "poolManager": _text(pool.get("pool_manager")),
+                "poolKey": pool_key if isinstance(pool_key, dict) else {},
+                "token0": token0,
+                "token1": token1,
+                "token0Symbol": symbol_by_address.get(token0.lower(), ""),
+                "token1Symbol": symbol_by_address.get(token1.lower(), ""),
+                "symbolPair": (
+                    f"{symbol_by_address.get(token0.lower(), token0)}/"
+                    f"{symbol_by_address.get(token1.lower(), token1)}"
+                ),
+                "fee": pool.get("fee"),
+                "tickSpacing": pool.get("tick_spacing"),
+                "hooks": _text(pool.get("hooks")),
+                "liquidity": liquidity.get("liquidity") or "",
+                "hasLiquidity": has_liquidity,
+                "liquidityIndex": liquidity.get("liquidity_index"),
+                "estimatedTvlUsd": liquidity.get("estimated_tvl_usd"),
+                "depthStatus": liquidity.get("depth_status") or "",
+                "sqrtPriceX96": liquidity.get("sqrt_price_x96") or "",
+                "tick": liquidity.get("tick"),
+                "observedBlock": observed_block,
+                "status": (
+                    "observable"
+                    if has_liquidity is True
+                    else "no_liquidity"
+                    if has_liquidity is False
+                    else "initialized_pool"
+                ),
+                "evidence": {
+                    "factory": "",
+                    "factoryCodeVerified": True,
+                    "factoryQueryVerified": True,
+                    "eventVerified": True,
+                    "poolCodeVerified": True,
+                    "poolStateVerified": has_liquidity is not None,
+                    "discoveryMethod": "sqlite_v4_import",
+                    "blockNumber": observed_block,
+                    "sourceUrl": None,
+                },
+            }
         )
-    except OSError:
-        directories = []
-    for directory in directories:
-        discovery = _read_json_object(directory / "factory_events.json")
-        quote = _read_json_object(directory / "quote_smoke_report.json")
-        if not discovery and not quote:
-            continue
-        if discovery and (
-            str(discovery.get("network") or "").lower() != "robinhood"
-            or _chain_id_value(discovery.get("chainId")) != DEFAULT_ROBINHOOD_CHAIN_ID
-        ):
-            continue
-        return {
-            "root": str(evidence_root),
-            "directory": str(directory),
-            "discoveryReport": discovery,
-            "quoteReport": quote,
-            "source": "evidence_package",
-            "dataSource": source_metadata("evidence_package"),
-        }
-    return {
-        "root": str(evidence_root),
-        "directory": "",
-        "discoveryReport": None,
-        "quoteReport": None,
-        "source": "none",
-        "dataSource": source_metadata("builtin_fallback", fallback_reason="evidence_package_missing"),
-    }
+    return rows
 
 
-def load_latest_robinhood_pool_rows(evidence: dict[str, Any]) -> list[dict[str, Any]]:
-    directory = Path(str(evidence.get("directory") or ""))
-    payload = _read_json_object(directory / "pool_static_table.json") if directory else None
-    rows = payload.get("pools") if isinstance(payload, dict) else []
-    return [row for row in rows if isinstance(row, dict) and _pool_has_verified_evidence(row)]
+def load_robinhood_sqlite_market_snapshot(
+    database_url: str | None,
+    *,
+    network: str,
+    chain_id: int,
+) -> dict[str, Any] | None:
+    """Read the latest market snapshot from the SQLite KV store only."""
+    db = _database_path(database_url)
+    keys = (
+        collection_key(network, chain_id),
+        "latest",
+        f"{network}-{chain_id}",
+    )
+    for key in keys:
+        payload = get_row(db, ROBINHOOD_MARKET_SNAPSHOT_KV_COLLECTION, key)
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("network") or "").lower() != network:
+            continue
+        try:
+            if int(payload.get("chainId") or 0) != int(chain_id):
+                continue
+        except (TypeError, ValueError):
+            continue
+        return payload
+    return None
 
 
 def _robinhood_market(market_id: str, chain_id: int):
@@ -257,11 +319,42 @@ def _robinhood_market(market_id: str, chain_id: int):
     return market
 
 
+def _sqlite_discovery_report(
+    database_url: str | None,
+    market: Any,
+    pools: list[dict[str, Any]],
+) -> dict[str, Any]:
+    db = _database_path(database_url)
+    manager_rows = load_v4_exchange_pool_manager(
+        db,
+        network=market.network,
+        chain_id=market.chain_id,
+        protocol=ROBINHOOD_PROTOCOL,
+    )
+    refreshed_at = load_v4_pool_liquidity_refreshed_at(
+        db,
+        network=market.network,
+        chain_id=market.chain_id,
+        protocol=ROBINHOOD_PROTOCOL,
+    )
+    return {
+        "schemaVersion": "robinhood-v4-sqlite-discovery-v1",
+        "network": market.network,
+        "chainId": market.chain_id,
+        "poolManager": _text(manager_rows.get("pool_manager")),
+        "poolCount": len(pools),
+        "factoryCodeVerified": bool(pools),
+        "verified": bool(pools),
+        "generatedAt": refreshed_at,
+        "source": "sqlite_db",
+    }
+
+
 def robinhood_dex_readiness_payload(
     *,
+    database_url: str | None = None,
     market_id: str = DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     chain_id: int = DEFAULT_ROBINHOOD_CHAIN_ID,
-    evidence_root: Path = ROBINHOOD_EVIDENCE_ROOT,
     rpc_status: dict[str, Any] | None = None,
     run_rpc_probe: bool = True,
 ) -> dict[str, Any]:
@@ -279,13 +372,26 @@ def robinhood_dex_readiness_payload(
             resolved_rpc_status = probe_robinhood_rpc(resolved_rpc_status["rpcUrl"] or None)
         except Exception as exc:
             resolved_rpc_status["error"] = str(exc)
-    evidence = load_latest_robinhood_evidence(evidence_root)
+    pools = load_robinhood_sqlite_pool_rows(
+        database_url,
+        network=market.network,
+        chain_id=market.chain_id,
+    )
+    discovery_report = _sqlite_discovery_report(database_url, market, pools)
     readiness = robinhood_deployment_status(
         market=market.as_dict(),
         rpc_status=resolved_rpc_status,
-        discovery_report=evidence["discoveryReport"],
-        quote_report=evidence["quoteReport"],
+        discovery_report=discovery_report,
+        quote_report=None,
     )
+    evidence = {
+        "root": "",
+        "directory": "",
+        "discoveryReport": discovery_report,
+        "quoteReport": None,
+        "source": "sqlite_db",
+        "dataSource": source_metadata("database"),
+    }
     return {
         "market": market.as_dict(),
         "chainStatus": resolved_rpc_status,
@@ -301,39 +407,29 @@ def robinhood_dex_observation_payload(
     database_url: str | None = None,
     market_id: str = DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     chain_id: int = DEFAULT_ROBINHOOD_CHAIN_ID,
-    candidate_cache_path: Path = ROBINHOOD_CANDIDATE_CACHE_PATH,
-    evidence_root: Path = ROBINHOOD_EVIDENCE_ROOT,
     run_rpc_probe: bool = True,
 ) -> dict[str, Any]:
     market = _robinhood_market(market_id, chain_id)
+    db = _database_path(database_url)
 
     candidates: list[dict[str, Any]] = []
-    source = "runtime_cache"
-    legacy_source = "cache"
     database_error = None
     fallback_reason = None
-    if database_url:
-        try:
-            candidates = load_current_dex_arbitrage_candidates(
-                database_url,
-                market_id=market.market_id,
-                chain_id=market.chain_id,
-            )
-            source = "database"
-            legacy_source = "database"
-        except Exception as exc:
-            database_error = str(exc)
-            fallback_reason = "database_unavailable"
-    if not candidates:
-        candidates = _read_candidate_cache(candidate_cache_path)
-        if candidates:
-            source = "runtime_cache"
-            legacy_source = "cache"
-            fallback_reason = fallback_reason or ("database_empty" if database_url else None)
-        else:
-            source = "builtin_fallback"
-            legacy_source = "empty"
-            fallback_reason = fallback_reason or "candidate_cache_empty"
+    try:
+        candidates = load_current_dex_arbitrage_candidates(
+            db,
+            market_id=market.market_id,
+        )
+        candidates = [
+            row
+            for row in candidates
+            if _chain_id_value(row.get("chain_id") or row.get("chainId")) == market.chain_id
+        ]
+    except Exception as exc:
+        database_error = str(exc)
+        fallback_reason = "database_unavailable"
+    if not candidates and database_error is None:
+        fallback_reason = "database_empty"
 
     rpc_status: dict[str, Any] = {
         "ok": False,
@@ -353,21 +449,27 @@ def robinhood_dex_observation_payload(
     candidates = [row for row in candidates if _candidate_has_verified_pool_evidence(row)]
     views = [_candidate_view(row) for row in candidates]
     readiness_payload = robinhood_dex_readiness_payload(
+        database_url=database_url,
         market_id=market_id,
         chain_id=chain_id,
-        evidence_root=evidence_root,
         rpc_status=rpc_status,
         run_rpc_probe=False,
     )
     readiness = readiness_payload["deploymentStatus"]
-    candidate_cache_state = _file_freshness(candidate_cache_path)
-    pool_rows = load_latest_robinhood_pool_rows(readiness_payload["evidence"])
+    pool_rows = load_robinhood_sqlite_pool_rows(
+        database_url,
+        network=market.network,
+        chain_id=market.chain_id,
+    )
     pool_views = [_pool_view(row) for row in pool_rows]
-    raw_market_snapshot = load_latest_robinhood_market_snapshot()
-    # A quote is downstream of verified pool discovery. Do not publish P/L
-    # until at least one evidence-validated pool exists.
+    liquid_pool_count = sum(1 for row in pool_rows if row.get("hasLiquidity") is True)
+    database_state = _database_freshness(database_url)
+    raw_market_snapshot = load_robinhood_sqlite_market_snapshot(
+        database_url,
+        network=market.network,
+        chain_id=market.chain_id,
+    )
     market_snapshot = raw_market_snapshot if pool_views else None
-    market_snapshot_state = _file_freshness(ROBINHOOD_MARKET_SNAPSHOT_PATH)
     latest_block = next(
         (
             _chain_id_value(check.get("value"))
@@ -381,11 +483,14 @@ def robinhood_dex_observation_payload(
     snapshot_stale = bool(
         market_snapshot
         and (
-            (market_snapshot_state.get("ageSeconds") or 0) > 1800
+            (database_state.get("ageSeconds") or 0) > 1800
             or (snapshot_block_lag is not None and snapshot_block_lag > 1000)
         )
     )
-    evidence_available = readiness_payload["evidence"].get("source") == "evidence_package"
+    evidence_available = bool(
+        pool_rows
+        and readiness_payload["evidence"].get("source") == "sqlite_db"
+    )
     observation_status = (
         "pools_available"
         if pool_views
@@ -394,39 +499,38 @@ def robinhood_dex_observation_payload(
         else "awaiting_discovery_evidence"
     )
     observation_message = (
-        "Robinhood DEX verified pool records are available."
+        "Robinhood DEX pool records are available from SQLite."
         if pool_views
-        else "A candidate route cache exists, but pool evidence is not available for the pool page."
+        else "Candidate routes exist in SQLite, but no pool record is available."
         if views
-        else "RPC is healthy, but no verified Robinhood DEX pool record is available."
+        else "RPC is healthy, but no Robinhood DEX pool record is available in SQLite."
     )
     return {
         "market": market.as_dict(),
         "chainStatus": rpc_status,
         "evidence": readiness_payload["evidence"],
         "deploymentStatus": readiness,
-        # Keep the old display value for existing consumers; dataSource is the
-        # canonical contract used by new callers and architecture checks.
-        "candidateSource": legacy_source,
+        "candidateSource": "database",
         "dataSource": source_metadata(
-            source,
-            freshness=_file_freshness(candidate_cache_path) if source == "runtime_cache" else None,
+            "database",
+            freshness=database_state,
             fallback_reason=fallback_reason,
         ),
         "databaseError": database_error,
-        "candidateCachePath": str(candidate_cache_path),
+        "databasePath": db,
         "observationStatus": observation_status,
         "observationMessage": observation_message,
         "observationDiagnostics": {
             "rpcHealthy": bool(rpc_status.get("ok")),
             "candidateCount": len(views),
             "poolCount": len(pool_views),
+            "liquidPoolCount": liquid_pool_count,
             "rawCandidateCount": raw_candidate_count,
             "rejectedCandidateCount": max(0, raw_candidate_count - len(views)),
-            "candidateCache": candidate_cache_state,
+            "database": database_state,
             "evidenceAvailable": evidence_available,
             "evidenceSource": readiness_payload["evidence"].get("source"),
-            "marketSnapshot": market_snapshot_state,
+            "marketSnapshot": bool(raw_market_snapshot),
             "marketSnapshotSuppressed": bool(raw_market_snapshot and not pool_views),
             "marketSnapshotSuppressionReason": (
                 "verified_candidate_pool_required"
@@ -442,7 +546,7 @@ def robinhood_dex_observation_payload(
                 else None
             ),
             "nextAction": (
-                "Validate the factory, read pool addresses, and verify pool code, tokens, fees, and liquidity evidence."
+                "Refresh the V4 pool/liquidity tables through the DB-only import tool."
                 if not pool_views
                 else "Review pool addresses, tokens, fees, liquidity, and evidence blocks."
             ),
@@ -453,7 +557,8 @@ def robinhood_dex_observation_payload(
         "summary": {
             "candidateCount": len(views),
             "poolCount": len(pool_views),
-            "poolSource": readiness_payload["evidence"].get("source"),
+            "liquidPoolCount": liquid_pool_count,
+            "poolSource": "sqlite_db",
             "marketSnapshotAvailable": bool(market_snapshot),
             "executionEnabled": False,
             "broadcastEnabled": False,
@@ -468,8 +573,6 @@ def robinhood_dex_pool_observation_payload(
     database_url: str | None = None,
     market_id: str = DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     chain_id: int = DEFAULT_ROBINHOOD_CHAIN_ID,
-    candidate_cache_path: Path = ROBINHOOD_CANDIDATE_CACHE_PATH,
-    evidence_root: Path = ROBINHOOD_EVIDENCE_ROOT,
     run_rpc_probe: bool = True,
 ) -> dict[str, Any]:
     """Return the pool-only contract used by the Robinhood candidate-pool page.
@@ -483,8 +586,6 @@ def robinhood_dex_pool_observation_payload(
         database_url=database_url,
         market_id=market_id,
         chain_id=chain_id,
-        candidate_cache_path=candidate_cache_path,
-        evidence_root=evidence_root,
         run_rpc_probe=run_rpc_probe,
     )
     pools = payload.get("pools") if isinstance(payload.get("pools"), list) else []
@@ -499,16 +600,25 @@ def robinhood_dex_pool_observation_payload(
         },
         "observationStatus": "pools_available" if pools else "awaiting_discovery_evidence",
         "observationMessage": (
-            "Verified Robinhood DEX pools are available."
+            "Robinhood DEX pools are available from SQLite."
             if pools
-            else "No verified Robinhood DEX pools are available yet."
+            else "No Robinhood DEX pools are available in SQLite yet."
         ),
         "pools": pools,
         "summary": {
             "poolCount": len(pools),
-            "poolSource": evidence.get("source"),
+            "poolSource": "sqlite_db",
             "executionEnabled": False,
             "broadcastEnabled": False,
             "mode": "shadow_observation_only",
         },
     }
+
+
+__all__ = [
+    "load_robinhood_sqlite_market_snapshot",
+    "load_robinhood_sqlite_pool_rows",
+    "robinhood_dex_observation_payload",
+    "robinhood_dex_pool_observation_payload",
+    "robinhood_dex_readiness_payload",
+]

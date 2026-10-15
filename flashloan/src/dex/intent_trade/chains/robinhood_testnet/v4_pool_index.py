@@ -15,6 +15,9 @@ from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
     load_robinhood_v4_pool_index as _load_core,
     write_v4_pool_index_from_initialize_logs as _write_core,
 )
+from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+    load_v4_pool_index_payload as _load_db_index_payload,
+)
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     ROBINHOOD_TESTNET_CHAIN_ID,
     ROBINHOOD_TESTNET_NETWORK,
@@ -78,6 +81,11 @@ def write_v4_pool_index_from_initialize_logs(
 
 
 def load_robinhood_testnet_v4_pool_index(path: Path | None = None) -> dict[str, Any]:
+    if path is None:
+        return _load_db_index_payload(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+        )
     return _load_core(
         path=path or default_v4_pool_index_path(),
         network=ROBINHOOD_TESTNET_NETWORK,

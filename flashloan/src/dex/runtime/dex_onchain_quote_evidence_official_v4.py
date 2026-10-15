@@ -11,6 +11,10 @@ from dex.intent_trade.chains.robinhood.chain_test_policy import (
     ROBINHOOD_CHAIN_ID,
     ROBINHOOD_TESTNET_CHAIN_ID,
 )
+from market.binance_market.dex_session_cache import (
+    session_cached_call,
+    session_fingerprint,
+)
 
 
 _OFFICIAL_V4_ARB_ABI = [
@@ -455,116 +459,170 @@ def official_v4_arb_static_hop_rows(
     candidates = [collected[0][2]]
     keysets = [candidate[3] for candidate in candidates]
     directionsets = [candidate[4] for candidate in candidates]
-    quote_source = "official_v4_arb_static_call"
-    composer_used = False
-    composer_profit: int | None = None
-    composer_route_index: int | None = None
-    broadcast_record: dict[str, Any] = {}
-    result = None
-    composer_address = _official_v4_composer_address(chain_id=int(chain_id or 0))
+    block_number: int | None = None
     try:
-        if composer_address:
-            candidate = [keysets, directionsets, 0, 0, 0, 0]
-            contract = w3.eth.contract(address=Web3.to_checksum_address(composer_address), abi=_OFFICIAL_V4_COMPOSER_ABI)
-            composer_result = contract.functions.runBest(
-                Web3.to_checksum_address(token_z),
-                [candidate],
-                int(amount_in_raw),
-                1,
-                0,
-            ).call(transaction={"gas": 50_000_000})
-            executed, _candidate_index, _profit, result_data = composer_result
-            if executed and result_data:
-                decoded = w3.codec.decode_abi(
-                    ["uint256", "uint256", "uint256", "uint256", "uint256"],
-                    result_data,
-                )
-                result = tuple(decoded)
-                quote_source = "official_v4_composer_static_call"
-                composer_used = True
-                composer_profit = int(result[3])
-                composer_route_index = int(result[4])
+        block_number = int(w3.eth.block_number)
     except Exception:
-        result = None
-    if result is None:
-        try:
-            contract = w3.eth.contract(address=Web3.to_checksum_address(arb_address), abi=_OFFICIAL_V4_ARB_ABI)
-            result = contract.functions.runArbitrageBest(
-                Web3.to_checksum_address(token_z),
-                keysets,
-                directionsets,
-                int(amount_in_raw),
-                1,
-            ).call(transaction={"gas": 50_000_000})
-        except Exception:
-            return None
-    out_tb, out_ta, out_tz, _profit, route_index = (
-        int(result[0]),
-        int(result[1]),
-        int(result[2]),
-        int(result[3]),
-        int(result[4]),
-    )
-    if route_index >= len(candidates):
-        return None
-    selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = candidates[route_index]
-    # Evidence collection must stay read-only. Broadcast is only allowed through
-    # the explicit official arb route-test path, which respects the
-    # auto-execute toggle before calling run_official_v4_arb_route_test.
-    amounts = [out_tb, out_ta, out_tz]
-    hop_rows: list[dict[str, Any]] = []
-    for index, step in enumerate(selected_steps):
-        pool = _pool_for_step(step, selected_pools)
-        from_symbol = _norm_symbol(step.get("fromSymbol"))
-        to_symbol = _norm_symbol(step.get("toSymbol"))
-        _, _, in_decimals = _pool_side(pool, from_symbol)
-        _, _, out_decimals = _pool_side(pool, to_symbol)
-        if in_decimals is None:
-            in_decimals = _token_decimals(
-                w3,
-                _text(step.get("tokenIn") or _pool_side(pool, from_symbol)[0]) or None,
-                from_symbol,
-                {},
-            )
-        if out_decimals is None:
-            out_decimals = _token_decimals(
-                w3,
-                _text(step.get("tokenOut") or _pool_side(pool, to_symbol)[0]) or None,
-                to_symbol,
-                {},
-            )
-        hop_in_raw = amount_in_raw if index == 0 else int(amounts[index - 1])
-        hop_out_raw = int(amounts[index])
-        hop_rows.append(
+        block_number = None
+    key_pool_ids = tuple(
+        sorted(
             {
-                "hop": index + 1,
-                "status": "live_verified",
-                "executionTrust": "live_quoter_verified_readonly",
-                "quoteSource": quote_source,
-                "quoteMethod": quote_source,
-                "composerVerified": composer_used,
-                "composerRouteIndex": composer_route_index,
-                "composerProfitRaw": str(composer_profit) if composer_used else None,
-                "scannerBroadcast": broadcast_record,
-                "protocol": "uniswap_v4",
-                "pool": selected_pool_ids[index],
-                "fromSymbol": from_symbol,
-                "toSymbol": to_symbol,
-                "tokenIn": step.get("tokenIn") or _pool_side(pool, from_symbol)[0],
-                "tokenOut": step.get("tokenOut") or _pool_side(pool, to_symbol)[0],
-                "amountInRaw": str(hop_in_raw),
-                "amountIn": _human_from_raw(hop_in_raw, in_decimals),
-                "amountOutRaw": str(hop_out_raw),
-                "amountOut": _human_from_raw(hop_out_raw, out_decimals),
-                "inputDecimals": in_decimals,
-                "outputDecimals": out_decimals,
-                "priceImpactWithinLimit": True,
-                "staticQuote": {
-                    "outputAmount": _human_from_raw(hop_out_raw, out_decimals),
-                    "outputUsd": None,
-                    "quoteSource": quote_source,
-                    "executionTrust": "live_quoter_verified_readonly",
-                },
+                str(pool.get("pool") or pool.get("poolId") or "").lower()
+                for step in steps
+                for pool in [_pool_for_step(step, pools)]
+                if isinstance(pool, dict) and str(pool.get("pool") or pool.get("poolId") or "").strip()
             }
         )
-    return hop_rows, selected_symbols, selected_addresses, selected_steps
+    )
+    key_sqrt_values = tuple(
+        sorted(
+            {
+                str(pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96") or "")
+                for pool in pools.values()
+                if isinstance(pool, dict) and str(pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96") or "").strip()
+            }
+        )
+    )
+    key_candidate_profiles = tuple(
+        (
+            item[0],
+            tuple(_text(symbol).upper() for symbol in item[2][0]),
+            tuple(_text(address) for address in item[2][1]),
+            tuple(item[2][3]),
+            tuple(item[2][4]),
+            tuple(_text(pool_id) for pool_id in item[2][5]),
+        )
+        for item in collected
+    )
+    cache_key = (
+        int(chain_id or 0),
+        _text(token_z).lower(),
+        int(amount_in_raw),
+        key_candidate_profiles,
+        key_pool_ids,
+        session_fingerprint(
+            block_number=block_number,
+            sqrt_price_x96=",".join(key_sqrt_values),
+            direction=directionsets[0] if directionsets else None,
+        ),
+    )
+
+    def _build_static_rows() -> (
+        tuple[list[dict[str, Any]], list[str], list[str], list[dict[str, Any]]] | None
+    ):
+        quote_source = "official_v4_arb_static_call"
+        composer_used = False
+        composer_profit: int | None = None
+        composer_route_index: int | None = None
+        broadcast_record: dict[str, Any] = {}
+        result = None
+        composer_address = _official_v4_composer_address(chain_id=int(chain_id or 0))
+        try:
+            if composer_address:
+                candidate = [keysets, directionsets, 0, 0, 0, 0]
+                contract = w3.eth.contract(address=Web3.to_checksum_address(composer_address), abi=_OFFICIAL_V4_COMPOSER_ABI)
+                composer_result = contract.functions.runBest(
+                    Web3.to_checksum_address(token_z),
+                    [candidate],
+                    int(amount_in_raw),
+                    1,
+                    0,
+                ).call(transaction={"gas": 50_000_000})
+                executed, _candidate_index, _profit, result_data = composer_result
+                if executed and result_data:
+                    decoded = w3.codec.decode_abi(
+                        ["uint256", "uint256", "uint256", "uint256", "uint256"],
+                        result_data,
+                    )
+                    result = tuple(decoded)
+                    quote_source = "official_v4_composer_static_call"
+                    composer_used = True
+                    composer_profit = int(result[3])
+                    composer_route_index = int(result[4])
+        except Exception:
+            result = None
+        if result is None:
+            try:
+                contract = w3.eth.contract(address=Web3.to_checksum_address(arb_address), abi=_OFFICIAL_V4_ARB_ABI)
+                result = contract.functions.runArbitrageBest(
+                    Web3.to_checksum_address(token_z),
+                    keysets,
+                    directionsets,
+                    int(amount_in_raw),
+                    1,
+                ).call(transaction={"gas": 50_000_000})
+            except Exception:
+                return None
+        out_tb, out_ta, out_tz, _profit, route_index = (
+            int(result[0]),
+            int(result[1]),
+            int(result[2]),
+            int(result[3]),
+            int(result[4]),
+        )
+        if route_index >= len(candidates):
+            return None
+        selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = candidates[route_index]
+        amounts = [out_tb, out_ta, out_tz]
+        hop_rows: list[dict[str, Any]] = []
+        for index, step in enumerate(selected_steps):
+            pool = _pool_for_step(step, selected_pools)
+            from_symbol = _norm_symbol(step.get("fromSymbol"))
+            to_symbol = _norm_symbol(step.get("toSymbol"))
+            _, _, in_decimals = _pool_side(pool, from_symbol)
+            _, _, out_decimals = _pool_side(pool, to_symbol)
+            if in_decimals is None:
+                in_decimals = _token_decimals(
+                    w3,
+                    _text(step.get("tokenIn") or _pool_side(pool, from_symbol)[0]) or None,
+                    from_symbol,
+                    {},
+                )
+            if out_decimals is None:
+                out_decimals = _token_decimals(
+                    w3,
+                    _text(step.get("tokenOut") or _pool_side(pool, to_symbol)[0]) or None,
+                    to_symbol,
+                    {},
+                )
+            hop_in_raw = amount_in_raw if index == 0 else int(amounts[index - 1])
+            hop_out_raw = int(amounts[index])
+            hop_rows.append(
+                {
+                    "hop": index + 1,
+                    "status": "live_verified",
+                    "executionTrust": "live_quoter_verified_readonly",
+                    "quoteSource": quote_source,
+                    "quoteMethod": quote_source,
+                    "composerVerified": composer_used,
+                    "composerRouteIndex": composer_route_index,
+                    "composerProfitRaw": str(composer_profit) if composer_used else None,
+                    "scannerBroadcast": broadcast_record,
+                    "protocol": "uniswap_v4",
+                    "pool": selected_pool_ids[index],
+                    "fromSymbol": from_symbol,
+                    "toSymbol": to_symbol,
+                    "tokenIn": step.get("tokenIn") or _pool_side(pool, from_symbol)[0],
+                    "tokenOut": step.get("tokenOut") or _pool_side(pool, to_symbol)[0],
+                    "amountInRaw": str(hop_in_raw),
+                    "amountIn": _human_from_raw(hop_in_raw, in_decimals),
+                    "amountOutRaw": str(hop_out_raw),
+                    "amountOut": _human_from_raw(hop_out_raw, out_decimals),
+                    "inputDecimals": in_decimals,
+                    "outputDecimals": out_decimals,
+                    "priceImpactWithinLimit": True,
+                    "staticQuote": {
+                        "outputAmount": _human_from_raw(hop_out_raw, out_decimals),
+                        "outputUsd": None,
+                        "quoteSource": quote_source,
+                        "executionTrust": "live_quoter_verified_readonly",
+                    },
+                }
+            )
+        return hop_rows, selected_symbols, selected_addresses, selected_steps
+
+    return session_cached_call(
+        kind="official_v4_arb_static_route",
+        key_parts=cache_key,
+        builder=_build_static_rows,
+    )

@@ -1,9 +1,9 @@
-"""Initialise Robinhood V4 business data from existing JSON/SQLite sources.
+"""Rebuild Robinhood V4 business tables from SQLite only.
 
-The script currently bootstraps the independent tables from the existing
-evidence files and then rebuilds candidate pools, market observation and
-closed loops directly from SQLite. HyperSync/HyperRPC network pull can be
-enabled through ``--source`` once the Rust network layer is verified.
+The raw V4 pool, liquidity snapshot and chain token rows must already be
+present in SQLite (written by the explicit on-chain evidence refresh tools or
+the DB-only maintenance script). This command never reads JSON evidence files:
+it only rebuilds candidate/observation/closed-loop tables from the database.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
-from core.db.import_existing_json import import_existing_json  # noqa: E402
 from core.db import builders  # noqa: E402
 from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E402
     clear_robinhood_v4_pool_cache,
@@ -30,9 +29,6 @@ from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default="")
-    parser.add_argument("--runtime-root", default="")
-    parser.add_argument("--import-existing-files", action="store_true", default=True)
-    parser.add_argument("--no-import-existing-files", dest="import_existing_files", action="store_false")
     parser.add_argument("--source", default="sqlite", choices=("sqlite", "hyperrpc", "hypersync"))
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--anchor", default="")
@@ -40,13 +36,7 @@ def main() -> int:
 
     database = absolute_database_path(args.database)
     ensure_database_schema(str(database))
-    if args.import_existing_files and not args.verify_only:
-        import_result = import_existing_json(
-            str(database),
-            runtime_root=args.runtime_root or None,
-        )
-    else:
-        import_result = {"ok": True, "skipped": True}
+    import_result = {"ok": True, "skipped": True, "source": "sqlite_only"}
 
     anchors = builders.ANCHOR_SYMBOLS
     if args.anchor:

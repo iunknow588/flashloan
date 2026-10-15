@@ -19,6 +19,7 @@ from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _cache_identity,
     _depth_counts,
     _dex_pool_row,
+    _is_stable_symbol,
     _pool_view_capabilities,
 )
 ROBINHOOD_TESTNET_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
@@ -139,6 +140,131 @@ def _pool_token_addresses(pools: list[dict[str, Any]]) -> set[str]:
     return addresses
 
 
+def _has_liquid_pool_evidence(row: dict[str, Any]) -> bool:
+    if row.get("hasLiquidity") is True or row.get("has_liquidity") is True:
+        return True
+    try:
+        if float(row.get("liquidityIndex") or row.get("liquidity_index") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    try:
+        if float(row.get("pool_liquidity_units") or row.get("liquidity_units") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    return False
+
+
+def _sqlite_liquidity_flash_source_rows(
+    pools: list[dict[str, Any]],
+    *,
+    token_metadata: dict[str, Any],
+    pool_manager: str,
+) -> list[dict[str, Any]]:
+    """Derive page-level flash assets from liquid SQLite V4 pool rows.
+
+    The PoolManager balance scan is not persisted in SQLite yet, so the
+    SQLite-only page falls back to official chain-token symbols that appear
+    in pools with positive liquidity evidence.  This keeps the pool page
+    readable without reintroducing JSON evidence reads.
+    """
+    by_address: dict[str, dict[str, Any]] = {}
+    for pool in pools:
+        if not _has_liquid_pool_evidence(pool):
+            continue
+        for side in ("token0", "token1"):
+            address = str(pool.get(side) or "").strip().lower()
+            if not address:
+                continue
+            token = token_metadata.get(address) if isinstance(token_metadata, dict) else None
+            symbol = str((token or {}).get("symbol") or "").strip()
+            if not symbol:
+                continue
+            bucket = by_address.setdefault(
+                address,
+                {
+                    "address": address,
+                    "symbol": symbol,
+                    "pool_ids": [],
+                    "depth_score_usd": 0.0,
+                    "liquidity_units": 0,
+                },
+            )
+            pool_id = str(pool.get("pool_id") or pool.get("poolId") or pool.get("pool") or "").strip()
+            if pool_id and pool_id not in bucket["pool_ids"]:
+                bucket["pool_ids"].append(pool_id)
+            try:
+                bucket["depth_score_usd"] = max(
+                    bucket["depth_score_usd"],
+                    float(pool.get("depth_score_usd") or pool.get("tvlUsd") or 0),
+                )
+            except (TypeError, ValueError):
+                pass
+            try:
+                bucket["liquidity_units"] = max(
+                    bucket["liquidity_units"],
+                    int(pool.get("pool_liquidity_units") or pool.get("liquidity_units") or 0),
+                )
+            except (TypeError, ValueError):
+                pass
+    rows: list[dict[str, Any]] = []
+    for address, item in sorted(by_address.items(), key=lambda pair: str(pair[1].get("symbol") or "")):
+        symbol = str(item.get("symbol") or "")
+        is_native = address.lower() == "0x0000000000000000000000000000000000000000"
+        rows.append(
+            {
+                "token_symbol": symbol,
+                "binance_symbol": "ETH" if is_native else symbol,
+                "is_stable": _is_stable_symbol(symbol),
+                "depth_score_usd": item.get("depth_score_usd") or 0,
+                "available_liquidity": item.get("liquidity_units") or 0,
+                "available_liquidity_raw": str(item.get("liquidity_units") or 0),
+                "poolmanager_balance": 0.0,
+                "poolmanager_balance_raw": "0",
+                "token_address": "" if is_native else address,
+                "currency_address": address,
+                "pool_address": "",
+                "provider_address": pool_manager,
+                "pool_manager_address": pool_manager,
+                "pool_key_count": len(item.get("pool_ids") or []),
+                "pool_ids": item.get("pool_ids") or [],
+                "raw_pool_ids": item.get("pool_ids") or [],
+                "depth_level": "observable",
+                "depth_label": "SQLite V4 pool liquidity",
+                "depth_class": "ok",
+                "borrowable": True,
+                "lending_borrowable": False,
+                "flash_capable": True,
+                "flash_borrowable": True,
+                "flash_accounting_balance_available": False,
+                "effective_flash_accounting_asset": True,
+                "effective_flash_asset": True,
+                "candidate_pool_count": len(item.get("pool_ids") or []),
+                "execution_verified": False,
+                "executor_supported": not is_native,
+                "flash_borrowable_reason": "sqlite_v4_liquidity_snapshot",
+                "borrowable_basis": "sqlite_v4_liquidity_snapshot",
+                "pool_role": "v4_pool_liquidity_asset",
+                "source": "sqlite_db_v4_pool_liquidity",
+            }
+        )
+    return rows
+
+
+def _apply_sqlite_token_symbols(
+    rows: list[dict[str, Any]],
+    *,
+    token_metadata: dict[str, Any],
+) -> None:
+    for row in rows:
+        for side in ("token0", "token1"):
+            address = str(row.get(side) or "").strip().lower()
+            symbol = str((token_metadata.get(address) or {}).get("symbol") or "")
+            if symbol:
+                row[f"{side}Symbol"] = symbol
+
+
 def robinhood_testnet_flash_protocol_view(
     protocol: str,
     *,
@@ -153,6 +279,15 @@ def robinhood_testnet_flash_protocol_view(
     pool_index = pool_index_loader()
     display_pools, display_pool_source = _display_pools(liquidity, pool_index)
     pool_rows = _v4_pool_rows(display_pools)
+    from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+        load_v4_chain_token_metadata,
+    )
+
+    token_metadata = load_v4_chain_token_metadata(
+        ROBINHOOD_TESTNET_NETWORK,
+        ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    _apply_sqlite_token_symbols(pool_rows, token_metadata=token_metadata)
     decoded_pool_key_count = int((liquidity.get("payload") or {}).get("decodedPoolKeyCount") or 0)
     token_address_count = int((liquidity.get("payload") or {}).get("tokenAddressCount") or 0)
     if pool_index.get("ok"):
@@ -167,6 +302,12 @@ def robinhood_testnet_flash_protocol_view(
         pool_manager=config["pool_manager"],
         include_ineffective=True,
     )
+    if not flash_source_evidence_rows:
+        flash_source_evidence_rows = _sqlite_liquidity_flash_source_rows(
+            pool_rows,
+            token_metadata=token_metadata,
+            pool_manager=config["pool_manager"],
+        )
     flash_source_rows = [
         row
         for row in flash_source_evidence_rows
@@ -175,6 +316,7 @@ def robinhood_testnet_flash_protocol_view(
     flash_source_pool_key_count = sum(int(row.get("pool_key_count") or 0) for row in flash_source_rows)
     has_flash_sources = bool(flash_source_rows)
     executor_supported_flash_rows = [row for row in flash_source_rows if row.get("executor_supported")]
+    pool_key_count = len(liquidity.get("pool_keys") or []) or len(pool_index.get("pool_keys") or [])
     stable_pool_key_rows = [row for row in pool_rows if row.get("is_stable")]
     non_stable_pool_key_rows = [row for row in pool_rows if not row.get("is_stable")]
     stable_flash_source_rows = [row for row in flash_source_rows if row.get("is_stable")]
@@ -227,14 +369,14 @@ def robinhood_testnet_flash_protocol_view(
             "executor_supported_flash_accounting_asset_count": len(executor_supported_flash_rows),
             "flash_accounting_pool_key_count": flash_source_pool_key_count,
             "observable_pool_key_count": len(pool_rows),
-            "pool_key_count": len(liquidity.get("pool_keys") or []),
+            "pool_key_count": pool_key_count,
             "indexed_pool_key_count": len(pool_index.get("pool_keys") or []),
         }
     )
     view["summary"].update(
         {
             "flash_accounting_poolmanager_count": 1 if protocol == "uniswap_v4" and flash_source_rows else 0,
-            "v4_pool_key_count": len(liquidity.get("pool_keys") or []),
+            "v4_pool_key_count": pool_key_count,
             "v4_pool_liquidity_pool_count": len(pool_rows),
             "v4_decoded_pool_key_count": decoded_pool_key_count,
             "v4_token_address_count": token_address_count,
