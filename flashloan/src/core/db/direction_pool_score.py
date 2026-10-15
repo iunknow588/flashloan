@@ -9,6 +9,9 @@ Q96 = 1 << 96
 DEFAULT_DECIMALS = 18
 DEFAULT_MIN_POOL_DEPTH_USD = 1000.0
 DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE = 1.0
+LIVE_STATE_EVIDENCE_SOURCES = {
+    "pool_manager_extsload_live_state_batch",
+}
 
 
 def _text(value: Any) -> str:
@@ -20,6 +23,14 @@ def _number(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _truthy(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
 
 
 def _token_decimals(
@@ -94,13 +105,26 @@ def has_confirmed_liquidity(
     preferred pool, but it must never change whether a pool is included, so
     this gate deliberately has no ``token_in`` parameter.
 
-    USD evidence is the primary gate (default 1000 USDC). When the pool has no
-    USD pricing because neither side is a stable token or ETH, the fallback is
+    Confirmed liquidity is a two-sided market fact and the observation layer
+    treats ``has_liquidity=1`` as liquid regardless of the evidence source.
+    The candidate layer must use the same gate, so a confirmed row is never
+    rejected just because a derived USD depth is tiny.  USD evidence is the
+    primary depth gate; when USD depth is small or missing, the fallback is
     the published liquidity index, or one whole token unit from raw liquidity.
     """
+    evidence_source = _text(pool.get("evidence_source") or pool.get("evidenceSource"))
+    has_liquidity = pool.get("has_liquidity")
+    if has_liquidity is None:
+        has_liquidity = pool.get("hasLiquidity")
+    if evidence_source in LIVE_STATE_EVIDENCE_SOURCES and _truthy(has_liquidity):
+        raw_liquidity = _number(pool.get("liquidity"))
+        liquidity_index = _number(pool.get("liquidity_index") or pool.get("liquidityIndex"))
+        estimated_tvl_usd = _number(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd"))
+        if raw_liquidity > 0 or liquidity_index > 0 or estimated_tvl_usd > 0:
+            return True
     depth_usd = pool_depth_usd(pool)
-    if depth_usd > 0:
-        return depth_usd >= min_usd
+    if depth_usd >= min_usd:
+        return True
     if fallback_token_base <= 0:
         return False
     liquidity_index = _number(pool.get("liquidity_index") or pool.get("liquidityIndex"))

@@ -77,6 +77,8 @@ data_info/_build/
 flashloan/rs-src/target/
 flashloan/src/runtime/logs/
 flashloan/src/runtime/logs/observer_*.log
+flashloan/contract/avalanche/DEX/deployments/evidence/
+flashloan/contract/avalanche/BOT/deployments/evidence/
 
 # Root-level dev dumps/logs must live under flashloan/src/runtime/logs
 /*.err.log
@@ -85,3 +87,6 @@ flashloan/src/runtime/logs/observer_*.log
 /*.err
 /*.out
 /*.json
+
+# Local dev/report temp artifacts (do not commit)
+tmp_*

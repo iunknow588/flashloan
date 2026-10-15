@@ -668,6 +668,7 @@ def _candidate_rows(
                 },
                 "liquidity_read_at": pool.get("liquidity_read_at"),
                 "liquidity_block_number": pool.get("liquidity_block_number"),
+                "evidence_source": pool.get("evidence_source"),
             }
         pool_rows.extend(pool_rows_by_id.values())
         for direction_key, in_token, out_token, hop in (
@@ -842,7 +843,8 @@ def build_candidate_anchor(
                p.hooks, l.has_liquidity, l.liquidity, l.liquidity_index,
                l.estimated_tvl_usd, l.balances_json, l.depth_status,
                l.depth_band_json, l.depth_score_usd, l.sqrt_price_x96, l.price,
-               l.tick, l.liquidity_read_at, l.liquidity_block_number
+               l.tick, l.liquidity_read_at, l.liquidity_block_number,
+               l.evidence_source
         FROM v4_exchange_pools p
         LEFT JOIN v4_exchange_pool_liquidity_snapshots l
           ON l.network = p.network AND l.chain_id = p.chain_id
@@ -1043,7 +1045,8 @@ def build_market_observation_anchor(
                l.balances_json, l.depth_status, l.depth_band_json,
                l.depth_score_usd, l.sqrt_price_x96, l.price, l.tick,
                l.liquidity_read_at, l.liquidity_block_number,
-               l.recent_swap_active, l.observed_at, l.refreshed_at
+               l.recent_swap_active, l.observed_at, l.refreshed_at,
+               l.evidence_source
         FROM v4_exchange_pools p
         LEFT JOIN v4_exchange_pool_liquidity_snapshots l
           ON l.network = p.network AND l.chain_id = p.chain_id
@@ -1136,6 +1139,7 @@ def build_market_observation_anchor(
             "recent_swap_active": pool.get("recent_swap_active"),
             "observed_at": pool.get("observed_at"),
             "refreshed_at": pool.get("refreshed_at"),
+            "evidence_source": pool.get("evidence_source"),
         }
         for pool in [*pool_rows, *abnormal_pool_rows]
     ]

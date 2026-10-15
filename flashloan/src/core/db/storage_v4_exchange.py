@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_business_io import execute, query
+from core.db.storage_dex_surface_snapshot import clear_dex_surface_snapshots
 
 
 def _stamp() -> str:
@@ -59,6 +60,48 @@ def _has_liquidity_tri(value: Any) -> int | None:
     if isinstance(value, str):
         return 1 if value.strip().lower() in {"1", "true", "yes"} else 0
     return 1 if bool(value) else 0
+
+
+def clear_v4_exchange_evidence(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+) -> dict[str, int]:
+    """Delete raw V4 pool/liquidity rows for one network scope.
+
+    A live refresh owns the complete raw V4 surface for the requested
+    network/chain/protocol.  Clearing before import prevents stale rows from
+    a previous bad JSON import (empty liquidity, placeholder symbols, pools
+    that no longer exist on chain) from surviving into candidate/observation
+    rebuilds.
+    """
+    counts = {
+        "liquidity_snapshots": execute(
+            database_url,
+            """
+            DELETE FROM v4_exchange_pool_liquidity_snapshots
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+            """,
+            (network, chain_id, protocol),
+        ),
+        "pools": execute(
+            database_url,
+            """
+            DELETE FROM v4_exchange_pools
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+            """,
+            (network, chain_id, protocol),
+        ),
+    }
+    counts["dex_surface_snapshots"] = clear_dex_surface_snapshots(
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        database_url=database_url,
+    )
+    return counts
 
 
 def upsert_v4_exchange_pools(
@@ -181,6 +224,13 @@ def upsert_v4_liquidity_snapshots(
                 (1 if bool(raw_swap_active) else 0) if raw_swap_active is not None else None,
                 row.get("observed_at") or now,
                 row.get("refreshed_at") or now,
+                str(
+                    row.get("evidence_source")
+                    or row.get("liquidity_source")
+                    or row.get("liquiditySource")
+                    or row.get("source")
+                    or ""
+                ).strip() or None,
             )
         )
     if not params:
@@ -193,27 +243,55 @@ def upsert_v4_liquidity_snapshots(
             liquidity_index, estimated_tvl_usd, balances_json, depth_status,
             depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
             liquidity_read_at, liquidity_block_number, recent_swap_active,
-            observed_at, refreshed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            observed_at, refreshed_at, evidence_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
             has_liquidity = CASE
                 WHEN excluded.has_liquidity IS NULL
+                THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
+                WHEN (
+                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
+                    AND excluded.liquidity_block_number IS NULL
+                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
+                )
                 THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
                 ELSE excluded.has_liquidity
             END,
             liquidity = CASE
                 WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
                 THEN v4_exchange_pool_liquidity_snapshots.liquidity
+                WHEN (
+                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
+                    AND excluded.liquidity_block_number IS NULL
+                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
+                )
+                THEN v4_exchange_pool_liquidity_snapshots.liquidity
                 ELSE excluded.liquidity
             END,
-            liquidity_index = COALESCE(
-                excluded.liquidity_index,
-                v4_exchange_pool_liquidity_snapshots.liquidity_index
-            ),
-            estimated_tvl_usd = COALESCE(
-                excluded.estimated_tvl_usd,
-                v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
-            ),
+            liquidity_index = CASE
+                WHEN (
+                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
+                    AND excluded.liquidity_block_number IS NULL
+                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
+                )
+                THEN v4_exchange_pool_liquidity_snapshots.liquidity_index
+                ELSE COALESCE(
+                    excluded.liquidity_index,
+                    v4_exchange_pool_liquidity_snapshots.liquidity_index
+                )
+            END,
+            estimated_tvl_usd = CASE
+                WHEN (
+                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
+                    AND excluded.liquidity_block_number IS NULL
+                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
+                )
+                THEN v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
+                ELSE COALESCE(
+                    excluded.estimated_tvl_usd,
+                    v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
+                )
+            END,
             balances_json = COALESCE(
                 excluded.balances_json,
                 v4_exchange_pool_liquidity_snapshots.balances_json
@@ -255,7 +333,11 @@ def upsert_v4_liquidity_snapshots(
                 excluded.observed_at,
                 v4_exchange_pool_liquidity_snapshots.observed_at
             ),
-            refreshed_at = excluded.refreshed_at
+            refreshed_at = excluded.refreshed_at,
+            evidence_source = COALESCE(
+                excluded.evidence_source,
+                v4_exchange_pool_liquidity_snapshots.evidence_source
+            )
         """,
         params,
     )
@@ -362,7 +444,7 @@ def load_v4_pool_liquidity(
                liquidity_index, estimated_tvl_usd, balances_json, depth_status,
                depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
                liquidity_read_at, liquidity_block_number, recent_swap_active,
-               observed_at, refreshed_at
+               observed_at, refreshed_at, evidence_source
         FROM v4_exchange_pool_liquidity_snapshots
         WHERE network = ? AND chain_id = ? AND protocol = ?
         ORDER BY pool_id
@@ -384,7 +466,7 @@ def load_v4_pool_liquidity_rows_for_view(
         SELECT pool_id, has_liquidity, liquidity, liquidity_index,
                estimated_tvl_usd, depth_status, sqrt_price_x96, tick,
                liquidity_read_at, liquidity_block_number, recent_swap_active,
-               observed_at, refreshed_at
+               observed_at, refreshed_at, evidence_source
         FROM v4_exchange_pool_liquidity_snapshots
         WHERE network = ? AND chain_id = ? AND protocol = ?
         ORDER BY pool_id
@@ -445,6 +527,7 @@ def find_v4_pools_between_tokens(
 
 
 __all__ = [
+    "clear_v4_exchange_evidence",
     "find_v4_pools_between_tokens",
     "load_v4_exchange_pools",
     "load_v4_exchange_pool_manager",

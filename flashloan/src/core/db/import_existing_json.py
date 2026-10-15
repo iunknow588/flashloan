@@ -1,9 +1,11 @@
-"""Import existing Robinhood V4 on-chain evidence into SQLite.
+"""Legacy one-time JSON evidence bootstrap for Robinhood V4.
 
-This is the DB-first bootstrap path: it reads only the V4 pool index and V4
-liquidity evidence JSON, seeds chain tokens/markets and writes the raw V4
-exchange tables. Candidate pools, market observation and closed loops are
-rebuilt from SQLite by :func:`core.db.builders.build_all_anchor_data`.
+This module is intentionally not part of the runtime refresh path. It exists
+only as an explicit bootstrap/audit tool and refuses to run unless a
+``runtime_root`` containing legacy ``latest.json`` evidence is passed
+explicitly. Normal refreshes use
+:func:`core.db.import_v4_evidence.import_v4_evidence_payloads`, which imports
+in-memory payloads and never reads JSON files.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (
 )
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
     apply_stock_token_metadata,
+    apply_stock_pool_metadata,
 )
 
 
@@ -195,6 +198,10 @@ def _liquidity_rows(v4_liquidity: dict[str, Any]) -> list[dict[str, Any]]:
             "liquidity_read_at": raw.get("liquidityReadAt"),
             "liquidity_block_number": raw.get("liquidityBlockNumber"),
             "observed_at": observed_at,
+            "evidence_source": raw.get("evidenceSource")
+            or raw.get("liquiditySource")
+            or v4_liquidity.get("source")
+            or "",
         }
         if raw.get("recentSwapActive") is not None:
             row["recent_swap_active"] = raw.get("recentSwapActive")
@@ -243,6 +250,10 @@ def _liquidity_rows_from_index(index: dict[str, Any]) -> list[dict[str, Any]]:
             "liquidity_read_at": raw.get("liquidityReadAt"),
             "liquidity_block_number": raw.get("liquidityBlockNumber"),
             "observed_at": index.get("generatedAt") or index.get("liquidityScanAt"),
+            "evidence_source": raw.get("evidenceSource")
+            or raw.get("liquiditySource")
+            or index.get("source")
+            or "",
         }
         if raw.get("recentSwapActive") is not None:
             row["recent_swap_active"] = raw.get("recentSwapActive")
@@ -436,13 +447,18 @@ def import_existing_json(
     runtime_root: Path | str | None = None,
     network: str = ROBINHOOD_NETWORK,
 ) -> dict[str, Any]:
+    if runtime_root is None:
+        return {
+            "ok": False,
+            "error": "refusing to import JSON evidence without an explicit runtime_root; use import_v4_evidence_payloads or pass --runtime-root",
+        }
     config = _network_config(network)
     wanted_network = str(config["network"])
     wanted_chain_id = int(config["chain_id"])
     anchor_symbols = tuple(config["anchor_symbols"])
     anchor_addresses = config["anchor_addresses"]
     stable_symbols = config["stable_symbols"]
-    root = Path(runtime_root) if runtime_root is not None else Path(__file__).resolve().parents[2] / "runtime"
+    root = Path(runtime_root)
     v4_index_path = root / "evidence" / wanted_network / "v4_pool_index" / "latest.json"
     v4_liquidity_path = root / "evidence" / wanted_network / "v4_pool_liquidity" / "latest.json"
 
@@ -470,12 +486,18 @@ def import_existing_json(
         network=wanted_network,
         chain_id=wanted_chain_id,
     )
+    pool_rows = _v4_pool_rows_from_index(index)
+    apply_stock_pool_metadata(
+        pool_rows,
+        network=wanted_network,
+        chain_id=wanted_chain_id,
+    )
     v4_pool_count = upsert_v4_exchange_pools(
         database_url,
         network=wanted_network,
         chain_id=wanted_chain_id,
         protocol="uniswap_v4",
-        pool_rows=_v4_pool_rows_from_index(index),
+        pool_rows=pool_rows,
     )
     # The liquidity file is written first, then the index liquidity rows.
     # Index rows carry the authoritative extsload markers where available;
@@ -531,6 +553,17 @@ if __name__ == "__main__":
         choices=(ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK),
     )
     args = parser.parse_args()
+    if not args.runtime_root:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "refusing to import JSON evidence without --runtime-root",
+                },
+                ensure_ascii=False,
+            )
+        )
+        raise SystemExit(2)
     database = args.database or str(Path(__file__).resolve().parents[2] / "runtime" / "local_store.sqlite3")
     result = import_existing_json(
         database,

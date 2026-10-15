@@ -19,6 +19,11 @@ def _json_loads(value: object) -> Any:
         return {}
 
 
+def _json_array_loads(value: object) -> list[Any] | None:
+    parsed = _json_loads(value if value not in (None, "") else "[]")
+    return parsed if isinstance(parsed, list) else None
+
+
 def _normalized(direction_key: object) -> tuple[str, str] | None:
     text = _text(direction_key)
     parts = [part for part in text.split(":") if part]
@@ -95,13 +100,18 @@ def direction_symmetry_violations(
                     "mirror_has_optimal_pool": mirror_has_pool,
                 }
             )
-        forward_backup_ids = set(
-            _json_loads(row.get("yc_backup_pool_ids_json") or [])
-        )
-        reverse_backup_ids = set(
-            _json_loads(mirror_row.get("zc_backup_pool_ids_json") or [])
-        )
-        if len(forward_backup_ids) != len(reverse_backup_ids):
+        forward_backup_ids = _json_array_loads(row.get("yc_backup_pool_ids_json"))
+        reverse_backup_ids = _json_array_loads(mirror_row.get("zc_backup_pool_ids_json"))
+        if forward_backup_ids is None or reverse_backup_ids is None:
+            violations.append(
+                {
+                    "table": "dex_candidate_pool_pairs",
+                    "direction_key": direction_key,
+                    "mirror_direction_key": mirror_key,
+                    "invalid_backup_json": True,
+                }
+            )
+        elif len(forward_backup_ids) != len(reverse_backup_ids):
             violations.append(
                 {
                     "table": "dex_candidate_pool_pairs",

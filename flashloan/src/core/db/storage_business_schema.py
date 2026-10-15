@@ -246,6 +246,7 @@ BUSINESS_DDL: tuple[str, ...] = (
         recent_swap_active INTEGER,
         observed_at TEXT NOT NULL,
         refreshed_at TEXT NOT NULL,
+        evidence_source TEXT,
         PRIMARY KEY (network, chain_id, protocol, pool_id),
         FOREIGN KEY (network, chain_id, protocol, pool_id)
             REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
@@ -329,6 +330,20 @@ BUSINESS_DDL: tuple[str, ...] = (
             ),
         FOREIGN KEY (network, chain_id, protocol, optimized_pool_id)
             REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dex_surface_snapshots (
+        surface TEXT NOT NULL,
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+        payload_json TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'sqlite_db',
+        source_fingerprint TEXT,
+        generated_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (surface, network, chain_id, protocol)
     )
     """,
     """
@@ -676,6 +691,7 @@ BUSINESS_DDL: tuple[str, ...] = (
         recent_swap_active INTEGER,
         observed_at TEXT NOT NULL,
         refreshed_at TEXT NOT NULL,
+        evidence_source TEXT,
         PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
     )
     """,
@@ -798,6 +814,8 @@ def migrate_business_direction_schema(database_url: str) -> dict[str, int]:
             },
             "market_observation_yz_pairs": {"optimal_pool_id": "TEXT"},
             "market_observation_abnormal_yz_pairs": {"optimal_pool_id": "TEXT"},
+            "v4_exchange_pool_liquidity_snapshots": {"evidence_source": "TEXT"},
+            "market_observation_liquidity_snapshots": {"evidence_source": "TEXT"},
         }.items():
             for column, definition in columns.items():
                 _ensure_column(table, column, definition)

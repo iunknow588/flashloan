@@ -20,6 +20,11 @@ def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value is not None else "null"
 
 
+def _json_array_loads(value: Any) -> list[Any]:
+    parsed = _json_loads(value if value not in (None, "") else "[]")
+    return parsed if isinstance(parsed, list) else []
+
+
 def _bool(value: Any) -> int:
     return 1 if bool(value) else 0
 
@@ -794,16 +799,16 @@ def load_dex_candidate_pools(
         "anchorTokens": [
             {
                 **row,
-                "yc_backup_pool_ids": _json_loads(row.get("yc_backup_pool_ids_json") or "[]"),
-                "zc_backup_pool_ids": _json_loads(row.get("zc_backup_pool_ids_json") or "[]"),
+                "yc_backup_pool_ids": _json_array_loads(row.get("yc_backup_pool_ids_json")),
+                "zc_backup_pool_ids": _json_array_loads(row.get("zc_backup_pool_ids_json")),
             }
             for row in tokens
         ],
         "pairs": [
             {
                 **row,
-                "yc_backup_pool_ids": _json_loads(row.get("yc_backup_pool_ids_json") or "[]"),
-                "zc_backup_pool_ids": _json_loads(row.get("zc_backup_pool_ids_json") or "[]"),
+                "yc_backup_pool_ids": _json_array_loads(row.get("yc_backup_pool_ids_json")),
+                "zc_backup_pool_ids": _json_array_loads(row.get("zc_backup_pool_ids_json")),
             }
             for row in pairs
         ],

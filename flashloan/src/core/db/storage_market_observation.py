@@ -192,6 +192,7 @@ def replace_market_observation_tables(
                 ),
                 row.get("observed_at") or now,
                 row.get("refreshed_at") or now,
+                row.get("evidence_source") or row.get("evidenceSource") or "",
             )
         )
     if pair_rows:
@@ -253,8 +254,8 @@ def replace_market_observation_tables(
                 pool_id, has_liquidity, liquidity, liquidity_index,
                 estimated_tvl_usd, balances_json, depth_status, depth_band_json,
                 sqrt_price_x96, tick, liquidity_read_at, liquidity_block_number,
-                recent_swap_active, observed_at, refreshed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                recent_swap_active, observed_at, refreshed_at, evidence_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
             DO UPDATE SET has_liquidity = CASE
                 WHEN excluded.has_liquidity IS NULL
@@ -310,7 +311,11 @@ def replace_market_observation_tables(
                     excluded.observed_at,
                     market_observation_liquidity_snapshots.observed_at
                 ),
-                refreshed_at = excluded.refreshed_at
+                refreshed_at = excluded.refreshed_at,
+                evidence_source = COALESCE(
+                    excluded.evidence_source,
+                    market_observation_liquidity_snapshots.evidence_source
+                )
             """,
             liquidity_rows,
         )
@@ -520,7 +525,7 @@ def load_market_observation(
                pool_id, has_liquidity, liquidity, liquidity_index,
                estimated_tvl_usd, balances_json, depth_status, depth_band_json,
                sqrt_price_x96, tick, liquidity_read_at, liquidity_block_number,
-               recent_swap_active, observed_at, refreshed_at
+               recent_swap_active, observed_at, refreshed_at, evidence_source
         FROM market_observation_liquidity_snapshots
         WHERE network = ? AND chain_id = ? AND protocol = ? AND anchor_symbol = ?
         ORDER BY pool_id

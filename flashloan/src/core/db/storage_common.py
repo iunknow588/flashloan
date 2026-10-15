@@ -87,6 +87,10 @@ SCHEMA_MIGRATIONS = (
         "20261009_market_observation_tables",
         "Create market_observation_yz_pairs, market_observation_intermediate_pools, and market_observation_liquidity_snapshots.",
     ),
+    (
+        "20261016_dex_surface_snapshots",
+        "Persist compact DEX overview snapshots in SQLite for fast static pages.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 
