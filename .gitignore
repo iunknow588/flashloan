@@ -93,3 +93,9 @@ flashloan/contract/avalanche/BOT/deployments/evidence/
 
 # Local dev/report temp artifacts (do not commit)
 tmp_*
+
+# Large generated/push-blocking artifacts (do not commit)
+data_info/BNB/bnb_niche_xy_dynamic_monitor_history.jsonl
+flashloan/src/runtime/evidence/robinhood/v4_pool_index/full_latest.json
+flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/observation.json
+flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/shards-observation/
