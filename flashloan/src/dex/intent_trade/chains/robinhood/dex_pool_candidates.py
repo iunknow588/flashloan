@@ -566,6 +566,7 @@ def _decorate_candidates_with_live_state(
         "liveStatePoolCount": 0,
         "liveLiquidPoolCount": 0,
         "liveNoLiquidityPoolCount": 0,
+        "liveStateUnavailablePoolCount": 0,
         "error": None,
     }
     if not pool_manager:
@@ -633,13 +634,16 @@ def _decorate_candidates_with_live_state(
                 candidate["tvlUsd"] = 0
                 candidate["balances"] = {"tvlUsd": 0}
                 candidate["depthStatus"] = "live_liquidity_zero"
+                candidate["liquiditySource"] = "pool_manager_extsload_live_state_batch"
+                summary["liveNoLiquidityPoolCount"] = summary.get("liveNoLiquidityPoolCount") or 0
+                summary["liveNoLiquidityPoolCount"] += 1
             else:
                 candidate["depthStatus"] = "live_liquidity_unavailable"
+                candidate["liquiditySource"] = candidate.get("liquiditySource") or "pool_manager_extsload_live_state_batch"
+                summary["liveStateUnavailablePoolCount"] = summary.get("liveStateUnavailablePoolCount") or 0
+                summary["liveStateUnavailablePoolCount"] += 1
             candidate["usableForObservation"] = _v4_pool_observation_candidate(candidate)
             candidate["liquidityError"] = (state or {}).get("error") or "live_state_missing"
-            candidate["liquiditySource"] = candidate.get("liquiditySource") or "pool_manager_extsload_live_state_batch"
-            summary["liveNoLiquidityPoolCount"] = summary.get("liveNoLiquidityPoolCount") or 0
-            summary["liveNoLiquidityPoolCount"] += 1
             continue
         liquid = str(state.get("liquidity") or "0")
         has_liquidity = int(liquid) > 0

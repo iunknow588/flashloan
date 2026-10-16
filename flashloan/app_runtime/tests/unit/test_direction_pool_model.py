@@ -11,6 +11,9 @@ from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
+from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+    _decorate_candidates_with_live_state,
+)
 
 
 def test_minimum_liquidity_confirmation_uses_usd_then_one_token_fallback():
@@ -171,25 +174,21 @@ def test_candidate_rows_keep_one_best_pool_per_direction():
     assert [rec["rank"] for rec in first_recs] == [1, 2, 3]
     assert [rec["rank"] for rec in third_recs] == [1, 2, 3]
     assert "pool-no-liquid" not in {rec["pool_id"] for rec in [*first_recs, *third_recs]}
-    assert len(rows["pools"]) == 4
+    assert len(rows["pools"]) == 3
     assert {pool["pool_id"] for pool in rows["pools"]} == {
         "pool-high",
         "pool-low",
-        "pool-no-liquid",
         "pool-lowest",
     }
     high_row = next(pool for pool in rows["pools"] if pool["pool_id"] == "pool-high")
     low_row = next(pool for pool in rows["pools"] if pool["pool_id"] == "pool-low")
     lowest_row = next(pool for pool in rows["pools"] if pool["pool_id"] == "pool-lowest")
-    no_liquid_row = next(pool for pool in rows["pools"] if pool["pool_id"] == "pool-no-liquid")
     assert high_row["is_first_hop_recommended"] is True
     assert high_row["is_third_hop_recommended"] is True
     assert low_row["is_first_hop_recommended"] is True
     assert low_row["is_third_hop_recommended"] is True
     assert lowest_row["is_first_hop_recommended"] is True
     assert lowest_row["is_third_hop_recommended"] is True
-    assert no_liquid_row["is_first_hop_recommended"] is False
-    assert no_liquid_row["is_third_hop_recommended"] is False
     assert forward["yc_backup_pool_ids"] == ["pool-low", "pool-lowest"]
     assert reverse["zc_backup_pool_ids"] == ["pool-low", "pool-high"]
     assert "pool-no-liquid" not in forward["yc_backup_pool_ids"]
@@ -627,6 +626,105 @@ def test_market_observation_storage_keeps_mirror_direction_symmetry(tmp_path):
     assert all('"pool-only"' in row["pool_ids_json"] for row in rows)
     assert all(row["optimal_pool_id"] == "pool-only" for row in rows)
     assert all(not row["observation_empty_reason"] for row in rows)
+
+
+def test_mainnet_live_state_unavailable_stays_unknown_not_false(monkeypatch):
+    """A failed/unknown live state read must not flip hasLiquidity to False."""
+    pool_id = "0x" + "cc" * 32
+    healthy_id = "0x" + "ab" * 32
+    candidate = {
+        "pool": pool_id,
+        "poolId": pool_id,
+        "fee": 3000,
+        "poolKey": {"fee": 3000},
+        "hooks": "",
+        "hasLiquidity": True,
+        "liquidity": "1000000000000000000000",
+    }
+    healthy = {
+        "pool": healthy_id,
+        "poolId": healthy_id,
+        "fee": 3000,
+        "poolKey": {"fee": 3000},
+        "hooks": "",
+        "hasLiquidity": True,
+    }
+
+    def fake_batch(**kwargs):
+        return {
+            pool_id: {"error": "RPC timeout", "source": "pool_manager_extsload_live_state_batch"},
+            healthy_id: {
+                "liquidity": "1000000000000000000000",
+                "sqrtPriceX96": str(2**96),
+                "tick": 0,
+                "source": "pool_manager_extsload_live_state_batch",
+            },
+        }
+
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood.dex_pool_candidates._batch_read_v4_pool_states",
+        fake_batch,
+    )
+    summary = _decorate_candidates_with_live_state(
+        [candidate, healthy],
+        pool_manager="0x" + "66" * 20,
+        rpc_url="https://fake-mainnet.example",
+    )
+    assert candidate["hasLiquidity"] is True
+    assert candidate["liquidity"] == "1000000000000000000000"
+    assert candidate["depthStatus"] == "live_liquidity_unavailable"
+    assert summary["liveStateUnavailablePoolCount"] == 1
+    assert summary["liveNoLiquidityPoolCount"] == 0
+
+
+def test_mainnet_live_state_zero_is_explicit_false(monkeypatch):
+    pool_id = "0x" + "dd" * 32
+    healthy_id = "0x" + "cd" * 32
+    candidate = {
+        "pool": pool_id,
+        "poolId": pool_id,
+        "fee": 3000,
+        "poolKey": {"fee": 3000},
+        "hooks": "",
+        "hasLiquidity": True,
+    }
+    healthy = {
+        "pool": healthy_id,
+        "poolId": healthy_id,
+        "fee": 3000,
+        "poolKey": {"fee": 3000},
+        "hooks": "",
+        "hasLiquidity": True,
+    }
+
+    def fake_batch(**kwargs):
+        return {
+            pool_id: {
+                "error": "robinhood mainnet pool manager live liquidity is zero",
+                "source": "pool_manager_extsload_live_state_batch",
+            },
+            healthy_id: {
+                "liquidity": "1000000000000000000000",
+                "sqrtPriceX96": str(2**96),
+                "tick": 0,
+                "source": "pool_manager_extsload_live_state_batch",
+            },
+        }
+
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood.dex_pool_candidates._batch_read_v4_pool_states",
+        fake_batch,
+    )
+    summary = _decorate_candidates_with_live_state(
+        [candidate, healthy],
+        pool_manager="0x" + "66" * 20,
+        rpc_url="https://fake-mainnet.example",
+    )
+    assert candidate["hasLiquidity"] is False
+    assert candidate["depthStatus"] == "live_liquidity_zero"
+    assert candidate["liquiditySource"] == "pool_manager_extsload_live_state_batch"
+    assert summary["liveNoLiquidityPoolCount"] == 1
+    assert summary["liveStateUnavailablePoolCount"] == 0
 
 
 def test_direction_symmetry_violations_detect_all_one_sided_surfaces():

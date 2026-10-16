@@ -494,9 +494,11 @@ def _enrich_pool_liquidity(
                 pool["status"] = "initialized_pool_no_liquidity"
                 pool["hasLiquidity"] = False
                 pool["liquidityIndex"] = 0
+                pool["liquiditySource"] = "pool_manager_extsload_live_state"
             else:
                 pool["liquidityError"] = error_message[:240]
                 pool["depthStatus"] = "liquidity_read_failed"
+                pool["liquiditySource"] = pool.get("liquiditySource") or "pool_manager_extsload_live_state"
                 # A read failure is unknown, not proven empty. Preserve any
                 # existing evidence instead of flipping the pool to false.
                 pool["hasLiquidity"] = pool.get("hasLiquidity")

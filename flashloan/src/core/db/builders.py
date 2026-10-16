@@ -533,7 +533,15 @@ def _candidate_rows(
         fixed = [
             pool
             for pool in pools
-            if _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE) and _has_no_hook(pool)
+            if (
+                _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
+                and _has_no_hook(pool)
+                and has_confirmed_liquidity(
+                    pool,
+                    min_usd=1000.0,
+                    fallback_token_base=1.0,
+                )
+            )
         ]
         if not fixed:
             continue
@@ -1084,17 +1092,28 @@ def build_market_observation_anchor(
             if token_x == token_y:
                 continue
             matched = _pools_for_token_pair(pools_by_edge, token_x, token_y)
+            confirmed_matched = [
+                pool
+                for pool in matched
+                if has_confirmed_liquidity(
+                    pool,
+                    min_usd=1000.0,
+                    fallback_token_base=1.0,
+                )
+            ]
             directions.append(
                 {
                     "direction_key": f"{token_x}:{token_y}",
                     "token_x_address": token_x,
                     "token_y_address": token_y,
                     "address_pair": f"{token_x}:{token_y}",
-                    "allPools": matched,
-                    "observation_empty_reason": "" if matched else "no_reachable_v4_pool",
+                    "allPools": confirmed_matched,
+                    "observation_empty_reason": (
+                        "" if confirmed_matched else "no_reachable_v4_pool"
+                    ),
                 }
             )
-            for pool in matched:
+            for pool in confirmed_matched:
                 pool_id = _pool_id(pool)
                 if pool_id in seen_pool_ids:
                     continue
