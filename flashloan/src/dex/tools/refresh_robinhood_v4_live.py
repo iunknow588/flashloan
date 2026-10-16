@@ -15,6 +15,7 @@ normal refresh flow.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -27,6 +28,7 @@ from core.db import builders  # noqa: E402
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.import_v4_evidence import import_v4_evidence_payloads  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
+from core.db.storage_v4_exchange import prune_v4_non_executable_evidence  # noqa: E402
 from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E402
     clear_robinhood_v4_pool_cache,
 )
@@ -75,6 +77,34 @@ _STALE_LIQUIDITY_KEYS = (
     "liquidityError",
     "liquiditySource",
 )
+
+
+def _remove_v4_json_evidence(
+    *,
+    network: str,
+    chain_id: int,
+) -> list[str]:
+    """Remove the optional V4 evidence JSON audit files after a DB rebuild.
+
+    SQLite is the only formal source.  Deleting these files prevents an
+    accidental later ``latest.json -> import_existing_json`` refresh from
+    overwriting live chain evidence with stale placeholder/zero data.
+    """
+    from core.chain_data_registry import chain_data_file_path
+
+    removed: list[str] = []
+    for key in ("v4_pool_index", "v4_pool_liquidity", "v4_pool_snapshot"):
+        path = chain_data_file_path(network, key, chain_id=chain_id)
+        if path is None:
+            continue
+        if path.is_file():
+            path.unlink(missing_ok=True)
+            removed.append(str(path))
+        elif path.is_dir():
+            for file_path in sorted(path.glob("*.json")):
+                file_path.unlink(missing_ok=True)
+                removed.append(str(file_path))
+    return removed
 
 
 def _strip_stale_liquidity_from_sqlite_pools(pools: list[dict]) -> None:
@@ -154,6 +184,27 @@ def _load_index_payload(
 
 
 def _connect_rpc(network: str, chain_id: int, rpc_url: str | None) -> tuple[object, str]:
+    from web3 import Web3
+
+    if rpc_url:
+        w3 = Web3(
+            Web3.HTTPProvider(
+                rpc_url,
+                request_kwargs={
+                    "timeout": 25,
+                    "verify": False,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "User-Agent": "flashloan-robinhood-mainnet-v4/1.1",
+                        "Connection": "close",
+                    },
+                },
+            )
+        )
+        actual_chain_id = int(w3.eth.chain_id)
+        if actual_chain_id != int(chain_id):
+            raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {chain_id}")
+        return w3, rpc_url
     if network == ROBINHOOD_TESTNET_NETWORK:
         from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
             _connect_chain_rpc,
@@ -177,6 +228,7 @@ def _apply_live_liquidity(
     pool_ids: list[str] | None,
     batch_size: int,
     block_number: int,
+    batch_liquidity: bool = False,
 ) -> dict:
     w3, resolved_rpc_url = _connect_rpc(network, chain_id, rpc_url)
     actual_chain_id = int(w3.eth.chain_id)
@@ -193,6 +245,16 @@ def _apply_live_liquidity(
 
         activity = _apply_extsload_liquidity(
             pools,
+            w3=w3,
+            rpc_url=resolved_rpc_url,
+            pool_manager=resolved_pool_manager,
+            pool_ids=pool_ids,
+            batch_size=batch_size,
+            block_number=block_number,
+        )
+    elif batch_liquidity:
+        return _apply_batch_live_liquidity(
+            index_payload=index_payload,
             w3=w3,
             rpc_url=resolved_rpc_url,
             pool_manager=resolved_pool_manager,
@@ -219,6 +281,152 @@ def _apply_live_liquidity(
         "rpcUrl": resolved_rpc_url,
         "blockNumber": block_number,
     }
+
+
+def _apply_batch_live_liquidity(
+    *,
+    index_payload: dict,
+    w3: object,
+    rpc_url: str,
+    pool_manager: str,
+    pool_ids: list[str] | None,
+    batch_size: int,
+    block_number: int,
+) -> dict:
+    """Read every indexed V4 pool via batched PoolManager extsloads.
+
+    This is the fast generic mainnet path. Unknown read failures stay unknown
+    and only an explicit ``liquidity is zero`` response proves a pool is empty.
+    """
+    from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+        _batch_read_v4_pool_states,
+    )
+    from dex.intent_trade.chains.robinhood.v4_pool_index import (
+        _liquidity_depth_status,
+        _liquidity_reserve_metrics,
+    )
+
+    pools = [pool for pool in index_payload.get("pools") or [] if isinstance(pool, dict)]
+    wanted = (
+        {
+            str(pool_id).strip().lower()
+            for pool_id in pool_ids
+            if str(pool_id or "").strip().startswith("0x")
+        }
+        if pool_ids
+        else None
+    )
+    selected = [
+        pool
+        for pool in pools
+        if (
+            str(pool.get("poolId") or "").startswith("0x")
+            and (wanted is None or str(pool.get("poolId") or "").lower() in wanted)
+        )
+    ]
+    all_ids = sorted({str(pool.get("poolId") or "").lower() for pool in selected})
+    states: dict[str, dict] = {}
+    errors: list[str] = []
+    urls = tuple(
+        dict.fromkeys(
+            (
+                *(str(url).strip() for url in (rpc_url,) if str(url or "").strip()),
+                *_mainnet_rpc_urls_from_env(),
+            )
+        )
+    )
+    for start in range(0, len(all_ids), max(1, int(batch_size))):
+        chunk = all_ids[start : start + max(1, int(batch_size))]
+        chunk_states: dict[str, dict] = {}
+        for candidate_url in urls:
+            try:
+                chunk_states = _batch_read_v4_pool_states(
+                    rpc_url=candidate_url,
+                    pool_manager=pool_manager,
+                    pool_ids=chunk,
+                )
+            except Exception as exc:
+                errors.append(str(exc)[:240])
+                continue
+            if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+                break
+        if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+            states.update(chunk_states)
+        else:
+            errors.append(f"{chunk[0]}..{chunk[-1]}: no_state_success")
+
+    liquid_count = 0
+    zero_count = 0
+    unavailable_count = 0
+    stamped_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    for pool in selected:
+        pool_id = str(pool.get("poolId") or "").lower()
+        state = states.get(pool_id)
+        pool["liquiditySource"] = "pool_manager_extsload_live_state_batch"
+        pool["liquidityReadAt"] = stamped_at
+        pool["liquidityBlockNumber"] = block_number
+        if state is None or state.get("error"):
+            error_text = str((state or {}).get("error") or "live_state_missing").lower()
+            if "liquidity is zero" in error_text:
+                pool["hasLiquidity"] = False
+                pool["liquidity"] = ""
+                pool["liquidityIndex"] = 0
+                pool["estimatedTvlUsd"] = 0
+                pool["depthStatus"] = "live_liquidity_zero"
+                pool["liquidityError"] = None
+                zero_count += 1
+            else:
+                pool["hasLiquidity"] = None
+                pool["liquidity"] = ""
+                pool["liquidityIndex"] = 0
+                pool["estimatedTvlUsd"] = 0
+                pool["depthStatus"] = "live_liquidity_unavailable"
+                pool["liquidityError"] = (state or {}).get("error") or "live_state_missing"
+                unavailable_count += 1
+            continue
+        liquidity = int(str(state.get("liquidity") or "0"))
+        if liquidity <= 0:
+            pool["hasLiquidity"] = False
+            pool["liquidity"] = ""
+            pool["liquidityIndex"] = 0
+            pool["estimatedTvlUsd"] = 0
+            pool["depthStatus"] = "live_liquidity_zero"
+            pool["liquidityError"] = None
+            zero_count += 1
+            continue
+        metrics = _liquidity_reserve_metrics(pool, state)
+        pool.update(metrics)
+        pool["hasLiquidity"] = True
+        pool["liquidity"] = str(liquidity)
+        pool["liquiditySource"] = state.get("source") or "pool_manager_extsload_live_state_batch"
+        pool["liquidityError"] = None
+        pool["depthStatus"] = _liquidity_depth_status(pool)["label"]
+        pool["status"] = "initialized_pool_with_liquidity"
+        liquid_count += 1
+
+    return {
+        "liquidityMarkerActive": True,
+        "liquidityMarkedPoolCount": liquid_count,
+        "liquidityZeroPoolCount": zero_count,
+        "liquidityUnavailablePoolCount": unavailable_count,
+        "liquidityErrorCount": len(errors),
+        "liquidityErrors": errors[:20],
+        "liquidityScanAt": stamped_at,
+        "liquidityPoolIds": sorted(
+            str(pool.get("poolId") or "").lower()
+            for pool in selected
+            if pool.get("hasLiquidity") is True
+        ),
+        "liquiditySource": "pool_manager_extsload_live_state_batch",
+        "scannedPoolCount": len(selected),
+        "blockNumber": block_number,
+    }
+
+
+def _mainnet_rpc_urls_from_env() -> tuple[str, ...]:
+    from dex.intent_trade.chains.robinhood import config as robinhood_config
+
+    return robinhood_config.rpc_urls_from_env()
 
 
 def _make_liquidity_payload(index_payload: dict) -> dict:
@@ -259,9 +467,13 @@ def refresh_v4_live(
     mark_recent_swaps: bool = False,
     pool_ids: str | list[str] | None = "",
     batch_size: int = 100,
+    batch_liquidity: bool = False,
     anchors: str = "",
     verify_only: bool = False,
     clear_cache: bool = True,
+    prune_zero_liquidity: bool = True,
+    prune_unknown_liquidity: bool = False,
+    remove_json_evidence: bool = True,
 ) -> dict:
     """Rebuild Robinhood V4 SQLite tables from live/in-memory evidence.
 
@@ -317,6 +529,7 @@ def refresh_v4_live(
                 pool_ids=selected_pool_ids or None,
                 batch_size=batch_size,
                 block_number=block_number,
+                batch_liquidity=batch_liquidity,
             )
             steps.append(
                 {
@@ -410,6 +623,31 @@ def refresh_v4_live(
                 errors.append(f"build_all_anchor_data: {exc}")
                 steps.append({"step": "build_all_anchor_data", "ok": False, "error": str(exc)})
 
+    prune_result: dict = {}
+    if not errors and not skip_build and not verify_only:
+        try:
+            if prune_zero_liquidity:
+                prune_result = prune_v4_non_executable_evidence(
+                    str(database),
+                    network=network,
+                    chain_id=chain_id,
+                    protocol="uniswap_v4",
+                    delete_unknown=prune_unknown_liquidity,
+                )
+                steps.append(
+                    {
+                        "step": "prune_non_executable_pools",
+                        "ok": True,
+                        "deletedZeroLiquidityCount": prune_result.get("deletedZeroLiquidityCount"),
+                        "deletedUnknownLiquidityCount": prune_result.get("deletedUnknownLiquidityCount"),
+                        "deletedPoolCount": prune_result.get("deletedPoolCount"),
+                        "afterPoolCount": prune_result.get("afterPoolCount"),
+                    }
+                )
+        except Exception as exc:
+            errors.append(f"prune_non_executable_pools: {exc}")
+            steps.append({"step": "prune_non_executable_pools", "ok": False, "error": str(exc)})
+
     snapshot_result: dict = {}
     if not errors and not skip_build and not verify_only:
         try:
@@ -429,6 +667,26 @@ def refresh_v4_live(
         except Exception as exc:
             errors.append(f"dex_overview_snapshot: {exc}")
             steps.append({"step": "dex_overview_snapshot", "ok": False, "error": str(exc)})
+
+    json_evidence_removed: list[str] = []
+    if not errors and not skip_build and not verify_only:
+        try:
+            if remove_json_evidence:
+                json_evidence_removed = _remove_v4_json_evidence(
+                    network=network,
+                    chain_id=chain_id,
+                )
+                if json_evidence_removed:
+                    steps.append(
+                        {
+                            "step": "remove_v4_json_evidence",
+                            "ok": True,
+                            "removedFiles": json_evidence_removed,
+                        }
+                    )
+        except Exception as exc:
+            errors.append(f"remove_v4_json_evidence: {exc}")
+            steps.append({"step": "remove_v4_json_evidence", "ok": False, "error": str(exc)})
 
     cleared = 0
     if clear_cache:
@@ -461,6 +719,8 @@ def refresh_v4_live(
             "ok": bool(build_result.get("ok", True)),
             "anchorCount": len(build_result.get("anchors") or []),
         },
+        "prune": prune_result,
+        "jsonEvidenceRemoved": json_evidence_removed,
         "errors": errors,
         "cacheEntriesCleared": cleared,
     }
@@ -483,10 +743,30 @@ def main() -> int:
     parser.add_argument("--mark-recent-swaps", action="store_true")
     parser.add_argument("--pool-ids", default="", help="Comma-separated V4 pool ids to scan for live liquidity; empty means all.")
     parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument("--batch-liquidity", action="store_true")
     parser.add_argument("--anchors", default="")
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--no-clear-cache", dest="clear_cache", action="store_false")
+    parser.add_argument(
+        "--no-prune-zero-liquidity",
+        dest="prune_zero_liquidity",
+        action="store_false",
+    )
+    parser.add_argument(
+        "--prune-unknown-liquidity",
+        dest="prune_unknown_liquidity",
+        action="store_true",
+        help="Also delete unscanned has_liquidity=NULL rows; default keeps them for a later live scan.",
+    )
+    parser.add_argument(
+        "--keep-json-evidence",
+        dest="remove_json_evidence",
+        action="store_false",
+    )
     parser.set_defaults(clear_cache=True)
+    parser.set_defaults(prune_zero_liquidity=True)
+    parser.set_defaults(prune_unknown_liquidity=False)
+    parser.set_defaults(remove_json_evidence=True)
     args = parser.parse_args()
 
     report = refresh_v4_live(
@@ -501,9 +781,13 @@ def main() -> int:
         mark_recent_swaps=args.mark_recent_swaps,
         pool_ids=args.pool_ids,
         batch_size=args.batch_size,
+        batch_liquidity=args.batch_liquidity,
         anchors=args.anchors,
         verify_only=args.verify_only,
         clear_cache=args.clear_cache,
+        prune_zero_liquidity=args.prune_zero_liquidity,
+        prune_unknown_liquidity=args.prune_unknown_liquidity,
+        remove_json_evidence=args.remove_json_evidence,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if report.get("ok") else 1

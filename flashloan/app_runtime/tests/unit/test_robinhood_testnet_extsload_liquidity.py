@@ -170,13 +170,39 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
     )[0]
     assert row["has_liquidity"] == 1
 
-    # Explicit false is still allowed to overwrite stale true evidence.
+    # A weak false row with no live evidence must not overwrite confirmed
+    # evidence. Only an explicit live-state read may prove the pool is empty.
     upsert_v4_liquidity_snapshots(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
         protocol="uniswap_v4",
         rows=[{"pool_id": pool_id, "has_liquidity": False, "liquidity": ""}],
+    )
+    row = load_v4_pool_liquidity(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+    )[0]
+    assert row["has_liquidity"] == 1
+
+    # Explicit live-state evidence is authoritative for a true zero.
+    upsert_v4_liquidity_snapshots(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": pool_id,
+                "has_liquidity": False,
+                "liquidity": "",
+                "depth_status": "no_liquidity",
+                "liquidity_block_number": 134_757_678,
+                "evidence_source": "pool_manager_extsload_live_state_batch",
+            }
+        ],
     )
     row = load_v4_pool_liquidity(
         database,

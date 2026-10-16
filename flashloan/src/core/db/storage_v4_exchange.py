@@ -104,6 +104,149 @@ def clear_v4_exchange_evidence(
     return counts
 
 
+def prune_v4_non_executable_evidence(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    delete_unknown: bool = False,
+) -> dict[str, int]:
+    """Keep only executable pools plus pools that still need liquidity evidence.
+
+    The raw tables are the lineage source for executable candidates and
+    loops, not a bucket for historical zero-liquidity diagnostics.  Only an
+    explicit chain read that returned ``has_liquidity=0`` proves a pool is
+    empty, so those rows are removed.  Unknown/missing rows are preserved by
+    default because they mean the pool has not been scanned, not that it has
+    no liquidity.
+    """
+    def _count(sql: str) -> int:
+        rows = query(database_url, sql, (network, chain_id, protocol))
+        return int(rows[0]["c"]) if rows else 0
+
+    before_liquidity = _count(
+        """
+        SELECT COUNT(*) AS c FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """
+    )
+    before_pools = _count(
+        """
+        SELECT COUNT(*) AS c FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """
+    )
+    zero_pool_ids = {
+        str(row["pool_id"])
+        for row in query(
+            database_url,
+            """
+            SELECT pool_id FROM v4_exchange_pool_liquidity_snapshots
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+              AND has_liquidity = 0
+            """,
+            (network, chain_id, protocol),
+        )
+        if str(row.get("pool_id") or "").strip()
+    }
+    deleted_zero = execute(
+        database_url,
+        """
+        DELETE FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND has_liquidity = 0
+        """,
+        (network, chain_id, protocol),
+    )
+    deleted_unknown = 0
+    removable_pool_ids = set(zero_pool_ids)
+    if delete_unknown:
+        removable_pool_ids.update(
+            str(row["pool_id"])
+            for row in query(
+                database_url,
+                """
+                SELECT pool_id FROM v4_exchange_pool_liquidity_snapshots
+                WHERE network = ? AND chain_id = ? AND protocol = ?
+                  AND has_liquidity IS NULL
+                """,
+                (network, chain_id, protocol),
+            )
+            if str(row.get("pool_id") or "").strip()
+        )
+        snapshot_pool_ids = {
+            str(row["pool_id"])
+            for row in query(
+                database_url,
+                """
+                SELECT pool_id FROM v4_exchange_pool_liquidity_snapshots
+                WHERE network = ? AND chain_id = ? AND protocol = ?
+                """,
+                (network, chain_id, protocol),
+            )
+            if str(row.get("pool_id") or "").strip()
+        }
+        removable_pool_ids.update(
+            str(row["pool_id"])
+            for row in query(
+                database_url,
+                """
+                SELECT pool_id FROM v4_exchange_pools
+                WHERE network = ? AND chain_id = ? AND protocol = ?
+                """,
+                (network, chain_id, protocol),
+            )
+            if str(row.get("pool_id") or "").strip()
+            and str(row.get("pool_id") or "").strip() not in snapshot_pool_ids
+        )
+        deleted_unknown = execute(
+            database_url,
+            """
+            DELETE FROM v4_exchange_pool_liquidity_snapshots
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+              AND has_liquidity IS NULL
+            """,
+            (network, chain_id, protocol),
+        )
+    # Unknown/missing pools are kept as pending evidence so a later full
+    # liquidity scan can resolve them.  Only pools with explicit zero evidence
+    # (or forced unknown cleanup) are removed from the raw lineage tables.
+    deleted_pools = 0
+    if removable_pool_ids:
+        placeholders = ",".join("?" for _ in removable_pool_ids)
+        deleted_pools = execute(
+            database_url,
+            f"""
+            DELETE FROM v4_exchange_pools
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+              AND pool_id IN ({placeholders})
+            """,
+            (network, chain_id, protocol, *sorted(removable_pool_ids)),
+        )
+    after_liquidity = _count(
+        """
+        SELECT COUNT(*) AS c FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """
+    )
+    after_pools = _count(
+        """
+        SELECT COUNT(*) AS c FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """
+    )
+    return {
+        "beforeLiquidityCount": before_liquidity,
+        "beforePoolCount": before_pools,
+        "deletedZeroLiquidityCount": deleted_zero,
+        "deletedUnknownLiquidityCount": deleted_unknown,
+        "deletedPoolCount": deleted_pools,
+        "afterLiquidityCount": after_liquidity,
+        "afterPoolCount": after_pools,
+    }
+
+
 def upsert_v4_exchange_pools(
     database_url: str,
     *,
@@ -535,6 +678,7 @@ __all__ = [
     "load_v4_exchange_pool_rows_for_view",
     "load_v4_pool_liquidity",
     "load_v4_pool_liquidity_rows_for_view",
+    "prune_v4_non_executable_evidence",
     "upsert_v4_exchange_pools",
     "upsert_v4_liquidity_snapshots",
 ]

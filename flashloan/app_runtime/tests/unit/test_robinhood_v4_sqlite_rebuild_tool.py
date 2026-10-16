@@ -9,6 +9,7 @@ from core.db.import_v4_evidence import import_v4_evidence_payloads
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     clear_v4_exchange_evidence,
+    prune_v4_non_executable_evidence,
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
@@ -412,6 +413,115 @@ def test_clear_v4_exchange_evidence_is_scoped(tmp_path):
     )
     assert testnet_pools[0]["c"] == 0
     assert mainnet_pools[0]["c"] == 1
+
+
+def test_prune_v4_non_executable_evidence_removes_only_explicit_zero(tmp_path):
+    database = str(tmp_path / "prune.sqlite3")
+    ensure_database_schema(database)
+    zero = "0x0000000000000000000000000000000000000000"
+    tz = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"]
+    usde = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"]
+    liquid_id = "0x" + "aa" * 32
+    zero_id = "0x" + "bb" * 32
+    unknown_id = "0x" + "cc" * 32
+    pool_rows = [
+        {
+            "pool_id": liquid_id,
+            "pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "pool_key": {"currency0": tz, "currency1": usde, "fee": 3000, "tickSpacing": 60, "hooks": zero},
+            "token0": tz,
+            "token1": usde,
+            "fee": 3000,
+            "tick_spacing": 60,
+            "hooks": zero,
+        },
+        {
+            "pool_id": zero_id,
+            "pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "pool_key": {"currency0": tz, "currency1": usde, "fee": 3000, "tickSpacing": 60, "hooks": zero},
+            "token0": tz,
+            "token1": usde,
+            "fee": 3000,
+            "tick_spacing": 60,
+            "hooks": zero,
+        },
+        {
+            "pool_id": unknown_id,
+            "pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "pool_key": {"currency0": tz, "currency1": usde, "fee": 3000, "tickSpacing": 60, "hooks": zero},
+            "token0": tz,
+            "token1": usde,
+            "fee": 3000,
+            "tick_spacing": 60,
+            "hooks": zero,
+        },
+    ]
+    upsert_v4_exchange_pools(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        pool_rows=pool_rows,
+    )
+    upsert_v4_liquidity_snapshots(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": liquid_id,
+                "has_liquidity": True,
+                "liquidity_index": 1000.0,
+                "estimated_tvl_usd": 1_000_000.0,
+            },
+            {
+                "pool_id": zero_id,
+                "has_liquidity": False,
+                "depth_status": "live_liquidity_zero",
+            },
+        ],
+    )
+
+    counts = prune_v4_non_executable_evidence(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+    )
+    assert counts["beforePoolCount"] == 3
+    assert counts["deletedZeroLiquidityCount"] == 1
+    assert counts["deletedUnknownLiquidityCount"] == 0
+    assert counts["deletedPoolCount"] == 1
+    assert counts["afterPoolCount"] == 2
+
+    from core.db.storage_business_io import query
+
+    pools = query(
+        database,
+        "SELECT pool_id FROM v4_exchange_pools WHERE network = ? AND chain_id = ? AND protocol = ?",
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, "uniswap_v4"),
+    )
+    assert {row["pool_id"] for row in pools} == {liquid_id, unknown_id}
+    liquidity = query(
+        database,
+        "SELECT pool_id, has_liquidity FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ? AND protocol = ?",
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, "uniswap_v4"),
+    )
+    assert len(liquidity) == 1
+    assert liquidity[0]["pool_id"] == liquid_id
+    assert liquidity[0]["has_liquidity"] == 1
+
+    forced = prune_v4_non_executable_evidence(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        delete_unknown=True,
+    )
+    assert forced["deletedUnknownLiquidityCount"] == 0
+    assert forced["deletedPoolCount"] == 1
+    assert forced["afterPoolCount"] == 1
 
 
 def test_apply_stock_pool_metadata_normalizes_amd_and_tsla_pool_keys():
