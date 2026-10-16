@@ -82,6 +82,8 @@ flashloan/src/runtime/logs/
 flashloan/src/runtime/logs/observer_*.log
 flashloan/contract/avalanche/DEX/deployments/evidence/
 flashloan/contract/avalanche/BOT/deployments/evidence/
+flashloan/contract/avalanche-testnet/DEX/deployments/evidence/
+flashloan/contract/avalanche-testnet/BOT/deployments/evidence/
 
 # Root-level dev dumps/logs must live under flashloan/src/runtime/logs
 /*.err.log
