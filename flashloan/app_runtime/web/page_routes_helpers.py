@@ -358,10 +358,11 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
                 database=_panel_database_url(panel) or "",
                 network=network,
                 chain_id=chain_id,
-                skip_index=not full,
-                skip_liquidity=not full,
+                skip_index=False,
+                skip_liquidity=False,
                 skip_build=False,
                 clear_cache=True,
+                full_index_scan=full,
             )
             result_errors = list(result.get("errors") or [])
             errors.extend(result_errors)

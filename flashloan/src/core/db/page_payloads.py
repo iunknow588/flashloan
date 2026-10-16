@@ -15,7 +15,10 @@ import json
 from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
-from core.db.direction_pool_score import select_directional_pool_ids
+from core.db.direction_pool_score import (
+    MAX_DIRECTION_CANDIDATE_POOLS,
+    select_directional_pool_ids,
+)
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 from dex.intent_trade.chains.robinhood_common.chain_config import (
@@ -184,7 +187,7 @@ def _active_direction_pool_ids(
             scope_pools,
             token_in,
             token_out,
-            limit=3,
+            limit=MAX_DIRECTION_CANDIDATE_POOLS,
         )
     return selections
 
@@ -197,7 +200,7 @@ def _pool_role(
         return ""
     if active_ids[0] == pool_id:
         return "primary"
-    if pool_id in active_ids[1:3]:
+    if pool_id in active_ids[1:]:
         return "backup"
     return ""
 
@@ -397,8 +400,8 @@ def _candidate_group(
         backup_by_counter.setdefault(
             counter_address,
             {
-                "yc": forward_active[1:3],
-                "zc": reverse_active[1:3],
+                "yc": forward_active[1:],
+                "zc": reverse_active[1:],
             },
         )
     tokens_by_address: dict[str, dict[str, Any]] = {}

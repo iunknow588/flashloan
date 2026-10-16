@@ -31,6 +31,7 @@ from dex.intent_trade.chains.robinhood_common.market_observation_core import (
 )
 from core.db.database_path import absolute_database_path as _testnet_db_path
 from core.db.direction_pool_score import (
+    MAX_DIRECTION_CANDIDATE_POOLS,
     has_confirmed_liquidity as _testnet_db_has_confirmed_liquidity,
     select_directional_pool_ids as _testnet_db_select_directional_pool_ids,
 )
@@ -782,7 +783,7 @@ def _testnet_db_bridge_pairs(
             usable_pools,
             left_address,
             right_address,
-            limit=3,
+            limit=MAX_DIRECTION_CANDIDATE_POOLS,
             min_usd=1000.0,
             fallback_token_base=1.0,
         ):
@@ -794,7 +795,7 @@ def _testnet_db_bridge_pairs(
             usable_pools,
             right_address,
             left_address,
-            limit=3,
+            limit=MAX_DIRECTION_CANDIDATE_POOLS,
             min_usd=1000.0,
             fallback_token_base=1.0,
         ):
@@ -802,7 +803,7 @@ def _testnet_db_bridge_pairs(
                 continue
             seen_best_ids.add(pool_id)
             best_pool_ids.append(pool_id)
-            if len(best_pool_ids) >= 3:
+            if len(best_pool_ids) >= MAX_DIRECTION_CANDIDATE_POOLS:
                 break
         pool_by_best_id = {
             str(_pool_id(pool)).lower(): pool
@@ -818,7 +819,7 @@ def _testnet_db_bridge_pairs(
             pool = dict(pool)
             pool["recommendedPoolRole"] = pool_role
             pool["poolRank"] = index + 1
-            pool["backupPoolIds"] = list(best_pool_ids[1:3])
+            pool["backupPoolIds"] = list(best_pool_ids[1:])
             best_pools.append(pool)
         if not best_pools:
             continue
@@ -832,9 +833,9 @@ def _testnet_db_bridge_pairs(
                 "tokenYSymbol": right_symbol,
                 "preferredPools": best_pools,
                 "recommendedPools": best_pools[:1],
-                "backupPools": best_pools[1:3],
+                "backupPools": best_pools[1:],
                 "primaryPoolIds": best_pool_ids[:1],
-                "backupPoolIds": best_pool_ids[1:3],
+                "backupPoolIds": best_pool_ids[1:],
                 "executionPools": best_pools[:5],
                 "strictQualityPools": best_pools,
                 "classification": {
@@ -1002,12 +1003,12 @@ def _testnet_db_observation_rows(
                 continue
             seen_active_ids.add(pool_id_text)
             active_pool_ids.append(pool_id_text)
-        if len(active_pool_ids) < 3:
+        if len(active_pool_ids) < MAX_DIRECTION_CANDIDATE_POOLS:
             refreshed_ids = _testnet_db_select_directional_pool_ids(
                 normal_pools,
                 token_x_address,
                 token_y_address,
-                limit=3,
+                limit=MAX_DIRECTION_CANDIDATE_POOLS,
                 min_usd=1000.0,
                 fallback_token_base=1.0,
             )
@@ -1068,7 +1069,7 @@ def _testnet_db_observation_rows(
                 "recommendedPoolRole": pool_role,
                 "poolRank": pool_index + 1,
                 "poolIds": list(active_pool_ids),
-                "backupPoolIds": list(active_pool_ids[1:3]),
+                "backupPoolIds": list(active_pool_ids[1:]),
                 "dynamicSelectionReason": (
                     "stored_pool"
                     if pool_id_text in stored_pool_ids
@@ -1083,7 +1084,7 @@ def _testnet_db_observation_rows(
             row["hasDirectSwapPool"] = True
             row["closedLoopReady"] = bool(row.get("closedLoopReady") or pool.get("closedLoopReady"))
         row["primaryPoolIds"] = list(active_pool_ids[:1])
-        row["backupPoolIds"] = list(active_pool_ids[1:3])
+        row["backupPoolIds"] = list(active_pool_ids[1:])
         for pool in non_normal_pools_by_edge.get(edge) or []:
             if not isinstance(pool, dict):
                 continue

@@ -119,6 +119,17 @@ def _active_pool_ids(liquidity: dict[str, Any]) -> set[str]:
     }
 
 
+def _liquid_pool_ids(liquidity: dict[str, Any]) -> set[str]:
+    """Pool ids with positive liquidity evidence in the liquidity payload."""
+    return {
+        pool_id
+        for pool in liquidity.get("pools") or []
+        if isinstance(pool, dict) and _has_liquid_pool_evidence(pool)
+        for pool_id in [_pool_id(pool)]
+        if pool_id
+    }
+
+
 def _display_pools(liquidity: dict[str, Any], pool_index: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
     active_ids = _active_pool_ids(liquidity)
     indexed_pools = [pool for pool in pool_index.get("pools") or [] if isinstance(pool, dict)]
@@ -153,7 +164,30 @@ def _has_liquid_pool_evidence(row: dict[str, Any]) -> bool:
             return True
     except (TypeError, ValueError):
         pass
+    try:
+        if float(row.get("liquidity") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
     return False
+
+
+def _json_liquidity_has_evidence(liquidity: dict[str, Any]) -> bool:
+    """Keep local loader evidence even when ``ok`` is false and it is non-empty."""
+    if liquidity.get("pools") or liquidity.get("pool_keys"):
+        return True
+    payload = liquidity.get("payload")
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("flashAccountingSources"):
+        return True
+    if payload.get("nativePoolManagerBalanceWei") not in (None, "", "0"):
+        return True
+    return False
+
+
+def _json_index_has_evidence(pool_index: dict[str, Any]) -> bool:
+    return bool(pool_index.get("pools") or pool_index.get("pool_keys"))
 
 
 def _sqlite_liquidity_flash_source_rows(
@@ -271,21 +305,67 @@ def robinhood_testnet_flash_protocol_view(
     empty_protocol_view: Callable[[str], dict[str, Any]],
     pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
     pool_index_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_index,
+    sqlite_pool_liquidity_loader: Callable[[], dict[str, Any]] | None = None,
+    sqlite_pool_index_loader: Callable[[], dict[str, Any]] | None = None,
+    database_url: str | None = None,
 ) -> dict[str, Any]:
     """Return the chain-46630 flash-pool view without touching mainnet caches."""
 
     config = _testnet_config()
-    liquidity = pool_liquidity_loader()
-    pool_index = pool_index_loader()
-    display_pools, display_pool_source = _display_pools(liquidity, pool_index)
-    pool_rows = _v4_pool_rows(display_pools)
     from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
         load_v4_chain_token_metadata,
+        load_v4_pool_index_payload,
+        load_v4_pool_liquidity_payload,
+    )
+
+    liquidity = pool_liquidity_loader()
+    pool_index = pool_index_loader()
+    if sqlite_pool_liquidity_loader is None:
+        sqlite_pool_liquidity_loader = lambda: load_v4_pool_liquidity_payload(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+            database_url=database_url,
+            protocol="uniswap_v4",
+        )
+    if sqlite_pool_index_loader is None:
+        sqlite_pool_index_loader = lambda: load_v4_pool_index_payload(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+            database_url=database_url,
+            protocol="uniswap_v4",
+        )
+    sqlite_liquidity = sqlite_pool_liquidity_loader()
+    sqlite_index = sqlite_pool_index_loader()
+    if (
+        not liquidity.get("ok")
+        and sqlite_liquidity.get("ok")
+        and not _json_liquidity_has_evidence(liquidity)
+    ):
+        liquidity = sqlite_liquidity
+    if (
+        not pool_index.get("ok")
+        and sqlite_index.get("ok")
+        and not _json_index_has_evidence(pool_index)
+    ):
+        pool_index = sqlite_index
+    display_pools, display_pool_source = _display_pools(liquidity, pool_index)
+    liquid_pool_ids = _liquid_pool_ids(liquidity)
+    pool_rows = _v4_pool_rows(
+        [
+            pool
+            for pool in display_pools
+            if isinstance(pool, dict)
+            and (
+                (liquid_pool_ids and _pool_id(pool) in liquid_pool_ids)
+                or _has_liquid_pool_evidence(pool)
+            )
+        ]
     )
 
     token_metadata = load_v4_chain_token_metadata(
         ROBINHOOD_TESTNET_NETWORK,
         ROBINHOOD_TESTNET_CHAIN_ID,
+        database_url=database_url,
     )
     _apply_sqlite_token_symbols(pool_rows, token_metadata=token_metadata)
     decoded_pool_key_count = int((liquidity.get("payload") or {}).get("decodedPoolKeyCount") or 0)
@@ -317,6 +397,8 @@ def robinhood_testnet_flash_protocol_view(
     has_flash_sources = bool(flash_source_rows)
     executor_supported_flash_rows = [row for row in flash_source_rows if row.get("executor_supported")]
     pool_key_count = len(liquidity.get("pool_keys") or []) or len(pool_index.get("pool_keys") or [])
+    if not pool_key_count and (liquidity.get("ok") or pool_index.get("ok")):
+        pool_key_count = len(pool_rows)
     stable_pool_key_rows = [row for row in pool_rows if row.get("is_stable")]
     non_stable_pool_key_rows = [row for row in pool_rows if not row.get("is_stable")]
     stable_flash_source_rows = [row for row in flash_source_rows if row.get("is_stable")]

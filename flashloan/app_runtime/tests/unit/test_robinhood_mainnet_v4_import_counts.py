@@ -156,6 +156,8 @@ def test_import_existing_json_writes_mainnet_v4_counts(tmp_path):
     assert build_result["ok"] is True
     anchor_reports = {report["anchorSymbol"]: report for report in build_result["anchors"]}
     assert "ETH" in anchor_reports
-    assert anchor_reports["ETH"]["candidate"]["tokenCount"] == 2
-    assert anchor_reports["ETH"]["observation"]["tokenCount"] == 2
-    assert anchor_reports["ETH"]["observation"]["directionCount"] == 2
+    # The X pool has explicit has_liquidity=False, so it stays in raw SQLite
+    # evidence but cannot become a candidate or observation token.
+    assert anchor_reports["ETH"]["candidate"]["tokenCount"] == 1
+    assert anchor_reports["ETH"]["observation"]["tokenCount"] == 1
+    assert anchor_reports["ETH"]["observation"]["directionCount"] == 0

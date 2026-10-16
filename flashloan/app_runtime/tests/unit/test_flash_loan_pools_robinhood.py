@@ -369,6 +369,27 @@ def test_flash_loan_pools_keeps_robinhood_testnet_isolated_from_mainnet_flash_li
             "pools": [],
             "pool_keys": [],
         },
+        robinhood_testnet_v4_pool_index_loader=lambda: {
+            "ok": False,
+            "status": "v4_pool_index_empty",
+            "source": "runtime/evidence/robinhood-testnet/v4_pool_index/latest.json",
+            "pools": [],
+            "pool_keys": [],
+        },
+        robinhood_testnet_v4_sqlite_pool_liquidity_loader=lambda: {
+            "ok": False,
+            "status": "v4_pool_liquidity_cache_not_available",
+            "source": "sqlite_db",
+            "pools": [],
+            "pool_keys": [],
+        },
+        robinhood_testnet_v4_sqlite_pool_index_loader=lambda: {
+            "ok": False,
+            "status": "v4_pool_index_empty",
+            "source": "sqlite_db",
+            "pools": [],
+            "pool_keys": [],
+        },
     )
 
     assert payload["scope"]["chain_id"] == 46630

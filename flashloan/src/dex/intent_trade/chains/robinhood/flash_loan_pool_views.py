@@ -40,10 +40,12 @@ def _sqlite_fingerprint(database_url: str | None) -> tuple[Any, ...]:
         from core.db.database_path import absolute_database_path
 
         path = absolute_database_path(database_url)
-        stat = path.stat()
-        return (str(path), stat.st_size, stat.st_mtime_ns)
+        # Cache invalidation is explicit through clear_robinhood_v4_pool_cache.
+        # File mtime/size can change merely from SQLite opening the database,
+        # which would make ordinary page reads miss the protocol-view cache.
+        return (str(path),)
     except OSError:
-        return (str(database_url or ""), None, None)
+        return (str(database_url or ""),)
 
 
 def _network_for_chain_id(chain_id: int | None) -> str:
@@ -633,8 +635,11 @@ def _robinhood_v4_borrow_asset_rows_from_pair_counts(
         token1_address = str(pair.get("token1") or "").strip().lower()
         if token0_address not in configured_scope and token1_address not in configured_scope:
             continue
+        raw_pool_count = pair.get("pool_count")
+        if raw_pool_count is None:
+            raw_pool_count = pair.get("poolCount")
         try:
-            pool_count = max(0, int(pair.get("pool_count") or 0))
+            pool_count = max(0, int(raw_pool_count or 0))
         except (TypeError, ValueError):
             pool_count = 0
         if pool_count <= 0:

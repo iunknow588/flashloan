@@ -301,10 +301,11 @@ def _refresh_v4_sources(
             database=database_url or "",
             network=network,
             chain_id=chain_id,
-            skip_index=not full,
-            skip_liquidity=not full,
+            skip_index=False,
+            skip_liquidity=False,
             skip_build=False,
             clear_cache=True,
+            full_index_scan=full,
         )
     except Exception as exc:
         message = _friendly_oserror("robinhood_v4_sqlite_rebuild", exc)

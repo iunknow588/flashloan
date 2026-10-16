@@ -12,6 +12,7 @@ from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
 from core.db.direction_pool_score import (
+    MAX_DIRECTION_CANDIDATE_POOLS,
     has_confirmed_liquidity,
 )
 from core.db.storage_chain_core import load_chain_tokens
@@ -1020,12 +1021,12 @@ def db_closed_loop_sequences(
                     continue
                 seen_candidate_ids.add(candidate_key)
                 candidate_pools.append(candidate)
-            candidate_pools = candidate_pools[:3]
+            candidate_pools = candidate_pools[:MAX_DIRECTION_CANDIDATE_POOLS]
             if not candidate_pools:
                 continue
             selected_pool = candidate_pools[0]
             selected_id = _pool_key(selected_pool)
-            backup_pool_ids = [_pool_key(item) for item in candidate_pools[1:3]]
+            backup_pool_ids = [_pool_key(item) for item in candidate_pools[1:]]
             if selected_id == pool_id:
                 selection_reason = "stored_primary_usable"
             elif selected_id in stored_scope_ids:
