@@ -9,6 +9,7 @@ Q96 = 1 << 96
 DEFAULT_DECIMALS = 18
 DEFAULT_MIN_POOL_DEPTH_USD = 1000.0
 DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE = 1.0
+MAX_DIRECTION_CANDIDATE_POOLS = 5
 LIVE_STATE_EVIDENCE_SOURCES = {
     "pool_manager_extsload_live_state_batch",
 }
@@ -214,7 +215,7 @@ def select_directional_pool_ids(
     token_in: object,
     token_out: object,
     *,
-    limit: int = 3,
+    limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
     min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
     decimals_by_address: dict[str, object] | None = None,
@@ -283,6 +284,7 @@ def select_directional_pool_ids(
 __all__ = [
     "DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE",
     "DEFAULT_MIN_POOL_DEPTH_USD",
+    "MAX_DIRECTION_CANDIDATE_POOLS",
     "has_confirmed_liquidity",
     "pool_depth_usd",
     "score_pool_by_direction",

@@ -9,6 +9,9 @@ from typing import Any, Iterable
 from core.db.database_path import absolute_database_path
 from core.db.storage_business_io import query
 from core.db.storage_dex_surface_snapshot import load_dex_overview_snapshot
+from core.db.token_symbols import (
+    is_unresolved_placeholder_symbol as _is_unresolved_placeholder_symbol,
+)
 
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -760,6 +763,14 @@ def build_v4_integrity_report(
                         "pathSymbols": path_symbols,
                     }
                 )
+            if any(_is_unresolved_placeholder_symbol(symbol) for symbol in path_symbols):
+                loop_violations.append(
+                    {
+                        "code": "loop_path_contains_unresolved_symbol",
+                        "loopKey": key,
+                        "pathSymbols": path_symbols,
+                    }
+                )
         for pool_id in loop_pool_ids_json:
             _validated_pool(pool_id, "closed_loop")
         expected_hop_count = len(path_symbols) - 1 if len(path_symbols) >= 2 else 0
@@ -900,6 +911,14 @@ def build_v4_integrity_report(
                     overview_violations.append(
                         {
                             "code": "overview_route_endpoint_not_legal",
+                            "pathText": summary.get("pathText"),
+                            "pathSymbols": path_symbols,
+                        }
+                    )
+                if any(_is_unresolved_placeholder_symbol(symbol) for symbol in path_symbols):
+                    overview_violations.append(
+                        {
+                            "code": "overview_route_contains_unresolved_symbol",
                             "pathText": summary.get("pathText"),
                             "pathSymbols": path_symbols,
                         }

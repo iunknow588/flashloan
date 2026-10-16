@@ -466,6 +466,7 @@ def test_real_runtime_db_directed_closed_loop_contract():
             """
         ).fetchall()
         assert len(testnet_rows) > 0
+        assert all("0X" not in str(row[2]).upper() for row in testnet_rows)
         testnet_paths = [tuple(json.loads(row[2])) for row in testnet_rows]
         assert all(len(path) >= 4 and path[0] == path[-1] for path in testnet_paths)
         legal_endpoints = {
@@ -481,6 +482,36 @@ def test_real_runtime_db_directed_closed_loop_contract():
         }
         assert ("TZ", "TA", "TB", "TZ") in tz_paths
         assert ("TZ", "TB", "TA", "TZ") in tz_paths
+
+        testnet_hop_rows = cur.execute(
+            """
+            SELECT h.hop_name, h.pool_id
+            FROM v4_closed_loops c
+            JOIN v4_closed_loop_hops h
+              ON h.loop_key = c.loop_key
+             AND h.market_id = c.market_id
+            WHERE c.network = 'robinhood-testnet' AND c.chain_id = 46630
+              AND c.protocol = 'uniswap_v4'
+            """
+        ).fetchall()
+        assert len(testnet_hop_rows) == len(testnet_rows) * 3
+        assert all(str(row[0]) in {"yc", "y-z", "zc"} for row in testnet_hop_rows)
+        assert all(str(row[1]).strip() for row in testnet_hop_rows)
+        liquid_testnet_hops = cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM v4_closed_loops c
+            JOIN v4_closed_loop_hops h
+              ON h.loop_key = c.loop_key
+             AND h.market_id = c.market_id
+            JOIN v4_exchange_pool_liquidity_snapshots s
+              ON s.network = h.network AND s.chain_id = h.chain_id
+             AND s.protocol = h.protocol AND s.pool_id = h.pool_id
+            WHERE c.network = 'robinhood-testnet' AND c.chain_id = 46630
+              AND c.protocol = 'uniswap_v4' AND s.has_liquidity = 1
+            """
+        ).fetchone()[0]
+        assert liquid_testnet_hops == len(testnet_hop_rows)
     finally:
         con.close()
 

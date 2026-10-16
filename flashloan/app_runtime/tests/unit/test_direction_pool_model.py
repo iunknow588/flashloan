@@ -11,6 +11,7 @@ from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
     _decorate_candidates_with_live_state,
 )
@@ -52,6 +53,17 @@ def test_live_onchain_extsload_state_confirms_thin_indexed_pool():
             "evidence_source": "pool_manager_extsload_live_state_batch",
         }
     ) is False
+
+
+def test_unresolved_placeholder_symbol_rule_is_generic():
+    assert is_unresolved_placeholder_symbol("0X60042B65") is True
+    assert is_unresolved_placeholder_symbol("0x102154e7") is True
+    assert is_unresolved_placeholder_symbol("TA") is False
+    assert is_unresolved_placeholder_symbol("TB") is False
+    assert is_unresolved_placeholder_symbol("TZ") is False
+    assert is_unresolved_placeholder_symbol("ETH") is False
+    assert is_unresolved_placeholder_symbol("0X123") is False
+    assert is_unresolved_placeholder_symbol("0X123456789") is False
     assert has_confirmed_liquidity(
         {
             "has_liquidity": True,
@@ -195,6 +207,47 @@ def test_candidate_rows_keep_one_best_pool_per_direction():
     assert "pool-no-liquid" not in reverse["zc_backup_pool_ids"]
 
 
+def test_candidate_rows_keep_five_directed_recommendations_and_reverse_order():
+    q96 = 1 << 96
+    anchor = "0xaaa"
+    counter = "0xbbb"
+    pools = [
+        _candidate_pool(
+            pool_id=f"p{index}",
+            sqrt_price_x96=q96 * (100 + index),
+            token0=counter,
+            token1=anchor,
+        )
+        for index in range(1, 7)
+    ]
+    for pool in pools:
+        pool["liquidity"] = ""
+    rows = _candidate_rows(
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        anchor_scope="dex-arbitrage-46630-uniswap-v4",
+        anchor_symbol="TZ",
+        anchor_address=anchor,
+        token_addresses=[counter],
+        pools_by_edge={f"{anchor}:{counter}": pools},
+        tokens_meta={},
+    )
+
+    forward = next(pair for pair in rows["pairs"] if pair["direction_key"] == f"{anchor}:{counter}")
+    reverse = next(pair for pair in rows["pairs"] if pair["direction_key"] == f"{counter}:{anchor}")
+    first_recs = [rec for rec in rows["recommendations"] if rec["hop"] == "first"]
+    third_recs = [rec for rec in rows["recommendations"] if rec["hop"] == "third"]
+    assert len(first_recs) == 5
+    assert len(third_recs) == 5
+    assert [rec["pool_id"] for rec in first_recs] == ["p1", "p2", "p3", "p4", "p5"]
+    assert [rec["pool_id"] for rec in third_recs] == ["p6", "p5", "p4", "p3", "p2"]
+    assert forward["yc_optimal_pool_id"] == "p1"
+    assert reverse["zc_optimal_pool_id"] == "p6"
+    assert len(forward["yc_backup_pool_ids"]) == 4
+    assert len(reverse["zc_backup_pool_ids"]) == 4
+
+
 def test_closed_loops_keep_two_directed_paths_separately():
     anchor = "0x" + "a" * 40
     y = "0x" + "b" * 40
@@ -239,6 +292,58 @@ def test_closed_loops_keep_two_directed_paths_separately():
         (hop["pool_selection_basis"] or "").startswith(("dir:", "observation_direction_optimal_pool:"))
         for hop in hops
     )
+
+
+def test_closed_loop_builder_skips_unresolved_or_missing_middle_symbols():
+    anchor = "0x" + "a" * 40
+    y = "0x" + "b" * 40
+    z = "0x" + "c" * 40
+    candidate_pools = {
+        "recommendations": [
+            {"direction_key": f"{anchor}:{y}", "hop": "first", "pool_id": "yc-y", "selection_basis": "dir:yc-y"},
+            {"direction_key": f"{z}:{anchor}", "hop": "third", "pool_id": "zc-y", "selection_basis": "dir:zc-y"},
+            {"direction_key": f"{anchor}:{z}", "hop": "first", "pool_id": "yc-z", "selection_basis": "dir:yc-z"},
+            {"direction_key": f"{y}:{anchor}", "hop": "third", "pool_id": "zc-z", "selection_basis": "dir:zc-z"},
+        ]
+    }
+    observation_pools = {
+        "pools": [
+            {"pool_id": "middle-y-z", "token0": y, "token1": z},
+            {"pool_id": "middle-z-y", "token0": z, "token1": y},
+        ]
+    }
+    observation_pairs = [
+        {"direction_key": f"{y}:{z}", "optimal_pool_id": "middle-y-z", "pool_ids_json": '["middle-y-z"]'},
+        {"direction_key": f"{z}:{y}", "optimal_pool_id": "middle-z-y", "pool_ids_json": '["middle-z-y"]'},
+    ]
+    common = {
+        "anchor_address": anchor,
+        "anchor_symbol": "TZ",
+        "token_addresses": [y, z],
+        "candidate_pools": candidate_pools,
+        "observation_pools": observation_pools,
+        "observation_pairs": observation_pairs,
+    }
+
+    unresolved_loops, _ = _build_loop_candidates(
+        **common,
+        token_symbols={y: "TB", z: "0X60042B65"},
+    )
+    missing_loops, _ = _build_loop_candidates(
+        **common,
+        token_symbols={y: "TB"},
+    )
+    resolved_loops, _ = _build_loop_candidates(
+        **common,
+        token_symbols={y: "TB", z: "TA"},
+    )
+    assert unresolved_loops == []
+    assert missing_loops == []
+    assert len(resolved_loops) == 2
+    assert {tuple(loop["path_symbols"]) for loop in resolved_loops} == {
+        ("TZ", "TB", "TA", "TZ"),
+        ("TZ", "TA", "TB", "TZ"),
+    }
 
 
 def test_stock_anchor_builds_candidate_observation_and_directed_loops(tmp_path):

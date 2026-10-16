@@ -54,7 +54,7 @@ def _pool(pool_id, token0, token1, *, has_liquidity=1):
     }
 
 
-def _seed(tmp_path, *, bad_pool: str | None = None):
+def _seed(tmp_path, *, bad_pool: str | None = None, unresolved_middle_symbol: str | None = None):
     db = str(tmp_path / "report.sqlite3")
     ensure_business_schema(db)
     seed_chain_tokens(
@@ -176,14 +176,17 @@ def _seed(tmp_path, *, bad_pool: str | None = None):
         pools=raw_pools,
         liquidity=raw_pools,
     )
+    resolved_path_symbols = ["ETH", "TZ", "TB", "ETH"]
+    if unresolved_middle_symbol:
+        resolved_path_symbols = ["ETH", unresolved_middle_symbol, "TB", "ETH"]
     loops = [
         {
             "loop_key": f"anchor:{ETH}:{TZ}",
             "anchor_address": ETH,
             "anchor_symbol": "ETH",
-            "path_text": "ETH -> TZ -> TB -> ETH",
+            "path_text": " -> ".join(resolved_path_symbols),
             "path_addresses_json": [ETH, TZ, TB, ETH],
-            "path_symbols_json": ["ETH", "TZ", "TB", "ETH"],
+            "path_symbols_json": resolved_path_symbols,
             "pool_ids_json": [P1, P3, P2],
         }
     ]
@@ -258,8 +261,8 @@ def _seed(tmp_path, *, bad_pool: str | None = None):
                 {
                     "anchorSymbol": "ETH",
                     "counterSymbol": "TZ",
-                    "pathSymbols": ["ETH", "TZ", "TB", "ETH"],
-                    "pathText": "ETH -> TZ -> TB -> ETH",
+                    "pathSymbols": resolved_path_symbols,
+                    "pathText": " -> ".join(resolved_path_symbols),
                     "routeAddresses": [ETH, TZ, TB, ETH],
                     "poolIds": [P1, P3, P2],
                     "routePools": route_pools,
@@ -326,6 +329,21 @@ def test_integrity_report_fails_when_loop_hop_pool_loses_liquidity(tmp_path):
     pool_stage = report["stages"][0]
     assert pool_stage["stats"]["confirmedLiquidityCount"] == 2
     assert pool_stage["stats"]["negativeEvidenceCount"] == 1
+
+
+def test_integrity_report_flags_unresolved_placeholder_in_loop_path(tmp_path):
+    db = _seed(tmp_path, unresolved_middle_symbol="0X60042B65")
+    report = build_v4_integrity_report(
+        db,
+        network=NETWORK,
+        chain_id=CHAIN_ID,
+        protocol=PROTOCOL,
+        market_id=MARKET_ID,
+    )
+    assert report["ok"] is False
+    codes = [violation["code"] for violation in report["violations"]]
+    assert "loop_path_contains_unresolved_symbol" in codes
+    assert "overview_route_contains_unresolved_symbol" in codes
 
 
 def test_integrity_report_flags_missing_overview_as_warning_only(tmp_path):
