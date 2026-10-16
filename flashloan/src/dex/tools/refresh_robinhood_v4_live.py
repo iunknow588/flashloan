@@ -26,9 +26,11 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.db import builders  # noqa: E402
 from core.db.database_path import absolute_database_path  # noqa: E402
-from core.db.import_v4_evidence import import_v4_evidence_payloads  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
-from core.db.storage_v4_exchange import prune_v4_non_executable_evidence  # noqa: E402
+from core.db.v4_scan_state import (  # noqa: E402
+    load_v4_scan_state,
+    update_v4_scan_state,
+)
 from dex.intent_trade.chains.robinhood.flash_loan_pool_views import (  # noqa: E402
     clear_robinhood_v4_pool_cache,
 )
@@ -40,6 +42,10 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (  # noqa: E40
     ROBINHOOD_TESTNET_MARKET_ID,
     ROBINHOOD_TESTNET_NETWORK,
     all_anchor_symbols,
+)
+from dex.tools.v4_rust_refresh import (  # noqa: E402
+    import_v4_evidence_rows,
+    prune_v4_evidence_rows,
 )
 from market.binance_market.dex_surface_cache import _clear_dex_surface_cache  # noqa: E402
 
@@ -131,6 +137,8 @@ def _load_index_payload(
     pool_manager: str | None,
     skip_index: bool,
     mark_recent_swaps: bool,
+    from_block: int = 0,
+    merge_existing: bool = True,
 ) -> dict:
     if skip_index:
         from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
@@ -160,7 +168,7 @@ def _load_index_payload(
         payload = build_v4_pool_index_from_initialize_logs(
             rpc_url=rpc_url,
             pool_manager=pool_manager,
-            from_block=0,
+            from_block=from_block,
             to_block=None,
             include_metadata=False,
             mark_recent_swaps=mark_recent_swaps,
@@ -173,14 +181,92 @@ def _load_index_payload(
         payload = build_v4_pool_index_from_initialize_logs(
             rpc_url=rpc_url,
             pool_manager=pool_manager,
-            from_block=0,
+            from_block=from_block,
             to_block=None,
             include_metadata=False,
             mark_recent_swaps=mark_recent_swaps,
         )
-    if not payload.get("pools"):
+    if not payload.get("pools") and not merge_existing:
         raise RuntimeError(f"{network} V4 Initialize scan returned no pools")
+    if merge_existing:
+        payload = _merge_index_with_sqlite_pools(
+            payload,
+            database=database,
+            network=network,
+            chain_id=chain_id,
+        )
     return {"payload": payload, "source": "onchain_initialize_logs"}
+
+
+def _merge_index_with_sqlite_pools(
+    onchain_payload: dict,
+    *,
+    database: str,
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+) -> dict:
+    """Merge on-chain Initialize rows into the SQLite pool index.
+
+    An incremental Initialize scan only discovers newly created pools.  The
+    existing SQLite pool rows are the index authority, so the merged payload
+    always contains every known pool before liquidity is read.
+    """
+    from core.rs_bridge import merge_v4_pool_index as _rust_merge_v4_pool_index
+    from core.rs_bridge import rust_available
+
+    if rust_available():
+        return _rust_merge_v4_pool_index(
+            network,
+            chain_id,
+            onchain_payload,
+            database_url=database,
+            protocol=protocol,
+        )
+    from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+        load_v4_pool_index_payload,
+    )
+
+    existing = load_v4_pool_index_payload(
+        network,
+        chain_id,
+        database_url=database,
+        protocol=protocol,
+    )
+    existing_payload = existing.get("payload") or {}
+    existing_pools = (existing_payload.get("pools") or []) if existing.get("ok") else []
+    merged_by_id: dict[str, dict] = {}
+    for pool in existing_pools:
+        pool_id = str(pool.get("poolId") or pool.get("pool_id") or pool.get("pool") or "").strip().lower()
+        if pool_id:
+            merged_by_id.setdefault(pool_id, dict(pool))
+    for pool in onchain_payload.get("pools") or []:
+        pool_id = str(pool.get("poolId") or pool.get("pool_id") or pool.get("pool") or "").strip().lower()
+        if not pool_id:
+            continue
+        merged_by_id[pool_id] = dict(pool)
+    merged = list(merged_by_id.values())
+    max_block = 0
+    for pool in merged:
+        block = pool.get("generatedBlockNumber") or pool.get("initializeBlockNumber")
+        try:
+            max_block = max(max_block, int(block))
+        except (TypeError, ValueError):
+            pass
+    merged_payload = {
+        **onchain_payload,
+        "pools": merged,
+        "poolCount": len(merged),
+        "generatedBlockNumber": (
+            int(onchain_payload.get("generatedBlockNumber") or max_block)
+            if onchain_payload.get("generatedBlockNumber") is not None
+            else max_block
+        ),
+        "generatedAt": onchain_payload.get("generatedAt")
+        or existing_payload.get("generatedAt"),
+        "source": "onchain_initialize_logs_plus_sqlite_pools",
+    }
+    return merged_payload
 
 
 def _connect_rpc(network: str, chain_id: int, rpc_url: str | None) -> tuple[object, str]:
@@ -474,6 +560,8 @@ def refresh_v4_live(
     prune_zero_liquidity: bool = True,
     prune_unknown_liquidity: bool = False,
     remove_json_evidence: bool = True,
+    full_index_scan: bool = False,
+    from_block_override: int | None = None,
 ) -> dict:
     """Rebuild Robinhood V4 SQLite tables from live/in-memory evidence.
 
@@ -489,6 +577,18 @@ def refresh_v4_live(
     errors: list[str] = []
 
     try:
+        scan_state = load_v4_scan_state(
+            str(database),
+            network=network,
+            chain_id=chain_id,
+        )
+        if from_block_override is not None:
+            resolved_from_block = max(0, int(from_block_override))
+        elif full_index_scan:
+            resolved_from_block = 0
+        else:
+            last_scanned = int(scan_state.get("last_scanned_block") or 0)
+            resolved_from_block = last_scanned + 1 if last_scanned > 0 else 0
         index_result = _load_index_payload(
             database=str(database),
             network=network,
@@ -497,6 +597,8 @@ def refresh_v4_live(
             pool_manager=pool_manager or None,
             skip_index=skip_index,
             mark_recent_swaps=mark_recent_swaps,
+            from_block=resolved_from_block,
+            merge_existing=not skip_index,
         )
         index_payload = index_result["payload"]
         steps.append(
@@ -506,6 +608,12 @@ def refresh_v4_live(
                 "source": index_result["source"],
                 "poolCount": len(index_payload.get("pools") or []),
                 "generatedBlockNumber": index_payload.get("generatedBlockNumber"),
+                "fromBlock": resolved_from_block if not skip_index else None,
+                "scanMode": (
+                    "full"
+                    if full_index_scan or (resolved_from_block <= 0 and not skip_index)
+                    else "incremental"
+                ),
             }
         )
     except Exception as exc:
@@ -557,8 +665,8 @@ def refresh_v4_live(
                     "detail": "raw V4 tables already present in SQLite; business tables rebuilt only",
                 }
             else:
-                import_result = import_v4_evidence_payloads(
-                    str(database),
+                import_result = import_v4_evidence_rows(
+                    database=str(database),
                     network=network,
                     chain_id=chain_id,
                     index_payload=index_payload,
@@ -627,8 +735,8 @@ def refresh_v4_live(
     if not errors and not skip_build and not verify_only:
         try:
             if prune_zero_liquidity:
-                prune_result = prune_v4_non_executable_evidence(
-                    str(database),
+                prune_result = prune_v4_evidence_rows(
+                    database=str(database),
                     network=network,
                     chain_id=chain_id,
                     protocol="uniswap_v4",
@@ -667,6 +775,55 @@ def refresh_v4_live(
         except Exception as exc:
             errors.append(f"dex_overview_snapshot: {exc}")
             steps.append({"step": "dex_overview_snapshot", "ok": False, "error": str(exc)})
+
+    scan_state_result: dict = {}
+    if not errors and not skip_build and not verify_only:
+        try:
+            liquidity_block = int(
+                liquidity_activity.get("blockNumber")
+                or index_payload.get("generatedBlockNumber")
+                or 0
+            )
+            confirmed_count = len(liquidity_activity.get("liquidityPoolIds") or [])
+            explicit_zero_count = int(
+                liquidity_activity.get("liquidityZeroPoolCount")
+                or liquidity_activity.get("liquidityNoLiquidityPoolCount")
+                or 0
+            )
+            pool_count = len(index_payload.get("pools") or [])
+            scan_state_result = update_v4_scan_state(
+                str(database),
+                network=network,
+                chain_id=chain_id,
+                last_scanned_block=int(index_payload.get("generatedBlockNumber") or liquidity_block),
+                index_from_block=resolved_from_block if not skip_index else None,
+                index_to_block=int(index_payload.get("generatedBlockNumber") or liquidity_block),
+                liquidity_scan_block=liquidity_block,
+                scanned_pool_count=int(liquidity_activity.get("scannedPoolCount") or 0),
+                pool_count=pool_count,
+                confirmed_liquidity_pool_count=confirmed_count,
+                explicit_zero_liquidity_pool_count=explicit_zero_count,
+                unscanned_pool_count=max(0, pool_count - confirmed_count - explicit_zero_count),
+                direction_candidate_limit=int(builders.MAX_CANDIDATE_POOLS_PER_PAIR),
+                scan_mode=(
+                    "full"
+                    if full_index_scan or (resolved_from_block <= 0 and not skip_index)
+                    else "incremental"
+                ),
+            )
+            steps.append(
+                {
+                    "step": "v4_scan_state",
+                    "ok": True,
+                    "lastScannedBlock": scan_state_result.get("last_scanned_block"),
+                    "liquidityScanBlock": scan_state_result.get("liquidity_scan_block"),
+                    "scanMode": scan_state_result.get("scan_mode"),
+                    "directionCandidateLimit": scan_state_result.get("direction_candidate_limit"),
+                }
+            )
+        except Exception as exc:
+            errors.append(f"v4_scan_state: {exc}")
+            steps.append({"step": "v4_scan_state", "ok": False, "error": str(exc)})
 
     json_evidence_removed: list[str] = []
     if not errors and not skip_build and not verify_only:
@@ -763,6 +920,22 @@ def main() -> int:
         dest="remove_json_evidence",
         action="store_false",
     )
+    parser.add_argument(
+        "--full-index-scan",
+        dest="full_index_scan",
+        action="store_true",
+        help=(
+            "Scan Initialize logs from block 0. Default reads the persisted "
+            "last scanned block and only fetches newly created pools."
+        ),
+    )
+    parser.add_argument(
+        "--from-block",
+        dest="from_block_override",
+        type=int,
+        default=None,
+        help="Explicit Initialize scan start block; overrides persisted progress.",
+    )
     parser.set_defaults(clear_cache=True)
     parser.set_defaults(prune_zero_liquidity=True)
     parser.set_defaults(prune_unknown_liquidity=False)
@@ -788,6 +961,8 @@ def main() -> int:
         prune_zero_liquidity=args.prune_zero_liquidity,
         prune_unknown_liquidity=args.prune_unknown_liquidity,
         remove_json_evidence=args.remove_json_evidence,
+        full_index_scan=args.full_index_scan,
+        from_block_override=args.from_block_override,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if report.get("ok") else 1

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sys
 
+import pytest
+
 from core.db.storage_chain_core import seed_chain_tokens
 from core.db.import_existing_json import import_existing_json
 from core.db.import_v4_evidence import import_v4_evidence_payloads
@@ -13,6 +15,7 @@ from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
+from core.db.v4_scan_state import load_v4_scan_state, update_v4_scan_state
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
     apply_stock_pool_metadata,
 )
@@ -696,6 +699,7 @@ def test_dex_surface_page_refresh_uses_sqlite_live_rebuild(monkeypatch):
     assert result["ok"] is True
     assert calls["skip_index"] is False
     assert calls["skip_liquidity"] is False
+    assert calls["full_index_scan"] is True
 
     incremental = orchestration._refresh_v4_sources(
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -703,8 +707,9 @@ def test_dex_surface_page_refresh_uses_sqlite_live_rebuild(monkeypatch):
         full=False,
     )
     assert incremental["ok"] is True
-    assert calls["skip_index"] is True
-    assert calls["skip_liquidity"] is True
+    assert calls["skip_index"] is False
+    assert calls["skip_liquidity"] is False
+    assert calls["full_index_scan"] is False
 
 
 def test_flash_loan_pool_page_refresh_does_not_call_json_writers(monkeypatch):
@@ -740,6 +745,7 @@ def test_flash_loan_pool_page_refresh_does_not_call_json_writers(monkeypatch):
     assert calls["network"] == "robinhood-testnet"
     assert calls["skip_index"] is False
     assert calls["skip_liquidity"] is False
+    assert calls["full_index_scan"] is True
     assert any(
         step.get("source") == "robinhood_v4_sqlite_rebuild"
         for step in result["steps"]
@@ -774,3 +780,121 @@ def test_refresh_v4_live_incremental_preserves_existing_liquidity(tmp_path):
     )
     assert len(liquidity) == 1
     assert liquidity[0]["has_liquidity"] == 1
+
+
+def test_v4_scan_state_persists_last_block_for_incremental_refresh(tmp_path, monkeypatch):
+    from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
+
+    database = str(tmp_path / "scan-state.sqlite3")
+    _seed_testnet_anchor_pair(database)
+
+    first = refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        skip_index=True,
+        skip_liquidity=True,
+        skip_build=True,
+        clear_cache=False,
+    )
+    assert first["ok"] is True
+
+    update_v4_scan_state(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        last_scanned_block=123456,
+        index_from_block=100000,
+        index_to_block=123456,
+        liquidity_scan_block=123456,
+        scanned_pool_count=10,
+        pool_count=25,
+        confirmed_liquidity_pool_count=8,
+        explicit_zero_liquidity_pool_count=2,
+        unscanned_pool_count=15,
+        scan_mode="incremental",
+    )
+
+    state = load_v4_scan_state(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert state["last_scanned_block"] == 123456
+    assert state["index_from_block"] == 100000
+    assert state["index_to_block"] == 123456
+    assert state["liquidity_scan_block"] == 123456
+    assert state["scanned_pool_count"] == 10
+    assert state["direction_candidate_limit"] == 5
+
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    called_from_blocks: list[int] = []
+
+    def fake_load_index_payload(**kwargs: object) -> dict:
+        called_from_blocks.append(int(kwargs.get("from_block") or 0))
+        return {
+            "payload": {
+                "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                "poolCount": 1,
+                "generatedBlockNumber": 123457,
+                "pools": [
+                    {
+                        "poolId": "pool-tz-usde",
+                        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                        "token0": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+                        "token1": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"],
+                        "fee": 3000,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                        "status": "initialized_pool",
+                    }
+                ],
+            },
+            "source": "onchain_initialize_logs",
+        }
+
+    monkeypatch.setattr(live_tool, "_load_index_payload", fake_load_index_payload)
+    live_tool.refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        skip_liquidity=True,
+        skip_build=True,
+        clear_cache=False,
+    )
+    assert called_from_blocks == [123457]
+
+
+def test_v4_incremental_index_merges_existing_sqlite_pools_with_new_pools(tmp_path):
+    from dex.tools.refresh_robinhood_v4_live import _merge_index_with_sqlite_pools
+
+    database = str(tmp_path / "merge.sqlite3")
+    _seed_testnet_anchor_pair(database)
+    new_pool_id = "0x" + "11" * 32
+    onchain = {
+        "schemaVersion": "robinhood-testnet-v4-pool-index-v1",
+        "network": ROBINHOOD_TESTNET_NETWORK,
+        "chainId": ROBINHOOD_TESTNET_CHAIN_ID,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "generatedBlockNumber": 123457,
+        "pools": [
+            {
+                "poolId": new_pool_id,
+                "token0": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"],
+                "token1": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+                "fee": 3000,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "status": "initialized_pool",
+            }
+        ],
+    }
+    merged = _merge_index_with_sqlite_pools(
+        onchain,
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    pool_ids = {str(pool.get("poolId") or "").lower() for pool in merged["pools"]}
+    assert "pool-tz-usde" in pool_ids
+    assert new_pool_id in pool_ids
+    assert merged["generatedBlockNumber"] == 123457

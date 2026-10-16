@@ -1,14 +1,15 @@
 """SQLite business tables for chain, V4 exchange, candidate, observation and loop data.
 
-Schema ownership stays in Python: this module creates and migrates the
-independent business tables. The Rust core only reads them through
-``SQLITE_OPEN_READONLY`` and never executes DDL/DML.
+Schema ownership lives in Rust. This module is the Python thin wrapper for
+tests and page orchestration; the formal refresh path requires Rust via
+``FLASHLOAN_RUST_REQUIRED=1``.
 """
 
 from __future__ import annotations
 
 import sqlite3
 import json
+from pathlib import Path
 from typing import Any
 
 
@@ -714,6 +715,37 @@ BUSINESS_INDEXES: tuple[str, ...] = (
 
 
 def ensure_business_schema(database_url: str) -> None:
+    import os
+
+    from core.db.database_path import absolute_database_path
+    from core.rs_bridge import ensure_database_schema as _rust_ensure_database_schema
+    from core.rs_bridge import ensure_database_indexes as _rust_ensure_database_indexes
+
+    # Schema initialization is invoked with concrete database paths by seed
+    # helpers. Resolve those directly so tests that redirect the page-level
+    # default path never feed schema setup back into the same redirect.
+    resolved = (
+        Path(database_url).expanduser().resolve()
+        if database_url
+        else absolute_database_path(None)
+    )
+    try:
+        _rust_ensure_database_schema(str(resolved))
+    except RuntimeError:
+        if os.getenv("FLASHLOAN_RUST_REQUIRED", "").strip() == "1":
+            raise
+        _python_ensure_business_schema(database_url)
+    migrate_business_direction_schema(database_url)
+    try:
+        _rust_ensure_database_indexes(str(resolved))
+    except RuntimeError:
+        if os.getenv("FLASHLOAN_RUST_REQUIRED", "").strip() == "1":
+            raise
+        _python_ensure_business_indexes(database_url)
+
+
+def _python_ensure_business_schema(database_url: str) -> None:
+    """Compatibility fallback DDL for test environments without Rust."""
     from core.local_kv import ensure_store, store_path
 
     path = store_path(database_url)
@@ -721,11 +753,14 @@ def ensure_business_schema(database_url: str) -> None:
     with sqlite3.connect(str(path)) as connection:
         for statement in BUSINESS_DDL:
             connection.execute(statement)
-        connection.execute(
-            "PRAGMA journal_mode=WAL"
-        )
+        connection.execute("PRAGMA journal_mode=WAL")
         connection.commit()
-    migrate_business_direction_schema(database_url)
+
+
+def _python_ensure_business_indexes(database_url: str) -> None:
+    from core.local_kv import store_path
+
+    path = store_path(database_url)
     with sqlite3.connect(str(path)) as connection:
         for statement in BUSINESS_INDEXES:
             connection.execute(statement)
@@ -747,6 +782,21 @@ def migrate_business_direction_schema(database_url: str) -> dict[str, int]:
     Old canonical rows are removed only after their directed replacement rows
     exist, so the migration is safe to run repeatedly.
     """
+
+    from core.db.database_path import absolute_database_path
+    from core.rs_bridge import migrate_direction_schema as _rust_migrate_direction_schema
+    from core.rs_bridge import rust_available
+
+    if rust_available():
+        resolved = (
+            Path(database_url).expanduser().resolve()
+            if database_url
+            else absolute_database_path(None)
+        )
+        payload = _rust_migrate_direction_schema(str(resolved))
+        if not isinstance(payload, dict):
+            raise RuntimeError("Rust direction migration returned a non-dict payload")
+        return payload
 
     from core.local_kv import store_path
 

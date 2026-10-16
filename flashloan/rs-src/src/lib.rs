@@ -3,10 +3,15 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 mod config;
+mod business_builder;
+mod evidence;
 mod hyperrpc;
 mod hypersync;
 mod liquidity;
+mod live_refresh;
+mod migration;
 mod pool_index;
+mod schema;
 mod sqlite_read;
 
 fn default_database_path() -> String {
@@ -49,6 +54,236 @@ fn json_result_to_py(py: Python<'_>, value: Value) -> PyObject {
 #[pyfunction]
 fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[pyfunction]
+fn current_schema_version(database_path: String) -> PyResult<String> {
+    schema::current_schema_version(&database_path).map_err(as_py_error)
+}
+
+#[pyfunction]
+fn ensure_database_schema(
+    py: Python<'_>,
+    database_path: String,
+) -> PyResult<PyObject> {
+    let payload = schema::ensure_database_schema(&database_path).map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+fn ensure_database_indexes(
+    py: Python<'_>,
+    database_path: String,
+) -> PyResult<PyObject> {
+    let payload = schema::ensure_database_indexes(&database_path).map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+fn migrate_business_direction_schema(
+    py: Python<'_>,
+    database_path: String,
+) -> PyResult<PyObject> {
+    let payload = schema::migrate_direction_schema(&database_path).map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, database_path=None, protocol="uniswap_v4"))]
+fn load_v4_scan_state(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    database_path: Option<String>,
+    protocol: &str,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = schema::open_rw(&path).map_err(as_py_error)?;
+    let payload = live_refresh::load_v4_scan_state(
+        &connection,
+        &network,
+        chain_id as i64,
+        protocol,
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, last_scanned_block=None, index_from_block=None, index_to_block=None, liquidity_scan_block=None, scanned_pool_count=None, pool_count=None, confirmed_liquidity_pool_count=None, explicit_zero_liquidity_pool_count=None, unscanned_pool_count=None, direction_candidate_limit=5, scan_mode="incremental", database_path=None, protocol="uniswap_v4"))]
+fn update_v4_scan_state(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    last_scanned_block: Option<u64>,
+    index_from_block: Option<u64>,
+    index_to_block: Option<u64>,
+    liquidity_scan_block: Option<u64>,
+    scanned_pool_count: Option<u64>,
+    pool_count: Option<u64>,
+    confirmed_liquidity_pool_count: Option<u64>,
+    explicit_zero_liquidity_pool_count: Option<u64>,
+    unscanned_pool_count: Option<u64>,
+    direction_candidate_limit: u64,
+    scan_mode: &str,
+    database_path: Option<String>,
+    protocol: &str,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = schema::open_rw(&path).map_err(as_py_error)?;
+    let to_i64 = |value: Option<u64>| value.map(|item| item as i64);
+    let payload = live_refresh::update_v4_scan_state(
+        &connection,
+        &network,
+        chain_id as i64,
+        protocol,
+        to_i64(last_scanned_block),
+        to_i64(index_from_block),
+        to_i64(index_to_block),
+        to_i64(liquidity_scan_block),
+        to_i64(scanned_pool_count),
+        to_i64(pool_count),
+        to_i64(confirmed_liquidity_pool_count),
+        to_i64(explicit_zero_liquidity_pool_count),
+        to_i64(unscanned_pool_count),
+        direction_candidate_limit as i64,
+        scan_mode,
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, onchain_payload, database_path=None, protocol="uniswap_v4"))]
+fn merge_v4_pool_index(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    onchain_payload: String,
+    database_path: Option<String>,
+    protocol: &str,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let connection = schema::open_rw(&path).map_err(as_py_error)?;
+    let onchain_payload: Value =
+        serde_json::from_str(&onchain_payload).map_err(|error| as_py_error(error.to_string()))?;
+    let payload = live_refresh::merge_v4_pool_index(
+        &connection,
+        &network,
+        chain_id as i64,
+        protocol,
+        &onchain_payload,
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, protocol, anchor_scope, market_id, anchors_json, anchor_addresses_json, token_universe_json=None, database_path=None))]
+fn build_v4_anchor_data(
+    py: Python<'_>,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    anchor_scope: String,
+    market_id: String,
+    anchors_json: String,
+    anchor_addresses_json: String,
+    token_universe_json: Option<String>,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let mut connection = schema::open_rw(&path).map_err(as_py_error)?;
+    let anchors: Vec<String> = serde_json::from_str(&anchors_json)
+        .map_err(|error| as_py_error(format!("anchors_json must be a JSON array: {error}")))?;
+    let addresses: std::collections::BTreeMap<String, String> =
+        serde_json::from_str(&anchor_addresses_json).map_err(|error| {
+            as_py_error(format!("anchor_addresses_json must be a JSON object: {error}"))
+        })?;
+    let universe = match token_universe_json {
+        Some(raw) => {
+            let values: Vec<String> = serde_json::from_str(&raw)
+                .map_err(|error| as_py_error(format!("token_universe_json must be a JSON array: {error}")))?;
+            Some(values)
+        }
+        None => None,
+    };
+    let payload = business_builder::build_all_anchor_data(
+        &mut connection,
+        &network,
+        chain_id as i64,
+        &protocol,
+        &anchor_scope,
+        &market_id,
+        &anchors,
+        &addresses,
+        universe.as_deref(),
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (database_path, network, chain_id, protocol, token_rows_json, market_rows_json, pool_rows_json, liquidity_rows_json, index_liquidity_rows_json, replace, initialize_log_count))]
+fn import_v4_evidence(
+    py: Python<'_>,
+    database_path: String,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    token_rows_json: String,
+    market_rows_json: String,
+    pool_rows_json: String,
+    liquidity_rows_json: String,
+    index_liquidity_rows_json: String,
+    replace: bool,
+    initialize_log_count: u64,
+) -> PyResult<PyObject> {
+    let parse_rows = |raw: &str| -> PyResult<Vec<Value>> {
+        serde_json::from_str(raw)
+            .map_err(|error| as_py_error(format!("evidence rows must be a JSON array: {error}")))
+    };
+    let token_rows = parse_rows(&token_rows_json)?;
+    let market_rows = parse_rows(&market_rows_json)?;
+    let pool_rows = parse_rows(&pool_rows_json)?;
+    let liquidity_rows = parse_rows(&liquidity_rows_json)?;
+    let index_liquidity_rows = parse_rows(&index_liquidity_rows_json)?;
+    let payload = evidence::import_v4_evidence_payloads(
+        &database_path,
+        &network,
+        chain_id as i64,
+        &protocol,
+        &token_rows,
+        &market_rows,
+        &pool_rows,
+        &liquidity_rows,
+        &index_liquidity_rows,
+        replace,
+        initialize_log_count as i64,
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
+}
+
+#[pyfunction]
+#[pyo3(signature = (database_path, network, chain_id, protocol, delete_unknown=false))]
+fn prune_v4_evidence(
+    py: Python<'_>,
+    database_path: String,
+    network: String,
+    chain_id: u64,
+    protocol: String,
+    delete_unknown: bool,
+) -> PyResult<PyObject> {
+    let payload = evidence::prune_v4_non_executable_evidence(
+        &database_path,
+        &network,
+        chain_id as i64,
+        &protocol,
+        delete_unknown,
+    )
+    .map_err(as_py_error)?;
+    Ok(json_result_to_py(py, payload))
 }
 
 #[pyfunction]
@@ -359,6 +594,16 @@ fn load_v4_closed_loop(
 #[pymodule]
 fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(version, module)?)?;
+    module.add_function(wrap_pyfunction!(current_schema_version, module)?)?;
+    module.add_function(wrap_pyfunction!(ensure_database_schema, module)?)?;
+    module.add_function(wrap_pyfunction!(ensure_database_indexes, module)?)?;
+    module.add_function(wrap_pyfunction!(migrate_business_direction_schema, module)?)?;
+    module.add_function(wrap_pyfunction!(load_v4_scan_state, module)?)?;
+    module.add_function(wrap_pyfunction!(update_v4_scan_state, module)?)?;
+    module.add_function(wrap_pyfunction!(merge_v4_pool_index, module)?)?;
+    module.add_function(wrap_pyfunction!(build_v4_anchor_data, module)?)?;
+    module.add_function(wrap_pyfunction!(import_v4_evidence, module)?)?;
+    module.add_function(wrap_pyfunction!(prune_v4_evidence, module)?)?;
     module.add_function(wrap_pyfunction!(initialize_topic, module)?)?;
     module.add_function(wrap_pyfunction!(build_v4_pool_index, module)?)?;
     module.add_function(wrap_pyfunction!(find_pools_between_tokens, module)?)?;

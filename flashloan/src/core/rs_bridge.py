@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from core.db.storage_business_io import query
-from core.db.database_path import absolute_database_path
 from core.db.storage_v4_exchange import (
     find_v4_pools_between_tokens as _py_find_v4_pools,
     load_v4_exchange_pools as _py_load_v4_exchange_pools,
@@ -41,7 +40,14 @@ _DEX_CANDIDATE_POOLS_CACHE: dict[tuple[str, str, int, str, str], dict[str, Any]]
 
 
 def _database_path(database_url: str | None = None) -> str:
-    return str(absolute_database_path(database_url))
+    if database_url:
+        return str(Path(database_url).expanduser().resolve())
+    # Resolve lazily: schema seed helpers can be called while page-level
+    # database-path redirects are active, and module-level import would freeze
+    # whichever default was active on first import.
+    from core.db.database_path import absolute_database_path
+
+    return str(absolute_database_path(None))
 
 
 def rust_available() -> bool:
@@ -65,6 +71,246 @@ def _load_rust() -> None:
 def rust_load_error() -> str | None:
     _load_rust()
     return _RUST_LOAD_ERROR
+
+
+def current_schema_version(database_url: str | None = None) -> str:
+    """Return the Rust-owned business schema version."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(f"flashloan_rs unavailable; schema is Rust-owned: {rust_load_error()}")
+    return str(_RUST_MODULE.current_schema_version(_database_path(database_url)))
+
+
+def ensure_database_schema(database_url: str | None = None) -> dict[str, Any]:
+    """Create the Rust-owned SQLite business schema tables (DDL only)."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(f"flashloan_rs unavailable; schema is Rust-owned: {rust_load_error()}")
+    payload = _RUST_MODULE.ensure_database_schema(_database_path(database_url))
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs ensure_database_schema returned a non-dict payload")
+    return payload
+
+
+def ensure_database_indexes(database_url: str | None = None) -> dict[str, Any]:
+    """Create business indexes. Must run after legacy row migration."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(f"flashloan_rs unavailable; schema is Rust-owned: {rust_load_error()}")
+    payload = _RUST_MODULE.ensure_database_indexes(_database_path(database_url))
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs ensure_database_indexes returned a non-dict payload")
+    return payload
+
+
+def migrate_direction_schema(database_url: str | None = None) -> dict[str, Any]:
+    """Run the Rust-owned legacy-to-directional SQLite migration."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; migration is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.migrate_business_direction_schema(_database_path(database_url))
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            "flashloan_rs migrate_business_direction_schema returned a non-dict payload"
+        )
+    return payload
+
+
+def load_v4_scan_state(
+    network: str,
+    chain_id: int,
+    *,
+    database_url: str | None = None,
+    protocol: str = "uniswap_v4",
+) -> dict[str, Any]:
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 scan state is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.load_v4_scan_state(
+        network,
+        chain_id,
+        _database_path(database_url),
+        protocol,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs load_v4_scan_state returned a non-dict payload")
+    return payload
+
+
+def update_v4_scan_state(
+    network: str,
+    chain_id: int,
+    *,
+    database_url: str | None = None,
+    protocol: str = "uniswap_v4",
+    last_scanned_block: int | None = None,
+    index_from_block: int | None = None,
+    index_to_block: int | None = None,
+    liquidity_scan_block: int | None = None,
+    scanned_pool_count: int | None = None,
+    pool_count: int | None = None,
+    confirmed_liquidity_pool_count: int | None = None,
+    explicit_zero_liquidity_pool_count: int | None = None,
+    unscanned_pool_count: int | None = None,
+    direction_candidate_limit: int = 5,
+    scan_mode: str = "incremental",
+) -> dict[str, Any]:
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 scan state is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.update_v4_scan_state(
+        network,
+        chain_id,
+        last_scanned_block,
+        index_from_block,
+        index_to_block,
+        liquidity_scan_block,
+        scanned_pool_count,
+        pool_count,
+        confirmed_liquidity_pool_count,
+        explicit_zero_liquidity_pool_count,
+        unscanned_pool_count,
+        direction_candidate_limit,
+        scan_mode,
+        _database_path(database_url),
+        protocol,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs update_v4_scan_state returned a non-dict payload")
+    return payload
+
+
+def merge_v4_pool_index(
+    network: str,
+    chain_id: int,
+    onchain_payload: dict[str, Any],
+    *,
+    database_url: str | None = None,
+    protocol: str = "uniswap_v4",
+) -> dict[str, Any]:
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 pool index merge is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.merge_v4_pool_index(
+        network,
+        chain_id,
+        json.dumps(onchain_payload, ensure_ascii=False, separators=(",", ":")),
+        _database_path(database_url),
+        protocol,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs merge_v4_pool_index returned a non-dict payload")
+    return payload
+
+
+def build_v4_anchor_data(
+    network: str,
+    chain_id: int,
+    *,
+    protocol: str = "uniswap_v4",
+    anchor_scope: str,
+    market_id: str,
+    anchors: list[str],
+    anchor_addresses: dict[str, str],
+    token_universe: list[str] | None = None,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Run the Rust-owned candidate/observation/closed-loop rebuild."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 anchor data is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.build_v4_anchor_data(
+        network,
+        chain_id,
+        protocol,
+        anchor_scope,
+        market_id,
+        json.dumps(anchors, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(anchor_addresses, ensure_ascii=False, separators=(",", ":")),
+        (
+            json.dumps(token_universe, ensure_ascii=False, separators=(",", ":"))
+            if token_universe is not None
+            else None
+        ),
+        _database_path(database_url),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs build_v4_anchor_data returned a non-dict payload")
+    return payload
+
+
+def import_v4_evidence(
+    network: str,
+    chain_id: int,
+    token_rows: list[dict[str, Any]],
+    market_rows: list[dict[str, Any]],
+    pool_rows: list[dict[str, Any]],
+    liquidity_rows: list[dict[str, Any]],
+    index_liquidity_rows: list[dict[str, Any]],
+    *,
+    database_url: str | None = None,
+    protocol: str = "uniswap_v4",
+    replace: bool = False,
+    initialize_log_count: int = 0,
+) -> dict[str, Any]:
+    """Run the Rust-owned raw V4 evidence import."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 evidence import is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.import_v4_evidence(
+        _database_path(database_url),
+        network,
+        chain_id,
+        protocol,
+        json.dumps(token_rows, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(market_rows, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(pool_rows, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(liquidity_rows, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(index_liquidity_rows, ensure_ascii=False, separators=(",", ":")),
+        bool(replace),
+        int(initialize_log_count or 0),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs import_v4_evidence returned a non-dict payload")
+    return payload
+
+
+def prune_v4_evidence(
+    network: str,
+    chain_id: int,
+    *,
+    database_url: str | None = None,
+    protocol: str = "uniswap_v4",
+    delete_unknown: bool = False,
+) -> dict[str, Any]:
+    """Run the Rust-owned raw V4 evidence prune."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 evidence prune is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.prune_v4_evidence(
+        _database_path(database_url),
+        network,
+        chain_id,
+        protocol,
+        bool(delete_unknown),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs prune_v4_evidence returned a non-dict payload")
+    return payload
 
 
 def _rust_rows(payload: Any, key: str) -> list[dict[str, Any]]:
@@ -645,5 +891,12 @@ __all__ = [
     "load_v4_pool_liquidity_rows_for_view",
     "page_payload_from_rows",
     "rust_available",
+    "current_schema_version",
+    "ensure_database_schema",
+    "ensure_database_indexes",
+    "migrate_direction_schema",
+    "load_v4_scan_state",
+    "update_v4_scan_state",
+    "merge_v4_pool_index",
     "rust_load_error",
 ]

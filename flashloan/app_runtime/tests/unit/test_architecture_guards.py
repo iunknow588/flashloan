@@ -602,6 +602,84 @@ def test_repo_root_keeps_only_intended_config_files():
     assert offenders == []
 
 
+def test_v4_formal_refresh_path_is_rust_owned_for_schema_scan_and_merge():
+    source = _resolved("dex/tools/refresh_robinhood_v4_live.py").read_text(encoding="utf-8")
+    for needle in (
+        "rust_available()",
+        "load_v4_scan_state(",
+        "update_v4_scan_state(",
+        "merge_v4_pool_index(",
+        "import_v4_evidence_rows(",
+        "prune_v4_evidence_rows(",
+        "builders.build_all_anchor_data(",
+    ):
+        assert needle in source, f"refresh_robinhood_v4_live.py no longer uses {needle}"
+    assert "from core.db.import_existing_json import" not in source
+    assert "import core.db.import_existing_json" not in source
+
+
+def test_v4_formal_refresh_path_keeps_python_business_writes_out_of_module_scope():
+    source = _resolved("dex/tools/refresh_robinhood_v4_live.py").read_text(encoding="utf-8")
+    top_level_write_imports = [
+        line.strip()
+        for line in source.splitlines()
+        if line
+        and not line.startswith((" ", "\t"))
+        and (
+            line.startswith("from core.db.import_v4_evidence import")
+            or line.startswith("from core.db.storage_v4_exchange import")
+            or line.startswith("import core.db.storage_v4_exchange")
+        )
+    ]
+    assert top_level_write_imports == []
+
+
+def test_v4_anchor_builder_entry_point_is_rust_owned():
+    source = _resolved("core/db/builders.py").read_text(encoding="utf-8")
+    assert "rust_available()" in source
+    assert "build_v4_anchor_data(" in source
+    assert "return _rust_build_v4_anchor_data(" in source
+
+
+def test_v4_evidence_write_entry_points_are_rust_owned():
+    source = _resolved("dex/tools/v4_rust_refresh.py").read_text(encoding="utf-8")
+    for needle in (
+        "rust_available()",
+        "prepare_v4_evidence_rows(",
+        "import_v4_evidence(",
+        "prune_v4_evidence(",
+    ):
+        assert needle in source, f"v4_rust_refresh.py no longer uses {needle}"
+
+
+def test_v4_page_and_quote_paths_never_import_json_importers_or_builders():
+    paths = (
+        "dex/intent_trade/chains/robinhood/flash_loan_pool_views.py",
+        "dex/intent_trade/chains/robinhood_testnet/flash_pool_view.py",
+        "dex/intent_trade/chains/robinhood_common/v4_sqlite_view.py",
+        "market/binance_market/dex_surfaces.py",
+        "market/binance_market/dex_quote_surface.py",
+    )
+    forbidden = (
+        "import_existing_json",
+        "import_v4_evidence",
+        "build_all_anchor_data",
+        "build_closed_loops_anchor",
+        "build_market_observation_anchor",
+        "build_candidate_anchor",
+    )
+    for relative in paths:
+        source = _resolved(relative).read_text(encoding="utf-8")
+        for needle in forbidden:
+            assert needle not in source, f"{relative} contains {needle}"
+
+
+def test_v4_quote_closed_loop_anchors_derive_from_route_paths_only():
+    source = _resolved("market/binance_market/dex_quote_surface.py").read_text(encoding="utf-8")
+    assert "_closed_loop_anchor_symbols_from_paths" in source
+    assert "closed_loop_anchor_symbols = _closed_loop_anchor_symbols_from_paths(paths)" in source
+
+
 def test_key_modules_stop_using_the_storage_aggregator():
     forbidden_modules = {
         "web/control_panel.py": ["from db.storage import"],

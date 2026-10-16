@@ -26,7 +26,11 @@ from core.db.database_path import absolute_database_path
 from core.db.direction_integrity import (
     direction_symmetry_violations as _direction_symmetry_violations,
 )
-from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
+from core.db.direction_pool_score import (
+    MAX_DIRECTION_CANDIDATE_POOLS,
+    has_confirmed_liquidity,
+    score_pool_by_direction,
+)
 from core.db.storage_business_io import delete_rows, query
 from core.db.storage_chain_core import seed_chain_tokens
 from core.db.storage_dex_candidate import (
@@ -40,6 +44,9 @@ from core.db.storage_market_observation import (
     replace_market_observation_tables,
 )
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
+from core.db.token_symbols import (
+    is_unresolved_placeholder_symbol as _is_unresolved_placeholder_symbol,
+)
 from dex.intent_trade.chains.robinhood_common.chain_config import (
     MAINNET_ANCHOR_SYMBOLS,
     MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
@@ -77,11 +84,12 @@ ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH = (
 )
 DYNAMIC_FEE_FLAG = 8388608
 MAX_FIXED_FEE = 100_000
-# Each directed hop has exactly one recommended pool.  The candidate table can
-# keep a few physical representatives for diagnostics; recommendation/loop
-# construction only consumes the single best directional row.
-MAX_RECOMMENDATIONS_PER_HOP = 3
-MAX_CANDIDATE_POOLS_PER_PAIR = 3
+# Each directed hop has exactly one recommended pool.  The candidate table
+# keeps at most five confirmed-liquidity representatives per direction;
+# depth is the mandatory membership filter and directional output price is
+# the sort key, so YC and ZC can legitimately choose different pool orders.
+MAX_RECOMMENDATIONS_PER_HOP = MAX_DIRECTION_CANDIDATE_POOLS
+MAX_CANDIDATE_POOLS_PER_PAIR = MAX_DIRECTION_CANDIDATE_POOLS
 NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
 
 
@@ -345,11 +353,16 @@ def _token_symbol_lookup(database_url: str, *, network: str, chain_id: int) -> d
         "SELECT token_address, token_symbol FROM chain_tokens WHERE network = ? AND chain_id = ?",
         (network, chain_id),
     )
-    return {
-        _text(row.get("token_address")): str(row.get("token_symbol") or "").strip().upper()
-        for row in rows
-        if _text(row.get("token_address")) and str(row.get("token_symbol") or "").strip()
-    }
+    symbols: dict[str, str] = {}
+    for row in rows:
+        address = _text(row.get("token_address"))
+        symbol = str(row.get("token_symbol") or "").strip().upper()
+        if not address or not symbol:
+            continue
+        if _is_unresolved_placeholder_symbol(symbol):
+            continue
+        symbols[address] = symbol
+    return symbols
 
 
 def _pool_id(pool: dict[str, Any]) -> str:
@@ -429,7 +442,11 @@ def _representative_pool_rows(
     token_out: str | None = None,
     limit: int = MAX_CANDIDATE_POOLS_PER_PAIR,
 ) -> list[dict[str, Any]]:
-    """Keep directional representatives, best static output first."""
+    """Keep directional representatives, best static output first.
+
+    Direction changes the sort key: for A -> B the pool that returns the most
+    B ranks first, while the same physical pool may rank last for B -> A.
+    """
     def _sort_key(row: dict[str, Any]):
         if token_in and token_out:
             return (
@@ -478,16 +495,17 @@ def _select_recommendations(
     as a two-sided market, so ``has_confirmed_liquidity`` is called without a
     direction.  Direction only changes the output score/order.
     """
+    confirmed = [
+        pool
+        for pool in pools
+        if has_confirmed_liquidity(
+            pool,
+            min_usd=1000.0,
+            fallback_token_base=1.0,
+        )
+    ]
     return sorted(
-        (
-            pool
-            for pool in pools
-            if has_confirmed_liquidity(
-                pool,
-                min_usd=1000.0,
-                fallback_token_base=1.0,
-            )
-        ),
+        confirmed,
         key=lambda item: (
             -score_pool_by_direction(item, token_in, token_out),
             _int(item.get("fee")),
@@ -571,12 +589,12 @@ def _candidate_rows(
         reverse_pool_id = reverse_recommendations[0]["pool_id"] if reverse_recommendations else ""
         forward_backup_pool_ids = [
             _pool_id(item)
-            for item in forward_recommendations[1:3]
+            for item in forward_recommendations[1:]
             if _pool_id(item)
         ]
         reverse_backup_pool_ids = [
             _pool_id(item)
-            for item in reverse_recommendations[1:3]
+            for item in reverse_recommendations[1:]
             if _pool_id(item)
         ]
         tokens.append(
@@ -1258,10 +1276,16 @@ def _build_loop_candidates(
     seen_loop_keys: set[str] = set()
     symbol_for = lambda address: token_symbols.get(_text(address), _text(address))
     for y_address in token_addresses:
-        if y_address == anchor_address:
+        y_symbol = token_symbols.get(y_address, "")
+        if y_address == anchor_address or not y_symbol or _is_unresolved_placeholder_symbol(y_symbol):
             continue
         for z_address in token_addresses:
-            if z_address in {anchor_address, y_address}:
+            z_symbol = token_symbols.get(z_address, "")
+            if (
+                z_address in {anchor_address, y_address}
+                or not z_symbol
+                or _is_unresolved_placeholder_symbol(z_symbol)
+            ):
                 continue
             first_options = first_by_direction.get(
                 f"{_text(anchor_address)}:{_text(y_address)}",
@@ -1281,12 +1305,12 @@ def _build_loop_candidates(
                     pool_ids = (first["pool_id"], _pool_id(middle), third["pool_id"])
                     first_backup_ids = [
                         _text(item.get("pool_id"))
-                        for item in first_options[1:3]
+                        for item in first_options[1:]
                         if _text(item.get("pool_id"))
                     ]
                     third_backup_ids = [
                         _text(item.get("pool_id"))
-                        for item in third_options[1:3]
+                        for item in third_options[1:]
                         if _text(item.get("pool_id"))
                     ]
                     token_path = (anchor_address, y_address, z_address, anchor_address)
@@ -1532,6 +1556,11 @@ def build_all_anchor_data(
     anchors: Iterable[str] = ANCHOR_SYMBOLS,
     token_universe: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    anchors = tuple(
+        str(item or "").strip().upper()
+        for item in anchors
+        if str(item or "").strip()
+    )
     resolved = absolute_database_path(database_url)
     anchor_scope = anchor_scope or _market_id_for_network(network)
     market_id = market_id or _market_id_for_network(network)
@@ -1540,11 +1569,7 @@ def build_all_anchor_data(
         network=network,
         chain_id=chain_id,
     )
-    anchor_symbols = tuple(
-        str(item or "").strip().upper()
-        for item in anchors
-        if str(item or "").strip()
-    )
+    anchor_symbols = anchors
     base_symbols = set(_base_anchor_symbols(network))
     if any(symbol not in base_symbols for symbol in anchor_symbols):
         pool_addresses = {
@@ -1586,6 +1611,27 @@ def build_all_anchor_data(
             in pool_addresses
         )
     universe = sorted({_text(item) for item in token_universe}) if token_universe is not None else None
+    from core.rs_bridge import (
+        build_v4_anchor_data as _rust_build_v4_anchor_data,
+        rust_available,
+    )
+
+    if rust_available():
+        anchor_addresses = {
+            symbol: _configured_anchor_address_by_symbol(network).get(symbol, "")
+            for symbol in anchor_symbols
+        }
+        return _rust_build_v4_anchor_data(
+            network,
+            chain_id,
+            protocol=protocol,
+            anchor_scope=anchor_scope,
+            market_id=market_id,
+            anchors=list(anchor_symbols),
+            anchor_addresses=anchor_addresses,
+            token_universe=universe,
+            database_url=str(resolved),
+        )
     # The full rebuild owns every business row for this network/chain/protocol.
     # Older interrupted imports may have written rows under the mainnet market
     # id/anchor scope; deleting by network+chain+protocol removes that residue

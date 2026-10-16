@@ -30,9 +30,9 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
-from core.db.import_v4_evidence import import_v4_evidence_payloads  # noqa: E402
 from core.db import builders  # noqa: E402
 from core.env_loader import load_chain_env_files  # noqa: E402
+from dex.tools.v4_rust_refresh import import_v4_evidence_rows  # noqa: E402
 from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
     write_v4_pool_index_from_initialize_logs,
 )
@@ -114,12 +114,13 @@ def main() -> int:
 
     if not errors and not args.skip_import:
         try:
-            import_result = import_v4_evidence_payloads(
-                str(database),
+            import_result = import_v4_evidence_rows(
+                database=str(database),
                 network="robinhood",
                 chain_id=4663,
                 index_payload=index_result if not args.skip_index else None,
                 liquidity_payload=liquidity_result if not args.skip_liquidity else None,
+                replace=False,
             )
             steps.append(_step("import_v4_evidence_payloads", import_result))
             print(json.dumps({"step": "import_v4_evidence_payloads", **import_result}, ensure_ascii=False))
