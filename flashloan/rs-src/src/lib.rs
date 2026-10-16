@@ -5,6 +5,7 @@ use serde_json::Value;
 mod config;
 mod business_builder;
 mod evidence;
+mod execution;
 mod hyperrpc;
 mod hypersync;
 mod liquidity;
@@ -616,5 +617,12 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(load_dex_candidate_pools, module)?)?;
     module.add_function(wrap_pyfunction!(load_market_observation, module)?)?;
     module.add_function(wrap_pyfunction!(load_v4_closed_loop, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::resolve_private_key_hex, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::sign_typed_transaction_json, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::build_v4_quote_calldata, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::quote_v4_exact_input_single, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::submit_v4_route, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::load_v4_receipt, module)?)?;
+    module.add_function(wrap_pyfunction!(execution::get_v4_pending_nonce, module)?)?;
     Ok(())
 }

@@ -18,6 +18,10 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 tiny-keccak = { version = "2", features = ["keccak"] }
 hex = "0.4"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sha3 = "0.10"
+k256 = { version = "0.13", features = ["ecdsa"] }
+num-bigint = "0.4"
+num-traits = "0.2"
 
 [dev-dependencies]
 rusqlite = { version = "0.31", features = ["bundled"] }
