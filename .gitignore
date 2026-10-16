@@ -75,6 +75,9 @@ tmp_*.sqlite3*
 *.sqlite3.bak
 data_info/_build/
 flashloan/rs-src/target/
+runtime/external/rh-flash-toolkit/
+contract/avalanche*/DEX/deployments/evidence/
+contract/avalanche*/BOT/deployments/evidence/
 flashloan/src/runtime/logs/
 flashloan/src/runtime/logs/observer_*.log
 flashloan/contract/avalanche/DEX/deployments/evidence/
