@@ -195,6 +195,7 @@ def test_split_packages_exist_without_cross_imports():
             "dex/intent_trade/builder.py",
             "dex/intent_trade/direct_impl.py",
             "dex/intent_trade/direct_unified_broadcast.py",
+            "dex/intent_trade/direct_unified_broadcast_py_fallback.py",
             "market/binance_market/cow_tokens.py",
                 # DEX quote page adapters consume the DEX-owned error stack
                 # contract to publish route-level API/page results.
@@ -421,6 +422,7 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "intent_trade/direct_submission_context.py": 120,
         "intent_trade/direct_unified.py": 500,
         "intent_trade/direct_unified_broadcast.py": 300,
+        "intent_trade/direct_unified_broadcast_py_fallback.py": 300,
         "intent_trade/direct_unified_cache.py": 400,
         "intent_trade/direct_unified_candidates.py": 700,
         "intent_trade/direct_unified_cost.py": 500,
@@ -510,6 +512,7 @@ def test_active_source_files_stay_under_1000_lines():
         "web/static/dex_quotes/quotes_app.js",
         "web/static/dex_quotes/quotes_render.js",
         "core/market_observation_compact.py",
+        "core/rs_bridge.py",
         "core/db/builders.py",
         "core/db/storage_business_schema.py",
         "market/binance_market/dex_route_candidate_selection.py",
@@ -650,6 +653,33 @@ def test_v4_evidence_write_entry_points_are_rust_owned():
         "prune_v4_evidence(",
     ):
         assert needle in source, f"v4_rust_refresh.py no longer uses {needle}"
+
+
+def test_unified_direct_broadcast_is_rust_first_without_top_level_eth_account():
+    broadcast_source = _resolved("intent_trade/direct_unified_broadcast.py").read_text(encoding="utf-8")
+    for needle in (
+        "rust_available()",
+        "submit_v4_route(",
+        "load_v4_receipt(",
+    ):
+        assert needle in broadcast_source, f"direct_unified_broadcast.py no longer uses {needle}"
+    assert "broadcast_unified_direct_trade_py_fallback(context)" in broadcast_source
+
+    for relative_path in (
+        "intent_trade/direct_unified_broadcast.py",
+        "intent_trade/direct_unified_broadcast_py_fallback.py",
+    ):
+        source = _resolved(relative_path).read_text(encoding="utf-8")
+        top_level_eth_account = [
+            line
+            for line in source.splitlines()
+            if line
+            and not line.startswith((" ", "\t"))
+            and ("from eth_account" in line or "import eth_account" in line)
+        ]
+        assert top_level_eth_account == [], (
+            f"{relative_path} imports eth_account at module top level: {top_level_eth_account}"
+        )
 
 
 def test_v4_page_and_quote_paths_never_import_json_importers_or_builders():
