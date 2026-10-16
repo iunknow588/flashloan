@@ -872,13 +872,155 @@ def build_v4_pool_index(
     return payload if isinstance(payload, dict) else {"ok": False, "payload": payload}
 
 
+def resolve_private_key_hex(private_key: str) -> dict[str, Any]:
+    """Resolve an Ethereum private key to its address through the Rust signer."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; signing is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.resolve_private_key_hex(str(private_key))
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs resolve_private_key_hex returned a non-dict payload")
+    return payload
+
+
+def sign_typed_transaction_json(
+    transaction: dict[str, Any],
+    private_key: str,
+) -> dict[str, Any]:
+    """Sign a JSON-serializable EIP-1559/EIP-155 transaction in Rust."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; signing is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.sign_typed_transaction_json(
+        json.dumps(transaction, ensure_ascii=False, separators=(",", ":")),
+        str(private_key),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs sign_typed_transaction_json returned a non-dict payload")
+    return payload
+
+
+def build_v4_quote_calldata(request: dict[str, Any]) -> dict[str, Any]:
+    """Build Uniswap V4 quoteExactInputSingle calldata in Rust."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 quote calldata is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.build_v4_quote_calldata(
+        json.dumps(request, ensure_ascii=False, separators=(",", ":"))
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs build_v4_quote_calldata returned a non-dict payload")
+    return payload
+
+
+def quote_v4_exact_input_single(
+    request: dict[str, Any],
+    rpc_url: str,
+    quoter_address: str,
+    *,
+    call_from: str | None = None,
+    timeout_seconds: int = 20,
+) -> dict[str, Any]:
+    """Run the Rust V4 quote eth_call and return ok/error/revertData."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; V4 quote execution is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.quote_v4_exact_input_single(
+        json.dumps(request, ensure_ascii=False, separators=(",", ":")),
+        str(rpc_url),
+        str(quoter_address),
+        call_from,
+        int(timeout_seconds or 20),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs quote_v4_exact_input_single returned a non-dict payload")
+    return payload
+
+
+def submit_v4_route(
+    config: dict[str, Any],
+    raw_transaction: str,
+    relay_urls: str | None = None,
+) -> dict[str, Any]:
+    """Broadcast a signed V4 route through Rust private/public RPC handling."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; route broadcast is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.submit_v4_route(
+        json.dumps(config, ensure_ascii=False, separators=(",", ":")),
+        str(raw_transaction),
+        relay_urls,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs submit_v4_route returned a non-dict payload")
+    return payload
+
+
+def load_v4_receipt(
+    rpc_urls: list[str],
+    tx_hash: str,
+    *,
+    wait: bool = False,
+    timeout_seconds: int = 20,
+) -> dict[str, Any]:
+    """Load a V4 route receipt through Rust; wait=True polls until timeout."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; receipt loading is Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.load_v4_receipt(
+        json.dumps([str(url) for url in rpc_urls], ensure_ascii=False, separators=(",", ":")),
+        str(tx_hash),
+        bool(wait),
+        int(timeout_seconds or 20),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs load_v4_receipt returned a non-dict payload")
+    return payload
+
+
+def get_v4_pending_nonce(
+    rpc_url: str,
+    signer_address: str,
+    *,
+    timeout_seconds: int = 20,
+) -> dict[str, Any]:
+    """Read the pending nonce through Rust for the V4 execution path."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; nonce reads are Rust-owned: {rust_load_error()}"
+        )
+    payload = _RUST_MODULE.get_v4_pending_nonce(
+        str(rpc_url),
+        str(signer_address),
+        int(timeout_seconds or 20),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs get_v4_pending_nonce returned a non-dict payload")
+    return payload
+
+
 def page_payload_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"ok": True, "rows": rows, "source": "sqlite_db"}
 
 
 __all__ = [
+    "build_v4_quote_calldata",
     "build_v4_pool_index",
     "find_pools_between_tokens",
+    "get_v4_pending_nonce",
     "load_dex_candidate_pools",
     "load_market_observation",
     "load_v4_closed_loop",
@@ -889,7 +1031,10 @@ __all__ = [
     "load_v4_pool_liquidity",
     "load_v4_pool_liquidity_refreshed_at",
     "load_v4_pool_liquidity_rows_for_view",
+    "load_v4_receipt",
     "page_payload_from_rows",
+    "quote_v4_exact_input_single",
+    "resolve_private_key_hex",
     "rust_available",
     "current_schema_version",
     "ensure_database_schema",
@@ -898,5 +1043,7 @@ __all__ = [
     "load_v4_scan_state",
     "update_v4_scan_state",
     "merge_v4_pool_index",
+    "sign_typed_transaction_json",
+    "submit_v4_route",
     "rust_load_error",
 ]

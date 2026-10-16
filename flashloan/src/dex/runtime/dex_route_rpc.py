@@ -9,6 +9,7 @@ from urllib import request as urllib_request
 from web3 import Web3
 
 from core.chain_data_registry import chain_data_by_chain_id
+from core.rs_bridge import load_v4_receipt, rust_available
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
 
@@ -24,6 +25,62 @@ def fetch_dex_tx_receipt(*, chain_id: int, tx_hash: str) -> dict[str, Any]:
         rpc_url = str(row.get("rpc_url") or "").strip()
         if rpc_url:
             rpc_urls = [rpc_url]
+    if not rpc_urls:
+        return {
+            "ok": False,
+            "error": "tx_receipt_unavailable",
+            "detail": "no RPC URL configured",
+            "chain_id": int(chain_id),
+            "tx_hash": tx_hash,
+        }
+    if rust_available():
+        try:
+            payload = load_v4_receipt(rpc_urls, tx_hash, wait=False, timeout_seconds=20)
+        except Exception as exc:  # noqa: BLE001 - surface Rust RPC failure details
+            return {
+                "ok": False,
+                "error": "tx_receipt_unavailable",
+                "detail": str(exc)[:200],
+                "chain_id": int(chain_id),
+                "tx_hash": tx_hash,
+            }
+        rpc_url = str(payload.get("rpcUrl") or rpc_urls[0])
+        receipt = payload.get("receipt") if isinstance(payload.get("receipt"), dict) else {}
+        transaction = payload.get("transaction") if isinstance(payload.get("transaction"), dict) else {}
+        status = "pending"
+        if receipt:
+            status = "confirmed" if int(receipt.get("status") or 0) == 1 else "failed"
+        return {
+            "ok": True,
+            "chain_id": int(chain_id),
+            "network": row.get("network"),
+            "explorer_url": row.get("explorer_url"),
+            "explorer_tx_url": (
+                f"{str(row.get('explorer_url') or '').rstrip('/')}/tx/{tx_hash}"
+                if row.get("explorer_url")
+                else None
+            ),
+            "tx_hash": tx_hash,
+            "rpc_url": rpc_url,
+            "status": status,
+            "receipt": {
+                "transactionHash": receipt.get("transactionHash") or tx_hash,
+                "blockNumber": receipt.get("blockNumber"),
+                "status": receipt.get("status"),
+                "gasUsed": receipt.get("gasUsed"),
+                "effectiveGasPrice": receipt.get("effectiveGasPrice"),
+                "from": receipt.get("from"),
+                "to": receipt.get("to"),
+                "logs": receipt.get("logs") or [],
+            },
+            "transaction": {
+                "hash": transaction.get("hash") or tx_hash,
+                "from": transaction.get("from"),
+                "to": transaction.get("to"),
+                "blockNumber": transaction.get("blockNumber"),
+                "value": transaction.get("value"),
+            },
+        }
     errors: list[str] = []
     for rpc_url in rpc_urls:
         try:

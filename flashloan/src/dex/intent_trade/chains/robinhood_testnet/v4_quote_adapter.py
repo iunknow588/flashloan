@@ -986,14 +986,47 @@ def _quote_v4_exact_input_single(
     call_from: str | None = None,
     block_number: int | None = None,
 ) -> tuple[int, int]:
+    from core.rs_bridge import quote_v4_exact_input_single as _rust_quote_v4_exact_input_single
+    from core.rs_bridge import rust_available
+
     if w3 is None:
-        w3, _ = _connect_chain_rpc(network, chain_id)
-    rpc_url = _text(getattr(getattr(w3, "provider", None), "endpoint_uri", ""))
+        w3, rpc_url = _connect_chain_rpc(network, chain_id)
+    else:
+        rpc_url = _text(getattr(getattr(w3, "provider", None), "endpoint_uri", ""))
     contract = w3.eth.contract(address=Web3.to_checksum_address(quoter_address), abi=_V4_QUOTER_ABI)
     call_kwargs: dict[str, Any] = {"gas": int(os.getenv("DEX_ONCHAIN_QUOTE_CALL_GAS_LIMIT", "30000000") or 30000000)}
     if call_from:
         call_kwargs["from"] = Web3.to_checksum_address(call_from)
+    rust_path = rust_available() and bool(rpc_url)
+    rust_request: dict[str, Any] = {}
+    if rust_path:
+        rust_request = {
+            "currency0": _normalize_address(pool_key[0]),
+            "currency1": _normalize_address(pool_key[1]),
+            "fee": int(pool_key[2]),
+            "tickSpacing": int(pool_key[3]),
+            "hooks": _normalize_address(pool_key[4]),
+            "zeroForOne": bool(zero_for_one),
+            "amountInRaw": str(int(amount_in_raw)),
+            "hookData": "0x" + bytes(hook_data).hex() if hook_data else "",
+        }
     try:
+        if rust_path:
+            payload = _rust_quote_v4_exact_input_single(
+                rust_request,
+                rpc_url,
+                quoter_address,
+                call_from=call_from,
+                timeout_seconds=int(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12),
+            )
+            if not payload.get("ok"):
+                raised = RuntimeError(str(payload.get("error") or "quoter eth_call failed"))
+                setattr(raised, "data", str(payload.get("revertData") or ""))
+                raise raised
+            return (
+                int(str(payload.get("amountOutRaw") or "0x0"), 16),
+                int(str(payload.get("gasEstimate") or "0x0"), 16),
+            )
         quote_call = contract.functions.quoteExactInputSingle(
             (
                 pool_key,
