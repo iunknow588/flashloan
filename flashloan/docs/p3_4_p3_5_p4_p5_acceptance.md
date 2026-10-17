@@ -14,6 +14,18 @@ Date: 2026-10-17
 - Rust-first page receipt lookup, unified direct broadcast, and V4 quote
   eth_call paths, with an explicit Python-only broadcast fallback.
 - Architecture guards and fake `flashloan_rs` bridge unit tests.
+- Directional candidate backfill fixes: latest-to-oldest scanning no longer
+  loses the segment start after adaptive shrinking; range-limited providers
+  are rotated without shrinking the whole scan, and retryable RPC failures
+  are temporarily quarantined.
+- Token-topic filtering for reverse `Initialize` scans, so directional
+  backfill only fetches logs involving the requested currencies.
+- Read-only testnet evidence tool
+  `flashloan/src/dex/tools/collect_robinhood_v4_backfill_evidence.py`; it
+  writes only under `runtime/evidence/robinhood-testnet`, never SQLite.
+
+Current protocol scope is intentionally Uniswap V4 only. Other protocols are
+deferred to a later release.
 
 ## Acceptance Commands
 
@@ -22,7 +34,9 @@ Date: 2026-10-17
 - `python -m compileall -q flashloan/src flashloan/app_runtime`
   - passed
 - `python -m pytest flashloan/app_runtime/tests/unit -q`
-  - 1621 passed, 0 failed
+  - 1653 passed, 1 skipped, 0 failed
+- `python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q`
+  - 36 passed
 - `python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct -q`
   - 1 passed
 - `python flashloan/src/dex/tools/build_v4_integrity_report.py --database flashloan/src/runtime/local_store.sqlite3 --network robinhood --chain-id 4663`
@@ -37,3 +51,9 @@ Date: 2026-10-17
 - Cold import is above the `<2s` target and is archived as an optimization item.
 - With `DEX_V4_LIVE_QUOTE_ENABLED=0`, the benchmark still issued RPC calls to
   the testnet endpoint; reproduced during acceptance and tracked separately.
+- A live testnet directional backfill evidence run was attempted for
+  AMZN/ETH and NFLX/ETH both directions. The official and publicnode RPCs
+  repeatedly returned HTTP 429 and TLS handshake/read timeouts, so the
+  evidence bundle was not finalized this round. The scan, liquidity
+  confirmation, topic-filter and provider-fallback code paths are covered by
+  unit tests and ready to rerun against a stable RPC.

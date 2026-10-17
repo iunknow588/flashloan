@@ -14,6 +14,7 @@ from dex.intent_trade.chains.robinhood_common import v4_pool_index_core as core
 from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
     V4_INITIALIZE_TOPIC,
     _fetch_logs_sharded,
+    _fetch_logs_sharded_reverse,
 )
 from dex.tools.refresh_robinhood_v4_live import _direction_backfill_plan
 from dex.tools.refresh_robinhood_mainnet_v4_evidence import _normalize_database_arg
@@ -131,6 +132,126 @@ def test_fetch_logs_sharded_falls_back_and_halves_chunk_on_limit(monkeypatch):
     assert any(0 <= to - frm <= 750_000 for _label, frm, to in calls)
 
 
+def test_fetch_logs_sharded_reverse_halves_chunk_on_range_limit(monkeypatch):
+    calls: list[tuple[int, int]] = []
+
+    def fake_get_logs(
+        url,
+        *,
+        pool_manager,
+        topic,
+        from_block,
+        to_block,
+        timeout_seconds,
+        user_agent,
+        extra_topics=None,
+    ):
+        calls.append((int(from_block), int(to_block)))
+        if int(to_block) - int(from_block) > 100:
+            raise RuntimeError("eth_getLogs exceed maximum block range: 100")
+        return []
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    logs = _fetch_logs_sharded_reverse(
+        providers=["https://std.example"],
+        pool_manager="0x" + "00" * 20,
+        topic=V4_INITIALIZE_TOPIC,
+        from_block=0,
+        to_block=999,
+        initial_chunk_size=500,
+        min_chunk_size=50,
+        timeout_seconds=1,
+        user_agent="test",
+        attempts_per_segment=4,
+    )
+
+    assert logs == []
+    assert calls[0] == (500, 999)
+    assert any(0 <= to - frm <= 100 for frm, to in calls)
+    assert calls[-1][0] == 0
+
+
+def test_reverse_backfill_forwards_token_topic_filter(monkeypatch):
+    pool_id = "0x" + "77" * 32
+    z = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    seen: dict[str, object] = {}
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
+        seen["extra_topics"] = extra_topics
+        if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
+            return [_string_initialize_log(pool_id, 84_500_000)]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=84_900_000)
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            f"{z}:{one}": 1,
+        },
+        direction_floor_block=0,
+        chunk_size=900_000,
+        min_chunk_size=1_000,
+        topic_filter_addresses=[z, one],
+    )
+
+    assert payload["satisfiedDirectionCount"] == 1
+    expected = [
+        "0x" + ("0" * 24) + z.removeprefix("0x"),
+        "0x" + ("0" * 24) + one.removeprefix("0x"),
+    ]
+    assert seen["extra_topics"] == [expected, expected]
+
+
+def test_reverse_scan_rotates_provider_without_shrinking_chunk_on_range_limit(monkeypatch):
+    calls: list[tuple[str, int, int]] = []
+
+    def fake_get_logs(
+        url,
+        *,
+        pool_manager,
+        topic,
+        from_block,
+        to_block,
+        timeout_seconds,
+        user_agent,
+        extra_topics=None,
+    ):
+        calls.append((url, int(from_block), int(to_block)))
+        width = int(to_block) - int(from_block) + 1
+        if url == "https://ok.example" and width > 100_000:
+            raise RuntimeError("eth_getLogs exceed maximum block range: 100000")
+        if url == "https://limit.example" and width > 50_000:
+            raise RuntimeError("eth_getLogs exceed maximum block range: 50000")
+        return []
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    _fetch_logs_sharded_reverse(
+        providers=["https://ok.example", "https://limit.example"],
+        pool_manager="0x" + "00" * 20,
+        topic=V4_INITIALIZE_TOPIC,
+        from_block=0,
+        to_block=299_999,
+        initial_chunk_size=100_000,
+        min_chunk_size=10_000,
+        timeout_seconds=1,
+        user_agent="test",
+        attempts_per_segment=4,
+    )
+
+    ok_calls = [call for call in calls if call[0] == "https://ok.example"]
+    assert ok_calls
+    assert all(call[2] - call[1] + 1 == 100_000 for call in ok_calls)
+
+
 def test_build_index_decodes_string_logs_and_deduplicates_pool_ids(monkeypatch):
     pool_id = "0x" + "22" * 32
     log_one = _string_initialize_log(pool_id, 84_000_000)
@@ -183,7 +304,7 @@ def test_directional_backfill_scans_newest_first_and_stops_at_targets(monkeypatc
     pool_id = "0x" + "33" * 32
     calls = []
 
-    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
         calls.append((int(from_block), int(to_block)))
         if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
             return [_string_initialize_log(pool_id, 84_500_000)]
@@ -219,7 +340,7 @@ def test_directional_backfill_stops_at_pool_creation_floor_when_target_not_reach
     pool_id = "0x" + "44" * 32
     calls = []
 
-    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
         calls.append((int(from_block), int(to_block)))
         if int(from_block) == 5_000_000 and int(to_block) == 5_999_999:
             return [_string_initialize_log(pool_id, 5_500_000)]
@@ -255,7 +376,7 @@ def test_directional_backfill_counts_pool_for_both_directions_when_liquid(monkey
     one = "0x" + "11" * 20
     calls = []
 
-    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
         calls.append((int(from_block), int(to_block)))
         if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
             return [_string_initialize_log(pool_id, 84_500_000)]
@@ -300,7 +421,7 @@ def test_directional_backfill_uses_sorted_address_direction_keys(monkeypatch):
     one = "0x" + "11" * 20
     calls = []
 
-    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
         calls.append((int(from_block), int(to_block)))
         if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
             log = _string_initialize_log(pool_id, 84_500_000)
@@ -344,7 +465,7 @@ def test_directional_backfill_caps_count_within_one_segment(monkeypatch):
     pool_ids = [f"0x{token_byte:02x}" * 32 for token_byte in (0xaa, 0xbb, 0xcc)]
     calls = []
 
-    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent, extra_topics=None):
         calls.append((int(from_block), int(to_block)))
         if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
             return [

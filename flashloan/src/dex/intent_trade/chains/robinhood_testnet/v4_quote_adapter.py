@@ -248,7 +248,7 @@ def _read_live_pool_state_with_w3(
 
 def _batch_read_live_pool_states(
     *,
-    w3: Any,
+    w3: Any = None,
     rpc_url: str | None,
     pool_manager: str,
     pool_ids: list[str],

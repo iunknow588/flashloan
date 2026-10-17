@@ -177,13 +177,14 @@ def _get_logs_jsonrpc(
     to_block: int,
     timeout_seconds: float,
     user_agent: str,
+    extra_topics: list[Any] | None = None,
 ) -> list[Any]:
     params = [
         {
             "address": Web3.to_checksum_address(pool_manager),
             "fromBlock": hex(max(0, int(from_block))),
             "toBlock": hex(int(to_block)),
-            "topics": [topic],
+            "topics": [topic, *(extra_topics or [])],
         }
     ]
     result = _jsonrpc_call(
@@ -305,6 +306,7 @@ def _fetch_logs_sharded_reverse(
     user_agent: str,
     attempts_per_segment: int = 6,
     should_stop: object | None = None,
+    extra_topics: list[Any] | None = None,
 ) -> list[Any]:
     """Fetch log segments from newest to oldest.
 
@@ -327,20 +329,29 @@ def _fetch_logs_sharded_reverse(
     healthy_provider_indexes = list(range(len(providers)))
     unhealthy_providers: set[str] = set()
     while cursor >= end_block:
-        start = max(end_block, cursor - step + 1)
         segment_logs = None
+        segment_start = cursor
         last_error: Exception | None = None
         segment_attempts = 0
+        failed_for_segment: set[str] = set()
         while segment_logs is None and segment_attempts < max(1, int(attempts_per_segment)):
             segment_attempts += 1
+            start = max(end_block, cursor - step + 1)
             healthy_indexes = [
                 index
                 for index in healthy_provider_indexes
-                if providers[index] not in unhealthy_providers
+                if (
+                    providers[index] not in unhealthy_providers
+                    and providers[index] not in failed_for_segment
+                )
             ]
             if not healthy_indexes:
+                if step > min_step:
+                    step = max(min_step, step // 2)
+                failed_for_segment.clear()
                 unhealthy_providers.clear()
                 healthy_indexes = list(healthy_provider_indexes)
+                start = max(end_block, cursor - step + 1)
             provider_index = healthy_indexes[provider_index % len(healthy_indexes)]
             url = providers[provider_index]
             try:
@@ -352,29 +363,32 @@ def _fetch_logs_sharded_reverse(
                     to_block=cursor,
                     timeout_seconds=timeout_seconds,
                     user_agent=user_agent,
+                    extra_topics=extra_topics,
                 )
+                segment_start = start
                 break
             except Exception as exc:
                 last_error = exc
                 message = str(exc)
                 failures.append(f"{_redact_url(url)} {start}-{cursor}: {message[:180]}")
+                failed_for_segment.add(url)
                 if _is_rpc_permanent_error(message):
                     unhealthy_providers.add(url)
-                if _is_rpc_limit_error(message) and step > min_step:
-                    step = max(min_step, step // 2)
-                elif segment_attempts >= attempts_per_segment and step > min_step:
-                    step = max(min_step, step // 2)
+                elif _is_rpc_limit_error(message):
+                    unhealthy_providers.add(url)
+                elif _is_rpc_retryable_error(message):
+                    unhealthy_providers.add(url)
                 if not _is_rpc_limit_error(message):
                     provider_index += 1
         if segment_logs is None:
             raise RuntimeError(
-                f"failed to fetch {topic} logs {start}-{cursor} after {segment_attempts} attempts; "
+                f"failed to fetch {topic} logs {segment_start}-{cursor} after {segment_attempts} attempts; "
                 f"last: {last_error}; recent failures: {failures[-3:]}"
             )
         logs.extend(segment_logs)
         if should_stop is not None and should_stop(segment_logs):
             break
-        cursor = start - 1
+        cursor = segment_start - 1
         if len(healthy_provider_indexes) > 1:
             provider_index = (provider_index + 1) % len(healthy_provider_indexes)
     return logs
@@ -414,6 +428,8 @@ def build_v4_directional_pool_backfill(
     rpc_connect_attempts: int = 3,
     rpc_user_agent: str = "flashloan-robinhood-v4/1.0",
     prefer_hyperrpc: bool = True,
+    topic_filter_addresses: Iterable[str] | None = None,
+    exclude_pool_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Backfill candidate pools from the newest Initialize blocks downward.
 
@@ -488,6 +504,23 @@ def build_v4_directional_pool_backfill(
     pool_keys: list[dict[str, Any]] = []
     seen_pool_ids: set[str] = set()
     metadata_cache: dict[str, dict[str, Any]] = {}
+    extra_topics: list[Any] = []
+    topic_filter = list(dict.fromkeys(
+        str(address).strip().lower()
+        for address in (topic_filter_addresses or ())
+        if str(address).strip().lower().startswith("0x")
+    ))
+    if topic_filter:
+        topic_values = [
+            "0x" + ("0" * 24) + address.removeprefix("0x")
+            for address in topic_filter
+        ]
+        extra_topics = [topic_values, topic_values]
+    excluded_pool_ids = {
+        str(pool_id).strip().lower()
+        for pool_id in (exclude_pool_ids or ())
+        if str(pool_id or "").strip().lower().startswith("0x")
+    }
     initialize_log_count = 0
     scanned_segment_count = 0
 
@@ -506,7 +539,11 @@ def build_v4_directional_pool_backfill(
                 metadata_cache=metadata_cache,
             )
             pool_id = str(pool.get("poolId") or "").lower()
-            if not pool_id or pool_id in seen_pool_ids:
+            if (
+                not pool_id
+                or pool_id in seen_pool_ids
+                or pool_id in excluded_pool_ids
+            ):
                 continue
             seen_pool_ids.add(pool_id)
             direction, reverse = _directional_keys(
@@ -556,6 +593,7 @@ def build_v4_directional_pool_backfill(
             timeout_seconds=rpc_connect_timeout,
             user_agent=rpc_user_agent,
             should_stop=_process_segment,
+            extra_topics=extra_topics,
         )
         if not remaining:
             stopped_reason = "direction_targets_satisfied"

@@ -269,3 +269,15 @@ productionReady = false
 - [ ] 清算继续保持 `observation_only=true`，DEX 执行稳定前不进入清算 static-call 与自动执行。
 
 调研记录：`Robinhood Morpho Blue 借贷清算调研.md`。
+
+## R. 2026-10-17 反向回填扫描收口
+
+- [x] 反向日志扫描修复：缩小步长后分段起点重新计算，`cursor` 使用实际成功分段的 `segment_start`，不再越界回退。
+- [x] 多 provider 分片策略修复：单 provider 的区块范围限制不再立即把全扫描拖到较小步长；同一步长先轮换 provider，全部失败才按 `min_chunk_size` 减半。
+- [x] 临时超时/HTTP 429 的 provider 加入本轮隔离，避免每个分片反复等待 20-27 秒后才 fallback。
+- [x] 方向候选反向扫描支持 currency topic 过滤：`extra_topics` 只命中目标币种相关 `Initialize` 日志。
+- [x] 新增只读证据工具 `collect_robinhood_v4_backfill_evidence.py`：只写 `runtime/evidence/robinhood-testnet/v4_directional_backfill`，不写 SQLite、不广播，方向满 5 个活跃候选或到达池创建下限即停。
+- [x] 相关单测：反向块范围衰减、provider 轮换不缩块、topic 过滤、批量流动性确认均通过。
+- [x] 全量单测 `1653 passed, 1 skipped`，架构守卫 `36 passed`，主网/测试网 integrity report 均 `0 violations`。
+- [ ] 真实测试网 AMZN/NFLX ETH 双向回填 evidence 尚未落盘：官方/publicnode RPC 多次 `HTTP 429` 与 TLS 超时，证据工具代码路径已按单测覆盖，待 RPC 稳定后重跑。
+- [x] 当前版本协议范围明确为 Uniswap V4 单协议，其他协议下一版本再支持。

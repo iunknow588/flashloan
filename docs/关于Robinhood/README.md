@@ -24,6 +24,7 @@ Robinhood Chain（主网 `4663` / 测试网 `46630`）已经完成链配置、�
 | [最佳路线选择说明.md](<最佳路线选择说明.md>) | 闭环、候选池、最佳路线、临时路径 | 最新 |
 | [股票代币/综述.md](<股票代币/综述.md>) | 股票 token 来源与地址验证 | 最新 |
 | [股票代币/实施方案.md](<股票代币/实施方案.md>) | 股票 token 接入数据链路 | 最新 |
+| [工具说明](<工具说明>) | 测试工具、常用命令、环境变量与注意事项 | 最新 |
 | [P3-4/P3-5/P4/P5 Acceptance Record](../../flashloan/docs/p3_4_p3_5_p4_p5_acceptance.md) | Rust 执行层与验收结果 | 最新 |
 
 建议阅读顺序：先看部署状态，再按 checklist 判断完成边界；架构和调研文档用于理解设计意图；行情报告是固定日期快照，不作为当前状态；最佳路线与股票代币文档跟随最近实现。
@@ -72,7 +73,13 @@ Robinhood Chain（主网 `4663` / 测试网 `46630`）已经完成链配置、�
 ## 最近验收
 
 - `cargo test --manifest-path flashloan/rs-src/Cargo.toml`：`27 passed`
-- `python -m pytest flashloan/app_runtime/tests/unit -q`：`1621 passed`
+- `python -m pytest flashloan/app_runtime/tests/unit -q`：`1653 passed, 1 skipped`
+- `python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q`：`36 passed`
 - `python -m compileall -q flashloan/src flashloan/app_runtime`：通过
 - `build_v4_integrity_report`：主网/测试网均为 `0 violations`
 - 详细记录见 [P3-4/P3-5/P4/P5 Acceptance Record](../../flashloan/docs/p3_4_p3_5_p4_p5_acceptance.md)
+
+## 本轮待完成
+
+- 反向方向候选回填已补齐 topic 过滤、provider 级区块范围处理和超时隔离，并新增只读测试网证据工具；真实测试网 evidence 因官方/publicnode RPC 出现 `429` 与 TLS 超时尚未落盘，待 RPC 稳定后重跑。
+- 当前版本协议范围明确为 Uniswap V4 单协议，其他协议留待下一版本。

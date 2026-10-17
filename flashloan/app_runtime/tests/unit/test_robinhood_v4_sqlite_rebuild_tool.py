@@ -1073,3 +1073,33 @@ def test_v4_incremental_index_merges_existing_sqlite_pools_with_new_pools(tmp_pa
     assert "pool-tz-usde" in pool_ids
     assert new_pool_id in pool_ids
     assert merged["generatedBlockNumber"] == 123457
+
+
+def test_testnet_backfill_liquidity_confirm_calls_batch_without_w3(monkeypatch):
+    from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter as quote_adapter
+    from dex.tools.refresh_robinhood_v4_live import _confirm_backfill_pool_liquidity
+
+    pool_id = "0x" + "ab" * 32
+    seen: dict = {}
+
+    def fake_batch(**kwargs):
+        seen["kwargs"] = kwargs
+        assert "w3" not in kwargs
+        return {
+            pool_id: {
+                "liquidity": str(10**18),
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+        }
+
+    monkeypatch.setattr(quote_adapter, "_batch_read_live_pool_states", fake_batch)
+    confirm = _confirm_backfill_pool_liquidity(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        rpc_url="https://fake-testnet.example",
+        pool_manager="0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        batch_size=100,
+    )
+    confirmed = confirm([{"poolId": pool_id}])
+    assert confirmed == {pool_id}
+    assert seen["kwargs"]["rpc_url"] == "https://fake-testnet.example"
+    assert seen["kwargs"]["pool_ids"] == [pool_id]
