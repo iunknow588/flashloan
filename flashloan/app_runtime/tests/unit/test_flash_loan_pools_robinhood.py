@@ -10,121 +10,7 @@ def _write_json(path, payload):
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _robinhood_flash_snapshot():
-    return {
-        "ok": True,
-        "network": "robinhood",
-        "chainId": 4663,
-        "generatedAt": "2026-08-24T00:00:00+00:00",
-        "morphoBlueCore": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
-        "uniswapV2Factory": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
-        "rpcUrl": "https://rpc.example",
-        "sources": [
-            {
-                "protocol": "morpho_blue",
-                "source_kind": "flash_loan",
-                "display_name": "Morpho Blue USDG",
-                "provider": "Morpho Blue Core",
-                "provider_address": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
-                "token_symbol": "USDG",
-                "token_address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
-                "available_liquidity": 41_660_722.032807,
-                "depth_score_usd": 41_660_722.032807,
-                "fee_bps": 0,
-                "flash_capable": True,
-                "flash_borrowable": True,
-                "borrowable": True,
-                "repayment_model": "exact_amount_no_protocol_fee",
-            },
-            {
-                "protocol": "morpho_blue",
-                "source_kind": "flash_loan",
-                "display_name": "Morpho Blue WETH",
-                "provider": "Morpho Blue Core",
-                "provider_address": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
-                "token_symbol": "WETH",
-                "token_address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                "available_liquidity": 0.017349,
-                "depth_score_usd": 42.5,
-                "fee_bps": 0,
-                "flash_capable": True,
-                "flash_borrowable": True,
-                "borrowable": True,
-                "repayment_model": "exact_amount_no_protocol_fee",
-            },
-            {
-                "protocol": "uniswap_v2",
-                "source_kind": "flash_swap",
-                "display_name": "Uniswap V2 WETH:USDG",
-                "provider": "Uniswap V2 Pair",
-                "provider_address": "0x8803c117ccae7b5146297876c2a25df135141c4d",
-                "factory_address": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
-                "token_symbol": "WETH:USDG",
-                "token_address": "0x8803c117ccae7b5146297876c2a25df135141c4d",
-                "token0_symbol": "WETH",
-                "token1_symbol": "USDG",
-                "token0_address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                "token1_address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
-                "reserve0": 45.36597264479032,
-                "reserve1": 110_985.20182,
-                "available_liquidity": 110_985.20182,
-                "depth_score_usd": 222_082.83,
-                "fee_bps": 30,
-                "flash_capable": True,
-                "flash_borrowable": True,
-                "borrowable": True,
-                "repayment_model": "uniswap_v2_repay_amount_out_times_1000_div_997_plus_one",
-            },
-        ],
-        "errors": [],
-        "evidence": ["rh-flash-toolkit", "readonly_test"],
-    }
-
-
-def test_flash_loan_pools_keeps_robinhood_uniswap_v3_view_sqlite_only(tmp_path, monkeypatch):
-    evidence_dir = tmp_path / "robinhood" / "dex_discovery" / "20260824T000000Z"
-    evidence_dir.mkdir(parents=True)
-    _write_json(
-        evidence_dir / "pool_static_table.json",
-        {
-            "network": "robinhood",
-            "chainId": 4663,
-            "generatedAt": "2026-08-24T00:00:00Z",
-            "factory": "0x" + "f" * 40,
-            "pools": [
-                {
-                    "chainId": 4663,
-                    "protocol": "uniswap_v3",
-                    "status": "observable",
-                    "pool": "0x" + "1" * 40,
-                    "symbolPair": "WETH:USDG",
-                    "token0Symbol": "WETH",
-                    "token1Symbol": "USDG",
-                    "token0": "0x" + "2" * 40,
-                    "token1": "0x" + "3" * 40,
-                    "fee": "500",
-                    "liquidity": "290336060850729630",
-                    "evidence": {
-                        "blockNumber": 43037858,
-                        "factoryQueryVerified": True,
-                        "eventVerified": False,
-                        "poolCodeVerified": True,
-                        "poolStateVerified": True,
-                    },
-                },
-                {
-                    "chainId": 4663,
-                    "protocol": "uniswap_v2",
-                    "status": "observable",
-                    "pool": "0x" + "4" * 40,
-                    "symbolPair": "WETH:FAKE",
-                    "token0Symbol": "WETH",
-                    "token1Symbol": "FAKE",
-                    "evidence": {"poolCodeVerified": False},
-                },
-            ],
-        },
-    )
+def test_flash_loan_pools_rejects_robinhood_uniswap_v3(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
@@ -145,72 +31,25 @@ def test_flash_loan_pools_keeps_robinhood_uniswap_v3_view_sqlite_only(tmp_path, 
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=4663,
         protocols=["uniswap_v3"],
-        robinhood_evidence_root=evidence_dir.parent,
     )
 
     view = payload["protocol_views"][0]
     assert view["protocol"] == "uniswap_v3"
-    assert view["status"] == "protocol_pool_cache_not_available"
-    assert "SQLite" in view["status_message"]
-    assert view["cache"]["source"] == "sqlite_db"
+    assert view["status"] == "chain_protocol_not_supported"
 
 
-def test_flash_loan_pools_defaults_robinhood_to_morpho_when_flash_source_is_available(tmp_path, monkeypatch):
-    evidence_dir = tmp_path / "robinhood" / "dex_discovery" / "20260824T000000Z"
-    evidence_dir.mkdir(parents=True)
-    _write_json(
-        evidence_dir / "pool_static_table.json",
-        {
-            "network": "robinhood",
-            "chainId": 4663,
-            "pools": [
-                {
-                    "protocol": "uniswap_v3",
-                    "status": "observable",
-                    "pool": "0x" + "1" * 40,
-                    "symbolPair": "WETH:USDG",
-                    "token0Symbol": "WETH",
-                    "token1Symbol": "USDG",
-                    "evidence": {
-                        "factoryQueryVerified": True,
-                        "poolCodeVerified": True,
-                        "poolStateVerified": True,
-                    },
-                }
-            ],
-        },
-    )
+def test_flash_loan_pools_defaults_robinhood_mainnet_to_uniswap_v4(tmp_path, monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
         lambda database_url=None: [
             {
-                "market_id": "robinhood-morpho-blue-flash",
-                "feature": "liquidation",
-                "network": "robinhood",
-                "chain_id": 4663,
-                "market_type": "shadow_chain",
-                "protocol": "morpho_blue",
-                "protocol_supported": False,
-                "observation_only": True,
-            },
-            {
-                "market_id": "robinhood-liquidation-shadow",
-                "feature": "liquidation",
-                "network": "robinhood",
-                "chain_id": 4663,
-                "market_type": "shadow_chain",
-                "protocol": "aave_v3",
-                "protocol_supported": False,
-                "observation_only": True,
-            },
-            {
-                "market_id": "robinhood-dex-shadow",
+                "market_id": "dex-arbitrage-4663-uniswap-v4",
                 "feature": "dex_arbitrage",
                 "network": "robinhood",
                 "chain_id": 4663,
                 "market_type": "shadow_chain",
-                "protocol": "uniswap_v3",
+                "protocol": "uniswap_v4",
                 "protocol_supported": False,
                 "observation_only": True,
             },
@@ -219,39 +58,16 @@ def test_flash_loan_pools_defaults_robinhood_to_morpho_when_flash_source_is_avai
 
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=4663,
-        robinhood_evidence_root=evidence_dir.parent,
-        robinhood_flash_liquidity_loader=_robinhood_flash_snapshot,
+        database_url=str(tmp_path / "empty.sqlite3"),
     )
 
+    view = payload["protocol_views"][0]
     assert payload["scope"]["protocols"] == []
-    assert payload["protocol_views"][0]["protocol"] == "morpho_blue"
-    assert "status" not in payload["protocol_views"][0]
-    assert payload["protocol_views"][0]["display_mode"] == "flash_loan_source"
-    assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] == 2
-    assert payload["protocol_views"][0]["summary"]["stable_borrow_pool_count"] == 1
-    assert payload["protocol_views"][0]["summary"]["non_stable_borrow_pool_count"] == 1
-    assert payload["protocol_views"][0]["summary"]["flashloan_borrowable_pool_count"] == 2
+    assert view["protocol"] == "uniswap_v4"
+    assert view["status"] == "protocol_pool_cache_not_available"
 
 
-def test_flash_loan_pools_reports_robinhood_supported_protocol_without_evidence(tmp_path, monkeypatch):
-    evidence_dir = tmp_path / "robinhood" / "dex_discovery" / "20260824T000000Z"
-    evidence_dir.mkdir(parents=True)
-    _write_json(
-        evidence_dir / "pool_static_table.json",
-        {
-            "network": "robinhood",
-            "chainId": 4663,
-            "pools": [
-                {
-                    "protocol": "uniswap_v3",
-                    "status": "observable",
-                    "pool": "0x" + "1" * 40,
-                    "symbolPair": "WETH:USDG",
-                    "evidence": {"factoryQueryVerified": True, "poolCodeVerified": True},
-                }
-            ],
-        },
-    )
+def test_flash_loan_pools_rejects_robinhood_uniswap_v2(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
@@ -272,16 +88,13 @@ def test_flash_loan_pools_reports_robinhood_supported_protocol_without_evidence(
     payload = flash_loan_pools.flash_loan_pools_payload(
         chain_id=4663,
         protocols=["uniswap_v2"],
-        robinhood_evidence_root=evidence_dir.parent,
-        robinhood_flash_liquidity_loader=lambda: {**_robinhood_flash_snapshot(), "sources": []},
     )
 
-    assert payload["summary"]["provider_count"] == 1
-    assert payload["protocol_views"][0]["status"] == "protocol_pool_cache_not_available"
-    assert payload["protocol_views"][0]["status_message"] == "Robinhood Uniswap V2 暂无可展示闪电资金来源"
+    view = payload["protocol_views"][0]
+    assert view["status"] == "chain_protocol_not_supported"
 
 
-def test_flash_loan_pools_uses_robinhood_morpho_blue_flash_liquidity(monkeypatch):
+def test_flash_loan_pools_rejects_robinhood_morpho_blue(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
@@ -296,34 +109,18 @@ def test_flash_loan_pools_uses_robinhood_morpho_blue_flash_liquidity(monkeypatch
                 "protocol": "morpho_blue",
                 "protocol_supported": False,
                 "observation_only": True,
-                "pool_address": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
             },
         ],
     )
 
     payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
         protocols=["morpho_blue"],
-        robinhood_flash_liquidity_loader=_robinhood_flash_snapshot,
     )
 
     view = payload["protocol_views"][0]
     assert view["protocol"] == "morpho_blue"
-    assert view["display_mode"] == "flash_loan_source"
-    assert view["cache"]["pool_address"] == ""
-    assert view["cache"]["identities"][0]["kind"] == "core"
-    assert view["cache"]["identities"][0]["value"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
-    assert view["summary"]["stable_borrow_pool_count"] == 1
-    assert view["summary"]["non_stable_borrow_pool_count"] == 1
-    assert view["summary"]["borrow_asset_count"] == 2
-    assert view["summary"]["borrow_target_count"] == 2
-    assert view["stable_borrow_pools"][0]["token_symbol"] == "USDG"
-    assert view["stable_borrow_pools"][0]["fee"] == 0
-    assert view["stable_borrow_pools"][0]["pool_address"] == ""
-    assert view["stable_borrow_pools"][0]["provider_address"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
-    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "WETH"
-    assert payload["providers"][0]["provider_kind"] == "lending_pool"
-    assert payload["providers"][0]["bot_consumable"] is True
-    assert payload["providers"][0]["dex_consumable"] is True
+    assert view["status"] == "chain_protocol_not_supported"
 
 
 def test_flash_loan_pools_keeps_robinhood_testnet_isolated_from_mainnet_flash_liquidity(monkeypatch):
@@ -872,45 +669,47 @@ def test_flash_loan_pools_payload_never_reads_static_json_for_ordinary_reads(tmp
     assert view["cache"]["source"] == "test-db-only"
 
 
-def test_flash_loan_pools_uses_robinhood_uniswap_v2_flash_swap_liquidity(monkeypatch):
+def test_flash_loan_pools_filters_robinhood_providers_to_supported_protocols(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
         "supported_market_summaries",
         lambda database_url=None: [
             {
+                "market_id": "dex-arbitrage-4663-uniswap-v4",
+                "feature": "dex_arbitrage",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "market_type": "shadow_chain",
+                "protocol": "uniswap_v4",
+                "protocol_supported": False,
+                "observation_only": True,
+            },
+            {
+                "market_id": "robinhood-morpho-blue-flash",
+                "feature": "liquidation",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "market_type": "shadow_chain",
+                "protocol": "morpho_blue",
+                "protocol_supported": False,
+                "observation_only": True,
+            },
+            {
                 "market_id": "robinhood-dex-v2-shadow",
                 "feature": "dex_arbitrage",
-                "display_name": "Robinhood Uniswap V2 Flash Swap",
                 "network": "robinhood",
                 "chain_id": 4663,
                 "market_type": "shadow_chain",
                 "protocol": "uniswap_v2",
                 "protocol_supported": False,
                 "observation_only": True,
-                "pool_address": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
             },
         ],
     )
 
-    payload = flash_loan_pools.flash_loan_pools_payload(
-        chain_id=4663,
-        protocols=["uniswap_v2"],
-        robinhood_flash_liquidity_loader=_robinhood_flash_snapshot,
-    )
+    payload = flash_loan_pools.flash_loan_pools_payload(chain_id=4663)
 
-    view = payload["protocol_views"][0]
-    assert view["protocol"] == "uniswap_v2"
-    assert view["display_mode"] == "flash_swap_source"
-    assert view["summary"]["stable_borrow_pool_count"] == 1
-    assert view["summary"]["borrow_asset_count"] == 2
-    assert view["summary"]["flashloan_borrowable_pool_count"] == 1
-    assert view["stable_borrow_pools"][0]["token_symbol"] == "WETH:USDG"
-    assert view["stable_borrow_pools"][0]["fee"] == 30
-    assert view["stable_borrow_pools"][0]["pool_address"] == "0x8803c117ccae7b5146297876c2a25df135141c4d"
-    assert view["stable_borrow_pools"][0]["provider_address"] == "0x8803c117ccae7b5146297876c2a25df135141c4d"
-    assert view["cache"]["pool_address"] == ""
-    assert view["cache"]["identities"][0]["kind"] == "factory"
-    assert view["cache"]["identities"][0]["value"] == "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
+    assert [provider["protocol"] for provider in payload["providers"]] == ["uniswap_v4"]
 
 
 ROBINHOOD_MAINNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"

@@ -68,8 +68,8 @@ def test_robinhood_mainnet_and_testnet_have_separate_data_and_handlers():
     assert testnet["chain_id"] == 46630
     assert mainnet["data_file"].endswith("chains\\robinhood\\chain.json") or mainnet["data_file"].endswith("chains/robinhood/chain.json")
     assert testnet["data_file"].endswith("chains\\robinhood-testnet\\chain.json") or testnet["data_file"].endswith("chains/robinhood-testnet/chain.json")
-    assert "uniswap_v4" in mainnet["flash_loan"]["candidate_protocols"]
-    assert "uniswap_v4" in mainnet_flash_flow["allowed_protocols"]
+    assert mainnet["flash_loan"]["candidate_protocols"] == ["uniswap_v4"]
+    assert mainnet_flash_flow["allowed_protocols"] == ["uniswap_v4"]
     assert processing_handler_for_chain(4663, "flash_loan_pools") != processing_handler_for_chain(
         46630,
         "flash_loan_pools",
@@ -189,22 +189,10 @@ def test_supported_protocol_counts_are_owned_by_chain_config():
     assert chain_supported_protocol_count("robinhood-testnet") == 1
     assert chain_supported_protocols("robinhood-testnet") == ["uniswap_v4"]
     assert chain_supported_protocols("robinhood-testnet", protocol_set="default") == ["uniswap_v4"]
-    assert inventory["robinhood"]["supportedProtocolCount"] == 5
-    assert inventory["robinhood"]["candidateProtocols"] == [
-        "morpho_blue",
-        "aave_v3",
-        "uniswap_v2",
-        "uniswap_v3",
-        "uniswap_v4",
-    ]
-    assert chain_supported_protocol_count("robinhood") == 5
-    assert chain_supported_protocols("robinhood") == [
-        "morpho_blue",
-        "aave_v3",
-        "uniswap_v2",
-        "uniswap_v3",
-        "uniswap_v4",
-    ]
+    assert inventory["robinhood"]["supportedProtocolCount"] == 1
+    assert inventory["robinhood"]["candidateProtocols"] == ["uniswap_v4"]
+    assert chain_supported_protocol_count("robinhood") == 1
+    assert chain_supported_protocols("robinhood") == ["uniswap_v4"]
     assert chain_supported_protocols("robinhood", protocol_set="default") == ["uniswap_v4"]
 
 
