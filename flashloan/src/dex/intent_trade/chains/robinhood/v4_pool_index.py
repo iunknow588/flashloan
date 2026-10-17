@@ -24,6 +24,7 @@ from core.chain_data_registry import chain_data_file_path, chain_data_by_network
 from eth_utils import event_signature_to_log_topic
 
 from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
+    build_v4_directional_pool_backfill as _backfill_core,
     build_v4_pool_index_from_initialize_logs as _build_core,
     keep_token_addresses_from_payload,
     load_robinhood_v4_pool_index as _load_core,
@@ -889,6 +890,50 @@ def build_v4_pool_index_from_initialize_logs(
     )
 
 
+def build_v4_directional_pool_backfill(
+    *,
+    rpc_url: str | None = None,
+    rpc_urls: tuple[str, ...] | list[str] | None = None,
+    hyperrpc_url: str = "",
+    prefer_hyperrpc: bool = False,
+    pool_manager: str | None = None,
+    direction_targets: dict,
+    direction_floor_block: int = 0,
+    chunk_size: int = 100_000,
+    confirm_pool_liquidity: object | None = None,
+) -> dict:
+    """Scan mainnet Initialize logs newest-to-oldest until directions are full."""
+    row = _chain_row()
+    resolved_rpc_url = rpc_url or str(row.get("rpc_url") or "").strip()
+    if not resolved_rpc_url:
+        rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+        resolved_rpc_url = str(rpc_block.get("primary") or "").strip()
+    if not resolved_rpc_url:
+        raise ValueError("Robinhood mainnet RPC URL is not configured")
+    resolved_pool_manager = Web3.to_checksum_address(
+        pool_manager or _contract_address("v4_pool_manager")
+    )
+    resolved_rpc_urls = list(rpc_urls) if rpc_urls else list(rpc_urls_from_env())
+    if resolved_rpc_url and resolved_rpc_url not in resolved_rpc_urls:
+        resolved_rpc_urls.insert(0, resolved_rpc_url)
+    return _backfill_core(
+        network=NETWORK,
+        chain_id=CHAIN_ID,
+        pool_manager=resolved_pool_manager,
+        rpc_url=resolved_rpc_url,
+        rpc_urls=resolved_rpc_urls,
+        hyperrpc_url=hyperrpc_url or os.getenv("ROBINHOOD_HYPERRPC_URL", os.getenv("ROBINHOOD_HyperRPC_URL", "")),
+        prefer_hyperrpc=bool(prefer_hyperrpc),
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets=direction_targets,
+        direction_floor_block=direction_floor_block,
+        include_currency_metadata=False,
+        chunk_size=chunk_size,
+        confirm_pool_liquidity=confirm_pool_liquidity,
+        rpc_user_agent="flashloan-robinhood-mainnet-v4/1.0",
+    )
+
+
 def write_v4_pool_index_from_initialize_logs(output_path: Path | None = None, **kwargs: Any) -> dict[str, Any]:
     row = _chain_row()
     resolved_rpc_url = kwargs.pop("rpc_url", None) or str(row.get("rpc_url") or "").strip()
@@ -931,6 +976,7 @@ def load_robinhood_mainnet_v4_pool_index(path: Path | None = None) -> dict[str, 
 
 
 __all__ = [
+    "build_v4_directional_pool_backfill",
     "build_v4_pool_index_from_initialize_logs",
     "build_v4_pool_index_from_observation_pool_ids",
     "default_v4_pool_index_path",

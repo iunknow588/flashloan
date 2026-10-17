@@ -292,6 +292,311 @@ def _fetch_logs_sharded(
     return logs
 
 
+def _fetch_logs_sharded_reverse(
+    *,
+    providers: list[str],
+    pool_manager: str,
+    topic: str,
+    from_block: int,
+    to_block: int,
+    initial_chunk_size: int,
+    min_chunk_size: int,
+    timeout_seconds: float,
+    user_agent: str,
+    attempts_per_segment: int = 6,
+    should_stop: object | None = None,
+) -> list[Any]:
+    """Fetch log segments from newest to oldest.
+
+    The returned list keeps segments in descending order; callers that need
+    ascending blocks sort before decoding.  Each segment is fetched through
+    the same provider fallback and adaptive shrinking as the forward scan.
+    When ``should_stop(segment_logs)`` returns truthy, older segments are no
+    longer fetched, which lets a directional backfill stop at a satisfied
+    direction instead of walking the whole chain.
+    """
+    if not providers:
+        raise ValueError("no RPC providers configured for reverse V4 log scan")
+    logs: list[Any] = []
+    failures: list[str] = []
+    cursor = int(to_block)
+    end_block = max(0, int(from_block))
+    step = max(1, int(initial_chunk_size))
+    min_step = max(1, int(min_chunk_size))
+    provider_index = 0
+    healthy_provider_indexes = list(range(len(providers)))
+    unhealthy_providers: set[str] = set()
+    while cursor >= end_block:
+        start = max(end_block, cursor - step + 1)
+        segment_logs = None
+        last_error: Exception | None = None
+        segment_attempts = 0
+        while segment_logs is None and segment_attempts < max(1, int(attempts_per_segment)):
+            segment_attempts += 1
+            healthy_indexes = [
+                index
+                for index in healthy_provider_indexes
+                if providers[index] not in unhealthy_providers
+            ]
+            if not healthy_indexes:
+                unhealthy_providers.clear()
+                healthy_indexes = list(healthy_provider_indexes)
+            provider_index = healthy_indexes[provider_index % len(healthy_indexes)]
+            url = providers[provider_index]
+            try:
+                segment_logs = _get_logs_jsonrpc(
+                    url,
+                    pool_manager=pool_manager,
+                    topic=topic,
+                    from_block=start,
+                    to_block=cursor,
+                    timeout_seconds=timeout_seconds,
+                    user_agent=user_agent,
+                )
+                break
+            except Exception as exc:
+                last_error = exc
+                message = str(exc)
+                failures.append(f"{_redact_url(url)} {start}-{cursor}: {message[:180]}")
+                if _is_rpc_permanent_error(message):
+                    unhealthy_providers.add(url)
+                if _is_rpc_limit_error(message) and step > min_step:
+                    step = max(min_step, step // 2)
+                elif segment_attempts >= attempts_per_segment and step > min_step:
+                    step = max(min_step, step // 2)
+                if not _is_rpc_limit_error(message):
+                    provider_index += 1
+        if segment_logs is None:
+            raise RuntimeError(
+                f"failed to fetch {topic} logs {start}-{cursor} after {segment_attempts} attempts; "
+                f"last: {last_error}; recent failures: {failures[-3:]}"
+            )
+        logs.extend(segment_logs)
+        if should_stop is not None and should_stop(segment_logs):
+            break
+        cursor = start - 1
+        if len(healthy_provider_indexes) > 1:
+            provider_index = (provider_index + 1) % len(healthy_provider_indexes)
+    return logs
+
+
+def _directional_keys(token0: object, token1: object) -> tuple[str, str]:
+    """Return canonical (forward, reverse) keys for one physical pool.
+
+    Forward is always the lower-address token to the higher-address token;
+    reverse is the mirror.  This keeps direction labels independent of the
+    token0/token1 order the chain stored in the Initialize event.
+    """
+    left = str(token0 or "").strip().lower()
+    right = str(token1 or "").strip().lower()
+    if not left.startswith("0x") or not right.startswith("0x"):
+        return f"{left}:{right}", f"{right}:{left}"
+    small, large = sorted((left, right))
+    return f"{small}:{large}", f"{large}:{small}"
+
+
+def build_v4_directional_pool_backfill(
+    *,
+    network: str,
+    chain_id: int,
+    pool_manager: str,
+    rpc_url: str,
+    schema_version: str,
+    direction_targets: dict[str, int],
+    direction_floor_block: int = 0,
+    include_currency_metadata: bool = False,
+    confirm_pool_liquidity: object | None = None,
+    rpc_urls: Iterable[str] | None = None,
+    hyperrpc_url: str = "",
+    chunk_size: int = 100_000,
+    min_chunk_size: int = 1_000,
+    rpc_connect_timeout: float = 20.0,
+    rpc_connect_attempts: int = 3,
+    rpc_user_agent: str = "flashloan-robinhood-v4/1.0",
+    prefer_hyperrpc: bool = True,
+) -> dict[str, Any]:
+    """Backfill candidate pools from the newest Initialize blocks downward.
+
+    ``direction_targets`` maps a direction key ``token0:token1`` to the number
+    of pools that make that direction complete.  Forward is the lower-address
+    token to the higher-address token and reverse is the mirror; a physical
+    pool contributes to both, regardless of the chain's stored token order.
+    The scan starts at the latest block and walks backward.  It stops as soon
+    as every direction has reached its target, or when
+    ``direction_floor_block`` (the pool creation floor) is reached, whichever
+    comes first.  When ``confirm_pool_liquidity`` is provided it receives the
+    segment candidate pools and returns a set of lower-case pool ids with
+    confirmed liquidity; only those pools count toward a direction target, so
+    the scan stops once each direction has its five live pools instead of
+    merely five Initialize events.
+    """
+    if not direction_targets:
+        return {
+            "schemaVersion": schema_version,
+            "network": network,
+            "chainId": int(chain_id),
+            "generatedAt": _stamp(),
+            "generatedBlockNumber": 0,
+            "fromBlock": 0,
+            "toBlock": 0,
+            "scanDirection": "newest_to_oldest",
+            "directionTargets": {},
+            "directionCounts": {},
+            "neededDirectionCount": 0,
+            "satisfiedDirectionCount": 0,
+            "stoppedReason": "no_direction_targets",
+            "scannedSegmentCount": 0,
+            "initializeLogCount": 0,
+            "selectedPoolCount": 0,
+            "pools": [],
+            "poolKeys": [],
+        }
+    providers = _normalized_provider_urls(
+        rpc_url,
+        rpc_urls=rpc_urls,
+        hyperrpc_url=hyperrpc_url,
+        prefer_hyperrpc=prefer_hyperrpc,
+    )
+    w3 = _connect_rpc_from_urls(
+        providers,
+        user_agent=rpc_user_agent,
+        timeout_seconds=rpc_connect_timeout,
+        attempts=rpc_connect_attempts,
+    )
+    actual_chain_id = int(w3.eth.chain_id)
+    if actual_chain_id != int(chain_id):
+        raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {chain_id}")
+    latest_block = int(w3.eth.block_number)
+    floor_block = max(0, int(direction_floor_block))
+    targets: dict[str, int] = {}
+    for direction, target in direction_targets.items():
+        raw_left, _, raw_right = str(direction or "").partition(":")
+        left = raw_left.strip().lower()
+        right = raw_right.strip().lower()
+        if not left.startswith("0x") or not right.startswith("0x"):
+            continue
+        small, large = sorted((left.lower(), right.lower()))
+        if f"{small}:{large}" == f"{left}:{right}":
+            key = f"{small}:{large}"
+        else:
+            key = f"{large}:{small}"
+        targets[key] = max(1, int(target))
+    targets = dict(sorted(targets.items()))
+    counts: dict[str, int] = {}
+    remaining: dict[str, int] = {direction: target for direction, target in targets.items()}
+    pools: list[dict[str, Any]] = []
+    pool_keys: list[dict[str, Any]] = []
+    seen_pool_ids: set[str] = set()
+    metadata_cache: dict[str, dict[str, Any]] = {}
+    initialize_log_count = 0
+    scanned_segment_count = 0
+
+    def _process_segment(segment: list[Any]) -> bool:
+        nonlocal initialize_log_count, scanned_segment_count
+        scanned_segment_count += 1
+        segment_candidates: list[dict[str, Any]] = []
+        for log in segment:
+            initialize_log_count += 1
+            pool = _pool_row_from_initialize_log(
+                w3,
+                log,
+                pool_manager=pool_manager,
+                include_metadata=False,
+                include_currency_metadata=include_currency_metadata,
+                metadata_cache=metadata_cache,
+            )
+            pool_id = str(pool.get("poolId") or "").lower()
+            if not pool_id or pool_id in seen_pool_ids:
+                continue
+            seen_pool_ids.add(pool_id)
+            direction, reverse = _directional_keys(
+                pool.get("token0"),
+                pool.get("token1"),
+            )
+            if direction not in remaining and reverse not in remaining:
+                continue
+            segment_candidates.append(pool)
+        confirmed_ids: set[str] = set()
+        if segment_candidates and confirm_pool_liquidity is not None:
+            confirmed_ids = set(
+                str(pool_id).strip().lower()
+                for pool_id in confirm_pool_liquidity(segment_candidates)
+            )
+        for pool in segment_candidates:
+            pool_id = str(pool.get("poolId") or "").lower()
+            if confirm_pool_liquidity is not None and pool_id not in confirmed_ids:
+                continue
+            direction, reverse = _directional_keys(
+                pool.get("token0"),
+                pool.get("token1"),
+            )
+            if direction not in remaining and reverse not in remaining:
+                continue
+            pools.append(pool)
+            pool_keys.append(pool.get("poolKey"))
+            for key in (direction, reverse):
+                if key not in remaining:
+                    continue
+                counts[key] = counts.get(key, 0) + 1
+                if counts[key] >= remaining[key]:
+                    counts[key] = remaining[key]
+                    del remaining[key]
+        return not remaining
+
+    stopped_reason = "floor_reached_or_range_exhausted"
+    if latest_block >= floor_block:
+        _fetch_logs_sharded_reverse(
+            providers=providers,
+            pool_manager=pool_manager,
+            topic=V4_INITIALIZE_TOPIC,
+            from_block=floor_block,
+            to_block=latest_block,
+            initial_chunk_size=max(1, int(chunk_size)),
+            min_chunk_size=max(1, int(min_chunk_size)),
+            timeout_seconds=rpc_connect_timeout,
+            user_agent=rpc_user_agent,
+            should_stop=_process_segment,
+        )
+        if not remaining:
+            stopped_reason = "direction_targets_satisfied"
+    pools.sort(key=lambda item: int(item.get("initializeBlockNumber") or 0))
+    pool_keys.sort(key=lambda item: int(item.get("initializeBlockNumber") or 0))
+    return {
+        "schemaVersion": schema_version,
+        "network": network,
+        "chainId": int(chain_id),
+        "poolManager": Web3.to_checksum_address(pool_manager),
+        "generatedAt": _stamp(),
+        "generatedBlockNumber": latest_block,
+        "fromBlock": floor_block,
+        "toBlock": latest_block,
+        "scanChunkSize": max(1, int(chunk_size)),
+        "scanDirection": "newest_to_oldest",
+        "providerCount": len(providers),
+        "providerUrls": [_redact_url(url) for url in providers],
+        "directionTargets": {
+            direction: target
+            for direction, target in targets.items()
+        },
+        "directionCounts": {
+            direction: count
+            for direction, count in sorted(counts.items())
+        },
+        "neededDirectionCount": len(targets),
+        "satisfiedDirectionCount": len(targets) - len(remaining),
+        "stoppedReason": stopped_reason,
+        "scannedSegmentCount": scanned_segment_count,
+        "initializeLogCount": initialize_log_count,
+        "selectedPoolCount": len(pools),
+        "poolLimit": 0,
+        "includeMetadata": bool(include_currency_metadata),
+        "poolKeys": pool_keys,
+        "pools": pools,
+        "blockingReasons": [],
+        "discoveryMethod": "poolmanager_initialize_log_reverse_directional_backfill",
+    }
+
+
 def _connect_rpc_from_urls(
     urls: list[str],
     *,
@@ -783,6 +1088,7 @@ __all__ = [
     "V4_INITIALIZE_TOPIC",
     "V4_SWAP_TOPIC",
     "ZERO_ADDRESS",
+    "build_v4_directional_pool_backfill",
     "build_v4_pool_index_from_initialize_logs",
     "keep_token_addresses_from_payload",
     "load_robinhood_v4_pool_index",

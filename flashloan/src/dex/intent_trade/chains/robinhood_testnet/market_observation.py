@@ -1020,7 +1020,7 @@ def _testnet_db_observation_rows(
                     continue
                 seen_active_ids.add(refreshed_id)
                 active_pool_ids.append(refreshed_id)
-                if len(active_pool_ids) >= 3:
+                if len(active_pool_ids) >= MAX_DIRECTION_CANDIDATE_POOLS:
                     break
         for pool_index, pool_id_text in enumerate(active_pool_ids):
             pool = normal_pool_by_id[pool_id_text]

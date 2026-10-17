@@ -782,6 +782,35 @@ def test_refresh_v4_live_incremental_preserves_existing_liquidity(tmp_path):
     assert liquidity[0]["has_liquidity"] == 1
 
 
+def test_refresh_v4_live_cold_import_disabled_is_rpc_free(tmp_path, monkeypatch):
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    database = str(tmp_path / "cold-rpc.sqlite3")
+    _seed_testnet_anchor_pair(database)
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def _fail_connect(*args: object, **kwargs: object) -> tuple[object, str]:
+        calls.append((args, kwargs))
+        raise AssertionError("cold import must not connect RPC when DEX_V4_LIVE_QUOTE_ENABLED=0")
+
+    monkeypatch.setattr(live_tool, "_connect_rpc", _fail_connect)
+    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    report = live_tool.refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        skip_index=True,
+        skip_liquidity=True,
+        anchors="TZ,USDE",
+        clear_cache=False,
+        remove_json_evidence=False,
+        prune_zero_liquidity=False,
+    )
+
+    assert report["ok"] is True
+    assert calls == []
+
+
 def test_v4_incremental_guard_requires_every_pool_has_confirmed_liquidity(tmp_path):
     from dex.tools.refresh_robinhood_v4_live import (
         _v4_incremental_database_state,

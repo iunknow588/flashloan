@@ -11,6 +11,7 @@ from typing import Any
 
 from core.chain_data_registry import chain_data_file_path
 from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
+    build_v4_directional_pool_backfill as _backfill_core,
     build_v4_pool_index_from_initialize_logs as _build_core,
     load_robinhood_v4_pool_index as _load_core,
     write_v4_pool_index_from_initialize_logs as _write_core,
@@ -62,6 +63,33 @@ def build_v4_pool_index_from_initialize_logs(
     )
 
 
+def build_v4_directional_pool_backfill(
+    *,
+    rpc_url: str | None = None,
+    pool_manager: str | None = None,
+    direction_targets: dict,
+    direction_floor_block: int = 0,
+    from_block: int = 0,
+    to_block: int | None = None,
+    chunk_size: int = 100_000,
+    confirm_pool_liquidity: object | None = None,
+) -> dict:
+    """Scan testnet Initialize logs newest-to-oldest until directions are full."""
+    return _backfill_core(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        pool_manager=pool_manager or ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+        rpc_url=rpc_url or _rpc_url_from_env_or_default(),
+        schema_version="robinhood-testnet-v4-pool-index-v1",
+        direction_targets=direction_targets,
+        direction_floor_block=direction_floor_block,
+        include_currency_metadata=False,
+        chunk_size=chunk_size,
+        confirm_pool_liquidity=confirm_pool_liquidity,
+        rpc_user_agent="flashloan-robinhood-testnet-v4/1.0",
+    )
+
+
 def write_v4_pool_index_from_initialize_logs(
     output_path: Path | None = None,
     **kwargs: Any,
@@ -94,6 +122,7 @@ def load_robinhood_testnet_v4_pool_index(path: Path | None = None) -> dict[str, 
 
 
 __all__ = [
+    "build_v4_directional_pool_backfill",
     "build_v4_pool_index_from_initialize_logs",
     "default_v4_pool_index_path",
     "load_robinhood_testnet_v4_pool_index",

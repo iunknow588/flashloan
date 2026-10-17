@@ -15,6 +15,7 @@ from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
     V4_INITIALIZE_TOPIC,
     _fetch_logs_sharded,
 )
+from dex.tools.refresh_robinhood_v4_live import _direction_backfill_plan
 from dex.tools.refresh_robinhood_mainnet_v4_evidence import _normalize_database_arg
 
 
@@ -48,13 +49,15 @@ def _string_initialize_log(pool_id: str, block_number: int) -> dict:
         ["uint24", "int24", "address", "uint160", "int24"],
         [fee, tick_spacing, hooks, sqrt_price_x96, tick],
     )
+    zero_topic = "0x" + "00" * 32
+    one_topic = "0x" + "00" * 12 + "11" * 20
     return {
         "address": _contract_address("v4_pool_manager"),
         "topics": [
             V4_INITIALIZE_TOPIC,
             pool_id,
-            "0x0000000000000000000000000000000000000000",
-            "0x0000000000000000000000001111111111111111111111111111111111111111",
+            zero_topic,
+            one_topic,
         ],
         "data": "0x" + data.hex(),
         "blockNumber": hex(block_number),
@@ -174,6 +177,280 @@ def test_build_index_decodes_string_logs_and_deduplicates_pool_ids(monkeypatch):
     assert payload["selectedPoolCount"] == 1
     assert payload["pools"][0]["poolId"].lower() == pool_id
     assert payload["pools"][0]["initializeBlockNumber"] == 84_000_000
+
+
+def test_directional_backfill_scans_newest_first_and_stops_at_targets(monkeypatch):
+    pool_id = "0x" + "33" * 32
+    calls = []
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+        calls.append((int(from_block), int(to_block)))
+        if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
+            return [_string_initialize_log(pool_id, 84_500_000)]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=84_900_000)
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            "0x0000000000000000000000000000000000000000:0x1111111111111111111111111111111111111111": 1,
+        },
+        direction_floor_block=0,
+        chunk_size=900_000,
+        min_chunk_size=1_000,
+    )
+
+    assert payload["scanDirection"] == "newest_to_oldest"
+    assert payload["stoppedReason"] == "direction_targets_satisfied"
+    assert payload["satisfiedDirectionCount"] == 1
+    assert payload["selectedPoolCount"] == 1
+    assert calls == [(84_000_001, 84_900_000)]
+
+
+def test_directional_backfill_stops_at_pool_creation_floor_when_target_not_reached(monkeypatch):
+    pool_id = "0x" + "44" * 32
+    calls = []
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+        calls.append((int(from_block), int(to_block)))
+        if int(from_block) == 5_000_000 and int(to_block) == 5_999_999:
+            return [_string_initialize_log(pool_id, 5_500_000)]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=5_999_999)
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            "0x0000000000000000000000000000000000000000:0x1111111111111111111111111111111111111111": 2,
+        },
+        direction_floor_block=5_000_000,
+        chunk_size=1_000_000,
+        min_chunk_size=1_000,
+    )
+
+    assert payload["stoppedReason"] == "floor_reached_or_range_exhausted"
+    assert payload["satisfiedDirectionCount"] == 0
+    assert calls == [(5_000_000, 5_999_999)]
+
+
+def test_directional_backfill_counts_pool_for_both_directions_when_liquid(monkeypatch):
+    pool_id = "0x" + "55" * 32
+    z = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    calls = []
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+        calls.append((int(from_block), int(to_block)))
+        if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
+            return [_string_initialize_log(pool_id, 84_500_000)]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=84_900_000)
+
+    def fake_confirm(pools):
+        return {str(pool.get("poolId") or "").lower() for pool in pools}
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            f"{z}:{one}": 1,
+            f"{one}:{z}": 1,
+        },
+        direction_floor_block=0,
+        chunk_size=900_000,
+        min_chunk_size=1_000,
+        confirm_pool_liquidity=fake_confirm,
+    )
+
+    assert payload["stoppedReason"] == "direction_targets_satisfied"
+    assert payload["satisfiedDirectionCount"] == 2
+    assert payload["directionCounts"] == {
+        f"{z}:{one}": 1,
+        f"{one}:{z}": 1,
+    }
+    assert calls == [(84_000_001, 84_900_000)]
+
+
+def test_directional_backfill_uses_sorted_address_direction_keys(monkeypatch):
+    pool_id = "0x" + "66" * 32
+    z = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    calls = []
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+        calls.append((int(from_block), int(to_block)))
+        if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
+            log = _string_initialize_log(pool_id, 84_500_000)
+            log["topics"][2], log["topics"][3] = log["topics"][3], log["topics"][2]
+            return [log]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=84_900_000)
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            f"{z}:{one}": 1,
+            f"{one}:{z}": 1,
+        },
+        direction_floor_block=0,
+        chunk_size=900_000,
+        min_chunk_size=1_000,
+    )
+
+    assert payload["stoppedReason"] == "direction_targets_satisfied"
+    assert payload["satisfiedDirectionCount"] == 2
+    assert payload["directionCounts"] == {
+        f"{z}:{one}": 1,
+        f"{one}:{z}": 1,
+    }
+    assert payload["selectedPoolCount"] == 1
+    assert calls == [(84_000_001, 84_900_000)]
+
+
+def test_directional_backfill_caps_count_within_one_segment(monkeypatch):
+    z = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    pool_ids = [f"0x{token_byte:02x}" * 32 for token_byte in (0xaa, 0xbb, 0xcc)]
+    calls = []
+
+    def fake_get_logs(url, *, pool_manager, topic, from_block, to_block, timeout_seconds, user_agent):
+        calls.append((int(from_block), int(to_block)))
+        if int(from_block) == 84_000_001 and int(to_block) == 84_900_000:
+            return [
+                _string_initialize_log(pool_id, 84_500_000 + index)
+                for index, pool_id in enumerate(pool_ids)
+            ]
+        return []
+
+    def fake_connect(providers, *, user_agent, timeout_seconds, attempts):
+        return _fake_w3(block_number=84_900_000)
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    monkeypatch.setattr(core, "_connect_rpc_from_urls", fake_connect)
+    payload = core.build_v4_directional_pool_backfill(
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        pool_manager=_contract_address("v4_pool_manager"),
+        rpc_url="https://hyper.example",
+        schema_version="robinhood-v4-pool-index-v1",
+        direction_targets={
+            f"{z}:{one}": 2,
+        },
+        direction_floor_block=0,
+        chunk_size=900_000,
+        min_chunk_size=1_000,
+    )
+
+    assert payload["stoppedReason"] == "direction_targets_satisfied"
+    assert payload["directionCounts"] == {f"{z}:{one}": 2}
+    assert payload["selectedPoolCount"] == 2
+    assert calls == [(84_000_001, 84_900_000)]
+
+
+def test_direction_backfill_plan_counts_each_pool_direction_separately(tmp_path):
+    from core.db.storage_business_schema import ensure_business_schema
+    from core.db.storage_business_io import executemany
+
+    db_path = str((tmp_path / "plan.sqlite3").resolve())
+    ensure_business_schema(db_path)
+    now = "2026-10-17T00:00:00Z"
+    anchor = "0x" + "cc" * 20
+    party = "0x" + "aa" * 20
+    second = "0x" + "bb" * 20
+    executemany(
+        db_path,
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_identity_mode,
+            pool_manager, pool_key_json, token0, token1, fee, fee_label,
+            dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "robinhood", ROBINHOOD_CHAIN_ID, "uniswap_v4", "0x" + "11" * 32,
+                "v4_pool_id", _contract_address("v4_pool_manager"),
+                '{"initializeBlockNumber": 50000000}', anchor, party, 3000, 3000,
+                0, 0, 60, "0x0000000000000000000000000000000000000000",
+                f"{anchor}:{party}", now, now,
+            ),
+        ],
+    )
+    executemany(
+        db_path,
+        """
+        INSERT INTO dex_candidate_pool_pairs (
+            network, chain_id, protocol, anchor_scope, anchor_symbol,
+            anchor_address, counter_address, address_pair, direction_key,
+            pool_count, fixed_fee_liquid_pool_count, priced_pool_count,
+            yc_optimal_pool_id, zc_optimal_pool_id, yc_backup_pool_ids_json,
+            zc_backup_pool_ids_json, price_reference_json, price_outlier_filter,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "robinhood", ROBINHOOD_CHAIN_ID, "uniswap_v4", "stock", "TEST",
+                anchor, party, f"{anchor}:{party}", f"{anchor}:{party}",
+                1, 1, 1, "", "", "[]", "[]", "{}", "fixed_fee",
+                now, now,
+            ),
+            (
+                "robinhood", ROBINHOOD_CHAIN_ID, "uniswap_v4", "stock", "TEST",
+                anchor, second, f"{anchor}:{second}", f"{anchor}:{second}",
+                1, 1, 1, "0x" + "22" * 32, "0x" + "33" * 32,
+                '["0x' + "44" * 32 + '","0x' + "55" * 32 + '"]',
+                '["0x' + "66" * 32 + '"]', "{}", "fixed_fee",
+                now, now,
+            ),
+        ],
+    )
+    plan = _direction_backfill_plan(
+        database=db_path,
+        network="robinhood",
+        chain_id=ROBINHOOD_CHAIN_ID,
+        direction_limit=5,
+    )
+    assert plan["neededDirectionCount"] == 4
+    assert plan["targets"] == {
+        f"{party}:{anchor}": 5,
+        f"{anchor}:{party}": 5,
+        f"{second}:{anchor}": 5,
+        f"{anchor}:{second}": 5,
+    }
+    assert plan["floor_block"] == 50_000_000
 
 
 def test_refresh_database_arg_resolves_relative_paths_from_repo_root(tmp_path):

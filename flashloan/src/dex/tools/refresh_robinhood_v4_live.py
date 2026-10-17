@@ -643,6 +643,238 @@ def _pool_ids_arg(pool_ids: str | list[str] | None) -> list[str]:
     ]
 
 
+def _direction_backfill_plan(
+    *,
+    database: str,
+    network: str,
+    chain_id: int,
+    direction_limit: int = 5,
+    protocol: str = "uniswap_v4",
+) -> dict:
+    """Return canonical token directions that have fewer than ``direction_limit`` pools.
+
+    Forward is the lower-address token to the higher-address token and reverse
+    is the mirror, regardless of the anchor order stored in
+    ``dex_candidate_pool_pairs``.  The floor for each edge is the earliest
+    Initialize block already stored in SQLite for that edge; the reverse scan
+    never goes earlier than the pool creation block.
+    """
+    from core.db.storage_business_io import query
+
+    rows = query(
+        database,
+        """
+        SELECT direction_key,
+               COALESCE(yc_optimal_pool_id, '') AS yc_optimal,
+               COALESCE(zc_optimal_pool_id, '') AS zc_optimal,
+               COALESCE(yc_backup_pool_ids_json, '[]') AS yc_backup,
+               COALESCE(zc_backup_pool_ids_json, '[]') AS zc_backup
+        FROM dex_candidate_pool_pairs
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    totals_by_pair: dict[str, dict[str, int]] = {}
+    for row in rows:
+        direction_key = str(row.get("direction_key") or "").strip().lower()
+        if ":" not in direction_key:
+            continue
+        left, right = direction_key.split(":", 1)
+        if not left.startswith("0x") or not right.startswith("0x"):
+            continue
+        yc_opt = 1 if str(row.get("yc_optimal") or "").strip().lower().startswith("0x") else 0
+        zc_opt = 1 if str(row.get("zc_optimal") or "").strip().lower().startswith("0x") else 0
+        try:
+            yc_backup = json.loads(row.get("yc_backup") or "[]")
+            zc_backup = json.loads(row.get("zc_backup") or "[]")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            yc_backup, zc_backup = [], []
+        yc_total = yc_opt + sum(
+            1
+            for item in (yc_backup if isinstance(yc_backup, list) else [])
+            if str(item or "").strip().lower().startswith("0x")
+        )
+        zc_total = zc_opt + sum(
+            1
+            for item in (zc_backup if isinstance(zc_backup, list) else [])
+            if str(item or "").strip().lower().startswith("0x")
+        )
+        small, large = sorted((left, right))
+        forward_key = f"{small}:{large}"
+        reverse_key = f"{large}:{small}"
+        totals = totals_by_pair.setdefault(
+            forward_key,
+            {"forward": 0, "reverse": 0},
+        )
+        if direction_key == forward_key:
+            totals["forward"] += yc_total
+            totals["reverse"] += zc_total
+        else:
+            totals["reverse"] += yc_total
+            totals["forward"] += zc_total
+    direction_target = max(1, int(direction_limit))
+    targets: dict[str, int] = {}
+    address_pairs: list[str] = []
+    for forward_key, totals in sorted(totals_by_pair.items()):
+        left, _, right = forward_key.partition(":")
+        reverse_key = f"{right}:{left}"
+        if totals["forward"] < direction_target:
+            targets[forward_key] = direction_target
+            address_pairs.append(forward_key)
+        if totals["reverse"] < direction_target:
+            targets[reverse_key] = direction_target
+            address_pairs.append(reverse_key)
+    if not targets:
+        return {
+            "targets": {},
+            "floor_block": 0,
+            "neededDirectionCount": 0,
+            "basis": "all_directions_satisfied",
+        }
+    address_pairs = list(dict.fromkeys(address_pairs))
+    placeholders = ",".join("?" for _ in address_pairs)
+    pool_rows = query(
+        database,
+        f"""
+        SELECT p.address_pair,
+               MIN(CAST(json_extract(p.pool_key_json, '$.initializeBlockNumber') AS INTEGER))
+                 AS floor_block
+        FROM v4_exchange_pools p
+        WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+          AND p.pool_key_json LIKE '%"initializeBlockNumber"%'
+          AND LOWER(p.address_pair) IN ({placeholders})
+        GROUP BY p.address_pair
+        """,
+        (
+            network,
+            chain_id,
+            protocol,
+            *address_pairs,
+        ),
+    )
+    floors: list[int] = []
+    for row in pool_rows:
+        pair = str(row.get("address_pair") or "").strip().lower()
+        if pair not in address_pairs:
+            continue
+        try:
+            floors.append(int(row.get("floor_block") or 0))
+        except (TypeError, ValueError):
+            continue
+    return {
+        "targets": targets,
+        "floor_block": min(floors) if floors else 0,
+        "neededDirectionCount": len(targets),
+        "basis": "direction_candidate_shortfall",
+    }
+
+
+def _merge_directional_backfill_into_index(
+    index_payload: dict,
+    backfill_payload: dict,
+) -> dict:
+    pools = list(index_payload.get("pools") or [])
+    merged_by_id: dict[str, dict] = {}
+    for pool in pools:
+        pool_id = str(pool.get("poolId") or pool.get("pool_id") or pool.get("pool") or "").strip().lower()
+        if pool_id:
+            merged_by_id.setdefault(pool_id, dict(pool))
+    for pool in backfill_payload.get("pools") or []:
+        pool_id = str(pool.get("poolId") or pool.get("pool_id") or pool.get("pool") or "").strip().lower()
+        if not pool_id:
+            continue
+        merged_by_id[pool_id] = dict(pool)
+    merged = list(merged_by_id.values())
+    return {
+        **index_payload,
+        "pools": merged,
+        "poolCount": len(merged),
+        "generatedBlockNumber": (
+            int(backfill_payload.get("generatedBlockNumber") or index_payload.get("generatedBlockNumber") or 0)
+        ),
+        "source": "onchain_initialize_logs_reverse_directional_backfill",
+    }
+
+
+def _confirm_backfill_pool_liquidity(
+    *,
+    network: str,
+    rpc_url: str | None,
+    pool_manager: str | None,
+    batch_size: int = 100,
+) -> object:
+    """Return a callback that marks live candidate pools as liquid or not."""
+    if network == ROBINHOOD_TESTNET_NETWORK:
+        from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
+            _batch_read_live_pool_states,
+        )
+
+        def _confirm(pools: list[dict]) -> set[str]:
+            pool_ids = sorted(
+                {
+                    str(pool.get("poolId") or "").strip().lower()
+                    for pool in pools
+                    if str(pool.get("poolId") or "").strip().startswith("0x")
+                }
+            )
+            if not pool_ids:
+                return set()
+            confirmed: set[str] = set()
+            for start in range(0, len(pool_ids), max(1, int(batch_size))):
+                chunk = pool_ids[start : start + max(1, int(batch_size))]
+                states = _batch_read_live_pool_states(
+                    rpc_url=rpc_url or "",
+                    pool_manager=pool_manager or "",
+                    pool_ids=chunk,
+                )
+                for pool_id, state in (states or {}).items():
+                    if not isinstance(state, dict) or state.get("error"):
+                        continue
+                    try:
+                        liquidity = int(str(state.get("liquidity") or "0"))
+                    except (TypeError, ValueError):
+                        liquidity = 0
+                    if liquidity > 0:
+                        confirmed.add(str(pool_id).strip().lower())
+            return confirmed
+
+        return _confirm
+    from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+        _batch_read_v4_pool_states,
+    )
+
+    def _confirm(pools: list[dict]) -> set[str]:
+        pool_ids = sorted(
+            {
+                str(pool.get("poolId") or "").strip().lower()
+                for pool in pools
+                if str(pool.get("poolId") or "").strip().startswith("0x")
+            }
+        )
+        if not pool_ids:
+            return set()
+        confirmed: set[str] = set()
+        for start in range(0, len(pool_ids), max(1, int(batch_size))):
+            chunk = pool_ids[start : start + max(1, int(batch_size))]
+            states = _batch_read_v4_pool_states(
+                rpc_url=rpc_url or "",
+                pool_manager=pool_manager or "",
+                pool_ids=chunk,
+            )
+            for pool_id, state in (states or {}).items():
+                if not isinstance(state, dict) or state.get("error"):
+                    continue
+                try:
+                    liquidity = int(str(state.get("liquidity") or "0"))
+                except (TypeError, ValueError):
+                    liquidity = 0
+                if liquidity > 0:
+                    confirmed.add(str(pool_id).strip().lower())
+        return confirmed
+
+    return _confirm
+
+
 def refresh_v4_live(
     *,
     database: str = "",
@@ -650,6 +882,7 @@ def refresh_v4_live(
     chain_id: int | None = None,
     rpc_url: str | None = "",
     pool_manager: str = "",
+    candidate_backfill: bool = False,
     skip_index: bool = False,
     skip_liquidity: bool = False,
     skip_build: bool = False,
@@ -730,6 +963,79 @@ def refresh_v4_live(
                 "scanMode": scan_decision["scanMode"],
             }
         )
+
+        backfill_activity: dict = {}
+        if (
+            candidate_backfill
+            and not skip_index
+            and not skip_liquidity
+            and bool(database_state.get("complete"))
+            and not index_result.get("skipped")
+        ):
+            try:
+                plan = _direction_backfill_plan(
+                    database=str(database),
+                    network=network,
+                    chain_id=chain_id,
+                    direction_limit=int(builders.MAX_CANDIDATE_POOLS_PER_PAIR),
+                )
+                if plan.get("neededDirectionCount"):
+                    if network == ROBINHOOD_TESTNET_NETWORK:
+                        from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import (
+                            build_v4_directional_pool_backfill,
+                        )
+                    else:
+                        from dex.intent_trade.chains.robinhood.v4_pool_index import (
+                            build_v4_directional_pool_backfill,
+                        )
+                    backfill_payload = build_v4_directional_pool_backfill(
+                        rpc_url=rpc_url or None,
+                        pool_manager=pool_manager or None,
+                        direction_targets=plan["targets"],
+                        direction_floor_block=int(plan.get("floor_block") or 0),
+                        confirm_pool_liquidity=_confirm_backfill_pool_liquidity(
+                            network=network,
+                            rpc_url=rpc_url or None,
+                            pool_manager=pool_manager or None,
+                        ),
+                    )
+                    index_payload = _merge_directional_backfill_into_index(
+                        index_payload,
+                        backfill_payload,
+                    )
+                    backfill_activity = {
+                        "ok": True,
+                        "neededDirectionCount": int(plan.get("neededDirectionCount") or 0),
+                        "satisfiedDirectionCount": int(
+                            backfill_payload.get("satisfiedDirectionCount") or 0
+                        ),
+                        "stoppedReason": backfill_payload.get("stoppedReason"),
+                        "floorBlock": int(plan.get("floor_block") or 0),
+                        "selectedPoolCount": int(backfill_payload.get("selectedPoolCount") or 0),
+                        "directionCounts": backfill_payload.get("directionCounts") or {},
+                    }
+                else:
+                    backfill_activity = {
+                        "ok": True,
+                        "neededDirectionCount": 0,
+                        "basis": plan.get("basis"),
+                    }
+                steps.append(
+                    {
+                        "step": "v4_directional_candidate_backfill",
+                        "ok": True,
+                        **backfill_activity,
+                    }
+                )
+            except Exception as exc:
+                errors.append(f"v4_directional_candidate_backfill: {exc}")
+                steps.append(
+                    {
+                        "step": "v4_directional_candidate_backfill",
+                        "ok": False,
+                        "error": str(exc),
+                    }
+                )
     except Exception as exc:
         errors.append(f"v4_pool_index: {exc}")
         steps.append({"step": "v4_pool_index", "ok": False, "error": str(exc)})
@@ -1018,6 +1324,14 @@ def main() -> int:
     parser.add_argument("--chain-id", type=int, default=None)
     parser.add_argument("--rpc-url", default="")
     parser.add_argument("--pool-manager", default="")
+    parser.add_argument(
+        "--candidate-backfill",
+        action="store_true",
+        help=(
+            "Scan newest Initialize logs backward for directions with fewer "
+            "than 5 candidate pools, stopping at the pool creation block."
+        ),
+    )
     parser.add_argument("--skip-index", action="store_true")
     parser.add_argument("--skip-liquidity", action="store_true")
     parser.add_argument("--skip-build", action="store_true")
@@ -1072,6 +1386,7 @@ def main() -> int:
         chain_id=args.chain_id,
         rpc_url=args.rpc_url,
         pool_manager=args.pool_manager,
+        candidate_backfill=args.candidate_backfill,
         skip_index=args.skip_index,
         skip_liquidity=args.skip_liquidity,
         skip_build=args.skip_build,
