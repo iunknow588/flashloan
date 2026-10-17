@@ -187,6 +187,7 @@ def test_split_packages_exist_without_cross_imports():
             "dex/tools/probe_v3_pool_arbitrage.py",
                 "dex/tools/quote_dynamic_candidates.py",
                 "dex/tools/build_robinhood_mainnet_eth_closed_loop_sets.py",
+                "dex/tools/benchmark_v4_cold_import.py",
                 "dex/tools/run_unified_data_simulation.py",
                 "dex/tools/run_unified_live_shadow_bridge.py",
             # These DEX intent modules now use split package names, but still
@@ -511,11 +512,12 @@ def test_active_source_files_stay_under_1000_lines():
         "web/static/chain_selector.js",
         "web/static/dex_quotes/quotes_app.js",
         "web/static/dex_quotes/quotes_render.js",
-        "core/market_observation_compact.py",
-        "core/rs_bridge.py",
-        "core/db/builders.py",
-        "core/db/storage_business_schema.py",
-        "market/binance_market/dex_route_candidate_selection.py",
+            "core/market_observation_compact.py",
+            "core/rs_bridge.py",
+            "core/db/builders.py",
+            "core/db/storage_business_schema.py",
+            "dex/tools/refresh_robinhood_v4_live.py",
+            "market/binance_market/dex_route_candidate_selection.py",
         "market/binance_market/dex_surfaces.py",
     }
     offenders = []
@@ -702,6 +704,13 @@ def test_v4_page_and_quote_paths_never_import_json_importers_or_builders():
         source = _resolved(relative).read_text(encoding="utf-8")
         for needle in forbidden:
             assert needle not in source, f"{relative} contains {needle}"
+
+
+def test_quote_service_never_uses_legacy_noarg_pool_candidate_json_fallback():
+    source = _resolved("market/binance_market/quote_service.py").read_text(encoding="utf-8")
+    assert re.search(r"dex_pool_candidates_payload\s*\(\s*\)", source) is None
+    assert "chain_id=_BINANCE_CHAIN_ID" in source
+    assert "protocols=_BINANCE_CANDIDATE_PROTOCOLS" in source
 
 
 def test_v4_quote_closed_loop_anchors_derive_from_route_paths_only():
