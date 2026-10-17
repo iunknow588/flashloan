@@ -2,9 +2,11 @@ from eth_utils import function_signature_to_4byte_selector
 
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.morpho_blue_readonly import (
+    EVENT_TOPIC_BY_SIGNATURE,
     MORPHO_BLUE_CORE,
     read_morpho_blue_market,
     read_morpho_blue_position,
+    scan_recent_morpho_blue_events,
     summarize_robinhood_morpho_blue_readonly,
 )
 
@@ -36,6 +38,8 @@ def _fake_readonly_transport(code: str, market_data: str | None = None, position
             return {"jsonrpc": "2.0", "id": 1, "result": "0x1234"}
         if method == "eth_getCode":
             return {"jsonrpc": "2.0", "id": 1, "result": code}
+        if method == "eth_getLogs":
+            return {"jsonrpc": "2.0", "id": 1, "result": []}
         if method == "eth_call":
             data = payload["params"][0]["data"]
             if data.startswith(market_selector) and market_data is not None:
@@ -139,3 +143,43 @@ def test_morpho_blue_readonly_reads_supplied_markets_and_accounts():
     assert report["positionReadCount"] == 1
     assert report["positions"][0]["borrowShares"] == "9"
     assert "robinhood_morpho_blue_account_pool_empty" not in report["blockingReasons"]
+
+
+def test_scan_recent_morpho_blue_events_counts_known_signatures():
+    supply_topic = EVENT_TOPIC_BY_SIGNATURE["Supply(bytes32,address,address,uint256,uint256)"]
+    flash_topic = EVENT_TOPIC_BY_SIGNATURE["FlashLoan(address,address,uint256)"]
+    logs = [
+        {
+            "blockNumber": "0x1",
+            "transactionHash": "0x" + "aa" * 32,
+            "logIndex": "0x0",
+            "topics": [supply_topic, "0x" + "11" * 32],
+            "data": "0x" + "00" * 64,
+        },
+        {
+            "blockNumber": "0x2",
+            "transactionHash": "0x" + "bb" * 32,
+            "logIndex": "0x1",
+            "topics": [flash_topic, "0x" + "22" * 20, "0x" + "33" * 20],
+            "data": "0x" + "00" * 32,
+        },
+    ]
+
+    def transport(url: str, payload: dict, timeout: float) -> dict:
+        if payload["method"] == "eth_blockNumber":
+            return {"jsonrpc": "2.0", "id": 1, "result": "0x10"}
+        if payload["method"] == "eth_getLogs":
+            return {"jsonrpc": "2.0", "id": 1, "result": logs}
+        return {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "unsupported"}}
+
+    result = scan_recent_morpho_blue_events(
+        "https://rpc.example.invalid",
+        lookback_blocks=100,
+        transport=transport,
+    )
+
+    assert result["ok"] is True
+    assert result["logCount"] == 2
+    assert result["observedActivity"] is True
+    assert result["eventCountsBySignature"]["Supply(bytes32,address,address,uint256,uint256)"] == 1
+    assert result["eventCountsBySignature"]["FlashLoan(address,address,uint256)"] == 1

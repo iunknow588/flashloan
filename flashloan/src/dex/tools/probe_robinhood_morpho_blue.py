@@ -51,6 +51,12 @@ def main() -> int:
     parser.add_argument("--timeout-seconds", type=float, default=12.0)
     parser.add_argument("--market-id", action="append", default=[])
     parser.add_argument("--accounts", action="append", default=[])
+    parser.add_argument(
+        "--recent-blocks",
+        type=int,
+        default=0,
+        help="Optionally scan this many recent blocks for provider event activity.",
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument(
@@ -67,6 +73,7 @@ def main() -> int:
             timeout_seconds=args.timeout_seconds,
             market_ids=_csv_items(args.market_id),
             accounts=_csv_items(args.accounts),
+            recent_blocks=max(0, args.recent_blocks),
         )
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))

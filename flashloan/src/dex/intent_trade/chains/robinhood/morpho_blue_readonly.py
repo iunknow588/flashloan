@@ -8,10 +8,11 @@ through view calls.
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from eth_utils import function_signature_to_4byte_selector
+from eth_utils import event_signature_to_log_topic, function_signature_to_4byte_selector
 from web3 import Web3
 
 from dex.intent_trade.chains.robinhood import config as robinhood
@@ -32,6 +33,17 @@ CORE_SELECTOR_PROBES = (
 )
 REQUIRED_READONLY_PROBES = {"market(bytes32)", "position(bytes32,address)"}
 REQUIRED_FLASHLOAN_PROBES = {"flashLoan(address,uint256,bytes)"}
+KNOWN_EVENT_SIGNATURES = (
+    "FlashLoan(address,address,uint256)",
+    "AccrueInterest(bytes32,uint256,uint256,uint256)",
+    "Supply(bytes32,address,address,uint256,uint256)",
+    "SupplyCollateral(bytes32,address,address,uint256)",
+    "Borrow(bytes32,address,address,address,uint256,uint256)",
+)
+EVENT_TOPIC_BY_SIGNATURE = {
+    signature: "0x" + event_signature_to_log_topic(signature).hex()
+    for signature in KNOWN_EVENT_SIGNATURES
+}
 
 
 def _utc_now_iso() -> str:
@@ -81,6 +93,90 @@ def _rpc_call_retry(
         except Exception as exc:
             last_error = exc
     raise RuntimeError(f"{method} failed after {attempts} attempts: {last_error}")
+
+
+def _block_int(value: Any) -> int:
+    raw = str(value or "0x0")
+    return int(raw, 16) if raw.startswith(("0x", "0X")) else int(raw or "0")
+
+
+def scan_recent_morpho_blue_events(
+    rpc_url: str,
+    *,
+    lookback_blocks: int = 10_000,
+    from_block: int | None = None,
+    to_block: int | None = None,
+    timeout_seconds: float = 12,
+    transport: JsonRpcTransport | None = None,
+) -> dict[str, Any]:
+    """Read recent Morpho-compatible provider logs without touching state."""
+
+    try:
+        latest = _block_int(
+            _rpc_call_retry(
+                rpc_url,
+                "eth_blockNumber",
+                timeout_seconds=timeout_seconds,
+                transport=transport,
+                attempts=3,
+            )
+        )
+        end_block = int(to_block if to_block is not None else latest)
+        start_block = int(
+            from_block if from_block is not None else max(0, end_block - max(0, int(lookback_blocks)) + 1)
+        )
+        raw_logs = _rpc_call_retry(
+            rpc_url,
+            "eth_getLogs",
+            [
+                {
+                    "address": MORPHO_BLUE_CORE,
+                    "fromBlock": hex(start_block),
+                    "toBlock": hex(end_block),
+                }
+            ],
+            timeout_seconds=timeout_seconds,
+            transport=transport,
+            attempts=3,
+        )
+        logs = [log for log in (raw_logs or []) if isinstance(log, dict)]
+        topic_counts = Counter(
+            str(next(iter(log.get("topics") or []), None) or "") for log in logs
+        )
+        signature_counts = {signature: 0 for signature in KNOWN_EVENT_SIGNATURES}
+        for log in logs:
+            topic = str(next(iter(log.get("topics") or []), None) or "")
+            for signature, event_topic in EVENT_TOPIC_BY_SIGNATURE.items():
+                if topic.lower() == event_topic.lower():
+                    signature_counts[signature] += 1
+        samples = []
+        for log in logs[:3]:
+            samples.append(
+                {
+                    "blockNumber": _block_int(log.get("blockNumber")),
+                    "transactionHash": log.get("transactionHash"),
+                    "logIndex": _block_int(log.get("logIndex")),
+                    "topics": log.get("topics") or [],
+                    "data": str(log.get("data") or "")[:520],
+                }
+            )
+        return {
+            "ok": True,
+            "blockRange": {"fromBlock": start_block, "toBlock": end_block},
+            "logCount": len(logs),
+            "uniqueTopicCount": len(topic_counts),
+            "eventCountsBySignature": signature_counts,
+            "topicCounts": [{"topic": topic, "count": count} for topic, count in topic_counts.most_common()],
+            "sampleLogs": samples,
+            "observedActivity": bool(logs),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": str(exc)[:240],
+            "logCount": 0,
+            "eventCountsBySignature": {signature: 0 for signature in KNOWN_EVENT_SIGNATURES},
+        }
 
 
 def _selector_probes(code_hex: str) -> list[dict[str, Any]]:
@@ -206,6 +302,7 @@ def summarize_robinhood_morpho_blue_readonly(
     transport: JsonRpcTransport | None = None,
     market_ids: Iterable[str] = (),
     accounts: Iterable[str] = (),
+    recent_blocks: int = 0,
 ) -> dict[str, Any]:
     urls = robinhood.rpc_urls_from_env()
     selected_rpc = str(rpc_url or (urls[0] if urls else "")).strip()
@@ -356,6 +453,15 @@ def summarize_robinhood_morpho_blue_readonly(
         if account_list:
             blockers.remove("robinhood_morpho_blue_account_pool_empty")
 
+    recent_activity: dict[str, Any] = {}
+    if selected_rpc and recent_blocks > 0:
+        recent_activity = scan_recent_morpho_blue_events(
+            selected_rpc,
+            lookback_blocks=max(0, int(recent_blocks)),
+            timeout_seconds=timeout_seconds,
+            transport=transport,
+        )
+
     rpc_ok = bool(checks) and all(bool(item.get("ok")) for item in checks)
     return {
         "schemaVersion": "robinhood-morpho-blue-readonly-v1",
@@ -381,6 +487,7 @@ def summarize_robinhood_morpho_blue_readonly(
         "accountCount": len(account_list),
         "positionReadCount": len(positions),
         "positions": positions,
+        "recentActivity": recent_activity,
         "observationOnly": True,
         "executionMode": "readonly_probe",
         "executionEnabled": False,
@@ -396,5 +503,6 @@ __all__ = [
     "REQUIRED_READONLY_PROBES",
     "read_morpho_blue_market",
     "read_morpho_blue_position",
+    "scan_recent_morpho_blue_events",
     "summarize_robinhood_morpho_blue_readonly",
 ]
