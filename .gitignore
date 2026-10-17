@@ -30,9 +30,8 @@ flashloan/app_runtime/*.log
 flashloan/app_runtime/importtime.err
 /srcs_dex/
 /srcs/
+# Documentation stays local and is not tracked by GitHub.
 /docs/*
-!/docs/关于Robinhood/
-!/docs/关于Robinhood/**
 flashloan/docs/
 contract/robinhood/DEX/docs/
 contract/robinhood-testnet/DEX/docs/
