@@ -10,6 +10,9 @@ from typing import Any, Callable
 from core.error_registry import ErrorCode
 from core.parameter_config import LEGACY_STRATEGY_CONFIG_PATHS, STRATEGY_CONFIG_PATH, read_json_parameter
 from market.binance_market.dex_surfaces import dex_quote_routes_payload
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 from dex.runtime.dex_opportunity_helpers import (
     _apply_onchain_evidence_to_attempt,
@@ -398,6 +401,8 @@ def build_dex_opportunity_attempts(
                 )
             )
     if not recordable_routes:
+        return []
+    if _is_robinhood_family_network(chain_id) and not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id):
         return []
     # Every Robinhood-family network is a full-scan review target. The
     # deprecated DEX_OPPORTUNITY_TESTNET_FULL_SCAN switch no longer controls

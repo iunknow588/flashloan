@@ -14,6 +14,9 @@ from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID,
     ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
 )
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from market.binance_market.dex_surface_graph import (
     _route_addresses_from_tokens,
     _route_pools,
@@ -95,11 +98,7 @@ def _v4_live_quote_enabled(chain_id: int | None = None) -> bool:
                 return bool(compatibility())
     except (AttributeError, ImportError, TypeError):
         pass
-    import os
-    raw = os.getenv("DEX_V4_LIVE_QUOTE_ENABLED")
-    if raw is None:
-        return int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS
-    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+    return _rpc_gate_v4_live_quote_enabled(chain_id=chain_id)
 
 
 def load_v4_sdk_adapter(*args: Any, **kwargs: Any):

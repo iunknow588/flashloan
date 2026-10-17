@@ -100,23 +100,35 @@ def _seed_testnet_anchor_pair(database: str) -> None:
 
 
 def benchmark_cold_import() -> dict:
-    from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
+    os.environ["DEX_V4_LIVE_QUOTE_ENABLED"] = "0"
+    from dex.tools import refresh_robinhood_v4_live as refresh_module
 
     with tempfile.TemporaryDirectory(prefix="v4-cold-import-", ignore_cleanup_errors=True) as tmp:
         database = str(Path(tmp) / "local_store.sqlite3")
         _seed_testnet_anchor_pair(database)
+        rpc_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        original_connect_rpc = refresh_module._connect_rpc
+
+        def _counting_connect_rpc(*args: object, **kwargs: object) -> tuple[object, str]:
+            rpc_calls.append((args, kwargs))
+            return original_connect_rpc(*args, **kwargs)
+
+        refresh_module._connect_rpc = _counting_connect_rpc
         started = time.perf_counter()
-        result = refresh_v4_live(
-            database=database,
-            network="robinhood-testnet",
-            chain_id=46630,
-            skip_index=True,
-            skip_liquidity=True,
-            anchors="TZ,USDE",
-            prune_zero_liquidity=False,
-            remove_json_evidence=False,
-            clear_cache=False,
-        )
+        try:
+            result = refresh_module.refresh_v4_live(
+                database=database,
+                network="robinhood-testnet",
+                chain_id=46630,
+                skip_index=True,
+                skip_liquidity=True,
+                anchors="TZ,USDE",
+                prune_zero_liquidity=False,
+                remove_json_evidence=False,
+                clear_cache=False,
+            )
+        finally:
+            refresh_module._connect_rpc = original_connect_rpc
         elapsed = time.perf_counter() - started
     if not result.get("ok"):
         raise RuntimeError(f"cold import failed: {result.get('errors')}")
@@ -124,6 +136,7 @@ def benchmark_cold_import() -> dict:
         "coldImportSeconds": round(elapsed, 4),
         "ok": bool(result.get("ok")),
         "anchorCount": int((result.get("build") or {}).get("anchorCount") or 0),
+        "rpcCallCount": len(rpc_calls),
     }
 
 
@@ -165,36 +178,73 @@ def _p95(times: list[float]) -> float:
 
 
 def benchmark_api_p95(*, requests: int, rounds: int) -> dict:
-    from web.control_panel import app
-
     os.environ["DEX_V4_LIVE_QUOTE_ENABLED"] = "0"
-    client = app.test_client()
-    url = (
-        "/api/dex/quote-routes?"
-        "market_id=dex-arbitrage-46630-uniswap-v4&"
-        "chain_id=46630&protocols=uniswap_v4"
-    )
-    summaries = []
-    for round_index in range(1, int(rounds) + 1):
-        timings: list[float] = []
-        for _ in range(max(1, int(requests))):
-            started = time.perf_counter()
-            response = client.get(url)
-            elapsed = time.perf_counter() - started
-            if response.status_code != 200:
-                raise RuntimeError(f"quote route API returned {response.status_code}")
-            timings.append(elapsed)
-        summaries.append(
-            {
-                "round": round_index,
-                "requests": len(timings),
-                "p95Seconds": round(_p95(timings), 4),
-                "meanSeconds": round(statistics.mean(timings), 4),
-                "minSeconds": round(min(timings), 4),
-                "maxSeconds": round(max(timings), 4),
-            }
+    from web.control_panel import app
+    from market.binance_market import dex_route_test as route_test_module
+    from market.binance_market import dex_surface_route_quotes as route_quotes_module
+    from dex.runtime import dex_quote_evidence_rpc as evidence_rpc_module
+
+    rpc_calls: list[str] = []
+    originals = {
+        route_test_module: {
+            "_probe_robinhood_family_rpc": route_test_module._probe_robinhood_family_rpc,
+        },
+        route_quotes_module: {
+            "load_v4_sdk_adapter": route_quotes_module.load_v4_sdk_adapter,
+            "quote_v4_exact_input_single": route_quotes_module.quote_v4_exact_input_single,
+        },
+        evidence_rpc_module: {
+            "_connect_robinhood_family": evidence_rpc_module._connect_robinhood_family,
+            "_probe_robinhood_testnet_rpc_fast": evidence_rpc_module._probe_robinhood_testnet_rpc_fast,
+        },
+    }
+    for module, names in originals.items():
+        for name, original in names.items():
+            label = f"{module.__name__}.{name}"
+
+            def _counting_wrapper(
+                *args: object,
+                _original: object = original,
+                _label: str = label,
+                **kwargs: object,
+            ) -> object:
+                rpc_calls.append(_label)
+                return _original(*args, **kwargs)
+
+            setattr(module, name, _counting_wrapper)
+
+    try:
+        client = app.test_client()
+        url = (
+            "/api/dex/quote-routes?"
+            "market_id=dex-arbitrage-46630-uniswap-v4&"
+            "chain_id=46630&protocols=uniswap_v4"
         )
-    return {"rounds": summaries}
+        summaries = []
+        for round_index in range(1, int(rounds) + 1):
+            timings: list[float] = []
+            for _ in range(max(1, int(requests))):
+                started = time.perf_counter()
+                response = client.get(url)
+                elapsed = time.perf_counter() - started
+                if response.status_code != 200:
+                    raise RuntimeError(f"quote route API returned {response.status_code}")
+                timings.append(elapsed)
+            summaries.append(
+                {
+                    "round": round_index,
+                    "requests": len(timings),
+                    "p95Seconds": round(_p95(timings), 4),
+                    "meanSeconds": round(statistics.mean(timings), 4),
+                    "minSeconds": round(min(timings), 4),
+                    "maxSeconds": round(max(timings), 4),
+                }
+            )
+        return {"rounds": summaries, "rpcCallCount": len(rpc_calls)}
+    finally:
+        for module, names in originals.items():
+            for name, original in names.items():
+                setattr(module, name, original)
 
 
 def main() -> int:

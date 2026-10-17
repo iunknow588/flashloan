@@ -29,6 +29,9 @@ from market.binance_market.dex_surface_observation_chain import (
     _chain_network_name,
 )
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 
@@ -500,7 +503,11 @@ def _candidate_pool_overview_profit(
 
 
 def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int | None = None) -> dict[str, Any] | None:
-    if chain_id not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or not _v4_execution_size_probe_enabled():
+    if (
+        chain_id not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
+        or not _v4_execution_size_probe_enabled()
+        or not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id)
+    ):
         return None
     steps = [
         step

@@ -14,6 +14,9 @@ from web3 import Web3
 
 from core.error_registry import ErrorCode
 from core.chain_data_registry import chain_data_by_chain_id
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled,
+)
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
 from dex.runtime.dex_route_rpc import _probe_robinhood_family_rpc, fetch_dex_tx_receipt
 from market.binance_market.dex_route_helpers import _match_route
@@ -904,6 +907,8 @@ def _official_v4_preview_python(
     Hardhat can fail with ``NoProfitableRoute`` even when the same static call
     succeeds through Web3, so non-broadcast review prefers this direct path.
     """
+    if not v4_live_quote_enabled(chain_id=int(chain_id)):
+        return None
     if len(route_pool_keys) != 3 or len(route_addresses) != len(route_symbols):
         return None
     try:
@@ -1672,6 +1677,29 @@ def run_official_v4_arb_route_test(
             chain_id=int(chain_id or 0),
         )
         return payload
+
+    if not broadcast and not v4_live_quote_enabled(chain_id=int(chain_id)):
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_v4_readonly_preview_live_quote_disabled",
+            "detail": (
+                "official V4 read-only preview is disabled: "
+                "DEX_V4_LIVE_QUOTE_ENABLED is not set to an enabled value"
+            ),
+            "quoteStatus": "live_quote_disabled",
+            "evidenceStatus": "live_quote_disabled",
+            "executionTrust": "live_quote_disabled",
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                "official_v4_readonly_preview_live_quote_disabled",
+                error_code=ErrorCode.DEX_RPC_FAILED,
+                flow="dex_route_broadcast_test",
+                node_id="python_preview",
+            ),
+        }
 
     script_available = bool(official_script.exists() and official_dex_dir.exists())
     if broadcast and not script_available:

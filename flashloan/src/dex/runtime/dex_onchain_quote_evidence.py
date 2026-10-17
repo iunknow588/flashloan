@@ -15,6 +15,9 @@ from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from bot.execution.uniswap_v3 import quote_v3_exact_input_single, snapshot_v3_pool
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from market.binance_market.dex_surfaces import (
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
@@ -122,6 +125,9 @@ def capture_onchain_trigger_context(
         "rpcUrl": None,
         "error": None,
     }
+    if _is_robinhood_family(chain_id, normalized_network) and not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id):
+        context["error"] = "live_quote_disabled"
+        return context
     if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID or normalized_network == ROBINHOOD_TESTNET_NETWORK:
         from dex.intent_trade.chains.robinhood_testnet.trigger_context import capture_robinhood_testnet_trigger_context
 
@@ -169,6 +175,7 @@ def _unsupported_evidence(
         "pool_not_initialized",
         "not_enough_liquidity",
         "live_quote_failed",
+        "live_quote_disabled",
         "adapter_required",
         "missing_trigger_block",
     }:
@@ -187,7 +194,15 @@ def _unsupported_evidence(
         status = "not_live_verified"
     execution_trust = (
         status
-        if status in {"rpc_verification_failed", "rpc_verification_timeout", "missing_trigger_block", "not_enough_liquidity", "pool_not_initialized", "live_quote_failed"}
+        if status in {
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+            "missing_trigger_block",
+            "not_enough_liquidity",
+            "pool_not_initialized",
+            "live_quote_failed",
+            "live_quote_disabled",
+        }
         else "static_reference_pending_live_review"
     )
     return {
@@ -426,6 +441,16 @@ def build_route_onchain_evidence(
             observed_at=observed,
             reasons=["current chain quoter review adapter is not connected; record is static observation only."],
             trigger_context=trigger,
+        )
+    if not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id):
+        return _unsupported_evidence(
+            chain_id=chain_id,
+            network=network,
+            route=route,
+            observed_at=observed,
+            reasons=["DEX_V4_LIVE_QUOTE_ENABLED=0; V4 live quote RPC is disabled for automatic review."],
+            trigger_context=trigger,
+            status="live_quote_disabled",
         )
     unsupported = [
         reason

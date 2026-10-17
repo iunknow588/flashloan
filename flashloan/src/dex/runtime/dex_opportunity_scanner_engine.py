@@ -12,6 +12,9 @@ import time
 from typing import Any, Callable
 
 from dex.runtime.dex_closed_loop_review_queue import ClosedLoopReviewQueue, FixedRefreshPipeline
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from dex.runtime.dex_opportunity_auto_execute import (
     DexAutoExecuteRunner,
     auto_execute_callback_from_env as default_auto_execute_callback,
@@ -618,12 +621,30 @@ class DexOpportunityScanner(DexOpportunityReviewEngineMixin):
         started_at = _now_iso()
         started = time.perf_counter()
         key = _chain_scope_key(chain_id, protocols)
-        trigger_context = self.trigger_context_provider(
-            chain_id=chain_id,
-            network=_network_for_chain_id(chain_id),
-            observed_at=started_at,
-        )
-        if _trigger_block_number(trigger_context) is None and _network_for_chain_id(chain_id) == "robinhood-testnet":
+        if not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id):
+            trigger_context = {
+                "source": "scan_trigger_chain_head",
+                "observedAt": started_at,
+                "network": _network_for_chain_id(chain_id),
+                "chainId": chain_id,
+                "available": False,
+                "blockNumber": None,
+                "triggerBlockNumber": None,
+                "blockTimestamp": None,
+                "rpcUrl": None,
+                "error": "DEX_V4_LIVE_QUOTE_ENABLED=0",
+            }
+        else:
+            trigger_context = self.trigger_context_provider(
+                chain_id=chain_id,
+                network=_network_for_chain_id(chain_id),
+                observed_at=started_at,
+            )
+        if (
+            _trigger_block_number(trigger_context) is None
+            and _network_for_chain_id(chain_id) == "robinhood-testnet"
+            and _rpc_gate_v4_live_quote_enabled(chain_id=chain_id)
+        ):
             try:
                 from dex.intent_trade.chains.robinhood_testnet.trigger_context import capture_robinhood_testnet_trigger_context
 

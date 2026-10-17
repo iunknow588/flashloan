@@ -11,6 +11,9 @@ from typing import Any
 from core.chain_data_registry import chain_data_by_chain_id
 from dex.intent_trade.chains.robinhood import config as robinhood_config
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
+)
 from market.binance_market.dex_surface_types import (
     _norm_symbol,
     _number,
@@ -38,8 +41,12 @@ ERC20_DECIMALS_ABI = [
 ]
 
 
-def _v4_live_token_metadata_enabled() -> bool:
-    return _env_flag("DEX_V4_LIVE_TOKEN_METADATA_ENABLED", default=False)
+def _v4_live_token_metadata_enabled(chain_id: int | None = None) -> bool:
+    if not _env_flag("DEX_V4_LIVE_TOKEN_METADATA_ENABLED", default=False):
+        return False
+    if chain_id is None:
+        return True
+    return _rpc_gate_v4_live_quote_enabled(chain_id=chain_id)
 
 
 def _env_flag(name: str, *, default: bool = False) -> bool:
@@ -149,7 +156,7 @@ def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int |
                     "metadataOk": bool(symbol and decimals is not None),
                     "source": "sqlite_db",
                 }
-        if _v4_live_token_metadata_enabled():
+        if _v4_live_token_metadata_enabled(chain_id=chain_id):
             live_decimals = _live_v4_token_decimals(address, chain_id=chain_id)
             if live_decimals is not None:
                 if not symbol:

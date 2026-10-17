@@ -5,9 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from dex.intent_trade.chains.robinhood.shared import (
-    ROBINHOOD_CHAIN_ID,
-    ROBINHOOD_TESTNET_CHAIN_ID,
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
 )
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_surface_types import _norm_symbol, _token_address
@@ -18,9 +17,6 @@ from market.binance_market.dex_surface_v4 import (
     _v4_token_metadata_cache as _default_v4_token_metadata_cache,
 )
 
-_ROBINHOOD_CHAIN_IDS = {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
-
-
 def _env_flag(name: str, *, default: bool = False) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -29,12 +25,7 @@ def _env_flag(name: str, *, default: bool = False) -> bool:
 
 
 def _v4_live_quote_enabled(chain_id: int | None = None) -> bool:
-    raw = os.getenv("DEX_V4_LIVE_QUOTE_ENABLED")
-    if raw is not None:
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
-    # Robinhood mainnet/testnet quote/routing review is expected to use live
-    # Quoter/eth_call evidence, not just static reference prices.
-    return int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS
+    return _rpc_gate_v4_live_quote_enabled(chain_id=chain_id)
 
 
 def _robinhood_static_scope_protocols(
@@ -60,8 +51,8 @@ def _v4_execution_size_probe_enabled() -> bool:
     return _env_flag("DEX_V4_EXECUTION_SIZE_PROBE_ENABLED", default=False)
 
 
-def _v4_live_token_metadata_enabled() -> bool:
-    return _env_flag("DEX_V4_LIVE_TOKEN_METADATA_ENABLED", default=False)
+def _v4_live_token_metadata_enabled(chain_id: int | None = None) -> bool:
+    return _default_v4_live_token_metadata_enabled(chain_id=chain_id)
 
 
 def _v4_pool_token_metadata(
@@ -107,7 +98,7 @@ def _v4_pool_token_metadata(
                     "metadataOk": bool(symbol and decimals is not None),
                     "source": "sqlite_db",
                 }
-        if live_token_metadata_enabled():
+        if live_token_metadata_enabled(chain_id=chain_id):
             live_decimals = live_v4_token_decimals(address, chain_id=chain_id)
             if live_decimals is not None:
                 if not symbol:
