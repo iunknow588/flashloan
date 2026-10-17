@@ -29,6 +29,27 @@ def test_blockscout_contract_probe_rejects_invalid_address_without_http_call():
     assert report["error"] == "invalid_contract_address"
 
 
+def test_blockscout_contract_probe_supports_testnet_network_scope():
+    requested = []
+
+    def transport(url, timeout):
+        requested.append(url)
+        return 200, {"is_verified": True, "name": "PoolManager"}
+
+    report = probe_robinhood_blockscout_contract(
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        explorer_url="https://explorer.testnet.chain.robinhood.com",
+        network="robinhood-testnet",
+        chain_id=46630,
+        transport=transport,
+    )
+
+    assert report["network"] == "robinhood-testnet"
+    assert report["chainId"] == 46630
+    assert report["verified"] is True
+    assert requested[0].startswith("https://explorer.testnet.chain.robinhood.com")
+
+
 def test_blockscout_official_contract_probe_aggregates_contract_results():
     def transport(_url, _timeout):
         return 200, {"isVerified": True}

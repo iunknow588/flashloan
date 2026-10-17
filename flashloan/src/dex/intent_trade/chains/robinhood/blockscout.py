@@ -30,14 +30,16 @@ def probe_robinhood_blockscout_contract(
     address: str,
     *,
     explorer_url: str = robinhood.EXPLORER_URL,
+    network: str = robinhood.NETWORK,
+    chain_id: int = robinhood.CHAIN_ID,
     timeout_seconds: float = 8,
     transport: HttpTransport | None = None,
 ) -> dict[str, Any]:
     normalized = str(address or "").strip()
     report: dict[str, Any] = {
         "ok": False,
-        "network": robinhood.NETWORK,
-        "chainId": robinhood.CHAIN_ID,
+        "network": str(network or "").strip().lower() or robinhood.NETWORK,
+        "chainId": int(chain_id or 0) or robinhood.CHAIN_ID,
         "address": normalized,
         "explorerUrl": str(explorer_url or "").rstrip("/"),
         "verified": False,
