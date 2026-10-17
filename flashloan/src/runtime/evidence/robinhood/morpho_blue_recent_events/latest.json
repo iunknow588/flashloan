@@ -1,0 +1,192 @@
+{
+  "accountCount": 0,
+  "addressSource": "chains/robinhood/chain.json without independent source URL evidence",
+  "blockNumber": 90785495,
+  "blockingReasons": [
+    "robinhood_morpho_blue_core_source_unverified",
+    "robinhood_morpho_blue_market_events_unverified",
+    "robinhood_morpho_blue_oracle_verification_pending",
+    "robinhood_morpho_blue_health_factor_unavailable_without_oracle_prices",
+    "robinhood_morpho_blue_account_pool_empty"
+  ],
+  "broadcastEnabled": false,
+  "chainId": 4663,
+  "checkedAt": "2026-10-17T08:26:25.460943+00:00",
+  "checks": [
+    {
+      "message": "chain id is 4663, expected 4663",
+      "name": "eth_chainId",
+      "ok": true,
+      "value": 4663
+    },
+    {
+      "message": "latest block is 90785495",
+      "name": "eth_blockNumber",
+      "ok": true,
+      "value": 90785495
+    },
+    {
+      "address": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
+      "codeBytes": 15582,
+      "codeHash": "0x753b54fdb48c87c9c1ba1dcc3a330faac1a401a3bd23b43104b7b92409ecb424",
+      "message": "contract code is present",
+      "name": "morpho_blue_core_code",
+      "ok": true
+    },
+    {
+      "name": "morpho_blue_required_readonly_selectors",
+      "ok": true,
+      "probes": [
+        {
+          "presentInBytecode": true,
+          "selector": "0x5c60e39a",
+          "signature": "market(bytes32)"
+        },
+        {
+          "presentInBytecode": true,
+          "selector": "0x93c52062",
+          "signature": "position(bytes32,address)"
+        },
+        {
+          "presentInBytecode": true,
+          "selector": "0xe0232b42",
+          "signature": "flashLoan(address,uint256,bytes)"
+        },
+        {
+          "presentInBytecode": true,
+          "selector": "0x8da5cb5b",
+          "signature": "owner()"
+        }
+      ],
+      "required": [
+        "market(bytes32)",
+        "position(bytes32,address)"
+      ]
+    },
+    {
+      "name": "morpho_blue_flashloan_selector",
+      "ok": true,
+      "probe": {
+        "presentInBytecode": true,
+        "selector": "0xe0232b42",
+        "signature": "flashLoan(address,uint256,bytes)"
+      }
+    }
+  ],
+  "code": {
+    "codeBytes": 15582,
+    "codeHash": "0x753b54fdb48c87c9c1ba1dcc3a330faac1a401a3bd23b43104b7b92409ecb424",
+    "hasCode": true
+  },
+  "executionEnabled": false,
+  "executionMode": "readonly_probe",
+  "flashLoanSelectorPresent": true,
+  "marketReadCount": 0,
+  "markets": [],
+  "morphoBlueCore": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
+  "network": "robinhood",
+  "observationOnly": true,
+  "positionReadCount": 0,
+  "positions": [],
+  "recentActivity": {
+    "blockRange": {
+      "fromBlock": 90775551,
+      "toBlock": 90785550
+    },
+    "eventCountsBySignature": {
+      "AccrueInterest(bytes32,uint256,uint256,uint256)": 13,
+      "Borrow(bytes32,address,address,address,uint256,uint256)": 0,
+      "FlashLoan(address,address,uint256)": 5,
+      "Supply(bytes32,address,address,uint256,uint256)": 8,
+      "SupplyCollateral(bytes32,address,address,uint256)": 1
+    },
+    "logCount": 28,
+    "observedActivity": true,
+    "ok": true,
+    "sampleLogs": [
+      {
+        "blockNumber": 90775648,
+        "data": "0x00000000000000000000000000000000000000000000000006a3e285717ddbc3",
+        "logIndex": 4,
+        "topics": [
+          "0xa3b9472a1399e17e123f3c2e6586c23e504184d504de59cdaa2b375e880c6184",
+          "0xaa586d26a6fe62d9c0f0948fede6e2130500ac7a655587447e2d4a37e6330589",
+          "0x0000000000000000000000007943700cb4f7c83410004cf136441574c0b85d25",
+          "0x0000000000000000000000007943700cb4f7c83410004cf136441574c0b85d25"
+        ],
+        "transactionHash": "0x50dcb5b15e343e9972ccf565069bc3b947ba6b08f7af0d783a83e9bfd4b7b620"
+      },
+      {
+        "blockNumber": 90775705,
+        "data": "0x00000000000000000000000000000000000000000000000000000000050dacc8",
+        "logIndex": 35,
+        "topics": [
+          "0xc76f1b4fe4396ac07a9fa55a415d4ca430e72651d37d3401f3bed7cb13fc4f12",
+          "0x000000000000000000000000203bffa697bee74d39d255c1c028e3efa689b5f7",
+          "0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "transactionHash": "0xba28ee69c0ebd8c0beafd7843de84901d524779da14a32f0fe05180d6e3084a8"
+      },
+      {
+        "blockNumber": 90775761,
+        "data": "0x000000000000000000000000000000000000000000000000000000004ef571aa0000000000000000000000000000000000000000000000000000000004b542d40000000000000000000000000000000000000000000000000000000000000000",
+        "logIndex": 14,
+        "topics": [
+          "0x9d9bd501d0657d7dfe415f779a620a62b78bc508ddc0891fbbd8b7ac0f8fce87",
+          "0xc845da65a020ddca5f132efa8fea79676d8edfdea504226a4c01e7a9e34cddd6"
+        ],
+        "transactionHash": "0x4bd8d67aad6901e651003d016433538d8f081623cea8ce5b18ca21e5e86f969b"
+      }
+    ],
+    "topicCounts": [
+      {
+        "count": 13,
+        "topic": "0x9d9bd501d0657d7dfe415f779a620a62b78bc508ddc0891fbbd8b7ac0f8fce87"
+      },
+      {
+        "count": 8,
+        "topic": "0xedf8870433c83823eb071d3df1caa8d008f12f6440918c20d75a3602cda30fe0"
+      },
+      {
+        "count": 5,
+        "topic": "0xc76f1b4fe4396ac07a9fa55a415d4ca430e72651d37d3401f3bed7cb13fc4f12"
+      },
+      {
+        "count": 1,
+        "topic": "0xa3b9472a1399e17e123f3c2e6586c23e504184d504de59cdaa2b375e880c6184"
+      },
+      {
+        "count": 1,
+        "topic": "0xa56fc0ad5702ec05ce63666221f796fb62437c32db1aa1aa075fc6484cf58fbf"
+      }
+    ],
+    "uniqueTopicCount": 5
+  },
+  "reportPath": "flashloan\\src\\runtime\\evidence\\robinhood\\morpho_blue_recent_events\\20261017T082625Z\\report.json",
+  "requiredReadonlySelectorProbesPresent": true,
+  "rpcOk": true,
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "schemaVersion": "robinhood-morpho-blue-readonly-v1",
+  "selectorProbes": [
+    {
+      "presentInBytecode": true,
+      "selector": "0x5c60e39a",
+      "signature": "market(bytes32)"
+    },
+    {
+      "presentInBytecode": true,
+      "selector": "0x93c52062",
+      "signature": "position(bytes32,address)"
+    },
+    {
+      "presentInBytecode": true,
+      "selector": "0xe0232b42",
+      "signature": "flashLoan(address,uint256,bytes)"
+    },
+    {
+      "presentInBytecode": true,
+      "selector": "0x8da5cb5b",
+      "signature": "owner()"
+    }
+  ]
+}
