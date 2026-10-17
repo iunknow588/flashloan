@@ -1,10 +1,10 @@
 """Read-only Robinhood Testnet directional candidate backfill evidence.
 
 The tool computes the direction shortfall from the SQLite candidate pair
-tables, scans PoolManager Initialize logs newest-to-oldest with live
-liquidity confirmation, and writes a timestamped evidence bundle under the
-``robinhood-testnet`` evidence path.  It never writes SQLite business tables
-and never broadcasts anything.
+tables and can either reuse already-verified SQLite pools and liquidity
+snapshots (``--sqlite-only``) or scan PoolManager Initialize logs
+newest-to-oldest with live liquidity confirmation.  It never writes SQLite
+business tables and never broadcasts anything.
 """
 
 from __future__ import annotations
@@ -531,6 +531,210 @@ def collect_report(
     return report
 
 
+def collect_report_from_sqlite(
+    *,
+    database: str = "",
+    network: str = ROBINHOOD_TESTNET_NETWORK,
+    chain_id: int | None = None,
+    directions: tuple[str, ...] = (),
+    limit_directions: int = 0,
+    direction_limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
+) -> dict[str, Any]:
+    """Build directional backfill evidence from existing SQLite rows only.
+
+    This path never opens an RPC connection.  It reads the pool index and the
+    verified liquidity snapshots already stored by previous live refreshes,
+    counts live candidates per direction, and reports the exact shortfall if
+    the existing index does not have enough pools.  This makes verified
+    on-chain conclusions reusable without re-running the same scan.
+    """
+    if str(network or "").strip().lower() != ROBINHOOD_TESTNET_NETWORK:
+        raise ValueError("this evidence tool is testnet-only; mainnet stays fail-closed")
+    resolved_chain_id = int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID)
+    if resolved_chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
+        raise ValueError(f"chainId {resolved_chain_id} is not Robinhood testnet 46630")
+    resolved_database = str(absolute_database_path(database))
+
+    plan = _direction_plan(
+        database=resolved_database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=resolved_chain_id,
+        directions=directions,
+        limit_directions=limit_directions,
+        direction_limit=direction_limit,
+    )
+    targets = plan.get("targets") or {}
+    if not targets:
+        return {
+            "ok": True,
+            "network": ROBINHOOD_TESTNET_NETWORK,
+            "chainId": resolved_chain_id,
+            "database": resolved_database,
+            "plan": plan,
+            "scanned": False,
+            "reason": "no_direction_shortfall",
+            "source": "sqlite_only",
+        }
+
+    from core.db.storage_business_io import query
+    from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
+        _directional_keys,
+    )
+
+    wanted_tokens = sorted(
+        {
+            part
+            for key in targets
+            for part in str(key or "").split(":", 1)
+            if str(part or "").strip().lower().startswith("0x")
+        }
+    )
+    placeholders = ",".join("?" for _ in wanted_tokens)
+    rows = query(
+        resolved_database,
+        f"""
+        SELECT p.pool_id, p.token0, p.token1, p.fee, p.tick_spacing, p.hooks,
+               CAST(json_extract(p.pool_key_json, '$.initializeBlockNumber') AS INTEGER)
+                 AS initialize_block_number,
+               s.has_liquidity, s.liquidity, s.estimated_tvl_usd, s.depth_status,
+               s.tick, s.sqrt_price_x96, s.liquidity_block_number,
+               s.evidence_source, s.refreshed_at
+        FROM v4_exchange_pools p
+        LEFT JOIN v4_exchange_pool_liquidity_snapshots s
+          ON s.network = p.network AND s.chain_id = p.chain_id
+         AND s.protocol = p.protocol AND s.pool_id = p.pool_id
+        WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+          AND (lower(p.token0) IN ({placeholders}) OR lower(p.token1) IN ({placeholders}))
+        """,
+        (
+            ROBINHOOD_TESTNET_NETWORK,
+            resolved_chain_id,
+            "uniswap_v4",
+            *wanted_tokens,
+            *wanted_tokens,
+        ),
+    )
+
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        if int(row.get("has_liquidity") or 0) != 1:
+            continue
+        pool_id = str(row.get("pool_id") or "").strip().lower()
+        if not pool_id.startswith("0x"):
+            continue
+        candidates.append(
+            {
+                "poolId": pool_id,
+                "initializeBlockNumber": int(row.get("initialize_block_number") or 0),
+                "token0": str(row.get("token0") or "").strip().lower(),
+                "token1": str(row.get("token1") or "").strip().lower(),
+                "fee": int(row.get("fee") or 0),
+                "tickSpacing": int(row.get("tick_spacing") or 0),
+                "hooks": str(row.get("hooks") or "").strip().lower(),
+                "liquidity": row.get("liquidity"),
+                "estimatedTvlUsd": row.get("estimated_tvl_usd"),
+                "depthStatus": row.get("depth_status"),
+                "tick": row.get("tick"),
+                "liquidityBlockNumber": row.get("liquidity_block_number"),
+                "evidenceSource": row.get("evidence_source"),
+                "refreshedAt": row.get("refreshed_at"),
+            }
+        )
+    candidates.sort(
+        key=lambda item: int(item.get("initializeBlockNumber") or 0),
+        reverse=True,
+    )
+
+    selected: dict[str, list[dict[str, Any]]] = {key: [] for key in targets}
+    counts: dict[str, int] = {key: 0 for key in targets}
+    seen: dict[str, set[str]] = {key: set() for key in targets}
+    for candidate in candidates:
+        direction, reverse = _directional_keys(
+            candidate["token0"],
+            candidate["token1"],
+        )
+        for key in (direction, reverse):
+            if (
+                key not in targets
+                or candidate["poolId"] in seen[key]
+                or len(selected[key]) >= targets[key]
+            ):
+                continue
+            seen[key].add(candidate["poolId"])
+            selected[key].append(candidate)
+            counts[key] = len(selected[key])
+
+    all_selected_pools: list[dict[str, Any]] = []
+    seen_selected_ids: set[str] = set()
+    for key in sorted(targets):
+        for pool in selected.get(key, []):
+            pool_id = str(pool.get("poolId") or "").strip().lower()
+            if pool_id in seen_selected_ids:
+                continue
+            seen_selected_ids.add(pool_id)
+            all_selected_pools.append(pool)
+    satisfied_count = sum(
+        1
+        for key, target in targets.items()
+        if counts.get(key, 0) >= target
+    )
+    remaining_directions = {
+        key: max(0, int(target) - int(counts.get(key, 0)))
+        for key, target in targets.items()
+        if int(counts.get(key, 0)) < int(target)
+    }
+    stopped_reason = (
+        "sqlite_liquidity_snapshot_satisfied"
+        if satisfied_count == len(targets)
+        else "sqlite_liquidity_snapshot_shortfall_pending_rpc_backfill"
+    )
+    scan = {
+        "scanDirection": "existing_sqlite_liquidity_snapshot",
+        "onchainRpcScan": False,
+        "sqliteEvidenceSource": (
+            "v4_exchange_pools + v4_exchange_pool_liquidity_snapshots"
+        ),
+        "sqlitePoolCount": len(rows),
+        "sqliteLiveConfirmedPoolCount": len(candidates),
+        "directionTargets": targets,
+        "directionCounts": counts,
+        "neededDirectionCount": len(targets),
+        "satisfiedDirectionCount": satisfied_count,
+        "remainingDirections": remaining_directions,
+        "stoppedReason": stopped_reason,
+        "selectedPoolCount": len(all_selected_pools),
+    }
+    return {
+        "schemaVersion": "robinhood-testnet-v4-directional-backfill-evidence-v1",
+        "generatedAt": _utc_now_iso(),
+        "network": ROBINHOOD_TESTNET_NETWORK,
+        "chainId": resolved_chain_id,
+        "database": resolved_database,
+        "scope": {
+            "directionsRequested": list(directions) if directions else "all",
+            "limitDirections": int(limit_directions or 0),
+            "candidateLimit": MAX_DIRECTION_CANDIDATE_POOLS,
+            "forwardDirection": "lower_address_to_higher_address",
+            "reverseDirection": "higher_address_to_lower_address",
+            "searchOrder": "existing_sqlite_snapshot_only",
+            "stopCondition": "reuse_verified_liquidity_snapshot_or_record_shortfall",
+        },
+        "plan": plan,
+        "scan": scan,
+        "indexedLiquidity": {
+            "poolCount": len(rows),
+            "liveConfirmedPoolCount": len(candidates),
+        },
+        "selectedPools": all_selected_pools,
+        "safety": {
+            "writesSqlite": False,
+            "buildsTransaction": False,
+            "broadcastsTransaction": False,
+            "observationOnly": True,
+        },
+    }
+
+
 def _assert_evidence_scope(output_dir: Path, network: str) -> Path:
     evidence_root = SRC_ROOT / "runtime" / "evidence" / network
     resolved_output = output_dir.resolve()
@@ -603,22 +807,38 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=300)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--print-only", action="store_true")
+    parser.add_argument(
+        "--sqlite-only",
+        action="store_true",
+        help=(
+            "Reuse verified SQLite pools and liquidity snapshots only; "
+            "never scan RPC and record any shortfall."
+        ),
+    )
     args = parser.parse_args()
 
-    report = collect_report(
-        database=args.database,
-        rpc_url=args.rpc_url,
-        pool_manager=args.pool_manager,
-        directions=tuple(
-            item.strip()
-            for item in args.directions.split(",")
-            if item.strip()
-        ),
-        limit_directions=args.limit_directions,
-        chunk_size=args.chunk_size,
-        min_chunk_size=args.min_chunk_size,
-        batch_size=args.batch_size,
+    parsed_directions = tuple(
+        item.strip()
+        for item in args.directions.split(",")
+        if item.strip()
     )
+    if args.sqlite_only:
+        report = collect_report_from_sqlite(
+            database=args.database,
+            directions=parsed_directions,
+            limit_directions=args.limit_directions,
+        )
+    else:
+        report = collect_report(
+            database=args.database,
+            rpc_url=args.rpc_url,
+            pool_manager=args.pool_manager,
+            directions=parsed_directions,
+            limit_directions=args.limit_directions,
+            chunk_size=args.chunk_size,
+            min_chunk_size=args.min_chunk_size,
+            batch_size=args.batch_size,
+        )
     if args.print_only:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
@@ -637,5 +857,6 @@ if __name__ == "__main__":
 
 __all__ = [
     "collect_report",
+    "collect_report_from_sqlite",
     "write_evidence_bundle",
 ]
