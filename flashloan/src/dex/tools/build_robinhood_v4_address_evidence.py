@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Any
+import urllib.request
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
@@ -34,13 +35,59 @@ V4_CONTRACT_KEYS = (
     "universal_router",
 )
 
+OFFICIAL_V4_SOURCE_URLS = {
+    "v4_pool_manager": (
+        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
+        "v4-core/0.4.0/UniswapV4PoolManager.json"
+    ),
+    "v4_quoter": (
+        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
+        "v4-periphery/0.4.0/Quoter.json"
+    ),
+    "position_manager": (
+        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
+        "v4-periphery/0.4.0/PositionManager.json"
+    ),
+    "permit2": (
+        "https://docs.uniswap.org/contracts/permit2/addresses"
+    ),
+    "universal_router": (
+        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
+        "v4-periphery/0.4.0/UniversalRouter.json"
+    ),
+}
+
 
 def _stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _probe_source_url(url: str, *, timeout_seconds: int = 8) -> dict[str, Any]:
+    """Probe one declared source URL and return a fail-open reachability record."""
+    try:
+        request = urllib.request.Request(
+            url,
+            method="HEAD",
+            headers={"User-Agent": "flashloan-robinhood-v4-evidence/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=max(1, int(timeout_seconds))) as response:
+            return {
+                "url": url,
+                "ok": True,
+                "statusCode": int(response.status),
+                "error": None,
+            }
+    except Exception as exc:
+        return {
+            "url": url,
+            "ok": False,
+            "statusCode": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 def _chain_row(network: str) -> dict[str, Any]:
@@ -103,6 +150,8 @@ def _contract_evidence(
     source_urls: list[str],
     block_number: int,
     explorer_probe: Any = None,
+    source_url_probe: Any = None,
+    probe_source_urls: bool = True,
 ) -> dict[str, Any]:
     checksum = Web3.to_checksum_address(address)
     # Some Robinhood testnet RPCs prune historical state, so contract code is
@@ -118,6 +167,21 @@ def _contract_evidence(
         network=network,
         chain_id=chain_id,
     )
+    if probe_source_urls:
+        source_url_verification = [
+            (source_url_probe or _probe_source_url)(url)
+            for url in source_urls
+        ]
+    else:
+        source_url_verification = [
+            {
+                "url": url,
+                "ok": False,
+                "statusCode": None,
+                "error": "skipped_pending_network_probe",
+            }
+            for url in source_urls
+        ]
     return {
         "label": label,
         "address": checksum,
@@ -126,6 +190,7 @@ def _contract_evidence(
         "codeHash": code_hash,
         "blockNumber": block_number,
         "sourceUrls": source_urls,
+        "sourceUrlVerification": source_url_verification,
         "explorer": explorer_report,
         "reviewedAt": _utc_now_iso(),
     }
@@ -138,6 +203,8 @@ def build_v4_address_provenance(
     rpc_url: str = "",
     w3: Any = None,
     explorer_probe: Any = None,
+    source_url_probe: Any = None,
+    probe_source_urls: bool = True,
 ) -> dict[str, Any]:
     normalized = str(network or "").strip().lower()
     if normalized not in {robinhood.NETWORK, robinhood.TESTNET_NETWORK}:
@@ -173,8 +240,46 @@ def build_v4_address_provenance(
         block_number = int(getattr(w3, "eth").block_number)
 
     explorer = _explorer_url(normalized)
-    base_sources = [f"{explorer.rstrip('/')}/address/{address}" for address in wanted.values() if explorer]
-    all_sources = list(dict.fromkeys((source_urls or []) + base_sources))
+    all_sources = list(
+        dict.fromkeys(
+            (source_urls or [])
+            + [
+                url
+                for label, address in wanted.items()
+                for url in (
+                    [OFFICIAL_V4_SOURCE_URLS.get(label)]
+                    if OFFICIAL_V4_SOURCE_URLS.get(label)
+                    else []
+                )
+            ]
+            + (
+                [
+                    f"{explorer.rstrip('/')}/address/{address}"
+                    for address in wanted.values()
+                ]
+                if explorer
+                else []
+            )
+        )
+    )
+    per_contract_sources = {
+        label: list(
+            dict.fromkeys(
+                (source_urls or [])
+                + (
+                    [OFFICIAL_V4_SOURCE_URLS.get(label)]
+                    if OFFICIAL_V4_SOURCE_URLS.get(label)
+                    else []
+                )
+                + (
+                    [f"{explorer.rstrip('/')}/address/{address}"]
+                    if explorer
+                    else []
+                )
+            )
+        )
+        for label, address in wanted.items()
+    }
     records: dict[str, dict[str, Any]] = {}
     for label, address in wanted.items():
         try:
@@ -185,9 +290,11 @@ def build_v4_address_provenance(
                 label=label,
                 address=address,
                 explorer=explorer,
-                source_urls=all_sources,
+                source_urls=per_contract_sources[label],
                 block_number=block_number,
                 explorer_probe=explorer_probe,
+                source_url_probe=source_url_probe,
+                probe_source_urls=probe_source_urls,
             )
         except Exception as exc:
             records[label] = {
@@ -197,7 +304,23 @@ def build_v4_address_provenance(
                 "codeBytes": 0,
                 "codeHash": "0x",
                 "blockNumber": block_number,
-                "sourceUrls": all_sources,
+                "sourceUrls": per_contract_sources[label],
+                "sourceUrlVerification": (
+                    [
+                        (source_url_probe or _probe_source_url)(url)
+                        for url in per_contract_sources[label]
+                    ]
+                    if probe_source_urls
+                    else [
+                        {
+                            "url": url,
+                            "ok": False,
+                            "statusCode": None,
+                            "error": "skipped_pending_network_probe",
+                        }
+                        for url in per_contract_sources[label]
+                    ]
+                ),
                 "error": str(exc),
                 "reviewedAt": _utc_now_iso(),
             }
@@ -209,6 +332,25 @@ def build_v4_address_provenance(
         "blockNumber": block_number,
         "generatedAt": _utc_now_iso(),
         "sourceUrls": all_sources,
+        "sourceUrlVerification": (
+            [
+                (source_url_probe or _probe_source_url)(url)
+                for url in all_sources
+            ]
+            if probe_source_urls
+            else [
+                {
+                    "url": url,
+                    "ok": False,
+                    "statusCode": None,
+                    "error": "skipped_pending_network_probe",
+                }
+                for url in all_sources
+            ]
+        ),
+        "sourceUrlProbeMode": (
+            "probed" if probe_source_urls else "skipped_pending_network_probe"
+        ),
         "contracts": records,
         "contractCount": len(records),
         "missingCodeContracts": missing,
@@ -239,6 +381,17 @@ def _write_summary(path: Path, report: dict) -> None:
         "- Execution: disabled",
         "- Broadcast: disabled",
     ]
+    lines.append(f"- Source URL probe mode: `{report.get('sourceUrlProbeMode')}`")
+    for label in V4_CONTRACT_KEYS:
+        record = (report.get("contracts") or {}).get(label) or {}
+        sources = " ".join(record.get("sourceUrls") or [])
+        verification = record.get("sourceUrlVerification") or []
+        statuses = ",".join(
+            "ok" if item.get("ok") else "pending"
+            for item in verification
+            if isinstance(item, dict)
+        )
+        lines.append(f"- {label}: {sources} ({statuses})")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -253,12 +406,18 @@ def main() -> int:
     parser.add_argument("--source-url", action="append", default=[])
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--no-write", action="store_true")
+    parser.add_argument(
+        "--probe-source-urls",
+        action="store_true",
+        help="Probe declared source URLs over the network; default records pending without blocking.",
+    )
     args = parser.parse_args()
     try:
         report = build_v4_address_provenance(
             network=args.network,
             source_urls=args.source_url,
             rpc_url=args.rpc_url,
+            probe_source_urls=args.probe_source_urls,
         )
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))

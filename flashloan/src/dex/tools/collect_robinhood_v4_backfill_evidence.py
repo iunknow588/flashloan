@@ -581,21 +581,26 @@ def collect_report_from_sqlite(
         _directional_keys,
     )
 
-    wanted_tokens = sorted(
+    target_pairs = sorted(
         {
-            part
+            tuple(
+                str(part).strip().lower()
+                for part in str(key or "").split(":", 1)
+                if str(part or "").strip().lower().startswith("0x")
+            )
             for key in targets
-            for part in str(key or "").split(":", 1)
-            if str(part or "").strip().lower().startswith("0x")
+            if len(str(key or "").split(":", 1)) == 2
         }
     )
-    placeholders = ",".join("?" for _ in wanted_tokens)
+    pair_placeholders = ",".join("(?, ?)" for _ in target_pairs)
+    pair_params = [part for pair in target_pairs for part in pair]
     rows = query(
         resolved_database,
         f"""
         SELECT p.pool_id, p.token0, p.token1, p.fee, p.tick_spacing, p.hooks,
                CAST(json_extract(p.pool_key_json, '$.initializeBlockNumber') AS INTEGER)
                  AS initialize_block_number,
+               CASE WHEN s.pool_id IS NULL THEN 0 ELSE 1 END AS has_snapshot,
                s.has_liquidity, s.liquidity, s.estimated_tvl_usd, s.depth_status,
                s.tick, s.sqrt_price_x96, s.liquidity_block_number,
                s.evidence_source, s.refreshed_at
@@ -604,46 +609,81 @@ def collect_report_from_sqlite(
           ON s.network = p.network AND s.chain_id = p.chain_id
          AND s.protocol = p.protocol AND s.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
-          AND (lower(p.token0) IN ({placeholders}) OR lower(p.token1) IN ({placeholders}))
+          AND (
+            (lower(p.token0), lower(p.token1)) IN ({pair_placeholders})
+            OR (lower(p.token1), lower(p.token0)) IN ({pair_placeholders})
+          )
         """,
         (
             ROBINHOOD_TESTNET_NETWORK,
             resolved_chain_id,
             "uniswap_v4",
-            *wanted_tokens,
-            *wanted_tokens,
+            *pair_params,
+            *pair_params,
         ),
     )
 
+    snapshot_rows: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
     for row in rows:
-        if int(row.get("has_liquidity") or 0) != 1:
-            continue
         pool_id = str(row.get("pool_id") or "").strip().lower()
         if not pool_id.startswith("0x"):
             continue
-        candidates.append(
-            {
-                "poolId": pool_id,
-                "initializeBlockNumber": int(row.get("initialize_block_number") or 0),
-                "token0": str(row.get("token0") or "").strip().lower(),
-                "token1": str(row.get("token1") or "").strip().lower(),
-                "fee": int(row.get("fee") or 0),
-                "tickSpacing": int(row.get("tick_spacing") or 0),
-                "hooks": str(row.get("hooks") or "").strip().lower(),
-                "liquidity": row.get("liquidity"),
-                "estimatedTvlUsd": row.get("estimated_tvl_usd"),
-                "depthStatus": row.get("depth_status"),
-                "tick": row.get("tick"),
-                "liquidityBlockNumber": row.get("liquidity_block_number"),
-                "evidenceSource": row.get("evidence_source"),
-                "refreshedAt": row.get("refreshed_at"),
-            }
-        )
+        pool_record = {
+            "poolId": pool_id,
+            "initializeBlockNumber": int(row.get("initialize_block_number") or 0),
+            "token0": str(row.get("token0") or "").strip().lower(),
+            "token1": str(row.get("token1") or "").strip().lower(),
+            "fee": int(row.get("fee") or 0),
+            "tickSpacing": int(row.get("tick_spacing") or 0),
+            "hooks": str(row.get("hooks") or "").strip().lower(),
+            "hasSnapshot": int(row.get("has_snapshot") or 0),
+            "hasLiquidity": row.get("has_liquidity"),
+            "liquidity": row.get("liquidity"),
+            "estimatedTvlUsd": row.get("estimated_tvl_usd"),
+            "depthStatus": row.get("depth_status"),
+            "tick": row.get("tick"),
+            "liquidityBlockNumber": row.get("liquidity_block_number"),
+            "evidenceSource": row.get("evidence_source"),
+            "refreshedAt": row.get("refreshed_at"),
+        }
+        snapshot_rows.append(pool_record)
+        if int(row.get("has_liquidity") or 0) != 1:
+            continue
+        candidates.append(pool_record)
     candidates.sort(
         key=lambda item: int(item.get("initializeBlockNumber") or 0),
         reverse=True,
     )
+
+    verified_snapshots = [
+        row
+        for row in snapshot_rows
+        if row.get("evidenceSource") or row.get("refreshedAt")
+    ]
+    refreshed_times = sorted(
+        {
+            str(row.get("refreshedAt") or "")
+            for row in verified_snapshots
+            if str(row.get("refreshedAt") or "").strip()
+        }
+    )
+    has_liquidity_rows = [
+        row
+        for row in snapshot_rows
+        if int(row.get("hasSnapshot") or 0) == 1
+    ]
+    zero_liquidity_rows = [
+        row
+        for row in has_liquidity_rows
+        if row.get("hasLiquidity") is not None
+        and int(row.get("hasLiquidity") or 0) == 0
+    ]
+    missing_snapshot_rows = [
+        row
+        for row in snapshot_rows
+        if int(row.get("hasSnapshot") or 0) == 0
+    ]
 
     selected: dict[str, list[dict[str, Any]]] = {key: [] for key in targets}
     counts: dict[str, int] = {key: 0 for key in targets}
@@ -694,8 +734,16 @@ def collect_report_from_sqlite(
         "sqliteEvidenceSource": (
             "v4_exchange_pools + v4_exchange_pool_liquidity_snapshots"
         ),
-        "sqlitePoolCount": len(rows),
+        "sqlitePoolCount": len(snapshot_rows),
+        "sqliteSnapshotCount": len(has_liquidity_rows),
         "sqliteLiveConfirmedPoolCount": len(candidates),
+        "sqliteZeroLiquidityPoolCount": len(zero_liquidity_rows),
+        "sqliteMissingSnapshotPoolCount": len(missing_snapshot_rows),
+        "verifiedSnapshotRefreshedAtRange": (
+            [refreshed_times[0], refreshed_times[-1]]
+            if refreshed_times
+            else []
+        ),
         "directionTargets": targets,
         "directionCounts": counts,
         "neededDirectionCount": len(targets),
@@ -722,8 +770,11 @@ def collect_report_from_sqlite(
         "plan": plan,
         "scan": scan,
         "indexedLiquidity": {
-            "poolCount": len(rows),
+            "poolCount": len(snapshot_rows),
+            "snapshotCount": len(has_liquidity_rows),
             "liveConfirmedPoolCount": len(candidates),
+            "zeroLiquidityPoolCount": len(zero_liquidity_rows),
+            "missingSnapshotPoolCount": len(missing_snapshot_rows),
         },
         "selectedPools": all_selected_pools,
         "safety": {
@@ -773,6 +824,11 @@ def write_evidence_bundle(
         f"- scannedSegmentCount: {scan.get('scannedSegmentCount')}",
         f"- initializeLogCount: {scan.get('initializeLogCount')}",
         f"- selectedPoolCount: {scan.get('selectedPoolCount')}",
+        f"- sqliteSnapshotCount: {scan.get('sqliteSnapshotCount')}",
+        f"- sqliteLiveConfirmedPoolCount: {scan.get('sqliteLiveConfirmedPoolCount')}",
+        f"- sqliteZeroLiquidityPoolCount: {scan.get('sqliteZeroLiquidityPoolCount')}",
+        f"- sqliteMissingSnapshotPoolCount: {scan.get('sqliteMissingSnapshotPoolCount')}",
+        f"- verifiedSnapshotRefreshedAtRange: {json.dumps(scan.get('verifiedSnapshotRefreshedAtRange') or [])}",
         f"- fromBlock: {scan.get('fromBlock')}",
         f"- toBlock: {scan.get('toBlock')}",
         f"- directionCounts: {json.dumps(scan.get('directionCounts') or {}, ensure_ascii=False)}",

@@ -403,7 +403,113 @@ def test_collect_report_from_sqlite_reuses_verified_snapshot_without_rpc(monkeyp
     assert scan["onchainRpcScan"] is False
     assert scan["scanDirection"] == "existing_sqlite_liquidity_snapshot"
     assert scan["sqliteLiveConfirmedPoolCount"] == 2
+    assert scan["sqliteSnapshotCount"] == 3
+    assert scan["sqliteZeroLiquidityPoolCount"] == 1
+    assert scan["sqliteMissingSnapshotPoolCount"] == 0
+    assert report["indexedLiquidity"]["snapshotCount"] == 3
+    assert report["indexedLiquidity"]["zeroLiquidityPoolCount"] == 1
+    assert report["indexedLiquidity"]["missingSnapshotPoolCount"] == 0
     assert scan["directionCounts"] == {forward: 2, reverse: 2}
     assert scan["satisfiedDirectionCount"] == 2
     assert scan["stoppedReason"] == "sqlite_liquidity_snapshot_satisfied"
     assert report["safety"]["writesSqlite"] is False
+
+
+def test_collect_report_from_sqlite_distinguishes_missing_snapshot(monkeypatch, tmp_path):
+    zero = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    forward = f"{zero}:{one}"
+    reverse = f"{one}:{zero}"
+    liquid = "0x" + "aa" * 32
+    missing = "0x" + "bb" * 32
+    database = str((tmp_path / "evidence.sqlite3").resolve())
+    ensure_business_schema(database)
+    now = "2026-10-17T00:00:00Z"
+    executemany(
+        database,
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_identity_mode,
+            pool_manager, pool_key_json, token0, token1, fee, fee_label,
+            dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                ROBINHOOD_TESTNET_NETWORK,
+                ROBINHOOD_TESTNET_CHAIN_ID,
+                "uniswap_v4",
+                pool_id,
+                "v4_pool_id",
+                "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                '{"initializeBlockNumber": 300}',
+                token0,
+                token1,
+                3000,
+                3000,
+                0,
+                0,
+                60,
+                "0x" + "00" * 20,
+                f"{zero}:{one}",
+                now,
+                now,
+            )
+            for pool_id, token0, token1 in ((liquid, one, zero), (missing, one, zero))
+        ],
+    )
+    executemany(
+        database,
+        """
+        INSERT INTO v4_exchange_pool_liquidity_snapshots (
+            network, chain_id, protocol, pool_id, has_liquidity, liquidity,
+            estimated_tvl_usd, depth_status, observed_at, refreshed_at,
+            evidence_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                ROBINHOOD_TESTNET_NETWORK,
+                ROBINHOOD_TESTNET_CHAIN_ID,
+                "uniswap_v4",
+                liquid,
+                1,
+                "1000000000000000000",
+                100.0,
+                "liquid",
+                now,
+                now,
+                "pool_manager_extsload_live_state_batch",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        evidence_tool,
+        "_direction_plan",
+        lambda **kwargs: {
+            "targets": {forward: 1, reverse: 1},
+            "floor_block": 100,
+            "neededDirectionCount": 2,
+            "basis": "direction_candidate_shortfall",
+        },
+    )
+    monkeypatch.setattr(
+        evidence_tool,
+        "absolute_database_path",
+        lambda _database: database,
+    )
+
+    report = evidence_tool.collect_report_from_sqlite(
+        database="",
+        directions=(forward, reverse),
+    )
+
+    scan = report["scan"]
+    assert scan["sqlitePoolCount"] == 2
+    assert scan["sqliteSnapshotCount"] == 1
+    assert scan["sqliteLiveConfirmedPoolCount"] == 1
+    assert scan["sqliteZeroLiquidityPoolCount"] == 0
+    assert scan["sqliteMissingSnapshotPoolCount"] == 1
+    assert scan["sqlitePoolCount"] == report["indexedLiquidity"]["poolCount"]
+    assert scan["sqliteSnapshotCount"] == report["indexedLiquidity"]["snapshotCount"]
