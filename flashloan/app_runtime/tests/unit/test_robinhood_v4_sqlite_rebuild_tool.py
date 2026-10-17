@@ -782,6 +782,152 @@ def test_refresh_v4_live_incremental_preserves_existing_liquidity(tmp_path):
     assert liquidity[0]["has_liquidity"] == 1
 
 
+def test_v4_incremental_guard_requires_every_pool_has_confirmed_liquidity(tmp_path):
+    from dex.tools.refresh_robinhood_v4_live import (
+        _v4_incremental_database_state,
+        _resolve_v4_scan_decision,
+    )
+
+    database = str(tmp_path / "guard.sqlite3")
+    _seed_testnet_anchor_pair(database)
+
+    state = _v4_incremental_database_state(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert state["poolCount"] == 1
+    assert state["confirmedLiquidityPoolCount"] == 1
+    assert state["complete"] is True
+
+    decision = _resolve_v4_scan_decision(
+        database_state=state,
+        last_scanned_block=1000,
+        full_index_scan=False,
+        from_block_override=None,
+    )
+    assert decision["scanMode"] == "incremental"
+    assert decision["fromBlock"] == 1001
+    assert decision["forcedFullScan"] is False
+
+
+def test_v4_incremental_guard_forces_full_scan_for_missing_or_zero_liquidity(tmp_path):
+    from core.db.storage_business_io import execute
+    from dex.tools.refresh_robinhood_v4_live import (
+        _v4_incremental_database_state,
+        _resolve_v4_scan_decision,
+    )
+
+    database = str(tmp_path / "guard-incomplete.sqlite3")
+    _seed_testnet_anchor_pair(database)
+
+    execute(
+        database,
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_identity_mode,
+            pool_manager, token0, token1, fee, dynamic_fee, special_fee,
+            tick_spacing, hooks, address_pair, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'v4_pool_id', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+            "uniswap_v4",
+            "pool-missing-liquidity",
+            "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+            TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"],
+            3000,
+            0,
+            0,
+            60,
+            "0x0000000000000000000000000000000000000000",
+            "tz:usde",
+            "2026-10-17T00:00:00Z",
+            "2026-10-17T00:00:00Z",
+        ),
+    )
+
+    missing_state = _v4_incremental_database_state(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert missing_state["poolCount"] == 2
+    assert missing_state["missingLiquiditySnapshotCount"] == 1
+    assert missing_state["complete"] is False
+
+    missing_decision = _resolve_v4_scan_decision(
+        database_state=missing_state,
+        last_scanned_block=1000,
+        full_index_scan=False,
+        from_block_override=None,
+    )
+    assert missing_decision["scanMode"] == "full_forced_db_incomplete"
+    assert missing_decision["fromBlock"] == 0
+    assert missing_decision["forcedFullScan"] is True
+
+    upsert_v4_liquidity_snapshots(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": "pool-missing-liquidity",
+                "has_liquidity": False,
+                "liquidity_index": 0.0,
+                "estimated_tvl_usd": 0.0,
+            }
+        ],
+    )
+
+    zero_state = _v4_incremental_database_state(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert zero_state["zeroLiquidityPoolCount"] == 1
+    assert zero_state["complete"] is False
+
+    zero_decision = _resolve_v4_scan_decision(
+        database_state=zero_state,
+        last_scanned_block=1000,
+        full_index_scan=False,
+        from_block_override=None,
+    )
+    assert zero_decision["scanMode"] == "full_forced_db_incomplete"
+    assert zero_decision["fromBlock"] == 0
+
+
+def test_v4_incremental_guard_skips_force_for_explicit_overrides(tmp_path):
+    from dex.tools.refresh_robinhood_v4_live import (
+        _v4_incremental_database_state,
+        _resolve_v4_scan_decision,
+    )
+
+    database = str(tmp_path / "guard-override.sqlite3")
+    ensure_database_schema(database)
+
+    empty_state = _v4_incremental_database_state(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert empty_state["complete"] is False
+
+    override_decision = _resolve_v4_scan_decision(
+        database_state=empty_state,
+        last_scanned_block=1000,
+        full_index_scan=False,
+        from_block_override=777,
+    )
+    assert override_decision["scanMode"] == "explicit_override"
+    assert override_decision["fromBlock"] == 777
+    assert override_decision["forcedFullScan"] is False
+
+
 def test_v4_scan_state_persists_last_block_for_incremental_refresh(tmp_path, monkeypatch):
     from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
 

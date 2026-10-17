@@ -1008,7 +1008,7 @@ def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     monkeypatch.setattr(
         quote_service,
         "dex_pool_candidates_payload",
-        lambda: {
+        lambda **kwargs: {
             "mode": "stub_pool_candidates",
             "pairs": [],
             "summary": {},

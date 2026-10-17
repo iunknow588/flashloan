@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -83,6 +84,108 @@ _STALE_LIQUIDITY_KEYS = (
     "liquidityError",
     "liquiditySource",
 )
+
+
+def _with_database_path(database: str, fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run a default-database reader against an explicit SQLite file."""
+    key = "FLASHLOAN_KV_PATH"
+    previous = os.environ.get(key)
+    os.environ[key] = str(database)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+def _v4_incremental_database_state(
+    *,
+    database: str,
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+) -> dict[str, Any]:
+    """Return raw V4 pool/liquidity completeness for the incremental guard.
+
+    Incremental Initialize scans are only safe when every pool in the SQLite
+    index has an explicit live liquidity snapshot.  Explicit zero-liquidity
+    pools are pruned after a completed rebuild, but until they are cleaned the
+    database is not a consistent executable index and a full scan is forced.
+    """
+    from core.db.storage_business_io import query
+
+    rows = query(
+        database,
+        """
+        SELECT COUNT(*) AS pool_count,
+               COALESCE(SUM(CASE WHEN l.pool_id IS NOT NULL THEN 1 ELSE 0 END), 0)
+                 AS snapshot_count,
+               COALESCE(SUM(CASE WHEN l.has_liquidity = 1 THEN 1 ELSE 0 END), 0)
+                 AS confirmed_count,
+               COALESCE(SUM(CASE WHEN l.has_liquidity = 0 THEN 1 ELSE 0 END), 0)
+                 AS zero_count
+        FROM v4_exchange_pools p
+        LEFT JOIN v4_exchange_pool_liquidity_snapshots l
+          ON l.network = p.network AND l.chain_id = p.chain_id
+         AND l.protocol = p.protocol AND l.pool_id = p.pool_id
+        WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    row = rows[0] if rows else {}
+    pool_count = int(row.get("pool_count") or 0)
+    snapshot_count = int(row.get("snapshot_count") or 0)
+    confirmed_count = int(row.get("confirmed_count") or 0)
+    zero_count = int(row.get("zero_count") or 0)
+    return {
+        "poolCount": pool_count,
+        "snapshotCount": snapshot_count,
+        "confirmedLiquidityPoolCount": confirmed_count,
+        "zeroLiquidityPoolCount": zero_count,
+        "missingLiquiditySnapshotCount": max(0, pool_count - snapshot_count),
+        "unknownLiquidityCount": max(0, snapshot_count - confirmed_count - zero_count),
+        "complete": pool_count > 0 and confirmed_count == pool_count,
+    }
+
+
+def _resolve_v4_scan_decision(
+    *,
+    database_state: dict[str, Any],
+    last_scanned_block: int,
+    full_index_scan: bool,
+    from_block_override: int | None,
+) -> dict[str, Any]:
+    """Decide the Initialize scan start block before any RPC connection."""
+    database_complete = bool(database_state.get("complete"))
+    if from_block_override is not None:
+        return {
+            "fromBlock": max(0, int(from_block_override)),
+            "scanMode": "full" if int(from_block_override) <= 0 else "explicit_override",
+            "forcedFullScan": False,
+            "reason": None,
+        }
+    if full_index_scan:
+        return {
+            "fromBlock": 0,
+            "scanMode": "full",
+            "forcedFullScan": True,
+            "reason": "full_index_scan_requested",
+        }
+    if not database_complete:
+        return {
+            "fromBlock": 0,
+            "scanMode": "full_forced_db_incomplete",
+            "forcedFullScan": True,
+            "reason": "db_pool_liquidity_incomplete",
+        }
+    return {
+        "fromBlock": max(0, last_scanned_block + 1),
+        "scanMode": "incremental",
+        "forcedFullScan": False,
+        "reason": None,
+    }
 
 
 def _remove_v4_json_evidence(
@@ -582,13 +685,28 @@ def refresh_v4_live(
             network=network,
             chain_id=chain_id,
         )
-        if from_block_override is not None:
-            resolved_from_block = max(0, int(from_block_override))
-        elif full_index_scan:
-            resolved_from_block = 0
-        else:
-            last_scanned = int(scan_state.get("last_scanned_block") or 0)
-            resolved_from_block = last_scanned + 1 if last_scanned > 0 else 0
+        database_state = _v4_incremental_database_state(
+            database=str(database),
+            network=network,
+            chain_id=chain_id,
+        )
+        scan_decision = _resolve_v4_scan_decision(
+            database_state=database_state,
+            last_scanned_block=int(scan_state.get("last_scanned_block") or 0),
+            full_index_scan=full_index_scan,
+            from_block_override=from_block_override,
+        )
+        resolved_from_block = int(scan_decision["fromBlock"])
+        steps.append(
+            {
+                "step": "v4_incremental_guard",
+                "ok": True,
+                "scanMode": scan_decision["scanMode"],
+                "forcedFullScan": scan_decision["forcedFullScan"],
+                "reason": scan_decision["reason"],
+                "databaseState": database_state,
+            }
+        )
         index_result = _load_index_payload(
             database=str(database),
             network=network,
@@ -609,11 +727,7 @@ def refresh_v4_live(
                 "poolCount": len(index_payload.get("pools") or []),
                 "generatedBlockNumber": index_payload.get("generatedBlockNumber"),
                 "fromBlock": resolved_from_block if not skip_index else None,
-                "scanMode": (
-                    "full"
-                    if full_index_scan or (resolved_from_block <= 0 and not skip_index)
-                    else "incremental"
-                ),
+                "scanMode": scan_decision["scanMode"],
             }
         )
     except Exception as exc:
@@ -759,12 +873,26 @@ def refresh_v4_live(
     snapshot_result: dict = {}
     if not errors and not skip_build and not verify_only:
         try:
-            from market.binance_market.dex_surfaces import database_overview_snapshot
+            from core.db.storage_dex_surface_snapshot import load_dex_overview_snapshot
 
-            snapshot_result = database_overview_snapshot(
-                chain_id=chain_id,
-                protocols=["uniswap_v4"],
+            persisted = _with_database_path(
+                str(database),
+                load_dex_overview_snapshot,
+                network=network,
+                chain_id=int(chain_id),
+                protocol="uniswap_v4",
             )
+            if persisted is None:
+                from market.binance_market.dex_surfaces import database_overview_snapshot
+
+                snapshot_result = _with_database_path(
+                    str(database),
+                    database_overview_snapshot,
+                    chain_id=chain_id,
+                    protocols=["uniswap_v4"],
+                )
+            else:
+                snapshot_result = persisted
             steps.append(
                 {
                     "step": "dex_overview_snapshot",
@@ -805,11 +933,7 @@ def refresh_v4_live(
                 explicit_zero_liquidity_pool_count=explicit_zero_count,
                 unscanned_pool_count=max(0, pool_count - confirmed_count - explicit_zero_count),
                 direction_candidate_limit=int(builders.MAX_CANDIDATE_POOLS_PER_PAIR),
-                scan_mode=(
-                    "full"
-                    if full_index_scan or (resolved_from_block <= 0 and not skip_index)
-                    else "incremental"
-                ),
+                scan_mode=scan_decision["scanMode"],
             )
             steps.append(
                 {

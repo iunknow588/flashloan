@@ -14,6 +14,9 @@ from market.binance_market.cow_tokens import DEFAULT_COW_TEST_NETWORK
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.velocity_candidates import top_bottom_from_extremes
 
+_BINANCE_CHAIN_ID = 56
+_BINANCE_CANDIDATE_PROTOCOLS = ("uniswap_v3", "pancakeswap_v3")
+
 
 def build_binance_market_state(
     extremes: dict[str, Any] | None,
@@ -180,7 +183,10 @@ def build_binance_market_state(
         cow_filter["pool_filter"]["rejected_pair_count"] = len(pool_pair_rejections)
         cow_filter["pool_filter"]["rejected_pairs"] = pool_pair_rejections[:20]
     try:
-        pool_candidates = dex_pool_candidates_payload()
+        pool_candidates = dex_pool_candidates_payload(
+            chain_id=_BINANCE_CHAIN_ID,
+            protocols=_BINANCE_CANDIDATE_PROTOCOLS,
+        )
     except Exception as exc:
         pool_candidates = {"error": str(exc), "pairs": [], "summary": {}, "poolStaticTable": {}}
     return {
