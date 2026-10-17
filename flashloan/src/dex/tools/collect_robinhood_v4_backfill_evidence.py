@@ -833,8 +833,11 @@ def write_evidence_bundle(
         f"- toBlock: {scan.get('toBlock')}",
         f"- directionCounts: {json.dumps(scan.get('directionCounts') or {}, ensure_ascii=False)}",
         "",
-        "Search is newest-to-oldest and stops when every direction has five live",
-        "candidate pools or when the pool creation floor is reached.",
+        f"- scanDirection: {scan.get('scanDirection')}",
+        f"- onchainRpcScan: {scan.get('onchainRpcScan')}",
+        "",
+        "SQLite-only mode reuses verified pool and liquidity snapshot rows and",
+        "records any shortfall without opening an RPC connection.",
         "",
     ]
     summary_path.write_text("\n".join(summary), encoding="utf-8")
