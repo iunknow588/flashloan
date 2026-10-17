@@ -267,10 +267,14 @@ def test_real_runtime_sqlite_sources_five_official_stock_pool_candidates():
         and str(row.get("hooks") or "").lower()
         in {"", "0x0000000000000000000000000000000000000000"}
     ]
-    assert len(candidates) == 10
+    # On-chain AMZN-500 (tickSpacing=10) is initialized with a non-zero
+    # sqrtPriceX96 but live PoolManager liquidity is zero. The executable
+    # index prunes zero-liquidity pools, so it is intentionally absent here.
+    assert len(candidates) == 9
+    assert all(row["hasLiquidity"] for row in candidates)
     by_symbol = {row["stockSymbol"]: row["fee"] for row in candidates}
     assert by_symbol["AMD"] == 3000
-    assert {row["fee"] for row in candidates if row["stockSymbol"] == "AMZN"} == {100, 500, 3000}
+    assert {row["fee"] for row in candidates if row["stockSymbol"] == "AMZN"} == {100, 3000}
     assert by_symbol["NFLX"] == 3000
     assert {row["fee"] for row in candidates if row["stockSymbol"] == "PLTR"} == {500, 2500, 3000}
     assert {row["fee"] for row in candidates if row["stockSymbol"] == "TSLA"} == {500, 3000}
