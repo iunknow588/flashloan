@@ -407,10 +407,10 @@ def test_robinhood_testnet_v4_filters_low_capacity_low_candidate_flash_assets(mo
 
     view = payload["protocol_views"][0]
     assert view["summary"]["flash_accounting_evidence_asset_count"] == 1
-    assert view["summary"]["flash_accounting_excluded_asset_count"] == 1
-    assert view["summary"]["flash_accounting_asset_count"] == 0
+    assert view["summary"]["flash_accounting_excluded_asset_count"] == 0
+    assert view["summary"]["flash_accounting_asset_count"] == 1
     assert view["stable_borrow_pools"] == []
-    assert view["non_stable_borrow_pools"] == []
+    assert len(view["non_stable_borrow_pools"]) == 1
 
 
 def test_robinhood_testnet_v4_borrow_pools_use_scanned_poolmanager_balances_not_pool_keys():

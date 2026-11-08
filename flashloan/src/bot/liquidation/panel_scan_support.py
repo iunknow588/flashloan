@@ -12,7 +12,7 @@ def run_account_backfill_once(panel) -> dict:
             lock=panel.LIQUIDATION_ACCOUNT_BACKFILL_LOCK,
             stop_event=panel.LIQUIDATION_ACCOUNT_BACKFILL_STOP,
             status_payload=panel.account_backfill_status_payload,
-            database_url=panel.database_url_or_none,
+            database_url=panel.database_url,
             auto_discovery_enabled=lambda: panel.os.getenv(
                 "LIQUIDATION_AUTO_DISCOVER_ACCOUNTS",
                 "true",
@@ -144,7 +144,7 @@ def health_display_rows(panel, rows: list[dict], limit: int) -> list[dict]:
 
 
 def record_health_scan_rows(panel, rows: list[dict]) -> None:
-    database_url = panel.database_url_or_none()
+    database_url = panel.database_url()
     if not database_url or not rows:
         return
     try:
@@ -201,7 +201,7 @@ def account_payload_runtime(panel):
         protocol_data_provider_address=panel.protocol_data_provider_address,
         liquidation_data_provider_address=panel.liquidation_data_provider_address,
         scan_config=panel.liquidation_scan_config,
-        database_url=panel.database_url_or_none,
+        database_url=panel.database_url,
         record_account_scan=panel.record_liquidation_account_scan,
         prune_accounts=panel.db_prune_liquidation_accounts,
         retention_days=panel.liquidation_retention_days,

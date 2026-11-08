@@ -1,0 +1,76 @@
+{
+  "capturedAt": "2026-11-03T18:13:41+08:00",
+  "milestone": "M1",
+  "task": "D1.1.2",
+  "status": "passed",
+  "scope": {
+    "crates": [
+      "manager_contracts",
+      "manager_db",
+      "token_manager"
+    ],
+    "implementation": [
+      "four-library row model",
+      "transactional repository",
+      "cross-library uniqueness guard",
+      "library version and checksum state",
+      "admission events"
+    ],
+    "databaseMode": "temporary_sqlite_only",
+    "mainnetDatabaseWrites": 0,
+    "httpBusinessWritesEnabled": false
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "testsPassed": 25,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml --workspace --all-targets -- -D warnings",
+      "exitCode": 1,
+      "scope": "informational",
+      "reason": "pre-existing warnings outside D1.1.2 in pool_manager and manager_contracts"
+    }
+  ],
+  "tokenManagerTests": [
+    "storage keys are stable",
+    "initial write materializes rows, state and events",
+    "identical write is idempotent",
+    "admission change increments version and writes event",
+    "cross-library duplicate is rejected without partial write",
+    "inconsistent token identity is rejected",
+    "library checksum is order-independent and deterministic",
+    "HTTP boundary remains read-only"
+  ],
+  "gates": {
+    "oneTokenOneLibrary": "passed",
+    "immediateTransaction": "passed",
+    "admissionEventAudit": "passed",
+    "versionAtomicIncrement": "passed",
+    "unchangedWriteKeepsVersionAndChecksum": "passed",
+    "canonicalJsonChecksum": "passed",
+    "invalidIdentityRejected": "passed",
+    "partialWriteRollback": "passed"
+  },
+  "sourceHashes": {
+    "flashloan/tools/token_manager/src/model.rs": "sha256:0ad5b3433c1719dfc32eaea323a528edf4bfcdf43ac9cc8c896c9fbe89353bc6",
+    "flashloan/tools/token_manager/src/store.rs": "sha256:2ca7219c21b7c214b100a64f41a3b37956f16d91b12fad99a889bfa06abe5c89",
+    "flashloan/tools/token_manager/src/lib.rs": "sha256:67f553e22dddd7981125666c9ee16f7946e57fc16419349631681af9d2dc0270"
+  },
+  "nextTask": "D1.1.3",
+  "conclusion": "D1.1.2 passed without writing the mainnet database"
+}

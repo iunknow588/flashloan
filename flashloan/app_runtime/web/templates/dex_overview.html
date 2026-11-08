@@ -16,15 +16,16 @@
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .metric, .panel, .path { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .panel, .path { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; min-width: 0; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
     .metric strong { display: block; font-size: 18px; }
     .metric span, .muted { color: #667085; font-size: 13px; }
     .path { margin-bottom: 12px; }
     .path-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+    .path-head > div { min-width: 0; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
+    .badge { display: inline-block; max-width: 100%; overflow-wrap: anywhere; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
     .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
     .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
     .table-wrap { overflow-x: auto; margin-top: 10px; }
@@ -33,7 +34,15 @@
     th:first-child, td:first-child { text-align: left; }
     .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
     @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .path-head { display: block; } }
+    @media (max-width: 480px) {
+      header, main { padding: 12px 14px; }
+      .toolbar { flex-wrap: wrap; }
+      .grid { grid-template-columns: 1fr; }
+      .badges { max-width: 100%; }
+      h1, h2, .muted { overflow-wrap: anywhere; }
+    }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body data-dex-surface-template="overview">
   <header>
@@ -49,7 +58,7 @@
   <main>
     <div class="toolbar">
       <button id="refreshBtn">刷新总览</button>
-      <button id="rebuildBtn">重新生成总览</button>
+      <button id="rebuildBtn">重新读取总览</button>
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
@@ -90,13 +99,13 @@
     const list = value => Array.isArray(value) ? value : [];
     const recommendationAction = value => {
       const map = {
-        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止链上执行",
+        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；不建议链上执行",
         "on-chain reverify complete; current state does not satisfy transaction submission conditions": "链上复核完成；当前状态不满足提交条件",
         "on-chain reverify complete": "链上复核完成",
         "waiting for live quoter": "等待链上实时报价",
         "static reference only": "静态参考",
         "ready for transaction preflight": "可进入链上执行",
-        "blocking transaction preflight": "阻止链上执行",
+        "blocking transaction preflight": "不建议链上执行",
       }[String(value || "")];
       if (map) return map;
       if (/[\u4e00-\u9fff]/.test(String(value || ""))) return value;
@@ -107,7 +116,7 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits}) : "-";
     };
-    const fmtTime = value => value ? new Date(value).toLocaleString([], { hour12: false }) : "-";
+    const fmtTime = value => window.formatLocalDisplayTime(value);
     const money = value => {
       if (value === null || value === undefined || value === "") return "-";
       const parsed = Number(value);
@@ -439,8 +448,8 @@
         $("sourceNetwork").textContent = source.network || "-";
         const cacheTime = data.summary?.candidateCacheRefreshedAt || source.generatedAt || source.generated_at || data.generatedAt;
         $("sourceMeta").textContent = source.exists === false
-          ? "当前链没有静态池表"
-          : `缓存时间 ${cacheTime ? fmtTime(cacheTime) : "-"}`;
+          ? "管理器暂无当前链快照"
+          : `管理模块快照 ${cacheTime ? fmtTime(cacheTime) : "-"}`;
         const poolRows = list(data.arbitragePaths || []).flatMap(route => list(route.executionPools || route.preferredPools || route.routePools || []));
         const liquidPoolIds = new Set(poolRows.filter(overviewPoolUsable).map(pool => String(pool.pool || pool.poolId || "").trim().toLowerCase()).filter(Boolean));
         $("liquidPoolCount").textContent = liquidPoolIds.size || "-";

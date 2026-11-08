@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_1_ui_manager_compat_20261104",
+  "milestone": "M9",
+  "task": "D6.1 read-only manager API compatibility boundary, dataSource DTO marker, and candidate-page shadow comparison",
+  "status": "partial_read_only_compat_candidate_shadow_done_pages_pending",
+  "generatedAt": "2026-11-04T23:32:46Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The first M9 slice is implemented and verified: Flask can proxy selected manager read routes through a bounded HTTP client, DEX DTOs expose dataSource=legacy|manager, and the candidate page supports an opt-in read-only manager shadow with bounded row-level comparison. Existing page URLs, templates, layouts, and business projections remain unchanged. No page has been switched to manager business data yet.",
+  "implementation": {
+    "client": "flashloan/src/core/manager_api_client.py",
+    "routes": "flashloan/app_runtime/web/manager_compat_routes.py",
+    "registeredIn": "flashloan/app_runtime/web/control_panel_app.py",
+    "dexDataSourceHook": "flashloan/app_runtime/web/data_routes/dex_surface_response.py",
+    "flaskRoutes": [
+      "GET /api/manager/capabilities",
+      "GET /api/manager/pipeline/status",
+      "GET /api/manager/pipeline/runs",
+      "GET /api/manager/pipeline/runs/<run_id>",
+      "GET /api/dex-pools/candidates?manager_compare=true (shadow only)"
+    ],
+    "upstreamRoutes": [
+      "GET /v1/capabilities",
+      "GET /v1/pipeline/status",
+      "GET /v1/pipeline/runs",
+      "GET /v1/pipeline/runs/{run_id}",
+      "GET /v1/candidate-edge-pools"
+    ],
+    "defaultDataSource": "legacy",
+    "allowedDataSources": [
+      "legacy",
+      "manager"
+    ],
+    "dataSourcePolicy": "MANAGER_UI_DATA_SOURCE defaults to legacy. In legacy mode the manager proxy returns HTTP 409 and performs no outbound request. In manager mode successful responses set dataSource=manager. Existing DEX DTOs set dataSource=legacy unless they already carry a domain-specific dataSource object.",
+    "managerApiBaseUrlPolicy": "MANAGER_API_BASE_URL defaults to http://127.0.0.1:8091. Only absolute http/https URLs without embedded credentials are accepted.",
+    "timeoutPolicy": "MANAGER_API_TIMEOUT_SECONDS defaults to 3 and must be between 0.1 and 30.",
+    "candidateShadow": {
+      "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+      "snapshotUpstream": "GET /v1/candidate-edge-pools?chainId=4663&limit=1000",
+      "comparisonUpstream": "GET /v1/candidate-edge-pools/compare?chainId=4663&sampleLimit=200&legacyAnchorScope=dex-arbitrage-4663-uniswap-v4",
+      "snapshotLimit": 1000,
+      "rowComparisonSampleLimit": 200,
+      "legacyFieldsUnaffected": true,
+      "statusCountBasis": "full_materialized_scope",
+      "rowCountBasis": "bounded_snapshot_rows",
+      "rowComparisonOutputs": [
+        "anchorTokens",
+        "poolPairs",
+        "pools",
+        "recommendations",
+        "causeCounts",
+        "unresolvedLegacyAnchors"
+      ],
+      "comparisonReadyForFieldSwitch": false
+    },
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "scopePrefix": "/api/manager/",
+    "scopeRegistered": true,
+    "successResponseRequiredKeys": [
+      "ok",
+      "dataSource"
+    ],
+    "errorDtoCompatibility": "Compatibility errors retain the standard error object and also expose top-level code/detail for existing page clients.",
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 42
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "manager proxy routes are disabled and make no outbound request by default",
+    "manager mode maps Flask route arguments to manager GET paths",
+    "manager transport errors return structured HTTP 503 with dataSource=manager",
+    "limit bounds are validated before calling manager_api",
+    "run id path segments are URL-encoded",
+    "invalid manager base URLs, timeouts, UI source values, and non-object JSON responses fail closed",
+    "legacy DEX DTOs receive dataSource=legacy without overwriting an existing domain-specific dataSource object",
+    "manager routes are included in scope and response schema registries",
+    "candidate manager shadow is disabled without network access while MANAGER_UI_DATA_SOURCE=legacy",
+    "candidate manager shadow exposes version/checksum/status counts and keeps legacy page fields unchanged",
+    "candidate manager row-array counts are labeled with the 1000-row snapshot limit rather than treated as full materialization counts",
+    "candidate manager shadow requests sampleLimit=200 row comparison for anchors, pairs, pools, and recommendations",
+    "candidate manager row comparison remains diagnostic when the compare endpoint fails and does not affect the legacy page payload",
+    "candidate page attaches managerShadow only when manager_compare=true"
+  ],
+  "knownBoundary": "M9 page-level migration is not complete. The candidate page exposes an opt-in manager shadow with bounded row-level diagnostics, but its rendered business fields and dataSource remain legacy. Market-observation, closed-loop, review, submission/broadcast, and overview page DTOs still use legacy Python data paths. The compatibility layer is read-only and does not authorize production authority cutover. The next slice is an unbounded dual-read on a production copy followed by one controlled manager-backed read path while preserving existing URLs and visual structure."
+}

@@ -1,19 +1,17 @@
-const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
-const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
-    const scanIntervalMs = 3000;
-    const defaultRefreshIntervalSeconds = 180;
+// Versioned key invalidates the old auto-persisted 180-second UI default.
+const refreshIntervalKey = "dex-quotes-refresh-interval-seconds-v2";
+    // UI-owned projection refresh. Runtime workers retain their own lifecycle and cadence.
+    const configuredRefreshIntervalSeconds = Number(document.body?.dataset?.dexQuotesUiRefreshIntervalSeconds);
+    const defaultRefreshIntervalSeconds = Number.isFinite(configuredRefreshIntervalSeconds) && configuredRefreshIntervalSeconds > 0
+      ? Math.min(3600, Math.max(10, Math.floor(configuredRefreshIntervalSeconds)))
+      : 60;
     let refreshTimer = null;
     let refreshInFlight = false;
     let snapshotRefreshTimers = [];
-    let scanNowInFlight = false;
     let latestRoutes = [];
     let latestSubmissionRows = [];
     let snapshotRefreshing = false;
-    let autoChainReviewStarted = false;
-    let autoReviewRunning = false;
-    let autoReviewQueued = false;
-    let staticRoutesLoaded = false;
-    let autoReviewToken = 0;
+    let managerRoutesLoaded = false;
     let selectionGeneration = 0;
     let activeSelectionSignature = "";
     let activeRouteKey = "";
@@ -40,15 +38,11 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       return ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy"].map(key => query.get(key) || "").join("|").toLowerCase();
     };
     const beginSelectionRefresh = message => {
-      selectionGeneration += 1; autoReviewToken += 1; autoChainReviewStarted = false; staticRoutesLoaded = false; activeSelectionSignature = selectionSignature(); latestRoutes = [];
+      selectionGeneration += 1; managerRoutesLoaded = false; activeSelectionSignature = selectionSignature(); latestRoutes = [];
       activeRouteKey = ""; pageState = PAGE_STATE.INIT;
       activeExecution = { routeKey: "", state: "", txHash: "", startedAt: 0 };
       $("routeList").innerHTML = `<div class="empty">${esc(message)}</div>`;
       ["routeCount", "completeCount", "readyCount", "autoExecutableCount"].forEach(id => $(id).textContent = "0");
-    };
-    const focusedRouteKey = () => {
-      if (activeRouteKey && latestRoutes.some(route => routeKey(route) === activeRouteKey)) return activeRouteKey;
-      return latestRoutes.length ? routeKey(latestRoutes[0]) : "";
     };
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
@@ -116,121 +110,50 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         clearTimeout(timer);
       }
     }
-    function renderScannerResponse(response, quoteRoutesPayload) {
-      const responseChainId = response?.chain_id ?? response?.snapshot?.chain_id ?? "";
-      const activeChainId = new URLSearchParams(window.location.search).get("chain_id") || "";
-      if (responseChainId && activeChainId && String(responseChainId) !== activeChainId) return;
+    function renderManagerRoutes(payload) {
+      const generation = selectionGeneration;
+      const signature = activeSelectionSignature;
+      if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
       if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
-      const scanner = response.scanner || {}; const snapshot = response.snapshot || {}; const data = snapshot.payload || {}; const summary = data.summary || snapshot.summary || {};
-      const sessionStats = scanner.session_stats || {};
-      const sessionResetAt = sessionStats.reset_at || "";
-      const snapshotUpdatedAt = snapshot.updated_at || scanner.snapshot_updated_at || "";
-      const statsClearedSinceSnapshot = Boolean(sessionResetAt && (!snapshotUpdatedAt || String(sessionResetAt) > String(snapshotUpdatedAt)));
-      if (statsClearedSinceSnapshot) quoteRoutesPayload = null;
-      const autoExecuteToggle = document.getElementById("autoExecuteToggle");
-      if (autoExecuteToggle) {
-        try {
-          const backendAutoExecute = Boolean(scanner.auto_execute_enabled);
-          autoExecuteToggle.checked = backendAutoExecute;
-          if (backendAutoExecute) {
-            window.localStorage.setItem(autoExecuteEnabledKey, "true");
-          }
-        } catch (_) {
-          autoExecuteToggle.checked = Boolean(scanner.auto_execute_enabled);
-        }
-      }
-      $("routeCount").textContent = summary.routeCount ?? summary.route_count ?? 0;
-      $("completeCount").textContent = summary.completeStaticQuoteCount ?? summary.complete_static_quote_count ?? 0;
-      $("readyCount").textContent = summary.executableCandidateCount ?? summary.executable_candidate_count ?? 0;
-      const autoExecuteOn = autoExecuteToggle ? Boolean(autoExecuteToggle.checked) : Boolean(scanner.auto_execute_enabled);
-      const autoExecutable = summary.autoExecutableClosedLoopCount ?? summary.auto_executable_closed_loop_count ?? 0;
-      $("autoExecutableCount").textContent = `${autoExecutable}`;
-      $("autoExecutableMeta").textContent = autoExecuteOn && scanner.auto_execute_callback_configured
-        ? `${autoExecutable} 条自动扫描复核并链上广播已开启`
-        : autoExecuteOn
-          ? `${autoExecutable} 条自动扫描复核并链上广播未授权`
-          : `${autoExecutable} 条自动扫描复核并链上广播未开启`;
-      const reviewedCount = summary.onchainEvidenceReviewedRouteCount ?? 0;
-      $("reviewedCount").textContent = `${reviewedCount}`;
-      $("reviewedMeta").textContent = `已复核 ${reviewedCount} 条 / 总 ${summary.routeCount ?? 0} 条`;
-      const profitableCount = summary.liveProfitableRouteCount ?? summary.live_profitable_route_count ?? 0;
-      $("profitableCount").textContent = `${profitableCount}`;
-      $("profitableMeta").textContent = `${profitableCount} 条链上复核为正收益`;
-      const sessionExecuted = sessionStats.executed_count ?? 0;
-      const sessionAutoExecuted = sessionStats.auto_executed_count ?? sessionStats.executed_count ?? 0;
-      const sessionProfit = sessionStats.positive_profit_amount ?? 0;
-      const closedLoopScanCount = scanner.closed_loop_scan_count ?? 0;
-      const closedLoopReviewCount = scanner.closed_loop_review_count ?? 0;
-      const autoBroadcastCount = scanner.auto_broadcast_count ?? scanner.auto_execute_count ?? 0;
-      const autoExecutedCount = Math.max(
-        Number(sessionAutoExecuted || 0),
-        Number(autoBroadcastCount || 0)
-      );
-      const lastRecordingReviewCount = scanner.last_recording?.review_count ?? 0;
-      $("closedLoopScanCount").textContent = `${closedLoopScanCount}`;
-      $("closedLoopScanMeta").textContent = lastRecordingReviewCount > 0
-        ? `上次闭环 ${lastRecordingReviewCount} 条 | 累计闭环 ${closedLoopScanCount} 次`
-        : `累计已完成闭环 ${closedLoopScanCount} 次`;
-      $("closedLoopReviewCount").textContent = `${closedLoopReviewCount}`;
-      $("closedLoopReviewMeta").textContent = lastRecordingReviewCount > 0
-        ? `上次复核 ${lastRecordingReviewCount} 条 | 累计复核 ${closedLoopReviewCount} 条`
-        : `累计链上复核尝试 ${closedLoopReviewCount} 条`;
-      $("autoExecutedCount").textContent = `${autoExecutedCount}`;
-      $("autoExecutedMeta").textContent = sessionStats.reset_at
-        ? `统计自 ${new Date(sessionStats.reset_at).toLocaleString("zh-CN", {hour12: false})} | 已执行 ${sessionExecuted} 条 | 自动 ${autoExecutedCount} 条 | 累计广播 ${autoBroadcastCount} 条`
-        : autoBroadcastCount > 0
-          ? `累计上链广播 ${autoBroadcastCount} 条`
-          : autoExecutedCount > 0
-            ? `累计自动执行 ${autoExecutedCount} 条`
-            : "暂未自动执行";
-      $("autoBroadcastCount").textContent = `${autoBroadcastCount}`;
-      $("autoBroadcastMeta").textContent = autoBroadcastCount > 0
-        ? `累计链上广播 ${autoBroadcastCount} 条`
-        : "暂未链上广播";
-      $("profitableMeta").textContent = sessionStats.reset_at
-        ? `最近清零后正利润 ${numeric(sessionProfit, 6)}U / ${sessionStats.positive_profit_count ?? 0} 条`
-        : `${profitableCount} 条链上复核为正收益`;
-      const queueCount = (scanner.closed_loop_review_queue?.queued ?? 0) + (scanner.queued_scan_count ?? 0);
-      $("queueCount").textContent = `${queueCount}`;
-      $("queueMeta").textContent = `复核队列 ${scanner.closed_loop_review_queue?.queued ?? 0} | 扫描排队 ${scanner.queued_scan_count ?? 0}`;
-      const pathSourceLabel = summary.pathSource === "candidate_pool_fallback"
-        ? "候选池诊断闭环（未纳入 DEX_TABLE）"
-        : (summary.pathSource || "market_observation");
-      $("routeSourceMeta").textContent = `${pathSourceLabel} | 观察路线 ${summary.marketObservationRouteCount ?? 0} | 可链上复核 ${summary.chainReviewEligiblePathCount ?? "-"} | 候选诊断 ${summary.diagnosticOnlyPathCount ?? 0}`;
-      const reviewed = summary.onchainEvidenceReviewedRouteCount ?? 0;
-      const deferred = summary.onchainEvidencePendingRouteCount ?? summary.liveQuoterRequiredCount ?? 0;
-      const failed = summary.onchainEvidenceFailedRouteCount ?? 0;
-      $("probeMeta").textContent = `探测 ${numeric(summary.probeNotionalUsd ?? 1000, 2)}U | 已链上复核 ${reviewed} | 待处理 ${deferred}`;
-      $("profitMeta").textContent = `链上复核候选 ${summary.chainSubmissionCandidateCount ?? 0} | 报价失败 ${failed} | 记录 ${snapshot.recording?.source === "disabled" ? "关闭" : "开启"}`;
-      const uniswapx = data.dexSettlement?.uniswapx || {};
-      $("settlement").textContent = uniswapx.supported ? "UniswapX 可用" : "优先 AMM";
-      $("settlementMeta").textContent = uniswapx.supported ? "意图报价通道已开启" : "当前链未启用 UniswapX 结算";
-      const scannerRoutes = statsClearedSinceSnapshot ? [] : (Array.isArray(data.routes) ? data.routes : []);
-      const quoteRoutesList = Array.isArray(quoteRoutesPayload?.routes)
-        ? quoteRoutesPayload.routes
-        : Array.isArray(quoteRoutesPayload?.snapshot?.payload?.routes)
-          ? quoteRoutesPayload.snapshot.payload.routes
-          : [];
-      const effectiveQuoteRoutesList = statsClearedSinceSnapshot ? [] : quoteRoutesList;
-      const hasIncomingRoutes = scannerRoutes.length > 0 || effectiveQuoteRoutesList.length > 0;
-      const previousRoutes = latestRoutes.slice();
-      const previousReviewedByKey = new Map(
-        previousRoutes
-          .filter(route => route && (
-            route.__offchainReviewed
-            || uiStateOf(route) === ROUTE_UI_STATE.OFFCHAIN_ESTIMATE
-            || shouldPreserveRouteState(route)
-          ))
-          .map(route => [routeKey(route), route])
-      );
-      if (hasIncomingRoutes || !latestRoutes.length) {
-        latestRoutes = routesToRender(scannerRoutes, statsClearedSinceSnapshot ? null : quoteRoutesPayload).map(route => {
-          const reviewed = previousReviewedByKey.get(routeKey(route));
-          return reviewed || route;
-        });
-      } else if (latestRoutes.length) {
-        $("routeCount").textContent = latestRoutes.length;
-      }
+      const routes = Array.isArray(payload.routes) ? filterCompleteV4Routes(payload.routes) : [];
+      const summary = payload.summary || {};
+      const versions = payload.versions || {};
+      const dataQuality = payload.dataQuality || {};
+      const pipelineStatus = payload.pipelineStatus || {};
+      const latestRun = pipelineStatus.latestRun || {};
+      const versionValue = key => {
+        const value = versions[key];
+        return value === undefined || value === null ? "-" : String(value);
+      };
+      const intValue = value => {
+        const number = Number(value ?? 0);
+        return Number.isFinite(number) ? String(number) : "0";
+      };
+      const reviewCount = intValue(summary.reviewCount ?? summary.managerReviewCompleteCount ?? 0);
+      const reviewCompletedCount = intValue(summary.reviewCompletedCount ?? summary.managerReviewCompleteCount ?? 0);
+      const chainSubmissionCandidateCount = intValue(summary.overviewChainSubmissionCandidateCount ?? 0);
+      const broadcastRequestCount = intValue(summary.broadcastRequestCount ?? 0);
+      const profitableCount = intValue(summary.overviewProfitableRouteCount ?? 0);
+      const pnlMissingCount = intValue(dataQuality.pnlMissingCount ?? 0);
+      const unresolvedTokenCount = intValue(dataQuality.unresolvedTokenCount ?? 0);
+      const versionsConsistent = versions.versionsConsistent !== false;
+      const pipelineStage = latestRun.status || pipelineStatus.latestCompletedStage || "--";
+      routeLiquidityContext = {
+        candidateLiquidPoolCount: Number(payload.summary?.candidateLiquidPoolCount ?? 0),
+        closedLoopLiquidPoolCount: Number(payload.summary?.closedLoopLiquidPoolCount ?? 0),
+      };
+      const previousByKey = new Map(latestRoutes.filter(Boolean).map(route => [routeKey(route), route]));
+      latestRoutes = routes.filter(Boolean).map(route => {
+        const previous = previousByKey.get(routeKey(route));
+        const preservedUi = previous
+          ? Object.fromEntries(Object.entries(previous).filter(([key]) => key.startsWith("__")))
+          : {};
+        return {
+          ...route,
+          ...preservedUi,
+          reviewMode: previous?.reviewMode || "pending_offchain_review",
+        };
+      });
       latestRoutes.forEach(route => {
         if (!route) return;
         if (shouldPreserveRouteState(route)) {
@@ -241,50 +164,36 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           setRouteUiState(route, ROUTE_UI_STATE.OFFCHAIN_PENDING, {quoteStatus: route.quoteStatus || ""});
         }
       });
-      if (latestRoutes.length > scannerRoutes.length) {
-        const quoteSummary = (quoteRoutesPayload && (quoteRoutesPayload.summary || quoteRoutesPayload.snapshot?.payload?.summary)) || {};
-        routeLiquidityContext = {
-          candidateLiquidPoolCount: Number(quoteSummary.candidateLiquidPoolCount ?? 0),
-          closedLoopLiquidPoolCount: Number(quoteSummary.closedLoopLiquidPoolCount ?? 0),
-        };
-        $("routeCount").textContent = latestRoutes.length;
-        const quotePathSource = quoteSummary.pathSource || summary.pathSource || "market_observation";
-        const quotePathSourceLabel = quotePathSource === "candidate_pool_fallback"
-          ? "候选池诊断闭环（未纳入 DEX_TABLE）"
-          : quotePathSource;
-        $("routeSourceMeta").textContent = `${quotePathSourceLabel} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0} | 可链上复核 ${quoteSummary.chainReviewEligiblePathCount ?? summary.chainReviewEligiblePathCount ?? "-"} | 候选诊断 ${quoteSummary.diagnosticOnlyPathCount ?? summary.diagnosticOnlyPathCount ?? 0}`;
-      }
-      $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
-      if (latestRoutes.length) scheduleReviewActiveRoute();
-      if (quoteRoutesPayload && Array.isArray(quoteRoutesPayload.closedLoopGroups)) {
-        renderClosedLoopGroups({groups: quoteRoutesPayload.closedLoopGroups});
-      }
-      const duration = scanner.last_duration_ms == null ? "-" : `${scanner.last_duration_ms} ms`;
-      const scannerState = quoteRoutesPayload?.scannerState || {};
-      const dataFreshnessLabel = scannerState.status === "stale_refresh_queued" ? " | 数据源待实时刷新" : (scannerState.status === "fresh" ? " | 数据源新鲜" : "");
-      const snapshotUpdatedLabel = scannerState.snapshotUpdatedAt ? ` | 快照 ${esc(scannerState.snapshotUpdatedAt)}` : "";
-      $("message").textContent = `${scanner.running ? "扫描器运行中" : "扫描器已停止"} | ${duration} | 扫描次数 ${scanner.scan_count ?? 0}${snapshot.error ? ` | ${snapshot.error}` : ""}${dataFreshnessLabel}${snapshotUpdatedLabel}`;
-    }
-    function renderStaticRoutes(payload) {
-      const generation = selectionGeneration;
-      const signature = activeSelectionSignature;
-      if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-      if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
-      const routes = Array.isArray(payload.routes) ? filterCompleteV4Routes(payload.routes) : [];
-      routeLiquidityContext = {
-        candidateLiquidPoolCount: Number(payload.summary?.candidateLiquidPoolCount ?? 0),
-        closedLoopLiquidPoolCount: Number(payload.summary?.closedLoopLiquidPoolCount ?? 0),
-      };
-      latestRoutes = routes.filter(Boolean).map(route => ({...route, reviewMode: "pending_offchain_review", __uiState: ROUTE_UI_STATE.OFFCHAIN_PENDING, __offchainReviewed: false}));
       $("routeCount").textContent = latestRoutes.length;
-      $("routeSourceMeta").textContent = "市场观察 | 静态闭环";
-      $("completeCount").textContent = "0";
-      $("readyCount").textContent = "0";
+      $("routeSourceMeta").textContent = "manager_closed_loop | Manager 闭环";
+      $("completeCount").textContent = reviewCompletedCount;
+      $("probeMeta").textContent = `Review ${reviewCount} | 完成 ${reviewCompletedCount} | 缺 PnL ${pnlMissingCount}`;
+      $("readyCount").textContent = chainSubmissionCandidateCount;
+      $("profitMeta").textContent = `链上候选 ${chainSubmissionCandidateCount} | 正收益 ${profitableCount} | 广播请求 ${broadcastRequestCount}`;
+      $("autoExecutableCount").textContent = broadcastRequestCount;
+      $("autoExecutableMeta").textContent = versionsConsistent ? `广播请求 ${broadcastRequestCount}` : "版本不一致，拒绝按当前数据执行";
+      $("reviewedCount").textContent = reviewCount;
+      $("reviewedMeta").textContent = `Manager Review 总数 ${reviewCount} | 完成 ${reviewCompletedCount}`;
+      $("closedLoopScanCount").textContent = versionValue("candidateEdgeVersion");
+      $("closedLoopScanMeta").textContent = `候选边池版本 ${versionValue("candidateEdgeVersion")}`;
+      $("closedLoopReviewCount").textContent = versionValue("observationVersion");
+      $("closedLoopReviewMeta").textContent = `候选交换版本 ${versionValue("observationVersion")}`;
+      $("profitableCount").textContent = profitableCount;
+      $("profitableMeta").textContent = `Manager 正收益路线 ${profitableCount} | 数据缺失 ${pnlMissingCount}`;
+      $("autoExecutedCount").textContent = versionValue("closedLoopVersion");
+      $("autoExecutedMeta").textContent = `闭环版本 ${versionValue("closedLoopVersion")}`;
+      $("autoBroadcastCount").textContent = versionValue("broadcastVersion");
+      $("autoBroadcastMeta").textContent = `广播版本 ${versionValue("broadcastVersion")}`;
+      $("queueCount").textContent = pnlMissingCount;
+      $("queueMeta").textContent = `缺 PnL ${pnlMissingCount} | 未解析代币 ${unresolvedTokenCount}`;
+      $("settlement").textContent = versionsConsistent ? "一致" : "异常";
+      $("settlementMeta").textContent = `Manager 版本一致 ${versionsConsistent ? "是" : "否"} | ${pipelineStage}`;
       $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
       if (Array.isArray(payload.closedLoopGroups) && payload.closedLoopGroups.length) {
         renderClosedLoopGroups({groups: payload.closedLoopGroups});
       }
-      setPageState(PAGE_STATE.STATIC_READY, "静态闭环已读取，进入扫描状态");
+      const generatedAt = payload.generatedAt ? ` | 生成 ${payload.generatedAt}` : "";
+      setPageState(PAGE_STATE.STATIC_READY, `Manager 闭环已读取${generatedAt}`);
     }
     function renderClosedLoopGroups(payload) {
       const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -305,56 +214,20 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       }).join("");
       $("groupList").innerHTML = groupHtml;
     }
-    async function refreshClosedLoopGroups() {
-      try {
-        const payload = await fetchJsonWithTimeout("/api/dex/closed-loop-groups", 20000);
-        renderClosedLoopGroups(payload);
-      } catch (error) {
-        if (!document.querySelector("#groupList .group-card")) {
-          $("groupList").innerHTML = `<div class="group-card"><h3>闭环分组暂不可用</h3><small>${esc(uiError(error.message))}</small></div>`;
-        }
-      }
+    async function refreshManagerProjection() {
+      const generation = selectionGeneration; const signature = activeSelectionSignature;
+      const submissionsPromise = loadLatestSubmissions().catch(() => {});
+      const managerPayload = await fetchJsonWithTimeout("/api/dex/quote-routes", 25000);
+      if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+      managerRoutesLoaded = true;
+      renderManagerRoutes(managerPayload);
+      await submissionsPromise;
     }
     async function refreshSnapshot() {
       if (!canRefreshSnapshot()) return; snapshotRefreshing = true; refreshInFlight = true;
       const generation = selectionGeneration; const signature = activeSelectionSignature;
-      let snapshotHasRoutes = false;
       try {
-        refreshClosedLoopGroups();
-        const submissionsPromise = loadLatestSubmissions();
-        const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
-          ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
-              .then(staticPayload => {
-                if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-                if (!staticPayload?.routes?.length) return;
-                staticRoutesLoaded = true;
-                if (!snapshotHasRoutes) renderStaticRoutes(staticPayload);
-              })
-              .catch(() => ({}))
-          : Promise.resolve({});
-        const snapshotPromise = staticPromise
-          .then(() => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
-            return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
-          })
-          .then(async snapshotPayload => {
-            if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-            snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
-            await submissionsPromise;
-            renderScannerResponse(snapshotPayload);
-            (async () => {
-              let quoteRoutesPayload = null;
-              try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-              if (generation === selectionGeneration && signature === activeSelectionSignature && snapshotPayload && quoteRoutesPayload) renderScannerResponse(snapshotPayload, quoteRoutesPayload);
-            })();
-          })
-          .catch(snapshotError => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) {
-              $("message").textContent = `实时扫描快照暂不可用（${uiError(snapshotError.message)}）；静态闭环已展示，稍后自动重试`;
-              if (latestRoutes.length) scheduleReviewActiveRoute();
-            }
-          });
-        await snapshotPromise.catch(() => {});
+        await refreshManagerProjection();
       }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
       finally { snapshotRefreshing = false; refreshInFlight = false; }
@@ -374,108 +247,10 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       };
       scheduleNext();
     }
-    async function startScanner() {
-      const generation = selectionGeneration; const signature = activeSelectionSignature;
+    async function refresh() {
+      const generation = selectionGeneration; const signature = activeSelectionSignature; setPageState(PAGE_STATE.INIT, "正在加载 Manager 闭环...");
       try {
-        await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 20000);
-        await loadLatestSubmissions();
-        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
-        if (!scanNowInFlight) {
-          scanNowInFlight = true;
-          (async () => {
-            const rendered = snapshotAgeSeconds(response) <= 600
-              ? response
-              : await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
-            let quoteRoutesPayload = null;
-            try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(rendered, quoteRoutesPayload);
-          })()
-            .catch(() => {})
-            .finally(() => { scanNowInFlight = false; });
-        }
-      }
-      catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
-    }
-    async function refresh(forceScan = false) {
-      const generation = selectionGeneration; const signature = activeSelectionSignature; setPageState(PAGE_STATE.INIT, "正在加载静态闭环...");
-      let snapshot = null;
-      let snapshotHasRoutes = false;
-      let quoteRoutesPayloadPromise = null;
-      let reviewScheduled = false;
-      try {
-        refreshClosedLoopGroups();
-        const submissionsPromise = loadLatestSubmissions();
-        const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
-          ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
-              .then(staticPayload => {
-                if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-                if (!staticPayload?.routes?.length) return;
-                staticRoutesLoaded = true;
-                if (!snapshotHasRoutes) renderStaticRoutes(staticPayload);
-              })
-              .catch(() => ({}))
-          : Promise.resolve({});
-        const snapshotPromise = staticPromise
-          .then(() => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
-            return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
-          })
-          .then(async snapshotPayload => {
-            if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-            snapshot = snapshotPayload;
-            snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
-            await submissionsPromise;
-            renderScannerResponse(snapshotPayload);
-            reviewScheduled = true;
-            quoteRoutesPayloadPromise = fetchJsonWithTimeout("/api/dex/quote-routes").catch(() => null);
-            quoteRoutesPayloadPromise.then(quoteRoutesPayload => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature && snapshotPayload && quoteRoutesPayload) renderScannerResponse(snapshotPayload, quoteRoutesPayload);
-            });
-          })
-          .catch(snapshotError => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) {
-              $("message").textContent = `实时扫描快照暂不可用（${uiError(snapshotError.message)}）；静态闭环已展示，稍后自动重试`;
-              if (latestRoutes.length) scheduleReviewActiveRoute();
-              reviewScheduled = true;
-            }
-          });
-        const staticSettled = staticPromise.then(() => {}, () => {});
-        const snapshotSettled = snapshotPromise.then(() => {}, () => {});
-        await staticSettled;
-        snapshotSettled.finally(() => {
-          if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
-          if (latestRoutes.length && !reviewScheduled) {
-            scheduleReviewActiveRoute();
-            reviewScheduled = true;
-          }
-          if (scanNowInFlight) return;
-          if (!forceScan && snapshot && snapshotAgeSeconds(snapshot) <= 600) {
-            $("message").textContent = "当前扫描快照未过期，直接展示实时复核结果";
-            return;
-          }
-          if (!snapshot) return;
-          scanNowInFlight = true;
-          (async () => {
-            const rendered = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
-            if (generation === selectionGeneration && signature === activeSelectionSignature) {
-              renderScannerResponse(rendered);
-              if (latestRoutes.length) scheduleReviewActiveRoute();
-            }
-            let refreshedQuoteRoutesPayload = null;
-            if (quoteRoutesPayloadPromise) {
-              try { refreshedQuoteRoutesPayload = await quoteRoutesPayloadPromise; } catch (_) {}
-            }
-            if (!refreshedQuoteRoutesPayload) {
-              try { refreshedQuoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-            }
-            if (generation === selectionGeneration && signature === activeSelectionSignature && refreshedQuoteRoutesPayload) renderScannerResponse(rendered, refreshedQuoteRoutesPayload);
-          })()
-            .catch(error => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
-            })
-            .finally(() => { scanNowInFlight = false; scheduleSnapshotRefreshBackoff(); });
-        });
+        await refreshManagerProjection();
       }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
     }
@@ -667,7 +442,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           `错误定位=第 ${display(failedHop.hop)} 步 ${display(failedHop.fromSymbol)} -> ${display(failedHop.toSymbol)}`,
           `链上错误=${display(focusErrorText)}`,
           `错误分层=\n${display(errorChainText(failedHop.liveQuoteError || focusErrorText))}`,
-          `建议=${failedIsLiquidity ? "流动性不足；降低借贷金额后重试，或标记当前金额不可执行" : failedIsDeferred ? "链上复核延后；后续自动复核，不判定为路线失败" : "链上报价失败，阻止链上执行"}`,
+          `建议=${failedIsLiquidity ? "流动性不足；降低借贷量后重试，或标记当前交易量不可执行" : failedIsDeferred ? "链上复核延后；可手动重新发起链上复核，不判定为路线失败" : "链上报价失败，不建议链上执行"}`,
           ...probeHeader,
           ...probeLines,
         ].filter(Boolean).join("\n");
@@ -687,7 +462,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         && firstCopyStepInput > 0
         && Math.abs(Number(bestAmountCopy) - firstCopyStepInput) > Math.max(Math.abs(Number(bestAmountCopy)), Math.abs(firstCopyStepInput), 1) * 1e-9;
       const copyAmountMismatchLine = copyAmountMismatch
-        ? `步骤金额提示=复制步骤首跳金额 ${display(firstCopyStepInput)} ${display(referenceInputSymbol)} 与当前最佳量 ${display(bestAmountCopy)} ${display(referenceInputSymbol)} 不一致；请以链上复核确认金额为准。`
+        ? `交易量提示=复制步骤首跳交易量 ${display(firstCopyStepInput)} ${display(referenceInputSymbol)} 与当前最佳交易量 ${display(bestAmountCopy)} ${display(referenceInputSymbol)} 不一致；请以链上复核确认的最佳交易量为准。`
         : "";
       const referenceOutputAmount = evidenceFirst(
         executionSubmission?.final_amount,
@@ -723,7 +498,19 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         costs.netProfitAmountBps,
         sourceAnalysis.referenceNetReturnBps
       );
-      const netProfit = hardEvidenceFailure ? null : ((staticReview && !live && !latestExecution?.txHash) ? null : humanTokenValue(evidenceFirst(
+      const actualExecutionProfitAvailable = Boolean(
+        latestExecution?.txHash
+        && executionSubmission
+        && (executionSubmission.profit_amount ?? executionQuote.profit_amount) != null
+      );
+      const onchainNetProfitConfirmed = actualExecutionProfitAvailable
+        || Boolean(
+          !hardEvidenceFailure
+          && !gateBlocked
+          && !terminalEvidenceStatus(evidence.status)
+          && (evidence.profitable === true || String(evidence.status || "").toLowerCase() === "live_verified")
+        );
+      const netProfit = onchainNetProfitConfirmed ? humanTokenValue(evidenceFirst(
         executionSubmission?.profit_amount,
         executionQuote.profit_amount,
         analysis.netProfitUsd,
@@ -735,8 +522,12 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         costs.submissionNetProfitAmount,
         sourceAnalysis.referenceNetProfitAmount,
         derivedNetProfitAmount
-      )));
+      )) : null;
       const netProfitSymbol = analysis.netProfitUsd != null || sourceAnalysis.netProfitUsd != null || costs.netProfitUsd != null ? "USD" : (executionAnalysis.referenceInputSymbol || validation.netProfitAmountSymbol || costs.netProfitAmountSymbol || sourceAnalysis.referenceInputSymbol || "token");
+      const referenceProfitSource = costs.netProfitReferenceSource || evidence.referenceNetProfitMethod || "";
+      const referenceProfitNotice = !onchainNetProfitConfirmed && referenceNetProfitAmount != null
+        ? `参考提示=当前净利为${referenceProfitSource === "offline_v4_sqlite_route_snapshot" ? "离线 SQLite" : "离线/静态"}参考，链上复核未确认；不能作为已确认盈利`
+        : "";
       const staticReferenceNotice = staticReview && reviewStage === "estimate"
         ? "静态参考提示=当前净利为静态参考估算，尚未经链上逐 hop 复核；实际产出可能因流动性和滑点显著低于参考值"
         : "";
@@ -817,29 +608,31 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       });
       const ladderLines = rows.map(row => `探测 ${display(row.borrowAmount)} ${display(row.borrowSymbol || row.borrowBasis)} | 输出=${display(row.referenceFinalOutputAmount)} ${display(row.referenceFinalOutputSymbol)} | 净利=${display(row.referenceNetProfitAmount)} | 净利 BPS=${display(row.referenceNetReturnBps)} | 深度=${display(row.staticDepthStatus)} | 可执行=${display(row.executableCandidate)}`);
       const recommendationText = (() => {
-        if (pendingCopy) return "链下估算完成：默认初始量已生成；链上复核可继续确认当前最佳量";
+        if (pendingCopy) return "链下估算完成：默认初始交易量已生成；链上复核可继续确认当前最佳交易量";
         if (!Object.keys(evidence).length) return "链上报价未完成";
-        if (focusOnError) return "链上复核失败/流动性不足；阻止链上执行";
+        if (focusOnError) return "链上复核失败/流动性不足；不建议链上执行";
         if (execFailed) return route.__broadcastError ? `链上执行失败/未提交：${route.__broadcastError}` : "链上执行失败/未提交；请检查网络、RPC 或开关后重试。";
         if (execPending) return "链上执行正在提交；请稍候查看本次链上结果。";
         if (reviewStage === "execution") return "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果";
         if (reviewStage === "preflight_failed") {
           if (route?.__broadcastError && String(route.__broadcastError) !== "链上复核失败") return String(route.__broadcastError);
           const preflightStatus = String(evidence.status || "").toLowerCase();
-          if (preflightStatus === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
-          if (preflightStatus === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
-          if (estimateFailed) return terminalFailureAdvice(evidence.status);
+        if (preflightStatus === "route_unprofitable") return "链上报价已验证，但净收益未转正；不建议链上执行";
+        if (preflightStatus === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；不建议链上执行";
+        if (preflightStatus === "live_quote_disabled" || preflightStatus === "official_v4_readonly_preview_live_quote_disabled") return "实时报价已禁用，报价与路由页面不可用；请查看 DEX 总览的静态数据，启用对应链的实时报价后重试。";
+        if (preflightStatus === "rpc_unavailable" || preflightStatus === "official_v4_readonly_preview_rpc_unavailable") return "实时报价不可用：RPC 链路动态离线，请等待网络恢复后重试或查看 DEX 总览的静态数据。";
+        if (estimateFailed) return terminalFailureAdvice(evidence.status);
           return "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。";
         }
-        if (staticReview && reviewStage === "estimate") return "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳量，不建议直接链上执行。";
+        if (staticReview && reviewStage === "estimate") return "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳交易量，不建议直接链上执行。";
         const status = String(evidence.status || "").toLowerCase();
-        if (status === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
-        if (status === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
+        if (status === "route_unprofitable") return "链上报价已验证，但净收益未转正；不建议链上执行";
+        if (status === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；不建议链上执行";
         if (estimateFailed) return terminalFailureAdvice(evidence.status);
-        if (reviewStage === "preflight" && bestAmountMissingOf(route, evidence, sourceAnalysis)) return "链上复核未通过：最佳量未计算成功，不能作为已确认最佳量；请重新链上复核并完成最佳量计算后再执行。";
+        if (reviewStage === "preflight" && bestAmountMissingOf(route, evidence, sourceAnalysis)) return "链上复核未通过：最佳交易量未计算成功，不能作为已确认最佳交易量；请重新完成链上复核并计算最佳交易量后再执行。";
         if (reviewStage === "preflight") return "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。";
-        if (live && (evidence.readyForTransactionPreflight || analysis.readyForTransactionPreflight || (sourceAnalysis.recommendation || {}).readyForTransactionPreflight)) return "链下估算完成：当前初始量已生成；最佳量与可执行性需点击链上复核确认。";
-        if (live) return "链上复核已验证，但当前状态不满足交易提交条件；禁止链上执行";
+        if (live && (evidence.readyForTransactionPreflight || analysis.readyForTransactionPreflight || (sourceAnalysis.recommendation || {}).readyForTransactionPreflight)) return "链下估算完成：当前初始交易量已生成；最佳交易量与可执行性需点击链上复核确认。";
+        if (live) return "链上复核已验证，但当前状态不满足交易提交条件；不建议链上执行";
         return "链上报价未完成";
       })();
       const domTrustedForCopy = !estimateFailed && !focusOnError && !execFailed && !execPending && reviewStage !== "preflight_failed" && !pendingCopy;
@@ -877,10 +670,46 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       const initialProbeDisplay = display(initialProbeValue);
       const referenceOutputAmountDisplay = display(referenceOutputAmount);
       const referenceNetProfitAmountDisplay = display(referenceNetProfitAmount);
+      const selectedProfitAmountForCopy = humanTokenValue(evidenceFirst(
+        route.live_onchain_evidence?.selectedProfitAmount,
+        evidence.selectedProfitAmount,
+        sourceAnalysis.selectedProfitAmount,
+        route.selectedProfitAmount
+      ));
+      const selectedProfitSymbolForCopy = evidenceFirst(
+        route.live_onchain_evidence?.selectedProfitAmountSymbol,
+        evidence.selectedProfitAmountSymbol,
+        sourceAnalysis.selectedProfitAmountSymbol,
+        route.selectedProfitAmountSymbol,
+        referenceInputSymbol
+      ) || "";
+      const selectedProfitSourceForCopy = evidenceFirst(
+        route.live_onchain_evidence?.selectedProfitSource,
+        evidence.selectedProfitSource,
+        sourceAnalysis.selectedProfitSource,
+        route.selectedProfitSource
+      ) || "";
+      const selectedProfitMissingReasonForCopy = evidenceFirst(
+        route.live_onchain_evidence?.selectedProfitMissingReason,
+        evidence.selectedProfitMissingReason,
+        sourceAnalysis.selectedProfitMissingReason,
+        route.selectedProfitMissingReason
+      ) || "no_native_signed_profit";
+      const selectedProfitSourceLabelForCopy = selectedProfitSourceForCopy === "native_rust_contract_preview"
+        ? "原生合约预览（链上复核）"
+        : selectedProfitSourceForCopy === "sqlite_reference"
+          ? "SQLite 参考（非 eth_call）"
+          : (selectedProfitSourceForCopy || "未记录");
+      const selectedProfitLineForCopy = selectedProfitAmountForCopy !== null && selectedProfitAmountForCopy !== undefined
+        ? `链上复核值=${display(selectedProfitAmountForCopy)} ${display(selectedProfitSymbolForCopy)} | 参考执行估算=${referenceNetProfitAmountDisplay}${referenceNetProfitAmountDisplay !== "-" ? ` ${display(referenceInputSymbol)}` : ""}${referenceNetProfitAmount != null ? ` | delta=${display(selectedProfitAmountForCopy - referenceNetProfitAmount)} ${display(selectedProfitSymbolForCopy)}` : ""} | 来源=${selectedProfitSourceLabelForCopy}`
+        : `无链上 signed 净值；参考执行估算=${referenceNetProfitAmountDisplay}${referenceNetProfitAmountDisplay !== "-" ? ` ${display(referenceInputSymbol)}` : ""} | 缺失原因=${selectedProfitMissingReasonForCopy}`;
       const evidenceStatusTextForCopy = evidence.status ? display(evidenceStatusEx(evidence.status)) : "";
       const preflightFailedStatusText = evidenceStatusTextForCopy && evidenceStatusTextForCopy !== "链上复核状态未确认"
         ? evidenceStatusTextForCopy
         : "链上复核失败";
+      const preflightDisabledStatusText = ["live_quote_disabled", "official_v4_readonly_preview_live_quote_disabled", "rpc_unavailable", "official_v4_readonly_preview_rpc_unavailable"].includes(String(evidence.status || "").toLowerCase())
+        ? "实时报价已禁用，报价与路由页面不可用"
+        : preflightFailedStatusText;
       const cleanRecommendationForCopy = String(routeRecommendationText || recommendationText || "").trim();
       const blockerLines = lines(evidence.blockers).map(item => errorChainText(item) || blockerText(item));
       const deduplicatedBlockers = [];
@@ -896,21 +725,23 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         `路径=${display(copyDirection || (route.routeSymbols || []).join(" -> "))}`,
         `方向=${display(copyDirection)}`,
         `${bestAmountLabel}=${bestAmountCopyText}`,
-        `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? preflightFailedStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
-        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（自动扫描复核并链上广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? preflightFailedStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
+        `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? preflightDisabledStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
+        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（自动扫描复核并链上广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? preflightDisabledStatusText : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
         `区块=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
         `依据=${display(evidenceTrustText(evidence, sourceAnalysis))}`,
-        [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${initialProbeDisplay}${initialProbeDisplay !== "-" ? ` ${display(initialProbeSymbol)}` : ""}`],
+        [`${reviewStage === "preflight" ? "初始测试交易量" : "初始探测"}=${initialProbeDisplay}${initialProbeDisplay !== "-" ? ` ${display(initialProbeSymbol)}` : ""}`],
         `初始探测依据=${display(evidenceProbeReasonText(evidence.offchainInitialProbeReason, evidence))}`,
         ...(amountScaleHint ? [amountScaleHint] : []),
         ...(backendAmountHint ? [`优化提示=${display(backendAmountHint)}`] : []),
         ...(copyAmountMismatchLine ? [copyAmountMismatchLine] : []),
-        `盈亏=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : (referenceNetProfitAmount != null ? `${display(referenceNetProfitAmount)} ${display(referenceInputSymbol)}` : "-")}`,
+        `盈亏=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : (referenceNetProfitAmount != null ? `未确认：参考净利 ${display(referenceNetProfitAmount)} ${display(referenceInputSymbol)}（${referenceProfitSource === "offline_v4_sqlite_route_snapshot" ? "离线 SQLite 参考，未确认" : "未确认"}）` : "-")}`,
         `参考输出=${referenceOutputAmountDisplay}${referenceOutputAmountDisplay !== "-" ? ` ${display(referenceOutputSymbol)}` : ""}`,
         `参考净利=${referenceNetProfitAmountDisplay}${referenceNetProfitAmountDisplay !== "-" ? ` ${display(referenceInputSymbol)}` : ""}`,
         `参考净利 BPS=${display(referenceNetReturnBps)}`,
+        selectedProfitLineForCopy,
         ...(staticReferenceNotice ? [staticReferenceNotice] : []),
-        `净利=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : "-"}`,
+        ...(referenceProfitNotice ? [referenceProfitNotice] : []),
+        `净利=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : "未确认（链上复核未返回正向净利）"}`,
         `深度状态=${display(live ? "链上实时深度已验证" : sourceAnalysis.staticDepthStatus)}`,
         `最大静态深度影响 BPS=${display(live ? liveMaxDepthImpactBps : sourceAnalysis.maxStaticDepthImpactBps)}`,
         `深度影响上限 BPS=${display(live ? "不适用：已使用链上实时报价" : (sourceAnalysis.staticDepthImpactLimitBps || size.depthImpactLimitBps || 10))}`,
@@ -923,14 +754,25 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       ].filter(Boolean).join("\n");
       try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
     }
-    $("refreshBtn").onclick = () => refresh(true);
+    $("refreshBtn").onclick = () => refresh();
+    const requestToken = prefix => {
+      const random = globalThis.crypto?.randomUUID
+        ? globalThis.crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      return `${prefix}-${random}`;
+    };
     async function postJson(path, payload, allowStructuredFailedResponse = false) {
       let response;
       try {
         response = await fetch(apiPath(path), {
           method: "POST",
           cache: "no-cache",
-          headers: {"Content-Type": "application/json", Accept: "application/json"},
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-Request-Id": requestToken("dex-ui-request"),
+            "Idempotency-Key": requestToken("dex-ui-idempotency"),
+          },
           body: JSON.stringify(payload),
         });
       } catch (error) {
@@ -954,41 +796,105 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       );
       if (!response.ok && data?.ok !== true && !broadcastDisabledByBackend && !structuredFailedResponse) {
         const detail = data?.detail || data?.error || `请求失败（HTTP ${response.status}）`;
-        throw new Error(detail);
+        const error = new Error(detail);
+        error.__dexErrorCode = data?.error || "";
+        throw error;
       }
       return data;
     }
-    async function refreshClosedLoopGroup(groupKey, button) {
+    async function requestManualNativeReview(route, button, resultElement) {
+      const symbols = routeTestSymbols(route);
+      if (symbols.length !== 4 || String(symbols[0]).toUpperCase() !== String(symbols[3]).toUpperCase()) {
+        setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_FAILED, {
+          quoteStatus: "closed_loop_route_unsupported",
+        });
+        if (resultElement) resultElement.textContent = "仅四段闭环支持手动复核";
+        $("message").textContent = "当前路线不是四段闭环，不能通过闭环管理状态机执行手动复核。";
+        return;
+      }
       const signature = activeSelectionSignature;
       const old = button ? button.textContent : "";
       if (button) {
         button.disabled = true;
-        button.textContent = "刷新中";
+        button.textContent = "复核中";
       }
-      $("message").textContent = `正在定点刷新闭环 ${groupKey} ...`;
+      setPageState(PAGE_STATE.REVIEW);
+      setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_RUNNING, {
+        quoteStatus: route.quoteStatus || "",
+      });
+      if (resultElement) resultElement.textContent = "等待空闲线程...";
+      $("message").textContent = "正在投递链上复核到 Rust 常驻线程...";
       try {
-        const data = await postJson(`/api/dex/closed-loop-groups/${encodeURIComponent(groupKey)}/refresh?wait=1`, {mode: "deep"});
+        const data = await postJson("/api/dex/closed-loop-groups/manual-review", {
+          routeSymbols: symbols,
+          routeAddresses: route?.routeAddresses || route?.quoteAnalysis?.routeAddresses || [],
+          mode: "deep",
+          dryRun: false,
+        });
         if (signature !== activeSelectionSignature) return;
-        const routes = Array.isArray(data?.task?.result?.routes) ? data.task.result.routes : [];
-        if (routes.length) {
-          const incoming = new Map(routes.map(route => [routeKey(route), route]));
-          latestRoutes = latestRoutes.map(route => {
-            const replacement = incoming.get(routeKey(route));
-            return replacement || route;
-          });
-          $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
-          $("message").textContent = `闭环 ${groupKey} 已定点刷新`;
+        if (data?.ok || data?.accepted) {
+          $("message").textContent = `闭环 ${data.group_key || symbols[0]} 已投递到 Rust 空闲线程，开始复核`;
           scheduleSnapshotRefreshBackoff();
-        } else {
-          $("message").textContent = data?.task?.result?.message || `闭环 ${groupKey} 无可刷新路线`;
+          $("message").textContent = `闭环 ${data.group_key || symbols[0]} 的复核状态迁移已入队，后续刷新读取状态`;
+          return;
         }
+        setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_FAILED, {
+          quoteStatus: data?.error === "closed_loop_group_busy" ? "closed_loop_group_busy" : (route.quoteStatus || ""),
+        });
+        if (resultElement) resultElement.textContent = data?.error === "closed_loop_group_busy" ? "当前线程忙碌" : "投递失败";
+        $("message").textContent = uiError(data?.detail || data?.error || "链上复核投递失败");
       } catch (error) {
-        if (signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
+        if (signature !== activeSelectionSignature) return;
+        setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_FAILED, {
+          quoteStatus: error?.__dexErrorCode === "closed_loop_group_busy" ? "closed_loop_group_busy" : (route.quoteStatus || ""),
+        });
+        if (resultElement) resultElement.textContent = error?.__dexErrorCode === "closed_loop_group_busy" ? "当前线程忙碌" : "投递失败";
+        $("message").textContent = uiError(error.message);
       } finally {
         if (button) {
           button.textContent = old;
           button.disabled = false;
         }
+      }
+    }
+    async function requestManualNativeBroadcast(route, button, resultElement) {
+      const symbols = routeTestSymbols(route);
+      const signature = activeSelectionSignature;
+      const old = button ? button.textContent : "";
+      if (!window.confirm("确认唤醒等待中的广播任务？该操作只调整等待时间，不重新报价、不重算 PnL。")) return;
+      if (button) {
+        button.disabled = true;
+        button.textContent = "广播唤醒中";
+      }
+      setPageState(PAGE_STATE.EXECUTION);
+      setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_PENDING, {
+        quoteStatus: route.quoteStatus || "",
+      });
+      if (resultElement) resultElement.textContent = "状态迁移已入队";
+      $("message").textContent = "正在把等待任务放入广播队列...";
+      let accepted = false;
+      try {
+        const data = await postJson("/api/dex/closed-loop-groups/manual-broadcast", {
+          routeSymbols: symbols,
+          routeAddresses: route?.routeAddresses || route?.quoteAnalysis?.routeAddresses || [],
+          dryRun: false,
+        });
+        if (signature !== activeSelectionSignature) return;
+        accepted = Boolean(data?.accepted && data?.ok !== false);
+        $("message").textContent = data?.accepted
+          ? `闭环 ${data.group_key || symbols[0]} 的状态迁移已入队，后续刷新读取状态`
+          : uiError(data?.detail || data?.error || "广播状态迁移失败");
+        if (data?.accepted) scheduleSnapshotRefreshBackoff();
+      } catch (error) {
+        if (signature !== activeSelectionSignature) return;
+        setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_FAILED, {
+          quoteStatus: error?.__dexErrorCode || route.quoteStatus || "",
+        });
+        if (resultElement) resultElement.textContent = error?.__dexErrorCode || "广播迁移失败";
+        $("message").textContent = uiError(error.message);
+      } finally {
+        if (button && !accepted) button.disabled = false;
+        if (button && accepted) button.textContent = old;
       }
     }
     function routeTestSymbols(route) {
@@ -1183,12 +1089,14 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           ? preflightRouteTestAdvice(result)
           : estimateRouteTestAdvice(result);
     }
+    // Diagnostic fixture retained for legacy regression comparisons only.
+    // Active route-list handlers must not call this function.
     async function runRouteTest(route, button, mode, resultElement) {
       if (route?.diagnosticOnly === true
         || String(route?.pathSource || "").trim() === "candidate_pool_fallback"
         || String(route?.tableSource || "").trim() !== "dex_table") {
         if (resultElement) resultElement.textContent = "候选诊断路线不进入链上复核";
-        $("message").textContent = "候选诊断路线仅用于候选池侧展示，不进入链上复核或执行。";
+        $("message").textContent = "候选诊断路线仅用于候选池侧展示，不参与链上复核或执行。";
         return;
       }
       const sizeAnalysis = route?.sizeAnalysis || {};
@@ -1218,7 +1126,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
             ? actionRequestedAmount
             : autoRouteAmount(route));
       const hasHistoricalReview = Number.isFinite(currentBestAmount) && currentBestAmount > 0;
-      const initialAmountLabel = hasHistoricalReview ? "历史复核金额" : "初始测试金额";
+      const initialAmountLabel = hasHistoricalReview ? "历史复核交易量" : "初始测试交易量";
       const amount = previousBestAmount;
       const symbols = routeTestSymbols(route);
       const routeIndex = Number(resultElement?.dataset.routeTestResult ?? button?.dataset.routeIndex ?? button?.dataset.routeLiveEstimate ?? button?.dataset.routeStaticCall ?? button?.dataset.routeBroadcast);
@@ -1229,7 +1137,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           : null;
       };
       const broadcast = mode === "broadcast";
-      if (broadcast && !window.confirm(`确认执行这笔链上交易？执行前会把${initialAmountLabel}作为初始量，重新链上复核当前最佳量后再提交链上交易。`)) return;
+      if (broadcast && !window.confirm(`确认执行这笔链上交易？执行前会把${initialAmountLabel}作为初始交易量，重新完成链上复核并确定最佳交易量后再提交交易。`)) return;
       const requestMode = mode === "estimate" ? "estimate" : (mode === "static_call" ? "static_call" : "auto");
       const old = button ? button.textContent : `${mode === "estimate" ? "链下估算" : "链上复核"}中`;
       if (button) button.disabled = true;
@@ -1397,57 +1305,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
         if (!resultElement?.textContent) $("message").textContent = oldMessage;
       }
     }
-    function scheduleReviewActiveRoute() {
-      if (pageStateIs(PAGE_STATE.EXECUTION)) return;
-      if (autoReviewRunning) {
-        autoReviewQueued = true;
-        return;
-      }
-      autoReviewRunning = true;
-      autoReviewQueued = false;
-      setPageState(PAGE_STATE.REVIEW);
-      autoReviewActiveRoute()
-        .catch(() => {})
-        .finally(() => {
-          autoReviewRunning = false;
-          setPageState(PAGE_STATE.SCAN);
-          if (autoReviewQueued) {
-            autoReviewQueued = false;
-            scheduleReviewActiveRoute();
-          }
-        });
-    }
-    async function autoReviewActiveRoute() {
-      const generation = ++autoReviewToken;
-      const targetKey = focusedRouteKey();
-      const targetIndex = targetKey ? latestRoutes.findIndex(route => routeKey(route) === targetKey) : -1;
-      const routes = targetIndex >= 0 ? latestRoutes.slice(targetIndex, targetIndex + 1) : latestRoutes.slice(0, 1);
-      for (let index = 0; index < routes.length; index += 1) {
-        if (generation !== autoReviewToken) return;
-        const initialRoute = routes[index];
-        if (!initialRoute) continue;
-        if (!canAutoEstimate(initialRoute) || shouldPreserveRouteState(initialRoute)) continue;
-        if (initialRoute?.diagnosticOnly === true
-          || String(initialRoute?.pathSource || "").trim() === "candidate_pool_fallback"
-          || String(initialRoute?.tableSource || "").trim() !== "dex_table") continue;
-        const key = routeKey(initialRoute);
-        let currentIndex = latestRoutes.findIndex(candidate => routeKey(candidate) === key);
-        if (currentIndex < 0) {
-          latestRoutes.push(initialRoute);
-          currentIndex = latestRoutes.length - 1;
-        }
-        const route = latestRoutes[currentIndex];
-        const resultElement = document.querySelector(`[data-route-test-result="${currentIndex}"]`);
-        await runRouteTest(route, null, "estimate", resultElement);
-        await new Promise(resolve => setTimeout(resolve, 180));
-      }
-    }
     $("routeList").addEventListener("click", event => {
-      const refreshButton = event.target.closest("[data-closed-loop-refresh]");
-      if (refreshButton) {
-        refreshClosedLoopGroup(refreshButton.dataset.closedLoopRefresh, refreshButton);
-        return;
-      }
       const copyButton = event.target.closest("[data-copy-route]");
       if (copyButton) {
         const copyIndex = Number(copyButton.dataset.copyRoute);
@@ -1458,9 +1316,11 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       if (!button) return;
       const index = Number(button.dataset.routeIndex ?? button.dataset.routeLiveEstimate ?? button.dataset.routeStaticCall ?? button.dataset.routeBroadcast);
       if (Number.isFinite(index) && latestRoutes[index]) activeRouteKey = routeKey(latestRoutes[index]);
-      const mode = button.hasAttribute("data-route-broadcast") ? "broadcast" : button.hasAttribute("data-route-static-call") ? "static_call" : "estimate";
       const resultElement = document.querySelector(`[data-route-test-result="${index}"]`);
-      return runRouteTest(latestRoutes[index], button, mode, resultElement);
+      if (button.hasAttribute("data-route-static-call")) {
+        return requestManualNativeReview(latestRoutes[index], button, resultElement);
+      }
+      return requestManualNativeBroadcast(latestRoutes[index], button, resultElement);
     });
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return;
@@ -1489,37 +1349,5 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
     try {
       $("refreshInterval").value = normalizeRefreshInterval(window.localStorage.getItem(refreshIntervalKey) || defaultRefreshIntervalSeconds);
     } catch (_) {}
-    function setupAutoExecuteToggle() {
-      const toggle = document.getElementById("autoExecuteToggle");
-      if (!toggle) return;
-      toggle.addEventListener("change", async () => {
-        const next = Boolean(toggle.checked);
-        try {
-          await postJson("/api/dex/opportunity-scanner/auto-execute", {enabled: next});
-          try { window.localStorage.setItem(autoExecuteEnabledKey, next ? "true" : "false"); } catch (_) {}
-          $("message").textContent = next ? "自动扫描复核并链上广播已开启" : "自动扫描复核并链上广播未开启";
-          scheduleSnapshotRefreshBackoff();
-        } catch (error) {
-          toggle.checked = !next;
-          $("message").textContent = uiError(error.message);
-        }
-      });
-    }
-    setupAutoExecuteToggle();
-    const resetStatsBtn = document.getElementById("resetStatsBtn");
-    if (resetStatsBtn) {
-      resetStatsBtn.addEventListener("click", async () => {
-        try {
-          const payload = await postJson("/api/dex/opportunity-scanner/stats/reset", {});
-          staticRoutesLoaded = true;
-          latestRoutes = [];
-          activeRouteKey = "";
-          $("message").textContent = "统计已清零";
-          renderScannerResponse(payload);
-        } catch (error) {
-          $("message").textContent = uiError(error.message);
-        }
-      });
-    }
     $("refreshInterval").addEventListener("change", scheduleRefresh);
     scheduleRefresh();

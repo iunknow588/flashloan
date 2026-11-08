@@ -351,7 +351,7 @@ def build_submission_review_payload(
     for row in rows:
         if not isinstance(row, dict):
             continue
-        if not row_tx_hash(row):
+        if not row_tx_hash(row) and not row_broadcast_attempted(row):
             continue
         auto_tx = _auto_execute_tx_hash(row)
         if auto_tx and not (row.get("tx_hash") or row.get("transaction_hash")):
@@ -461,7 +461,10 @@ def build_submission_review_payload(
         attempts = group.get("attempts") or []
         filtered_groups[key] = {
             **group,
-            "attempts": [row for row in attempts if row_tx_hash(row)],
+            "attempts": [
+                row for row in attempts
+                if row_tx_hash(row) or row_broadcast_attempted(row)
+            ],
         }
     groups = filtered_groups or groups
     success = [row for row in rows if row_status(row).endswith("success")]

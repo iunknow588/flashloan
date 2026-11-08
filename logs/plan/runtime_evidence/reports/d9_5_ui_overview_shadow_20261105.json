@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_5_ui_overview_shadow_20261105",
+  "milestone": "M9",
+  "task": "D6.1 opt-in read-only overview pipeline-status shadow",
+  "status": "partial_overview_shadow_complete_pages_pending",
+  "generatedAt": "2026-11-05T01:28:25Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing overview page keeps its URL, layout, route projection, visual fields, and legacy data source. An explicit manager_compare=true request attaches a read-only pipeline shadow with the latest run, current step, checkpoint, step-status counts, events count, and upstream consistency diagnostics.",
+  "implementation": {
+    "shadowHelper": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "flaskRoute": "GET /api/dex/overview?manager_compare=true",
+    "upstreamRoute": "GET /v1/pipeline/status?chainId=4663",
+    "defaultDataSource": "legacy",
+    "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+    "shadowFields": [
+      "pipelineEnabled",
+      "network",
+      "protocol",
+      "pipelineKey",
+      "checkpointStepId",
+      "latestRun",
+      "currentStep",
+      "snapshotCounts",
+      "upstream",
+      "upstreamAssessment",
+      "legacySummaryCounts"
+    ],
+    "legacySummaryFields": [
+      "arbitragePathCount",
+      "candidatePathCount",
+      "marketObservationRouteCount",
+      "overviewPathGroupCount",
+      "watchPairCount"
+    ],
+    "cachePolicy": "The route uses a shallow top-level copy before attaching managerShadow so the manager diagnostic is not written into the existing overview cache object.",
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false,
+    "legacyPageFieldsUnaffected": true,
+    "managerShadowRequiresExplicitOptIn": true,
+    "comparisonReadyForFieldSwitch": false,
+    "productionAuthorityChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 55
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "overview shadow is disabled without network access while MANAGER_UI_DATA_SOURCE=legacy",
+    "overview shadow reads only the pipeline status endpoint with chainId and request id",
+    "pipeline latest-run, current-step, checkpoint, upstream assessment, event, and step-status counts are exposed",
+    "legacy overview route counts remain present as a separate diagnostic namespace",
+    "overview page attaches managerShadow only when manager_compare=true",
+    "successful opt-in keeps dataSource=legacy"
+  ],
+  "knownBoundary": "Overview shadow is pipeline orchestration visibility only. It does not replace the legacy route projection and does not prove row-level version equivalence across all modules. Dedicated review/broadcast detail pages remain pending. No production database migration, service restart, manager write, or broadcast was performed."
+}

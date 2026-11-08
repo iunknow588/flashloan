@@ -18,6 +18,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from core.rs_bridge import append_bnb_market_observation
 from dex.intent_trade.chains.bnb import config as bnb
 from dex.intent_trade.chains.bnb.intent import STATIC_TABLE_PATH, load_static_table
 from dex.intent_trade.chains.bnb.quote import _connect, quote_route
@@ -30,7 +31,7 @@ SRC_ROOT = Path(__file__).resolve().parents[3]
 REPO_ROOT = SRC_ROOT.parents[1]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "data_info" / "BNB"
 LATEST_NAME = "bnb_dynamic_arbitrage_monitor_latest.json"
-HISTORY_NAME = "bnb_dynamic_arbitrage_monitor_history.jsonl"
+HISTORY_SOURCE = "bnb_dynamic_arbitrage_monitor"
 SUMMARY_NAME = "bnb_dynamic_arbitrage_monitor_summary.md"
 FINAL_NAME = "bnb_dynamic_arbitrage_monitor_final.json"
 PREFLIGHT_REJECTED_NAME = "bnb_dynamic_arbitrage_monitor_preflight_rejected.json"
@@ -649,12 +650,6 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp_path.replace(path)
 
 
-def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
-
-
 def _fmt(value: Any) -> str:
     try:
         number = float(value)
@@ -784,7 +779,12 @@ def monitor(args: argparse.Namespace) -> dict[str, Any]:
         latest_payload["preflightExact"] = bool(args.preflight_exact)
         latest_payload["preflightRejectedRouteCount"] = len(rejected_routes)
         _atomic_write_json(output_dir / LATEST_NAME, latest_payload)
-        _append_jsonl(output_dir / HISTORY_NAME, latest_payload)
+        append_bnb_market_observation(
+            HISTORY_SOURCE,
+            latest_payload,
+            network=bnb.NETWORK,
+            chain_id=bnb.CHAIN_ID,
+        )
         _write_summary(output_dir / SUMMARY_NAME, latest_payload)
         print(
             json.dumps(
@@ -834,7 +834,8 @@ def main() -> int:
                 "ok": True,
                 "completedRounds": final_payload.get("completedRounds"),
                 "latest": str(args.output_dir / LATEST_NAME),
-                "history": str(args.output_dir / HISTORY_NAME),
+                "historySource": HISTORY_SOURCE,
+                "historyTable": "bnb_market_observations",
                 "summary": str(args.output_dir / SUMMARY_NAME),
                 "final": str(args.output_dir / FINAL_NAME),
             },

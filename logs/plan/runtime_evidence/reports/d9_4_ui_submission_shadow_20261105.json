@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_4_ui_submission_shadow_20261105",
+  "milestone": "M9",
+  "task": "D6.1 opt-in read-only submission page review/broadcast shadow",
+  "status": "partial_submission_shadow_complete_pages_pending",
+  "generatedAt": "2026-11-05T01:00:09Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing submission page keeps its URL, layout, legacy groups, legacy attempt rows, pagination, and cache behavior for normal GET requests. An explicit manager_compare=true request bypasses the cache and attaches a read-only review/broadcast manager shadow.",
+  "implementation": {
+    "shadowHelper": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "flaskRoute": "GET /api/dex/submissions?manager_compare=true",
+    "upstreamRoutes": [
+      "GET /v1/reviews?chainId=4663&limit=1000",
+      "GET /v1/broadcasts?chainId=4663&limit=1000"
+    ],
+    "snapshotLimit": 1000,
+    "defaultDataSource": "legacy",
+    "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+    "reviewShadowFields": [
+      "reviewVersion",
+      "reviewChecksum",
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "candidateEdgeVersion",
+      "candidateEdgeChecksum",
+      "observationVersion",
+      "observationChecksum",
+      "poolScopeChecksum",
+      "statusCounts",
+      "snapshotCounts"
+    ],
+    "broadcastShadowFields": [
+      "broadcastVersion",
+      "broadcastChecksum",
+      "reviewVersion",
+      "reviewChecksum",
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "statusCounts",
+      "snapshotCounts"
+    ],
+    "partialFailurePolicy": "Review and broadcast reads are independent. One side failing yields ok=false, partial=true, and retains the successful side plus a structured upstream error.",
+    "cachePolicy": "Normal GET keeps the existing submission cache. manager_compare=true skips cache reads and writes so the shadow cannot be persisted into the legacy page cache.",
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false,
+    "legacyPageFieldsUnaffected": true,
+    "managerShadowRequiresExplicitOptIn": true,
+    "cachedPageSkippedOnlyWhenShadowRequested": true,
+    "comparisonReadyForFieldSwitch": false,
+    "productionAuthorityChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 52
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "submission shadow is disabled without network access while MANAGER_UI_DATA_SOURCE=legacy",
+    "review and broadcast snapshots are read independently with chainId, limit, and request id",
+    "review status includes completed, dataIncomplete, notExecutable, failed, and broadcastRequest counts",
+    "broadcast status includes request, attempt, pending, success, failed, and terminal counts",
+    "one-side failure produces partial=true and retains structured upstream diagnostics",
+    "submission route attaches managerShadow only when manager_compare=true",
+    "manager_compare=true skips submission cache reads and writes"
+  ],
+  "knownBoundary": "Submission shadow is a read-only diagnostic and does not replace legacy cow execution groups, review pages, or broadcast attempts. No review or broadcast write endpoint is called. Review/broadcast row-level compare APIs are not available yet, so comparisonReadyForFieldSwitch remains false. No production database migration, service restart, manager write, or broadcast was performed."
+}

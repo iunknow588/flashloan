@@ -580,13 +580,58 @@ def _json_dump(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _preserve_existing_fork_evidence(plan: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    plan_path = output_dir / "plan.json"
+    if not plan_path.exists():
+        return plan
+    try:
+        existing = json.loads(plan_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return plan
+    if not isinstance(existing, dict):
+        return plan
+    existing_fork = existing.get("forkEvidence")
+    if not isinstance(existing_fork, dict) or not existing_fork:
+        return plan
+    old_route = _text(existing.get("route", {}).get("pathText"))
+    new_route = _text(plan.get("route", {}).get("pathText"))
+    old_network = _text(existing.get("network"))
+    new_network = _text(plan.get("network"))
+    old_chain_id = existing.get("chainId")
+    new_chain_id = plan.get("chainId")
+    if old_route and new_route and old_route != new_route:
+        return plan
+    if old_network and new_network and old_network != new_network:
+        return plan
+    if old_chain_id is not None and new_chain_id is not None and old_chain_id != new_chain_id:
+        return plan
+    existing_sim = existing.get("simulationEvidence")
+    plan["forkEvidence"] = existing_fork
+    plan["simulationEvidence"] = (
+        existing_sim
+        if isinstance(existing_sim, dict) and existing_sim
+        else existing_fork
+    )
+    done_ids = {"calldata_builder", "risk_guard", "fork_staticcall"}
+    plan["checklist"] = [
+        {**item, "status": "done", "done": True}
+        if item.get("id") in done_ids
+        else item
+        for item in (plan.get("checklist") or [])
+    ]
+    return plan
+
+
 def write_robinhood_chain_test_package(
     output_dir: Path,
     attempt: dict[str, Any],
     *,
     contract_dir: Path | None = None,
+    preserve_fork_evidence: bool = True,
 ) -> dict[str, Any]:
     plan = build_robinhood_chain_test_plan(attempt, contract_dir=contract_dir)
+    if preserve_fork_evidence:
+        plan = _preserve_existing_fork_evidence(plan, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     _json_dump(output_dir / "attempt.json", attempt)
     _json_dump(output_dir / "plan.json", plan)

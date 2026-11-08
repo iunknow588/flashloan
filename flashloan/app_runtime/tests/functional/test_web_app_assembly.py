@@ -2,6 +2,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from web.control_panel import app
+from web.data_routes import dex_surface_routes_config, dex_surface_routes_quotes
 from web.data_routes.dex_surfaces import _overview_response_payload
 
 
@@ -105,6 +106,9 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/dex/opportunity-scanner/scan-now" in paths
     assert "/api/dex/opportunity-scanner/auto-execute" in paths
     assert "/api/dex/closed-loop-groups/<group_key>/refresh" in paths
+    assert "/api/dex/closed-loop-groups/<group_key>/start" in paths
+    assert "/api/dex/closed-loop-groups/<group_key>/stop" in paths
+    assert "/api/dex/closed-loop-groups/manual-review" in paths
     assert "/api/dex/quote-request" in paths
     assert "/api/dex/submissions" in paths
     assert "/api/dex/submissions/clear" in paths
@@ -219,7 +223,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "/static/dex-strategy-selector.js" in body
         assert "/static/dex-provenance.js" in body
         assert "window.__DEX_PROVENANCE__" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
         assert "window.__DEX_STRATEGY_DEFAULT__" in body
         assert "Binance 速度策略" in body
         assert "闭环扫描策略" in body
@@ -239,14 +243,18 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     quotes_body = client.get("/dex/quotes").get_data(as_text=True)
     quotes_body += client.get("/static/dex_quotes/quotes_app.js").get_data(as_text=True)
     quotes_body += client.get("/static/dex_quotes/quotes_render.js").get_data(as_text=True)
-    assert "/api/dex/opportunity-scanner/start" in quotes_body
-    assert "/api/dex/opportunity-scanner/snapshot" in quotes_body
-    assert "/api/dex/opportunity-scanner/scan-now" in quotes_body
-    assert "scanIntervalMs = 3000" in quotes_body
+    assert "/api/dex/opportunity-scanner/start" not in quotes_body
+    assert "/api/dex/opportunity-scanner/snapshot" not in quotes_body
+    assert "/api/dex/opportunity-scanner/scan-now" not in quotes_body
+    assert "/api/dex/quote-routes" in quotes_body
+    assert "Manager 闭环" in quotes_body
     assert "costs.bestAmountMissing === true" in quotes_body
     assert "activeExecution" in quotes_body
     assert "routeExecutionKey" in quotes_body
     assert "static_reference_pending_live_review" in quotes_body
+    assert 'const middle = symbolKey.slice(1, -1).join("->")' in quotes_body
+    assert 'class="loop-family"' in quotes_body
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in quotes_body
 
     submissions_body = client.get("/dex/submissions").get_data(as_text=True)
     assert "/api/dex/submissions/clear" in submissions_body
@@ -257,10 +265,10 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     assert "第三方参考价" in submissions_body
     assert "复制记录" in submissions_body
     assert "data-copy-record" in submissions_body
-    assert "最佳量=未计算" in submissions_body
+    assert "最佳交易量=未计算" in submissions_body
     assert '最佳交易量：${reviewBestAmount === null ? "未计算"' in submissions_body
-    assert "初始测试量=未记录" in submissions_body
-    assert '初始测试量：${reviewInitialAmount === null ? "未记录"' in submissions_body
+    assert "初始测试交易量=未记录" in submissions_body
+    assert '初始测试交易量：${reviewInitialAmount === null ? "未记录"' in submissions_body
     assert "const recordTimeValue = row => {" in submissions_body
     assert "recordTimeValue(b) - recordTimeValue(a)" in submissions_body
     assert "function submissionInitialAmount(row)" in submissions_body
@@ -275,7 +283,34 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
+
+
+def test_dex_quotes_ui_refresh_interval_is_independent_from_worker_cadence(monkeypatch):
+    monkeypatch.setenv("DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS", "75")
+    body = app.test_client().get("/dex/quotes").get_data(as_text=True)
+    app_js = (STATIC_DIR / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+
+    assert 'data-dex-quotes-ui-refresh-interval-seconds="75"' in body
+    assert "dex-quotes-refresh-interval-seconds-v2" in app_js
+    assert "document.body?.dataset?.dexQuotesUiRefreshIntervalSeconds" in app_js
+    assert "DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS" not in app_js
+
+    monkeypatch.setenv("DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS", "invalid")
+    fallback = app.test_client().get("/dex/quotes").get_data(as_text=True)
+    assert 'data-dex-quotes-ui-refresh-interval-seconds="60"' in fallback
+
+    monkeypatch.setenv("DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS", "inf")
+    infinite = app.test_client().get("/dex/quotes").get_data(as_text=True)
+    assert 'data-dex-quotes-ui-refresh-interval-seconds="60"' in infinite
+
+    monkeypatch.setenv("DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS", "5")
+    too_fast = app.test_client().get("/dex/quotes").get_data(as_text=True)
+    assert 'data-dex-quotes-ui-refresh-interval-seconds="10"' in too_fast
+
+    monkeypatch.setenv("DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS", "9999")
+    too_slow = app.test_client().get("/dex/quotes").get_data(as_text=True)
+    assert 'data-dex-quotes-ui-refresh-interval-seconds="3600"' in too_slow
 
 
 def test_system_pages_keep_feature_selection_and_scope():
@@ -367,14 +402,14 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert 'class="protocol-rail"' not in body
     assert 'data-flash-loan-protocol-nav="true"' in body
     assert 'data-flash-loan-protocol-link="uniswap_v4"' in body
-    assert 'href="/flash-loan/pools?chain_id=46630&protocols=uniswap_v4"' in body
+    assert 'href="/flash-loan/pools?chain_id=4663&protocols=uniswap_v4"' in body
     assert 'data-flash-loan-protocol-link="venus_core"' not in body
     assert 'data-flash-loan-protocol-link="morpho_blue"' not in body
     assert 'data-flash-loan-protocol-link="pancakeswap_v3"' not in body
     assert 'data-flash-loan-protocol-link="balancer_v2"' not in body
     assert 'data-shell-link="/flash-loan/pools"' in body
     assert payload["ok"] is True
-    assert payload["scope"]["chain_id"] == 46630
+    assert payload["scope"]["chain_id"] == 4663
     assert payload["summary"]["provider_count"] >= 1
     assert payload["summary"]["chain_count"] == 1
     assert payload["summary"]["dex_consumable_count"] > 0
@@ -477,7 +512,76 @@ def test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope():
     assert view.get("_static_pool_source") is None
 
 
-def test_robinhood_mainnet_dex_surface_apis_use_chain_flows():
+def test_robinhood_mainnet_dex_surface_apis_use_chain_flows(monkeypatch):
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "market_observation_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_market_observation",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "market_observation",
+                "network": "robinhood",
+                "handler": "manager_api:/v1/candidate-exchange-pools",
+            },
+            "summary": {},
+            "candidateObservationGroups": [],
+            "chainSpecificObservationPairs": [],
+            "chainSpecificObservationPools": [],
+            "chainSpecificObservationTokens": [],
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "overview_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_overview",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "dex_overview",
+                "network": "robinhood",
+                "handler": "intent_trade.chains.robinhood.dex_surfaces:dex_overview_flow",
+            },
+            "summary": {"arbitragePathCount": 0},
+            "arbitragePaths": [],
+            "watchPairs": [],
+            "liquidPoolRegistry": [],
+            "poolStaticTable": {"network": "robinhood"},
+            "decisionBasis": "manager_closed_loop",
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_routes_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_routes",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "dex_quote_routes",
+                "network": "robinhood",
+                "handler": "runtime_core:overview",
+            },
+            "summary": {"routeCount": 0},
+            "routes": [],
+            "closedLoopGroups": [],
+            "versions": {},
+            "poolStaticTable": {"network": "robinhood"},
+        },
+    )
     client = app.test_client()
 
     overview = client.get(
@@ -499,7 +603,12 @@ def test_robinhood_mainnet_dex_surface_apis_use_chain_flows():
         assert payload["selected_protocols"] == ["uniswap_v4"]
         assert payload["processing"]["flow_name"] == flow_name
         assert payload["processing"]["network"] == "robinhood"
-        assert payload["processing"]["handler"].startswith("intent_trade.chains.robinhood.dex_surfaces:")
+        if flow_name == "market_observation":
+            assert payload["processing"]["handler"] == "manager_api:/v1/candidate-exchange-pools"
+        elif flow_name == "dex_quote_routes":
+            assert payload["processing"]["handler"] == "runtime_core:overview"
+        else:
+            assert payload["processing"]["handler"].startswith("intent_trade.chains.robinhood.dex_surfaces:")
         assert "robinhood-testnet" not in str(payload.get("poolStaticTable") or "").lower()
 
 
@@ -766,7 +875,7 @@ def test_dex_strategy_selector_is_registered():
 def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    monkeypatch.setattr(control_panel, "database_url", lambda: None)
     client = app.test_client()
 
     aave = client.get(
@@ -812,7 +921,7 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
     assert CANONICAL_ROBINHOOD_TESTNET_DEX in dex_market_ids
     assert CANONICAL_HYPERLIQUID_DEX in dex_market_ids
     assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX)["legacy_market_id"] == "robinhood-dex-shadow"
-    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX)["market_type"] == "shadow_chain"
+    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX)["market_type"] == "native_chain"
     assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX_V4)["protocol"] == "uniswap_v4"
     assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_TESTNET_DEX)["chain_id"] == 46630
 
@@ -839,7 +948,7 @@ def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(
         calls.append(database_url)
         raise RuntimeError("the endpoint has been disabled; enable it using the API and retry")
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(control_panel, "database_url", lambda: database_url)
     monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", fail)
     client = app.test_client()
 

@@ -77,23 +77,52 @@ def clear_v4_exchange_evidence(
     that no longer exist on chain) from surviving into candidate/observation
     rebuilds.
     """
+    loop_optimization_count = execute(
+        database_url,
+        """
+        DELETE FROM v4_closed_loop_optimizations
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    loop_hop_count = execute(
+        database_url,
+        """
+        DELETE FROM v4_closed_loop_hops
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    loop_count = execute(
+        database_url,
+        """
+        DELETE FROM v4_closed_loops
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    liquidity_count = execute(
+        database_url,
+        """
+        DELETE FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
+    pool_count = execute(
+        database_url,
+        """
+        DELETE FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, protocol),
+    )
     counts = {
-        "liquidity_snapshots": execute(
-            database_url,
-            """
-            DELETE FROM v4_exchange_pool_liquidity_snapshots
-            WHERE network = ? AND chain_id = ? AND protocol = ?
-            """,
-            (network, chain_id, protocol),
-        ),
-        "pools": execute(
-            database_url,
-            """
-            DELETE FROM v4_exchange_pools
-            WHERE network = ? AND chain_id = ? AND protocol = ?
-            """,
-            (network, chain_id, protocol),
-        ),
+        "closed_loop_optimizations": loop_optimization_count,
+        "closed_loop_hops": loop_hop_count,
+        "closed_loops": loop_count,
+        "liquidity_snapshots": liquidity_count,
+        "pools": pool_count,
     }
     counts["dex_surface_snapshots"] = clear_dex_surface_snapshots(
         network=network,
@@ -401,6 +430,11 @@ def upsert_v4_liquidity_snapshots(
                 ELSE excluded.has_liquidity
             END,
             liquidity = CASE
+                WHEN excluded.has_liquidity = 0 AND (
+                    (excluded.evidence_source IS NOT NULL AND excluded.evidence_source <> '')
+                    OR excluded.liquidity_block_number IS NOT NULL
+                )
+                THEN ''
                 WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
                 THEN v4_exchange_pool_liquidity_snapshots.liquidity
                 WHEN (

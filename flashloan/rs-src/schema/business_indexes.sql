@@ -20,4 +20,9 @@ CREATE INDEX IF NOT EXISTS idx_observation_pools ON market_observation_intermedi
 ;
 CREATE INDEX IF NOT EXISTS idx_closed_loop_anchor ON v4_closed_loops(network, chain_id, protocol, market_id, anchor_symbol)
 ;
-CREATE INDEX IF NOT EXISTS idx_closed_loop_hops_pool ON v4_closed_loop_hops(network, chain_id, protocol, market_id, pool_id);
+CREATE INDEX IF NOT EXISTS idx_closed_loop_hops_pool ON v4_closed_loop_hops(network, chain_id, protocol, market_id, pool_id)
+;
+CREATE INDEX IF NOT EXISTS idx_bnb_market_observations_source_recorded ON bnb_market_observations(source, recorded_at)
+;
+CREATE INDEX IF NOT EXISTS idx_bnb_market_snapshots_symbol_observed ON bnb_market_snapshots(symbol, observed_at)
+;

@@ -11,7 +11,6 @@ reads page JSON shards.
 
 from __future__ import annotations
 
-import json
 from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
@@ -19,7 +18,25 @@ from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
     select_directional_pool_ids,
 )
-from core.db.storage_chain_core import load_chain_tokens
+from core.db.page_payload_tokens import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_MARKET_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_PROTOCOL,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+    _bool,
+    _int,
+    _json_loads,
+    _lower,
+    _network_for_chain_id,
+    _number,
+    _text,
+    _token_name_map,
+    _token_name_missing_map,
+    _token_symbol_map,
+)
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 from dex.intent_trade.chains.robinhood_common.chain_config import (
     all_anchor_addresses_by_symbol,
@@ -31,78 +48,16 @@ from core.rs_bridge import (
 )
 
 
-ROBINHOOD_NETWORK = "robinhood"
-ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_MARKET_ID = "dex-arbitrage-4663-uniswap-v4"
-ROBINHOOD_PROTOCOL = "uniswap_v4"
-ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
-
-
-def _network_for_chain_id(chain_id: int) -> str:
-    return ROBINHOOD_TESTNET_NETWORK if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID else ROBINHOOD_NETWORK
-
-
-def _text(value: Any) -> str:
-    return str(value or "").strip()
-
-
-def _lower(value: Any) -> str:
-    return _text(value).lower()
-
-
-def _number(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _bool(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return value != 0
-    return _text(value).lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _json_loads(value: Any) -> Any:
-    if isinstance(value, (dict, list)):
-        return value
-    if value is None or value == "":
-        return {}
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return {}
-    return value
-
-
-def _token_symbol_map(database_url: str, *, chain_id: int = ROBINHOOD_CHAIN_ID) -> dict[str, str]:
-    rows = load_chain_tokens(
-        str(absolute_database_path(database_url)),
-        network=_network_for_chain_id(chain_id),
-        chain_id=chain_id,
-    )
-    return {_lower(row.get("token_address")): _text(row.get("token_symbol")) for row in rows}
-
-
 def _default_anchor_symbols(
     chain_id: int,
     *,
     database_url: str | None = None,
 ) -> list[str]:
     network = _network_for_chain_id(chain_id)
+    if network == ROBINHOOD_NETWORK and database_url is None:
+        # Mainnet stock identities are stored in SQLite chain_tokens at
+        # runtime; the JSON registry is a build/seed input only.
+        database_url = str(absolute_database_path())
     return list(
         all_anchor_symbols(
             network,
@@ -206,28 +161,106 @@ def _pool_role(
 
 
 def _symbol_for_address(address: str, token_symbols: dict[str, str]) -> str:
-    return _text(token_symbols.get(_lower(address)) or _text(address)[:6])
+    return _clean_symbol(token_symbols.get(_lower(address)), address) or (
+        f"UNRESOLVED:{_text(address)[:10]}" if _text(address) else "UNRESOLVED"
+    )
+
+
+def _clean_symbol(value: Any, address: str) -> str:
+    symbol = _text(value)
+    if is_unresolved_placeholder_symbol(symbol):
+        return f"UNRESOLVED:{_text(address)[:10]}" if _text(address) else "UNRESOLVED"
+    return symbol
+
+
+def _token_display_name(value: Any, address: str) -> str:
+    name = _text(value)
+    if not name:
+        return ""
+    if is_unresolved_placeholder_symbol(name):
+        return "UNRESOLVED"
+    return name
+
+
+def _pool_side_symbol(pool: dict[str, Any], side: int) -> str:
+    raw = _text(pool.get(f"token{side}Symbol"))
+    if raw:
+        return raw
+    pool_key = _json_loads(pool.get("pool_key_json") or pool.get("poolKey") or {})
+    if isinstance(pool_key, dict):
+        return _text(pool_key.get(f"token{side}Symbol"))
+    return ""
 
 
 def _candidate_pool_row(
     pool: dict[str, Any],
     *,
     token_symbols: dict[str, str],
+    token_names: dict[str, str] | None = None,
+    token_name_missing: dict[str, bool] | None = None,
     anchor_address: str,
     anchor_symbol: str,
     pool_role: str = "",
 ) -> dict[str, Any]:
     token0 = _lower(pool.get("token0"))
     token1 = _lower(pool.get("token1"))
-    token0_symbol = _text(token_symbols.get(token0) or pool.get("token0Symbol") or "")
-    token1_symbol = _text(token_symbols.get(token1) or pool.get("token1Symbol") or "")
+    token_names = token_names or {}
+    token_name_missing = token_name_missing or {}
+    pool_token0_symbol = _pool_side_symbol(pool, 0)
+    pool_token1_symbol = _pool_side_symbol(pool, 1)
+    token0_raw_name = _text(token_names.get(token0))
+    token1_raw_name = _text(token_names.get(token1))
+    token0_name_missing = bool(
+        token_name_missing.get(token0)
+        or is_unresolved_placeholder_symbol(token0_raw_name)
+        or not token0_raw_name
+    )
+    token1_name_missing = bool(
+        token_name_missing.get(token1)
+        or is_unresolved_placeholder_symbol(token1_raw_name)
+        or not token1_raw_name
+    )
+    token0_raw_symbol = token_symbols.get(token0) or pool_token0_symbol
+    token1_raw_symbol = token_symbols.get(token1) or pool_token1_symbol
+    token0_resolved = bool(token0_raw_symbol) and not is_unresolved_placeholder_symbol(token0_raw_symbol)
+    token1_resolved = bool(token1_raw_symbol) and not is_unresolved_placeholder_symbol(token1_raw_symbol)
+    token0_symbol = (
+        _clean_symbol(token_symbols.get(token0), token0)
+        or _clean_symbol(pool_token0_symbol, token0)
+        or (f"UNRESOLVED:{_text(token0)[:10]}" if _text(token0) else "")
+    )
+    token1_symbol = (
+        _clean_symbol(token_symbols.get(token1), token1)
+        or _clean_symbol(pool_token1_symbol, token1)
+        or (f"UNRESOLVED:{_text(token1)[:10]}" if _text(token1) else "")
+    )
+    token0_name_fallback_symbol = (
+        _text(token_name_missing.get(token0, {}).get("nameFallbackSymbol"))
+        if isinstance(token_name_missing.get(token0), dict)
+        else ""
+    ) or (token0_symbol if token0_name_missing and token0_resolved else "")
+    token1_name_fallback_symbol = (
+        _text(token_name_missing.get(token1, {}).get("nameFallbackSymbol"))
+        if isinstance(token_name_missing.get(token1), dict)
+        else ""
+    ) or (token1_symbol if token1_name_missing and token1_resolved else "")
     if token0 == _lower(anchor_address):
         counter_address = token1
         counter_symbol = token1_symbol
+        counter_symbol_resolved = token1_resolved
+        counter_name = _token_display_name(token1_raw_name, token1)
+        counter_name_resolved = bool(token1_raw_name) and not token1_name_missing
+        counter_name_missing = token1_name_missing
+        counter_name_fallback_symbol = token1_name_fallback_symbol
         route_text = f"{anchor_symbol} -> {counter_symbol}"
     else:
         counter_address = token0
         counter_symbol = token0_symbol
+        counter_symbol_resolved = token0_resolved
+        counter_name = _token_display_name(token0_raw_name, token0)
+        counter_name_resolved = bool(token0_raw_name) and not token0_name_missing
+        counter_name_missing = token0_name_missing
+        counter_name_fallback_symbol = token0_name_fallback_symbol
         route_text = f"{counter_symbol} -> {anchor_symbol}"
     balances = _json_loads(pool.get("balances_json") or pool.get("balances") or {})
     if not isinstance(balances, dict):
@@ -293,9 +326,24 @@ def _candidate_pool_row(
         "token1": pool.get("token1"),
         "token0Symbol": token0_symbol,
         "token1Symbol": token1_symbol,
+        "token0Name": _token_display_name(token0_raw_name, token0),
+        "token1Name": _token_display_name(token1_raw_name, token1),
+        "token0SymbolResolved": token0_resolved,
+        "token1SymbolResolved": token1_resolved,
+        "token0NameResolved": bool(token0_raw_name) and not token0_name_missing,
+        "token1NameResolved": bool(token1_raw_name) and not token1_name_missing,
+        "token0NameMissing": token0_name_missing,
+        "token1NameMissing": token1_name_missing,
+        "token0NameFallbackSymbol": token0_name_fallback_symbol,
+        "token1NameFallbackSymbol": token1_name_fallback_symbol,
         "symbolPair": f"{token0_symbol}:{token1_symbol}" if token0_symbol and token1_symbol else "",
         "counterSymbol": counter_symbol,
+        "counterSymbolResolved": counter_symbol_resolved,
         "counterAddress": counter_address,
+        "counterName": counter_name,
+        "counterNameResolved": counter_name_resolved,
+        "counterNameMissing": counter_name_missing,
+        "counterNameFallbackSymbol": counter_name_fallback_symbol,
         "routeText": route_text,
         "liquidity": pool.get("liquidity") or "",
         "liquidityIndex": pool.get("liquidity_index") or pool.get("liquidityIndex"),
@@ -327,6 +375,8 @@ def _candidate_group(
     pools: list[dict[str, Any]],
     *,
     token_symbols: dict[str, str],
+    token_names: dict[str, str] | None = None,
+    token_name_missing: dict[str, bool] | None = None,
     active_selection: dict[tuple[str, str], list[str]] | None = None,
 ) -> dict[str, Any]:
     anchor_symbol = _text(anchor.get("anchor_symbol") or anchor.get("anchorSymbol"))
@@ -352,6 +402,8 @@ def _candidate_group(
         row = _candidate_pool_row(
             pool,
             token_symbols=token_symbols,
+            token_names=token_names,
+            token_name_missing=token_name_missing,
             anchor_address=anchor_address,
             anchor_symbol=anchor_symbol,
             pool_role=pool_role,
@@ -410,11 +462,24 @@ def _candidate_group(
         if not counter_address:
             continue
         counter_symbol = _text(row.get("counterSymbol")) or _symbol_for_address(counter_address, token_symbols)
+        raw_symbol = _text(token_symbols.get(counter_address) or row.get("counterSymbol"))
+        raw_name = token_names.get(counter_address) if token_names else ""
+        counter_symbol_resolved = bool(raw_symbol) and not is_unresolved_placeholder_symbol(raw_symbol)
+        counter_name_missing = bool(
+            (token_name_missing or {}).get(counter_address)
+            or is_unresolved_placeholder_symbol(raw_name)
+        )
         token = tokens_by_address.setdefault(
             counter_address,
             {
                 "symbol": counter_symbol,
+                "name": _token_display_name(raw_name, counter_address),
                 "address": counter_address,
+                "symbolResolved": counter_symbol_resolved,
+                "nameResolved": bool(_text(raw_name)) and not counter_name_missing,
+                "nameMissing": counter_name_missing,
+                "nameFallbackSymbol": raw_symbol if counter_name_missing and counter_symbol_resolved else "",
+                "rawSymbol": raw_symbol if not counter_symbol_resolved else "",
                 "poolCount": 0,
                 "pools": [],
                 "ycOptimalPoolId": "",
@@ -475,6 +540,8 @@ def _abnormal_candidate_group(
     abnormal_pools: list[dict[str, Any]],
     *,
     token_symbols: dict[str, str],
+    token_names: dict[str, str] | None = None,
+    token_name_missing: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     anchor_symbol = _text(anchor.get("anchor_symbol") or anchor.get("anchorSymbol"))
     anchor_address = _text(anchor.get("anchor_address") or anchor.get("anchorAddress"))
@@ -482,6 +549,8 @@ def _abnormal_candidate_group(
         _candidate_pool_row(
             pool,
             token_symbols=token_symbols,
+            token_names=token_names,
+            token_name_missing=token_name_missing,
             anchor_address=anchor_address,
             anchor_symbol=anchor_symbol,
         )
@@ -494,11 +563,24 @@ def _abnormal_candidate_group(
         if not counter_address:
             continue
         counter_symbol = _text(row.get("counterSymbol")) or _symbol_for_address(counter_address, token_symbols)
+        raw_symbol = _text(token_symbols.get(counter_address) or row.get("counterSymbol"))
+        raw_name = token_names.get(counter_address) if token_names else ""
+        counter_symbol_resolved = bool(raw_symbol) and not is_unresolved_placeholder_symbol(raw_symbol)
+        counter_name_missing = bool(
+            (token_name_missing or {}).get(counter_address)
+            or is_unresolved_placeholder_symbol(raw_name)
+        )
         token = tokens_by_address.setdefault(
             counter_address,
             {
                 "symbol": counter_symbol,
+                "name": _token_display_name(raw_name, counter_address),
                 "address": counter_address,
+                "symbolResolved": counter_symbol_resolved,
+                "nameResolved": bool(_text(raw_name)) and not counter_name_missing,
+                "nameMissing": counter_name_missing,
+                "nameFallbackSymbol": raw_symbol if counter_name_missing and counter_symbol_resolved else "",
+                "rawSymbol": raw_symbol if not counter_symbol_resolved else "",
                 "poolCount": 0,
                 "pools": [],
                 "ycOptimalPoolId": "",
@@ -523,6 +605,8 @@ def _candidate_pair_report(
     pools: list[dict[str, Any]],
     *,
     token_symbols: dict[str, str],
+    token_names: dict[str, str] | None = None,
+    token_name_missing: dict[str, Any] | None = None,
     anchor_symbol: str,
     anchor_address: str,
     active_selection: dict[tuple[str, str], list[str]] | None = None,
@@ -548,10 +632,32 @@ def _candidate_pair_report(
                 pools_by_counter.setdefault(token0, []).append(pool)
     pair_pools = pools_by_counter.get(counter_key, [])
     counter_symbol = _symbol_for_address(counter_address, token_symbols)
+    counter_raw_symbol = _text(token_symbols.get(counter_key) or "")
+    counter_symbol_resolved = bool(
+        counter_raw_symbol
+        and not is_unresolved_placeholder_symbol(counter_raw_symbol)
+    )
+    anchor_raw_symbol = _text(token_symbols.get(anchor_key) or anchor_symbol)
+    anchor_symbol_resolved = bool(
+        anchor_raw_symbol
+        and not is_unresolved_placeholder_symbol(anchor_raw_symbol)
+    )
+    anchor_raw_name = _text(token_names.get(anchor_key) if token_names else "")
+    counter_raw_name = _text(token_names.get(counter_key) if token_names else "")
+    anchor_name_missing = bool(
+        (token_name_missing or {}).get(anchor_key)
+        or is_unresolved_placeholder_symbol(anchor_raw_name)
+    )
+    counter_name_missing = bool(
+        (token_name_missing or {}).get(counter_key)
+        or is_unresolved_placeholder_symbol(counter_raw_name)
+    )
     preferred = [
         _candidate_pool_row(
             pool,
             token_symbols=token_symbols,
+            token_names=token_names,
+            token_name_missing=token_name_missing,
             anchor_address=anchor_address,
             anchor_symbol=anchor_symbol,
         )
@@ -581,6 +687,17 @@ def _candidate_pair_report(
         "tokenY": counter_address,
         "tokenXSymbol": anchor_symbol,
         "tokenYSymbol": counter_symbol,
+        "tokenXName": _token_display_name(anchor_raw_name, anchor_key),
+        "tokenYName": _token_display_name(counter_raw_name, counter_key),
+        "tokenXSymbolResolved": anchor_symbol_resolved,
+        "tokenYSymbolResolved": counter_symbol_resolved,
+        "tokenXNameResolved": bool(anchor_raw_name) and not anchor_name_missing,
+        "tokenYNameResolved": bool(counter_raw_name) and not counter_name_missing,
+        "tokenXNameMissing": anchor_name_missing,
+        "tokenYNameMissing": counter_name_missing,
+        "tokenXNameFallbackSymbol": anchor_raw_symbol if anchor_name_missing and anchor_symbol_resolved else "",
+        "tokenYNameFallbackSymbol": counter_raw_symbol if counter_name_missing and counter_symbol_resolved else "",
+        "tokenYSymbolRaw": counter_raw_symbol if not counter_symbol_resolved else "",
         "classification": {"category": "stable" if anchor_symbol in STABLE_SYMBOLS and counter_symbol in STABLE_SYMBOLS else "token", "label": f"{anchor_symbol}:{counter_symbol}"},
         "allPoolCount": str(len(pair_pools)),
         "strictQualityPoolCount": str(len(strict)),
@@ -633,6 +750,8 @@ def build_candidate_payload(
 ) -> dict[str, Any]:
     db = str(absolute_database_path(database_url))
     token_symbols = _token_symbol_map(db, chain_id=chain_id)
+    token_names = _token_name_map(db, chain_id=chain_id)
+    token_name_missing = _token_name_missing_map(db, chain_id=chain_id)
     anchor_rows = _anchor_rows(
         db,
         chain_id=chain_id,
@@ -683,6 +802,8 @@ def build_candidate_payload(
             pairs,
             pools,
             token_symbols=token_symbols,
+            token_names=token_names,
+            token_name_missing=token_name_missing,
             active_selection=active_selection,
         )
         # No-depth/abnormal pools are no longer a separate page observation
@@ -703,6 +824,8 @@ def build_candidate_payload(
                 pair,
                 pools,
                 token_symbols=token_symbols,
+                token_names=token_names,
+                token_name_missing=token_name_missing,
                 anchor_symbol=symbol,
                 anchor_address=_text(anchor.get("anchor_address") or anchor.get("anchorAddress")),
                 active_selection=active_selection,

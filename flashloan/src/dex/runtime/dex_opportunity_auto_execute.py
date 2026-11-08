@@ -35,27 +35,35 @@ def _auto_execute_skip_reason(attempt: dict[str, Any], *, chain_id: int | None) 
     evidence = quote.get("live_onchain_evidence") if isinstance(quote.get("live_onchain_evidence"), dict) else {}
     if not evidence:
         return "missing_live_onchain_evidence"
-    if str(evidence.get("status") or "").lower() != "live_verified":
-        return "not_live_verified"
-    if not bool(evidence.get("readyForTransactionPreflight")):
-        return "not_ready_for_transaction_preflight"
+    if str(evidence.get("errorKind") or "").strip().lower() == "gas_estimation_failed":
+        return "gas_estimation_failed"
+    if str(evidence.get("status") or "").strip().lower() in {
+        "rpc_verification_failed",
+        "rpc_verification_timeout",
+        "route_error",
+        "rpc_unavailable",
+        "live_quote_failed",
+        "error",
+    }:
+        return "rpc_verification_failed"
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
-    best_amount_confirmed = bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))
-    if not best_amount_confirmed:
-        return "best_amount_not_confirmed"
-    net_profit = costs.get("netProfitUsd")
-    if net_profit is None:
-        net_profit = costs.get("netProfitAmount")
     try:
-        profitable = bool(evidence.get("profitable")) or bool(
-            (evidence.get("validation") or {}).get("profitableAfterCosts")
-        ) or float(net_profit or 0) > 0
-    except (TypeError, ValueError):
-        profitable = bool(evidence.get("profitable")) or bool(
-            (evidence.get("validation") or {}).get("profitableAfterCosts")
+        net_profit_amount = float(
+            costs.get("netProfitAmount")
+            or evidence.get("referenceNetProfitAmount")
+            or evidence.get("profitableAmount")
+            or evidence.get("profitHuman")
+            or evidence.get("profit")
+            or 0
         )
-    if not profitable:
+    except (TypeError, ValueError):
+        return "missing_token_net_profit"
+    if net_profit_amount <= 0:
         return "not_profitable"
+    from dex.runtime.dex_opportunity_helpers import _evidence_review_consistent
+
+    if not _evidence_review_consistent(evidence):
+        return "chain_review_inconsistent"
     return None
 
 
@@ -199,7 +207,10 @@ class DexAutoExecuteRunner:
                 "route_symbols": route_symbols,
                 "broadcast": True,
                 "result": result if isinstance(result, dict) else {"ok": False, "error": "auto_execute_invalid_result"},
-                "executed": bool(isinstance(result, dict) and result.get("ok") and result.get("txHash")),
+                "executed": bool(
+                    isinstance(result, dict)
+                    and result.get("txHash")
+                ),
                 "attempted": True,
             }
             attempt["auto_execute"] = auto_execute_payload

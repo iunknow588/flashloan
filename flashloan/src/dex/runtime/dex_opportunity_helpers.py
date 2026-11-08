@@ -9,11 +9,12 @@ import time
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts
+from core.db.storage_common import database_url
 from core.error_registry import ErrorCode
-from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
 from dex.runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from dex.runtime.dex_onchain_quote_evidence import _complete_route_steps, _pool_map
+from dex.runtime.dex_quote_evidence_size import _liquidity_cap_raw
 
 
 def _structured_dex_error(message: object, *, flow: str, node_id: str) -> list[dict[str, Any]]:
@@ -72,6 +73,38 @@ def _evidence_has_cache_source(evidence: dict[str, Any]) -> bool:
                 if _has_marker(pool_state.get(key)):
                     return True
     return False
+
+
+def _evidence_review_consistent(evidence: dict[str, Any]) -> bool:
+    """Return whether a row binds positive profit to a successful chain review.
+
+    A positive ``costModel.netProfitAmount`` can come from an offline SQLite
+    reference or an earlier static estimate.  It is only executable when the
+    same evidence also carries a live-verified review, an open transaction
+    preflight, and no chain-review blockers.
+    """
+    if not isinstance(evidence, dict):
+        return False
+    if str(evidence.get("status") or "").strip().lower() != "live_verified":
+        return False
+    if not bool(evidence.get("readyForTransactionPreflight")):
+        return False
+    blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+    if blockers:
+        return False
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    try:
+        net_profit_amount = float(
+            costs.get("netProfitAmount")
+            or evidence.get("referenceNetProfitAmount")
+            or evidence.get("profitableAmount")
+            or evidence.get("profitHuman")
+            or evidence.get("profit")
+            or 0
+        )
+    except (TypeError, ValueError):
+        return False
+    return net_profit_amount > 0
 
 
 def _chain_key(chain_id: int | None) -> str:
@@ -134,26 +167,8 @@ def _route_evidence(route: dict[str, Any]) -> dict[str, Any]:
 
 
 def _evidence_ready_for_auto_execute(row: dict[str, Any]) -> bool:
-    """Return whether a route evidence row satisfies the auto-execute gates."""
-    if not row:
-        return False
-    if str(row.get("status") or "").strip().lower() != "live_verified":
-        return False
-    if not bool(row.get("readyForTransactionPreflight")):
-        return False
-    costs = row.get("costModel") if isinstance(row.get("costModel"), dict) else {}
-    if not (bool(row.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))):
-        return False
-    profitable = bool(row.get("profitable")) or bool((row.get("validation") or {}).get("profitableAfterCosts"))
-    if not profitable:
-        net_profit = costs.get("netProfitUsd")
-        if net_profit is None:
-            net_profit = costs.get("netProfitAmount")
-        try:
-            profitable = float(net_profit or 0) > 0
-        except (TypeError, ValueError):
-            profitable = False
-    return profitable
+    """Return whether an evidence row may enter the automatic execution path."""
+    return _evidence_review_consistent(row)
 
 
 def _route_addresses_from_route(route: dict[str, Any]) -> list[str]:
@@ -253,10 +268,10 @@ def merge_recent_manual_review_evidence_into_routes(
     if not routes or chain_id is None:
         return routes
     try:
-        log_path = cow_execution_attempt_log_path(chain_id=int(chain_id))
-        attempts = load_recent_cow_execution_attempts_jsonl(
-            log_path,
+        attempts = load_recent_cow_execution_attempts(
+            database_url(),
             limit=max(1, int(recent_attempt_limit)),
+            networks=[_network_for_chain_id(chain_id)],
             chain_ids=[int(chain_id)],
         )
     except Exception:
@@ -771,7 +786,10 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
             "live_token_profit_amount": costs.get("netProfitAmount"),
             "live_token_profit_symbol": costs.get("netProfitAmountSymbol"),
             "transaction_development": evidence.get("transactionDevelopment") or {},
-            "reasons": blockers or precheck.get("reasons") or [],
+            # Once native on-chain evidence is profitable, static route
+            # warnings such as ``requires_live_quoter`` are stale and must
+            # not remain visible as execution blockers.
+            "reasons": blockers if not ready_for_preflight else [],
         }
     )
     market_state.update(
@@ -785,7 +803,11 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     attempt["quote"] = quote
     attempt["precheck"] = precheck
     attempt["market_state"] = market_state
-    attempt["blocked_reasons"] = blockers or attempt.get("blocked_reasons") or []
+    attempt["blocked_reasons"] = (
+        blockers
+        if not ready_for_preflight
+        else []
+    )
     if ready_for_preflight:
         live_delta = costs.get("netProfitUsd")
         if live_delta is None:

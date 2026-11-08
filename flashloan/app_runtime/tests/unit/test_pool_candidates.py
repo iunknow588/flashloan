@@ -1,6 +1,7 @@
 import pytest
 from flask import Flask
 
+from core.db.chain_database_context import chain_database_scope
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
@@ -209,6 +210,28 @@ def test_robinhood_v4_candidate_row_marks_dynamic_special_fee_and_liquidity():
     assert liquid_row["quality"] == "pass"
 
 
+def test_robinhood_v4_dynamic_fee_never_becomes_pass_by_status():
+    row = pool_candidates._robinhood_pool_candidate_row(
+        {
+            "pool": "0x8274dc191747b879892ab245e7ed45e829b9244",
+            "token0": "0x0000000000000000000000000000000000000000",
+            "token1": "0x5259fc...ce1e18",
+            "token0Symbol": "ETH",
+            "token1Symbol": "AIGYR",
+            "protocol": "uniswap_v4",
+            "fee": "8388608",
+            "status": "active",
+            "hasLiquidity": True,
+            "liquidityIndex": 100,
+        }
+    )
+    assert row["dynamicFee"] is True
+    assert row["specialFee"] is True
+    assert row["usableForObservation"] is False
+    assert row["quality"] == "rejected"
+    assert "dynamic_fee" in row["rejectReasons"]
+
+
 def test_page_candidate_pool_row_enforces_fixed_fee_upper_bound():
     def row(fee, usable=None):
         return page_payloads._candidate_pool_row(
@@ -230,6 +253,130 @@ def test_page_candidate_pool_row_enforces_fixed_fee_upper_bound():
     assert row(10861, usable=False)["quality"] == "rejected"
     assert row(3000, usable=True)["quality"] == "pass"
     assert row(3000, usable=False)["quality"] == "rejected"
+
+
+def test_page_candidate_pool_row_marks_missing_name_with_symbol_fallback():
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    row = page_payloads._candidate_pool_row(
+        {
+            "token0": anchor,
+            "token1": counter,
+            "token0Symbol": "TZ",
+            "token1Symbol": "AMZN",
+            "fee": 3000,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        token_symbols={anchor: "TZ", counter: "AMZN"},
+        token_names={anchor: "TZ Token"},
+        token_name_missing={
+            counter: {"nameMissing": True, "nameFallbackSymbol": "AMZN"}
+        },
+        anchor_address=anchor,
+        anchor_symbol="TZ",
+    )
+    assert row["counterSymbol"] == "AMZN"
+    assert row["counterSymbolResolved"] is True
+    assert row["counterName"] == ""
+    assert row["counterNameResolved"] is False
+    assert row["counterNameMissing"] is True
+    assert row["counterNameFallbackSymbol"] == "AMZN"
+
+
+def test_page_candidate_pool_row_exposes_unresolved_symbol_without_prefix_fake():
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    row = page_payloads._candidate_pool_row(
+        {
+            "token0": anchor,
+            "token1": counter,
+            "token0Symbol": "0X12345678",
+            "token1Symbol": "0X9ABCDEF0",
+            "fee": 3000,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        token_symbols={anchor: "0X12345678", counter: "0X9ABCDEF0"},
+        anchor_address=anchor,
+        anchor_symbol="0X12345678",
+    )
+    assert row["counterSymbolResolved"] is False
+    assert row["counterSymbol"].startswith("UNRESOLVED:")
+    assert "0X9ABCDEF0" not in row["counterSymbol"].split(":")[1]
+
+
+def test_page_candidate_pool_row_keeps_unresolved_symbol_when_db_metadata_empty():
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    row = page_payloads._candidate_pool_row(
+        {
+            "token0": anchor,
+            "token1": counter,
+            "token0Symbol": "ETH",
+            "token1Symbol": "",
+            "pool_key_json": {
+                "token0": anchor,
+                "token0Symbol": "ETH",
+                "token1": counter,
+                "token1Symbol": "UNRESOLVED:0x22222222",
+            },
+            "fee": 3000,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        token_symbols={anchor: "ETH"},
+        anchor_address=anchor,
+        anchor_symbol="ETH",
+    )
+    assert row["counterSymbol"] == "UNRESOLVED:0x22222222"
+    assert row["counterSymbolResolved"] is False
+    assert row["counterNameMissing"] is True
+    assert row["routeText"] == "ETH -> UNRESOLVED:0x22222222"
+
+
+def test_page_candidate_pool_row_never_leaves_unknown_symbol_blank():
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    row = page_payloads._candidate_pool_row(
+        {
+            "token0": anchor,
+            "token1": counter,
+            "token0Symbol": "ETH",
+            "token1Symbol": "",
+            "fee": 3000,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        token_symbols={anchor: "ETH"},
+        anchor_address=anchor,
+        anchor_symbol="ETH",
+    )
+    assert row["counterSymbol"].startswith("UNRESOLVED:")
+    assert row["counterSymbolResolved"] is False
+    assert row["counterSymbol"]
+    assert row["routeText"].startswith("ETH -> UNRESOLVED:")
+
+
+def test_page_candidate_pair_report_carries_name_missing_status():
+    anchor = "0x" + "1" * 40
+    counter = "0x" + "2" * 40
+    report = page_payloads._candidate_pair_report(
+        {
+            "counter_address": counter,
+            "direction_key": f"{anchor}:{counter}",
+            "address_pair": f"{anchor}:{counter}",
+        },
+        [],
+        token_symbols={anchor: "TZ", counter: "AMZN"},
+        token_names={anchor: "TZ Token"},
+        token_name_missing={
+            counter: {"nameMissing": True, "nameFallbackSymbol": "AMZN"}
+        },
+        anchor_symbol="TZ",
+        anchor_address=anchor,
+        active_selection={},
+        pools_by_counter={},
+    )
+    assert report["tokenYNameMissing"] is True
+    assert report["tokenYNameResolved"] is False
+    assert report["tokenYNameFallbackSymbol"] == "AMZN"
 
 
 def test_non_testnet_candidate_pagination_keeps_legacy_default(monkeypatch):
@@ -1004,6 +1151,108 @@ def test_static_quote_routes_drops_route_with_mixed_explicit_unusable_liquidity(
     assert _route_has_explicit_unusable_liquidity({"routePools": []}) is True
 
 
+def test_static_quote_routes_json_byte_cache_serves_identical_body(monkeypatch):
+    from web.data_routes.dex_surface_routes_quotes import (
+        _STATIC_ROUTE_JSON_CACHE,
+        register_dex_quote_routes,
+    )
+    from web.data_routes import dex_surfaces as surface_root
+
+    def _pool(pool_id: str, symbols: tuple[str, str]):
+        return {
+            "pool": pool_id,
+            "poolId": pool_id,
+            "poolKey": {
+                "currency0": "0x" + "1" * 40,
+                "currency1": "0x" + "2" * 40,
+                "fee": 500,
+                "tickSpacing": 10,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            },
+            "token0Symbol": symbols[0],
+            "token1Symbol": symbols[1],
+            "pairSymbol": f"{symbols[0]}:{symbols[1]}",
+            "symbolPair": f"{symbols[0]}:{symbols[1]}",
+            "routeSymbols": list(symbols),
+            "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40],
+            "fee": 500,
+            "usableForObservation": True,
+            "hasLiquidity": True,
+        }
+
+    pool_rows = {
+        "0x" + "a" * 64: _pool("0x" + "a" * 64, ("ETH", "AAA")),
+        "0x" + "b" * 64: _pool("0x" + "b" * 64, ("AAA", "BBB")),
+        "0x" + "c" * 64: _pool("0x" + "c" * 64, ("BBB", "ETH")),
+    }
+    overview = {
+        "exists": True,
+        "path": "sqlite_db",
+        "chain_id": 46630,
+        "selected_protocols": ["uniswap_v4"],
+        "snapshotFingerprint": "json-byte-cache-probe-v1",
+        "summary": {"closedLoopRouteCount": 1},
+        "closedLoopRouteSummaries": [
+            {
+                "anchorSymbol": "ETH",
+                "counterSymbol": "BBB",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+                "routePools": [pool_rows["0x" + "a" * 64], pool_rows["0x" + "b" * 64], pool_rows["0x" + "c" * 64]],
+            },
+        ],
+        "poolRegistry": pool_rows,
+        "liquidPoolRegistry": {},
+    }
+
+    monkeypatch.setattr(
+        surface_root,
+        "load_observation_overview_for_scope",
+        lambda **kwargs: overview,
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "selected_chain_id_from_request",
+        lambda: ({"chain_id": 46630, "market_id": "dex-arbitrage-46630-uniswap-v4"}, 46630),
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "request_dex_protocols_arg",
+        lambda: ["uniswap_v4"],
+    )
+    monkeypatch.setattr(
+        surface_root,
+        "_attach_dex_strategy",
+        lambda payload: payload,
+    )
+
+    app = Flask(__name__)
+    register_dex_quote_routes(app)
+    cache_before = dict(_STATIC_ROUTE_JSON_CACHE)
+    with app.test_client() as client:
+        first = client.get(
+            "/api/dex/quote-routes/static"
+            "?chain_id=46630&protocols=uniswap_v4&cache_probe=json_byte_cache_test"
+        )
+        second = client.get(
+            "/api/dex/quote-routes/static"
+            "?chain_id=46630&protocols=uniswap_v4&cache_probe=json_byte_cache_test"
+        )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.data == second.data
+    probe_entries = {
+        key: value
+        for key, value in _STATIC_ROUTE_JSON_CACHE.items()
+        if key not in cache_before and b"json_byte_cache_test" in b"|".join(
+            str(part).encode("utf-8") for part in key
+        )
+    }
+    assert probe_entries
+    assert any(body == first.data for body in probe_entries.values())
+
+
 def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     monkeypatch.setattr(
         quote_service,
@@ -1048,7 +1297,8 @@ def test_robinhood_mainnet_candidates_use_cache_before_source_available(monkeypa
         lambda _chain_id: False,
     )
 
-    payload = pool_candidates.dex_pool_candidates_payload(chain_id=4663, protocols=["uniswap_v4"])
+    with chain_database_scope(4663, network="robinhood", source="test"):
+        payload = pool_candidates.dex_pool_candidates_payload(chain_id=4663, protocols=["uniswap_v4"])
 
     assert payload["poolStaticTable"]["exists"] is True
     assert payload["poolStaticTable"]["network"] == "robinhood"
@@ -1396,6 +1646,63 @@ def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow(monkeypatch):
     assert payload["anchorGroups"][0]["ycZcSameSet"] is True
     assert payload["anchorGroups"][0]["ycPoolsRef"] == "sharedPools"
     assert payload["anchorGroups"][0]["sharedPools"]
+
+
+def test_robinhood_testnet_v4_pool_candidates_use_process_surface_cache(monkeypatch):
+    from market.binance_market import dex_surface_cache
+    from market.binance_market import pool_candidates as candidates_module
+
+    old_cache = dict(dex_surface_cache._DEX_SURFACE_CACHE)
+    dex_surface_cache._DEX_SURFACE_CACHE.clear()
+    try:
+        calls = []
+        fake_payload = {
+            "mode": "dex_pool_candidates",
+            "source": "rust_sqlite",
+            "pairs": [{"symbolPair": "ETH:AMD"}],
+            "anchorGroups": [],
+            "summary": {"pairTableCount": "1"},
+        }
+
+        def fake_chain_flow(*, chain_id, flow_name, protocol="", **kwargs):
+            calls.append((chain_id, flow_name, protocol))
+            return fake_payload
+
+        monkeypatch.setattr(candidates_module, "dispatch_chain_flow", fake_chain_flow)
+        monkeypatch.setattr(
+            candidates_module,
+            "_attach_execution_context",
+            lambda payload, chain_id: payload,
+        )
+
+        first = candidates_module.dex_pool_candidates_payload(
+            chain_id=46630,
+            protocols=[],
+        )
+        second = candidates_module.dex_pool_candidates_payload(
+            chain_id=46630,
+            protocols=[],
+        )
+
+        assert calls == [(46630, "dex_pool_candidates", "")]
+        assert first["pairs"] == second["pairs"]
+        assert first["source"] == "rust_sqlite"
+        second["summary"]["pairTableCount"] = "cached_mutation"
+        third = candidates_module.dex_pool_candidates_payload(
+            chain_id=46630,
+            protocols=[],
+        )
+        assert third["summary"]["pairTableCount"] == "1"
+        assert len(calls) == 1
+        candidates_module.dex_pool_candidates_payload(
+            chain_id=46630,
+            protocols=[],
+            refresh=True,
+        )
+        assert len(calls) == 2
+    finally:
+        dex_surface_cache._DEX_SURFACE_CACHE.clear()
+        dex_surface_cache._DEX_SURFACE_CACHE.update(old_cache)
 
 
 def test_robinhood_testnet_v4_pool_candidates_merge_disjoint_index_and_liquidity_sources():

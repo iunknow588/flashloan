@@ -117,6 +117,41 @@ _EXECUTION_PHASES = {
     "confirmation",
 }
 
+_REVIEW_NOT_READY_EVIDENCE_STATUSES = frozenset(
+    {
+        "static_reference_pending_live_review",
+        "not_live_verified",
+        "live_quote_failed",
+        "quote_failed",
+        "quote_unavailable",
+        "review_failed",
+        "rpc_unavailable",
+        "rpc_verification_failed",
+        "rpc_verification_timeout",
+        "live_evidence_deferred",
+        "preflight_failed",
+    }
+)
+
+_PREFLIGHT_BLOCKED_AUTO_REASONS = frozenset(
+    {
+        "broadcast_not_selected",
+        "broadcast_group_stopped",
+        "broadcast_skipped_group_stopped",
+        "native_broadcast_disabled",
+        "broadcast_queued",
+        "review_failed_quote_unavailable",
+        "manual_review_requires_per_hop_live_quotes",
+        "manual_review_not_profitable",
+        "static_reference_pending_live_review",
+        "rpc_busy",
+        "auto_execute_cooldown",
+        "not_profitable",
+        "chain_review_inconsistent",
+        "execution_not_requested",
+    }
+)
+
 def _json_text(value: Any) -> str:
     return json.dumps(value if value is not None else {}, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
@@ -157,6 +192,65 @@ def _cow_sdk_status_from_attempt(item: dict[str, Any]) -> str:
         if text:
             return text
     return ""
+
+
+def _row_tx_hash(row: dict[str, Any]) -> str:
+    auto = row.get("auto_execute") if isinstance(row.get("auto_execute"), dict) else {}
+    auto_result = auto.get("result") if isinstance(auto.get("result"), dict) else {}
+    quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+    return str(
+        row.get("tx_hash")
+        or row.get("transaction_hash")
+        or auto_result.get("txHash")
+        or auto_result.get("transactionHash")
+        or auto_result.get("transaction_hash")
+        or quote.get("tx_hash")
+        or quote.get("transaction_hash")
+        or ""
+    ).strip()
+
+
+def _preflight_blocked_before_broadcast(row: dict[str, Any]) -> bool:
+    """True when the row never entered a real broadcast phase.
+
+    A review row whose on-chain evidence is still in a static-reference,
+    quote-required, or preflight state must never be counted as an execution
+    failure.  The broadcast terminal is only valid after live-verified
+    evidence has actually been submitted to the execution queue.
+    """
+    precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
+    quote = row.get("quote")
+    if not isinstance(quote, dict):
+        quote = {}
+    evidence = quote.get("live_onchain_evidence")
+    if not isinstance(evidence, dict):
+        evidence = {}
+    auto = row.get("auto_execute") if isinstance(row.get("auto_execute"), dict) else {}
+    auto_result = auto.get("result") if isinstance(auto.get("result"), dict) else {}
+    attempted = bool(
+        auto.get("attempted")
+        or auto_result.get("attempted")
+        or row.get("broadcastAttempted")
+        or row.get("broadcastAttemptedDuringReview")
+    )
+    if attempted:
+        return False
+    auto_reason = str(
+        auto.get("reason")
+        or (auto.get("auto_execute") or {}).get("reason")
+        or ""
+    ).strip().lower()
+    state = str(row.get("state") or row.get("status") or "").strip().lower()
+    evidence_status = str(evidence.get("status") or "").strip().lower()
+    if bool(precheck.get("requires_live_quoter")) and not _row_tx_hash(row):
+        return True
+    if evidence_status in _REVIEW_NOT_READY_EVIDENCE_STATUSES:
+        return True
+    if auto_reason in _PREFLIGHT_BLOCKED_AUTO_REASONS:
+        return True
+    if state in {"preflight_failed", "review_failed", "quote_required", "ready_for_transaction_development"}:
+        return True
+    return False
 
 def _cow_control_mode_from_attempt(item: dict[str, Any]) -> str | None:
     precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
@@ -216,14 +310,6 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
         or sdk.get("submission_tx_hash")
     )
 
-    if bool(auto_execute.get("executed")) and auto_tx_hash:
-        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
-    if auto_tx_hash and state in _SUCCESS_STATES:
-        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
-    if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
-        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
-    if not submission_attempted and (sdk_status in {"quote_failed", "quote_unavailable"} or state in {"quote_failed", "quote_unavailable"}):
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     terminal_failure_states = {
         "submission_failed",
         "submit_failed",
@@ -235,6 +321,23 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
         "failed",
         "error",
     }
+    confirmation_status = str(
+        auto_execute.get("confirmationStatus")
+        or auto_execute_result.get("confirmationStatus")
+        or ""
+    ).strip().lower()
+    if not auto_tx_hash and _preflight_blocked_before_broadcast(row):
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+    if confirmation_status == "failed" or state == "broadcast_failed" or state in terminal_failure_states:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
+    if bool(auto_execute.get("executed")) and auto_tx_hash:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if auto_tx_hash and state in _SUCCESS_STATES:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if not submission_attempted and (sdk_status in {"quote_failed", "quote_unavailable"} or state in {"quote_failed", "quote_unavailable"}):
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     if (
         sdk_status in terminal_failure_states
         or state in terminal_failure_states

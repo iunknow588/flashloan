@@ -11,6 +11,7 @@ from typing import Optional
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("FLASHLOAN_RUNTIME_DIR", str(SRC_ROOT.parent / "src" / "runtime"))
+os.environ.setdefault("FLASHLOAN_DB_ROOT", str(SRC_ROOT.parent / "db"))
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
@@ -154,7 +155,10 @@ DEX_POOL_CANDIDATES_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_pool_candidates
 DEX_OVERVIEW_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_overview.html"
 DEX_QUOTES_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_quotes.html"
 DEX_SUBMISSIONS_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_submissions.html"
-DEX_SUBMISSIONS_FAILED_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_submissions_failed.html"
+DEX_REVIEW_SUCCESS_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_review_success.html"
+DEX_REVIEW_FAILED_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_review_failed.html"
+DEX_EXECUTION_SUCCESS_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_execution_success.html"
+DEX_EXECUTION_FAILED_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_execution_failed.html"
 FLASH_LOAN_POOLS_TEMPLATE_PATH = WEB_DIR / "templates" / "flash_loan_pools.html"
 ROBINHOOD_DEX_TEMPLATE_PATH = WEB_DIR / "templates" / "robinhood_dex_candidates.html"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
@@ -265,13 +269,13 @@ def set_control_status(
 ) -> None:
     observer_runtime_service.set_control_status(state, stage, message, percent, ttl_seconds=ttl_seconds)
 
-def control_status_payload() -> Optional[dict]:
+def control_status_payload() -> dict:
     updated_at = float(control_status.get("updated_at") or 0)
     ttl_seconds = float(control_status.get("ttl_seconds") or 0)
     if not updated_at:
-        return None
+        return {"state": "idle", "stage": "", "message": "", "percent": 0}
     if ttl_seconds and time.monotonic() - updated_at > ttl_seconds:
-        return None
+        return {"state": "idle", "stage": "", "message": "", "percent": 0}
     return {
         "state": control_status.get("state") or "stopped",
         "stage": control_status.get("stage") or "",
@@ -630,13 +634,13 @@ def build_observer_env() -> tuple[dict, list[str]]:
     )
     liquidation_symbols: list[str] = []
     try:
-        database_url = database_url_or_none()
-        if database_url:
+        resolved_database_url = database_url()
+        if resolved_database_url:
             related_rows = [
-                *db_load_liquidation_core_opportunity_pool(database_url, limit=500),
-                *db_load_liquidation_high_frequency_pool(database_url, limit=500),
-                *db_load_liquidation_borrow_health_pool(database_url, limit=500),
-                *db_load_latest_liquidation_account_reports(database_url, limit=500),
+                *db_load_liquidation_core_opportunity_pool(resolved_database_url, limit=500),
+                *db_load_liquidation_high_frequency_pool(resolved_database_url, limit=500),
+                *db_load_liquidation_borrow_health_pool(resolved_database_url, limit=500),
+                *db_load_latest_liquidation_account_reports(resolved_database_url, limit=500),
             ]
             liquidation_symbols = binance_symbols_for_liquidation_assets(
                 liquidation_asset_ids_from_pool_rows(related_rows),
@@ -876,7 +880,7 @@ def initialize_cow_arbitrage_runtime() -> None:
     if not cow_quote_daemon_enabled():
         return
     try:
-        ensure_cow_quote_daemon_running(database_url_provider=database_url_or_none)
+        ensure_cow_quote_daemon_running(database_url_provider=database_url)
     except Exception as exc:
         set_control_status("error", "start CoW quote daemon", redact_sensitive_text(exc), 0)
 app = create_control_panel_app(sys.modules[__name__])

@@ -1,0 +1,139 @@
+{
+  "schema": "robinhood-page-perf",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "generatedAt": "2026-10-23T21:02:27.614359+00:00",
+  "server": "http://127.0.0.1:5001",
+  "method": "real HTTP first request (cold) vs immediate repeat (warm/cache-hit)",
+  "target": {
+    "warmCacheHitSecondsLt": 1.0,
+    "acceptedSurfaces": [
+      "dex_pool_candidates",
+      "dex_overview",
+      "dex_submissions",
+      "dex_market_observation",
+      "dex_quote_routes_static"
+    ],
+    "baselineOnlySurfaces": [
+      "dex_quote_routes_live"
+    ]
+  },
+  "rows": [
+    {
+      "page": "dex_pool_candidates",
+      "url": "/api/dex-pools/candidates",
+      "acceptedTarget": true,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 3.1301,
+        "bodyBytes": 364262,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex-pools/candidates?chain_id=46630"
+      },
+      "warm": {
+        "status": 200,
+        "elapsedSeconds": 0.344,
+        "bodyBytes": 364262,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex-pools/candidates?chain_id=46630"
+      }
+    },
+    {
+      "page": "dex_overview",
+      "url": "/api/dex/overview",
+      "acceptedTarget": true,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 0.5658,
+        "bodyBytes": 542255,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/overview?chain_id=46630"
+      },
+      "warm": {
+        "status": 200,
+        "elapsedSeconds": 0.4749,
+        "bodyBytes": 542255,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/overview?chain_id=46630"
+      }
+    },
+    {
+      "page": "dex_submissions",
+      "url": "/api/dex/submissions",
+      "acceptedTarget": true,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 3.025,
+        "bodyBytes": 431391,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/submissions?chain_id=46630"
+      },
+      "warm": {
+        "status": 200,
+        "elapsedSeconds": 0.11,
+        "bodyBytes": 431391,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/submissions?chain_id=46630"
+      }
+    },
+    {
+      "page": "dex_market_observation",
+      "url": "/api/dex/market-observation",
+      "acceptedTarget": true,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 0.3248,
+        "bodyBytes": 6465507,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/market-observation?chain_id=46630"
+      },
+      "warm": {
+        "status": 200,
+        "elapsedSeconds": 0.3599,
+        "bodyBytes": 6465507,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/market-observation?chain_id=46630"
+      }
+    },
+    {
+      "page": "dex_quote_routes_static",
+      "url": "/api/dex/quote-routes/static",
+      "acceptedTarget": true,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 11.2156,
+        "bodyBytes": 435974,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/quote-routes/static?chain_id=46630"
+      },
+      "warm": {
+        "status": 200,
+        "elapsedSeconds": 0.2665,
+        "bodyBytes": 435974,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/quote-routes/static?chain_id=46630"
+      }
+    },
+    {
+      "page": "dex_quote_routes_live",
+      "url": "/api/dex/quote-routes",
+      "acceptedTarget": false,
+      "cold": {
+        "status": 200,
+        "elapsedSeconds": 55.2672,
+        "bodyBytes": 2944805,
+        "error": null,
+        "url": "http://127.0.0.1:5001/api/dex/quote-routes?chain_id=46630"
+      },
+      "warm": {
+        "status": null,
+        "elapsedSeconds": 240.0099,
+        "bodyBytes": null,
+        "error": "TimeoutError: timed out",
+        "url": "http://127.0.0.1:5001/api/dex/quote-routes?chain_id=46630"
+      }
+    }
+  ],
+  "warmAllStaticUnderOneSecond": true,
+  "note": "/api/dex/quote-routes is a live on-chain verification endpoint; it is recorded as a baseline only and is not part of the P2-1 warm <1s acceptance gate."
+}

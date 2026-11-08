@@ -1,0 +1,66 @@
+{
+  "evidenceId": "d9_22_ui_auto_estimate_residue_retired_20261106",
+  "task": "D9.22",
+  "recordedAt": "2026-11-06T02:37:09.1270812+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceRestarted": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false
+  },
+  "changes": [
+    "Removed the quote route label claiming off-chain estimation completed automatically.",
+    "Removed disabled resetStatsBtn and autoExecuteToggle placeholders and their JavaScript initialization.",
+    "Removed unused canAutoEstimate and canAutoRefresh helpers.",
+    "Changed deferred-review copy from automatic future review to explicit manual re-run.",
+    "Kept explicit route static-call and broadcast buttons enabled as user commands."
+  ],
+  "repairActions": [
+    {
+      "observed": "test_control_panel_navigation_chain_links_expected_pages still expected autoExecuteToggle in the DEX page.",
+      "action": "Updated the navigation test to reject the retired control."
+    },
+    {
+      "observed": "test_only_worker_busy_disables_live_onchain_review_button still expected page worker lifecycle state.",
+      "action": "Replaced it with a guard that the explicit on-chain review command is not owned or disabled by page worker state."
+    }
+  ],
+  "commands": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py flashloan/app_runtime/tests/unit/test_dex_quotes_route_execution_gates.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q",
+      "exitCode": 0,
+      "result": "50 passed"
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py flashloan/app_runtime/tests/functional/test_navigation_flow.py flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "result": "57 passed"
+    },
+    {
+      "command": "node --check quotes_app.js; node --check quotes_render.js; node --check route_state_machine.js",
+      "exitCode": 0,
+      "result": "JavaScript syntax valid"
+    },
+    {
+      "command": "python -m py_compile flashloan/app_runtime/web/page_routes_helpers.py flashloan/app_runtime/web/data_routes/dex_surface_routes_quotes.py",
+      "exitCode": 0,
+      "result": "Python compilation valid"
+    },
+    {
+      "command": "git diff --check -- scoped D9.22 and D9.23 files",
+      "exitCode": 0,
+      "result": "No whitespace errors"
+    }
+  ],
+  "fileHashesSha256": {
+    "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js": "1A69FA7DEAF882B2BFB2B585F87F13092354205EE0417CCAC55CE5F01E0D8516",
+    "flashloan/app_runtime/web/static/dex_quotes/quotes_render.js": "3009F8D00382A27422DF1C8409C0CDF4651190B5F3B8E419BD0960F2FEDDF693",
+    "flashloan/app_runtime/web/static/dex_quotes/route_state_machine.js": "A8BE93C267D0A1C49A5474CE659DAEE49F9A7F706591AC12650C5BBFD9AF48FE",
+    "flashloan/app_runtime/web/templates/dex_quotes.html": "98EC5F6758043B1DADAD061FC8549F999A36595BF489D5BF7868F2C32642167F",
+    "flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py": "39C41D0D2F296FBBB141435F181211198B5162D484A5E572B0677921E90C84F7",
+    "flashloan/app_runtime/tests/unit/test_dex_quotes_route_execution_gates.py": "30992A150F9E12351D352E3F6CC69900E20B59BE4910D11BE4E01BFC60C50002",
+    "flashloan/app_runtime/tests/functional/test_navigation_flow.py": "EA3EEE55542EDB316DCB140192E5BB9D2AFD9E9E093B27445ACB7F1975D1D712"
+  }
+}

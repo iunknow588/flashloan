@@ -1,0 +1,171 @@
+{
+  "evidenceId": "d9_26_rust_runtime_core_20261106",
+  "task": "D9.26",
+  "recordedAt": "2026-11-06T04:52:08.8903590+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "registry": "one strong RuntimeCore per chain",
+      "snapshot": "atomic generation replacement through Manager public read APIs",
+      "consistency": "re-derived upstream fingerprint must equal Composite pipeline fingerprint",
+      "eventLimit": 64,
+      "businessWrites": false,
+      "directBusinessTableReads": false
+    },
+    "runtimeCorePyo3Exports": [
+      "runtime_core_register",
+      "runtime_core_status",
+      "runtime_core_state",
+      "runtime_core_manager_snapshot",
+      "runtime_core_command",
+      "runtime_core_close"
+    ],
+    "nativePoolRegistry": {
+      "file": "flashloan/rs-src/src/native_pool_registry.rs",
+      "owner": "Rust",
+      "key": "normalized database path",
+      "supportsPerChainStop": true,
+      "pythonAuthoritativePoolCache": false
+    },
+    "nativePoolPyo3Exports": [
+      "native_pool_get_or_create",
+      "native_pool_registry_manage",
+      "native_pool_registry_status"
+    ],
+    "pythonAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "managerSnapshotCache": false,
+      "nativePoolCache": false,
+      "role": "chain identity and PyO3 DTO proxy",
+      "conflictingSameChainIdentityRejected": true
+    },
+    "nativePoolBridge": {
+      "file": "flashloan/src/dex/runtime/rust_closed_loop.py",
+      "perChainStopBridge": "stop_native_pool_for_chain",
+      "legacyFallbackRetained": true
+    }
+  },
+  "commands": [
+    {
+      "command": "rustfmt --edition 2021 src/runtime_core.rs src/native_pool_registry.rs src/lib.rs src/worker_pool.rs",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Rust sources formatted."
+    },
+    {
+      "command": "cargo fmt --check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Formatting clean."
+    },
+    {
+      "command": "cargo check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "PyO3 extension compiles."
+    },
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "89 passed; 0 failed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_chain_runtime.py flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "85 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_runtime.py flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "100 passed."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml -p review-manager -p broadcast-manager -p manager-api",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "42 passed: broadcast-manager 11, manager-api 23, review-manager 8."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "64 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly_scope_api.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "21 passed."
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/runtime/chain_runtime.py flashloan/src/dex/runtime/rust_closed_loop.py flashloan/app_runtime/tests/unit/test_chain_runtime.py flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "Python compilation valid."
+    },
+    {
+      "command": "python -m maturin build --release --out target/runtime_core_wheel_20261106_v2",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Wheel built; maturin warned that external zlib.dll was not packaged."
+    },
+    {
+      "command": "python -m maturin build --release --auditwheel repair --out target/runtime_core_wheel_20261106_v2_repair",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Wheel built and zlib.dll copied into flashloan_rs.libs."
+    },
+    {
+      "command": "fresh venv install and flashloan_rs export/lifecycle smoke",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "All 9 RuntimeCore/native-pool exports present; test pool created, registry count 1, per-chain stop removed 1 with remaining 0, RuntimeCore close ok."
+    }
+  ],
+  "artifacts": {
+    "wheelWarnOnly": "flashloan/rs-src/target/runtime_core_wheel_20261106_v2/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelRepaired": "flashloan/rs-src/target/runtime_core_wheel_20261106_v2_repair/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelSmokeVenv": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v2_repair"
+  },
+  "acceptance": {
+    "oneRuntimeCorePerChain": true,
+    "snapshotAtomicReplacement": true,
+    "mixedUpstreamFingerprintRejected": true,
+    "failedRefreshPreservesPreviousSnapshot": true,
+    "registrationStatusDoNotAccessBusinessDatabase": true,
+    "commandHeadersRequired": true,
+    "pythonManagerSnapshotCacheRemoved": true,
+    "pythonChainRuntimePoolCacheRemoved": true,
+    "legacyPythonFallbackCacheRetainedOnlyForOldExtensions": true,
+    "perChainPoolStopIsolated": true,
+    "repairedWheelImportable": true,
+    "nativePoolCreateStatusStopVerified": true
+  },
+  "residualWork": [
+    "RuntimeCore command ingress currently exposes only read-only refresh_snapshot.",
+    "Explicit UI action commands still require migration to RuntimeCore or manager command APIs.",
+    "Production database migration/apply and service cutover were intentionally not performed.",
+    "M9 production windows and three 30-minute soak gates remain pending."
+  ],
+  "documentUpdates": [
+    "logs/plan/开发计划_20261103.md",
+    "logs/plan/Rust管理模块实施手册_20261103.md",
+    "logs/plan/token_and_manager_rust_rearchitecture_20261103.md",
+    "flashloan/tools/manager_api/README.md",
+    "flashloan/app_runtime/README.md"
+  ]
+}

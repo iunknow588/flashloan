@@ -4,10 +4,17 @@ import pytest
 
 from market.binance_market.dex_surface_analysis import build_route_size_analysis
 from market.binance_market.dex_route_test import (
+    _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR,
+    _official_v4_adaptive_best_amount_single_route,
+    _official_v4_contract_has_selector,
     _official_route_addresses,
     _quote_failure_status,
     _raw_amount_to_human,
     _resolve_route_addresses_from_market_payload,
+    _official_v4_preview_best_amount_single_call,
+    _official_v4_hop_candidate_sets,
+    _preview_official_v4_best_amount,
+    _selected_route_symbols,
     _single_direction_contract_sets,
     _step_failure_status,
     estimate_route_live_quote,
@@ -18,6 +25,55 @@ from market.binance_market.dex_route_test import (
     recommended_route_test_amount,
     run_official_v4_arb_route_test,
 )
+
+
+def test_official_v4_contract_selector_guard_detects_missing_runtime_function():
+    class FakeEth:
+        def __init__(self, code: bytes):
+            self.code = code
+
+        def get_code(self, address: str):
+            assert address.lower().startswith("0x")
+            return self.code
+
+    class FakeW3:
+        def __init__(self, code: bytes):
+            self.eth = FakeEth(code)
+
+    address = "0x0000000000000000000000000000000000000201"
+    assert _official_v4_contract_has_selector(
+        FakeW3(b"\x00" + _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR + b"\x00"),
+        address,
+        _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR,
+    ) is True
+    assert _official_v4_contract_has_selector(
+        FakeW3(b"\x00\x01\x02"),
+        address,
+        _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR,
+    ) is False
+
+
+def test_official_arb_script_for_chain_maps_live_network_to_script_name():
+    import market.binance_market.dex_route_test as route_test_module
+
+    testnet_script = route_test_module._official_arb_script_for_chain(46630)
+    assert testnet_script == (
+        route_test_module.ROOT
+        / "test-token_create"
+        / "scripts"
+        / "tool"
+        / "testnet-v4-official-arb-live.js"
+    )
+    assert testnet_script.exists()
+
+    mainnet_script = route_test_module._official_arb_script_for_chain(4663)
+    assert mainnet_script == (
+        route_test_module.ROOT
+        / "test-token_create"
+        / "scripts"
+        / "tool"
+        / "mainnet-v4-official-arb-live.js"
+    )
 
 
 def test_single_direction_contract_sets_emit_exactly_one_directed_route():
@@ -36,6 +92,529 @@ def test_single_direction_contract_sets_emit_exactly_one_directed_route():
     assert directionsets[0] == directions
     assert len(keysets[0]) == 3
     assert len(directionsets[0]) == 3
+
+
+def test_selected_route_symbols_returns_generic_forward_or_reverse_route():
+    symbols = ["A", "B", "C", "A"]
+    assert _selected_route_symbols(symbols, 0) == ["A", "B", "C", "A"]
+    assert _selected_route_symbols(symbols, 1) == ["A", "C", "B", "A"]
+    assert _selected_route_symbols(["X", "Y", "Z", "X"], 1) == ["X", "Z", "Y", "X"]
+
+
+def test_official_v4_hop_candidate_sets_flattens_groups_per_hop():
+    addresses = [
+        "0x0000000000000000000000000000000000000101",
+        "0x0000000000000000000000000000000000000102",
+        "0x0000000000000000000000000000000000000103",
+        "0x0000000000000000000000000000000000000101",
+    ]
+    group_a = [
+        {"currency0": addresses[0], "currency1": addresses[1], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[1], "currency1": addresses[2], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[2], "currency1": addresses[0], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+    ]
+    group_b = [
+        dict(group_a[0], fee=500),
+        dict(group_a[1], fee=500),
+        dict(group_a[2], fee=500),
+    ]
+
+    (
+        entry_keys,
+        entry_directions,
+        bridge_keys,
+        bridge_directions,
+        exit_keys,
+        exit_directions,
+    ) = _official_v4_hop_candidate_sets([group_a, group_b], addresses)
+
+    assert len(entry_keys) == 2
+    assert len(bridge_keys) == 2
+    assert len(exit_keys) == 2
+    assert entry_keys[0][2] == 3000
+    assert entry_keys[1][2] == 500
+    assert entry_directions == [True, True]
+    assert bridge_directions == [True, True]
+    assert exit_directions == [True, True]
+    assert entry_keys[0][0] == addresses[0]
+    assert bridge_keys[0][0] == addresses[1]
+    assert exit_keys[0][0] == addresses[2]
+    assert entry_keys[1][2] != entry_keys[0][2]
+
+
+def test_official_v4_hop_candidate_sets_does_not_fabricate_reverse():
+    addresses = [
+        "0x0000000000000000000000000000000000000101",
+        "0x0000000000000000000000000000000000000102",
+        "0x0000000000000000000000000000000000000103",
+        "0x0000000000000000000000000000000000000101",
+    ]
+    group_a = [
+        {"currency0": addresses[0], "currency1": addresses[1], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[1], "currency1": addresses[2], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+        {"currency0": addresses[2], "currency1": addresses[0], "fee": 3000, "tickSpacing": 60, "hooks": "0x0000000000000000000000000000000000000000"},
+    ]
+
+    (
+        entry_keys,
+        entry_directions,
+        bridge_keys,
+        bridge_directions,
+        exit_keys,
+        exit_directions,
+    ) = _official_v4_hop_candidate_sets([group_a], addresses)
+
+    assert len(entry_keys) == 1
+    assert len(bridge_keys) == 1
+    assert len(exit_keys) == 1
+    assert entry_directions == [True]
+    assert bridge_directions == [True]
+    assert exit_directions == [True]
+    assert entry_keys[0][0] == addresses[0]
+    assert bridge_keys[0][0] == addresses[1]
+    assert exit_keys[0][0] == addresses[2]
+
+
+def test_preview_official_v4_best_amount_keeps_adaptive_search_enabled():
+    captured = {}
+
+    class FakeFunction:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            captured["call_kwargs"] = kwargs
+            return self._result
+
+    class FakeFunctions:
+        def previewArbitrageBestAmount(self, token, keysets, directionsets, amount_raw, min_profit, is_best_amount):
+            captured.update(
+                token=token,
+                keysets=keysets,
+                directionsets=directionsets,
+                amount_raw=amount_raw,
+                min_profit=min_profit,
+                is_best_amount=is_best_amount,
+            )
+            return FakeFunction((amount_raw, 1, 1234, 2))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    result = _preview_official_v4_best_amount(
+        FakeContract(),
+        token="0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        keysets=[[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+        directionsets=[[True]],
+        amount_raw=10**18,
+        min_profit=1,
+        is_best_amount=True,
+        block_number=12345,
+    )
+
+    assert result == (10**18, 1, 1234, 2)
+    assert captured["is_best_amount"] is True
+    assert captured["amount_raw"] == 10**18
+
+
+def test_official_v4_adaptive_best_amount_single_route_uses_fixed_route_probes():
+    captured = []
+
+    class FakeFunction:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewArbitrageBestAmount(self, token, keysets, directionsets, amount_raw, min_profit, is_best_amount):
+            captured.append(
+                {
+                    "amount_raw": amount_raw,
+                    "is_best_amount": is_best_amount,
+                    "keyset_count": len(keysets),
+                    "direction_count": len(directionsets),
+                }
+            )
+            if amount_raw == 10**18:
+                return FakeFunction((amount_raw, 0, 125, 1))
+            raise Exception("NoProfitableRoute")
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    selected_amount, selected_profit, attempted_count = _official_v4_adaptive_best_amount_single_route(
+        FakeContract(),
+        token="0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        keysets=[[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+        directionsets=[[True]],
+        initial_amount_raw=10**18,
+        min_profit=1,
+        block_number=12345,
+    )
+
+    assert selected_amount == 10**18
+    assert selected_profit == 125
+    assert attempted_count == 4
+    assert captured
+    assert all(item["is_best_amount"] is True for item in captured)
+    assert all(item["keyset_count"] == 1 for item in captured)
+    assert all(item["direction_count"] == 1 for item in captured)
+
+
+def test_official_v4_adaptive_best_amount_single_route_refines_midpoint():
+    unit = 10**18
+    attempted_amounts = []
+
+    class FakeFunction:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewArbitrageBestAmount(self, token, keysets, directionsets, amount_raw, min_profit, is_best_amount):
+            attempted_amounts.append(amount_raw)
+            if amount_raw == unit * 2:
+                raise Exception("NoProfitableRoute")
+            if amount_raw == unit * 3 // 4:
+                profit = unit * 3
+            elif amount_raw == unit * 3 // 2:
+                profit = unit // 2
+            elif amount_raw == unit:
+                profit = unit
+            else:
+                profit = unit // 10
+            return FakeFunction((amount_raw, 0, profit, 1))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    selected_amount, selected_profit, attempted_count = _official_v4_adaptive_best_amount_single_route(
+        FakeContract(),
+        token="0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        keysets=[[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+        directionsets=[[True]],
+        initial_amount_raw=unit,
+        min_profit=1,
+        block_number=12345,
+    )
+
+    assert selected_amount == unit * 3 // 4
+    assert selected_profit == unit * 3
+    assert attempted_count == 6
+    assert unit * 3 // 4 in attempted_amounts
+    assert unit * 3 // 2 in attempted_amounts
+    assert unit * 5 // 8 in attempted_amounts
+
+
+def test_official_v4_adaptive_best_amount_single_route_honors_step_budget(monkeypatch):
+    unit = 10**18
+    attempted_amounts = []
+
+    class FakeFunction:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewArbitrageBestAmount(self, token, keysets, directionsets, amount_raw, min_profit, is_best_amount):
+            attempted_amounts.append(amount_raw)
+            if amount_raw == unit * 2:
+                raise Exception("NoProfitableRoute")
+            profit = {
+                unit * 3 // 4: unit * 3,
+                unit * 3 // 2: unit // 2,
+                unit: unit,
+            }.get(amount_raw, unit // 10)
+            return FakeFunction((amount_raw, 0, profit, 1))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    selected_amount, selected_profit, attempted_count = _official_v4_adaptive_best_amount_single_route(
+        FakeContract(),
+        token="0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        keysets=[[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+        directionsets=[[True]],
+        initial_amount_raw=unit,
+        min_profit=1,
+        block_number=12345,
+        max_steps=1,
+    )
+
+    assert selected_amount == unit * 3 // 4
+    assert selected_profit == unit * 3
+    assert attempted_count == 4
+    assert attempted_amounts == [unit, unit * 2, unit * 3 // 4, unit * 3 // 2]
+
+
+def test_official_v4_preview_python_uses_configurable_search_steps(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    captured = {}
+
+    monkeypatch.setattr(route_test_module, "_probe_robinhood_family_rpc", lambda chain_id: ("https://rpc.testnet.chain.robinhood.com/rpc", 12345))
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_hop_candidate_sets",
+        lambda *args, **kwargs: (
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+        ),
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_adaptive_best_amount_single_route",
+        lambda *args, **kwargs: (
+            captured.update(max_steps=kwargs.get("max_steps")),
+            (10**18, 125, 1),
+        )[1],
+    )
+
+    class FakeFunction:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewBestPool(self, *args):
+            return FakeFunction((0, 0, 0, 2 * 10**18))
+
+        def runArbitrage(self, *args):
+            return FakeFunction((497596668730743682, 37994623004502135, 1846050065654195720, 1346050035851873333))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    class FakeEth:
+        def get_code(self, address):
+            return b"\x00" + _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR + b"\x00"
+
+        def contract(self, address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value
+
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+    import dex.runtime.dex_onchain_quote_evidence_official_v4 as evidence_official_v4
+
+    monkeypatch.setattr(evidence_official_v4, "_official_v4_arb_address", lambda chain_id=None: "0x1111111111111111111111111111111111111111")
+    monkeypatch.setattr(route_test_module, "Web3", FakeWeb3)
+    monkeypatch.delenv("DEX_OFFICIAL_V4_SEARCH_STEPS", raising=False)
+    monkeypatch.delenv("DEX_OFFICIAL_V4_SEARCH_MODE", raising=False)
+    monkeypatch.setattr(
+        route_test_module,
+        "_borrow_token_decimals_from_registry",
+        lambda **kwargs: 18,
+    )
+
+    result = route_test_module._official_v4_preview_python(
+        route_symbols=["AMD", "AMZN", "ETH", "AMD"],
+        route_addresses=[
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+            "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+            "0x0000000000000000000000000000000000000000",
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        ],
+        amount=1.0,
+        route_pool_keys=[],
+        route_pool_key_groups=[[{}], [{}], [{}]],
+        chain_id=46630,
+    )
+    assert result is not None
+    payload, _tail = result
+    assert payload.get("ok") is True
+    assert captured["max_steps"] == 24
+
+    monkeypatch.setenv("DEX_OFFICIAL_V4_SEARCH_STEPS", "3")
+    result = route_test_module._official_v4_preview_python(
+        route_symbols=["AMD", "AMZN", "ETH", "AMD"],
+        route_addresses=[
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+            "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+            "0x0000000000000000000000000000000000000000",
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        ],
+        amount=1.0,
+        route_pool_keys=[],
+        route_pool_key_groups=[[{}], [{}], [{}]],
+        chain_id=46630,
+    )
+    assert result is not None
+    assert captured["max_steps"] == 3
+
+
+def test_official_v4_preview_best_amount_single_call_uses_contract_internal_search():
+    unit = 10**18
+    captured = {}
+
+    class FakeCall:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewArbitrageBestAmount(
+            self, token, keysets, directionsets, amount_raw, min_profit, is_best_amount
+        ):
+            captured.update(
+                amount_raw=amount_raw,
+                is_best_amount=is_best_amount,
+                keyset_count=len(keysets),
+                direction_count=len(directionsets),
+            )
+            return FakeCall((unit * 3 // 4, 0, unit * 3, 6))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    result = _official_v4_preview_best_amount_single_call(
+        FakeContract(),
+        token="0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        keysets=[[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+        directionsets=[[True]],
+        amount_raw=unit,
+        min_profit=1,
+        block_number=12345,
+    )
+
+    assert result == (unit * 3 // 4, 0, unit * 3, 6)
+    assert captured["is_best_amount"] is False
+    assert captured["amount_raw"] == unit
+    assert captured["keyset_count"] == 1
+    assert captured["direction_count"] == 1
+
+
+def test_official_v4_preview_python_inner_single_call_mode(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    import dex.runtime.dex_onchain_quote_evidence_official_v4 as evidence_official_v4
+
+    unit = 10**18
+    captured = {}
+
+    def fake_inner_call(*args, **kwargs):
+        captured["amount_raw"] = kwargs.get("amount_raw")
+        captured["block_number"] = kwargs.get("block_number")
+        return unit * 3 // 4, 0, unit * 3, 6
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_preview_best_amount_single_call",
+        fake_inner_call,
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com/rpc", 12345),
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_hop_candidate_sets",
+        lambda *args, **kwargs: (
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+            [[["0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E", "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8", 3000, 60, "0x0000000000000000000000000000000000000000"]]],
+            [True],
+        ),
+    )
+
+    class FakeCall:
+        def __init__(self, result):
+            self._result = result
+
+        def call(self, **kwargs):
+            return self._result
+
+    class FakeFunctions:
+        def previewBestPool(self, *args):
+            return FakeCall((0, 0, 0, 2 * unit))
+
+        def runArbitrage(self, *args):
+            return FakeCall((100, 200, 300, unit * 3))
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    class FakeEth:
+        def get_code(self, address):
+            return b"\x00" + _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR + b"\x00"
+
+        def contract(self, address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value
+
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+    monkeypatch.setattr(
+        evidence_official_v4,
+        "_official_v4_arb_address",
+        lambda chain_id=None: "0x1111111111111111111111111111111111111111",
+    )
+    monkeypatch.setattr(route_test_module, "Web3", FakeWeb3)
+    monkeypatch.setenv("DEX_OFFICIAL_V4_SEARCH_MODE", "inner_single_call")
+    monkeypatch.delenv("DEX_OFFICIAL_V4_SEARCH_STEPS", raising=False)
+    monkeypatch.setattr(
+        route_test_module,
+        "_borrow_token_decimals_from_registry",
+        lambda **kwargs: 18,
+    )
+
+    result = route_test_module._official_v4_preview_python(
+        route_symbols=["AMD", "AMZN", "ETH", "AMD"],
+        route_addresses=[
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+            "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+            "0x0000000000000000000000000000000000000000",
+            "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        ],
+        amount=1.0,
+        route_pool_keys=[],
+        route_pool_key_groups=[[{}], [{}], [{}]],
+        chain_id=46630,
+    )
+
+    assert result is not None
+    payload, _tail = result
+    assert payload.get("ok") is True
+    assert payload.get("bestAmountMethod") == "onchain_preview_best_amount_inner_single_call"
+    assert payload.get("selectedAmountAttemptedCount") == "6"
+    assert payload.get("selectedRouteIndex") == 0
+    assert float(payload.get("bestAmount")) == pytest.approx(0.75)
+    assert captured["amount_raw"] == unit
+    assert captured["block_number"] == 12345
 
 
 def test_estimate_route_live_quote_marks_unprofitable_even_with_live_adapter(monkeypatch):
@@ -60,7 +639,14 @@ def test_estimate_route_live_quote_marks_unprofitable_even_with_live_adapter(mon
         lambda pairs: {},
     )
 
-    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+    def fake_route_quote_analysis(
+        route,
+        *,
+        price_map,
+        chain_id,
+        token_basis_input_amount,
+        use_static_observation=False,
+    ):
         return {
             "routeAddresses": [
                 "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
@@ -161,9 +747,9 @@ def test_estimate_route_live_quote_builds_best_amount_ladder(monkeypatch):
         },
     )
 
-    assert result["quoteStatus"] == "static_reference_pending_live_review"
+    assert result["quoteStatus"] == "live_verified"
     assert result["bestAmountConfirmed"] is False
-    assert result["readyForTransactionPreflight"] is False
+    assert result["readyForTransactionPreflight"] is True
     assert result["requestedAmount"] == 1.0
     assert result["bestAmount"] == 16.0
     assert len(result["probeRecords"]) >= 5
@@ -330,7 +916,14 @@ def test_estimate_fixed_amount_pnl_quick_uses_observation_route_without_ladder(m
         },
     )
 
-    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+    def fake_route_quote_analysis(
+        route,
+        *,
+        price_map,
+        chain_id,
+        token_basis_input_amount,
+        use_static_observation=False,
+    ):
         amount = float(token_basis_input_amount or 0)
         return {
             "routeAddresses": route.get("routeAddresses"),
@@ -368,6 +961,224 @@ def test_estimate_fixed_amount_pnl_quick_uses_observation_route_without_ladder(m
     assert "probeRecords" not in result
 
 
+def test_estimate_fixed_amount_pnl_quick_prefers_sqlite_snapshot_when_requested(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    captured = {}
+
+    def fake_sqlite_reference(**kwargs):
+        captured.update(kwargs)
+        return {
+            "referenceNetProfitAmount": -0.25,
+            "referenceFinalOutputAmount": 0.75,
+            "referenceNetReturnBps": -2500.0,
+        }
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_offline_v4_route_sqlite_pnl_reference",
+        fake_sqlite_reference,
+    )
+    route_addresses = [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    ]
+    result = estimate_fixed_amount_pnl_quick(
+        chain_id=46630,
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        route_addresses=route_addresses,
+        amount=1.0,
+        protocols=["uniswap_v4"],
+        prefer_sqlite_snapshot=True,
+    )
+
+    assert result["referenceNetProfitAmount"] == -0.25
+    assert result["referenceFinalOutputAmount"] == 0.75
+    assert result["referenceNetReturnBps"] == -2500.0
+    assert captured["route_addresses"] == [address.lower() for address in route_addresses]
+
+
+def test_offline_v4_pool_exact_output_raw_uses_price_for_token0_output():
+    from decimal import Decimal
+
+    from market.binance_market.dex_route_test import (
+        _offline_v4_pool_exact_output_raw,
+    )
+
+    addr0 = "0x0000000000000000000000000000000000000101"
+    addr1 = "0x0000000000000000000000000000000000000102"
+    liquidity = Decimal(10) ** 18
+    sqrt_price = Decimal(2)
+    pool = {
+        "pool": "0xpool0",
+        "poolManager": "0xmanager",
+        "token0": addr0,
+        "token1": addr1,
+        "liquidity": str(liquidity),
+        "sqrtPriceX96": str(sqrt_price * (Decimal(2) ** 96)),
+        "fee": 3000,
+    }
+    amount_in_raw = 10**18
+    amount_after_fee = Decimal(amount_in_raw) * (Decimal(1_000_000) - Decimal(3000)) // Decimal(1_000_000)
+    expected_forward = int(
+        (amount_after_fee * liquidity * sqrt_price * sqrt_price)
+        // (liquidity + amount_after_fee * sqrt_price)
+    )
+    expected_reverse = int(
+        (amount_after_fee * liquidity)
+        // (sqrt_price * (liquidity * sqrt_price + amount_after_fee))
+    )
+
+    assert _offline_v4_pool_exact_output_raw(
+        pool=pool,
+        from_address=addr0,
+        to_address=addr1,
+        amount_in_raw=amount_in_raw,
+    ) == expected_forward
+    assert _offline_v4_pool_exact_output_raw(
+        pool=pool,
+        from_address=addr1,
+        to_address=addr0,
+        amount_in_raw=amount_in_raw,
+    ) == expected_reverse
+
+
+def test_v4_pool_exact_output_amount_matches_constant_product_and_feeds_reference_quote():
+    from decimal import Decimal
+
+    from market.binance_market.dex_surface_v4 import (
+        _reference_price_quote,
+        _v4_pool_exact_output_amount,
+    )
+
+    addr0 = "0x0000000000000000000000000000000000000101"
+    addr1 = "0x0000000000000000000000000000000000000102"
+    liquidity = Decimal(10) ** 18
+    sqrt_price = Decimal(2)
+    pool = {
+        "pool": "0xpool0",
+        "poolManager": "0xmanager",
+        "protocol": "uniswap_v4",
+        "token0": addr0,
+        "token1": addr1,
+        "token0Symbol": "TZ",
+        "token1Symbol": "TA",
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+        "liquidity": str(liquidity),
+        "sqrtPriceX96": str(sqrt_price * (Decimal(2) ** 96)),
+        "fee": 3000,
+    }
+    amount_in_raw = 10**18
+    amount_after_fee = Decimal(amount_in_raw) * (Decimal(1_000_000) - Decimal(3000)) // Decimal(1_000_000)
+    expected_output_raw = int(
+        (amount_after_fee * liquidity * sqrt_price * sqrt_price)
+        // (liquidity + amount_after_fee * sqrt_price)
+    )
+    expected_output_amount = float(Decimal(expected_output_raw) / Decimal(10**18))
+
+    assert _v4_pool_exact_output_amount(
+        pool=pool,
+        from_symbol="TZ",
+        to_symbol="TA",
+        from_address=addr0,
+        to_address=addr1,
+        input_amount=1.0,
+    ) == pytest.approx(expected_output_amount)
+
+    quote = _reference_price_quote(
+        pool=pool,
+        from_symbol="TZ",
+        to_symbol="TA",
+        from_address=addr0,
+        to_address=addr1,
+        input_amount=1.0,
+        input_usd=10.0,
+        price_map={"TZ": 10.0, "TA": 10.0},
+        reason="unit_test",
+        chain_id=46630,
+    )
+    assert quote is not None
+    assert quote["referenceOutputAmount"] == pytest.approx(expected_output_amount)
+    assert quote["referenceEffectiveRate"] == pytest.approx(expected_output_amount)
+    assert quote["referenceEffectiveRate"] < 4.0 * 0.997
+    assert quote["outputAmount"] is None
+
+
+def test_offline_pool_token_pnl_reference_emits_signed_borrow_token_net(monkeypatch):
+    from market.binance_market import dex_route_test as route_test_module
+    from market.binance_market import dex_surface_graph as graph_module
+
+    addr0 = "0x0000000000000000000000000000000000000101"
+    addr1 = "0x0000000000000000000000000000000000000102"
+    addr2 = "0x0000000000000000000000000000000000000103"
+    route_symbols = ["TZ", "TA", "TB", "TZ"]
+    route_addresses = [addr0, addr1, addr2, addr0]
+    pools = [
+        {
+            "pool": "0xpool0",
+            "poolManager": "0xmanager",
+            "token0": addr0,
+            "token1": addr1,
+            "liquidity": str(10**18),
+            "sqrtPriceX96": str(2 * (2**96)),
+            "fee": 3000,
+        },
+        {
+            "pool": "0xpool1",
+            "poolManager": "0xmanager",
+            "token0": addr1,
+            "token1": addr2,
+            "liquidity": str(10**18),
+            "sqrtPriceX96": str(2 * (2**96)),
+            "fee": 3000,
+        },
+        {
+            "pool": "0xpool2",
+            "poolManager": "0xmanager",
+            "token0": addr0,
+            "token1": addr2,
+            "liquidity": str(10**18),
+            "sqrtPriceX96": str(2 * (2**96)),
+            "fee": 3000,
+        },
+    ]
+    route = {
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "routePools": pools,
+    }
+    monkeypatch.setattr(graph_module, "_route_pools", lambda route: pools)
+    monkeypatch.setattr(
+        route_test_module,
+        "_offline_pool_token_decimals_map",
+        lambda chain_id, pool_manager: {
+            str(addr).lower(): 18
+            for addr in (addr0, addr1, addr2)
+        },
+    )
+
+    result = route_test_module._offline_pool_token_pnl_reference(
+        chain_id=46630,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        amount=1.0,
+        protocols=["uniswap_v4"],
+        route=route,
+    )
+
+    assert result["ok"] is True
+    assert result["referenceFinalOutputSymbol"] == "TZ"
+    assert result["referenceNetProfitAmount"] is not None
+    assert result["referenceNetProfitAmount"] < 0
+    assert result["referenceNetReturnBps"] < 0
+    assert result["quoteStatus"] == "static_reference_pending_live_review"
+    assert "referenceNetProfitUsd" not in result
+    assert result["steps"]
+
+
 def test_fixed_amount_quick_case_8_16_32_scales_linearly(monkeypatch):
     """Test-case aid for auditing best-amount algorithm results.
 
@@ -394,7 +1205,14 @@ def test_fixed_amount_quick_case_8_16_32_scales_linearly(monkeypatch):
         },
     )
 
-    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+    def fake_route_quote_analysis(
+        route,
+        *,
+        price_map,
+        chain_id,
+        token_basis_input_amount,
+        use_static_observation=False,
+    ):
         amount = float(token_basis_input_amount or 0)
         return {
             "routeAddresses": route.get("routeAddresses"),
@@ -721,6 +1539,59 @@ def test_quote_route_test_official_triangle_rejects_non_robinhood_testnet_chain(
     assert calls == []
 
 
+def test_quote_route_test_estimate_rejects_route_not_in_current_closed_loops(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    from web.control_panel import app
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["SPY", "TSLA", "USDG", "SPY"],
+                    "routeAddresses": [
+                        "0x1111111111111111111111111111111111111111",
+                        "0x2222222222222222222222222222222222222222",
+                        "0x3333333333333333333333333333333333333333",
+                        "0x1111111111111111111111111111111111111111",
+                    ],
+                }
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "recommended_route_test_amount",
+        lambda **kwargs: 1.0,
+    )
+
+    def unexpected_estimate(**kwargs):
+        raise AssertionError("unknown route must not run an estimate")
+
+    monkeypatch.setattr(route_test_module, "estimate_route_live_quote", unexpected_estimate)
+    monkeypatch.setattr(
+        "web.data_routes.dex_surfaces.record_dex_route_test_attempt",
+        lambda payload, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unknown route must not be recorded")
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/dex/quote-route/test?chain_id=46630&protocols=uniswap_v4",
+        json={
+            "routeSymbols": ["WETH", "SPY", "USDG", "WETH"],
+            "amount": 1,
+            "mode": "estimate",
+        },
+    )
+
+    data = response.get_json()
+    assert response.status_code == 400
+    assert data["error"] == "route_not_found"
+    assert "current closed-loop set" in data["detail"]
+
+
 def test_quote_route_test_explicit_market_id_robinhood_testnet_allows_official_script(monkeypatch):
     import market.binance_market.dex_route_test as route_test_module
     from web.control_panel import app
@@ -860,6 +1731,9 @@ def test_recommended_route_test_amount_uses_system_initial_probe_when_no_amount_
 def test_quote_failure_status_detects_liquidity_zero():
     assert _quote_failure_status("robinhood testnet v4 pool manager live liquidity is zero") == "not_enough_liquidity"
     assert _quote_failure_status("robinhood testnet v4 quoter reverted: NotEnoughLiquidity(bytes32)") == "not_enough_liquidity"
+    assert _quote_failure_status(
+        "official_v4:previewBestPool:eth_call: the network is busy, please try again in a moment"
+    ) == "rpc_verification_timeout"
     assert _quote_failure_status("Robinhood RPC unavailable: HTTP endpoint did not answer") == "rpc_verification_failed"
     assert _quote_failure_status("Robinhood RPC unavailable: request timed out") == "rpc_verification_timeout"
     assert _quote_failure_status(
@@ -1388,37 +2262,43 @@ def test_run_official_v4_arb_route_test_payload_includes_best_amount_calculation
         "0x0000000000000000000000000000000000000103",
         "0x0000000000000000000000000000000000000101",
     ]
+    pool_keys = [
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[2],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[2],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+    ]
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: pool_keys)
     monkeypatch.setattr(
         route_test_module,
-        "_official_v4_route_pool_keys",
-        lambda **kwargs: [
-            {
-                "currency0": addresses[1],
-                "currency1": addresses[0],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-            {
-                "currency0": addresses[1],
-                "currency1": addresses[2],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-            {
-                "currency0": addresses[2],
-                "currency1": addresses[0],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-        ],
+        "_official_v4_route_pool_key_groups",
+        lambda **kwargs: [pool_keys],
     )
 
     class FakeProc:
         returncode = 0
-        stdout = 'OFFICIAL_V4_ARB_RESULT_JSON {"ok":true,"txHash":"0x123","profit":"1000000000000000","outAmount":"2000000000000000"}'
+        stdout = (
+            'OFFICIAL_V4_ARB_RESULT_JSON {"ok":true,"txHash":"0x123",'
+            '"profit":"1000000000000000","outAmount":"2000000000000000",'
+            '"borrowTokenDecimals":18}'
+        )
         stderr = ""
 
     monkeypatch.setattr(
@@ -1505,6 +2385,11 @@ def test_run_official_v4_arb_route_test_uses_python_preview_without_hardhat(tmp_
         route_test_module,
         "_official_v4_route_pool_keys",
         lambda **kwargs: fake_pool_keys,
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_key_groups",
+        lambda **kwargs: [fake_pool_keys],
     )
 
     def fake_python_preview(**kwargs):
@@ -1597,32 +2482,40 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
         "0x0000000000000000000000000000000000000203",
         "0x0000000000000000000000000000000000000201",
     ]
+    pool_keys = [
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[2],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[2],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+    ]
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: pool_keys)
     monkeypatch.setattr(
         route_test_module,
-        "_official_v4_route_pool_keys",
-        lambda **kwargs: [
-            {
-                "currency0": addresses[1],
-                "currency1": addresses[0],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-            {
-                "currency0": addresses[1],
-                "currency1": addresses[2],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-            {
-                "currency0": addresses[2],
-                "currency1": addresses[0],
-                "fee": 3000,
-                "tickSpacing": 60,
-                "hooks": "0x0000000000000000000000000000000000000000",
-            },
-        ],
+        "_official_v4_route_pool_key_groups",
+        lambda **kwargs: [pool_keys],
+    )
+    monkeypatch.setattr(route_test_module, "_official_v4_preview_python", lambda **kwargs: None)
+    monkeypatch.setattr(
+        route_test_module,
+        "_borrow_token_decimals_from_registry",
+        lambda **kwargs: 18,
     )
 
     class FakeProc:
@@ -1630,7 +2523,8 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
         stdout = (
             'OFFICIAL_V4_ARB_RESULT_JSON {"ok":true,"staticCall":"ok",'
             '"hops":[true],'
-            '"profit":"1000000000000000","outAmount":"2000000000000000"}'
+            '"profit":"1000000000000000","outAmount":"2000000000000000",'
+            '"borrowTokenDecimals":18}'
         )
         stderr = ""
 
@@ -1694,6 +2588,11 @@ def test_run_official_v4_arb_route_test_no_profitable_route_attaches_negative_re
         {"currency0": addresses[2], "currency1": addresses[0], "fee": 8388608, "tickSpacing": 60, "hooks": "0x60a29f76185a76cc52c070be69d775480c112080"},
     ]
     monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: fake_pool_keys)
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_key_groups",
+        lambda **kwargs: [fake_pool_keys],
+    )
 
     def fake_preview(**kwargs):
         return (
@@ -1736,8 +2635,9 @@ def test_run_official_v4_arb_route_test_no_profitable_route_attaches_negative_re
 
 
 def test_raw_amount_to_human_converts_raw_wei_before_ui_display():
-    assert _raw_amount_to_human("16000000000000000000") == pytest.approx(16.0)
-    assert _raw_amount_to_human("1000000000000000") == pytest.approx(0.001)
+    assert _raw_amount_to_human("16000000000000000000", decimals=18) == pytest.approx(16.0)
+    assert _raw_amount_to_human("1000000000000000", decimals=18) == pytest.approx(0.001)
+    assert _raw_amount_to_human("16000000000000000000") is None
     assert _raw_amount_to_human(None) is None
 
 
@@ -1851,10 +2751,151 @@ def test_official_v4_route_pool_keys_prefers_observed_hook_middle_pool(monkeypat
     assert keys[0]["currency1"].lower() == "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
 
 
+def test_official_v4_route_pool_key_groups_extracts_hop_candidates(monkeypatch):
+    from market.binance_market import dex_route_helpers
+    from market.binance_market.dex_route_helpers import _official_v4_route_pool_key_groups
+
+    addresses = [
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "0x0000000000000000000000000000000000000000",
+    ]
+    hop_candidates = [
+        {
+            "preferredPoolId": "0x" + "a" * 64,
+            "pools": [
+                {
+                    "poolId": "0x" + "a" * 64,
+                    "poolKey": {
+                        "currency0": addresses[0],
+                        "currency1": addresses[1],
+                        "fee": 500,
+                        "tickSpacing": 10,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                    },
+                },
+                {
+                    "poolId": "0x" + "b" * 64,
+                    "poolKey": {
+                        "currency0": addresses[1],
+                        "currency1": addresses[0],
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                    },
+                },
+            ],
+        },
+        {
+            "preferredPoolId": "0x" + "c" * 64,
+            "pools": [
+                {
+                    "poolId": "0x" + "c" * 64,
+                    "poolKey": {
+                        "currency0": addresses[1],
+                        "currency1": addresses[2],
+                        "fee": 500,
+                        "tickSpacing": 10,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                    },
+                }
+            ],
+        },
+        {
+            "preferredPoolId": "0x" + "d" * 64,
+            "pools": [
+                {
+                    "poolId": "0x" + "d" * 64,
+                    "poolKey": {
+                        "currency0": addresses[2],
+                        "currency1": addresses[0],
+                        "fee": 500,
+                        "tickSpacing": 10,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                    },
+                }
+            ],
+        },
+    ]
+    monkeypatch.setattr(
+        dex_route_helpers,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["ETH", "TSLA", "AMZN", "ETH"],
+                    "overviewRoute": {
+                        "pathSymbols": ["ETH", "TSLA", "AMZN", "ETH"],
+                        "pathAddresses": addresses,
+                    },
+                    "hopCandidates": hop_candidates,
+                }
+            ]
+        },
+    )
+
+    groups = _official_v4_route_pool_key_groups(
+        route_symbols=["ETH", "TSLA", "AMZN", "ETH"],
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_addresses=addresses,
+    )
+
+    assert len(groups) == 2
+    assert all(len(group) == 3 for group in groups)
+    assert all(int(key["fee"]) > 0 and int(key["tickSpacing"]) > 0 for group in groups for key in group)
+    assert groups[0][0]["hooks"].lower() == "0x0000000000000000000000000000000000000000"
+    assert groups[1][0]["hooks"].lower() == "0x0000000000000000000000000000000000000000"
+
+
+def test_official_v4_route_pool_key_groups_accepts_empty_hooks(monkeypatch):
+    from market.binance_market import dex_route_helpers
+    from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
+
+    addresses = [
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "0x0000000000000000000000000000000000000000",
+    ]
+    route_pools = [
+        {"poolKey": {"currency0": addresses[0], "currency1": addresses[1], "fee": 500, "tickSpacing": 10}},
+        {"poolKey": {"currency0": addresses[1], "currency1": addresses[2], "fee": 500, "tickSpacing": 10}},
+        {"poolKey": {"currency0": addresses[2], "currency1": addresses[0], "fee": 500, "tickSpacing": 10}},
+    ]
+    monkeypatch.setattr(
+        dex_route_helpers,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["ETH", "TSLA", "AMZN", "ETH"],
+                    "routeAddresses": addresses,
+                    "routePools": route_pools,
+                }
+            ]
+        },
+    )
+
+    keys = _official_v4_route_pool_keys(
+        route_symbols=["ETH", "TSLA", "AMZN", "ETH"],
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_addresses=addresses,
+    )
+
+    assert len(keys) == 3
+    assert all(
+        str(key.get("hooks") or "").lower() == "0x0000000000000000000000000000000000000000"
+        for key in keys
+    )
+
+
 def test_run_official_v4_arb_route_test_missing_pool_identity_uses_actual_route(monkeypatch):
     import market.binance_market.dex_route_test as route_test_module
 
     monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: [])
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_key_groups", lambda **kwargs: [])
     monkeypatch.setattr(route_test_module, "_attach_best_amount_calculation", lambda *args, **kwargs: None)
 
     result = route_test_module.run_official_v4_arb_route_test(
@@ -2035,3 +3076,114 @@ def test_official_v4_route_pool_keys_does_not_guess_pool_key_from_top_level_toke
     )
 
     assert keys == []
+
+
+def test_parse_official_v4_arb_result_json_handles_nested_success_payload():
+    from market.binance_market import dex_route_test as route_test_module
+
+    output = (
+        "OFFICIAL_V4_ARB_RESULT_JSON "
+        '{"ok":false,"error":"static_arb_call_reverted","staticCall":"reverted"}\n'
+        "some hardhat log line\n"
+        "OFFICIAL_V4_ARB_RESULT_JSON "
+        '{"ok":true,"txHash":"0xabc","selectedPool":'
+        '{"entryIndex":0,"bridgeIndex":1,"exitIndex":2},'
+        '"broadcastRouteIndexes":'
+        '{"entryIndex":0,"bridgeIndex":1,"exitIndex":2,"profit":"10"}}\n'
+    )
+
+    parsed = route_test_module._parse_official_v4_arb_result_json(output)
+
+    assert parsed is not None
+    assert parsed["ok"] is True
+    assert parsed["txHash"] == "0xabc"
+    assert parsed["selectedPool"]["bridgeIndex"] == 1
+    assert parsed["broadcastRouteIndexes"]["profit"] == "10"
+
+
+def test_run_official_v4_arb_route_test_parses_nested_broadcast_success(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import market.binance_market.dex_route_test as route_test_module
+
+    script = tmp_path / "official-arb.js"
+    script.write_text("", encoding="utf-8")
+    dex_dir = tmp_path / "DEX"
+    dex_dir.mkdir()
+    monkeypatch.setattr(route_test_module, "_official_arb_script_for_chain", lambda chain_id: script)
+    monkeypatch.setattr(route_test_module, "_official_dex_dir_for_chain", lambda chain_id: dex_dir)
+    monkeypatch.setattr(
+        route_test_module,
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com", 12345),
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {"routes": []},
+    )
+    addresses = [
+        "0x0000000000000000000000000000000000000101",
+        "0x0000000000000000000000000000000000000102",
+        "0x0000000000000000000000000000000000000103",
+        "0x0000000000000000000000000000000000000101",
+    ]
+    pool_keys = [
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[2],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[2],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+    ]
+    monkeypatch.setattr(route_test_module, "_official_v4_route_pool_keys", lambda **kwargs: pool_keys)
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_key_groups",
+        lambda **kwargs: [pool_keys],
+    )
+    class FakeProc:
+        returncode = 0
+        stdout = (
+            "OFFICIAL_V4_ARB_RESULT_JSON "
+            '{"ok":false,"error":"static_arb_call_reverted","staticCall":"reverted"}\n'
+            "OFFICIAL_V4_ARB_RESULT_JSON "
+            '{"ok":true,"txHash":"0xnested","profit":"1000000000000000",'
+            '"outAmount":"2000000000000000","borrowTokenDecimals":18,"selectedPool":'
+            '{"entryIndex":0,"bridgeIndex":1,"exitIndex":2}}'
+        )
+        stderr = ""
+
+    monkeypatch.setattr(
+        route_test_module,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: FakeProc()),
+    )
+
+    result = route_test_module.run_official_v4_arb_route_test(
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=1.0,
+        broadcast=True,
+        chain_id=46630,
+        route_addresses=addresses,
+    )
+
+    assert result["ok"] is True
+    assert result["txHash"] == "0xnested"
+    assert result["profit"] == pytest.approx(0.001)
+    assert result["outAmount"] == pytest.approx(0.002)

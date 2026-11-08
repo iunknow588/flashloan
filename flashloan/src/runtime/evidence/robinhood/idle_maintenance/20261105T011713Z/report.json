@@ -1,0 +1,257 @@
+{
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "error": "{'code': -32005, 'message': 'the network is busy, please try again in a moment'}",
+  "freshness": {
+    "ageSeconds": 14073.554697,
+    "latestSnapshotAt": "2026-11-04T21:22:33Z",
+    "liquidityReadAt": "2026-11-04T21:22:29.555521Z",
+    "observedAt": "2026-10-11T00:40:50.673593Z",
+    "refreshedAt": "2026-11-04T21:22:33Z",
+    "snapshotCount": 1,
+    "stale": true,
+    "ttlSeconds": 900
+  },
+  "generatedAt": "2026-11-05T01:17:06.445093Z",
+  "maintenanceWorkers": {
+    "chainId": 4663,
+    "dependencies": {
+      "v4_broadcast_execution_worker": [
+        "v4_onchain_review_worker"
+      ],
+      "v4_candidate_yc_zc_worker": [
+        "v4_pool_liquidity_worker"
+      ],
+      "v4_closed_loop_worker": [
+        "v4_market_observation_worker"
+      ],
+      "v4_dex_overview_worker": [
+        "v4_market_observation_worker",
+        "v4_closed_loop_worker"
+      ],
+      "v4_market_observation_worker": [
+        "v4_candidate_yc_zc_worker"
+      ],
+      "v4_onchain_review_worker": [
+        "v4_market_observation_worker"
+      ],
+      "v4_pool_liquidity_worker": []
+    },
+    "generatedAt": "2026-11-05T01:17:06.445093Z",
+    "network": "robinhood",
+    "ok": true,
+    "order": [
+      "v4_pool_liquidity_worker",
+      "v4_candidate_yc_zc_worker",
+      "v4_market_observation_worker",
+      "v4_dex_overview_worker",
+      "v4_closed_loop_worker",
+      "v4_onchain_review_worker",
+      "v4_broadcast_execution_worker"
+    ],
+    "protocol": "uniswap_v4",
+    "scope": {
+      "eligiblePoolCount": 615,
+      "explicitZeroLiquidityPoolCount": 432,
+      "pendingLiquidityCount": 0
+    },
+    "workers": {
+      "v4_broadcast_execution_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T01:09:04.763524Z",
+        "mode": "execution_watch_ok",
+        "pool_count": 1,
+        "refreshed_at": "2026-11-05T01:09:04.763524Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 1,
+        "worker": "v4_broadcast_execution_worker"
+      },
+      "v4_candidate_yc_zc_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T00:12:03.263301Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-05T00:12:03.263301Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_candidate_yc_zc_worker"
+      },
+      "v4_closed_loop_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T01:07:35.788555Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-05T01:07:35.788555Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_closed_loop_worker"
+      },
+      "v4_dex_overview_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T01:03:00.878608Z",
+        "mode": "complete",
+        "pool_count": 1,
+        "refreshed_at": "2026-11-05T01:03:00.878608Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 1,
+        "worker": "v4_dex_overview_worker"
+      },
+      "v4_market_observation_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T01:01:45.805643Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-05T01:01:45.805643Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_market_observation_worker"
+      },
+      "v4_onchain_review_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-05T01:09:08.764964Z",
+        "mode": "reviewer_watch_ok",
+        "pool_count": 172,
+        "refreshed_at": "2026-11-05T01:09:08.764964Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 172,
+        "worker": "v4_onchain_review_worker"
+      },
+      "v4_pool_liquidity_worker": {
+        "batch_size": 512,
+        "cursor": 512,
+        "cursor_pool_id": "0x234616649f71c5c86da12a2d3fa0ac89db98185eeed1cd3c7ac8c5dc2da7fc1c",
+        "error": null,
+        "last_block_number": 106341735,
+        "last_scanned_at": "2026-11-05T01:09:01.030258Z",
+        "mode": "scanning",
+        "pool_count": 692,
+        "refreshed_at": "2026-11-05T01:09:01.030258Z",
+        "remaining_pool_count": 180,
+        "scanned_pool_count": 512,
+        "worker": "v4_pool_liquidity_worker"
+      }
+    }
+  },
+  "mode": "idle_maintenance",
+  "network": "robinhood",
+  "ok": false,
+  "phase": "backfill_failed",
+  "plan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "candidateDirectionTarget": 5,
+    "counts": {
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": 0,
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": 0,
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": 0,
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": 1,
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": 0,
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": 1
+    },
+    "directionTarget": 5,
+    "floorBlock": 7467740,
+    "maximumDirectionTarget": 5,
+    "minimumDirectionTarget": 1,
+    "neededDirectionCount": 6,
+    "observedAt": "2026-11-05T01:17:06.521692Z",
+    "satisfiedDirectionCount": 2,
+    "selectedPools": {
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": [],
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": [],
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": [],
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 24423149,
+          "liquidity": "231303973708002903377",
+          "liquidityBlockNumber": 106211301,
+          "liquidityIndex": 231.30397371,
+          "liquidityReadAt": "2026-11-04T21:22:29.555521Z",
+          "poolId": "0xfcb1ad7c577599cd1831ae239da38cced8a833ad488f924e080a8066ab3f469f",
+          "tickSpacing": 60,
+          "token0": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "token1": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+        }
+      ],
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": [],
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 24423149,
+          "liquidity": "231303973708002903377",
+          "liquidityBlockNumber": 106211301,
+          "liquidityIndex": 231.30397371,
+          "liquidityReadAt": "2026-11-04T21:22:29.555521Z",
+          "poolId": "0xfcb1ad7c577599cd1831ae239da38cced8a833ad488f924e080a8066ab3f469f",
+          "tickSpacing": 60,
+          "token0": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "token1": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+        }
+      ]
+    },
+    "targets": {
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": 5,
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": 5,
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": 5,
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": 5,
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": 5,
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": 5
+    }
+  },
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 5,
+    "directions": [
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9"
+    ],
+    "routeAddresses": [
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer",
+  "stoppedReason": "rpc_backfill_failed"
+}

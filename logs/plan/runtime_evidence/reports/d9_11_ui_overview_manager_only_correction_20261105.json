@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_11_ui_overview_manager_only_correction_20261105",
+  "parentEvidence": "d9_11_ui_overview_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.11 hardening: manager-owned overview DTO, manager-only error shape, checksum gating and per-hop pool source corrections",
+  "status": "completed",
+  "generatedAt": "2026-11-05T07:38:31+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The D9.11 manager-only DEX overview is hardened so Flask remains a parameter/DTO adapter and Composite Manager owns business projection. Flask now validates manager chain scope and required overview DTO shape, preserves manager selectedProtocols instead of overwriting it with request protocols, refuses malformed manager responses, and returns a dataSource=manager error DTO without legacyUnaffected/enabled shadow fields. Composite Manager now emits selectedProtocols, routeFrameworkSource, marketObservationSource, marketObservationSourceStage and decisionBasis; YC/ZC hop candidates read Candidate Edge pools, Y-Z hop candidates read Candidate Exchange pools; version gating also compares upstream checksums; PnL is complete only when reviewStatus=completed and signedPnl exists; missing-signal counts are per closed-loop row; unresolved token counts cover loop, YZ and pool references. Existing D9.11 evidence remains unmodified and this report records the correction as a separate evidence item.",
+  "implementation": {
+    "managerAggregate": "flashloan/tools/composite_manager/src/overview.rs",
+    "managerApi": "flashloan/tools/manager_api/src/lib.rs",
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "pythonTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "corrections": [
+    "Flask overview errors use a manager-only DTO with dataSource=manager and no legacyUnaffected/enabled fields",
+    "Flask validates chainId and required overview arrays/objects and does not silently invent missing business fields",
+    "Manager selectedProtocols is preserved; request protocols are exposed only as requestedProtocols",
+    "Composite Manager emits top-level routeFrameworkSource, marketObservationSource, marketObservationSourceStage and decisionBasis",
+    "Y-Z hop candidates now use Candidate Exchange pool snapshots while YC/ZC continue to use Candidate Edge pool snapshots",
+    "Overview version consistency checks downstream and upstream checksums, not only version numbers",
+    "Overview PnL completion requires reviewStatus=completed plus signedPnl; missing signed PnL is counted per closed loop",
+    "Unresolved token accounting covers closed-loop, YZ and pool references",
+    "Library version/checksum fallback reads the nearest non-empty upstream manager state instead of closing on a disabled downstream status"
+  ],
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p manager-api -p composite-manager",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p composite-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 33
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_architecture_guards.py -q -k \"manager_page_compare or migrated_dex_overview_route_is_manager_only\"",
+      "exitCode": 0,
+      "passed": 38,
+      "deselected": 40
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "exitCode": 0,
+      "passed": 14
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py -q -k \"overview and not market_observation\"",
+      "exitCode": 0,
+      "passed": 4,
+      "deselected": 24
+    },
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/manager_page_compare.py app_runtime/tests/unit/test_manager_page_compare.py",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex-provenance.js",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "note": "Only CRLF/LF warnings from the pre-existing dirty tracked worktree"
+    }
+  ],
+  "fixtures": [
+    "Overview manager error returns a manager-only DTO without legacyUnaffected or enabled",
+    "Overview adapter rejects incomplete dataQuality and wrong-chain responses instead of defaulting them",
+    "Overview adapter preserves manager selectedProtocols while recording requestedProtocols",
+    "Manager API overview endpoint emits selectedProtocols, decisionBasis and marketObservationSourceStage",
+    "YZ hop pool source is Candidate Exchange; YC/ZC hop pool source is Candidate Edge",
+    "Checksum consistency reports downstream checksum drift",
+    "Disabled downstream status can fall back to upstream library versions"
+  ],
+  "unrelatedFailuresObserved": [
+    {
+      "file": "flashloan/app_runtime/tests/functional/test_web_app_assembly.py",
+      "failed": 2,
+      "passed": 23,
+      "items": [
+        "test_flash_loan_pool_page_is_independent_shared_capability_view expected a testnet flash-loan protocol rail link that was not present in the current worktree",
+        "test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes expected market_type=shadow_chain but current registry returned native_chain"
+      ],
+      "assessment": "Both failures are outside the D9.11 overview change and are recorded as pre-existing worktree behavior; no fix was applied in this slice."
+    }
+  ],
+  "knownBoundary": "This correction is code, tests and temporary/copy-DB verification only. It does not apply production manager data, start or stop the service, write the mainnet database, or enable real broadcast. Non-empty overview equivalence still requires a production-copy dual-read after M1-M7 materialization. No historical evidence was modified."
+}

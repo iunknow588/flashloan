@@ -1,0 +1,110 @@
+﻿{
+    "capturedAt":  "2026-11-04T03:21:39+08:00",
+    "milestone":  "M1",
+    "task":  "D1.2.1",
+    "status":  "passed",
+    "scope":  {
+                  "endpoints":  [
+                                    "/v1/tokens",
+                                    "/v1/tokens/resolve"
+                                ],
+                  "network":  "robinhood",
+                  "chainId":  4663,
+                  "databaseMode":  "temporary manager schema in tests; live smoke intentionally had no business database configured",
+                  "readOnlySqliteFlags":  "SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX",
+                  "businessWritesEnabled":  false,
+                  "mainnetMigrationOrApply":  false,
+                  "mainnetBusinessWrites":  false
+              },
+    "commands":  [
+                     {
+                         "command":  "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+                         "exitCode":  0
+                     },
+                     {
+                         "command":  "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+                         "exitCode":  0
+                     },
+                     {
+                         "exitCode":  0,
+                         "testsFailed":  0,
+                         "command":  "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+                         "tokenManagerTestsPassed":  42,
+                         "workspaceTestsPassed":  62,
+                         "managerApiTestsPassed":  5
+                     },
+                     {
+                         "command":  "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager -p manager-api --all-targets --no-deps -- -D warnings",
+                         "exitCode":  0
+                     },
+                     {
+                         "command":  "cargo build --manifest-path flashloan/tools/Cargo.toml -p manager-api",
+                         "exitCode":  0
+                     },
+                     {
+                         "exitCode":  0,
+                         "command":  "hidden manager-api.exe on 127.0.0.1:18091 with MANAGER_DB_PATH unset; GET /healthz; GET /v1/capabilities; GET /v1/tokens; Stop-Process",
+                         "rawReport":  "plan/runtime_evidence/reports/d1_2_1_manager_api_smoke_raw.json"
+                     }
+                 ],
+    "apiContract":  {
+                        "listTokens":  {
+                                           "query":  "chainId required; library required; status defaults to admitted",
+                                           "statuses":  [
+                                                            "admitted",
+                                                            "blocked",
+                                                            "candidate_only",
+                                                            "pending_review",
+                                                            "all"
+                                                        ],
+                                           "data":  "library version, persisted checksum, source checkpoint, token rows",
+                                           "database":  "read-only"
+                                       },
+                        "resolveToken":  {
+                                             "body":  "chainId, symbol, optional requiredStatus",
+                                             "normalization":  "trim + uppercase",
+                                             "unique":  "returns one tokenKeyId",
+                                             "notFound":  "TOKEN_NOT_FOUND / HTTP 404",
+                                             "ambiguous":  "TOKEN_SYMBOL_AMBIGUOUS / HTTP 409 with candidateTokenKeyIds",
+                                             "overlap":  "same token_key_id across primary and extension is deduplicated"
+                                         },
+                        "failClosed":  {
+                                           "missingDatabase":  "UPSTREAM_UNAVAILABLE / HTTP 503",
+                                           "healthIndependent":  true,
+                                           "invalidParameters":  "INVALID_REQUEST / HTTP 400"
+                                       }
+                    },
+    "testCoverage":  [
+                         "library query filters status and uses persisted library state",
+                         "symbol resolution deduplicates legal primary/extension overlap",
+                         "distinct addresses with the same symbol return ambiguity",
+                         "missing symbol returns TOKEN_NOT_FOUND",
+                         "HTTP query does not add admission events",
+                         "HTTP capabilities advertise only read query/resolve from M1",
+                         "HTTP token reads fail closed without MANAGER_DB_PATH"
+                     ],
+    "liveSmoke":  {
+                      "bind":  "127.0.0.1:18091",
+                      "databaseConfigured":  false,
+                      "healthStatus":  "ok",
+                      "capabilitiesMilestone":  "M1",
+                      "tokenReadsEnabled":  false,
+                      "tokenRouteHttpStatus":  503,
+                      "tokenRouteErrorCode":  "UPSTREAM_UNAVAILABLE",
+                      "processStopped":  true,
+                      "listenerCountAfterStop":  0
+                  },
+    "evidenceFiles":  [
+                          "plan/runtime_evidence/reports/d1_2_1_manager_api_smoke_raw.json"
+                      ],
+    "sourceHashes":  {
+                         "flashloan/tools/token_manager/src/query.rs":  "sha256:0eee7d26f9a45948f7684c0fff4b132e72cb5577b291014d27ef0a9b1042eff4",
+                         "flashloan/tools/token_manager/src/lib.rs":  "sha256:12d9616c333df89e8a6e8e6fcaf9aea31547a7eaf55ec2d08e80c3e551c1db19",
+                         "flashloan/tools/manager_api/src/lib.rs":  "sha256:1387cf5db88b8b21e9956923f15ac316ec6276349bf3b7636d8be1fa8b50118a",
+                         "flashloan/tools/manager_api/src/main.rs":  "sha256:20cd0dd696aac91f61bad0c1f2dc9aca539af722ab4ceadc4d7939213801ab63",
+                         "flashloan/tools/manager_api/Cargo.toml":  "sha256:88ad066e9aca7994dce6207b6d8d9b1699cff7aa05ae03de0c2c65088f697189",
+                         "flashloan/tools/manager_contracts/src/dto.rs":  "sha256:02a97f7ffaf70bf2425d75e9ea6f5d1de7288c3f38609f970b223222acf8b852"
+                     },
+    "nextTask":  "D1.2.2: implement admit/block write requests with X-Request-Id, Idempotency-Key, explicit dryRun and transactional event/version behavior.",
+    "conclusion":  "D1.2.1 passes: Token Manager owns read-only query logic, manager_api exposes unique M1 HTTP DTO routes, ambiguous symbols fail explicitly, and no business writes or mainnet apply were performed."
+}

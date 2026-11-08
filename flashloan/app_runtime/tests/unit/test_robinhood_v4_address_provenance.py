@@ -107,6 +107,32 @@ def test_v4_address_provenance_source_urls_are_per_contract():
     assert report["generatedAt"].endswith("Z")
 
 
+def test_v4_address_provenance_official_source_is_uniswap_v4_deployments_page():
+    expected = "https://docs.uniswap.org/contracts/v4/deployments"
+    assert set(OFFICIAL_V4_SOURCE_URLS.values()) == {expected}
+    for label in V4_CONTRACT_KEYS:
+        assert OFFICIAL_V4_SOURCE_URLS[label] == expected
+
+
+def test_v4_address_provenance_pins_expected_uniswap_v4_addresses():
+    expected = {
+        "v4_pool_manager": "0x8366A39CC670B4001A1121B8F6A443A643e40951",
+        "v4_quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+        "position_manager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
+        "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+        "universal_router": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+    }
+    for network in ("robinhood-testnet", "robinhood"):
+        report = build_v4_address_provenance(
+            network=network,
+            w3=_FakeW3(),
+            explorer_probe=_fake_explorer_probe,
+            source_url_probe=_fake_source_url_probe,
+        )
+        for label in V4_CONTRACT_KEYS:
+            assert report["contracts"][label]["address"].lower() == expected[label].lower()
+
+
 def test_v4_address_provenance_reports_missing_code():
     class _EmptyEth(_FakeEth):
         def get_code(self, address, block_identifier="latest"):

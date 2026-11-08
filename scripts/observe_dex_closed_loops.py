@@ -1,201 +1,313 @@
 #!/usr/bin/env python3
-"""Observe Robinhood mainnet 4663 closed-loop review for 30+ minutes.
+"""Sample closed-loop runtime evidence within one explicit DEX scope.
 
-Sample the quote-routes API and the cow-execution attempts log periodically,
-record status distributions, and flag any new live_verified/profitable route.
+This script is read-only: it never writes SQLite. It emits one JSON line per
+sample. Rows outside the requested scope are counted separately and never enter
+the active runtime or broadcast metrics.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import logging
+import re
+import sqlite3
+import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
-def log_setup(log_path: Path | None) -> logging.Logger:
-    logger = logging.getLogger("observe_dex_closed_loops")
-    logger.setLevel(logging.INFO)
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    handler = logging.StreamHandler()
-    handler.setFormatter(fmt)
-    logger.addHandler(handler)
-    if log_path:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_path, encoding="utf-8")
-        file_handler.setFormatter(fmt)
-        logger.addHandler(file_handler)
-    return logger
+SCHEMA = "closed-loop-runtime-watch-v2"
+TABLES = (
+    "cow_execution_attempts",
+    "cow_execution_reviews",
+    "v4_closed_loop_runtime_state",
+)
 
 
-def http_json(url: str, *, timeout: float = 60.0) -> dict:
-    headers = {"Accept": "application/json"}
-    request = urllib.request.Request(url, headers=headers, method="GET")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+class ContractArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        self.exit(3, f"{self.prog}: error: {message}\n")
 
 
-def load_attempts(path: Path, chain_id: int) -> list[dict]:
-    if not path.exists():
-        return []
-    rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(row, dict):
-            continue
-        try:
-            row_chain = int(row.get("chain_id"))
-        except (TypeError, ValueError):
-            row_chain = None
-        if row_chain == chain_id:
-            rows.append(row)
-    return rows
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def attempt_status_summary(rows: list[dict]) -> dict:
-    counter: Counter = Counter()
-    live_routes = []
-    for row in rows:
-        quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
-        status = (
-            row.get("quote_status")
-            or row.get("state")
-            or quote.get("quote_status")
-            or quote.get("status")
-            or "unknown"
-        )
-        counter[str(status)] += 1
-        if str(status).lower() in {"live_verified", "quote_verified"}:
-            live_routes.append(
-                {
-                    "pair": row.get("pair")
-                    or row.get("direction")
-                    or quote.get("pair")
-                    or quote.get("direction")
-                    or "-",
-                    "bestAmount": row.get("best_amount")
-                    or quote.get("analysis", {}).get("bestAmount"),
-                    "netProfit": row.get("profit_amount")
-                    or quote.get("live_onchain_evidence", {})
-                    .get("costModel", {})
-                    .get("netProfitAmount"),
-                    "txHash": row.get("tx_hash")
-                    or quote.get("tx_hash")
-                    or "",
-                }
+def _slug(value: Any, separator: str) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", separator, text)
+    return re.sub(rf"{re.escape(separator)}+", separator, text).strip(separator)
+
+
+def _scope(
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    market_id: str,
+) -> dict[str, Any]:
+    try:
+        parsed_chain_id = int(chain_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("chain_id must be a positive integer") from exc
+    if parsed_chain_id <= 0:
+        raise ValueError("chain_id must be a positive integer")
+    scope = {
+        "network": _slug(network, "-"),
+        "chainId": parsed_chain_id,
+        "protocol": _slug(protocol, "_"),
+        "marketId": _slug(market_id, "-"),
+    }
+    if not all(scope.values()):
+        raise ValueError("network, chain_id, protocol, and market_id are required")
+    return scope
+
+
+def _selected_clause(*, include_protocol: bool) -> str:
+    clause = (
+        "lower(network) = ? AND chain_id = ? "
+        "AND replace(lower(market_id), '_', '-') = ?"
+    )
+    if include_protocol:
+        clause += " AND lower(protocol) = ?"
+    return clause
+
+
+def _selected_values(scope: dict[str, Any], *, include_protocol: bool) -> tuple[Any, ...]:
+    values: list[Any] = [
+        str(scope["network"]),
+        int(scope["chainId"]),
+        str(scope["marketId"]),
+    ]
+    if include_protocol:
+        values.append(str(scope["protocol"]))
+    return tuple(values)
+
+
+def _table_exists(con: sqlite3.Connection, table: str) -> bool:
+    row = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _out_of_scope_rows(
+    con: sqlite3.Connection,
+    *,
+    table: str,
+    scope: dict[str, Any],
+    include_protocol: bool,
+) -> list[dict[str, Any]]:
+    selected = _selected_clause(include_protocol=include_protocol)
+    params = _selected_values(scope, include_protocol=include_protocol)
+    protocol_sql = "lower(protocol)" if include_protocol else "NULL"
+    rows = con.execute(
+        f"""
+        SELECT lower(network), chain_id, {protocol_sql},
+               replace(lower(market_id), '_', '-'), COUNT(*)
+        FROM {table}
+        WHERE NOT ({selected})
+        GROUP BY lower(network), chain_id, {protocol_sql},
+                 replace(lower(market_id), '_', '-')
+        ORDER BY 1, 2, 3, 4
+        """,
+        params,
+    ).fetchall()
+    return [
+        {
+            "table": table,
+            "network": row[0],
+            "chainId": int(row[1] or 0),
+            "protocol": row[2],
+            "marketId": row[3],
+            "count": int(row[4] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _sample(database: str, scope: dict[str, Any]) -> dict[str, Any]:
+    con = sqlite3.connect(
+        f"file:{Path(database).resolve().as_posix()}?mode=ro",
+        uri=True,
+        isolation_level=None,
+    )
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    try:
+        cur.execute("PRAGMA query_only = ON")
+        cur.execute("BEGIN")
+        missing = [table for table in TABLES if not _table_exists(con, table)]
+        if missing:
+            return {
+                "schema": SCHEMA,
+                "utc": _iso_now(),
+                "scope": scope,
+                "error": "missing_tables",
+                "missingTables": missing,
+            }
+
+        attempts_where = _selected_clause(include_protocol=False)
+        attempts_params = _selected_values(scope, include_protocol=False)
+        runtime_where = _selected_clause(include_protocol=True)
+        runtime_params = _selected_values(scope, include_protocol=True)
+
+        attempts_total, attempts_max = cur.execute(
+            f"""
+            SELECT COUNT(*), MAX(created_at)
+            FROM cow_execution_attempts
+            WHERE {attempts_where}
+            """,
+            attempts_params,
+        ).fetchone()
+        reviews_total, reviews_max = cur.execute(
+            f"""
+            SELECT COUNT(*), MAX(created_at)
+            FROM cow_execution_reviews
+            WHERE {attempts_where}
+            """,
+            attempts_params,
+        ).fetchone()
+        runtime_states = cur.execute(
+            f"""
+            SELECT state, COUNT(*)
+            FROM v4_closed_loop_runtime_state
+            WHERE {runtime_where}
+            GROUP BY state
+            ORDER BY 2 DESC, 1
+            """,
+            runtime_params,
+        ).fetchall()
+        preflight_failures = cur.execute(
+            f"""
+            SELECT COALESCE(last_error, ''), COUNT(*)
+            FROM v4_closed_loop_runtime_state
+            WHERE {runtime_where} AND state = 'preflight_failed'
+            GROUP BY last_error
+            ORDER BY 2 DESC, 1
+            LIMIT 20
+            """,
+            runtime_params,
+        ).fetchall()
+
+        out_of_scope: list[dict[str, Any]] = []
+        for table in ("cow_execution_attempts", "cow_execution_reviews"):
+            out_of_scope.extend(
+                _out_of_scope_rows(
+                    con,
+                    table=table,
+                    scope=scope,
+                    include_protocol=False,
+                )
             )
+        out_of_scope.extend(
+            _out_of_scope_rows(
+                con,
+                table="v4_closed_loop_runtime_state",
+                scope=scope,
+                include_protocol=True,
+            )
+        )
+        cur.execute("COMMIT")
+    except sqlite3.Error as exc:
+        return {
+            "schema": SCHEMA,
+            "utc": _iso_now(),
+            "scope": scope,
+            "error": f"sqlite_error: {exc}",
+        }
+    finally:
+        con.close()
+
+    states = {str(row[0]): int(row[1]) for row in runtime_states}
     return {
-        "statuses": dict(counter),
-        "live_routes": live_routes,
-        "count": len(rows),
+        "schema": SCHEMA,
+        "utc": _iso_now(),
+        "scope": scope,
+        "scopeApplied": True,
+        "attemptsTotal": int(attempts_total or 0),
+        "reviewsTotal": int(reviews_total or 0),
+        "attemptsMaxAt": attempts_max,
+        "reviewsMaxAt": reviews_max,
+        "runtimeStates": states,
+        "preflightFailedLastErrors": {
+            str(row[0]): int(row[1]) for row in preflight_failures
+        },
+        "stalePreflightRunning": int(states.get("preflight_running", 0)),
+        "missingBroadcast": sum(
+            count
+            for state, count in states.items()
+            if state in {"execution_pending", "execution_submitted"}
+        ),
+        "outOfScope": {
+            "total": sum(row["count"] for row in out_of_scope),
+            "rows": out_of_scope,
+        },
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000")
-    parser.add_argument("--chain-id", type=int, default=4663)
-    parser.add_argument("--protocols", default="uniswap_v4")
-    parser.add_argument("--duration", type=float, default=1800.0)
-    parser.add_argument("--interval", type=float, default=60.0)
-    parser.add_argument("--attempts", default="")
-    parser.add_argument("--log", default="")
+    parser = ContractArgumentParser()
+    parser.add_argument("--database", required=True)
+    parser.add_argument("--network", required=True)
+    parser.add_argument("--chain-id", required=True, type=int)
+    parser.add_argument("--protocol", required=True)
+    parser.add_argument("--market-id", required=True)
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--duration-seconds", type=int, default=1800)
+    parser.add_argument("--interval-seconds", type=int, default=60)
     args = parser.parse_args()
 
-    logger = log_setup(Path(args.log) if args.log else None)
-    attempts_path = Path(args.attempts) if args.attempts else (
-        Path(__file__).resolve().parents[1]
-        / "flashloan"
-        / "src"
-        / "runtime"
-        / "logs"
-        / "cow_execution_attempts"
-        / "robinhood"
-        / str(args.chain_id)
-        / "attempts.jsonl"
-    )
-    query = urllib.parse.urlencode(
+    try:
+        scope = _scope(
+            network=args.network,
+            chain_id=args.chain_id,
+            protocol=args.protocol,
+            market_id=args.market_id,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    started_at = _iso_now()
+    sample_index = 0
+    first = True
+    while time.monotonic() - started < max(1, args.duration_seconds):
+        row = _sample(args.database, scope)
+        row.update(
+            {
+                "sampleIndex": sample_index,
+                "startedAt": started_at,
+                "elapsedSeconds": round(time.monotonic() - started, 1),
+            }
+        )
+        with out.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if first:
+            print(json.dumps(row, ensure_ascii=False), flush=True)
+            first = False
+        sample_index += 1
+        time.sleep(max(1, args.interval_seconds))
+    row = _sample(args.database, scope)
+    row.update(
         {
-            "chain_id": args.chain_id,
-            "protocols": args.protocols,
-            "dex_strategy": "closed_loop_routes",
+            "sampleIndex": sample_index,
+            "startedAt": started_at,
+            "completedAt": _iso_now(),
+            "elapsedSeconds": round(time.monotonic() - started, 1),
+            "windowComplete": True,
         }
     )
-    quote_url = f"{args.base_url.rstrip('/')}/api/dex/quote-routes?{query}"
-    overview_url = f"{args.base_url.rstrip('/')}/api/dex/overview?{query}"
-    start = time.time()
-    deadline = start + args.duration
-    seen_live: set[str] = set()
-    while time.time() < deadline:
-        sample_no = int((time.time() - start) // args.interval) + 1
-        try:
-            quote_payload = http_json(quote_url)
-            routes = quote_payload.get("routes") or []
-            statuses = Counter(
-                str(rt.get("quoteStatus") or rt.get("quote_status") or rt.get("status") or "unknown")
-                for rt in routes
-            )
-            live = [
-                {
-                    "pair": rt.get("symbolPair") or rt.get("pair") or "-",
-                    "bestAmount": (rt.get("quoteAnalysis") or {}).get("bestAmount"),
-                    "netProfit": (rt.get("quoteAnalysis") or {}).get("referenceNetProfitAmount"),
-                }
-                for rt in routes
-                if str(rt.get("quoteStatus") or rt.get("quote_status") or "").lower()
-                == "live_verified"
-            ]
-            logger.info(
-                "sample=%s quote_routes total=%s statuses=%s live=%s",
-                sample_no,
-                len(routes),
-                dict(statuses),
-                live,
-            )
-            for item in live:
-                key = item.get("pair") or "-"
-                if key not in seen_live:
-                    seen_live.add(key)
-                    logger.info("NEW_LIVE_ROUTE %s", item)
-        except Exception as exc:
-            logger.warning("sample=%s quote_routes error=%s", sample_no, exc)
-
-        try:
-            overview_payload = http_json(overview_url)
-            logger.info(
-                "sample=%s overview path_count=%s closed_loop_count=%s",
-                sample_no,
-                overview_payload.get("arbitragePathCount"),
-                overview_payload.get("closedLoopRouteCount"),
-            )
-        except Exception as exc:
-            logger.warning("sample=%s overview error=%s", sample_no, exc)
-
-        try:
-            rows = load_attempts(attempts_path, args.chain_id)
-            summary = attempt_status_summary(rows)
-            logger.info("sample=%s attempts count=%s statuses=%s", sample_no, summary["count"], summary["statuses"])
-            for live_route in summary["live_routes"]:
-                key = live_route.get("pair") or "-"
-                if key not in seen_live:
-                    seen_live.add(key)
-                    logger.info("NEW_LIVE_ATTEMPT %s", live_route)
-        except Exception as exc:
-            logger.warning("sample=%s attempts error=%s", sample_no, exc)
-
-        elapsed = time.time() - start
-        remaining = deadline - time.time()
-        if remaining > 0:
-            time.sleep(min(args.interval, remaining))
-        logger.info("done total_elapsed=%.1f seen_live=%s", time.time() - start, sorted(seen_live))
+    with out.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    print(json.dumps(row, ensure_ascii=False), flush=True)
     return 0
 
 

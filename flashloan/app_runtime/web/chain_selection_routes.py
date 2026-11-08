@@ -7,7 +7,7 @@ from web.chain_selection import chain_selection_payload
 
 
 def _database_url(panel) -> str | None:
-    getter = getattr(panel, "database_url_or_none", None)
+    getter = getattr(panel, "database_url", None)
     if not callable(getter):
         return None
     try:

@@ -8,9 +8,10 @@ from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
-    load_recent_cow_execution_attempts_jsonl,
-    load_recent_cow_execution_attempts_jsonl_grouped,
+    load_recent_cow_execution_attempts,
+    load_recent_cow_execution_attempts_sqlite_grouped,
 )
+from core.db.storage_common import database_url
 from web.chain_selection import resolve_request_chain_selection
 from web import control_panel_data_routes as shared
 from dex.robinhood_dex_panel import (
@@ -44,24 +45,25 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def binance_market_cow_execution_attempts():
         limit = request_int_arg("limit", 300, minimum=1, maximum=1000)
         networks = _request_networks_arg()
+        resolved_database_url = database_url()
         groups = _cow_execution_attempt_groups(
-            lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
+            lambda **kwargs: load_recent_cow_execution_attempts(
+                resolved_database_url,
                 retention_days=COW_EXECUTION_RETENTION_DAYS,
                 **kwargs,
             ),
             limit=limit,
             networks=networks,
             dedupe_by_route_evidence=False,
-            group_loader=lambda **kwargs: load_recent_cow_execution_attempts_jsonl_grouped(
-                shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
+            group_loader=lambda **kwargs: load_recent_cow_execution_attempts_sqlite_grouped(
+                resolved_database_url,
                 retention_days=COW_EXECUTION_RETENTION_DAYS,
                 **kwargs,
             ),
         )
         return jsonify(
             {
-                "source": "jsonl",
+                "source": "sqlite" if resolved_database_url else "sqlite_unavailable",
                 "retention_days": COW_EXECUTION_RETENTION_DAYS,
                 "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
                 "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
@@ -95,12 +97,12 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def robinhood_dex_observation():
         try:
             selection = resolve_request_chain_selection(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 feature="dex_arbitrage",
                 default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
             )
             payload = robinhood_dex_observation_payload(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 market_id=selection.market_id,
                 chain_id=selection.chain_id,
             )
@@ -113,12 +115,12 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def robinhood_dex_pools():
         try:
             selection = resolve_request_chain_selection(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 feature="dex_arbitrage",
                 default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
             )
             payload = robinhood_dex_pool_observation_payload(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 market_id=selection.market_id,
                 chain_id=selection.chain_id,
             )
@@ -131,7 +133,7 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def robinhood_dex_readiness():
         try:
             selection = resolve_request_chain_selection(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 feature="dex_arbitrage",
                 default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
             )

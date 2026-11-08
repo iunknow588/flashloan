@@ -209,17 +209,21 @@ def _overview_path_static_profit(path: dict[str, Any]) -> float | None:
 
 
 def _best_per_anchor_direction_paths(paths: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep only the highest-static-profit direction set per flash-loan anchor.
+    """Keep every directed closed loop per flash-loan anchor.
 
-    All pool/address variants inside the selected direction remain available
-    as hop candidates and backups; exact duplicate routes are dropped.
+    Reverse execution direction is an independent ``[X, Z, Y]`` closed loop
+    with its own pool directions, so it stays on the quote page even when all
+    three hops resolve to the same physical pools.  Only exact duplicates
+    (same anchor, same token order, same ordered pool path) are dropped.
     """
     selected: list[dict[str, Any]] = []
-    seen_routes: set[tuple[tuple[str, str], tuple[str, ...]]] = set()
-    direction_sets_by_anchor: dict[
-        tuple[str, str],
-        dict[tuple[str, ...], list[tuple[int, dict[str, Any], float | None]]],
-    ] = {}
+    seen_routes: set[
+        tuple[
+            tuple[str, str],
+            tuple[str, ...],
+            tuple[str, ...] | None,
+        ]
+    ] = set()
     for index, path in enumerate(paths):
         route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
         symbols = [
@@ -245,63 +249,50 @@ def _best_per_anchor_direction_paths(paths: list[dict[str, Any]]) -> list[dict[s
         ).strip().lower()
         if not anchor_address and route_addresses:
             anchor_address = route_addresses[0].lower()
-        middle_direction = tuple(symbols[1:-1]) if len(symbols) >= 4 else tuple(symbols)
         anchor_key = (anchor_symbol, anchor_address)
-        identity_parts = (
-            [address.lower() for address in route_addresses]
+        pool_identity = _directed_pool_path_identity(path)
+        identity_parts = pool_identity if pool_identity is not None else (
+            tuple(address.lower() for address in route_addresses)
             if route_addresses
-            else list(symbols)
+            else None
         )
-        pool_path_key = str(
-            path.get("poolPathKey")
-            or path.get("referencePoolPathKey")
-            or ""
-        ).strip().lower()
-        if pool_path_key:
-            identity_parts.append(pool_path_key)
-        else:
-            identity_parts.extend(
-                str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
-                for pool in path.get("executionPools") or path.get("preferredPools") or []
-                if isinstance(pool, dict)
-                and str(pool.get("pool") or pool.get("poolId") or "").strip()
-            )
-        route_identity = tuple(identity_parts)
-        dedup_key = (anchor_key, route_identity)
+        route_identity = tuple(symbols)
+        dedup_key = (anchor_key, route_identity, identity_parts)
         if dedup_key in seen_routes:
             continue
         seen_routes.add(dedup_key)
-        direction_sets_by_anchor.setdefault(anchor_key, {}).setdefault(
-            middle_direction, []
-        ).append((index, path, _overview_path_static_profit(path)))
-    for anchor_key in direction_sets_by_anchor:
-        direction_sets = direction_sets_by_anchor[anchor_key]
-        best_direction_key = max(
-            direction_sets,
-            key=lambda direction_key: (
-                max(
-                    (
-                        profit
-                        for _, _, profit in direction_sets[direction_key]
-                        if profit is not None
-                    ),
-                    default=float("-inf"),
-                ),
-                -min(index for index, _, _ in direction_sets[direction_key]),
-            ),
-        )
-        selected.extend(
-            path
-            for _, path, _ in sorted(
-                direction_sets[best_direction_key],
-                key=lambda item: item[0],
-            )
-        )
+        selected.append(path)
     return selected
+
+
+def _directed_pool_path_identity(path: dict[str, Any]) -> tuple[str, ...] | None:
+    """Return the ordered pool path identity, preserving execution direction."""
+    pool_path_key = str(
+        path.get("poolPathKey")
+        or path.get("referencePoolPathKey")
+        or ""
+    ).strip().lower()
+    if pool_path_key:
+        parts = [part for part in pool_path_key.split("|") if part.strip()]
+        if len(parts) >= 3:
+            return tuple(parts)
+    pool_ids = [
+            str(pool.get("pool") or pool.get("poolId") or "").strip().lower()
+            for pool in (
+                path.get("executionPools")
+                or path.get("preferredPools")
+                or path.get("strictQualityPools")
+                or []
+            )
+            if isinstance(pool, dict)
+            and str(pool.get("pool") or pool.get("poolId") or "").strip()
+    ]
+    return tuple(pool_ids) if pool_ids else None
 
 
 __all__ = [
     "_best_per_anchor_direction_paths",
+    "_directed_pool_path_identity",
     "_enrich_route_pools_from_index",
     "_find_hop_pool",
     "_framework_route_pools",

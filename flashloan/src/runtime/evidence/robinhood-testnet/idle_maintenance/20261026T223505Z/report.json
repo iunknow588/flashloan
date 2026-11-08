@@ -1,0 +1,367 @@
+{
+  "afterPlan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "counts": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1,
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 0,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 0,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1
+    },
+    "directionTarget": 1,
+    "floorBlock": 91000224,
+    "neededDirectionCount": 2,
+    "observedAt": "2026-10-26T22:35:04.993371Z",
+    "satisfiedDirectionCount": 4,
+    "selectedPools": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": [
+        {
+          "estimatedTvlUsd": 431626.5236978361,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 100,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 111640912,
+          "liquidity": "520215385767312646727",
+          "liquidityBlockNumber": 143232172,
+          "liquidityIndex": 520.21538577,
+          "liquidityReadAt": "2026-10-26T22:32:56.603374Z",
+          "poolId": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+          "tickSpacing": 1,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+        }
+      ],
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": [],
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": [
+        {
+          "estimatedTvlUsd": 431626.5236978361,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 100,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 111640912,
+          "liquidity": "520215385767312646727",
+          "liquidityBlockNumber": 143232172,
+          "liquidityIndex": 520.21538577,
+          "liquidityReadAt": "2026-10-26T22:32:56.603374Z",
+          "poolId": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+          "tickSpacing": 1,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+        }
+      ],
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 500,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 112874504,
+          "liquidity": "1557612321464496128",
+          "liquidityBlockNumber": 143232172,
+          "liquidityIndex": 1.55761232,
+          "liquidityReadAt": "2026-10-26T22:32:56.603374Z",
+          "poolId": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b",
+          "tickSpacing": 5,
+          "token0": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+        }
+      ],
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": [],
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 500,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 112874504,
+          "liquidity": "1557612321464496128",
+          "liquidityBlockNumber": 143232172,
+          "liquidityIndex": 1.55761232,
+          "liquidityReadAt": "2026-10-26T22:32:56.603374Z",
+          "poolId": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b",
+          "tickSpacing": 5,
+          "token0": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+        }
+      ]
+    },
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 1
+    }
+  },
+  "backfill": {
+    "directionCounts": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1,
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1
+    },
+    "initializeLogCount": 23493,
+    "neededDirectionCount": 6,
+    "ok": true,
+    "satisfiedDirectionCount": 6,
+    "scannedSegmentCount": 632,
+    "selectedPoolCount": 3,
+    "stoppedReason": "direction_targets_satisfied",
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1,
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1
+    }
+  },
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "directionTarget": 1,
+  "freshness": {
+    "ageSeconds": 233.644176,
+    "latestSnapshotAt": "2026-10-26T22:16:09Z",
+    "liquidityReadAt": "2026-10-26T22:15:36.560396Z",
+    "observedAt": "2026-10-15T13:03:29.574853Z",
+    "refreshedAt": "2026-10-26T22:16:09Z",
+    "snapshotCount": 39195,
+    "stale": false,
+    "ttlSeconds": 900
+  },
+  "generatedAt": "2026-10-26T22:20:02.383080Z",
+  "import": {
+    "chainId": 46630,
+    "detail": "raw V4 tables imported directly from in-memory evidence; JSON files are not read",
+    "indexLiquidityRowCount": 0,
+    "liquidityRowCount": 0,
+    "network": "robinhood-testnet",
+    "ok": true,
+    "source": "onchain_evidence_payload",
+    "tokenCount": 3,
+    "v4PoolCount": 3
+  },
+  "mode": "idle_maintenance",
+  "network": "robinhood-testnet",
+  "ok": true,
+  "phase": "completed",
+  "plan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "counts": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 0,
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 0,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": 0,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 0,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 0,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 0
+    },
+    "floorBlock": 91000224,
+    "neededDirectionCount": 6,
+    "observedAt": "2026-10-26T22:20:02.531861Z",
+    "satisfiedDirectionCount": 0,
+    "selectedPools": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": [],
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": [],
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": [],
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": [],
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": [],
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": []
+    },
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1,
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000": 1,
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000": 1,
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 1
+    }
+  },
+  "priceChange": {
+    "basis": "route_direction_pool_snapshots",
+    "changedPoolCount": 0,
+    "changes": [],
+    "compareCount": 0,
+    "maxChangeBps": 0.0,
+    "maxChangePoolId": null,
+    "maxChangeToken0": null,
+    "maxChangeToken1": null,
+    "thresholdBps": 50,
+    "triggered": false
+  },
+  "prune": {
+    "afterLiquidityCount": 39196,
+    "afterPoolCount": 39196,
+    "beforeLiquidityCount": 39196,
+    "beforePoolCount": 39196,
+    "deletedPoolCount": 0,
+    "deletedUnknownLiquidityCount": 0,
+    "deletedZeroLiquidityCount": 0
+  },
+  "rebuildAnchors": [
+    {
+      "anchorSymbol": "ETH",
+      "candidate": {
+        "abnormalCounts": {
+          "pairs": 54894,
+          "pools": 27510,
+          "tokens": 27447
+        },
+        "abnormalPairCount": 54894,
+        "abnormalPoolCount": 27510,
+        "abnormalTokenCount": 27447,
+        "anchorAddress": "0x0000000000000000000000000000000000000000",
+        "anchorSymbol": "ETH",
+        "counts": {
+          "pairs": 2,
+          "pools": 1,
+          "recommendations": 2,
+          "tokens": 1
+        },
+        "pairCount": 2,
+        "poolCount": 1,
+        "recommendationCount": 2,
+        "tokenCount": 1
+      },
+      "closedLoops": {
+        "anchorAddress": "0x0000000000000000000000000000000000000000",
+        "anchorSymbol": "ETH",
+        "counts": {
+          "hops": 0,
+          "loops": 0,
+          "optimizations": 0
+        },
+        "hopCount": 0,
+        "loopCount": 0
+      },
+      "observation": {
+        "abnormalCounts": {
+          "pairs": 0,
+          "pools": 0
+        },
+        "abnormalDirectionCount": 0,
+        "abnormalPoolCount": 0,
+        "anchorSymbol": "ETH",
+        "counts": {
+          "liquidity": 0,
+          "pairs": 0,
+          "pools": 0
+        },
+        "directionCount": 0,
+        "noPoolDirectionCount": 0,
+        "poolCount": 0,
+        "tokenCount": 1
+      }
+    }
+  ],
+  "refresh": {
+    "errors": [],
+    "liquidityPoolCount": null,
+    "ok": true,
+    "poolCount": null,
+    "steps": [
+      {
+        "databaseState": {
+          "complete": false,
+          "confirmedLiquidityPoolCount": 15,
+          "missingLiquiditySnapshotCount": 1,
+          "poolCount": 39196,
+          "snapshotCount": 39195,
+          "unknownLiquidityCount": 39180,
+          "zeroLiquidityPoolCount": 0
+        },
+        "forcedFullScan": true,
+        "ok": true,
+        "reason": "db_pool_liquidity_incomplete",
+        "scanMode": "full_forced_db_incomplete",
+        "step": "v4_incremental_guard"
+      },
+      {
+        "fromBlock": null,
+        "generatedBlockNumber": null,
+        "ok": true,
+        "poolCount": 39196,
+        "scanMode": "full_forced_db_incomplete",
+        "source": "sqlite_db",
+        "step": "v4_pool_index"
+      },
+      {
+        "blockNumber": 143232172,
+        "errorCount": 0,
+        "markedPoolCount": 3,
+        "ok": true,
+        "scannedPoolCount": 3,
+        "source": "pool_manager_extsload_live_state_batch",
+        "step": "v4_pool_liquidity"
+      },
+      {
+        "ok": true,
+        "skipped": false,
+        "step": "import_v4_evidence_payloads",
+        "tokenCount": 39356,
+        "v4PoolCount": 39196
+      },
+      {
+        "anchorCount": 10,
+        "ok": true,
+        "step": "build_all_anchor_data"
+      },
+      {
+        "afterPoolCount": 39196,
+        "deletedPoolCount": 0,
+        "deletedUnknownLiquidityCount": 0,
+        "deletedZeroLiquidityCount": 0,
+        "ok": true,
+        "step": "prune_non_executable_pools"
+      },
+      {
+        "ok": true,
+        "routeCount": 8,
+        "step": "dex_overview_snapshot"
+      },
+      {
+        "directionCandidateLimit": 1,
+        "lastScannedBlock": 143232172,
+        "liquidityScanBlock": 143232172,
+        "ok": true,
+        "scanMode": "full_forced_db_incomplete",
+        "step": "v4_scan_state"
+      }
+    ]
+  },
+  "refreshPoolCount": 3,
+  "refreshPoolIds": [
+    "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+    "0x6125a5f67b8162cf30a34f1d63b1b1f42415f04a96d22b446a7aa35564c249fb",
+    "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b"
+  ],
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": true
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 1,
+    "directions": [
+      "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000",
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+    ],
+    "routeAddresses": [
+      "0x0000000000000000000000000000000000000000",
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "0x0000000000000000000000000000000000000000"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer",
+  "triggerImmediateReview": false
+}

@@ -1,10 +1,14 @@
 const path = require("path");
 const fs = require("fs");
-const { ethers, artifacts } = require("../lib/hardhat");
+const { ethers, artifacts, network } = require("../lib/hardhat");
+const { matchesArtifactRuntime } = require("./official-v4-immutable-code");
 
 const MANIFEST_PATH = process.env.FLASHLOAN_MANIFEST_PATH
   ? path.resolve(process.env.FLASHLOAN_MANIFEST_PATH)
   : path.resolve(__dirname, "../../config/testnet-v4-amm/manifest.json");
+const MIRROR_MANIFEST_PATH = process.env.FLASHLOAN_MANIFEST_MIRROR_PATH
+  ? path.resolve(process.env.FLASHLOAN_MANIFEST_MIRROR_PATH)
+  : "";
 const ERC20_ABI = [
   "function totalSupply() view returns (uint256)",
   "function balanceOf(address) view returns (uint256)",
@@ -18,13 +22,22 @@ function readManifest() {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
 }
 
-function writeManifest(manifest) {
+function assertExpectedChain(expectedChainId) {
+  const actual = Number(network.config?.chainId || network.name || 0);
+  if (actual !== Number(expectedChainId)) {
+    throw new Error(
+      `network guard failed: current chainId=${actual}, expected=${expectedChainId}; ` +
+      "run under the correct hardhat --network"
+    );
+  }
+}
+
+function writeJsonAtomic(target, text) {
   fs.mkdirSync(path.dirname(MANIFEST_PATH), { recursive: true });
-  const text = JSON.stringify(manifest, null, 2) + "\n";
   let lastError = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      fs.writeFileSync(MANIFEST_PATH, text, "utf8");
+      fs.writeFileSync(target, text, "utf8");
       return true;
     } catch (error) {
       lastError = error;
@@ -34,8 +47,20 @@ function writeManifest(manifest) {
       }
     }
   }
-  console.error(`warning: failed to persist ${MANIFEST_PATH}: ${lastError && lastError.message}`);
+  console.error(`warning: failed to persist ${target}: ${lastError && lastError.message}`);
   return false;
+}
+
+function writeManifest(manifest) {
+  const text = JSON.stringify(manifest, null, 2) + "\n";
+  const primaryOk = writeJsonAtomic(MANIFEST_PATH, text);
+  if (MIRROR_MANIFEST_PATH && MIRROR_MANIFEST_PATH !== MANIFEST_PATH) {
+    const mirrorOk = writeJsonAtomic(MIRROR_MANIFEST_PATH, text);
+    if (!mirrorOk) {
+      console.error(`warning: failed to mirror ${MIRROR_MANIFEST_PATH}`);
+    }
+  }
+  return primaryOk;
 }
 
 function readArg(name, fallback) {
@@ -99,11 +124,102 @@ function loadExplicitPoolKeysJson() {
   }));
 }
 
+function loadPoolKeyGroups() {
+  const groupsText = readArg(
+    "pool-key-groups-json",
+    process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_POOL_KEY_GROUPS_JSON || ""
+  );
+  if (!groupsText) return null;
+  const parsed = JSON.parse(groupsText);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("official V4 arb pool key groups json must be a non-empty array of 3-element arrays");
+  }
+  return parsed.map((group) => {
+    if (!Array.isArray(group) || group.length !== 3) {
+      throw new Error("official V4 arb pool key group must be a 3-element array");
+    }
+    return group.map((key) => ({
+      currency0: String(key.currency0 || ""),
+      currency1: String(key.currency1 || ""),
+      fee: Number(key.fee),
+      tickSpacing: Number(key.tickSpacing),
+      hooks: String(key.hooks || ""),
+    }));
+  });
+}
+
+function hopCandidateSets(poolGroups, routeAddresses) {
+  if (!Array.isArray(poolGroups) || poolGroups.length === 0) {
+    throw new Error("official V4 arb broadcast needs at least one complete pool group");
+  }
+  if (
+    routeAddresses.length !== 4 ||
+    routeAddresses[0].toLowerCase() !== routeAddresses[3].toLowerCase()
+  ) {
+    throw new Error("official V4 arb broadcast route must be a closed 4-address triangle");
+  }
+  const hopKeys = [[], [], []];
+  const hopDirections = [[], [], []];
+  const seen = new Set();
+  for (const group of poolGroups) {
+    if (!Array.isArray(group) || group.length !== 3) {
+      throw new Error("official V4 arb pool key group must contain exactly 3 PoolKeys");
+    }
+    for (let hopIndex = 0; hopIndex < 3; hopIndex += 1) {
+      const key = group[hopIndex];
+      const inputToken = routeAddresses[hopIndex].toLowerCase();
+      const outputToken = routeAddresses[hopIndex + 1].toLowerCase();
+      const currency0 = String(key.currency0 || "").toLowerCase();
+      const currency1 = String(key.currency1 || "").toLowerCase();
+      if (!currency0 || !currency1) {
+        throw new Error("official V4 arb pool key currency addresses must be non-empty");
+      }
+      const direction = inputToken === currency0;
+      const keyInput = direction ? currency0 : currency1;
+      const keyOutput = direction ? currency1 : currency0;
+      if (keyInput !== inputToken || keyOutput !== outputToken) {
+        throw new Error("official V4 arb pool key group hop does not match route token order");
+      }
+      const identity = JSON.stringify([
+        currency0,
+        currency1,
+        Number(key.fee),
+        Number(key.tickSpacing),
+        String(key.hooks || "").toLowerCase(),
+        direction,
+      ]);
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      hopKeys[hopIndex].push({
+        currency0: String(key.currency0),
+        currency1: String(key.currency1),
+        fee: Number(key.fee),
+        tickSpacing: Number(key.tickSpacing),
+        hooks: String(key.hooks || ethers.ZeroAddress),
+      });
+      hopDirections[hopIndex].push(direction);
+    }
+  }
+  for (let hopIndex = 0; hopIndex < 3; hopIndex += 1) {
+    if (hopKeys[hopIndex].length === 0) {
+      throw new Error(`official V4 arb broadcast hop ${hopIndex + 1} has no candidate pool`);
+    }
+  }
+  return {
+    entryKeys: hopKeys[0],
+    entryDirections: hopDirections[0],
+    bridgeKeys: hopKeys[1],
+    bridgeDirections: hopDirections[1],
+    exitKeys: hopKeys[2],
+    exitDirections: hopDirections[2],
+  };
+}
+
 function sortPair(a, b) {
   return BigInt(a.toLowerCase()) < BigInt(b.toLowerCase()) ? [a, b] : [b, a];
 }
 
-function decodeRevertData(rawData) {
+function decodeRevertData(rawData, decimals) {
   const data = String(rawData || "");
   if (!data.startsWith("0x") || data.length < 10) {
     return { data, selector: data, errorDetail: data || "no_revert_data" };
@@ -132,7 +248,7 @@ function decodeRevertData(rawData) {
       return {
         data,
         selector,
-        errorDetail: `${known.name} received=${ethers.formatUnits(received, 18)} required=${ethers.formatUnits(required, 18)}`,
+        errorDetail: `${known.name} received=${ethers.formatUnits(received, decimals)} required=${ethers.formatUnits(required, decimals)}`,
       };
     } catch (error) {
       return { data, selector, errorDetail: known.name };
@@ -163,18 +279,21 @@ function poolId(key) {
   ));
 }
 
-async function logOwnerBalance(owner, token, label) {
+async function logOwnerBalance(owner, token, label, decimals) {
   try {
     const total = await token.totalSupply();
     const balance = await token.balanceOf(owner.address);
     const pct = (Number(balance) / Number(total)) * 100;
-    console.log(`  ${label} owner balance=${ethers.formatUnits(balance, 18)} (${pct.toFixed(2)}% of total; 80% creation reserve is meant for later liquidity, not a post-run floor)`);
+    console.log(`  ${label} owner balance=${ethers.formatUnits(balance, decimals)} (${pct.toFixed(2)}% of total; 80% creation reserve is meant for later liquidity, not a post-run floor)`);
   } catch (error) {
     console.warn(`  warning: ${label} owner balance unavailable (${error.shortMessage || error.message || error})`);
   }
 }
 
 async function main() {
+  assertExpectedChain(
+    process.env.ROBINHOOD_TESTNET_CHAIN_ID || process.env.FLASHLOAN_CHAIN_ID || 46630
+  );
   if (process.env.ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST !== "true") {
     throw new Error("ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST must be true");
   }
@@ -212,6 +331,29 @@ async function main() {
   if (routeAddresses.length !== symbols.length) {
     throw new Error("official V4 arb route address list length must match route symbols length");
   }
+  const borrowToken = new ethers.Contract(routeAddresses[0], ERC20_ABI, owner);
+  const configuredBorrowDecimals = Number(
+    process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_BORROW_DECIMALS || ""
+  );
+  let borrowDecimals;
+  if (Number.isInteger(configuredBorrowDecimals) && configuredBorrowDecimals >= 0) {
+    borrowDecimals = configuredBorrowDecimals;
+  } else {
+    try {
+      borrowDecimals = Number(await borrowToken.decimals());
+    } catch (error) {
+      throw new Error(
+        "official V4 arb borrow token decimals unavailable; " +
+          `address=${routeAddresses[0]} error=${error.shortMessage || error.message || error}`
+      );
+    }
+  }
+  if (!Number.isInteger(borrowDecimals) || borrowDecimals < 0 || borrowDecimals > 77) {
+    throw new Error(
+      `official V4 arb borrow token decimals invalid: ${borrowDecimals} ` +
+        `address=${routeAddresses[0]}`
+    );
+  }
   if (routeAddresses[0].toLowerCase() !== routeAddresses[3].toLowerCase()) {
     throw new Error("official V4 arb route must close: first and last token addresses must match");
   }
@@ -221,6 +363,8 @@ async function main() {
     }
   }
   const explicitPoolKeys = loadExplicitPoolKeysJson();
+  const poolKeyGroupOption = loadPoolKeyGroups();
+  const poolKeyGroups = poolKeyGroupOption || (explicitPoolKeys ? [explicitPoolKeys] : null);
   const inferredPoolParams = explicitPoolKeys
     ? explicitPoolKeys.map((key) => ({
         fee: key.fee,
@@ -271,7 +415,7 @@ async function main() {
   for (const [index, address] of uniqueRouteTokens.entries()) {
     try {
       const poolBalance = await Token(address).balanceOf(poolManagerAddress);
-      console.log(`  token${index} PoolManager balance=${ethers.formatUnits(poolBalance, 18)}`);
+      console.log(`  token${index} PoolManager balance=${ethers.formatUnits(poolBalance, borrowDecimals)}`);
       if (poolBalance === 0n) {
         console.warn(`  warning: token${index} PoolManager balance is zero`);
       }
@@ -283,16 +427,15 @@ async function main() {
     console.log(`  pool${index + 1} id=${poolId(key)}`);
   }
 
-  await logOwnerBalance(owner, Token(tz), "tz");
-  await logOwnerBalance(owner, Token(ta), "ta");
-  await logOwnerBalance(owner, Token(tb), "tb");
+  await logOwnerBalance(owner, Token(tz), "tz", borrowDecimals);
+  await logOwnerBalance(owner, Token(ta), "ta", borrowDecimals);
+  await logOwnerBalance(owner, Token(tb), "tb", borrowDecimals);
 
   let arb;
   const Factory = await ethers.getContractFactory("OfficialV4FlashArb");
   const artifact = await artifacts.readArtifact("OfficialV4FlashArb");
   const expectedBytecode = String(artifact.deployedBytecode || "").toLowerCase();
   const arbCandidates = [
-    manifest.officialV4.lastArbLiveTest?.arb,
     manifest.officialV4.arb,
   ]
     .filter(Boolean)
@@ -303,15 +446,14 @@ async function main() {
   for (const candidate of arbCandidates) {
     try {
       const code = String(await ethers.provider.getCode(candidate)).toLowerCase();
-      const persistedCode = String(
-        candidate.toLowerCase() === String(manifest.officialV4.arb || "").toLowerCase()
-          ? (manifest.officialV4.arbBytecode || "")
-          : ""
-      ).toLowerCase();
-      if (code && code !== "0x" && (code === expectedBytecode || (persistedCode && persistedCode === code))) {
+      if (code && code !== "0x" && matchesArtifactRuntime(expectedBytecode, code)) {
         selectedArb = candidate;
         break;
       }
+      console.warn(
+        `warning: known OfficialV4FlashArb ${candidate} does not match local artifact; ` +
+        "deploy the latest contract before using candidate-pool preview/broadcast"
+      );
     } catch {
       // Try the next known deployment address.
     }
@@ -322,12 +464,17 @@ async function main() {
       manifest.officialV4.arb = selectedArb;
       writeManifest(manifest);
     }
-    if (!manifest.officialV4.arbBytecode) {
-      manifest.officialV4.arbBytecode = String(await ethers.provider.getCode(selectedArb)).toLowerCase();
-      writeManifest(manifest);
-    }
+    manifest.officialV4.arbBytecode = String(await ethers.provider.getCode(selectedArb)).toLowerCase();
+    writeManifest(manifest);
     console.log(`using OfficialV4FlashArb=${selectedArb}`);
   } else {
+    if (process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST !== "true") {
+      throw new Error(
+        "no compatible OfficialV4FlashArb available for read-only preflight; " +
+        "run once with ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST=true to deploy, " +
+        "or set FLASHLOAN_MANIFEST_PATH to a manifest with officialV4.arb matching the local artifact"
+      );
+    }
     arb = await Factory.deploy(poolManagerAddress);
     await arb.waitForDeployment();
     const deployedArb = await arb.getAddress();
@@ -338,16 +485,23 @@ async function main() {
   }
 
   const amountText = readArg("amount", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT || "1");
-  const amountIn = ethers.parseUnits(expandNumericString(amountText), 18);
+  const amountIn = ethers.parseUnits(expandNumericString(amountText), borrowDecimals);
   // The adaptive search must start from the caller-provided amount; do not
   // replace it with a fixed 1 TZ origin.
   const searchStartAmount = amountIn;
   const searchStartText = amountText;
   const minProfit = BigInt(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_MIN_PROFIT || "1");
-  const reverseKeys = [keys[2], keys[1], keys[0]];
-  const reverseDirections = [!directions[2], !directions[1], !directions[0]];
-  const keysets = [keys, reverseKeys];
-  const directionsets = [directions, reverseDirections];
+  const poolGroups = poolKeyGroups || [keys];
+  const hopSets = hopCandidateSets(poolGroups, routeAddresses);
+  const entryKeys = hopSets.entryKeys;
+  const entryDirections = hopSets.entryDirections;
+  const bridgeKeys = hopSets.bridgeKeys;
+  const bridgeDirections = hopSets.bridgeDirections;
+  const exitKeys = hopSets.exitKeys;
+  const exitDirections = hopSets.exitDirections;
+  let selectedKeys = null;
+  let selectedDirections = null;
+  let selectedPool = null;
   const amountAlreadyBest = String(
     readArg("amount-is-best", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT_IS_BEST || "false")
   ).toLowerCase() === "true"
@@ -355,22 +509,51 @@ async function main() {
   const reportedInitialAmount = amountAlreadyBest ? amountText : searchStartText;
   const previewBestAmountMethod = amountAlreadyBest
     ? "preselected_best_amount"
-    : "onchain_preview_adaptive_best_amount";
+    : "onchain_preview_adaptive_best_amount_single_route";
   let preview = null;
   let selectedAmountBig;
   let selectedAmountText;
   if (amountAlreadyBest) {
     selectedAmountBig = amountIn;
     selectedAmountText = amountText;
-    // A preselected amount still needs a route index. Re-verify the exact
-    // amount once with previewArbitrageBestAmount(isBestAmount=true) instead
-    // of defaulting to the forward route, otherwise a reverse-route preflight
-    // would be broadcast on the wrong direction.
+    // A preselected amount still needs a pool route. Select it from current
+    // on-chain prices across every candidate pool per hop, then verify the
+    // exact amount once with the selected single route.
     try {
+      const poolResult = await arb.previewBestPool.staticCall(
+        routeAddresses[0],
+        entryKeys,
+        entryDirections,
+        bridgeKeys,
+        bridgeDirections,
+        exitKeys,
+        exitDirections
+      );
+      const entryIndex = Number(poolResult.entryIndex ?? poolResult[0] ?? 0n);
+      const bridgeIndex = Number(poolResult.bridgeIndex ?? poolResult[1] ?? 0n);
+      const exitIndex = Number(poolResult.exitIndex ?? poolResult[2] ?? 0n);
+      const netProduct = BigInt(poolResult.netProduct ?? poolResult[3] ?? 0n);
+      if (netProduct <= 1n * 10n ** 18n) throw new Error("NoProfitableRoute");
+      selectedKeys = [
+        entryKeys[entryIndex],
+        bridgeKeys[bridgeIndex],
+        exitKeys[exitIndex],
+      ];
+      selectedDirections = [
+        entryDirections[entryIndex],
+        bridgeDirections[bridgeIndex],
+        exitDirections[exitIndex],
+      ];
+      selectedPool = {
+        entryIndex,
+        bridgeIndex,
+        exitIndex,
+        netProduct: netProduct.toString(),
+      };
       const result = await arb.previewArbitrageBestAmount.staticCall(
         routeAddresses[0],
-        keysets,
-        directionsets,
+        [selectedKeys],
+        [selectedDirections],
         amountIn,
         minProfit,
         true
@@ -383,9 +566,10 @@ async function main() {
         selectedRouteIndex: routeIndex,
         selectedProfit: profit,
         attemptedCount: Number(result.attemptedCount ?? result[3] ?? 1n),
+        selectedPool,
       };
     } catch (error) {
-      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "", borrowDecimals);
       console.log(
         "\nOFFICIAL_V4_ARB_RESULT_JSON " +
           JSON.stringify({
@@ -402,10 +586,10 @@ async function main() {
             bestAmountMethod: previewBestAmountMethod,
             amountIsBest: true,
             staticCall: "reverted",
-            method: "previewArbitrageBestAmount",
+            method: "previewBestPool",
           })
       );
-      console.error("official V4 preselected amount re-verification reverted");
+      console.error("official V4 preselected amount pool selection re-verification reverted");
       console.error(`  shortMessage=${error.shortMessage || error.message || ""}`);
       console.error(`  data=${revertInfo.data}`);
       console.error(`  errorDetail=${revertInfo.errorDetail}`);
@@ -414,6 +598,36 @@ async function main() {
     console.log(`official V4 preselected amount re-verified routeIndex=${preview.selectedRouteIndex} attempted=${preview.attemptedCount}`);
   } else {
     try {
+      const poolResult = await arb.previewBestPool.staticCall(
+        routeAddresses[0],
+        entryKeys,
+        entryDirections,
+        bridgeKeys,
+        bridgeDirections,
+        exitKeys,
+        exitDirections
+      );
+      const entryIndex = Number(poolResult.entryIndex ?? poolResult[0] ?? 0n);
+      const bridgeIndex = Number(poolResult.bridgeIndex ?? poolResult[1] ?? 0n);
+      const exitIndex = Number(poolResult.exitIndex ?? poolResult[2] ?? 0n);
+      const netProduct = BigInt(poolResult.netProduct ?? poolResult[3] ?? 0n);
+      if (netProduct <= 1n * 10n ** 18n) throw new Error("NoProfitableRoute");
+      selectedKeys = [
+        entryKeys[entryIndex],
+        bridgeKeys[bridgeIndex],
+        exitKeys[exitIndex],
+      ];
+      selectedDirections = [
+        entryDirections[entryIndex],
+        bridgeDirections[bridgeIndex],
+        exitDirections[exitIndex],
+      ];
+      selectedPool = {
+        entryIndex,
+        bridgeIndex,
+        exitIndex,
+        netProduct: netProduct.toString(),
+      };
       // Probe each amount as a separate eth_call. Running the on-chain adaptive
       // preview inside one outer call mutates the simulated pool state between
       // probes, so later amounts appear worse than they really are.
@@ -421,8 +635,8 @@ async function main() {
         try {
           const result = await arb.previewArbitrageBestAmount.staticCall(
             routeAddresses[0],
-            keysets,
-            directionsets,
+            [selectedKeys],
+            [selectedDirections],
             amount,
             minProfit,
             true
@@ -436,7 +650,7 @@ async function main() {
             attempted: Number(result.attemptedCount ?? result[3] ?? 1n),
           };
         } catch (error) {
-          const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+          const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "", borrowDecimals);
           const isRpcNetworkError =
             typeof error === "object" && error &&
             ["SERVER_ERROR", "TIMEOUT", "CONNECTION_ERROR", "NETWORK_ERROR", "ECONNRESET"].includes(
@@ -589,6 +803,7 @@ async function main() {
         selectedRouteIndex: selectedRouteLocal,
         selectedProfit: selectedProfitLocal,
         attemptedCount,
+        selectedPool,
       };
       if (!preview.selectedAmount || preview.selectedAmount === 0n) {
         const noProfitError = new Error("NoProfitableRoute");
@@ -596,9 +811,9 @@ async function main() {
         throw noProfitError;
       }
       selectedAmountBig = preview.selectedAmount;
-      selectedAmountText = ethers.formatUnits(selectedAmountBig, 18);
+      selectedAmountText = ethers.formatUnits(selectedAmountBig, borrowDecimals);
     } catch (error) {
-      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "", borrowDecimals);
       console.log(
         "\nOFFICIAL_V4_ARB_RESULT_JSON " +
           JSON.stringify({
@@ -615,10 +830,10 @@ async function main() {
             bestAmountMethod: previewBestAmountMethod,
             amountIsBest: amountAlreadyBest,
             staticCall: "reverted",
-            method: "previewArbitrageBestAmount",
+            method: "previewBestPool",
           })
       );
-      console.error("official V4 on-chain previewArbitrageBestAmount reverted");
+      console.error("official V4 on-chain previewBestPool/amount preview reverted");
       console.error(`  shortMessage=${error.shortMessage || error.message || ""}`);
       console.error(`  data=${revertInfo.data}`);
       console.error(`  errorDetail=${revertInfo.errorDetail}`);
@@ -633,16 +848,15 @@ async function main() {
   const bestAmountAttemptedCount = preview ? String(preview.attemptedCount || "1") : "1";
   let result;
   try {
-    const previewRouteIndex = Number(preview?.selectedRouteIndex ?? 0);
     result = await arb.runArbitrage.staticCall(
       routeAddresses[0],
-      keysets[previewRouteIndex],
-      directionsets[previewRouteIndex],
+      selectedKeys,
+      selectedDirections,
       selectedAmountBig,
       minProfit
     );
   } catch (error) {
-    const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+    const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "", borrowDecimals);
     console.log(
       "\nOFFICIAL_V4_ARB_RESULT_JSON " +
         JSON.stringify({
@@ -659,7 +873,7 @@ async function main() {
           bestAmountRaw: selectedAmountBig.toString(),
           bestAmountMethod,
           bestAmountAttemptedCount,
-          previewMethod: "previewArbitrageBestAmount",
+          previewMethod: "previewBestPool",
           amountIsBest: amountAlreadyBest,
           staticCall: "reverted",
           method: "runArbitrage",
@@ -672,21 +886,24 @@ async function main() {
     console.error(`  reason=${error.reason || error.message || error}`);
     throw error;
   }
-  const routeIndex = Number(preview?.selectedRouteIndex ?? 0);
-  const selectedSymbols = routeIndex === 0 ? symbols : [symbols[0], symbols[2], symbols[1], symbols[0]];
+  const routeIndex = 0;
+  const selectedSymbols = symbols;
+  const selectedEntryIndex = Number(selectedPool?.entryIndex ?? preview?.selectedPool?.entryIndex ?? 0);
+  const selectedBridgeIndex = Number(selectedPool?.bridgeIndex ?? preview?.selectedPool?.bridgeIndex ?? 0);
+  const selectedExitIndex = Number(selectedPool?.exitIndex ?? preview?.selectedPool?.exitIndex ?? 0);
   console.log(`official V4 ${amountAlreadyBest ? "preselected amount" : "adaptive best amount preview"} + static arbitrageBest result:`);
   console.log(`  initialAmount=${reportedInitialAmount}`);
   console.log(`  bestAmount=${selectedAmountText} ${symbols[0]}`);
   console.log(`  attemptedCount=${bestAmountAttemptedCount}`);
-  console.log(`  selected routeIndex=${routeIndex}`);
+  console.log(`  selected pools entry=${selectedEntryIndex} bridge=${selectedBridgeIndex} exit=${selectedExitIndex}`);
   console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
-  console.log(`  outTb=${ethers.formatUnits(result[0], 18)}`);
-  console.log(`  outTa=${ethers.formatUnits(result[1], 18)}`);
-  console.log(`  out${symbols[0]}=${ethers.formatUnits(result[2], 18)}`);
-  console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
+  console.log(`  outTb=${ethers.formatUnits(result[0], borrowDecimals)}`);
+  console.log(`  outTa=${ethers.formatUnits(result[1], borrowDecimals)}`);
+  console.log(`  out${symbols[0]}=${ethers.formatUnits(result[2], borrowDecimals)}`);
+  console.log(`  profit=${ethers.formatUnits(result[3], borrowDecimals)} ${symbols[0]}`);
   const staticOk = result[3] > 0n;
-  const profitHuman = ethers.formatUnits(result[3], 18);
-  const outAmountHuman = ethers.formatUnits(result[2], 18);
+  const profitHuman = ethers.formatUnits(result[3], borrowDecimals);
+  const outAmountHuman = ethers.formatUnits(result[2], borrowDecimals);
   console.log(
     "\nOFFICIAL_V4_ARB_RESULT_JSON " +
       JSON.stringify({
@@ -701,11 +918,15 @@ async function main() {
         bestAmountRaw: selectedAmountBig.toString(),
         bestAmountMethod,
         bestAmountAttemptedCount,
-        previewMethod: "previewArbitrageBestAmount",
+        previewMethod: "previewBestPool",
         amountIsBest: amountAlreadyBest,
         staticCall: staticOk ? "ok" : "not_profitable",
         method: "runArbitrage",
         routeIndex,
+        selectedPool,
+        selectedEntryIndex,
+        selectedBridgeIndex,
+        selectedExitIndex,
         profit: result[3].toString(),
         profitHuman,
         profitRaw: result[3].toString(),
@@ -732,12 +953,16 @@ async function main() {
           bestAmountRaw: selectedAmountBig.toString(),
           bestAmountMethod,
           bestAmountAttemptedCount,
-          previewMethod: "previewArbitrageBestAmount",
+          previewMethod: "previewBestPool",
           amountIsBest: amountAlreadyBest,
           staticCall: "ok",
           broadcastDisabled: true,
           method: "runArbitrage",
           routeIndex,
+          selectedPool,
+          selectedEntryIndex,
+          selectedBridgeIndex,
+          selectedExitIndex,
           profit: result[3].toString(),
           profitHuman,
           profitRaw: result[3].toString(),
@@ -748,14 +973,74 @@ async function main() {
     return;
   }
 
-  const tx = await arb.runArbitrageBestWithSelectedAmount(
+  let broadcastRouteIndexes = null;
+  try {
+    const broadcastResult = await arb.runArbitrageBestPoolsWithSelectedAmount.staticCall(
+      routeAddresses[0],
+      entryKeys,
+      entryDirections,
+      bridgeKeys,
+      bridgeDirections,
+      exitKeys,
+      exitDirections,
+      selectedAmountBig,
+      minProfit
+    );
+    broadcastRouteIndexes = {
+      entryIndex: Number(broadcastResult.entryIndex ?? broadcastResult[4] ?? 0n),
+      bridgeIndex: Number(broadcastResult.bridgeIndex ?? broadcastResult[5] ?? 0n),
+      exitIndex: Number(broadcastResult.exitIndex ?? broadcastResult[6] ?? 0n),
+      profit: String(broadcastResult.profit ?? broadcastResult[3] ?? 0n),
+    };
+    if (BigInt(broadcastRouteIndexes.profit) <= 0n) {
+      throw new Error("NoProfitableRoute");
+    }
+  } catch (error) {
+    const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "", borrowDecimals);
+    console.log(
+      "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+        JSON.stringify({
+          ok: false,
+          error: "static_arb_call_reverted",
+          detail: revertInfo.errorDetail || error.shortMessage || error.reason || error.message || error,
+          errorData: revertInfo.data,
+          errorSelector: revertInfo.selector,
+          errorDetail: revertInfo.errorDetail,
+          routeSymbols: symbols,
+          selectedRouteSymbols: selectedSymbols,
+          amount: amountText,
+          initialAmount: reportedInitialAmount,
+          bestAmount: selectedAmountText,
+          bestAmountRaw: selectedAmountBig.toString(),
+          bestAmountMethod,
+          bestAmountAttemptedCount,
+          previewMethod: "previewBestPool",
+          amountIsBest: amountAlreadyBest,
+          staticCall: "reverted",
+          method: "runArbitrageBestPoolsWithSelectedAmount",
+          routeIndex,
+          selectedPool,
+          selectedEntryIndex,
+          selectedBridgeIndex,
+          selectedExitIndex,
+        })
+    );
+    console.error("official V4 broadcast candidate-pool static preflight reverted");
+    console.error(`  shortMessage=${error.shortMessage || error.message || ""}`);
+    console.error(`  data=${revertInfo.data}`);
+    console.error(`  errorDetail=${revertInfo.errorDetail}`);
+    throw error;
+  }
+  const tx = await arb.runArbitrageBestPoolsWithSelectedAmount(
     routeAddresses[0],
-    keysets,
-    directionsets,
+    entryKeys,
+    entryDirections,
+    bridgeKeys,
+    bridgeDirections,
+    exitKeys,
+    exitDirections,
     selectedAmountBig,
-    minProfit,
-    true,
-    routeIndex
+    minProfit
   );
   const txHash = tx.hash;
   let receipt = null;
@@ -774,6 +1059,7 @@ async function main() {
     amountIn: amountIn.toString(),
     initialAmountIn: amountIn.toString(),
     selectedAmountIn: selectedAmountBig.toString(),
+    borrowTokenDecimals: borrowDecimals,
     outTb: result[0].toString(),
     outTa: result[1].toString(),
     outTz: result[2].toString(),
@@ -788,7 +1074,16 @@ async function main() {
     gasUsed: receipt ? receipt.gasUsed.toString() : "0",
     waitError: waitError ? (waitError.shortMessage || waitError.reason || waitError.message || String(waitError)).slice(0, 200) : null,
     route: { keys, directions },
-    bestRoute: { keysets, directionsets, routeIndex },
+    selectedRoute: { keys: selectedKeys, directions: selectedDirections },
+    broadcastCandidatePools: {
+      entryKeys,
+      entryDirections,
+      bridgeKeys,
+      bridgeDirections,
+      exitKeys,
+      exitDirections,
+    },
+    bestRoute: { routeIndex, selectedPool, broadcastRouteIndexes },
     selectedRouteSymbols: selectedSymbols,
     reservePolicy: "80_percent_creation_reserve_is_for_later_liquidity_not_a_post_run_floor",
   };
@@ -798,10 +1093,11 @@ async function main() {
   console.log(`  txHash=${txHash}`);
   console.log(`  gasUsed=${receipt ? receipt.gasUsed : "pending"}`);
   console.log(`  routeIndex=${routeIndex}`);
+  console.log(`  selected pools entry=${selectedEntryIndex} bridge=${selectedBridgeIndex} exit=${selectedExitIndex}`);
   console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
-  console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
+  console.log(`  profit=${ethers.formatUnits(result[3], borrowDecimals)} ${symbols[0]}`);
   if (waitError) {
-    const revertInfo = decodeRevertData(waitError.data || waitError.info?.error?.data || "");
+    const revertInfo = decodeRevertData(waitError.data || waitError.info?.error?.data || "", borrowDecimals);
     console.log(
       "\nOFFICIAL_V4_ARB_RESULT_JSON " +
         JSON.stringify({
@@ -819,12 +1115,17 @@ async function main() {
           bestAmountRaw: selectedAmountBig.toString(),
           bestAmountMethod,
           bestAmountAttemptedCount,
-          previewMethod: "previewArbitrageBestAmount",
+          previewMethod: "previewBestPool",
           amountIsBest: true,
           broadcast: true,
           txHash,
-          method: "runArbitrage",
+          method: "runArbitrageBestPoolsWithSelectedAmount",
           routeIndex,
+          selectedPool,
+          selectedEntryIndex,
+          selectedBridgeIndex,
+          selectedExitIndex,
+          broadcastRouteIndexes,
           profit: result[3].toString(),
           profitHuman,
           profitRaw: result[3].toString(),
@@ -851,12 +1152,17 @@ async function main() {
         bestAmountRaw: selectedAmountBig.toString(),
         bestAmountMethod,
         bestAmountAttemptedCount,
-        previewMethod: "previewArbitrageBestAmount",
+        previewMethod: "previewBestPool",
         amountIsBest: true,
         broadcast: true,
         txHash,
-        method: "runArbitrage",
+        method: "runArbitrageBestPoolsWithSelectedAmount",
         routeIndex,
+        selectedPool,
+        selectedEntryIndex,
+        selectedBridgeIndex,
+        selectedExitIndex,
+        broadcastRouteIndexes,
         profit: result[3].toString(),
         profitHuman,
         profitRaw: result[3].toString(),

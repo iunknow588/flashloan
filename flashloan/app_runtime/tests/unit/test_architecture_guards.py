@@ -550,7 +550,8 @@ def test_dex_opportunity_runtime_layer_boundaries():
     assert "dex_opportunity_review_engine" not in facade_source
     assert "DexOpportunityReviewEngineMixin" not in facade_source
     assert "DexOpportunityReviewEngineMixin" in engine_source
-    assert "class DexOpportunityScanner(DexOpportunityReviewEngineMixin)" in engine_source
+    assert "class DexOpportunityScanner(" in engine_source
+    assert "DexOpportunityReviewEngineMixin" in engine_source
 
     implementation_names = (
         "def _fixed_refresh_group",
@@ -590,12 +591,13 @@ def test_repo_root_keeps_only_intended_config_files():
         "dex_runtime_",
         "mainnet_",
         "run-",
-        "run_codex_",
-        "restart_",
-        "step.",
-        "watcher_",
-        "web-testnet-46630.",
-    )
+            "run_codex_",
+            "restart_",
+            "step.",
+            "watcher_",
+            "monitor_",
+            "web-testnet-46630.",
+        )
     offenders = [
         path.name
         for path in REPO_ROOT.iterdir()
@@ -922,6 +924,10 @@ def test_web_route_registration_smoke():
     assert "/api/liquidation-health" in paths
     assert "/api/liquidation/borrow-pool/scan" in paths
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths
+    assert "/api/manager/capabilities" in paths
+    assert "/api/manager/pipeline/status" in paths
+    assert "/api/manager/pipeline/runs" in paths
+    assert "/api/manager/pipeline/runs/<run_id>" in paths
 
 
 def test_page_status_enums_do_not_include_cross_page_route_nodes():
@@ -1015,3 +1021,451 @@ def test_unified_direct_submission_has_no_reachable_legacy_controller_path():
     assert "_submit_legacy_direct_onchain_trade(" not in submit_body
     assert "UnifiedFlashLoanMevExecutor" in legacy_body
     assert 'status": "legacy_direct_path_disabled"' in legacy_body
+
+
+def test_robinhood_page_read_paths_do_not_read_ui_evidence_json():
+    page_payload = _resolved("core/db/page_payloads.py").read_text(encoding="utf-8")
+    assert "def build_candidate_payload(" in page_payload
+    assert "runtime/evidence" not in page_payload
+    assert "latest.json" not in page_payload
+    assert "/v4_pool_index/" not in page_payload
+
+    for path in (SRC_ROOT / "web" / "data_routes").glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert "runtime/evidence" not in source, f"{path} still reads evidence JSON"
+        assert "latest.json" not in source, f"{path} still reads UI JSON shards"
+
+
+def test_migrated_submission_reads_and_clears_are_manager_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    forbidden_legacy_symbols = (
+        "load_cow_execution_attempt_detail",
+        "manager_ui_data_source",
+        "clear_cow_execution_attempts_sqlite",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in source, f"migrated submission path must not import {symbol}"
+
+    detail_body = source[source.index("def dex_submission_detail():") :]
+    clear_body = source[source.index("def dex_submission_clear():") :]
+    assert "submission_detail_manager_payload(" in detail_body
+    assert "submission_clear_manager_payload(" in clear_body
+    assert "sqlite" not in detail_body.lower()
+    assert "sqlite" not in clear_body.lower()
+    assert "legacyUnaffected" not in detail_body
+    assert "legacyUnaffected" not in clear_body
+
+
+def test_migrated_review_routes_are_manager_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    review_start = source.index("def dex_submission_review_records(")
+    execution_start = source.index("def dex_submission_execution_success_records(")
+    review_body = source[review_start:execution_start]
+
+    forbidden_legacy_symbols = (
+        "_load_submission_review_groups",
+        "_submission_record_api_payload",
+        "_submission_database_url",
+        "load_recent_cow_execution_attempts_sqlite_grouped",
+        "count_cow_execution_attempts_sqlite_grouped",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in review_body, (
+            f"migrated review routes must not call {symbol}"
+        )
+
+    assert "_manager_review_read(" in review_body
+    assert "review_manager_page_payload(" in source
+    assert "sqlite" not in review_body.lower()
+    assert "legacyUnaffected" not in review_body
+
+
+def test_migrated_submission_overview_routes_are_manager_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    overview_start = source.index("def dex_submission_review():")
+    failed_start = source.index("def dex_submission_failed_review(")
+    success_start = source.index("def dex_submission_success_review(")
+    overview_body = source[overview_start:failed_start]
+    failed_body = source[failed_start:success_start]
+    migrated_body = source[overview_start:success_start]
+
+    forbidden_legacy_symbols = (
+        "_submission_response_cache_key",
+        "_cached_submission_response_payload",
+        "_cache_submission_response_payload",
+        "_load_submission_review_groups",
+        "_submission_record_api_payload",
+        "_submission_database_url",
+        "load_recent_cow_execution_attempts_sqlite_grouped",
+        "count_cow_execution_attempts_sqlite_grouped",
+        "_submission_review_framework_payload",
+        "_closed_loop_runtime_state_summary",
+        "_attach_submission_manager_shadow",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in migrated_body, (
+            f"migrated submission overview/failed routes must not call {symbol}"
+        )
+
+    assert overview_start < failed_start < success_start
+    assert '_manager_submission_read("dex_submission_review")' in overview_body
+    assert '"dex_submission_failed_review",' in failed_body
+    assert "failure_category=category" in failed_body
+    assert "submission_overview_manager_payload(" in source
+    assert "sqlite" not in migrated_body.lower()
+    assert "legacyUnaffected" not in migrated_body
+
+
+def test_migrated_dex_overview_route_is_manager_only():
+    config_path = _resolved("web/data_routes/dex_surface_routes_config.py")
+    source = config_path.read_text(encoding="utf-8")
+
+    overview_start = source.index("def dex_overview():")
+    closed_loop_start = source.index("def dex_closed_loop_groups():")
+    overview_body = source[overview_start:closed_loop_start]
+
+    forbidden_legacy_symbols = (
+        "_bootstrap_dex_surface_dependencies",
+        "_dex_surface_payload_for_chain",
+        "dex_overview_payload(",
+        "_clear_dex_surface_cache",
+        "overview_manager_shadow_payload",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in overview_body, (
+            f"migrated dex overview route must not call {symbol}"
+        )
+
+    assert overview_start < closed_loop_start
+    assert "overview_manager_page_payload(" in overview_body
+    assert '"manager_read_failed"' in overview_body
+    assert '"dataSource": "manager"' in overview_body
+    assert "sqlite" not in overview_body.lower()
+
+
+def test_migrated_dex_closed_loop_groups_route_is_manager_only():
+    config_path = _resolved("web/data_routes/dex_surface_routes_config.py")
+    source = config_path.read_text(encoding="utf-8")
+
+    closed_loop_start = source.index("def dex_closed_loop_groups():")
+    market_observation_start = source.index("def dex_market_observation():")
+    closed_loop_body = source[closed_loop_start:market_observation_start]
+
+    forbidden_legacy_symbols = (
+        "load_observation_overview_for_scope",
+        "closed_loop_route_groups_payload(",
+        "closed_loop_manager_shadow_payload",
+        "managerShadow",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in closed_loop_body, (
+            f"migrated closed-loop groups route must not call {symbol}"
+        )
+
+    assert "closed_loop_manager_page_payload(" in closed_loop_body
+    assert '"manager_read_failed"' in closed_loop_body
+    assert '"dataSource": "manager"' in closed_loop_body
+    assert "sqlite" not in closed_loop_body.lower()
+
+
+def test_migrated_dex_market_observation_route_is_manager_only():
+    config_path = _resolved("web/data_routes/dex_surface_routes_config.py")
+    source = config_path.read_text(encoding="utf-8")
+
+    observation_start = source.index("def dex_market_observation():")
+    refresh_start = source.index("def dex_market_observation_refresh():")
+    observation_body = source[observation_start:refresh_start]
+
+    forbidden_legacy_symbols = (
+        "_bootstrap_dex_surface_dependencies",
+        "_dex_surface_payload_for_chain",
+        "_market_observation_page_payload",
+        "_market_observation_static_metadata",
+        "dex_market_observation_payload(",
+        "_clear_dex_surface_cache",
+        "_cached_surface_payload",
+        "market_observation_manager_shadow_payload",
+        "managerShadow",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in observation_body, (
+            f"migrated market-observation route must not call {symbol}"
+        )
+
+    assert "market_observation_manager_page_payload(" in observation_body
+    assert '"manager_read_failed"' in observation_body
+    assert '"dataSource": "manager"' in observation_body
+    assert "sqlite" not in observation_body.lower()
+
+
+def test_dex_market_observation_refresh_is_runtime_core_command_only():
+    config_path = _resolved("web/data_routes/dex_surface_routes_config.py")
+    source = config_path.read_text(encoding="utf-8")
+
+    refresh_start = source.index("def dex_market_observation_refresh():")
+    refresh_body = source[refresh_start:]
+    forbidden_legacy_symbols = (
+        "_clear_dex_surface_cache",
+        "_dex_surface_payload_for_chain",
+        "_finalize_market_observation_payload",
+        "_market_observation_page_payload",
+        "dex_market_observation_payload(",
+        "ManagerApiClient",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in refresh_body, (
+            f"migrated market-observation refresh must not call {symbol}"
+        )
+
+    assert "candidate_exchange_refresh_manager_payload(" in refresh_body
+    assert "market_observation_manager_page_payload(" in refresh_body
+    assert "rebuild_candidate_exchange_pools" in refresh_body
+    assert '"X-Request-Id"' in refresh_body
+    assert '"Idempotency-Key"' in refresh_body
+    assert '"dry_run_required"' in refresh_body
+    assert '"dataSource": "manager"' in refresh_body
+
+    template = _resolved("web/templates/market_observation.html").read_text(
+        encoding="utf-8"
+    )
+    assert "async function postJson(" in template
+    assert "function requestToken(" in template
+    assert '"X-Request-Id":' in template
+    assert '"Idempotency-Key":' in template
+    assert '"Content-Type": "application/json"' in template
+    assert "dryRun: false" in template
+
+
+def test_migrated_dex_quote_routes_is_manager_only():
+    quotes_path = _resolved("web/data_routes/dex_surface_routes_quotes.py")
+    source = quotes_path.read_text(encoding="utf-8")
+
+    quote_start = source.index("def dex_quote_routes():")
+    compact_pool_start = source.index("def _compact_static_route_pool(")
+    quote_body = source[quote_start:compact_pool_start]
+
+    forbidden_legacy_symbols = (
+        "_bootstrap_dex_surface_dependencies",
+        "_dex_surface_payload_for_chain",
+        "dex_quote_routes_payload(",
+        "dex_opportunity_snapshot(",
+        "run_dex_opportunity_scan_now(",
+        "load_observation_overview_for_scope(",
+        "_merge_recent_attempt_evidence_into_routes(",
+        "managerShadow",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in quote_body, (
+            f"migrated dex quote-routes GET must not call {symbol}"
+        )
+
+    assert "quote_routes_manager_page_payload(" in quote_body
+    assert '"manager_read_failed"' in quote_body
+    assert '"dataSource": "manager"' in quote_body
+    assert "sqlite" not in quote_body.lower()
+
+
+def test_migrated_dex_quote_request_is_manager_only():
+    quotes_path = _resolved("web/data_routes/dex_surface_routes_quotes.py")
+    source = quotes_path.read_text(encoding="utf-8")
+
+    request_start = source.index("def dex_quote_request():")
+    request_body = source[request_start:]
+
+    forbidden_legacy_symbols = (
+        "_bootstrap_dex_surface_dependencies",
+        "_dex_surface_payload_for_chain",
+        "dex_quote_request_payload(",
+        "dex_quote_routes_payload(",
+        "load_observation_overview_for_scope(",
+        "managerShadow",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in request_body, (
+            f"migrated dex quote-request GET must not call {symbol}"
+        )
+
+    assert "quote_request_manager_page_payload(" in request_body
+    assert '"manager_read_failed"' in request_body
+    assert '"manager_request_not_found"' in request_body
+    assert '"dataSource": "manager"' in request_body
+    assert "sqlite" not in request_body.lower()
+
+
+def test_migrated_dex_pool_candidates_route_is_manager_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    candidates_start = source.index("def dex_pool_candidates():")
+    refresh_start = source.index("def dex_pool_candidates_refresh():")
+    candidates_body = source[candidates_start:refresh_start]
+
+    forbidden_legacy_symbols = (
+        "_bootstrap_dex_surface_dependencies",
+        "dex_pool_candidates_payload(",
+        "paginate_candidate_payload",
+        "candidate_manager_shadow_payload",
+        "managerShadow",
+        "legacyUnaffected",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in candidates_body, (
+            f"migrated dex-pools/candidates route must not call {symbol}"
+        )
+
+    assert "candidate_manager_page_payload(" in candidates_body
+    assert '"manager_read_failed"' in candidates_body
+    assert '"dataSource": "manager"' in candidates_body
+    assert "sqlite" not in candidates_body.lower()
+
+
+def test_dex_pool_candidates_refresh_is_runtime_core_command_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    refresh_start = source.index("def dex_pool_candidates_refresh():")
+    refresh_end = source.index("def register_dex_submission_routes(", refresh_start)
+    refresh_body = source[refresh_start:refresh_end]
+
+    forbidden_legacy_symbols = (
+        "dex_pool_candidates_payload(",
+        "paginate_candidate_payload(",
+        "ManagerApiClient",
+        "_root._refresh_state_summary(",
+    )
+    for symbol in forbidden_legacy_symbols:
+        assert symbol not in refresh_body, (
+            f"migrated candidate refresh must not call {symbol}"
+        )
+
+    assert "candidate_edge_refresh_manager_payload(" in refresh_body
+    assert "candidate_manager_page_payload(" in refresh_body
+    assert "rebuild_candidate_edges" in refresh_body
+    assert '"X-Request-Id"' in refresh_body
+    assert '"Idempotency-Key"' in refresh_body
+    assert '"dry_run_required"' in refresh_body
+    assert '"dataSource": "manager"' in refresh_body
+
+    template = _resolved("web/templates/dex_pool_candidates.html").read_text(
+        encoding="utf-8"
+    )
+    assert "async function postJson(" in template
+    assert 'method: "POST"' in template
+    assert '"X-Request-Id":' in template
+    assert '{"Idempotency-Key": requestToken("ui-candidate-refresh")}' in template
+
+
+def test_dex_closed_loop_broadcast_failure_audit_is_manager_only():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    source = ops_path.read_text(encoding="utf-8")
+
+    route_start = source.index("def dex_closed_loop_broadcast_failures():")
+    route_end = source.index("def dex_opportunity_scanner_scan_now():", route_start)
+    route_body = source[route_start:route_end]
+
+    for symbol in (
+        "broadcast_failure_audit",
+        "load_broadcast_failure_audit_records(",
+        "broadcast_failure_audit_path(",
+        "read_text(",
+    ):
+        assert symbol not in route_body, (
+            f"broadcast failure audit route must not read evidence files: {symbol}"
+        )
+
+    assert "broadcast_failure_manager_payload(" in route_body
+    assert '"dataSource": "manager"' in route_body
+    assert '"manager_read_failed"' in route_body
+
+    payload_path = _resolved(
+        "web/data_routes/manager_broadcast_failure_payload.py"
+    )
+    payload_source = payload_path.read_text(encoding="utf-8")
+    assert '"/v1/broadcasts"' in payload_source
+    assert '"status": "failed"' in payload_source
+    assert "managerAttempt" in payload_source
+
+    template = _resolved("web/templates/dex_submissions.html").read_text(encoding="utf-8")
+    assert "Broadcast Manager" in template
+    assert "Manager 记录可用" in template
+    assert "审计文件" not in template
+
+
+def test_d9_40_migrated_page_modules_have_no_dead_legacy_submission_sqlite_paths():
+    ops_path = _resolved("web/data_routes/dex_surface_routes_ops.py")
+    ops_source = ops_path.read_text(encoding="utf-8")
+    forbidden_ops_symbols = (
+        "_load_submission_review_groups",
+        "_submission_record_api_payload",
+        "_submission_response_cache",
+        "_cached_submission_response_payload",
+        "_cache_submission_response_payload",
+        "count_cow_execution_attempts_sqlite_grouped",
+        "load_recent_cow_execution_attempts_sqlite_grouped",
+        "compact_cow_execution_groups",
+    )
+    for symbol in forbidden_ops_symbols:
+        assert symbol not in ops_source, (
+            f"migrated submission route module must not retain dead legacy SQLite path: {symbol}"
+        )
+
+    helpers_path = _resolved("web/data_routes/dex_surface_helpers.py")
+    helpers_source = helpers_path.read_text(encoding="utf-8")
+    forbidden_helper_symbols = (
+        "_merge_recent_attempt_evidence_into_routes",
+        "load_recent_cow_execution_attempts",
+        "request_chain_database_url",
+        "_network_for_chain_id",
+    )
+    for symbol in forbidden_helper_symbols:
+        assert symbol not in helpers_source, (
+            f"quote helper must not retain dead recent-attempt SQLite merge path: {symbol}"
+        )
+
+
+def test_d9_41_control_panel_scanner_lifecycle_is_manager_read_only():
+    control_source = _resolved("web/control_panel_page_routes.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_dex_manager_status_payload(" in control_source
+    assert "get_dex_opportunity_scanner" not in control_source
+    assert "chain_runtime.scanner" not in control_source
+
+    template = _resolved("web/templates/control_panel.html").read_text(
+        encoding="utf-8"
+    )
+    for forbidden in (
+        "/api/dex/opportunity-scanner/",
+        "dexAutoExecuteToggle",
+        "setupDexAutoExecuteToggle",
+        "auto_execute_enabled",
+        "auto_execute_count",
+        "scan_count",
+        "interval_seconds",
+    ):
+        assert forbidden not in template, (
+            f"control panel must not reconnect to Python scanner lifecycle: {forbidden}"
+        )
+
+    formal_templates = [
+        "web/templates/dex_quotes.html",
+        "web/templates/dex_overview.html",
+        "web/templates/dex_pool_candidates.html",
+        "web/templates/market_observation.html",
+    ]
+    for relative_path in formal_templates:
+        source = _resolved(relative_path).read_text(encoding="utf-8")
+        assert "opportunity-scanner" not in source, (
+            f"formal page must not reconnect to scanner maintenance routes: {relative_path}"
+        )

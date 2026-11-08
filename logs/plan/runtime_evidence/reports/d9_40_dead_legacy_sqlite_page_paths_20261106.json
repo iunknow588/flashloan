@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "flashloan-plan-runtime-evidence-v1",
+  "taskId": "D9.40",
+  "milestone": "M9",
+  "title": "Retire dead legacy SQLite paths from migrated page modules",
+  "status": "passed",
+  "date": "2026-11-06",
+  "scope": {
+    "modules": [
+      "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "flashloan/app_runtime/web/data_routes/dex_surface_helpers.py",
+      "flashloan/app_runtime/web/data_routes/dex_surfaces.py"
+    ],
+    "removedSubmissionWrappers": [
+      "_SUBMISSION_RESPONSE_CACHE",
+      "_submission_response_cache_key",
+      "_cached_submission_response_payload",
+      "_cache_submission_response_payload",
+      "_submission_row_chain_id",
+      "_filter_submission_rows_by_chain",
+      "_load_submission_review_groups",
+      "_submission_record_api_payload",
+      "_submission_pagination",
+      "_attach_submission_pagination"
+    ],
+    "removedHelper": "_merge_recent_attempt_evidence_into_routes",
+    "managerRoutesRemainManagerOnly": true,
+    "storageFunctionsRemainForPythonTestsAndUnmigratedAdmin": true,
+    "binanceMarketAdminNotRewritten": true
+  },
+  "implementation": {
+    "routeModule": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "helperModule": "flashloan/app_runtime/web/data_routes/dex_surface_helpers.py",
+    "compatImportRemoved": "dex_surfaces.py",
+    "architectureGuard": "test_d9_40_migrated_page_modules_have_no_dead_legacy_submission_sqlite_paths",
+    "failClosed": true
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "python -m py_compile dex_surface_routes_ops.py dex_surface_helpers.py dex_surfaces.py test_web_app_assembly_dex_records.py test_manager_page_compare.py test_manager_page_compare_quote_routes.py test_dex_surface_helpers.py",
+        "exitCode": 0
+      },
+      {
+        "command": "python -m pytest flashloan/app_runtime/tests/unit/test_dex_surface_helpers.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py flashloan/app_runtime/tests/unit/test_architecture_guards.py flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+        "exitCode": 0,
+        "summary": "155 passed in 37.11s"
+      },
+      {
+        "command": "python -m pytest flashloan/app_runtime/tests/unit/test_dex_submission_failure_categories.py flashloan/app_runtime/tests/unit/test_dex_surface_closed_loop_monitor.py flashloan/app_runtime/tests/functional/test_web_app_assembly.py -q",
+        "exitCode": 0,
+        "summary": "38 passed in 42.65s"
+      }
+    ],
+    "legacySymbolScan": {
+      "command": "rg -n _load_submission_review_groups|_submission_record_api_payload|_submission_response_cache|count_cow_execution_attempts_sqlite_grouped|load_recent_cow_execution_attempts_sqlite_grouped|compact_cow_execution_groups|_merge_recent_attempt_evidence_into_routes over migrated page modules",
+      "matchesInMigratedPageModules": 0
+    }
+  },
+  "safety": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "migrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmitted": false,
+    "transactionSigned": false,
+    "transactionBroadcast": false,
+    "historicalEvidenceModified": false
+  }
+}

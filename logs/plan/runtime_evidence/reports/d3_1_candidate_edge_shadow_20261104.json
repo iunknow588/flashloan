@@ -1,0 +1,143 @@
+{
+  "evidenceId": "d3_1_candidate_edge_shadow_20261104",
+  "generatedAt": "2026-11-04T07:17:31.2061003+08:00",
+  "status": "code_and_temporary_db_complete_production_cutover_pending",
+  "milestone": "M3/D3.1",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "candidateScope": "core4",
+    "managerTables": [
+      "manager_dex_candidate_library_state",
+      "manager_dex_candidate_anchor_tokens",
+      "manager_dex_candidate_pool_pairs",
+      "manager_dex_candidate_pools",
+      "manager_dex_candidate_pool_recommendations",
+      "manager_dex_candidate_abnormal_anchor_tokens",
+      "manager_dex_candidate_abnormal_pool_pairs",
+      "manager_dex_candidate_abnormal_pools"
+    ],
+    "legacyTables": [
+      "dex_candidate_anchor_tokens",
+      "dex_candidate_pool_pairs",
+      "dex_candidate_pools",
+      "dex_candidate_pool_recommendations",
+      "dex_candidate_abnormal_anchor_tokens",
+      "dex_candidate_abnormal_pool_pairs",
+      "dex_candidate_abnormal_pools"
+    ],
+    "usdDepthRequired": false,
+    "usdTvlRequired": false,
+    "usdgOrUsdeRelationshipRequired": false
+  },
+  "migration": {
+    "migrationIds": [
+      "20261103_001_manager_schema",
+      "20261104_001_candidate_edge_schema"
+    ],
+    "candidateMigrationChecksum": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+    "schemaChecksum": "sha256:f2974c34f54391db1b0d17d8463c7cb2f6bee7a31e05f2f526b21c628d875ca1",
+    "temporaryDatabase": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\m3_shadow_20261104065530.sqlite3",
+    "firstRunAppliedNow": true,
+    "secondRunAppliedNow": false,
+    "databaseSha256AfterFirstRun": "538D0610E91F48EEC3782280E9D192ED65D81393C30C17E6FD7288E3CA53EC0B",
+    "databaseSha256AfterSecondRun": "538D0610E91F48EEC3782280E9D192ED65D81393C30C17E6FD7288E3CA53EC0B",
+    "legacyTablesReusedByManagerMigration": false
+  },
+  "sourceDatabaseReadOnlyPreflight": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "fileSizeBytes": 3315490816,
+    "quickCheck": "ok",
+    "readyForMigration": true,
+    "managerTargetTableCount": 17,
+    "managerTargetTablesPresent": 0,
+    "legacyCandidateTableCount": 7,
+    "legacyDexCandidatePoolsCount": 1531,
+    "migrationApplied": false,
+    "businessRowsWritten": false,
+    "serviceStartedOrStopped": false
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --workspace --all-targets",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "passed": 95,
+      "failed": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --lib",
+      "workingDirectory": "flashloan/rs-src",
+      "exitCode": 0,
+      "passed": 88,
+      "failed": 0
+    }
+  ],
+  "workspaceTests": {
+    "candidateEdgePoolManager": 6,
+    "managerApi": 15,
+    "managerContractsUnit": 9,
+    "managerContractsGolden": 1,
+    "managerDb": 5,
+    "poolManager": 10,
+    "tokenManager": 49,
+    "total": 95
+  },
+  "compareOnlyGate": {
+    "endpoint": "GET /v1/candidate-edge-pools/compare",
+    "readOnly": true,
+    "writesBusinessRows": false,
+    "writesIdempotencyRows": false,
+    "writesEvents": false,
+    "compares": [
+      "anchorTokens",
+      "poolPairs",
+      "pools",
+      "recommendations"
+    ],
+    "outputs": [
+      "managerChecksum",
+      "managerRowCount",
+      "legacyRowCount",
+      "managerOnlyCount",
+      "legacyOnlyCount",
+      "fieldMismatchCount",
+      "unresolvedLegacyAnchors",
+      "causeCounts",
+      "differenceSamples"
+    ],
+    "matchingFixtureReachedReadyForCutover": true,
+    "fieldMutationBlockedCutover": true,
+    "databaseBytesUnchangedDuringReadOnlyComparison": true
+  },
+  "productionCutoverGatesRemaining": [
+    "bootstrap M1 token libraries in a production copy",
+    "materialize M2 core4 scope in the same production copy",
+    "materialize M3 manager_dex_candidate shadow tables in that copy",
+    "run compare-only against the corresponding legacy anchor scope and attribute every difference",
+    "obtain zero structural differences and zero unresolved legacy anchors",
+    "record pre-apply quick_check, counts, database size, service PID, and WAL/SHM state",
+    "perform the production migration and M3 authority cutover in a separate maintenance window",
+    "keep P0 and M7 real broadcast gates independent from M3 shadow completion"
+  ],
+  "nextExecutableTask": {
+    "id": "D4.1/M4",
+    "scope": "implement Candidate Exchange Pool Manager code and temporary-database tests",
+    "productionDependency": "M3 production bootstrap, real-copy comparison, and cutover"
+  }
+}

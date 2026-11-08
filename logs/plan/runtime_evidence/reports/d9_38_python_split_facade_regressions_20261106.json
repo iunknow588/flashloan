@@ -1,0 +1,155 @@
+{
+  "evidenceId": "d9_38_python_split_facade_regressions_20261106",
+  "task": "D9.38 complete Python domain splits behind compatibility facades and rerun regressions",
+  "recordedAt": "2026-11-06T23:59:36+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmittedToRealWorker": false,
+    "signedTransaction": false,
+    "broadcastSent": false,
+    "historicalEvidenceRewrittenAsPass": false
+  },
+  "implementation": {
+    "compatibilityFacades": [
+      {
+        "path": "flashloan/src/core/db/storage_cow_execution.py",
+        "lineCount": 93,
+        "modules": [
+          "flashloan/src/core/db/storage_cow_execution_schema.py",
+          "flashloan/src/core/db/storage_cow_execution_query.py",
+          "flashloan/src/core/db/storage_cow_execution_reader.py",
+          "flashloan/src/core/db/storage_cow_execution_writer.py"
+        ]
+      },
+      {
+        "path": "flashloan/src/dex/runtime/dex_opportunity_scanner_engine.py",
+        "lineCount": 165,
+        "modules": [
+          "flashloan/src/dex/runtime/dex_opportunity_scanner_lifecycle.py",
+          "flashloan/src/dex/runtime/dex_opportunity_scanner_state.py",
+          "flashloan/src/dex/runtime/dex_opportunity_scanner_recording.py",
+          "flashloan/src/dex/runtime/dex_opportunity_scanner_flow.py"
+        ]
+      },
+      {
+        "path": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+        "lineCount": 67,
+        "modules": [
+          "flashloan/app_runtime/web/data_routes/manager_page_compare_common.py",
+          "flashloan/app_runtime/web/data_routes/manager_candidate_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_candidate_refresh_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_closed_loop_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_market_observation_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_submission_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_submission_execution_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_overview_payload.py",
+          "flashloan/app_runtime/web/data_routes/manager_quote_payload.py"
+        ]
+      },
+      {
+        "path": "flashloan/app_runtime/web/static/dex_submission_records.js",
+        "lineCount": 184,
+        "modules": [
+          "flashloan/app_runtime/web/static/dex_submission_records_config.js",
+          "flashloan/app_runtime/web/static/dex_submission_record_model.js",
+          "flashloan/app_runtime/web/static/dex_submission_record_render.js"
+        ]
+      }
+    ],
+    "additionalLineCounts": {
+      "flashloan/app_runtime/web/data_routes/manager_candidate_payload.py": 986,
+      "flashloan/app_runtime/web/data_routes/manager_submission_payload.py": 980
+    },
+    "fixes": [
+      "removed wildcard imports from manager_page_compare compatibility facade",
+      "restored created_at source mapping in COW summary fallback rows",
+      "made runtime_core_manager_overview_envelope resolve through the compatibility facade",
+      "fixed scanner lifecycle get_native_pool else-branch indentation",
+      "updated architecture guard to recognize the scanner mixin-composition facade"
+    ]
+  },
+  "verification": [
+    {
+      "command": "python -m py_compile <touched Python modules>",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check dex_submission_records_config.js && node --check dex_submission_record_model.js && node --check dex_submission_record_render.js && node --check dex_submission_records.js",
+      "workdir": "flashloan/app_runtime/web/static",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "48 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_manager_page_compare_quote_routes.py app_runtime/tests/unit/test_manager_compat_routes.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "71 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "22 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_dex_opportunity_auto_execute.py app_runtime/tests/unit/test_closed_loop_supervisor.py app_runtime/tests/unit/test_pool_candidates_scanner.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "92 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py -k scanner -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "11 passed, 65 deselected"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_storage_cow_execution_review.py app_runtime/tests/unit/test_storage_cow_execution_latest_rows.py app_runtime/tests/unit/test_storage_cow_execution_split_tables.py app_runtime/tests/unit/test_storage_cow_execution_summary_detail.py app_runtime/tests/unit/test_cow_execution_log_scoping.py app_runtime/tests/unit/test_storage_cow_prune.py app_runtime/tests/unit/test_selected_profit_persistence.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "43 passed, 1 skipped"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "42 passed"
+    }
+  ],
+  "architectureGuardObservation": {
+    "status": "green",
+    "wildcardImportsRemaining": 0,
+    "activeSourceLineLimitFailures": 0,
+    "compatibilityPatchPointsCovered": [
+      "ManagerApiClient on manager_page_compare",
+      "runtime_core_manager_overview_envelope on manager_page_compare",
+      "get_native_pool on dex_opportunity_scanner_engine"
+    ]
+  },
+  "documentation": {
+    "updated": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "singleCurrentPlanPreserved": true
+  },
+  "boundaries": [
+    "No page URL, DOM, DTO field, refresh behavior, authority, or broadcast gate changed.",
+    "No production database was read or written.",
+    "No service was started or stopped.",
+    "No real review or broadcast was submitted.",
+    "No transaction was signed or broadcast.",
+    "Prior evidence files were left unchanged."
+  ]
+}

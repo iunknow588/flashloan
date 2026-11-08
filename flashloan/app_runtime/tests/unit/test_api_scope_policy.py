@@ -21,6 +21,7 @@ def test_metadata_endpoints_are_scope_free():
 
 
 def test_business_api_endpoints_require_scope():
+    assert api_requires_scope("/api/manager/pipeline/status")
     assert api_requires_scope("/api/liquidation/accounts")
     assert api_requires_scope("/api/dex/overview")
     assert api_requires_scope("/api/binance-market/state")
@@ -275,7 +276,7 @@ def test_newly_registered_business_api_response_schemas_are_valid():
             "route_intent": None,
         },
         "/api/dex-pools/candidates/refresh": {"candidates": [], "refresh_state": {}},
-        "/api/dex/submissions": {"mode": "dex_submission_review", "summary": {}, "attempts": []},
+        "/api/dex/submissions": {"mode": "dex_submission_review", "summary": {}, "attempts": [], "loopStateSummary": {}},
         "/api/dex/submissions/clear": {"ok": True, "mode": "dex_submission_clear", "cleared": 0, "results": []},
         "/api/flash-loan/pool-discovery/refresh": {"protocol_count": 0, "protocols": []},
         "/api/flash-loan/pools/refresh": {"providers": [], "refresh_state": {}},

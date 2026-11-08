@@ -8,6 +8,11 @@ import pytest
 
 from web.control_panel import app
 from core.api_scope_policy import validate_named_response_contract
+from web.data_routes import (
+    dex_surface_routes_config,
+    dex_surface_routes_ops,
+    dex_surface_routes_quotes,
+)
 
 
 READ_ONLY_HANDLER_SAMPLES = (
@@ -45,11 +50,21 @@ READ_ONLY_HANDLER_SAMPLES = (
         None,
     ),
     (
+        "/api/dex/closed-loop-groups?market_id=dex-arbitrage-56-pancakeswap-v3&chain_id=56&protocols=pancakeswap_v3",
+        None,
+    ),
+    (
         "/api/dex/market-observation?market_id=dex-arbitrage-56-pancakeswap-v3&chain_id=56&protocols=pancakeswap_v3",
         None,
     ),
     (
         "/api/dex/quote-routes?market_id=dex-arbitrage-56-pancakeswap-v3&chain_id=56&protocols=pancakeswap_v3",
+        None,
+    ),
+    (
+        "/api/dex/quote-request?market_id=dex-arbitrage-56-pancakeswap-v3&chain_id=56"
+        "&protocols=pancakeswap_v3&pair=USDC%20-%3E%20WBNB%20-%3E%20USDC"
+        "&venue=uniswap_v4&amount=1000",
         None,
     ),
     (
@@ -59,7 +74,170 @@ READ_ONLY_HANDLER_SAMPLES = (
 )
 
 
-def test_read_only_handlers_return_contract_valid_json_payloads():
+def _install_manager_candidate_payload(monkeypatch):
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "candidate_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "dataSource": "manager",
+            "mode": "dex_pool_candidates",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {"staticPairCount": "0"},
+            "poolStaticTable": {},
+            "candidatePoolCache": {},
+            "anchorGroups": [],
+            "pairs": [],
+            "pagination": {},
+            "filters": {},
+        },
+    )
+
+
+def _install_manager_closed_loop_payload(monkeypatch):
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "closed_loop_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_closed_loop_groups",
+            "chainId": kwargs["chain_id"],
+            "chain_id": kwargs["chain_id"],
+            "network": "bnb",
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {
+                "groupCount": 0,
+                "borrowableSymbolCount": 0,
+                "closedLoopRouteCount": 0,
+            },
+            "groups": [],
+        },
+    )
+
+
+def _install_manager_market_observation_payload(monkeypatch):
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "market_observation_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_market_observation",
+            "chainId": kwargs["chain_id"],
+            "chain_id": kwargs["chain_id"],
+            "network": "bnb",
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {
+                "candidateObservationGroupCount": 0,
+                "observationAnchorCount": 0,
+                "unmatchedPairCount": 0,
+            },
+            "candidateObservationGroups": [],
+            "chainSpecificObservationPairs": [],
+            "chainSpecificObservationPools": [],
+            "chainSpecificObservationTokens": [],
+            "marketObservationStaticTable": {
+                "exists": True,
+                "path": "manager://candidate-exchange-pools",
+            },
+            "marketObservationPreview": {},
+            "unmatchedPools": [],
+        },
+    )
+
+
+def _install_manager_quote_routes_payload(monkeypatch):
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_routes_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_routes",
+            "chain_id": kwargs["chain_id"],
+            "network": "bnb",
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "processing": {
+                "flow_name": "dex_quote_routes",
+                "network": "bnb",
+                "handler": "runtime_core:overview",
+            },
+            "routeFrameworkSource": "manager_closed_loop",
+            "marketObservationSource": "manager_closed_loop",
+            "marketObservationSourceStage": "manager_closed_loop",
+            "summary": {
+                "routeCount": 0,
+                "candidateRouteCount": 0,
+                "chainReviewEligiblePathCount": 0,
+                "diagnosticOnlyPathCount": 0,
+                "pathSource": "manager_closed_loop",
+            },
+            "routes": [],
+            "closedLoopGroups": [],
+            "versions": {},
+            "dataQuality": {"usdDepthRequired": False},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_request_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_request",
+            "chain_id": kwargs["chain_id"],
+            "network": "bnb",
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "processing": {
+                "flow_name": "dex_quote_request",
+                "network": "bnb",
+                "handler": "runtime_core:overview",
+            },
+            "pair": kwargs["pair"],
+            "venue": kwargs["venue"],
+            "amount": kwargs["amount"],
+            "quoteRequests": [
+                {
+                    "venue": kwargs["venue"],
+                    "quoteMode": "manager_overview_projection",
+                    "status": "manager_review_pending",
+                    "managerOverview": True,
+                }
+            ],
+        },
+    )
+
+
+def test_read_only_handlers_return_contract_valid_json_payloads(monkeypatch):
+    _install_manager_candidate_payload(monkeypatch)
+    _install_manager_closed_loop_payload(monkeypatch)
+    _install_manager_market_observation_payload(monkeypatch)
+    _install_manager_quote_routes_payload(monkeypatch)
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "overview_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "dataSource": "manager",
+            "mode": "dex_overview",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {"arbitragePathCount": 0},
+            "arbitragePaths": [],
+        },
+    )
     client = app.test_client()
 
     for request_path, _ in READ_ONLY_HANDLER_SAMPLES:
@@ -72,7 +250,25 @@ def test_read_only_handlers_return_contract_valid_json_payloads():
         validate_named_response_contract(request_path.split("?", 1)[0], payload)
 
 
-def test_read_only_handler_payloads_include_request_correlation_header():
+def test_read_only_handler_payloads_include_request_correlation_header(monkeypatch):
+    _install_manager_candidate_payload(monkeypatch)
+    _install_manager_closed_loop_payload(monkeypatch)
+    _install_manager_market_observation_payload(monkeypatch)
+    _install_manager_quote_routes_payload(monkeypatch)
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "overview_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "dataSource": "manager",
+            "mode": "dex_overview",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {"arbitragePathCount": 0},
+            "arbitragePaths": [],
+        },
+    )
     client = app.test_client()
 
     for request_path, _ in READ_ONLY_HANDLER_SAMPLES:

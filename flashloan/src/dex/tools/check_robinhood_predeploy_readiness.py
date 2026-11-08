@@ -15,7 +15,7 @@ from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_c
 from dex.intent_trade.chains.robinhood.chain_test_package import chain_test_package_flow
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
 from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import summarize_robinhood_predeploy_readiness
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts_source
 from core.env_loader import load_chain_env_files
 
 
@@ -94,8 +94,8 @@ def _mark_missing_chain_test_plan(report: dict, path: Path) -> dict:
 
 def _build_chain_test_plan_from_local_attempts(plan_path: Path, chain_json: Path) -> dict:
     chain_metadata = _read_json(chain_json)
-    rows = load_recent_cow_execution_attempts_jsonl(
-        SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts",
+    rows = load_recent_cow_execution_attempts_source(
+        SRC_ROOT.parent / "db" / "local_store.sqlite3",
         limit=5000,
         networks=[ROBINHOOD_TESTNET_NETWORK],
         chain_ids=[ROBINHOOD_TESTNET_CHAIN_ID],

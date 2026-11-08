@@ -1,0 +1,43 @@
+{
+  "capturedAt": "2026-11-03T16:25:00+08:00",
+  "mode": "read_only_sqlite",
+  "mainnet": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "chainTokens": 6353,
+    "v4ExchangePools": 5463,
+    "stockMetadataCount": 194,
+    "coreAdjacentDistinctTokens": 2045,
+    "duplicateSymbolGroups": 459,
+    "missingSymbolTokens": 0,
+    "coreAddresses": {
+      "ETH": "0x0000000000000000000000000000000000000000",
+      "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34"
+    },
+    "symbolRisks": {
+      "USDGAddressCount": 4,
+      "ETHAddressCount": 2,
+      "mainnetTestSymbols": ["TZ", "TA", "TB"]
+    },
+    "stockRegistry": {
+      "path": "flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+      "declaredTokenCount": 194,
+      "actualTokenKeys": 194,
+      "errors": 0
+    }
+  },
+  "testnet": {
+    "database": "flashloan/db/local_store_46630.sqlite3",
+    "chainTokens": 39675,
+    "v4ExchangePools": 39198,
+    "testTokensPresent": ["TZ", "TA", "TB"],
+    "stockRegistry": {
+      "path": "flashloan/src/chains/robinhood-testnet/robinhood_stock_tokens.json",
+      "declaredTokenCount": 5,
+      "actualTokenKeys": 5,
+      "errors": 1
+    }
+  },
+  "useRule": "Use explicit network+address allowlists for core/test libraries. Never resolve USDG/ETH/TZ by symbol alone when duplicates or stale test rows exist."
+}

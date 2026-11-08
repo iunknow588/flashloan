@@ -1,0 +1,250 @@
+{
+  "schemaVersion": "robinhood-testnet-auto-scan-window-v1",
+  "window": {
+    "startUtc": "2026-10-26T11:23:35+00:00",
+    "endUtc": "2026-10-26T17:18:23+00:00",
+    "durationSeconds": 21288
+  },
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "attemptsInWindow": 988,
+  "runtimeSnapshot": {
+    "running": true,
+    "auto_execute_enabled": true,
+    "last_error": null,
+    "closed_loop_scan_count": 0,
+    "closed_loop_review_count": 388880,
+    "auto_execute_count": 0,
+    "auto_broadcast_count": 0,
+    "auto_execute_cooldown_seconds": 600.0
+  },
+  "runtimeSnapshotRetry": false,
+  "broadcastGates": {
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false
+  },
+  "success": {
+    "uniqueSuccessCount": 0,
+    "successes": [],
+    "profitBySymbol": [],
+    "gasSummary": {
+      "gasUsedMin": null,
+      "gasUsedMax": null,
+      "gasUsedTotal": null,
+      "effectiveGasPriceMin": null,
+      "effectiveGasPriceMax": null
+    }
+  },
+  "failure": {
+    "failedCount": 4,
+    "blockedCount": 984,
+    "failedSample": [
+      {
+        "createdAt": "2026-10-26T16:39:55.407184+00:00",
+        "observedAt": "2026-10-26T16:39:55.407184+00:00",
+        "pair": "TSLA -> AMD -> ETH -> TSLA",
+        "state": "submission_failed",
+        "txHash": "",
+        "error": "static_arb_call_reverted",
+        "errorStack": [],
+        "blockers": [
+          "on-chain best amount is not confirmed; cannot enter transaction preflight",
+          "链上复核未通过：NoProfitableRoute()",
+          "NoProfitableRoute()",
+          "链上报价状态：route_unprofitable"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T16:39:25.235499+00:00",
+        "observedAt": "2026-10-26T16:39:25.235499+00:00",
+        "pair": "AMD -> AMZN -> TSLA -> AMD",
+        "state": "submission_failed",
+        "txHash": "",
+        "error": "static_arb_call_reverted",
+        "errorStack": [],
+        "blockers": [
+          "on-chain best amount is not confirmed; cannot enter transaction preflight",
+          "链上复核未通过：NoProfitableRoute()",
+          "NoProfitableRoute()",
+          "链上报价状态：route_unprofitable"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T16:38:53.963514+00:00",
+        "observedAt": "2026-10-26T16:38:53.963514+00:00",
+        "pair": "ETH -> AMD -> AMZN -> ETH",
+        "state": "submission_failed",
+        "txHash": "",
+        "error": "static_arb_call_reverted",
+        "errorStack": [],
+        "blockers": [
+          "on-chain best amount is not confirmed; cannot enter transaction preflight",
+          "链上复核未通过：NoProfitableRoute()",
+          "NoProfitableRoute()",
+          "链上报价状态：route_unprofitable"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T16:36:47.570005+00:00",
+        "observedAt": "2026-10-26T16:36:47.570005+00:00",
+        "pair": "AMZN -> AMD -> TSLA -> AMZN",
+        "state": "submission_failed",
+        "txHash": "",
+        "error": "static_arb_call_reverted",
+        "errorStack": [],
+        "blockers": [
+          "on-chain best amount is not confirmed; cannot enter transaction preflight",
+          "链上复核未通过：NoProfitableRoute()",
+          "NoProfitableRoute()",
+          "链上报价状态：route_unprofitable"
+        ]
+      }
+    ],
+    "blockedSample": [
+      {
+        "createdAt": "2026-10-26T17:18:13.290205300+00:00",
+        "observedAt": "2026-10-26T17:18:13.290205300+00:00",
+        "pair": "AMZN -> AMD -> TSLA -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:13.290205300+00:00",
+        "observedAt": "2026-10-26T17:18:13.290205300+00:00",
+        "pair": "AMZN -> TSLA -> AMD -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:13.172576200+00:00",
+        "observedAt": "2026-10-26T17:18:13.172576200+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:13.172576200+00:00",
+        "observedAt": "2026-10-26T17:18:13.172576200+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:04.763170800+00:00",
+        "observedAt": "2026-10-26T17:18:04.763170800+00:00",
+        "pair": "ETH -> AMD -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:04.763170800+00:00",
+        "observedAt": "2026-10-26T17:18:04.763170800+00:00",
+        "pair": "ETH -> AMZN -> AMD -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:02.706633200+00:00",
+        "observedAt": "2026-10-26T17:18:02.706633200+00:00",
+        "pair": "TSLA -> AMD -> AMZN -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:18:02.706633200+00:00",
+        "observedAt": "2026-10-26T17:18:02.706633200+00:00",
+        "pair": "TSLA -> AMZN -> AMD -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:17:56.403125800+00:00",
+        "observedAt": "2026-10-26T17:17:56.403125800+00:00",
+        "pair": "TSLA -> AMZN -> ETH -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T17:17:56.403125800+00:00",
+        "observedAt": "2026-10-26T17:17:56.403125800+00:00",
+        "pair": "TSLA -> ETH -> AMZN -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      }
+    ]
+  },
+  "funnel": {
+    "reviewedCount": 988,
+    "withExpectedProfitCount": 988,
+    "broadcastCount": 4,
+    "successTxCount": 0,
+    "uniqueSuccessCount": 0,
+    "uniqueSuccessWithExpectedProfitCount": 0,
+    "realizedProfitBySymbol": []
+  },
+  "t21FieldCounts": {
+    "netProductDeltaRaw": 0,
+    "ArbitrageNotProfitable": 0,
+    "netProfitAmountMissingReason": 2956
+  },
+  "reviewConsistency": {
+    "reviewConsistentCount": 57,
+    "reviewInconsistentPositiveEstimateCount": 233,
+    "totalReviewedCount": 988
+  },
+  "conclusion": "Observed 354 minutes; 0 unique on-chain success tx with 4 failed and 984 blocked attempts; netProductDeltaRaw=0, ArbitrageNotProfitable=0.",
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  }
+}

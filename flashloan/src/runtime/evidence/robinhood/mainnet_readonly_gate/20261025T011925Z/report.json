@@ -1,0 +1,82 @@
+{
+  "blockNumber": 97207308,
+  "blockingReasons": [
+    "mainnet_executor_not_configured",
+    "fork_staticcall_not_attempted"
+  ],
+  "broadcastEnabled": false,
+  "buildsTransaction": false,
+  "chainId": 4663,
+  "evidenceType": "readonly_mainnet_executor_gate",
+  "executionGate": "mainnet_shadow_readonly",
+  "executor": {
+    "address": "",
+    "codeBytes": 0,
+    "configured": false,
+    "contract": "RobinhoodPausedFlashLoanExecutor",
+    "hasCode": false
+  },
+  "generatedAt": "2026-10-25T01:19:25.709317Z",
+  "network": "robinhood",
+  "observationOnly": true,
+  "readback": {
+    "attempted": true,
+    "executor": {
+      "address": "",
+      "codeBytes": 0,
+      "configured": false,
+      "contract": "RobinhoodPausedFlashLoanExecutor",
+      "hasCode": false
+    },
+    "ok": false,
+    "result": "mainnet_executor_not_configured_or_no_code"
+  },
+  "readyForBroadcast": false,
+  "reportPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood\\mainnet_readonly_gate\\20261025T011925Z\\report.json",
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "schemaVersion": "robinhood-mainnet-readonly-gate-v1",
+  "staticCall": {
+    "attempted": false,
+    "detail": "static-call requires a deployed paused executor on mainnet; none is configured",
+    "ok": false,
+    "reason": "mainnet_executor_not_deployed_or_configured"
+  },
+  "v4Contracts": {
+    "permit2": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "blockNumber": 97207308,
+      "codeBytes": 9152,
+      "configured": true,
+      "hasCode": true
+    },
+    "position_manager": {
+      "address": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+      "blockNumber": 97207308,
+      "codeBytes": 23877,
+      "configured": true,
+      "hasCode": true
+    },
+    "universal_router": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "blockNumber": 97207308,
+      "codeBytes": 24546,
+      "configured": true,
+      "hasCode": true
+    },
+    "v4_pool_manager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "blockNumber": 97207308,
+      "codeBytes": 24009,
+      "configured": true,
+      "hasCode": true
+    },
+    "v4_quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "blockNumber": 97207308,
+      "codeBytes": 6118,
+      "configured": true,
+      "hasCode": true
+    }
+  },
+  "writesSqlite": false
+}

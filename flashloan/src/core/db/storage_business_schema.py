@@ -696,6 +696,28 @@ BUSINESS_DDL: tuple[str, ...] = (
         PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS bnb_market_observations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL,
+        network TEXT NOT NULL DEFAULT 'bnb',
+        chain_id INTEGER NOT NULL DEFAULT 56,
+        run_id TEXT,
+        round_index INTEGER,
+        recorded_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS bnb_market_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL DEFAULT 'binance_rest',
+        symbol TEXT NOT NULL,
+        price_usd TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+    )
+    """,
 )
 
 BUSINESS_INDEXES: tuple[str, ...] = (
@@ -711,6 +733,8 @@ BUSINESS_INDEXES: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_observation_pools ON market_observation_intermediate_pools(network, chain_id, protocol, anchor_symbol, pool_id)",
     "CREATE INDEX IF NOT EXISTS idx_closed_loop_anchor ON v4_closed_loops(network, chain_id, protocol, market_id, anchor_symbol)",
     "CREATE INDEX IF NOT EXISTS idx_closed_loop_hops_pool ON v4_closed_loop_hops(network, chain_id, protocol, market_id, pool_id)",
+    "CREATE INDEX IF NOT EXISTS idx_bnb_market_observations_source_recorded ON bnb_market_observations(source, recorded_at)",
+    "CREATE INDEX IF NOT EXISTS idx_bnb_market_snapshots_symbol_observed ON bnb_market_snapshots(symbol, observed_at)",
 )
 
 
@@ -1639,6 +1663,7 @@ def migrate_business_direction_schema(database_url: str) -> dict[str, int]:
         # assertion is the migration's integrity gate and also catches rows
         # that would otherwise survive as canonical/orphan pairs.
         integrity_errors: list[str] = []
+        legacy_observation_groups: list[dict[str, Any]] = []
         for row in connection.execute(
             """
             SELECT network, chain_id, protocol, anchor_scope, anchor_symbol,
@@ -1669,13 +1694,26 @@ def migrate_business_direction_schema(database_url: str) -> dict[str, int]:
             )
             expected = int(token_count) * (int(token_count) - 1)
             if direction_count != expected:
-                integrity_errors.append(
-                    f"{row['anchor_symbol']}: expected {expected} directions, found {direction_count}"
-                )
+                if token_count == 0:
+                    legacy_observation_groups.append(
+                        {
+                            "network": row["network"],
+                            "chain_id": row["chain_id"],
+                            "protocol": row["protocol"],
+                            "anchor_scope": row["anchor_scope"],
+                            "anchor_symbol": row["anchor_symbol"],
+                            "directionCount": direction_count,
+                        }
+                    )
+                else:
+                    integrity_errors.append(
+                        f"{row['anchor_symbol']}: expected {expected} directions, found {direction_count}"
+                    )
         if integrity_errors:
             raise RuntimeError("directional migration incomplete: " + "; ".join(integrity_errors))
 
         connection.commit()
+        counts["legacy_observation_groups"] = len(legacy_observation_groups)
     return counts
 
 

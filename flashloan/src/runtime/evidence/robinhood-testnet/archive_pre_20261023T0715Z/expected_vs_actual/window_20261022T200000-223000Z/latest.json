@@ -1,0 +1,18 @@
+{
+  "conclusion": "0 unique success receipts decodable, 0 missing receipt/swap evidence; 0 show expected-vs-actual net profit difference, 0 realized negative.",
+  "items": [],
+  "range": {
+    "endUtc": "2026-10-22T22:30:00Z",
+    "startUtc": "2026-10-22T20:00:00Z"
+  },
+  "schemaVersion": "robinhood-testnet-expected-vs-actual-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\logs\\cow_execution_attempts\\robinhood-testnet\\46630\\attempts.jsonl",
+  "summary": {
+    "decodableCount": 0,
+    "negativeRealizedCount": 0,
+    "nonZeroDifferenceCount": 0,
+    "undecodableCount": 0,
+    "zeroDifferenceCount": 0
+  },
+  "uniqueSuccessCount": 0
+}

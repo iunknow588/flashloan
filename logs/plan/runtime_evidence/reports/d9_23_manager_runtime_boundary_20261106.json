@@ -1,0 +1,96 @@
+{
+  "evidenceId": "d9_23_manager_runtime_boundary_20261106",
+  "task": "D9.23/D9.24",
+  "status": "historical_boundary_analysis_superseded",
+  "validForAcceptance": false,
+  "supersededBy": "d9_25_rust_manager_runtime_ownership_20261106",
+  "supersessionReason": "The analysis correctly identified runtime ownership, but its currentImplementations fields predate the Rust Manager ownership cutover and must not be read as the current implementation.",
+  "recordedAt": "2026-11-06T02:37:09.1270812+08:00",
+  "worktreeBaselineDirty": true,
+  "analysis": {
+    "reviewManager": {
+      "ownedRuntime": [
+        "review main loop",
+        "single review queue",
+        "bounded review workers",
+        "heartbeat, backpressure, stall recovery and retry lifecycle"
+      ],
+      "currentImplementations": [
+        "dex/runtime/closed_loop_supervisor.py::ReviewSupervisor",
+        "dex/runtime/dex_closed_loop_review_queue.py"
+      ],
+      "target": "Move and reassemble the existing runtime files under the Review Manager tool; do not create a parallel review implementation."
+    },
+    "broadcastManager": {
+      "ownedRuntime": [
+        "broadcast main loop",
+        "single execution queue",
+        "bounded broadcast workers",
+        "nonce, gas, RPC failover, receipt, retry and terminal lifecycle"
+      ],
+      "currentImplementations": [
+        "dex/runtime/closed_loop_supervisor.py::BroadcastSupervisor",
+        "dex/runtime/rust_closed_loop.py",
+        "rs-src/src/worker_pool.rs::ExecutionQueue",
+        "rs-src/src/worker_pool.rs::rust-closed-loop-exec-*"
+      ],
+      "target": "Consolidate the existing runtime implementation under one Broadcast Manager owner; old supervisor paths become adapters or shims, never second queues."
+    },
+    "managerApi": "HTTP/JSON command and read gateway only; it does not own worker threads or queues.",
+    "ui": "May control page refresh cadence and explicit command clicks only; it must not own worker lifecycle or business data state."
+  },
+  "migrationPolicy": {
+    "preferReassemblyOfExistingFiles": true,
+    "parallelImplementationAllowed": false,
+    "oldFileDeletionBeforeZeroReferencesAllowed": false,
+    "compatibilityShimMayContainBusinessLogic": false
+  },
+  "d9_24Inventory": {
+    "reviewManagerSources": [
+      "dex/runtime/dex_closed_loop_review_queue.py",
+      "dex/runtime/closed_loop_supervisor.py::ReviewSupervisor",
+      "dex/runtime/dex_opportunity_review_engine.py",
+      "dex/runtime/dex_opportunity_review_engine_fixed.py",
+      "dex/runtime/closed_loop_review_classifier.py",
+      "dex/runtime/dex_onchain_quote_evidence*.py"
+    ],
+    "broadcastManagerSources": [
+      "dex/runtime/closed_loop_supervisor.py::BroadcastSupervisor",
+      "dex/runtime/rust_closed_loop.py",
+      "rs-src/src/worker_pool.rs",
+      "rs-src/src/execution.rs",
+      "dex/runtime/cow_attempt_log.py",
+      "dex/runtime/cow_submission_pause.py"
+    ],
+    "sharedAssemblySources": [
+      "dex/runtime/dex_opportunity_scanner_engine.py",
+      "dex/runtime/dex_opportunity_auto_execute.py"
+    ],
+    "nextAcceptance": "Record import and call-site baseline before moving each batch; preserve queue priority, worker count, retry, PnL and broadcast behavior."
+  },
+  "scope": {
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false,
+    "historicalEvidenceModified": false
+  },
+  "documentsUpdated": {
+    "logs/plan/开发计划_20261103.md": "EF93C755DF5C86E9AB91D83B4A4E539F58A5E64DDF93148EFBA6308429D3EEF5",
+    "logs/plan/Rust管理模块实施手册_20261103.md": "87C2C28485C4B7D03F7602CF69B27682AB24A9C04BD0C1230E57FB7CCA4A38D9",
+    "logs/plan/token_and_manager_rust_rearchitecture_20261103.md": "F363C51416DDFCD1287935C48297FBDCC9D1CD9FAAF5F5CA43A962B48D9ED2C5"
+  },
+  "commands": [
+    {
+      "command": "rg review/broadcast supervisor, queue, worker and call-site references",
+      "exitCode": 0,
+      "result": "Existing runtime implementations and initial migration sources identified."
+    },
+    {
+      "command": "git diff --check -- scoped plan and manager README files",
+      "exitCode": 0,
+      "result": "No whitespace errors"
+    }
+  ]
+}

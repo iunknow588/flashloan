@@ -1,0 +1,12 @@
+{
+  "chainId": 4663,
+  "network": "robinhood",
+  "contract": "OfficialV4FlashArb",
+  "arb": "0x63743AB0f08a1ea8F7078893a88E943d6BEAbcFB",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "txHash": "0xad807c6123c229e0bd29dd92bce29d257034c2f79a043d4ea0950a92895fa5f1",
+  "blockNumber": 102299662,
+  "deployedAt": "2026-10-31T04:56:37.853Z",
+  "codeBytes": 11416,
+  "matchesArtifact": true
+}

@@ -25,8 +25,12 @@ fn execute_batch(connection: &Connection, sql: &str) -> Result<(), String> {
 pub fn ensure_database_schema(database_path: &str) -> Result<Value, String> {
     let path = Path::new(database_path);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|error| format!("could not create schema directory {}: {error}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "could not create schema directory {}: {error}",
+                parent.display()
+            )
+        })?;
     }
     let connection = open_rw(database_path)?;
     execute_batch(&connection, BUSINESS_DDL_SQL)?;
@@ -63,7 +67,8 @@ pub fn ensure_database_schema(database_path: &str) -> Result<Value, String> {
             "INSERT OR REPLACE INTO kv_meta (meta_key, value_json) VALUES (?1, ?2)",
             [
                 "business_schema_version",
-                &serde_json::to_string("directional_pairs_v1").map_err(|error| error.to_string())?,
+                &serde_json::to_string("directional_pairs_v1")
+                    .map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| format!("SQLite kv_meta business_schema_version failed: {error}"))?;

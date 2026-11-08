@@ -17,17 +17,17 @@ def liquidation_scan_config_library(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"configured": False, "configs": []}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         kwargs = {}
         if market_id is not None:
             kwargs["market_id"] = market_id
         if chain_id is not None:
             kwargs["chain_id"] = chain_id
-        return {"configured": True, "configs": db_load_liquidation_scan_config_library(database_url, limit=limit, **kwargs)}
+        return {"configured": True, "configs": db_load_liquidation_scan_config_library(resolved_database_url, limit=limit, **kwargs)}
     except Exception as exc:
         return {"configured": True, "configs": [], "error": redact_sensitive_text(exc)}
 
@@ -68,13 +68,13 @@ def record_liquidation_discovery_window(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> None:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         db_record_liquidation_discovery_scan(
-            database_url,
+            resolved_database_url,
             mode=mode,
             status=status,
             rpc_url=rpc_url,
@@ -120,12 +120,12 @@ def sync_liquidation_accounts_to_database(
     scan_end_at: Optional[datetime] = None,
     update_existing: bool = True,
 ) -> None:
-    database_url = database_url_or_none()
-    if not database_url or not accounts:
+    resolved_database_url = database_url()
+    if not resolved_database_url or not accounts:
         return
-    ensure_database_schema(database_url)
+    ensure_database_schema(resolved_database_url)
     db_upsert_liquidation_accounts(
-        database_url,
+        resolved_database_url,
         accounts,
         source=source,
         active=True,
@@ -133,7 +133,7 @@ def sync_liquidation_accounts_to_database(
         scan_end_at=scan_end_at,
         update_existing=update_existing,
     )
-    db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
+    db_prune_liquidation_accounts(resolved_database_url, retained_days=liquidation_retention_days())
 
 
 def parse_iso_datetime(value: object) -> Optional[datetime]:
@@ -225,7 +225,7 @@ def _bind_liquidation_base_globals() -> None:
     """Bind base panel globals after both modules are safely initialized."""
     from web.control_panel_liquidation_base import (
         aave_pool_address,
-        database_url_or_none,
+        database_url,
         db_load_liquidation_scan_config_library,
         db_prune_liquidation_accounts,
         db_record_liquidation_discovery_scan,
@@ -243,7 +243,7 @@ def _bind_liquidation_base_globals() -> None:
     globals().update(
         {
             "aave_pool_address": aave_pool_address,
-            "database_url_or_none": database_url_or_none,
+            "database_url": database_url,
             "db_load_liquidation_scan_config_library": db_load_liquidation_scan_config_library,
             "db_prune_liquidation_accounts": db_prune_liquidation_accounts,
             "db_record_liquidation_discovery_scan": db_record_liquidation_discovery_scan,

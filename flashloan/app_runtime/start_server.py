@@ -36,6 +36,7 @@ def main() -> int:
     with stdout_path.open("ab", buffering=0) as stdout, stderr_path.open("ab", buffering=0) as stderr:
         env = os.environ.copy()
         env.setdefault("FLASHLOAN_RUNTIME_DIR", str(RUNTIME_DIR))
+        env.setdefault("FLASHLOAN_DB_ROOT", str(SRC_ROOT.parent / "db"))
         cmd = [sys.executable, str(APP_DIR / "run.py"), *sys.argv[1:]]
         print(f"server log dir: {LOG_DIR}", flush=True)
         print(f"stdout log: {stdout_path}", flush=True)

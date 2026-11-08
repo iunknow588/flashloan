@@ -19,7 +19,7 @@ from web3 import Web3
 
 
 def test_liquidation_engine_core_accounts_only_returns_executable_rows(monkeypatch):
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(
         control_panel,
         "db_load_liquidation_core_opportunity_pool",
@@ -140,7 +140,7 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     persisted_rows = []
     LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
     LIQUIDATION_SCAN_CACHE["payload"] = None
-    monkeypatch.setattr(liquidation_base, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(liquidation_base, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(liquidation_base, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(liquidation_base, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(liquidation_base, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"])
@@ -221,7 +221,7 @@ def test_liquidation_account_registry_prefers_database(monkeypatch):
     control_panel.LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
     control_panel.LIQUIDATION_ACCOUNT_CACHE["accounts"] = None
     control_panel.LIQUIDATION_ACCOUNT_CACHE["source"] = None
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001"])
@@ -248,7 +248,7 @@ def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
     control_panel.LIQUIDATION_ACCOUNT_CACHE["accounts"] = None
     control_panel.LIQUIDATION_ACCOUNT_CACHE["source"] = None
     monkeypatch.setattr(control_panel, "LIQUIDATION_ACCOUNTS_PATH", account_path)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: [])
@@ -432,7 +432,7 @@ def test_discovery_writes_accounts_before_rejecting_progress_gap(monkeypatch):
     captured = {"accounts": None, "progress_records": []}
     account = "0x0000000000000000000000000000000000000001"
     control_panel.LIQUIDATION_DISCOVERY_CACHE["last_result"] = None
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000002")
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
@@ -482,7 +482,7 @@ def test_liquidation_account_payload_normalizes_address(monkeypatch):
     monkeypatch.setattr(control_panel, "protocol_data_provider_address", lambda: "0x0000000000000000000000000000000000000002")
     monkeypatch.setattr(control_panel, "liquidation_data_provider_address", lambda: "0x0000000000000000000000000000000000000003")
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    monkeypatch.setattr(control_panel, "database_url", lambda: None)
 
     def fake_report(user, rpc_url, pool_address, reserve_assets, protocol_addr, liquidation_addr, config):
         captured["user"] = user
@@ -547,7 +547,7 @@ def test_liquidation_borrow_pool_payload_redacts_schema_errors(monkeypatch):
     database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "e" * 64
     monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(control_panel, "database_url", lambda: database_url)
 
     def fail_schema(_database_url):
         raise RuntimeError(f"schema failed: {database_url} private_key={private_key}")
@@ -570,7 +570,7 @@ def test_liquidation_borrow_pool_payload_marks_database_ready(monkeypatch):
 
     scan = context.liquidation_scan_module
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_pool", lambda database_url, limit=20, offset=0: [])
     monkeypatch.setattr(
@@ -645,7 +645,7 @@ def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monke
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "running", False)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "stage", "idle")
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: database_url, raising=False)
+    monkeypatch.setattr(scan, "database_url", lambda: database_url, raising=False)
     monkeypatch.setattr(scan, "liquidation_scan_interval_seconds", lambda: 300.0)
     monkeypatch.setattr(scan, "liquidation_borrow_pool_scan_cooldown_seconds", lambda config=None: 300.0)
 
@@ -672,7 +672,7 @@ def test_liquidation_borrow_pool_scan_does_not_use_cache_without_database(monkey
         {"rows": [{"account": "0xold"}], "summary": {"database_url_fingerprint": "old"}},
     )
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: None, raising=False)
+    monkeypatch.setattr(scan, "database_url", lambda: None, raising=False)
 
     payload = scan_payload(force=False)
 
@@ -693,7 +693,7 @@ def test_liquidation_borrow_pool_scan_ignores_cache_for_changed_database(monkeyp
         {"rows": [{"account": "0xold"}], "summary": {"database_url_fingerprint": "old"}},
     )
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: "local_store_new.sqlite3", raising=False)
+    monkeypatch.setattr(scan, "database_url", lambda: "local_store_new.sqlite3", raising=False)
     class BusyLock:
         @staticmethod
         def acquire(blocking=False):
@@ -735,7 +735,7 @@ def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
 
     scan.LIQUIDATION_SCAN_CACHE.pop("borrow_pool_payload", None)
     scan.LIQUIDATION_SCAN_CACHE.pop("borrow_pool_updated_at", None)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None, raising=False)
+    monkeypatch.setattr(control_panel, "database_url", lambda: None, raising=False)
 
     payload = control_panel.liquidation_borrow_pool_payload(page_size=20)
 
@@ -751,7 +751,7 @@ def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
 def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(
         control_panel,
@@ -770,7 +770,7 @@ def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
 def test_liquidation_core_opportunities_api_returns_priority_rows(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(
         control_panel,
@@ -811,7 +811,7 @@ def test_liquidation_account_attempts_and_samples_api(monkeypatch):
 def test_liquidation_control_summary_api(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": True, "missing_migrations": []})
     monkeypatch.setattr(control_panel, "liquidation_discovery_progress", lambda pool_address: {})
@@ -853,7 +853,7 @@ def test_liquidation_control_summary_redacts_database_errors(monkeypatch):
     database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "f" * 64
     monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(control_panel, "database_url", lambda: database_url)
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
     monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": False})
     monkeypatch.setattr(control_panel, "liquidation_discovery_progress", lambda pool_address: {})

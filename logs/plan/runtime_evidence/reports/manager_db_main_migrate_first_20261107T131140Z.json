@@ -1,0 +1,70 @@
+﻿{
+  "appliedAt": "2026-11-07T13:11:41.182Z",
+  "appliedNow": true,
+  "checksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+  "migrationChecksums": {
+    "20261103_001_manager_schema": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+    "20261104_001_candidate_edge_schema": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+    "20261104_002_candidate_exchange_schema": "sha256:1349a2eb5e98a97bb1d2de893e1c598002762545e23e35685b5de7c78f1ea112",
+    "20261104_003_closed_loop_schema": "sha256:7d90df9d428228b2125a819ab69ef883a54e1a6e89fe1fc462f026a8d4904325",
+    "20261104_004_review_schema": "sha256:9fd93a7568fadea5d691fbed0997de509aa82905b37a2c84c65beff6ca94d6d8",
+    "20261104_005_broadcast_schema": "sha256:2fd966028dfc99e0dd6f364b16f173e66db46341b107ada666f8cc42f0e6d057",
+    "20261104_006_composite_schema": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69"
+  },
+  "migrationId": "20261104_006_composite_schema",
+  "migrationIds": [
+    "20261103_001_manager_schema",
+    "20261104_001_candidate_edge_schema",
+    "20261104_002_candidate_exchange_schema",
+    "20261104_003_closed_loop_schema",
+    "20261104_004_review_schema",
+    "20261104_005_broadcast_schema",
+    "20261104_006_composite_schema"
+  ],
+  "migrationTable": "schema_migrations",
+  "migrations": [
+    {
+      "appliedAt": "2026-11-07T13:11:41.118Z",
+      "appliedNow": true,
+      "checksum": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+      "migrationId": "20261103_001_manager_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.161Z",
+      "appliedNow": true,
+      "checksum": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+      "migrationId": "20261104_001_candidate_edge_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.166Z",
+      "appliedNow": true,
+      "checksum": "sha256:1349a2eb5e98a97bb1d2de893e1c598002762545e23e35685b5de7c78f1ea112",
+      "migrationId": "20261104_002_candidate_exchange_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.170Z",
+      "appliedNow": true,
+      "checksum": "sha256:7d90df9d428228b2125a819ab69ef883a54e1a6e89fe1fc462f026a8d4904325",
+      "migrationId": "20261104_003_closed_loop_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.174Z",
+      "appliedNow": true,
+      "checksum": "sha256:9fd93a7568fadea5d691fbed0997de509aa82905b37a2c84c65beff6ca94d6d8",
+      "migrationId": "20261104_004_review_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.177Z",
+      "appliedNow": true,
+      "checksum": "sha256:2fd966028dfc99e0dd6f364b16f173e66db46341b107ada666f8cc42f0e6d057",
+      "migrationId": "20261104_005_broadcast_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.182Z",
+      "appliedNow": true,
+      "checksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+      "migrationId": "20261104_006_composite_schema"
+    }
+  ],
+  "schemaChecksum": "sha256:643b8abec703dc4e2541794f01078cc098a55b9440e4c3d119b1a5909edcfee7"
+}

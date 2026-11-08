@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_7_ui_submission_detail_manager_read_20261105",
+  "milestone": "M9",
+  "task": "D6.1 manager-authoritative submission detail read path",
+  "status": "partial_submission_detail_manager_authority_complete_pages_pending",
+  "generatedAt": "2026-11-04T18:35:40Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing submission detail URL and page remain unchanged. With MANAGER_UI_DATA_SOURCE=manager, /api/dex/submissions/detail reads one attempt through manager_api at /v1/broadcasts?attemptId=... and maps the manager DTO for the page. It does not call load_cow_execution_attempt_detail or open the business SQLite database. Manager read failure or a missing attempt fails closed instead of falling back to legacy.",
+  "implementation": {
+    "flaskRoute": "GET /api/dex/submissions/detail?attempt_id=<id>",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "managerAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "upstreamRoute": "GET /v1/broadcasts?chainId=4663&attemptId=<id>&limit=1",
+    "legacyMode": "MANAGER_UI_DATA_SOURCE=legacy keeps the existing compatibility detail read and exposes manager_compare=true only as a read-only shadow.",
+    "managerMode": "MANAGER_UI_DATA_SOURCE=manager selects manager authority before any SQLite lookup.",
+    "managerModeResponse": {
+      "dataSource": "manager",
+      "attempt": "page-compatible DTO mapped from manager AttemptRow",
+      "managerDetail": "manager attempt, diagnostics, status versions/checksums, and comparison boundary"
+    },
+    "missingAttemptStatus": 404,
+    "managerUnavailableStatus": 503,
+    "legacyFallbackInManagerMode": false,
+    "directBusinessDatabaseAccessInManagerMode": false,
+    "directRpcAccessInUiLayer": false,
+    "businessLogicAddedToUiLayer": false
+  },
+  "uiBoundary": {
+    "flaskResponsibilities": [
+      "request parameter validation",
+      "permission and scope handoff",
+      "manager HTTP invocation",
+      "page DTO conversion"
+    ],
+    "managerResponsibilities": [
+      "broadcast attempt state",
+      "diagnostics",
+      "review and closed-loop version references",
+      "signed PnL evidence",
+      "read consistency and materialization status"
+    ],
+    "uiDirectBusinessTableAccess": false,
+    "uiRealtimeRemoteNetworkReads": false,
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 61
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p manager-api",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p manager-api broadcast_routes_enforce_headers_dry_run_authority_and_terminal_state",
+      "exitCode": 0,
+      "passed": 1
+    }
+  ],
+  "fixtures": [
+    "manager source route returns dataSource=manager without calling the legacy SQLite detail loader",
+    "manager source route sends the selected chain id and string attempt id to /v1/broadcasts with limit=1",
+    "manager attempt rows map to page-compatible identity, path, status, signed PnL, gas, RPC, receipt, evidence, and timestamp fields",
+    "manager diagnostic rows are filtered to the requested attempt id",
+    "manager source read failure returns 503 and does not fall back to SQLite",
+    "legacy source keeps the existing detail path and only attaches managerShadow when manager_compare=true",
+    "manager API HTTP test proves attemptId filtering returns only the requested attempt and its diagnostics"
+  ],
+  "knownBoundary": "This evidence covers submission detail only. Summary, category, review, and execution list pages still require their own manager-authoritative DTO mappings before default cutover. The manager attempt id remains a string while legacy page ids are SQLite integers, so production-copy identity continuity must be verified before changing the default data source. No production database migration, service restart, manager write, or broadcast was performed."
+}

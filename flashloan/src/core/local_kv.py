@@ -11,32 +11,31 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from core.runtime_paths import resolve_runtime_dir
+from core.db.database_path import default_database_path, resolve_database_path
 
 _WRITE_LOCK = threading.RLock()
 _SCHEMA_VERSION = 1
+_ENSURE_STORE_LOCK = threading.Lock()
+_ENSURE_STORE_PATHS: set[str] = set()
+_SCHEMA_INIT_LOCK = threading.Lock()
+_SCHEMA_INITIALIZED_PATHS: set[str] = set()
+_SCHEMA_INIT_ATTEMPTS = 5
+_SCHEMA_INIT_RETRY_DELAY_SECONDS = 0.3
 
 
 def _default_store_path() -> Path:
-    runtime_dir = resolve_runtime_dir()
-    return runtime_dir / "local_store.sqlite3"
+    return default_database_path()
 
 
 def store_path(path: str | os.PathLike[str] | None = None) -> Path:
-    """Resolve the local KV database path."""
+    """Resolve the single authoritative local SQLite database path."""
 
-    if path:
-        resolved = Path(path)
-        return resolved if resolved.is_absolute() else _default_store_path().parent / resolved
-    env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
-    if env_path:
-        resolved = Path(env_path).expanduser()
-        return resolved if resolved.is_absolute() else _default_store_path().parent / resolved
-    return _default_store_path()
+    return resolve_database_path(path)
 
 
 def _utc_now() -> str:
@@ -44,12 +43,33 @@ def _utc_now() -> str:
 
 
 def _connect(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(str(path), timeout=5.0, check_same_thread=False)
+    connection = sqlite3.connect(str(path), timeout=15.0, check_same_thread=False)
     connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA busy_timeout=5000")
+    connection.execute("PRAGMA busy_timeout=15000")
     connection.execute("PRAGMA synchronous=NORMAL")
-    _ensure_schema(connection)
+    path_key = str(path.resolve())
+    if path_key not in _SCHEMA_INITIALIZED_PATHS:
+        # Keep SQLite's own busy timeout authoritative while initializing.
+        # A Python lock held across schema DDL would queue unrelated
+        # connections behind one writer for the full busy window.
+        last_error: sqlite3.OperationalError | None = None
+        for attempt in range(_SCHEMA_INIT_ATTEMPTS):
+            try:
+                connection.execute("PRAGMA journal_mode=WAL")
+                _ensure_schema(connection)
+                break
+            except sqlite3.OperationalError as exc:
+                message = str(exc or "").lower()
+                if "locked" not in message and "busy" not in message:
+                    raise
+                last_error = exc
+                connection.rollback()
+                time.sleep(_SCHEMA_INIT_RETRY_DELAY_SECONDS * (attempt + 1))
+        else:
+            if last_error is not None:
+                raise last_error
+        with _SCHEMA_INIT_LOCK:
+            _SCHEMA_INITIALIZED_PATHS.add(path_key)
     return connection
 
 
@@ -91,9 +111,15 @@ def ensure_store(path: str | os.PathLike[str] | None = None) -> Path:
     """Create the KV database file and parent directory if needed."""
 
     resolved = store_path(path)
+    resolved_key = str(resolved.resolve())
+    with _ENSURE_STORE_LOCK:
+        if resolved_key in _ENSURE_STORE_PATHS:
+            return resolved
     resolved.parent.mkdir(parents=True, exist_ok=True)
     with _connect(resolved):
         pass
+    with _ENSURE_STORE_LOCK:
+        _ENSURE_STORE_PATHS.add(resolved_key)
     return resolved
 
 

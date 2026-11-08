@@ -180,7 +180,7 @@
       const cowFilter = (primaryPanel.marketState || data).cow_filter || {};
       const lines = [
         "DEX 套利 | CoW SDK 页面信息",
-        `复制时间：${new Date().toLocaleString([], {hour12: false})}`,
+        `复制时间：${window.formatLocalDisplayNow()}`,
         `CoW 网络：${selectedNetworkIds().join(", ") || "-"}`,
         `Owner：${selectedCowConfig(primaryNetwork())?.owner_source || "-"} | ${selectedCowConfig(primaryNetwork())?.owner || "-"}`,
         `观察窗口：${Number.isFinite(Number(data.window_seconds)) ? `${Number(data.window_seconds).toFixed(3)}s` : "-"}`,
@@ -811,11 +811,65 @@
     $("quoteLimitSelect").onchange = refreshCowSupport;
     $("quoteAmountInput").onchange = refreshCowSupport;
     $("minSpreadInput").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
+    function renderBnbRustStore(payload) {
+      const data = payload || {};
+      const collector = data.collector || {};
+      const snapshots = data.snapshots || [];
+      const observations = data.observations || [];
+      const latest = snapshots[0] || null;
+      const collectorEnabled = collector.enabled === true;
+      $("bnbCollectorInterval").textContent = collectorEnabled
+        ? collector.intervalSeconds
+          ? `${collector.intervalSeconds}s`
+          : "-"
+        : "未启用";
+      $("bnbCollectorStatus").textContent = !collectorEnabled
+        ? "采集线程暂未启用"
+        : collector.lastStatus
+        ? `最近 ${esc(collector.lastStatus)} @ ${fmtTime(collector.lastCompletedAt)}`
+        : data.collectorError
+          ? `状态不可用：${esc(data.collectorError)}`
+          : "等待首次采集";
+      $("bnbCollectorCount").textContent = collectorEnabled ? collector.collectedCount ?? "-" : "-";
+      $("bnbCollectorFailed").textContent = collectorEnabled ? `失败 ${collector.failedCount ?? "-"}` : "-";
+      $("bnbLatestPrice").textContent = latest ? `$${num(latest.priceUsd)}` : "-";
+      $("bnbSnapshotAt").textContent = latest ? fmtTime(latest.observedAt) : "暂无快照";
+      $("bnbObservationCount").textContent = observations.length;
+      const sourceText = Object.entries(data.observationSourceCounts || {})
+        .map(([source, count]) => `${esc(source)} ${count}`)
+        .join(" | ") || "-";
+      $("bnbObservationSources").textContent = sourceText;
+      $("bnbObservationBody").innerHTML = observations.map(row => `<tr>
+        <td>${esc(fmtTime(row.recordedAt || row.generatedAt))}</td>
+        <td>${esc(row.source)}</td>
+        <td>${esc(row.roundIndex ?? "-")}</td>
+        <td>${esc(row.routeCount ?? row.cycleCount ?? "-")}</td>
+        <td>${esc(row.successfulQuoteCount ?? "-")}</td>
+        <td>${esc(row.profitableBeforeCostsCount ?? row.spotPotentialCount ?? "-")}</td>
+      </tr>`).join("") || '<tr><td colspan="6">暂无行情观察记录</td></tr>';
+      $("bnbRustStoreMeta").textContent = `来源 ${esc(data.source || "-")} | 表 ${(data.tables || []).join(", ")}`;
+      $("bnbRustStoreNote").textContent = !collectorEnabled
+        ? "采集线程暂未启用；行情数据仍可离线读取"
+        : collector.lastStatus
+        ? `最近采集 ${collector.lastStatus || "-"} @ ${fmtTime(collector.lastCompletedAt)}`
+        : data.collectorError
+          ? `采集线程状态不可用：${data.collectorError}`
+          : "等待首次采集，数据仍可离线读取";
+    }
+    async function refreshBnbRustStore() {
+      try {
+        const data = await api("/api/binance-market/bnb-rust-store");
+        renderBnbRustStore(data);
+      } catch (error) {
+        $("bnbRustStoreMeta").textContent = `加载失败：${zhError(error.message)}`;
+      }
+    }
     async function bootDexArbitragePanel() {
       await refreshCowSubmissionPause();
       await loadCowConfig();
       await refresh();
       await refreshCowSupport();
+      await refreshBnbRustStore();
     }
     bootDexArbitragePanel().catch(error => { $("message").textContent = zhError(error.message); });
     refreshCowAttemptHistory();
@@ -823,3 +877,4 @@
     setInterval(refresh, 1000);
     setInterval(refreshCowCandidateQueue, 5000);
     setInterval(refreshCowSubmissionPause, 5000);
+    setInterval(refreshBnbRustStore, 30000);

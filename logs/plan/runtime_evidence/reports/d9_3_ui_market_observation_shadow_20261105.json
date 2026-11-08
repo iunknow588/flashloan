@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_3_ui_market_observation_shadow_20261105",
+  "milestone": "M9",
+  "task": "D6.1 opt-in read-only market observation page shadow comparison",
+  "status": "partial_market_observation_shadow_complete_pages_pending",
+  "generatedAt": "2026-11-05T00:41:03Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing market observation page keeps its URL, layout, business fields, cache behavior, and legacy data source. An explicit manager_compare=true request bypasses the cached page response so it can attach a read-only manager shadow with versions, checksums, full status counts, bounded snapshot counts, and sampled YZ/pool comparison summaries.",
+  "implementation": {
+    "shadowHelper": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "flaskRoute": "GET /api/dex/market-observation?manager_compare=true",
+    "upstreamRoutes": [
+      "GET /v1/candidate-exchange-pools?chainId=4663&limit=1000",
+      "GET /v1/candidate-exchange-pools/compare?chainId=4663&sampleLimit=200&legacyAnchorScope=dex-arbitrage-4663-uniswap-v4"
+    ],
+    "snapshotLimit": 1000,
+    "rowComparisonSampleLimit": 200,
+    "defaultDataSource": "legacy",
+    "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+    "shadowFields": [
+      "observationVersion",
+      "observationChecksum",
+      "candidateEdgeVersion",
+      "candidateEdgeChecksum",
+      "poolScopeChecksum",
+      "managerStatusCounts",
+      "managerSnapshotCounts",
+      "rowComparison"
+    ],
+    "rowComparisonCategories": [
+      "yzPairs",
+      "pools",
+      "abnormalYzPairs",
+      "abnormalPools"
+    ],
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false,
+    "legacyPageFieldsUnaffected": true,
+    "managerShadowRequiresExplicitOptIn": true,
+    "cachedPageSkippedOnlyWhenShadowRequested": true,
+    "comparisonReadyForFieldSwitch": false,
+    "productionAuthorityChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 48
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "market observation shadow is disabled without network access while MANAGER_UI_DATA_SOURCE=legacy",
+    "market observation shadow separates full status counts from bounded snapshot row counts",
+    "market observation shadow propagates chainId, limit, sampleLimit, legacyAnchorScope, and request id",
+    "market observation comparison reports yzPairs, pools, abnormalYzPairs, and abnormalPools without changing legacy fields",
+    "market observation route attaches managerShadow only when manager_compare=true",
+    "successful opt-in keeps dataSource=legacy and preserves existing cache semantics for normal requests"
+  ],
+  "knownBoundary": "Candidate, closed-loop, and market observation pages now have opt-in manager shadows. Review, submission/broadcast, and overview pages still use legacy-only paths. Market observation shadow is not a production cutover and does not satisfy the M4 production dual-read. No production database migration, service restart, manager write, or broadcast was performed."
+}

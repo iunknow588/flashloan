@@ -16,12 +16,15 @@ CANDIDATE_FRAMEWORK_SOURCE = "candidate_pool_fallback"
 CANDIDATE_FRAMEWORK_LABEL = "候选框架"
 COMPUTED_FRAMEWORK_SOURCE = "computed"
 COMPUTED_FRAMEWORK_LABEL = "链上重算"
+MANAGER_FRAMEWORK_SOURCES = ("manager_closed_loop",)
+MANAGER_FRAMEWORK_LABEL = "管理模块闭环"
 MARKET_OBSERVATION_SOURCE_STAGE_LABELS = {
     "cached_snapshot": "缓存静态快照",
     "generated_live_snapshot": "实时生成快照",
     "refreshed_live_snapshot": "实时刷新快照",
     "computed": "链上重算",
     "dex_market_observation_payload": "观察载荷",
+    "manager_closed_loop": "管理模块闭环",
     "market_observation": "市场观察框架",
 }
 PRICE_EVIDENCE_SOURCE_LABELS = {
@@ -30,6 +33,8 @@ PRICE_EVIDENCE_SOURCE_LABELS = {
     "chain_live_quote_required": "链上实时复核",
     "framework_reused_live_confirmation": "静态框架 + 实时复核",
     "live_quoter_required": "需要链上 Quoter",
+    "manager_review_pending": "管理器复核待完成",
+    "manager_review_signed_pnl": "管理器复核 PnL",
     "reference_price_requires_live_quoter": "参考价需要链上 Quoter",
     "static_reference_probe": "静态探针",
 }
@@ -49,6 +54,8 @@ def framework_label(source: object) -> str:
         return CANDIDATE_FRAMEWORK_LABEL
     if value == COMPUTED_FRAMEWORK_SOURCE:
         return COMPUTED_FRAMEWORK_LABEL
+    if value in MANAGER_FRAMEWORK_SOURCES:
+        return MANAGER_FRAMEWORK_LABEL
     return str(source or "-")
 
 
@@ -129,6 +136,8 @@ def dex_provenance_payload() -> dict[str, Any]:
         "candidateFrameworkLabel": CANDIDATE_FRAMEWORK_LABEL,
         "computedFrameworkSource": COMPUTED_FRAMEWORK_SOURCE,
         "computedFrameworkLabel": COMPUTED_FRAMEWORK_LABEL,
+        "managerFrameworkSources": list(MANAGER_FRAMEWORK_SOURCES),
+        "managerFrameworkLabel": MANAGER_FRAMEWORK_LABEL,
         "marketObservationSourceStageLabels": dict(MARKET_OBSERVATION_SOURCE_STAGE_LABELS),
         "priceEvidenceSourceLabels": dict(PRICE_EVIDENCE_SOURCE_LABELS),
         "priceEvidenceModeLabels": dict(PRICE_EVIDENCE_MODE_LABELS),
@@ -157,6 +166,8 @@ __all__ = [
     "COMPUTED_FRAMEWORK_LABEL",
     "COMPUTED_FRAMEWORK_SOURCE",
     "MARKET_OBSERVATION_SOURCE_STAGE_LABELS",
+    "MANAGER_FRAMEWORK_LABEL",
+    "MANAGER_FRAMEWORK_SOURCES",
     "build_route_framework_payload",
     "PRICE_EVIDENCE_MODE_LABELS",
     "PRICE_EVIDENCE_SOURCE_LABELS",

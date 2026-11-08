@@ -1,0 +1,256 @@
+{
+  "actualProfitBasis": "swaps_before_gas",
+  "authoritativeCandidatePoolCount": 1089,
+  "candidatePoolSource": "dex_candidate_pools",
+  "chainId": 4663,
+  "chainTokenDecimalsCount": 4485,
+  "conclusion": "3 unique success receipts decodable, 0 missing receipt/swap evidence; 3 positive before gas, 0 negative before gas; 0 show expected-vs-actual net profit difference.",
+  "items": [
+    {
+      "actualNetProfit": "2.49062035832E-7",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "249062035832",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "2.49062035832E-7",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.00000645778887",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.0001220703125",
+          "inputRaw": "122070312500000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000040523932401084",
+          "outputRaw": "40523932401084",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000040523932401084",
+          "inputRaw": "40523932401084",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "0.000180573026486231",
+          "outputRaw": "180573026486231",
+          "outputSymbol": "AMD",
+          "poolId": "0x1a6d5579d20159a8e16b9ef7d41d7aedffb4198283f091427ec8f4cda8b30e9e"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "0.000180573026486231",
+          "inputRaw": "180573026486231",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000122319374535832",
+          "outputRaw": "122319374535832",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> ETH -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x634d206",
+        "blockNumberInt": 104124934,
+        "effectiveGasPrice": "0x132abd0",
+        "effectiveGasPriceInt": 20098000,
+        "gasUsed": "0x4e723",
+        "gasUsedInt": 321315,
+        "status": 1,
+        "txHash": "0x645d2c4f630fe3493e7dceddff30ed45d113c295db3f72f960f773724db1926f"
+      },
+      "routeSymbols": [
+        "SPY",
+        "ETH",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0x645d2c4f630fe3493e7dceddff30ed45d113c295db3f72f960f773724db1926f",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "1.0396745E-11",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "10396745",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "1.0396745E-11",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006552864864",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "4.76837158203E-7",
+          "inputRaw": "476837158203",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "1.58668064153E-7",
+          "outputRaw": "158668064153",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "1.58668064153E-7",
+          "inputRaw": "158668064153",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "7.02382336795E-7",
+          "outputRaw": "702382336795",
+          "outputSymbol": "AMD",
+          "poolId": "0x1a6d5579d20159a8e16b9ef7d41d7aedffb4198283f091427ec8f4cda8b30e9e"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "7.02382336795E-7",
+          "inputRaw": "702382336795",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "4.76847554948E-7",
+          "outputRaw": "476847554948",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> ETH -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x63385a7",
+        "blockNumberInt": 104039847,
+        "effectiveGasPrice": "0x1370900",
+        "effectiveGasPriceInt": 20384000,
+        "gasUsed": "0x4e7bf",
+        "gasUsedInt": 321471,
+        "status": 1,
+        "txHash": "0x587b9d9782e8014282d0e86bb0b3ba7bc2c368cc6dacbed90043bc790281772b"
+      },
+      "routeSymbols": [
+        "SPY",
+        "ETH",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0x587b9d9782e8014282d0e86bb0b3ba7bc2c368cc6dacbed90043bc790281772b",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "2.52625347695E-7",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "252625347695",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "2.52625347695E-7",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.00000676099424",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.00006103515625",
+          "inputRaw": "61035156250000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000020300458119444",
+          "outputRaw": "20300458119444",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000020300458119444",
+          "inputRaw": "20300458119444",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "0.000090261481476756",
+          "outputRaw": "90261481476756",
+          "outputSymbol": "AMD",
+          "poolId": "0x1a6d5579d20159a8e16b9ef7d41d7aedffb4198283f091427ec8f4cda8b30e9e"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "0.000090261481476756",
+          "inputRaw": "90261481476756",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000061287781597695",
+          "outputRaw": "61287781597695",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> ETH -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x6337433",
+        "blockNumberInt": 104035379,
+        "effectiveGasPrice": "0x1317b20",
+        "effectiveGasPriceInt": 20020000,
+        "gasUsed": "0x52730",
+        "gasUsedInt": 337712,
+        "status": 1,
+        "txHash": "0xbebaea624f6dabdd7d1bb70bd284a5e1659f41ee459c3f175661da831a98632b"
+      },
+      "routeSymbols": [
+        "SPY",
+        "ETH",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0xbebaea624f6dabdd7d1bb70bd284a5e1659f41ee459c3f175661da831a98632b",
+      "unmatchedSwaps": []
+    }
+  ],
+  "network": "robinhood",
+  "range": {
+    "endUtc": "2026-11-02T12:00:00Z",
+    "startUtc": "2026-11-02T07:00:00Z"
+  },
+  "schemaVersion": "robinhood-mainnet-expected-vs-actual-v2",
+  "source": "flashloan\\db\\local_store_4663.sqlite3",
+  "summary": {
+    "actualNegativeBeforeGasCount": 0,
+    "actualPositiveBeforeGasCount": 3,
+    "actualZeroBeforeGasCount": 0,
+    "decodableCount": 3,
+    "negativeRealizedCount": 0,
+    "nonZeroDifferenceCount": 0,
+    "undecodableCount": 0,
+    "zeroDifferenceCount": 3
+  },
+  "uniqueSuccessCount": 3
+}

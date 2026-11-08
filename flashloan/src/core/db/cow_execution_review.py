@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from core.chain_data_registry import chain_data_file_path
+from core import route_symbol_identity
 
 _ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
 
@@ -290,6 +291,27 @@ def _review_route_identity(row: dict[str, Any], quote: dict[str, Any], live_evid
     )
     hops = _review_hops_from_attempt(row, quote, live_evidence)
     route_addresses, address_source = _review_route_addresses_from_attempt(row, quote, live_evidence, hops)
+    try:
+        chain_id = int(
+            row.get("chain_id")
+            or quote.get("chain_id")
+            or live_evidence.get("chainId")
+            or 0
+        )
+    except (TypeError, ValueError):
+        chain_id = 0
+    if len(route_addresses) == len(route_symbols):
+        route_symbols = route_symbol_identity.normalize_route_symbols_from_addresses(
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            chain_id=chain_id,
+            route=quote,
+        )
+    if not route_addresses:
+        symbol_addresses = route_symbol_identity.official_route_addresses(route_symbols, chain_id=chain_id)
+        if len(symbol_addresses) == len(route_symbols):
+            route_addresses = symbol_addresses
+            address_source = "chain_owned_allowlist"
     route_symbol_set = {str(symbol).upper() for symbol in route_symbols}
     has_weth_eth_symbol_route = {"WETH", "ETH"}.issubset(route_symbol_set)
     if not route_addresses and not has_weth_eth_symbol_route:
@@ -489,6 +511,17 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "net_profit_usd": live_costs.get("netProfitUsd"),
             "net_profit_bps": live_costs.get("netProfitBps"),
             "netProfitBps": live_costs.get("netProfitBps"),
+            "costModel": live_costs,
+            "netProfitAmount": live_costs.get("netProfitAmount"),
+            "netProfitAmountSymbol": live_costs.get("netProfitAmountSymbol") or live_costs.get("borrowInputSymbol"),
+            "netProfitAmountBps": live_costs.get("netProfitAmountBps"),
+            "netProfitAmountMissingReason": live_costs.get("netProfitAmountMissingReason"),
+            "finalOutputAmount": live_costs.get("finalOutputAmount"),
+            "finalOutputSymbol": live_costs.get("finalOutputSymbol"),
+            "borrowInputAmount": live_costs.get("borrowInputAmount") or live_costs.get("requestedBorrowInputAmount"),
+            "gasUsed": live_costs.get("gasUsed"),
+            "gasCostEth": live_costs.get("gasCostEth"),
+            "netAfterGasEth": live_costs.get("netAfterGasEth"),
             "blockers": blockers,
             "transaction_development": live_evidence.get("transactionDevelopment") or {},
             "transactionDevelopment": live_evidence.get("transactionDevelopment") or {},

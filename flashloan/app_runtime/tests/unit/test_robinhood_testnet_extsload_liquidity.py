@@ -211,6 +211,8 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
         protocol="uniswap_v4",
     )[0]
     assert row["has_liquidity"] == 0
+    assert row["liquidity"] == ""
+    assert row["depth_status"] == "no_liquidity"
 
 
 def test_import_prefers_index_extsload_over_stale_swap_liquidity_file(tmp_path):

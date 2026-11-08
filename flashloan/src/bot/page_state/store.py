@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_common import (
-    database_url_or_none as storage_database_url_or_none,
+    database_url as storage_database_url,
 )
 from core.parameter_config import load_page_state_parameter_map, save_page_state_parameter_map
 
@@ -69,8 +69,8 @@ class PageStateStore:
         self._memory_cleared = False
         self._states: _StateCache = _StateCache(self)
 
-    def _database_url_or_none(self) -> str | None:
-        return storage_database_url_or_none()
+    def _database_url(self) -> str | None:
+        return storage_database_url()
 
     def _database_sync_enabled(self) -> bool:
         import os
@@ -78,7 +78,7 @@ class PageStateStore:
         return os.getenv("PAGE_STATE_DATABASE_SYNC", "true").strip().lower() not in {"0", "false", "no", "off"}
 
     def _load_from_database(self, page: str) -> PageState | None:
-        database_url = self._database_url_or_none()
+        database_url = self._database_url()
         if not database_url or not self._database_sync_enabled() or self._memory_cleared:
             return None
         try:
@@ -91,7 +91,7 @@ class PageStateStore:
         return None
 
     def _save_to_database(self, state: PageState) -> None:
-        database_url = self._database_url_or_none()
+        database_url = self._database_url()
         if not database_url or not self._database_sync_enabled():
             return
         try:

@@ -16,6 +16,7 @@
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
     button.copy-btn { min-height: 30px; border-color: #d0d5dd; background: #fff; color: #344054; font-size: 12px; }
+    button:disabled, button[disabled] { opacity: 0.55; filter: grayscale(0.75); cursor: not-allowed; }
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .route { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
@@ -63,6 +64,9 @@
     .pool-chip small { display: block; color: #667085; }
     .route-in-group { border-top: 1px solid #e4e7ec; padding: 10px 0; }
     .route-in-group + .route-in-group { margin-top: 8px; }
+    .loop-family { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .loop-family + .loop-family { margin-top: 12px; }
+    .group-panel { display: none; }
     .route-in-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
     .route-in-summary .path-text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
     .route-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -70,8 +74,9 @@
     .route-actions button { min-height: 30px; font-size: 12px; padding: 0 10px; }
     .route-hop-line { margin-top: 6px; color: #344054; font-size: 12px; overflow-wrap: anywhere; }
     .route-metric-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; color: #667085; font-size: 12px; }
-    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } .pool-group > header { display: block; } }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } .pool-group > header { display: block; } .loop-family { grid-template-columns: 1fr; } }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body data-dex-surface-template="quotes">
   <header>
@@ -87,25 +92,23 @@
   <main>
     <div class="toolbar">
       <button id="refreshBtn" type="button">刷新路由</button>
-      <button id="resetStatsBtn" type="button">清零统计</button>
       <label for="refreshInterval">刷新间隔（秒）</label>
-      <input id="refreshInterval" type="number" min="10" max="3600" step="1" value="180" inputmode="numeric">
-      <label><input id="autoExecuteToggle" type="checkbox"> 自动扫描复核并进行链上广播</label>
-      <span id="message" class="muted">等待数据</span>
+      <input id="refreshInterval" type="number" min="10" max="3600" step="1" value="60" inputmode="numeric">
+      <span id="message" class="muted">正在加载数据</span>
     </div>
     <section class="grid">
       <div class="metric"><small>路线数量</small><strong id="routeCount">-</strong><span id="routeSourceMeta">市场观察</span></div>
-      <div class="metric"><small>1000U 探测</small><strong id="completeCount">-</strong><span id="probeMeta">链上 AMM 验证</span></div>
-      <div class="metric"><small>链上复核候选</small><strong id="readyCount">-</strong><span id="profitMeta">已扣除闪电贷和 Gas 成本</span></div>
-      <div class="metric"><small>可自动执行闭环</small><strong id="autoExecutableCount">-</strong><span id="autoExecutableMeta">链上复核通过且可盈利</span></div>
-      <div class="metric"><small>链上复核总数</small><strong id="reviewedCount">-</strong><span id="reviewedMeta">本轮已完成链上复核</span></div>
-      <div class="metric"><small>闭环扫描</small><strong id="closedLoopScanCount">-</strong><span id="closedLoopScanMeta">累计已完成闭环刷新</span></div>
-      <div class="metric"><small>链上复核次数</small><strong id="closedLoopReviewCount">-</strong><span id="closedLoopReviewMeta">累计链上复核尝试</span></div>
-      <div class="metric"><small>正盈利空间</small><strong id="profitableCount">-</strong><span id="profitableMeta">链上复核正收益</span></div>
-      <div class="metric"><small>已自动执行</small><strong id="autoExecutedCount">-</strong><span id="autoExecutedMeta">已广播链上交易</span></div>
-      <div class="metric"><small>上链广播</small><strong id="autoBroadcastCount">-</strong><span id="autoBroadcastMeta">累计已广播链上交易</span></div>
-      <div class="metric"><small>正在排队</small><strong id="queueCount">-</strong><span id="queueMeta">待复核/待扫描</span></div>
-      <div class="metric"><small>结算</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
+      <div class="metric"><small>Review 完成</small><strong id="completeCount">-</strong><span id="probeMeta">Manager Review 状态</span></div>
+      <div class="metric"><small>链上候选</small><strong id="readyCount">-</strong><span id="profitMeta">Manager 正收益与广播状态</span></div>
+      <div class="metric"><small>广播请求</small><strong id="autoExecutableCount">-</strong><span id="autoExecutableMeta">Review 已确认请求</span></div>
+      <div class="metric"><small>Review 总数</small><strong id="reviewedCount">-</strong><span id="reviewedMeta">Manager 复核记录</span></div>
+      <div class="metric"><small>候选边池</small><strong id="closedLoopScanCount">-</strong><span id="closedLoopScanMeta">库版本</span></div>
+      <div class="metric"><small>候选交换</small><strong id="closedLoopReviewCount">-</strong><span id="closedLoopReviewMeta">库版本</span></div>
+      <div class="metric"><small>正收益路线</small><strong id="profitableCount">-</strong><span id="profitableMeta">Review signed PnL</span></div>
+      <div class="metric"><small>闭环版本</small><strong id="autoExecutedCount">-</strong><span id="autoExecutedMeta">Composite Manager</span></div>
+      <div class="metric"><small>广播版本</small><strong id="autoBroadcastCount">-</strong><span id="autoBroadcastMeta">Broadcast Manager</span></div>
+      <div class="metric"><small>数据不完整</small><strong id="queueCount">-</strong><span id="queueMeta">缺 PnL / 未解析引用</span></div>
+      <div class="metric"><small>版本一致性</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
     </section>
     <section id="groupList" class="group-panel"></section>
     <section id="routeList"></section>

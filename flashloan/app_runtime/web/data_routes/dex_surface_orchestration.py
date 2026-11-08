@@ -155,7 +155,6 @@ def _submission_review_framework_payload(
     )
     route_framework["summary"] = {
         "overview": overview_summary,
-        "marketObservation": overview.get("marketObservation") if isinstance(overview.get("marketObservation"), dict) else {},
     }
     return route_framework
 

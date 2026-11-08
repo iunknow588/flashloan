@@ -6,6 +6,7 @@ import json
 import sqlite3
 
 from core.db import builders
+from core.db.chain_database_context import chain_database_path
 from core.db.import_existing_json import _token_rows_from_v4_index
 from core.db import page_payloads
 from core.db.database_path import absolute_database_path
@@ -76,7 +77,7 @@ def test_build_registry_rejects_duplicate_symbol_address():
 
 
 def test_generated_mainnet_metadata_covers_every_official_stock_token():
-    database = str(absolute_database_path())
+    database = str(chain_database_path(4663, "robinhood").resolve())
     registry = load_stock_token_registry(database_url=database)
     tokens = registry.get("tokens") or {}
     assert int(registry.get("token_count") or 0) >= 194

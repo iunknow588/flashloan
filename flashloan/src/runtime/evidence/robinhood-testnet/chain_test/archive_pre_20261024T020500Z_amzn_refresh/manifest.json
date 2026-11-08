@@ -1,0 +1,13 @@
+{
+  "chainId": 46630,
+  "contractDir": "E:\\2026OPC大赛\\flashLoan\\contract\\robinhood-testnet\\DEX\\config\\chain-test-package",
+  "files": [
+    "attempt.json",
+    "plan.json",
+    "checklist.json",
+    "summary.md"
+  ],
+  "generatedAt": "2026-10-22T22:54:30.944778+00:00",
+  "network": "robinhood-testnet",
+  "schemaVersion": "robinhood-chain-test-package-v1"
+}

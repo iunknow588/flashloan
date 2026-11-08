@@ -73,7 +73,6 @@ _set_cow_submission_pause_guard = shared._set_cow_submission_pause_guard
 _clear_cow_submission_pause_guard = shared._clear_cow_submission_pause_guard
 _cow_submission_pause_guard = shared._cow_submission_pause_guard
 DEX_ARBITRAGE_SUPPORTED_NETWORK = shared.DEX_ARBITRAGE_SUPPORTED_NETWORK
-COW_EXECUTION_ATTEMPT_LOG_PATH = shared.COW_EXECUTION_ATTEMPT_LOG_PATH
 COW_EXECUTION_RETENTION_DAYS = shared.COW_EXECUTION_RETENTION_DAYS
 COW_EXECUTION_REVIEW_CATEGORIES = shared.COW_EXECUTION_REVIEW_CATEGORIES
 
@@ -171,6 +170,99 @@ def register_binance_market_routes(app, panel) -> None:
             retain_networks=retain_cow_candidate_networks,
         )
         return jsonify(payload)
+
+    @app.get("/api/binance-market/bnb-rust-store")
+    def binance_market_bnb_rust_store():
+        """Read-only view of the Rust-owned BNB market SQLite tables.
+
+        The endpoint never starts the collector and never writes. It surfaces
+        the most recent BNBUSDT snapshots, the most recent BNB chain
+        observations, and the resident worker-pool collector state when the
+        native closed-loop pool is available.
+        """
+        from core.db.bnb_database import (
+            bnb_shared_collector_status,
+            bnb_shared_database_path,
+        )
+        from core.rs_bridge import (
+            load_bnb_market_observations,
+            load_bnb_market_snapshots,
+        )
+
+        database_url = str(bnb_shared_database_path())
+        snapshot_limit = request_int_arg("snapshot_limit", 20, minimum=1, maximum=100)
+        observation_limit = request_int_arg("observation_limit", 20, minimum=1, maximum=100)
+
+        snapshots = load_bnb_market_snapshots(
+            limit=snapshot_limit,
+            database_url=database_url,
+        )
+        observations = load_bnb_market_observations(
+            limit=observation_limit,
+            database_url=database_url,
+        )
+        snapshot_rows = []
+        for row in snapshots.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            snapshot_rows.append(
+                {
+                    "id": row.get("id"),
+                    "source": row.get("source"),
+                    "symbol": row.get("symbol"),
+                    "priceUsd": row.get("price_usd"),
+                    "observedAt": row.get("observed_at"),
+                }
+            )
+        observation_rows = []
+        source_counts: dict[str, int] = {}
+        for row in observations.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            source = str(row.get("source") or "").strip() or "unknown"
+            source_counts[source] = source_counts.get(source, 0) + 1
+            payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+            observation_rows.append(
+                {
+                    "id": row.get("id"),
+                    "source": source,
+                    "network": row.get("network"),
+                    "chainId": row.get("chain_id"),
+                    "runId": row.get("run_id"),
+                    "roundIndex": row.get("round_index"),
+                    "recordedAt": row.get("recorded_at"),
+                    "generatedAt": payload.get("generatedAt"),
+                    "routeCount": payload.get("routeCount"),
+                    "cycleCount": payload.get("cycleCount"),
+                    "successfulQuoteCount": payload.get("successfulQuoteCount"),
+                    "profitableBeforeCostsCount": payload.get("profitableBeforeCostsCount"),
+                    "spotPotentialCount": payload.get("spotPotentialCount"),
+                    "exactPositiveCount": payload.get("exactPositiveCount"),
+                }
+            )
+
+        try:
+            collector = bnb_shared_collector_status()
+            collector_error = None
+        except Exception as exc:
+            collector_error = str(exc)[:300]
+            collector = None
+
+        return jsonify(
+            {
+                "ok": True,
+                "source": "sqlite_rust",
+                "tables": ["bnb_market_observations", "bnb_market_snapshots"],
+                "snapshotLimit": snapshot_limit,
+                "observationLimit": observation_limit,
+                "snapshots": snapshot_rows,
+                "observations": observation_rows,
+                "observationSourceCounts": source_counts,
+                "collector": collector,
+                "collectorError": collector_error,
+                "database": database_url,
+            }
+        )
 
     from web.data_routes.binance_market_cow import register_binance_market_cow_routes
 

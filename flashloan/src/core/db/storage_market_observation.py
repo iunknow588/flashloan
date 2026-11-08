@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_business_io import execute, executemany, query
-from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
+from core.db.direction_pool_score import has_confirmed_depth, score_pool_by_direction
 
 
 MAX_OBSERVATION_POOLS_PER_DIRECTION = 3
@@ -100,7 +100,7 @@ def replace_market_observation_tables(
         pool_ids = []
         seen_pool_ids: set[str] = set()
         for item in scored_pools:
-            if not has_confirmed_liquidity(
+            if not has_confirmed_depth(
                 item,
                 min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
                 fallback_token_base=1.0,
@@ -370,7 +370,7 @@ def replace_market_observation_abnormal_tables(
         pool_ids = []
         seen_pool_ids: set[str] = set()
         for item in scored_pools:
-            if not has_confirmed_liquidity(
+            if not has_confirmed_depth(
                 item,
                 min_usd=MIN_OBSERVATION_POOL_DEPTH_USD,
                 fallback_token_base=1.0,

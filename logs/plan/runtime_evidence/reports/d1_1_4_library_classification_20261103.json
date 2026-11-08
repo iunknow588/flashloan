@@ -1,0 +1,217 @@
+{
+  "capturedAt": "2026-11-04T00:35:24+08:00",
+  "milestone": "M1",
+  "task": "D1.1.4",
+  "status": "passed",
+  "scope": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "registry": "flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+    "network": "robinhood",
+    "chainId": 4663,
+    "sqliteOpenFlags": "SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX",
+    "mainnetMigrationOrApply": false,
+    "httpBusinessWritesEnabled": false,
+    "extensionRule": [
+      "the candidate token must have accepted normalized metadata",
+      "at least one direct V4 pool must connect it to core, stocks, or test/TZ",
+      "that pool must pass has_liquidity, positive liquidity_index, fixed fee, fee ceiling, zero hook, and depth evidence checks"
+    ]
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "workspaceTestsPassed": 47,
+      "tokenManagerTestsPassed": 30,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo run --quiet --manifest-path flashloan/tools/Cargo.toml --bin token-manager -- audit-metadata --db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+      "exitCode": 0
+    }
+  ],
+  "newLiquidityTests": [
+    "extension requires a liquidity-qualified direct pool",
+    "dynamic fee, special fee, non-zero hook, missing liquidity, and stale thin evidence are rejected",
+    "positive deep, unpriced, and live thin pools are accepted by the current Pool Manager gate"
+  ],
+  "mainnetReadOnlyAudit": {
+    "sourceCounts": {
+      "chainTokens": 6353,
+      "coreAllowlist": 4,
+      "stockRegistry": 194,
+      "v4PoolCurrencyReferences": 10930
+    },
+    "normalization": {
+      "accepted": 4683,
+      "rejected": 1868,
+      "acceptedBySource": {
+        "chain_tokens": 4485,
+        "core_allowlist": 4,
+        "stock_registry": 194
+      },
+      "errorsByCode": {
+        "MISSING_DECIMALS": 1854,
+        "PLACEHOLDER_SYMBOL": 14
+      }
+    },
+    "classification": {
+      "uniqueTokens": 4485,
+      "primaryLibraries": {
+        "core": 4,
+        "stocks": 194,
+        "test": 1
+      },
+      "libraryMemberships": {
+        "core": 4,
+        "stocks": 194,
+        "extension": 78,
+        "test": 1
+      },
+      "extensionMembers": 78,
+      "extensionOverlap": 33,
+      "extensionOverlapByPrimaryLibrary": {
+        "core": 4,
+        "stocks": 29,
+        "test": 0
+      },
+      "extensionOnly": 45,
+      "extensionAnchorDistribution": {
+        "CORE_TOKEN": 76,
+        "STOCK_TOKEN": 32,
+        "TEST_TOKEN": 2
+      },
+      "unclassified": 4241,
+      "sourceOverrides": 198,
+      "duplicateSymbolGroups": 5,
+      "mainnetTestTokens": {
+        "TZ": "test primary; no extension membership",
+        "TA": "extension-only through direct TZ pool",
+        "TB": "extension-only through direct TZ pool"
+      }
+    },
+    "liquidityEligibility": {
+      "gateEnabled": true,
+      "source": "v4_exchange_pools JOIN v4_exchange_pool_liquidity_snapshots",
+      "poolCount": 5459,
+      "qualifiedPoolCount": 1025,
+      "qualifiedPoolsByDepth": {
+        "deep": 319,
+        "liquid": 1,
+        "thin": 26,
+        "unpriced": 679
+      },
+      "strictDepthQualifiedPoolCount": 320,
+      "rule": "fixed fee in 1..=3000; dynamic/special fee zero; zero hooks; has_liquidity=1 with positive liquidity_index; depth deep/liquid/live_liquid, unpriced with positive liquidity, or thin with live-state evidence"
+    },
+    "coreAnchorCounterpartDiagnostics": {
+      "ETH": {
+        "rawDistinctCounterparts": 696,
+        "metadataAcceptedCounterparts": 145,
+        "liquidityQualifiedCounterparts": 238,
+        "strictDepthQualifiedCounterparts": 232,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 57
+      },
+      "WETH": {
+        "rawDistinctCounterparts": 489,
+        "metadataAcceptedCounterparts": 22,
+        "liquidityQualifiedCounterparts": 238,
+        "strictDepthQualifiedCounterparts": 1,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 7
+      },
+      "USDE": {
+        "rawDistinctCounterparts": 32,
+        "metadataAcceptedCounterparts": 4,
+        "liquidityQualifiedCounterparts": 5,
+        "strictDepthQualifiedCounterparts": 1,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 3
+      },
+      "USDG": {
+        "rawDistinctCounterparts": 1000,
+        "metadataAcceptedCounterparts": 90,
+        "liquidityQualifiedCounterparts": 63,
+        "strictDepthQualifiedCounterparts": 3,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 35
+      },
+      "union": {
+        "rawDistinctCounterparts": 2049,
+        "metadataAcceptedCounterparts": 197,
+        "liquidityQualifiedCounterparts": 515,
+        "strictDepthQualifiedCounterparts": 235,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 76
+      }
+    }
+  },
+  "usdgAnalysis": {
+    "relatedPoolRows": 3256,
+    "poolsWithLiquiditySnapshot": 3250,
+    "poolsWithoutLiquiditySnapshot": 6,
+    "distinctCounterpartAddresses": 1000,
+    "counterpartsWithChainTokenRows": 1000,
+    "metadataJsonRows": 1000,
+    "metadataJsonParseFailures": 0,
+    "metadataJsonWithSymbol": 926,
+    "metadataJsonWithDecimals": 0,
+    "directMetadataWithSymbolAndDecimals": 90,
+    "directAndJsonSymbolOverlap": 17,
+    "symbolAvailableCounterparts": 999,
+    "validDecimalsAvailableCounterparts": 90,
+    "symbolAndValidDecimalsAvailableCounterparts": 90,
+    "metadataAcceptedCounterparts": 90,
+    "liquidityQualifiedCounterparts": 63,
+    "liquidityQualifiedAndMetadataAcceptedCounterparts": 35,
+    "strictDepthQualifiedCounterparts": 3,
+    "qualifiedPoolsByDepth": {
+      "deep": {
+        "poolCount": 49,
+        "counterpartCount": 3
+      },
+      "thin": {
+        "poolCount": 12,
+        "counterpartCount": 2
+      },
+      "unpriced": {
+        "poolCount": 392,
+        "counterpartCount": 59
+      }
+    },
+    "interpretation": "The historical 1000+ observation is the raw distinct USDG direct-pool counterpart set. Detail availability is high for addresses and symbols, but most rows still lack decimals. Only 35 counterparts pass both metadata normalization and the current liquidity gate; only 3 have strict deep/liquid/live_liquid depth. Metadata backfill should therefore prioritize the 515 liquidity-qualified union addresses instead of all raw addresses.",
+    "backfillPriority": {
+      "recommendedScope": "liquidity-qualified counterpart addresses",
+      "unionAddressCount": 515,
+      "usdgAddressCount": 63,
+      "requiredMissingField": "on-chain decimals() or equivalent trusted metadata",
+      "reason": "address and symbol coverage are already high, while decimals is the dominant metadata rejection cause"
+    }
+  },
+  "concurrencyNote": {
+    "mainnetServiceActive": true,
+    "serviceProcessIds": [
+      20080,
+      20404
+    ],
+    "databaseAndWalObservedChanging": true,
+    "interpretation": "Counts are an as-of read-only audit. Read-only proof comes from SQLite open flags and absence of migration/apply, not from database file timestamp stability."
+  },
+  "sourceHashes": {
+    "flashloan/tools/token_manager/src/classification.rs": "sha256:43d5a89a7ce90c0d4c3d76c10ee0a1399bc8e2db86cf5e874696ab9e63c336a6",
+    "flashloan/tools/token_manager/src/main.rs": "sha256:6a9af2457d6a96f56835eb652fa765f7e72967207204f14b0350cbb2d4408a5a",
+    "flashloan/tools/token_manager/src/metadata.rs": "sha256:c8ae1d4949b3bea59ffe0e7826395e5f9bb9bdbbde91670717421c35955ddb62",
+    "flashloan/tools/token_manager/src/sources.rs": "sha256:e77f8f79ee835a63bacb61750244e0e8006c84dd0f690ea337189746367b11d5",
+    "flashloan/tools/token_manager/src/lib.rs": "sha256:d1a20a6af50b1226fd1390fe690f788fbf953c300bb725a0f11f5322fde4b34d"
+  },
+  "nextTask": "D1.1.6",
+  "conclusion": "D1.1.4 passes with 30 token-manager tests and a read-only mainnet audit. Extension admission now requires metadata and a direct liquidity-qualified pool; no mainnet business write was performed."
+}

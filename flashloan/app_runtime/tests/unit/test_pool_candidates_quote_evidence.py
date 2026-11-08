@@ -318,7 +318,6 @@ def test_robinhood_testnet_static_reference_survives_missing_token_decimals(monk
     }
 
     monkeypatch.setattr(dex_surfaces, "load_v4_sdk_adapter", lambda **kwargs: object())
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "1")
     monkeypatch.setattr(dex_surfaces, "_v4_live_quote_enabled", lambda: True)
 
     def fake_zero_quote(*, adapter, request):

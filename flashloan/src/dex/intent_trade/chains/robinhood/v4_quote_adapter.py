@@ -232,8 +232,14 @@ def _read_live_pool_state_with_w3(
     # block in the evidence path; some RPCs prune state shortly after the
     # block and return "historical state ... is not available".
     call_kwargs: dict[str, Any] = {"block_identifier": "latest"}
+    from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+        throttle_rpc_call,
+    )
+
+    throttle_rpc_call(rpc_url)
     slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
-    liquidity_slot = (int.from_bytes(state_slot, "big") + 2).to_bytes(32, "big")
+    liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+    throttle_rpc_call(rpc_url)
     liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
     slot0_value = int.from_bytes(bytes(slot0_raw), "big")
     sqrt_price_x96 = slot0_value & ((1 << 160) - 1)
@@ -849,23 +855,18 @@ def _quote_v4_exact_input_single(
 ) -> tuple[int, int]:
     from core.rs_bridge import quote_v4_exact_input_single as _rust_quote_v4_exact_input_single
     from core.rs_bridge import rust_available
+    from dex.intent_trade.chains.robinhood_common.v4_quote_rpc_retry import (
+        is_transient_rpc_error,
+        ordered_rpc_urls,
+    )
 
     if w3 is None:
         w3, rpc_url = _connect_chain_rpc(network, chain_id)
     else:
         rpc_url = _text(getattr(getattr(w3, "provider", None), "endpoint_uri", ""))
-    contract = w3.eth.contract(address=Web3.to_checksum_address(quoter_address), abi=_V4_QUOTER_ABI)
     call_kwargs: dict[str, Any] = {"gas": int(os.getenv("DEX_ONCHAIN_QUOTE_CALL_GAS_LIMIT", "30000000") or 30000000)}
     if call_from:
         call_kwargs["from"] = Web3.to_checksum_address(call_from)
-    quote_call = contract.functions.quoteExactInputSingle(
-        (
-            pool_key,
-            bool(zero_for_one),
-            int(amount_in_raw),
-            hook_data,
-        )
-    )
     rust_path = rust_available() and bool(rpc_url)
     rust_request: dict[str, Any] = {}
     if rust_path:
@@ -880,56 +881,85 @@ def _quote_v4_exact_input_single(
             "hookData": "0x" + bytes(hook_data).hex() if hook_data else "",
         }
     retries = max(0, int(os.getenv("DEX_ONCHAIN_QUOTE_RETRY_ATTEMPTS", "2") or 2))
+    rpc_urls = ordered_rpc_urls(rpc_url, robinhood.rpc_urls_from_env())
+    attempted_urls: list[str] = []
     last_exc: Exception | None = None
-    for attempt in range(retries + 1):
-        try:
-            if rust_path:
-                payload = _rust_quote_v4_exact_input_single(
-                    rust_request,
-                    rpc_url,
-                    quoter_address,
-                    call_from=call_from,
-                    timeout_seconds=int(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12),
+    rpc_busy = False
+    for candidate_url in rpc_urls:
+        attempted_urls.append(candidate_url)
+        for attempt in range(retries + 1):
+            try:
+                if rust_path:
+                    payload = _rust_quote_v4_exact_input_single(
+                        rust_request,
+                        candidate_url,
+                        quoter_address,
+                        call_from=call_from,
+                        timeout_seconds=int(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12),
+                    )
+                    if not payload.get("ok"):
+                        raised = RuntimeError(str(payload.get("error") or "quoter eth_call failed"))
+                        setattr(raised, "data", str(payload.get("revertData") or ""))
+                        raise raised
+                    return (
+                        int(str(payload.get("amountOutRaw") or "0x0"), 16),
+                        int(str(payload.get("gasEstimate") or "0x0"), 16),
+                    )
+                # Use the live head, not a numeric snapshot block. The block_number
+                # argument is retained only as audit metadata for the evidence record.
+                from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+                    throttle_rpc_call,
                 )
-                if not payload.get("ok"):
-                    raised = RuntimeError(str(payload.get("error") or "quoter eth_call failed"))
-                    setattr(raised, "data", str(payload.get("revertData") or ""))
-                    raise raised
-                return (
-                    int(str(payload.get("amountOutRaw") or "0x0"), 16),
-                    int(str(payload.get("gasEstimate") or "0x0"), 16),
+
+                active_w3 = w3
+                if active_w3 is None or _text(getattr(getattr(active_w3, "provider", None), "endpoint_uri", "")) != candidate_url:
+                    active_w3 = Web3(
+                        Web3.HTTPProvider(
+                            candidate_url,
+                            request_kwargs={
+                                "timeout": float(
+                                    robinhood.mainnet_rpc_connect_timeouts()[min(attempt, len(robinhood.mainnet_rpc_connect_timeouts()) - 1)]
+                                ),
+                                "verify": False,
+                                "headers": {
+                                    "Content-Type": "application/json",
+                                    "User-Agent": "flashloan-robinhood-mainnet-v4/1.1",
+                                    "Connection": "close",
+                                },
+                            },
+                        )
+                    )
+                contract = active_w3.eth.contract(address=Web3.to_checksum_address(quoter_address), abi=_V4_QUOTER_ABI)
+                quote_call = contract.functions.quoteExactInputSingle(
+                    (
+                        pool_key,
+                        bool(zero_for_one),
+                        int(amount_in_raw),
+                        hook_data,
+                    )
                 )
-            # Use the live head, not a numeric snapshot block. The block_number
-            # argument is retained only as audit metadata for the evidence record.
-            amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
-            return int(amount_out), int(gas_estimate)
-        except Exception as exc:
-            last_exc = exc
-            data = _extract_revert_data(exc)
-            summary = _summarize_v4_revert_data(data)
-            if summary:
-                label = _chain_label(network, chain_id)
-                raise RuntimeError(f"{label} quoter reverted: {summary}") from exc
-            if rust_path:
-                break
-            text = _text(exc)
-            transient_markers = (
-                "unexpected_eof",
-                "connection reset",
-                "connection aborted",
-                "remote disconnected",
-                "read timeout",
-                "temporarily unavailable",
-                "bad gateway",
-                "service unavailable",
-                "rpc unavailable",
-                "eth_call",
-            )
-            if not any(marker in text.lower() for marker in transient_markers) or attempt >= retries:
-                break
-            time.sleep(0.5 * (attempt + 1))
+                throttle_rpc_call(candidate_url)
+                amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
+                return int(amount_out), int(gas_estimate)
+            except Exception as exc:
+                last_exc = exc
+                data = _extract_revert_data(exc)
+                summary = _summarize_v4_revert_data(data)
+                if data:
+                    if summary:
+                        label = _chain_label(network, chain_id)
+                        raise RuntimeError(f"{label} quoter reverted: {summary}") from exc
+                    break
+                if not is_transient_rpc_error(exc):
+                    break
+                rpc_busy = True
+                time.sleep(0.3 * (attempt + 1))
+    if last_exc is None:
+        last_exc = RuntimeError("quoter eth_call did not produce a result")
+    setattr(last_exc, "attemptedRpcUrls", attempted_urls)
+    setattr(last_exc, "rpcFailoverCount", max(0, len(attempted_urls) - 1))
+    setattr(last_exc, "rpcBusy", bool(rpc_busy))
     raise last_exc
-    return int(amount_out), int(gas_estimate)
 
 
 def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict[str, Any]:
@@ -965,8 +995,13 @@ def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict
                 block_number=context.get("blockNumber"),
             )
         except Exception as exc:
+            from dex.intent_trade.chains.robinhood_common.v4_quote_rpc_retry import (
+                copy_rpc_exception_metadata,
+            )
+
             label = _chain_label(context["network"], context["chainId"])
-            raise RuntimeError(f"{label} quoter exact-input call failed; {exc}") from exc
+            failure = RuntimeError(f"{label} quoter exact-input call failed; {exc}")
+            raise copy_rpc_exception_metadata(exc, failure) from exc
         if amount_out_raw <= 0:
             label = _chain_label(context["network"], context["chainId"])
             raise RuntimeError(f"{label} quoter returned a non-positive amountOut")

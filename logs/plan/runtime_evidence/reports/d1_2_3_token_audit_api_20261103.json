@@ -1,0 +1,57 @@
+{
+  "capturedAt": "2026-11-04T04:06:04+08:00",
+  "milestone": "M1",
+  "task": "D1.2.3",
+  "status": "passed",
+  "scope": {
+    "endpoint": "GET /v1/tokens/audit",
+    "query": "chainId required; recentEventLimit defaults to 20 and must not exceed 100",
+    "network": "robinhood",
+    "chainId": 4663,
+    "sqliteOpenFlags": "SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX",
+    "mainnetMigrationOrApply": false,
+    "mainnetBusinessWrites": false
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "workspaceTestsPassed": 73,
+      "managerApiTestsPassed": 9,
+      "tokenManagerTestsPassed": 49,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager -p manager-api -p pool-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    }
+  ],
+  "auditFields": [
+    "four-library status counts",
+    "library version, token count, admitted count, checksum, and source checkpoint",
+    "state-to-row count consistency",
+    "duplicate symbols",
+    "primary-library conflicts",
+    "admission source counts",
+    "admission event count and recent structured events"
+  ],
+  "testCoverage": [
+    "audit reports counts, duplicates, sources, state, and recent events",
+    "audit does not change the database size or admission event count",
+    "recentEventLimit above 100 is rejected",
+    "HTTP audit returns the manager DTO without performing a write"
+  ],
+  "sourceHashes": {
+    "flashloan/tools/manager_api/src/lib.rs": "sha256:da4614c12dd623e7104b429bfd1c3a4aeb8bec2b7f096f85ed2ba843113e2385",
+    "flashloan/tools/token_manager/src/manager_audit.rs": "sha256:5e3465d593e93c15c2d6d21325220ff671579d4eeb00f90090b9760141c1f359"
+  },
+  "conclusion": "D1.2.3 passes with a read-only manager audit surface and stable structured evidence; no mainnet write was performed."
+}

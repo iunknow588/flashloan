@@ -1,0 +1,747 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedCount": 7994,
+      "blockedSamplesWithExpectedPnl": [
+        {
+          "blockers": [
+            "hop 2 ETH -> AMZN has no LP liquidity on chain: pool manager live liquidity is zero"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-22T11:27:00.264605+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-22T11:24:00.323853+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 2 ETH -> AMZN has no LP liquidity on chain: pool manager live liquidity is zero"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-22T05:44:13.729703+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-22T05:40:50.115242+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-22T00:36:40.344017+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-22T00:31:31.964949+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T21:42:20.719666+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T21:36:44.687066+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T21:40:59.144452+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T21:36:31.900980+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T06:31:14.215274+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T06:26:08.681254+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T06:30:29.664114+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T06:25:56.659799+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T05:12:28.166635+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T05:06:04.391817+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T05:11:35.623714+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T05:05:49.012118+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T04:14:16.823667+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T04:07:43.872283+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T04:13:54.678149+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T04:07:30.854781+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T03:26:36.923703+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T03:21:27.497409+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "hop 1 TSLA->ETH verification failed: robinhood testnet v4 quoter exact-input call failed; execution reverted",
+            "hop 1 TSLA->ETH price impact cannot be confirmed; must be at or below 10 bps before transaction preflight"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T03:26:03.611606+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-1.0005",
+          "observedAt": "2026-10-21T03:21:14.711335+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "precheck.reference_token_profit_amount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:58.690424200+00:00",
+          "pair": "AMD -> TSLA -> AMZN -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "out of gas"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:58.690424200+00:00",
+          "pair": "AMD -> AMZN -> TSLA -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "out of gas"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:51.545223500+00:00",
+          "pair": "AMZN -> TSLA -> AMD -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:51.545223500+00:00",
+          "pair": "AMZN -> AMD -> TSLA -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:48.752949800+00:00",
+          "pair": "TSLA -> AMZN -> AMD -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:48.752949800+00:00",
+          "pair": "TSLA -> AMD -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:44.182658400+00:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:44.182658400+00:00",
+          "pair": "TZ -> TA -> TB -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:41.962182800+00:00",
+          "pair": "ETH -> PLTR -> NFLX -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:41.962182800+00:00",
+          "pair": "ETH -> NFLX -> PLTR -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:40.039821+00:00",
+          "pair": "NFLX -> ETH -> PLTR -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:40.039821+00:00",
+          "pair": "NFLX -> PLTR -> ETH -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:40.003102300+00:00",
+          "pair": "AMD -> TSLA -> ETH -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "out of gas"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:40.003102300+00:00",
+          "pair": "AMD -> ETH -> TSLA -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:37.806478300+00:00",
+          "pair": "PLTR -> NFLX -> ETH -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:37.806478300+00:00",
+          "pair": "PLTR -> ETH -> NFLX -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "out of gas"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-21T00:28:59.790086+00:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.0",
+          "observedAt": "2026-10-21T00:28:37.702437500+00:00",
+          "pair": "ETH -> TSLA -> AMD -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        }
+      ],
+      "blockedWithExpectedPnlCount": 1687,
+      "blockedWithMissingPnlCount": 6307
+    },
+    "failed": {
+      "expectedPnlBySymbol": [
+        {
+          "count": 1,
+          "symbol": "ETH",
+          "total": "5.447211945E-9"
+        }
+      ],
+      "failedClosedLoops": [
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "native_auto_execute_failed"
+          ],
+          "broadcast": true,
+          "createdAt": "2026-10-21T09:25:12.099795+00:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": null,
+          "observedAt": "2026-10-21T09:24:44.517117600+00:00",
+          "pair": "ETH -> TSLA -> AMZN -> ETH",
+          "pnlMissingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+          "pnlSourcePath": null,
+          "state": "execution_failed"
+        },
+        {
+          "blockers": [
+            "native_auto_execute_failed"
+          ],
+          "broadcast": true,
+          "createdAt": "2026-10-21T09:25:12.099795+00:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "5.447211945E-9",
+          "observedAt": "2026-10-21T09:24:44.517117600+00:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_failed"
+        }
+      ],
+      "failedCount": 2
+    },
+    "ready": {
+      "readyCount": 4,
+      "readySamples": [
+        {
+          "blockers": [
+            "rpc_verification_failed",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-20T20:13:07.167670+00:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "0.3923056978984455",
+          "observedAt": "2026-10-20T20:13:02.787943200+00:00",
+          "pair": "NFLX -> ETH -> PLTR -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "rpc_verification_failed",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-20T20:13:07.167670+00:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "0.4484237282572625",
+          "observedAt": "2026-10-20T20:13:01.537698800+00:00",
+          "pair": "PLTR -> NFLX -> ETH -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "route_unprofitable",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-20T21:40:07.277813+00:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "0.000670765037743791",
+          "observedAt": "2026-10-20T21:40:02.762450800+00:00",
+          "pair": "NFLX -> PLTR -> ETH -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "route_unprofitable",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-20T21:40:07.277813+00:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "0.001266281384256313",
+          "observedAt": "2026-10-20T21:40:01.942880+00:00",
+          "pair": "PLTR -> ETH -> NFLX -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        }
+      ]
+    },
+    "success": {
+      "profitBySymbol": [
+        {
+          "count": 2,
+          "symbol": "ETH",
+          "total": "0.000001735326159390"
+        },
+        {
+          "count": 2,
+          "symbol": "TSLA",
+          "total": "0.000001781155883453"
+        },
+        {
+          "count": 3,
+          "symbol": "TZ",
+          "total": "21.51635478767647587"
+        }
+      ],
+      "successes": [
+        {
+          "blockNumber": null,
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-20T04:14:01.060094+00:00",
+          "effectiveGasPrice": null,
+          "effectiveGasPriceInt": null,
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "20.997595580926138",
+          "gasUsed": null,
+          "gasUsedInt": null,
+          "observedAt": "2026-10-20T04:13:56.375497+00:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": null,
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-20T04:23:06.705852+00:00",
+          "effectiveGasPrice": null,
+          "effectiveGasPriceInt": null,
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "0.5187591644712384",
+          "gasUsed": null,
+          "gasUsedInt": null,
+          "observedAt": "2026-10-20T04:23:01.852141+00:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": null,
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-20T04:30:14.315741+00:00",
+          "effectiveGasPrice": null,
+          "effectiveGasPriceInt": null,
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "4.227909947E-8",
+          "gasUsed": null,
+          "gasUsedInt": null,
+          "observedAt": "2026-10-20T04:30:12.583828+00:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": null,
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-20T09:22:38.887988+00:00",
+          "effectiveGasPrice": null,
+          "effectiveGasPriceInt": null,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "1.172425E-12",
+          "gasUsed": null,
+          "gasUsedInt": null,
+          "observedAt": "2026-10-20T09:22:10.727007+00:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x8584993",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-21T09:25:12.099795+00:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "2.2051269484E-7",
+          "gasUsed": "0x4b143",
+          "gasUsedInt": 307523,
+          "observedAt": "2026-10-21T09:24:43.108159400+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x85d4c65",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-21T22:00:02.302106+00:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "0.000001560643188613",
+          "gasUsed": "0x4c6a1",
+          "gasUsedInt": 312993,
+          "observedAt": "2026-10-21T21:59:30.201349+00:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x85d4ca3",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-21T22:00:02.302106+00:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000001735324986965",
+          "gasUsed": "0x462c5",
+          "gasUsedInt": 287429,
+          "observedAt": "2026-10-21T21:59:40.365796+00:00",
+          "pair": "ETH -> AMD -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "execution_success"
+        }
+      ],
+      "uniqueSuccessCount": 7
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "conclusion": "7 unique on-chain success broadcasts with signed profit by symbol: 0.000001735326159390 ETH across 2 tx, 0.000001781155883453 TSLA across 2 tx, 21.51635478767647587 TZ across 3 tx; 2 failed broadcasts with expected P&L by symbol: 5.447211945E-9 ETH across 1 rows; 7994 blocked/quote rows present, of which 1687 carry an expected numeric P&L.",
+  "generatedAt": "2026-10-22T15:58:29Z",
+  "range": {
+    "endUtc": "2026-10-22T15:55:18.391247400+00:00",
+    "firstObservedAt": "2026-10-20T04:13:56.375497+00:00",
+    "lastObservedAt": "2026-10-22T15:55:18.391247400+00:00",
+    "startUtc": "2026-10-20T04:13:56.375497+00:00"
+  },
+  "rowCount": 8042,
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-closed-loop-pnl-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\logs\\cow_execution_attempts\\robinhood-testnet\\46630\\attempts.jsonl"
+}

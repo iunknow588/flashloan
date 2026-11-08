@@ -51,6 +51,7 @@
       .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
     }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body>
   <main class="flash-loan-pool-page">
@@ -139,7 +140,7 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const fmtTime = value => window.formatLocalDisplayTime(value);
     const num = value => {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) return "-";

@@ -380,6 +380,24 @@ def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkey
         },
         {
             "route_symbols": ["TZ", "TA", "TB", "TZ"],
+            "amount": 3.0,
+            "broadcast": False,
+            "chain_id": 46630,
+        },
+        {
+            "route_symbols": ["TZ", "TA", "TB", "TZ"],
+            "amount": 1.125,
+            "broadcast": False,
+            "chain_id": 46630,
+        },
+        {
+            "route_symbols": ["TZ", "TA", "TB", "TZ"],
+            "amount": 2.25,
+            "broadcast": False,
+            "chain_id": 46630,
+        },
+        {
+            "route_symbols": ["TZ", "TA", "TB", "TZ"],
             "amount": 1.5,
             "broadcast": True,
             "chain_id": 46630,
@@ -414,7 +432,13 @@ def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitab
 
     def fake_run_official(**kwargs):
         symbols = kwargs.get("route_symbols") or []
-        calls.append({"broadcast": bool(kwargs.get("broadcast")), "symbols": symbols})
+        calls.append(
+            {
+                "broadcast": bool(kwargs.get("broadcast")),
+                "symbols": symbols,
+                "amount": kwargs.get("amount"),
+            }
+        )
         return {
             "ok": True,
             "quoteStatus": "route_unprofitable",
@@ -444,11 +468,477 @@ def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitab
 
     assert done is not None
     assert done.state == "done"
-    assert calls == [{"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]}]
+    assert all(not call["broadcast"] for call in calls)
+    assert calls[0]["amount"] == 1.5
+    assert calls[-1]["amount"] == 0.001
+    assert len(calls) == 12
     auto_execute = (done.result or {}).get("auto_execute", {})
     assert auto_execute.get("autoExecuted") == 0
     assert auto_execute.get("autoExecuteSkipped") == 1
     assert (done.result or {}).get("routes", [])[0].get("auto_execute", {}).get("skipped") is True
+    route = (done.result or {}).get("routes", [])[0]
+    size_probe = (route.get("__liveEstimate") or {}).get("sizeProbe") or {}
+    assert size_probe.get("searchStatus") == "not_profitable_after_costs"
+    attempt_amounts = [entry.get("amount") for entry in size_probe.get("attempts") or []]
+    assert 0.001 in attempt_amounts
+
+
+def test_fixed_refresh_deep_mode_shrinks_until_positive_profit_and_broadcasts(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.0)
+
+    def fake_run_official(**kwargs):
+        broadcast = bool(kwargs.get("broadcast"))
+        amount = kwargs.get("amount")
+        symbols = kwargs.get("route_symbols") or []
+        calls.append({"broadcast": broadcast, "symbols": symbols, "amount": amount})
+        profitable = amount == 0.25
+        profit = 0.2 if profitable else -0.5
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified" if profitable else "route_unprofitable",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": profitable,
+            "profitable": profitable,
+            "profit": profit,
+            "profitHuman": profit,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": amount,
+            "bestAmount": amount,
+            "steps": [],
+            "analysis": {
+                "referenceNetProfitAmount": profit,
+                "referenceNetReturnBps": 33.3 if profitable else -10.0,
+            },
+            "txHash": "0xsuccess" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    preflights = [call for call in calls if not call["broadcast"]]
+    broadcasts = [call for call in calls if call["broadcast"]]
+    assert len(broadcasts) == 1
+    assert broadcasts[0] == {"broadcast": True, "symbols": ["TZ", "TA", "TB", "TZ"], "amount": 0.25}
+    assert preflights[0]["amount"] == 1.0
+    probe_amounts = [call["amount"] for call in preflights]
+    assert 1.0 in probe_amounts
+    assert 0.5 in probe_amounts
+    assert 0.25 in probe_amounts
+    assert 0.375 in probe_amounts
+    assert all(amount >= 0.125 for amount in probe_amounts)
+    assert 0.001 not in probe_amounts
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 1
+    route = (done.result or {}).get("routes", [])[0]
+    size_probe = (route.get("__liveEstimate") or {}).get("sizeProbe") or {}
+    assert size_probe.get("searchStatus") == "profitable_amount_found"
+    assert size_probe.get("selectedProfitableAmount") == 0.25
+    assert size_probe.get("minProbeAmountHuman") == "0.001 borrow token unit"
+    attempt_amounts = [entry.get("amount") for entry in size_probe.get("attempts") or []]
+    assert 0.25 in attempt_amounts
+    assert 0.375 in attempt_amounts
+    assert all(amount >= 0.125 for amount in attempt_amounts)
+
+
+def test_fixed_refresh_deep_mode_expands_after_initial_profit_and_broadcasts(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.0)
+
+    profitable_profits = {
+        1.0: 1.0,
+        1.25: 1.25,
+        1.5: 1.5,
+        1.75: 1.75,
+        2.0: 2.0,
+        3.0: 1.5,
+    }
+
+    def fake_run_official(**kwargs):
+        broadcast = bool(kwargs.get("broadcast"))
+        amount = kwargs.get("amount")
+        symbols = kwargs.get("route_symbols") or []
+        profit = profitable_profits.get(amount, -1.0)
+        profitable = profit > 0
+        calls.append({"broadcast": broadcast, "symbols": symbols, "amount": amount})
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified" if profitable else "route_unprofitable",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": profitable,
+            "profitable": profitable,
+            "profit": profit,
+            "profitHuman": profit,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": amount,
+            "bestAmount": amount,
+            "steps": [],
+            "analysis": {
+                "referenceNetProfitAmount": profit,
+                "referenceNetReturnBps": 33.3 if profitable else -10.0,
+            },
+            "txHash": "0xsuccess" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    preflights = [call for call in calls if not call["broadcast"]]
+    broadcasts = [call for call in calls if call["broadcast"]]
+    assert len(broadcasts) == 1
+    assert broadcasts[0]["amount"] == 2.0
+    probe_amounts = [call["amount"] for call in preflights]
+    assert probe_amounts[0] == 1.0
+    assert 2.0 in probe_amounts
+    assert 4.0 in probe_amounts
+    assert 1.5 in probe_amounts
+    assert 3.0 in probe_amounts
+    assert all(amount >= 1.0 for amount in probe_amounts)
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 1
+    route = (done.result or {}).get("routes", [])[0]
+    size_probe = (route.get("__liveEstimate") or {}).get("sizeProbe") or {}
+    assert size_probe.get("searchStatus") == "profitable_amount_found"
+    assert size_probe.get("selectedProfitableAmount") == 2.0
+    assert size_probe.get("selectedProfitAmount") == 2.0
+    attempt_amounts = [entry.get("amount") for entry in size_probe.get("attempts") or []]
+    assert 1.0 in attempt_amounts
+    assert 2.0 in attempt_amounts
+    assert 4.0 in attempt_amounts
+    assert all(amount >= 1.0 for amount in attempt_amounts)
+
+
+def test_manual_review_is_profitable_requires_ok_and_positive_closed_loop_token_profit():
+    from dex.runtime.dex_opportunity_review_engine import DexOpportunityReviewEngineMixin
+
+    is_profitable = DexOpportunityReviewEngineMixin._manual_review_is_profitable
+    assert is_profitable({"ok": True, "profitable": True, "profit": "-0.5"}) is False
+    assert is_profitable({"ok": True, "profitable": True}) is False
+    assert is_profitable({"ok": True, "profit": "0.002743052111607823"}) is True
+    assert is_profitable({"ok": True, "profitHuman": "0.1"}) is True
+    assert is_profitable({"ok": True, "analysis": {"netProfitAmount": "0.25"}}) is True
+    assert (
+        is_profitable(
+            {
+                "ok": True,
+                "live_onchain_evidence": {
+                    "costModel": {"netProfitAmount": "0.002743052111607823"},
+                }
+            }
+        )
+        is True
+    )
+    assert (
+        is_profitable(
+            {
+                "ok": True,
+                "evidence": {
+                    "referenceNetProfitAmount": "0.002743052111607823",
+                }
+            }
+        )
+        is True
+    )
+    assert is_profitable({"profit": "0.002743052111607823"}) is False
+    assert is_profitable({"ok": True, "profitable": False, "profit": 0}) is False
+    assert is_profitable({}) is False
+    assert is_profitable({"ok": True, "profit": "-0.002743052111607823"}) is False
+    assert (
+        is_profitable(
+            {
+                "ok": True,
+                "live_onchain_evidence": {"costModel": {"netProfitAmount": "0"}},
+            }
+        )
+        is False
+    )
+
+
+def test_manual_profit_amount_extracts_borrow_token_profit_from_evidence():
+    from dex.runtime.dex_opportunity_review_engine import DexOpportunityReviewEngineMixin
+
+    profit_amount = DexOpportunityReviewEngineMixin._manual_profit_amount
+    assert profit_amount({"profit": "0.25"}) == 0.25
+    assert profit_amount({"analysis": {"netProfitAmount": "0.5"}}) == 0.5
+    assert (
+        profit_amount(
+            {
+                "live_onchain_evidence": {
+                    "costModel": {"netProfitAmount": "0.125"},
+                }
+            }
+        )
+        == 0.125
+    )
+    assert profit_amount({"evidence": {"referenceNetProfitAmount": "0.75"}}) == 0.75
+    assert profit_amount({"profitable": True}) is None
+    assert profit_amount({}) is None
+    assert profit_amount({"profit": "-0.5"}) == -0.5
+
+
+def test_auto_execute_skip_reason_requires_consistent_live_evidence_and_positive_profit():
+    from dex.runtime.dex_opportunity_auto_execute import _auto_execute_skip_reason
+
+    consistent_positive = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.002743052111607823",
+                },
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(consistent_positive, chain_id=46630) is None
+
+    inconsistent_positive = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "static_reference_pending_live_review",
+                "readyForTransactionPreflight": False,
+                "bestAmountConfirmed": False,
+                "hops": [],
+                "blockNumber": None,
+                "costModel": {
+                    "netProfitAmount": "0.002743052111607823",
+                },
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(inconsistent_positive, chain_id=46630) == "chain_review_inconsistent"
+
+    zero_profit = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {"netProfitAmount": "0"},
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(zero_profit, chain_id=46630) == "not_profitable"
+
+    gas_failed = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "rpc_verification_failed",
+                "errorKind": "gas_estimation_failed",
+                "costModel": {"netProfitAmount": None},
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(gas_failed, chain_id=46630) == "gas_estimation_failed"
+
+    rpc_failed = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "rpc_verification_failed",
+                "costModel": {"netProfitAmount": None},
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(rpc_failed, chain_id=46630) == "rpc_verification_failed"
+
+
+def test_evidence_ready_for_auto_execute_requires_live_consistent_profit():
+    from dex.runtime.dex_opportunity_helpers import _evidence_ready_for_auto_execute
+
+    static_positive = {
+        "status": "static_reference_pending_live_review",
+        "readyForTransactionPreflight": False,
+        "bestAmountConfirmed": False,
+        "hops": [],
+        "blockNumber": None,
+        "costModel": {
+            "profitBasis": "borrow_token",
+            "netProfitAmount": "0.002743052111607823",
+        },
+    }
+    assert _evidence_ready_for_auto_execute(static_positive) is False
+
+    live_consistent = {
+        "status": "live_verified",
+        "readyForTransactionPreflight": True,
+        "bestAmountConfirmed": True,
+        "blockers": [],
+        "hops": [{"hop": 1}],
+        "costModel": {
+            "profitBasis": "borrow_token",
+            "netProfitAmount": "0.002743052111607823",
+        },
+    }
+    assert _evidence_ready_for_auto_execute(live_consistent) is True
+
+    tz_unprofitable = {
+        "status": "live_verified",
+        "readyForTransactionPreflight": True,
+        "bestAmountConfirmed": True,
+        "hops": [{"hop": 1}],
+        "blockers": [],
+        "costModel": {"netProfitAmount": "-0.002743052111607823"},
+    }
+    assert _evidence_ready_for_auto_execute(tz_unprofitable) is False
+
+
+def test_auto_execute_broadcast_without_tx_hash_is_not_counted_as_success(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.0)
+
+    def fake_run_official(**kwargs):
+        broadcast = bool(kwargs.get("broadcast"))
+        calls.append({"broadcast": broadcast, "symbols": kwargs.get("route_symbols") or []})
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "readyForTransactionPreflight": True,
+            "bestAmountConfirmed": True,
+            "profitable": True,
+            "profit": "0.5",
+            "profitHuman": "0.5",
+            "routeSymbols": kwargs.get("route_symbols") or [],
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": 0.5, "referenceNetReturnBps": 33.3},
+            "txHash": None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls == [
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": True, "symbols": ["TZ", "TA", "TB", "TZ"]},
+    ]
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 0
+    assert auto_execute.get("autoExecuteFailed") == 1
+    route = (done.result or {}).get("routes", [])[0]
+    assert route.get("auto_execute", {}).get("executed") is False
+
+
+def test_fixed_refresh_deep_mode_broadcasts_tz_style_profit_without_hops_block_or_usd(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.0)
+
+    def fake_run_official(**kwargs):
+        symbols = list(kwargs.get("route_symbols") or [])
+        broadcast = bool(kwargs.get("broadcast"))
+        calls.append({"broadcast": broadcast, "symbols": symbols})
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": False,
+            "bestAmountConfirmed": False,
+            "profitable": True,
+            "profit": "0.002743052111607823",
+            "profitHuman": "0.002743052111607823",
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "hops": [],
+            "blockNumber": None,
+            "analysis": {
+                "referenceNetProfitAmount": "0.002743052111607823",
+                "referenceFinalOutputSymbol": "TZ",
+            },
+            "txHash": "0x" + "b" * 64 if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls == [
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": True, "symbols": ["TZ", "TA", "TB", "TZ"]},
+    ]
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 1
+    refreshed_route = (done.result or {}).get("routes", [])[0]
+    evidence = refreshed_route.get("live_onchain_evidence") or {}
+    assert evidence.get("hops") == []
+    assert evidence.get("blockNumber") is None
+    assert evidence.get("costModel", {}).get("netProfitUsd") is None
+    assert evidence.get("costModel", {}).get("netProfitAmount") == pytest.approx(0.002743052111607823)
 
 
 def test_fixed_refresh_deep_mode_broadcasts_when_net_profit_is_positive_even_if_profit_field_is_missing(tmp_path, monkeypatch):
@@ -495,6 +985,9 @@ def test_fixed_refresh_deep_mode_broadcasts_when_net_profit_is_positive_even_if_
     assert done is not None
     assert done.state == "done"
     assert calls == [
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
         {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
         {"broadcast": True, "symbols": ["TZ", "TA", "TB", "TZ"]},
     ]
@@ -583,6 +1076,9 @@ def test_fixed_refresh_deep_mode_uses_system_initial_probe_when_route_has_no_amo
     assert done.state == "done"
     assert calls == [
         {"amount": 1.0, "broadcast": False, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
+        {"amount": 2.0, "broadcast": False, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
+        {"amount": 0.75, "broadcast": False, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
+        {"amount": 1.5, "broadcast": False, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
         {"amount": 1.0, "broadcast": True, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
     ]
     assert (done.result or {}).get("recording", {}).get("source") == "closed_loop_deep_review"
@@ -691,7 +1187,8 @@ def test_fixed_refresh_deep_mode_records_each_route_when_parallel(tmp_path, monk
     assert done.state == "done"
     assert len(recorded_batches) == 2
     assert all(len(batch) == 1 for batch in recorded_batches)
-    assert len(calls) == 4
+    assert len(calls) == 10
+    assert len([call for call in calls if call[1]]) == 2
     status = scanner.status(chain_id=46630)
     assert status["closed_loop_scan_count"] == 1
     assert status["closed_loop_review_count"] == 2
@@ -857,10 +1354,10 @@ def test_merge_recent_manual_review_excludes_submitted_and_keeps_viable_evidence
     }
     monkeypatch.setattr(
         helpers,
-        "load_recent_cow_execution_attempts_jsonl",
+        "load_recent_cow_execution_attempts",
         lambda *args, **kwargs: [submitted_attempt, viable_attempt],
     )
-    monkeypatch.setattr(helpers, "cow_execution_attempt_log_path", lambda **kwargs: tmp_path / "attempts.jsonl")
+    monkeypatch.setattr(helpers, "database_url", lambda: str(tmp_path / "local_store.sqlite3"))
 
     merged = helpers.merge_recent_manual_review_evidence_into_routes([route], chain_id=46630)
     evidence = merged[0].get("live_onchain_evidence") or (merged[0].get("quoteAnalysis") or {}).get("live_onchain_evidence")
@@ -1133,6 +1630,222 @@ def test_submission_review_surfaces_auto_execute_tx_hash():
     assert payload["attempts"][0]["tx_hash"] == "0x" + "b" * 64
     assert payload["attempts"][0]["review_category"] == "submitted_success"
     assert payload["attempts"][0]["state"] == "submitted_success"
+
+
+def test_success_submission_rows_require_chain_tx_hash():
+    from web.data_routes.dex_surface_routes_ops import (
+        _attempt_tx_hash,
+        _success_submission_rows,
+    )
+
+    rows = [
+        {
+            "pair": "TZ -> TB -> TA -> TZ",
+            "state": "execution_success",
+            "tx_hash": "0x" + "a" * 64,
+        },
+        {
+            "pair": "ETH -> AMD -> AMZN -> ETH",
+            "state": "execution_success",
+            "auto_execute": {"result": {"ok": True}},
+        },
+        {
+            "pair": "BTC -> AMD -> AMZN -> BTC",
+            "state": "submitted_success",
+            "quote": {"tx_hash": "0x" + "b" * 64},
+        },
+    ]
+
+    success_rows = _success_submission_rows(rows)
+
+    assert [row["pair"] for row in success_rows] == [
+        "TZ -> TB -> TA -> TZ",
+        "BTC -> AMD -> AMZN -> BTC",
+    ]
+    assert all(_attempt_tx_hash(row) for row in success_rows)
+
+
+def test_pending_broadcast_stays_on_success_page_but_is_not_confirmed():
+    from web.data_routes.dex_surface_routes_ops import _success_submission_rows
+
+    row = {
+        "pair": "AAA -> BBB -> CCC -> AAA",
+        "state": "submitted_success",
+        "tx_hash": "0x" + "c" * 64,
+        "auto_execute": {
+            "submitted": True,
+            "confirmed": False,
+            "confirmationStatus": "pending",
+            "reason": "broadcast_pending_confirmation",
+            "result": {"receiptStatus": "receipt_pending"},
+        },
+    }
+
+    assert _success_submission_rows([row]) == [row]
+
+
+def test_reverted_broadcast_is_classified_as_execution_failed():
+    from web.data_routes.dex_surface_routes_ops import _submission_failed_rows
+
+    row = {
+        "pair": "AAA -> BBB -> CCC -> AAA",
+        "state": "execution_failed",
+        "tx_hash": "0x" + "d" * 64,
+        "auto_execute": {
+            "submitted": True,
+            "confirmed": False,
+            "confirmationStatus": "failed",
+            "reason": "broadcast_reverted",
+            "result": {
+                "receiptStatus": "0x0",
+                "error": "chain receipt status 0x0: transaction mined but execution reverted",
+            },
+        },
+    }
+
+    assert _submission_failed_rows([row]) == [row]
+
+
+def test_storage_category_distinguishes_pending_and_reverted_broadcasts():
+    from core.db.storage_cow_policy import cow_execution_attempt_category
+
+    pending = {
+        "state": "submitted_success",
+        "tx_hash": "0x" + "e" * 64,
+        "auto_execute": {
+            "executed": True,
+            "submitted": True,
+            "confirmed": False,
+            "confirmationStatus": "pending",
+        },
+    }
+    reverted = {
+        "state": "execution_failed",
+        "tx_hash": "0x" + "f" * 64,
+        "auto_execute": {
+            "executed": True,
+            "submitted": True,
+            "confirmed": False,
+            "confirmationStatus": "failed",
+            "result": {"receiptStatus": "0x0"},
+        },
+    }
+
+    assert cow_execution_attempt_category(pending) == "execution_success"
+    assert cow_execution_attempt_category(reverted) == "execution_failed"
+
+
+def test_storage_category_counts_only_attempted_broadcast_failures():
+    from core.db.storage_cow_policy import cow_execution_attempt_category
+
+    preflight = {
+        "state": "execution_failed",
+        "tx_hash": "",
+        "precheck": {"requires_live_quoter": True},
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "static_reference_pending_live_review",
+                "readyForTransactionPreflight": False,
+            }
+        },
+        "auto_execute": {
+            "attempted": False,
+            "broadcast": False,
+            "reason": "static_reference_pending_live_review",
+        },
+    }
+    attempted = {
+        "state": "execution_failed",
+        "tx_hash": "",
+        "precheck": {"requires_live_quoter": True},
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "static_reference_pending_live_review",
+                "readyForTransactionPreflight": False,
+            }
+        },
+        "auto_execute": {
+            "attempted": True,
+            "broadcast": True,
+            "reason": "broadcast_failed",
+            "result": {
+                "attempted": True,
+                "failed": True,
+                "status": "broadcast_failed",
+                "submitted": False,
+                "txHash": None,
+            },
+        },
+    }
+
+    assert cow_execution_attempt_category(preflight) == "not_executable"
+    assert cow_execution_attempt_category(attempted) == "execution_failed"
+
+
+def test_failure_reason_text_surfaces_missing_broadcast_with_open_gate():
+    from web.data_routes.dex_surface_routes_ops import _row_failure_reason_text
+
+    row = {
+        "state": "ready_for_transaction_development",
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "profitable": True,
+                "costModel": {"netProfitAmount": 0.0001},
+            }
+        },
+        "auto_execute": {
+            "skipped": True,
+            "attempted": False,
+            "broadcast": False,
+            "broadcastResultMissing": True,
+            "reason": "broadcast_result_missing",
+            "broadcastGate": {
+                "autoExecuteEnabled": True,
+                "broadcastEnabled": True,
+                "broadcastAllowed": True,
+                "privateKeyConfigured": True,
+                "reasons": [],
+            },
+        },
+    }
+
+    text = _row_failure_reason_text(row)
+
+    assert "broadcast_result_missing" in text
+    assert "broadcastGate open" in text
+
+
+def test_failure_reason_text_surfaces_broadcast_failed_result_error():
+    from web.data_routes.dex_surface_routes_ops import _row_failure_reason_text
+
+    row = {
+        "state": "execution_failed",
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "profitable": True,
+                "costModel": {"netProfitAmount": 0.0001},
+            }
+        },
+        "auto_execute": {
+            "attempted": True,
+            "broadcast": True,
+            "executed": False,
+            "reason": "broadcast_failed",
+            "result": {
+                "ok": False,
+                "error": "eth_sendRawTransaction RPC request failed",
+            },
+        },
+    }
+
+    text = _row_failure_reason_text(row)
+
+    assert "broadcast_failed" in text
+    assert "eth_sendRawTransaction RPC request failed" in text
 
 
 def test_auto_execute_tests_do_not_leave_background_refresh_threads():

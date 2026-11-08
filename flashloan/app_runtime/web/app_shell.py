@@ -32,7 +32,7 @@ _DEX_LINKS = (
     ("DEX 总览", "/dex/overview"),
     ("市场观察", "/dex/market-observation"),
     ("候选池", "/dex/candidates"),
-    ("提交记录", "/dex/submissions"),
+    ("提交记录总览", "/dex/submissions"),
 )
 _FLASH_LOAN_LINKS = (
     ("资金池", "/flash-loan/pools"),
@@ -302,7 +302,7 @@ def _shell_layout_css(*, include_strategy_control: bool) -> str:
     .app-shell-selector-meta {{ justify-content: flex-start; }}
     .app-shell-feature-control select {{ width: auto; min-width: 0; }}
     .app-shell-chain-control select {{ width: auto; min-width: 0; }}
-    .app-shell-sidebar {{ top: {mobile_top}px; width: 100%; height: auto; max-height: 52px; padding: 5px 8px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }}
+  .app-shell-sidebar {{ top: {mobile_top}px; width: 100%; height: auto; max-height: 52px; padding: 5px 8px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }}
     .app-shell-content-frame {{ top: {mobile_frame_top}px; left: 0; width: 100%; height: calc(100vh - {mobile_frame_top}px); }}
     .app-shell-group {{ display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 0 0; }}
     .app-shell-group-title {{ margin: 0 4px; }}

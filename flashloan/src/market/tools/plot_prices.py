@@ -21,7 +21,7 @@ if str(SRC_ROOT) not in sys.path:
 from core.env_loader import load_env_files
 from core.db.storage_common import (
     configured_database_url,
-    database_url_or_none,
+    database_url,
 )
 from core.kv_rows import load_rows
 
@@ -185,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--database-url",
-        default=database_url_or_none(),
+        default=database_url(),
         help="Local KV store path",
     )
     parser.add_argument(

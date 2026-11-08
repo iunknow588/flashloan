@@ -112,6 +112,46 @@ def test_page_payloads_default_anchor_symbols_come_from_sqlite(tmp_path, monkeyp
     assert "AAPL" in symbols
 
 
+def test_page_payloads_default_anchor_symbols_implicit_db_path_comes_from_sqlite(
+    tmp_path,
+    monkeypatch,
+):
+    import core.db.database_path as database_path
+    from core.db import page_payloads
+
+    db = _seed_stock_db(tmp_path)
+    monkeypatch.setattr(
+        database_path,
+        "absolute_database_path",
+        lambda database_url=None: db,
+    )
+
+    symbols = page_payloads._default_anchor_symbols(4663)
+
+    assert "AAPL" in symbols
+
+
+def test_dex_surfaces_mainnet_endpoint_symbols_use_sqlite_by_default(
+    tmp_path,
+    monkeypatch,
+):
+    import core.db.database_path as database_path
+    from market.binance_market.dex_surfaces import (
+        _legal_closed_loop_endpoint_symbols,
+    )
+
+    db = _seed_stock_db(tmp_path)
+    monkeypatch.setattr(
+        database_path,
+        "absolute_database_path",
+        lambda database_url=None: db,
+    )
+
+    symbols = _legal_closed_loop_endpoint_symbols(4663)
+
+    assert "AAPL" in symbols
+
+
 def test_chain_config_stock_anchor_map_can_be_db_only(tmp_path, monkeypatch):
     from dex.intent_trade.chains.robinhood_common import chain_config
 

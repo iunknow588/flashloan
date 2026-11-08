@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.db.storage_chain_core import load_initialization, upsert_initialization
+from core.db.direction_pool_score import MAX_DIRECTION_CANDIDATE_POOLS
 
 
 V4_LIVE_REFRESH_DOMAIN = "v4_live_refresh"
@@ -73,7 +74,7 @@ def load_v4_scan_state(
         "unscanned_pool_count": _int(completeness.get("unscanned_pool_count")),
         "direction_candidate_limit": _int(
             completeness.get("direction_candidate_limit"),
-            5,
+            MAX_DIRECTION_CANDIDATE_POOLS,
         ),
         "scan_mode": str(completeness.get("scan_mode") or "full"),
         "refreshed_at": row.get("refreshed_at") if isinstance(row, dict) else None,
@@ -95,7 +96,7 @@ def update_v4_scan_state(
     confirmed_liquidity_pool_count: int | None = None,
     explicit_zero_liquidity_pool_count: int | None = None,
     unscanned_pool_count: int | None = None,
-    direction_candidate_limit: int = 5,
+    direction_candidate_limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
     scan_mode: str = "incremental",
 ) -> dict[str, Any]:
     """Upsert one ``v4_live_refresh`` progress row."""

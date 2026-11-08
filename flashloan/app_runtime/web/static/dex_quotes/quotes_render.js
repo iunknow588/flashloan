@@ -32,6 +32,10 @@
       not_live_verified: "尚未完成链上复核",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
       rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+      live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+      official_v4_readonly_preview_live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+      rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
+      official_v4_readonly_preview_rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
       adapter_required: "链上复核失败：缺少报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块",
       missing_effective_pool: "链上复核：缺少有效池，无法报价",
@@ -136,7 +140,7 @@
     const recommendationAction = value => {
       const text = String(value || "");
       const map = {
-        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止链上执行",
+        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；不建议链上执行",
         "on-chain reverify complete; current state does not satisfy transaction submission conditions": "链上复核完成；当前状态不满足交易提交条件",
         "On-chain verification complete; preflight still required": "链上复核完成；仍需要链上复核确认可执行性",
         "On-chain verification passed, but execution gates are blocked": "链上复核通过，但链上执行条件尚未满足",
@@ -146,7 +150,7 @@
         "On-chain quote failed": "链上报价失败",
         "on-chain quote failed; route cannot enter transaction preflight": "链上报价失败，无法进入链上执行",
         "route cannot enter transaction preflight": "链上报价失败，无法进入链上执行",
-        "on-chain best amount unconfirmed; cannot enter transaction preflight": "链上复核未通过：最佳量未计算成功，不能进入链上执行",
+        "on-chain best amount unconfirmed; cannot enter transaction preflight": "链上复核未通过：最佳交易量未计算成功，不能进入链上执行",
         "Reference quote only": "仅参考报价",
         "On-chain verification deferred": "链上验证已延后",
       };
@@ -156,7 +160,7 @@
         "on-chain verification did not cover all hops; cannot enter preflight": "链上复核未覆盖全部跳数；不能进入链上执行",
         "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入链上执行",
         "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动链上执行",
-        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
+        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制，并在扣除闪电贷费用后仍保持盈利的借贷规模",
         "on-chain RPC verification failed": "链上 RPC 复核失败",
         "Robinhood Testnet RPC unavailable": "Robinhood 测试网 RPC 不可用",
         "adapter required": "缺少链上报价适配器",
@@ -169,20 +173,22 @@
     };
     const terminalFailureAdvice = status => {
       const lower = String(status || "").toLowerCase();
-      if (lower === "rpc_verification_timeout") return "链上复核超时：RPC 未在期限内返回；不能作为已确认最佳量，不建议直接链上执行，请稍后重试或检查 RPC 配置。";
+      if (lower === "rpc_verification_timeout") return "链上复核超时：RPC 未在期限内返回；不能作为已确认最佳交易量，不建议直接链上执行，请稍后重试或检查 RPC 配置。";
       if (lower === "rpc_verification_failed") return "链上复核失败：RPC 不可用；不能进入链上执行，请稍后重试或检查 RPC 配置。";
       if (lower === "fetch_network_error" || lower === "backend_unreachable") return "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确，稍后重试";
-      if (lower === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
-      if (lower === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
+      if (lower === "route_unprofitable") return "链上报价已验证，但净收益未转正；不建议链上执行";
+      if (lower === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；不建议链上执行";
       if (lower === "not_enough_liquidity") return "链上复核：池当前没有 LP 流动性；降低金额后重试或标记当前金额不可执行";
       if (lower === "pool_not_initialized") return "V4 池未初始化；无法完成链上复核";
-      if (lower === "pool_insufficient_for_profitable_execution") return "池深度不足以盈利执行；禁止链上执行";
+      if (lower === "pool_insufficient_for_profitable_execution") return "池深度不足以盈利执行；不建议链上执行";
       if (lower === "missing_effective_pool") return "链上复核：池未初始化或缺少有效池；无法报价";
-      if (lower === "missing_route_pool_identity") return "链上复核未通过：缺少中间桥池 PoolKey；请先补全市场观察中的中间桥池身份后重试，禁止链上执行";
-      if (lower === "missing_route_identity") return "链上复核未通过：缺少路线身份；请先补全路由地址/池身份后重试，禁止链上执行";
+      if (lower === "missing_route_pool_identity") return "链上复核未通过：缺少中间桥池 PoolKey；请先补全市场观察中的中间桥池身份后重试，不建议链上执行";
+      if (lower === "missing_route_identity") return "链上复核未通过：缺少路线身份；请先补全路由地址/池身份后重试，不建议链上执行";
       if (lower === "missing_configuration") return "链上复核未通过：缺少链上配置；请检查官方 V4 仲裁合约和链级配置后重试";
       if (lower === "missing_trigger_block") return "链上复核未执行：缺少触发区块上下文；无法确认";
       if (lower === "adapter_required") return "链上复核失败：缺少 V4 报价适配器；无法完成链上复核";
+      if (lower === "live_quote_disabled" || lower === "official_v4_readonly_preview_live_quote_disabled") return "实时报价已禁用，报价与路由页面不可用；请查看 DEX 总览的静态数据，启用对应链的实时报价后重试。";
+      if (lower === "rpc_unavailable" || lower === "official_v4_readonly_preview_rpc_unavailable") return "实时报价不可用：RPC 链路动态离线，请等待网络恢复后重试或查看 DEX 总览的静态数据。";
       if (lower === "live_quote_failed" || lower === "quote_failed") return "链上报价失败，无法进入链上执行";
       if (lower === "uniswapx_fallback_failed") return "UniswapX 第二跳回退失败：无合适中间池、参数或三跳净收益未达到 1%；按失败终止，不再寻找其他 AMM 池";
       return "链上报价失败，无法进入链上执行";
@@ -248,7 +254,7 @@
         "on-chain verification did not cover all hops; cannot enter preflight": "链上复核未覆盖全部跳数；不能进入链上执行",
         "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入链上执行",
         "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动链上执行",
-        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
+        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制，并在扣除闪电贷费用后仍保持盈利的借贷规模",
         "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行",
         "historic block state unavailable; deferred on-chain reverify": "历史区块状态不可用；链上复核已延后",
         "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；当前复核结论已完成",
@@ -293,7 +299,10 @@
       const symbols = Array.isArray(route?.routeSymbols) ? route.routeSymbols : [];
       const symbolKey = symbols.filter(Boolean).map(item => String(item).trim().toUpperCase()).filter(Boolean);
       if (symbolKey.length >= 3 && symbolKey[0] === symbolKey[symbolKey.length - 1]) {
-        const middle = symbolKey.slice(1, -1).sort().join("->");
+        // Direction is part of the route identity: X-Y-Z-X and X-Z-Y-X are
+        // independent closed loops with their own best pools, so the ordered
+        // middle tokens must stay in the key instead of being sorted away.
+        const middle = symbolKey.slice(1, -1).join("->");
         return `loop|${symbolKey[0]}|${middle}`;
       }
       const raw = route?.symbolPair || (symbolKey.length ? symbolKey.join(" -> ") : "") || "";
@@ -507,9 +516,9 @@
         recommendation: lines(evidence.blockers).length || live ? {
             level: evidence.status || (live ? "live_verified" : ""),
             action: bestAmountUnconfirmed
-              ? "链上复核未通过：最佳量未计算成功，不能进入链上执行"
+              ? "链上复核未通过：最佳交易量未计算成功，不能进入链上执行"
               : live
-              ? (evidence.readyForTransactionPreflight ? "链上复核完成；可点击链上执行确认成交" : (String(evidence.status || "").toLowerCase() === "route_unprofitable" ? "链上报价已验证，但净收益未转正；禁止链上执行" : "链上复核通过，但链上执行条件尚未满足"))
+              ? (evidence.readyForTransactionPreflight ? "链上复核完成；可点击链上执行确认成交" : (String(evidence.status || "").toLowerCase() === "route_unprofitable" ? "链上报价已验证，但净收益未转正；不建议链上执行" : "链上复核通过，但链上执行条件尚未满足"))
               : (base.requiresLiveQuoter && base.referenceNetProfitAmount != null ? "链上报价未完成，当前为静态参考收益" : "链上报价未完成"),
             reasons: evidence.blockers,
         } : base.recommendation,
@@ -531,6 +540,10 @@
       not_reviewed_this_scan: "链上复核未覆盖本轮预算",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
       rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+      live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+      official_v4_readonly_preview_live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+      rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
+      official_v4_readonly_preview_rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
       adapter_required: "链上复核失败：缺少 V4 报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块上下文",
       missing_route_pool_identity: "链上复核未通过：缺少中间桥池 PoolKey",
@@ -548,6 +561,10 @@
         pool_not_initialized: "链上复核失败：V4 池未初始化",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
         rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+        live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+        official_v4_readonly_preview_live_quote_disabled: "实时报价已禁用，报价与路由页面不可用",
+        rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
+        official_v4_readonly_preview_rpc_unavailable: "实时报价不可用：RPC 链路动态离线",
         fetch_network_error: "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确",
         backend_unreachable: "请求服务不可达：无法连接后端，请检查服务是否启动/端口是否正确",
         adapter_required: "链上复核失败：缺少报价适配器",
@@ -579,7 +596,7 @@
       const blockersToShow = focusFailed ? [] : lines(evidence.blockers).filter(item => !informativeBlocker(item));
       const focusFailedInput = focusFailed?.amountIn ?? focusFailed?.inputAmount ?? null;
       const focusFailedInputText = String(focusFailed?.status || "").toLowerCase() === "not_enough_liquidity" && focusFailedInput != null
-        ? `流动性不足：输入 ${numeric(focusFailedInput, 8)} ${esc(focusFailed.fromSymbol || "")} 被池子拒绝；`
+        ? `流动性不足：输入 ${numeric(focusFailedInput, 8)} ${esc(focusFailed.fromSymbol || "")} 被该池拒绝；`
         : "";
       const probe = evidence.executionSizeProbe || null;
       const probeDecimals = Number(probe?.decimals ?? evidence.costModel?.borrowInputDecimals ?? 18);
@@ -627,8 +644,8 @@
     const offchainProbeReasonText = reason => ({
       "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
       "one_basic_unit_fallback": "使用 1 个基础代币单位",
-      "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
-      "onchain_preview_adaptive_best_amount": "链上合约自适应搜索返回最佳量",
+      "onchain_review_best_amount_reused": "使用链上复核确认交易量作为初始交易量",
+      "onchain_preview_adaptive_best_amount": "链上合约自适应搜索返回最佳交易量",
       "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
       "no_offchain_initial_anchor": "暂无可用价格/流动性锚点",
       "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
@@ -823,19 +840,33 @@
       const displayedSteps = focusSteps.length ? focusSteps : steps.filter(Boolean);
       const isFailedStep = step => Boolean(step?.liveQuoteError) || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(step?.status || "").toLowerCase());
       const stepRows = displayedSteps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${errorStackHtml(step.errorStack, step.liveQuoteError)}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${isFailedStep(step) ? "报价失败" : (live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)}（参考）`)}</td><td>${isFailedStep(step) ? "-" : (live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8))}</td><td>${isFailedStep(step) ? "-" : (step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`)}</td></tr>`).join("");
-      const finalOutputUsd = live ? costs.finalOutputUsd : analysis.referenceFinalOutputUsd;
-      const finalOutputAmount = live ? costs.finalOutputAmount : analysis.referenceFinalOutputAmount;
+      const statusForProfit = String(evidence.status || "").toLowerCase();
+      const liveProfitConfirmed = Boolean(
+        live
+        && !negativeEvidence
+        && statusForProfit === "live_verified"
+        && evidence.profitable !== false
+      );
+      const outputModeLive = liveProfitConfirmed;
+      const finalOutputUsd = outputModeLive ? costs.finalOutputUsd : analysis.referenceFinalOutputUsd;
+      const finalOutputAmount = outputModeLive ? costs.finalOutputAmount : analysis.referenceFinalOutputAmount;
       const finalOutputSymbol = costs.finalOutputSymbol || analysis.referenceFinalOutputSymbol || analysis.outputSymbol || inputSymbol(route, analysis);
-      const grossProfitUsd = live ? costs.grossProfitUsd : analysis.referenceGrossProfitUsd;
-      const grossProfitAmount = live ? costs.grossProfitAmount : analysis.referenceGrossProfitAmount;
-      const tokenNetProfitAmount = live ? (costs.netProfitAmount ?? humanTokenValue(analysis.referenceNetProfitAmount)) : humanTokenValue(analysis.referenceNetProfitAmount);
-      const tokenNetProfitSymbol = live ? (costs.netProfitAmountSymbol || analysis.referenceInputSymbol || inputSymbol(route, analysis)) : (analysis.referenceInputSymbol || inputSymbol(route, analysis));
-      const tokenNetReturnBps = live ? (costs.netProfitAmountBps ?? analysis.referenceNetReturnBps) : analysis.referenceNetReturnBps;
+      const grossProfitUsd = outputModeLive ? costs.grossProfitUsd : analysis.referenceGrossProfitUsd;
+      const grossProfitAmount = outputModeLive ? costs.grossProfitAmount : analysis.referenceGrossProfitAmount;
+      const tokenNetProfitAmount = liveProfitConfirmed
+        ? (costs.netProfitAmount ?? humanTokenValue(analysis.referenceNetProfitAmount))
+        : humanTokenValue(analysis.referenceNetProfitAmount);
+      const tokenNetProfitSymbol = liveProfitConfirmed
+        ? (costs.netProfitAmountSymbol || analysis.referenceInputSymbol || inputSymbol(route, analysis))
+        : (analysis.referenceInputSymbol || inputSymbol(route, analysis));
+      const tokenNetReturnBps = liveProfitConfirmed
+        ? (costs.netProfitAmountBps ?? analysis.referenceNetReturnBps)
+        : analysis.referenceNetReturnBps;
       const profitBasis = (live ? costs.profitBasis : analysis.referenceReturnBasis) || analysis.referenceReturnBasis;
       const tokenProfit = profitBasis === "borrow_token" && tokenNetProfitAmount != null ? `${amount(tokenNetProfitAmount, tokenNetProfitSymbol)} / ${numeric(tokenNetReturnBps, 2)} bps` : "-";
-      const tokenProfitLabel = live ? "X 本位结果" : "X 本位参考";
-      const netProfitDisplay = live ? (analysis.netProfitUsd != null ? money(analysis.netProfitUsd) : tokenProfit) : tokenProfit;
-      const netReturnDisplay = live ? numeric(analysis.netProfitBps ?? tokenNetReturnBps, 2) : numeric(analysis.referenceNetReturnBps, 2);
+      const tokenProfitLabel = liveProfitConfirmed ? "X 本位结果" : (live ? "X 本位参考（未确认）" : "X 本位参考");
+      const netProfitDisplay = liveProfitConfirmed ? (analysis.netProfitUsd != null ? money(analysis.netProfitUsd) : tokenProfit) : tokenProfit;
+      const netReturnDisplay = liveProfitConfirmed ? numeric(analysis.netProfitBps ?? tokenNetReturnBps, 2) : numeric(analysis.referenceNetReturnBps ?? tokenNetReturnBps, 2);
       const finalOutputDisplay = finalOutputUsd != null ? money(finalOutputUsd) : amount(finalOutputAmount, finalOutputSymbol);
       const grossProfitDisplay = grossProfitUsd != null ? money(grossProfitUsd) : amount(grossProfitAmount, finalOutputSymbol);
       const offchainProbe = offchainProbeAmount(route, evidence);
@@ -848,9 +879,9 @@
         ? actionRequested
         : (costs.requestedBorrowInputAmount ?? offchainProbe ?? costs.selectedBorrowInputAmount ?? route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0] ?? analysis.referenceInputAmount);
       const initialProbeLabel = reviewStage === "execution" || execPending || execFailed
-        ? "执行初始量/起点"
+        ? "执行初始交易量"
         : reviewStage === "preflight" || preflightFailed
-          ? "初始测试量"
+          ? "初始测试交易量"
           : "链下初始探测";
       const rawBestAmountValue = routeBestAmountPick(route, evidence, analysis);
       const bestAmountMissing = bestAmountMissingOf(route, evidence, analysis) || costs.bestAmountMissing === true;
@@ -870,7 +901,7 @@
       const failedAction = !focusOnError
         ? ""
         : failedIsLiquidity
-          ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 流动性不足：输入 ${numeric(failedInputAmount, 8)} ${esc(failedInputSymbol)} 被池子拒绝`
+          ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 流动性不足：输入 ${numeric(failedInputAmount, 8)} ${esc(failedInputSymbol)} 被该池拒绝`
           : failedIsAdapter
             ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 缺少 V4 报价适配器，池子状态延后解析`
           : failedIsDeferred
@@ -879,8 +910,8 @@
       const recommendationRows = focusOnError ? [`${failedAction}：${esc(focusErrorText)}`] : lines(recommendation.reasons);
       const analysisHtml = focusOnError
         ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small>${errorStackHtml(failedHop.errorStack, failedHop.liveQuoteError || "")}</div>${stackTop && !failedHop?.liveQuoteError ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
-        : `<div class="analysis"><div><small>交易方向</small><strong>${esc(actualDirection)}</strong></div><div><small>${bestAmountLabel}</small><strong>${esc(bestAmountDisplay)}</strong></div><div><small>${live ? "最终输出" : "最终输出（参考）"}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>${initialProbeLabel}</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>初始探测依据</small><strong>${esc(evidenceProbeReasonText(evidence.offchainInitialProbeReason, evidence))}</strong></div><div><small>历史最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div>${stackTop ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div><div><small>链上错误</small>${errorStackHtml(evidence.errorStack || route.errorStack, stackTop.message || "")}</div>` : ""}</div>`;
-      const depthLabel = live ? "链上实时深度已验证" : failedIsLiquidity ? "流动性不足，已停止继续复核" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
+        : `<div class="analysis"><div><small>交易方向</small><strong>${esc(actualDirection)}</strong></div><div><small>${bestAmountLabel}</small><strong>${esc(bestAmountDisplay)}</strong></div><div><small>${liveProfitConfirmed ? "最终输出" : (live ? "最终输出（参考，未确认）" : "最终输出（参考）")}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${liveProfitConfirmed ? "毛利润" : (live ? "毛利润（参考，未确认）" : "毛利润（参考）")}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${liveProfitConfirmed ? "净利润" : (live ? "净利润（参考，未确认）" : "净利润（参考）")}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${liveProfitConfirmed ? "净回报 bps" : (live ? "净回报 bps（参考，未确认）" : "净回报 bps（参考）")}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>${initialProbeLabel}</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>初始探测依据</small><strong>${esc(evidenceProbeReasonText(evidence.offchainInitialProbeReason, evidence))}</strong></div><div><small>历史最大可执行交易量</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div>${stackTop ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div><div><small>链上错误</small>${errorStackHtml(evidence.errorStack || route.errorStack, stackTop.message || "")}</div>` : ""}</div>`;
+      const depthLabel = live ? "链上实时深度已验证" : failedIsLiquidity ? "流动性不足，已停止继续复核" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低交易量：滑点超过 10 bps" : "离线深度不可用";
       const recClass = ["pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_quote_failed", "pool_insufficient_for_profitable_execution", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase()) ? "warn" : (live ? "good" : "warn"));
       const isDeferred = ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase());
       const baseActionText = focusOnError
@@ -909,7 +940,7 @@
           : routeNeedsLiveReview(route)
             ? "静态参考，待链上逐 hop 复核"
           : routeUiState === ROUTE_UI_STATE.OFFCHAIN_PENDING && !routeHasCompletedOffchainReview(route)
-            ? "链下估算完成：默认初始量已生成"
+            ? "链下估算完成：默认初始交易量已生成"
             : (live ? "链下估算完成：实时报价器只读" : "链下估算完成：待链上复核");
       const autoAmount = autoRouteAmount(route);
       const routeTestAmountSymbol = analysis.referenceInputSymbol || inputSymbol(route, analysis) || (route.routeSymbols || [])[0] || "";
@@ -939,10 +970,10 @@
         })
         .filter(Boolean);
       const bestCalcRecommended = bestCalc.recommendedBorrowInputAmount != null
-        ? `推荐量 ${numeric(bestCalc.recommendedBorrowInputAmount, 8)} ${esc(routeTestAmountSymbol || "")}${bestCalc.recommendedBorrowInputAmountReason ? `（${esc(bestCalc.recommendedBorrowInputAmountReason)}）` : ""}`
+        ? `推荐交易量 ${numeric(bestCalc.recommendedBorrowInputAmount, 8)} ${esc(routeTestAmountSymbol || "")}${bestCalc.recommendedBorrowInputAmountReason ? `（${esc(bestCalc.recommendedBorrowInputAmountReason)}）` : ""}`
         : "";
       const bestCalcHtml = calcRows.length && reviewStage !== "estimate"
-        ? `<div class="table-wrap best-amount-calc"><h4>最佳量计算过程</h4>${bestCalcRecommended ? `<div class="muted">${bestCalcRecommended}</div>` : ""}<table><thead><tr><th>金额</th><th>最终输出</th><th>净利</th><th>bps</th><th>可执行</th><th>深度</th><th>标记</th></tr></thead><tbody>${calcRows.join("")}</tbody></table></div>`
+        ? `<div class="table-wrap best-amount-calc"><h4>最佳交易量计算过程</h4>${bestCalcRecommended ? `<div class="muted">${bestCalcRecommended}</div>` : ""}<table><thead><tr><th>交易量</th><th>最终输出</th><th>净利</th><th>bps</th><th>可执行</th><th>深度</th><th>标记</th></tr></thead><tbody>${calcRows.join("")}</tbody></table></div>`
         : "";
       return `<article class="route"><div class="route-head"><div><h2>${esc(route.symbolPair || route.routeSymbols?.join(" -> ") || "路线")}</h2><div class="badges">
         <span class="badge ${recClass}">${esc(actionText)}</span>
@@ -1038,11 +1069,14 @@
       const profit = humanTokenValue(row.profit_amount ?? quote.profit_amount ?? analysis.referenceNetProfitAmount ?? analysis.netProfitAmount);
       const pct = numberValue(row.profit_percent ?? quote.profit_percent ?? (analysis.referenceNetReturnBps == null ? null : Number(analysis.referenceNetReturnBps) / 100));
       const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      const tradeAt = row.observed_at || row.created_at || row.updated_at || quote.observed_at || quote.observedAt || "";
+      const tradeTime = tradeAt ? `最近交易 ${window.formatLocalDisplayTime(tradeAt)}` : "";
       const parts = [`已执行链上交易 ${txHash}`];
       if (profit !== null) parts.push(`盈亏=${profit >= 0 ? "+" : ""}${numeric(profit, 6)} ${symbol || ""}`.trim());
       if (pct !== null) parts.push(`比例=${pct >= 0 ? "+" : ""}${numeric(pct, 4)}%`);
+      if (tradeTime) parts.push(tradeTime);
       parts.push("请先到提交记录或区块浏览器确认交易结果；后续是否仍有新机会以新的链上复核为准，不需要手动判断当前建议是否仍有效");
-      return {text: parts.join("；"), txHash, txHashes};
+      return {text: parts.join("；"), txHash, txHashes, observedAt: tradeAt || ""};
     };
     const shortHash = value => {
       const text = String(value || "").trim();
@@ -1079,20 +1113,30 @@
       }
       const evidence = routeEvidence(route);
       const analysis = routeAnalysis(route);
-      const staticReview = routeNeedsLiveReview(route);
       const probeAmount = offchainProbeAmount(route, evidence);
       const actionStage = uiStageFromUiState(effectiveUiState(route));
       const useBestForAction = ["preflight", "preflight_failed", "execution", "execution_pending", "execution_failed"].includes(actionStage);
       const bestAmount = useBestForAction ? routeBestAmountPick(route, evidence, analysis) : null;
       const bestAmountMissing = useBestForAction && (bestAmount === null || bestAmount === undefined || bestAmount === "");
-      const bestAmountUnconfirmed = useBestForAction && bestAmountMissingOf(route, evidence, analysis);
       const testAmount = bestAmount ?? probeAmount ?? autoRouteAmount(route);
       const testAmountNumber = Number(testAmount);
       const testAmountText = Number.isFinite(testAmountNumber) && testAmountNumber > 0
         ? `${numeric(testAmount, 8)} ${esc(autoRouteAmountSymbol(route))}`
         : "未计算";
-      const broadcastDisabled = bestAmountMissing || bestAmountUnconfirmed || staticReview ? " disabled" : "";
-      return `<span class="muted">测试金额 ${testAmountText}</span><span class="muted">链下估算自动完成</span><button type="button" data-route-static-call="${index}">链上复核</button><button type="button" data-route-broadcast="${index}"${broadcastDisabled}>${bestAmountMissing ? (bestAmount === null || bestAmount === undefined || bestAmount === "" ? "最佳量未计算" : "最佳量未确认") : staticReview ? "待链上复核后执行" : "链上执行"}</button>`;
+      const reviewControl = route?.closedLoopControl?.review || {};
+      const broadcastControl = route?.closedLoopControl?.broadcast || {};
+      const canManualReview = reviewControl.manualWakeEligible === true;
+      const canManualBroadcast = broadcastControl.manualWakeEligible === true;
+      const manualControlHint = [
+        canManualReview ? "" : `复核=${esc(reviewControl.state || "missing")}`,
+        canManualBroadcast ? "" : `广播=${esc(broadcastControl.state || "missing")}`,
+      ].filter(Boolean).join(" / ");
+      const manualActionButtons = () => (
+        `<span class="muted">测试交易量 ${testAmountText}${manualControlHint ? ` | 等待条件 ${manualControlHint}` : ""}</span>`
+        + `<button type="button" data-route-static-call="${index}" ${canManualReview ? "" : "disabled"} title="${canManualReview ? "手动唤醒空闲等待中的复核线程" : "仅空闲等待中的复核线程可手动唤醒"}">实时链上复核</button>`
+        + `<button type="button" data-route-broadcast="${index}" ${canManualBroadcast ? "" : "disabled"} title="${canManualBroadcast ? "手动唤醒等待中的广播任务；不重新报价、不重算 PnL" : "仅等待中的广播任务可手动唤醒"}">链上执行</button>`
+      );
+      return manualActionButtons();
     };
     function routeSummaryHtml(rawRoute, index) {
       try {
@@ -1159,27 +1203,27 @@
           : reviewStage === "execution"
             ? "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果"
           : staticReview && reviewStage === "estimate"
-            ? "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳量，不建议直接链上执行。"
+            ? "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳交易量，不建议直接链上执行。"
           : statusLower === "route_unprofitable"
-            ? "链上报价已验证，但净收益未转正；禁止链上执行"
+            ? "链上报价已验证，但净收益未转正；不建议链上执行"
           : statusLower === "slippage_limit_exceeded"
-            ? "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行"
+            ? "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；不建议链上执行"
           : negativeEvidence
             ? terminalFailureAdvice(evidence.status)
           : reviewStage === "preflight"
             ? (rawBestAmountMissing
-                ? "链上复核未通过：最佳量未计算成功，不能作为已确认最佳量；请重新链上复核并完成最佳量计算后再执行。"
+                ? "链上复核未通过：最佳交易量未计算成功，不能作为已确认最佳交易量；请重新完成链上复核并计算最佳交易量后再执行。"
                 : "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。")
             : preflightFailed
               ? (route.__broadcastError && String(route.__broadcastError) !== "链上复核失败"
                   ? route.__broadcastError
                   : "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。")
             : pendingReview
-              ? "链下估算完成：默认初始量已生成；链上复核可继续确认当前最佳量"
+              ? "链下估算完成：默认初始交易量已生成；链上复核可继续确认当前最佳交易量"
                 : liveSummary
                     ? (analysis.bestAmountConfirmed === true
-                        ? "链下估算完成：当前初始量已生成；最佳量与可执行性需点击链上复核确认。"
-                        : "链下估算完成：当前金额仅作为链上合约初始量，最佳量需由链上复核确认。")
+                        ? "链下估算完成：当前初始交易量已生成；最佳交易量与可执行性需点击链上复核确认。"
+                        : "链下估算完成：当前交易量仅作为链上合约初始交易量，最终最佳交易量需由链上复核确认。")
                     : recommendationAction(recommendation.action || "链上报价未完成"));
         const evidenceFirst = (...values) => {
           for (const value of values) {
@@ -1204,9 +1248,18 @@
           costsForMetric.submissionNetProfitAmount,
           derivedProfitAmount
         );
+        const onchainNetProfitConfirmed = Boolean(
+          !negativeEvidence
+          && statusLower === "live_verified"
+          && (evidence.readyForTransactionPreflight || evidence.ready_for_transaction_preflight)
+          && !(Array.isArray(evidence.blockers) && evidence.blockers.some(item => String(item || "").trim()))
+          && (evidence.profitable === true || evidence.profitable === undefined)
+          && Number(referenceNetProfitRaw ?? 0) > 0
+        );
+        const referenceProfitSource = costsForMetric.netProfitReferenceSource || evidence.referenceNetProfitMethod || "";
         const referenceNetProfitAmount = humanTokenValue(referenceNetProfitRaw);
         const referenceNetProfitMetric = referenceNetProfitAmount != null
-          ? amount(referenceNetProfitAmount, evidenceFirst(analysis.referenceInputSymbol, costsForMetric.borrowInputSymbol) || "")
+          ? `${amount(referenceNetProfitAmount, evidenceFirst(analysis.referenceInputSymbol, costsForMetric.borrowInputSymbol) || "")}${onchainNetProfitConfirmed ? "" : (referenceProfitSource === "offline_v4_sqlite_route_snapshot" ? "（离线 SQLite 参考，未确认）" : "（参考，未确认）")}`
           : "-";
         const referenceNetReturnBps = evidenceFirst(
           analysis.referenceNetReturnBps,
@@ -1217,12 +1270,14 @@
           ? `${numeric(referenceNetReturnBps, 2)} bps`
           : "-";
         const netProfitUsd = evidenceFirst(analysis.netProfitUsd, costsForMetric.netProfitUsd);
-        const netProfitAmount = humanTokenValue(evidenceFirst(
-          analysis.referenceNetProfitAmount,
-          costsForMetric.netProfitAmount,
-          costsForMetric.submissionNetProfitAmount,
-          derivedProfitAmount
-        ));
+        const netProfitAmount = onchainNetProfitConfirmed
+          ? humanTokenValue(evidenceFirst(
+              analysis.referenceNetProfitAmount,
+              costsForMetric.netProfitAmount,
+              costsForMetric.submissionNetProfitAmount,
+              derivedProfitAmount
+            ))
+          : null;
         const netProfit = netProfitUsd != null
           ? money(netProfitUsd)
           : (netProfitAmount != null ? amount(netProfitAmount, evidenceFirst(analysis.referenceInputSymbol, costsForMetric.borrowInputSymbol) || "") : "-");
@@ -1262,6 +1317,13 @@
           : "";
         const backendAmountHint = analysis.amountOptimizationHint || route.quoteAnalysis?.amountOptimizationHint;
         const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis, stage: reviewStage});
+        const consistencyText = onchainNetProfitConfirmed
+          ? "链上净利通过"
+          : statusLower === "route_unprofitable"
+            ? "链上复核未通过：未转正"
+            : statusLower === "live_verified"
+              ? "链上复核通过，但净利未满足可执行条件"
+              : "未复核";
         const requestedNumber = Number(requestedAmountValue);
         const probeNumber = Number(initialProbeAmount);
         const initialAmountsSame = Number.isFinite(requestedNumber)
@@ -1280,6 +1342,35 @@
         const routeLiquidPoolCount = routePoolsOf(route).filter(poolExplicitlyUsable).length;
         const routeUnusablePoolCount = routePoolsOf(route).filter(poolExplicitlyUnusable).length;
         const routeEvidenceMissingPoolCount = routePoolsOf(route).filter(poolLiquidityEvidenceMissing).length;
+        const selectedProfitAmountMetric = humanTokenValue(evidenceFirst(
+          evidence.selectedProfitAmount,
+          costsForMetric.selectedProfitAmount,
+          analysis.selectedProfitAmount
+        ));
+        const selectedProfitSymbolMetric = evidenceFirst(
+          evidence.selectedProfitAmountSymbol,
+          costsForMetric.selectedProfitAmountSymbol,
+          analysis.selectedProfitAmountSymbol,
+          evidenceFirst(analysis.referenceInputSymbol, costsForMetric.borrowInputSymbol) || routeAmountSymbol || ""
+        ) || "";
+        const selectedProfitSourceMetric = evidenceFirst(
+          evidence.selectedProfitSource,
+          costsForMetric.selectedProfitSource,
+          analysis.selectedProfitSource
+        ) || "";
+        const selectedProfitMissingReasonMetric = evidenceFirst(
+          evidence.selectedProfitMissingReason,
+          costsForMetric.selectedProfitMissingReason,
+          analysis.selectedProfitMissingReason
+        ) || "no_native_signed_profit";
+        const selectedProfitSourceLabelMetric = selectedProfitSourceMetric === "native_rust_contract_preview"
+          ? "原生合约预览（链上复核）"
+          : selectedProfitSourceMetric === "sqlite_reference"
+            ? "SQLite 参考（非 eth_call）"
+            : (selectedProfitSourceMetric || "未记录");
+        const selectedProfitMetric = selectedProfitAmountMetric !== null && selectedProfitAmountMetric !== undefined
+          ? `链上复核值=${amount(selectedProfitAmountMetric, selectedProfitSymbolMetric)} | 参考执行估算=${referenceNetProfitMetric}${referenceNetProfitAmount != null ? ` | delta=${amount(selectedProfitAmountMetric - referenceNetProfitAmount, selectedProfitSymbolMetric)}` : ""} | 来源=${selectedProfitSourceLabelMetric}`
+          : `无链上 signed 净值；参考执行估算=${referenceNetProfitMetric} | 缺失原因=${selectedProfitMissingReasonMetric}`;
         const metrics = [
           `方向=${actualDirection}`,
           `路径池=${routePoolCount} / 有流动性=${routeLiquidPoolCount} / 无流动性=${routeUnusablePoolCount} / 未标注=${routeEvidenceMissingPoolCount}`,
@@ -1292,10 +1383,12 @@
           `状态=${evStatus}`,
           `区块=${display(block)}`,
           `依据=${trust}`,
+          `复核结论=${consistencyText}`,
           `盈亏=${netProfit}`,
           `参考净利=${referenceNetProfitMetric}`,
           `参考净利 BPS=${referenceNetProfitBpsMetric}`,
-          [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${initialProbeMetric}${initialProbeMetric !== "-" ? ` ${display(routeAmountSymbol)}` : ""}`],
+          selectedProfitMetric,
+          [`${reviewStage === "preflight" ? "初始测试交易量" : "初始探测"}=${initialProbeMetric}${initialProbeMetric !== "-" ? ` ${display(routeAmountSymbol)}` : ""}`],
           `初始探测依据=${display(evidenceProbeReasonText(evidence.offchainInitialProbeReason, evidence))}`,
           ...(amountScaleHint ? [amountScaleHint] : []),
           ...(backendAmountHint ? [`优化提示=${display(backendAmountHint)}`] : []),
@@ -1319,6 +1412,16 @@
       const start = String(route?.routeSymbols?.[0] || route?.overviewRoute?.anchorBorrowSymbol || route?.borrowSymbols?.[0] || "token").toUpperCase();
       return start;
     };
+    const loopFamilyKey = route => {
+      const symbols = Array.isArray(route?.routeSymbols)
+        ? route.routeSymbols.map(item => String(item || "").trim().toUpperCase()).filter(Boolean)
+        : [];
+      if (symbols.length >= 4 && symbols[0] === symbols[symbols.length - 1]) {
+        const middle = symbols.slice(1, -1).sort().join("->");
+        return `${symbols[0]}|${middle}`;
+      }
+      return routeKey(route);
+    };
     const renderPoolDirectories = routes => {
       const groups = new Map();
       routes.forEach((route, index) => {
@@ -1334,6 +1437,10 @@
       });
       orderedGroups.forEach(group => {
         group.routes.sort((a, b) => {
+          const familyA = loopFamilyKey(a.route);
+          const familyB = loopFamilyKey(b.route);
+          const familyOrder = String(familyA).localeCompare(String(familyB));
+          if (familyOrder !== 0) return familyOrder || a.index - b.index;
           const keyA = routeKey(a.route);
           const keyB = routeKey(b.route);
           return String(keyA).localeCompare(String(keyB)) || a.index - b.index;
@@ -1359,14 +1466,28 @@
           const liquidity = pool.liquidityIndex == null ? "" : `L ${numeric(pool.liquidityIndex, 6)}`;
           return `<div class="pool-chip">${esc(label)}${fee ? `<small>${esc(fee)}</small>` : ""}${depth ? `<small>${esc(depth)}</small>` : ""}${liquidity ? `<small>${esc(liquidity)}</small>` : ""}</div>`;
         }).join("");
-        const routeHtml = group.routes.map(({route, index}) => routeSummaryHtml(route, index)).join("");
-        return `<section class="pool-group"><header><h2>${esc(group.start)} 可借贷资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span><button class="copy-btn" type="button" data-closed-loop-refresh="${esc(group.start)}">定点刷新</button></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
+        const routeHtml = [];
+        let currentFamily = "";
+        let familyRoutes = [];
+        const flushFamily = () => {
+          if (!familyRoutes.length) return;
+          routeHtml.push(`<div class="loop-family">${familyRoutes.map(({route, index}) => routeSummaryHtml(route, index)).join("")}</div>`);
+          familyRoutes = [];
+        };
+        group.routes.forEach(({route, index}) => {
+          const family = loopFamilyKey(route);
+          if (currentFamily && family !== currentFamily) flushFamily();
+          currentFamily = family;
+          familyRoutes.push({route, index});
+        });
+        flushFamily();
+        return `<section class="pool-group"><header><h2>${esc(group.start)} 借贷资金池与有向闭环</h2><span>${esc(group.routes.length)} 条有向闭环</span></header><div class="pool-list">${poolRows || `<span class="muted">暂无池明细</span>`}</div>${routeHtml}</section>`;
       }).join("");
       if (html) return html;
       const candidateLiquid = Number(routeLiquidityContext?.candidateLiquidPoolCount ?? 0);
       const closedLoopLiquid = Number(routeLiquidityContext?.closedLoopLiquidPoolCount ?? 0);
       if (candidateLiquid > 0 && closedLoopLiquid === 0) {
-        return `<div class="empty">候选池中存在 ${esc(candidateLiquid)} 个有流动性池，但当前没有由这些池组成的完整 Y-X-Z-Y 闭环，因此报价页无可交易闭环。请先在市场观察/总览补充中间桥池或扩大观察锚点集合。</div>`;
+        return `<div class="empty">候选池中存在 ${esc(candidateLiquid)} 个有流动性池，但尚无可组成 X -> Y -> Z -> X 闭环的有向池组，因此报价页暂无可交易闭环。请先在市场观察/总览补充中间桥池，或扩大观察锚点集合。</div>`;
       }
-      return '<div class="empty">暂无同时具备可用流动性且非特殊费率的闭环路由。请先在候选池/总览确认中间桥池的流动性标记。</div>';
+      return '<div class="empty">暂无同时具备可用流动性、真实费率且可组成有向闭环的路由。请先在候选池/总览确认中间桥池的流动性标记。</div>';
     };

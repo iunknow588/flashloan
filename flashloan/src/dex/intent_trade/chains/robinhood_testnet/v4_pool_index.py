@@ -73,6 +73,7 @@ def build_v4_directional_pool_backfill(
     to_block: int | None = None,
     chunk_size: int = 100_000,
     confirm_pool_liquidity: object | None = None,
+    exclude_pool_ids: list[str] | tuple[str, ...] | None = None,
 ) -> dict:
     """Scan testnet Initialize logs newest-to-oldest until directions are full."""
     return _backfill_core(
@@ -86,6 +87,7 @@ def build_v4_directional_pool_backfill(
         include_currency_metadata=False,
         chunk_size=chunk_size,
         confirm_pool_liquidity=confirm_pool_liquidity,
+        exclude_pool_ids=exclude_pool_ids,
         rpc_user_agent="flashloan-robinhood-testnet-v4/1.0",
     )
 

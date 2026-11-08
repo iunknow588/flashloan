@@ -168,9 +168,17 @@ def configured_stock_anchor_address_by_symbol(
     if stock_registry is not None:
         items = stock_registry.get("tokens") if isinstance(stock_registry.get("tokens"), dict) else {}
     elif database_url is not None:
-        return _stock_anchor_rows_from_db(
+        db_rows = _stock_anchor_rows_from_db(
             normalized,
             database_url=database_url,
+        )
+        if db_rows or normalized != ROBINHOOD_TESTNET_NETWORK:
+            return db_rows
+        # Testnet stock registry is a chain-owned static configuration. A
+        # caller that passes the default mainnet SQLite path must not silently
+        # lose testnet stock anchors just because that database has no rows.
+        return configured_stock_anchor_address_by_symbol(
+            ROBINHOOD_TESTNET_NETWORK,
         )
     else:
         cache_key = normalized or ROBINHOOD_NETWORK

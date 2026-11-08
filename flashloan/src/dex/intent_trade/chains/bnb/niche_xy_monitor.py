@@ -14,6 +14,7 @@ from typing import Any
 
 from web3 import Web3
 
+from core.rs_bridge import append_bnb_market_observation
 from dex.intent_trade.chains.bnb import config as bnb
 from dex.intent_trade.chains.bnb.niche_static_table import _connect
 from dex.intent_trade.chains.bnb.quote import ROUTER_ABI, V3_QUOTER_ABI
@@ -25,7 +26,7 @@ REPO_ROOT = SRC_ROOT.parents[1]
 DEFAULT_TABLE = REPO_ROOT / "data_info" / "BNB" / "bnb_niche_token_static_table.json"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "data_info" / "BNB"
 LATEST_NAME = "bnb_niche_xy_dynamic_monitor_latest.json"
-HISTORY_NAME = "bnb_niche_xy_dynamic_monitor_history.jsonl"
+HISTORY_SOURCE = "bnb_niche_xy_dynamic_monitor"
 SUMMARY_NAME = "bnb_niche_xy_dynamic_monitor_summary.md"
 FINAL_NAME = "bnb_niche_xy_dynamic_monitor_final.json"
 
@@ -450,11 +451,6 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
-
-
 def _summary(path: Path, payload: dict[str, Any]) -> None:
     lines = [
         "# BNB Niche X-Y Dynamic Monitor",
@@ -600,7 +596,12 @@ def monitor(args: argparse.Namespace) -> dict[str, Any]:
             round_index=round_index,
         )
         _atomic_json(args.output_dir / LATEST_NAME, latest)
-        _append_jsonl(args.output_dir / HISTORY_NAME, latest)
+        append_bnb_market_observation(
+            HISTORY_SOURCE,
+            latest,
+            network=bnb.NETWORK,
+            chain_id=bnb.CHAIN_ID,
+        )
         _summary(args.output_dir / SUMMARY_NAME, latest)
         print(
             json.dumps(
@@ -652,7 +653,8 @@ def main() -> int:
                 "ok": True,
                 "completedRounds": final.get("completedRounds"),
                 "latest": str(args.output_dir / LATEST_NAME),
-                "history": str(args.output_dir / HISTORY_NAME),
+                "historySource": HISTORY_SOURCE,
+                "historyTable": "bnb_market_observations",
                 "summary": str(args.output_dir / SUMMARY_NAME),
                 "final": str(args.output_dir / FINAL_NAME),
             },

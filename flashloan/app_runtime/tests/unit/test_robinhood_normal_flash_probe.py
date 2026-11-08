@@ -1,4 +1,7 @@
-from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
+from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import (
+    _sqlite_token_liquidity_evidence,
+    resolve_robinhood_testnet_normal_flash_probe,
+)
 
 
 def _liquidity_payload(*, balance_raw: str = "2000000000000000000000"):
@@ -141,3 +144,105 @@ def test_robinhood_testnet_normal_flash_probe_blocks_when_poolmanager_balance_is
     assert report["borrowableLiquidity"]["ready"] is False
     assert report["readyForNormalBroadcast"] is False
     assert "borrow_amount_exceeds_poolmanager_balance" in report["blockingReasons"]
+
+
+def test_robinhood_testnet_normal_flash_probe_uses_sqlite_evidence_when_balance_is_not_verified():
+    plan = {
+        "network": "robinhood-testnet",
+        "chainId": 46630,
+        "route": {"pathText": "USDT -> ETH -> USDT", "closed": True},
+        "preflightSpec": {
+            "routeHops": [
+                {
+                    "tokenIn": "0x5d523e2Fd857bD4E2039C2bbe5636A1b920E06b3",
+                    "fromSymbol": "USDT",
+                    "amountInRaw": "1000000000000000000000",
+                    "inputDecimals": 18,
+                }
+            ],
+            "repaymentConstraint": {
+                "borrowToken": "0x5d523e2Fd857bD4E2039C2bbe5636A1b920E06b3",
+                "borrowSymbol": "USDT",
+                "borrowAmountRaw": "1000000000000000000000",
+            },
+        },
+    }
+
+    report = resolve_robinhood_testnet_normal_flash_probe(
+        chain_metadata={},
+        contracts_metadata={},
+        chain_test_plan=plan,
+        v4_pool_liquidity={},
+        sqlite_pool_evidence={
+            "ready": False,
+            "poolCount": 0,
+            "reason": "no_verified_sqlite_liquidity_pool",
+            "source": "sqlite_db",
+        },
+    )
+
+    assert report["borrowableLiquidity"]["ready"] is False
+    assert report["readyForNormalBroadcast"] is False
+    assert "borrowable_liquidity_not_verified" in report["blockingReasons"]
+    assert "sqlite_verified_liquidity_pool_not_available" in report["blockingReasons"]
+    assert report["sqliteLiquidityEvidence"]["checked"] is True
+
+
+def test_robinhood_testnet_normal_flash_probe_verified_balance_is_not_reversed_by_missing_sqlite_pool():
+    plan = {
+        "network": "robinhood-testnet",
+        "chainId": 46630,
+        "route": {"pathText": "USDT -> ETH -> USDT", "closed": True},
+        "preflightSpec": {
+            "routeHops": [
+                {
+                    "tokenIn": "0x5d523e2Fd857bD4E2039C2bbe5636A1b920E06b3",
+                    "fromSymbol": "USDT",
+                    "amountInRaw": "1000000000000000000000",
+                    "inputDecimals": 18,
+                }
+            ],
+            "repaymentConstraint": {
+                "borrowToken": "0x5d523e2Fd857bD4E2039C2bbe5636A1b920E06b3",
+                "borrowSymbol": "USDT",
+                "borrowAmountRaw": "1000000000000000000000",
+            },
+        },
+    }
+
+    report = resolve_robinhood_testnet_normal_flash_probe(
+        chain_metadata={},
+        contracts_metadata={
+            "normalTestnetProbe": {
+                "address": "0x1111111111111111111111111111111111111111",
+                "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+            }
+        },
+        chain_test_plan=plan,
+        v4_pool_liquidity=_liquidity_payload(),
+        sqlite_pool_evidence={
+            "ready": False,
+            "poolCount": 0,
+            "reason": "no_verified_sqlite_liquidity_pool",
+            "source": "sqlite_db",
+        },
+    )
+
+    assert report["borrowableLiquidity"]["ready"] is True
+    assert report["readyForNormalBroadcast"] is True
+    assert report["blockingReasons"] == []
+    assert report["sqliteLiquidityEvidence"]["checked"] is True
+
+
+def test_robinhood_testnet_normal_flash_probe_sqlite_evidence_fails_closed_for_missing_token():
+    evidence = _sqlite_token_liquidity_evidence(
+        database=None,
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        token_address="",
+    )
+
+    assert evidence["ready"] is False
+    assert evidence["poolCount"] == 0
+    assert evidence["reason"] == "token_address_missing"

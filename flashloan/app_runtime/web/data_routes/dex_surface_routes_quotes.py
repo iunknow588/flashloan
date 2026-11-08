@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import json
 import os
-from copy import deepcopy
 from typing import Any
 
-from flask import jsonify, request
+from flask import Response, g, jsonify, request
 
 from core.chain_selection import ChainSelectionError
+from web.data_routes.manager_page_compare import (
+    quote_request_manager_page_payload,
+    quote_routes_manager_page_payload,
+)
 from web.data_routes import dex_surfaces as _root
 from web.data_routes.dex_surface_helpers import (
-    _has_live_verified_evidence,
-    _has_preserved_manifest_evidence,
     _infer_route_addresses_from_pools,
     _merge_manifest_live_evidence_into_routes,
 )
@@ -18,6 +20,7 @@ from market.binance_market.dex_quote_surface_routes_builder import _pool_usable_
 
 
 _STATIC_ROUTE_PAYLOAD_CACHE: dict[tuple[str, tuple[str, ...], str, float], dict[str, Any]] = {}
+_STATIC_ROUTE_JSON_CACHE: dict[tuple[str, tuple[str, ...], str, float], bytes] = {}
 
 
 def _is_zero_address(value: object) -> bool:
@@ -59,6 +62,68 @@ def _active_v4_pool_ids_from_overview(overview: dict[str, Any]) -> set[str]:
                 if raw:
                     active.add(raw)
     return active
+
+
+def _complete_route_addresses(
+    route_symbols: list[str],
+    route_addresses: list[str],
+    *,
+    chain_id: int,
+    protocols: list[str],
+) -> list[str]:
+    """Resolve a quote-test route to the current closed-loop path addresses."""
+    addresses = [
+        str(address or "").strip().lower()
+        for address in route_addresses
+        if str(address or "").strip()
+    ]
+    if (
+        len(addresses) == 4
+        and addresses[0] == addresses[-1]
+        and not any(_is_zero_address(address) for address in addresses)
+    ):
+        return addresses
+
+    from market.binance_market.dex_route_helpers import (
+        _official_route_addresses,
+        _route_addresses_from_route,
+    )
+    from market.binance_market.dex_route_test import _match_route, _routes_payload
+
+    official = [
+        str(address or "").strip().lower()
+        for address in _official_route_addresses(route_symbols, chain_id=chain_id)
+        if str(address or "").strip()
+    ]
+    if (
+        len(official) == 4
+        and official[0] == official[-1]
+        and not any(_is_zero_address(address) for address in official)
+    ):
+        return official
+
+    try:
+        routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+        route = _match_route(routes_payload.get("routes") or [], route_symbols)
+    except Exception:
+        route = None
+    if isinstance(route, dict):
+        resolved = [
+            str(address or "").strip().lower()
+            for address in (
+                _route_addresses_from_route(route)
+                or _infer_route_addresses_from_pools(route)
+                or []
+            )
+            if str(address or "").strip()
+        ]
+        if (
+            len(resolved) == 4
+            and resolved[0] == resolved[-1]
+            and not any(_is_zero_address(address) for address in resolved)
+        ):
+            return resolved
+    return []
 
 
 def _registry_pool_rows(registry: object) -> list[dict[str, Any]]:
@@ -293,6 +358,8 @@ def _route_has_unresolved_zero_address(route: dict, protocols: list[str] | None)
 
 
 def register_dex_quote_routes(app) -> None:
+    # Retained for legacy regression fixtures and diagnostics only. The quote
+    # page must read the manager-only /api/dex/quote-routes projection.
     @app.get("/api/dex/quote-routes/static")
     def dex_quote_routes_static():
         try:
@@ -330,7 +397,15 @@ def register_dex_quote_routes(app) -> None:
         )
         cached = _STATIC_ROUTE_PAYLOAD_CACHE.get(cache_key)
         if cached is not None:
-            return jsonify(deepcopy(cached))
+            cached_json = _STATIC_ROUTE_JSON_CACHE.get(cache_key)
+            if cached_json is None:
+                cached_json = json.dumps(
+                    cached,
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                _STATIC_ROUTE_JSON_CACHE[cache_key] = cached_json
+            return Response(cached_json, mimetype="application/json")
         routes = []
         summaries = overview.get("closedLoopRouteSummaries") or []
         seen = set()
@@ -523,7 +598,13 @@ def register_dex_quote_routes(app) -> None:
         }
         payload = _root._attach_dex_strategy(payload)
         _STATIC_ROUTE_PAYLOAD_CACHE[cache_key] = payload
-        return jsonify(deepcopy(payload))
+        payload_json = json.dumps(
+            payload,
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        _STATIC_ROUTE_JSON_CACHE[cache_key] = payload_json
+        return Response(payload_json, mimetype="application/json")
 
     @app.get("/api/dex/quote-routes")
     def dex_quote_routes():
@@ -532,240 +613,29 @@ def register_dex_quote_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
-        use_live_estimate_fallback = str(request.args.get("live_estimate") or "0").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         anchor = str(request.args.get("anchor") or "").strip() or None
-        _root._bootstrap_dex_surface_dependencies(
-            chain_id=selected_chain_id,
-            protocols=protocols,
-            flow_name="dex_quote_routes",
-        )
-        payload = _root._dex_surface_payload_for_chain(
-            flow_name="dex_quote_routes",
-            mode="dex_quote_routes",
+        payload = quote_routes_manager_page_payload(
             chain_id=selected_chain_id,
             protocols=protocols,
             anchor=anchor,
-            fallback=lambda: _root.dex_quote_routes_payload(
-                chain_id=selected_chain_id,
-                protocols=protocols,
-                use_static_observation=True,
-                anchor=anchor,
-            ),
+            chain_selection=chain_selection,
+            request_id=getattr(g, "request_id", None),
         )
-        snapshot_container = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
-        snapshot_data = snapshot_container.get("payload") if isinstance(snapshot_container.get("payload"), dict) else {}
-        snapshot_routes = [route for route in (snapshot_data.get("routes") or []) if isinstance(route, dict)]
-        top_routes = [route for route in (payload.get("routes") or []) if isinstance(route, dict)]
-        base_routes = top_routes or snapshot_routes
-        base_routes = [_infer_route_addresses_from_pools(route) for route in base_routes]
-        _merge_manifest_live_evidence_into_routes(base_routes, chain_id=int(selected_chain_id))
-        try:
-            scanner_payload = _root.dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
-            scanner_snapshot = scanner_payload.get("snapshot") if isinstance(scanner_payload.get("snapshot"), dict) else {}
-            snapshot_updated_at = str(scanner_snapshot.get("updated_at") or "")
-            if _root._scanner_snapshot_is_stale(scanner_payload):
-                wait_for_scan = str(request.args.get("wait") or "0").strip().lower() in {"1", "true", "yes", "on"}
-                if wait_for_scan:
-                    try:
-                        scanner = _root.get_dex_opportunity_scanner()
-                        scanner.scan_now(chain_id=selected_chain_id, protocols=protocols)
-                        scanner_payload = _root.dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
-                        scanner_snapshot = scanner_payload.get("snapshot") if isinstance(scanner_payload.get("snapshot"), dict) else {}
-                        snapshot_updated_at = str(scanner_snapshot.get("updated_at") or "")
-                    except Exception as exc:
-                        _root.logger.warning("synchronous scan-now refresh failed for dex quote routes: %s", exc)
-                        scanner_payload = {}
-                        scanner_snapshot = {}
-                else:
-                    try:
-                        if not any(_has_preserved_manifest_evidence(route) for route in base_routes):
-                            _root.run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
-                    except Exception as exc:
-                        _root.logger.warning("scan-now refresh failed for dex quote routes: %s", exc)
-                if isinstance(scanner_payload, dict) and not _root._scanner_snapshot_is_stale(scanner_payload):
-                    scanner_container = scanner_snapshot
-                    scanner_data = scanner_container.get("payload") if isinstance(scanner_container.get("payload"), dict) else {}
-                    payload["scannerState"] = {
-                        "status": "fresh",
-                        "stale": False,
-                        "snapshotUpdatedAt": snapshot_updated_at,
-                        "message": "scanner snapshot refreshed synchronously; on-chain evidence merged.",
+        if not payload.get("ok"):
+            upstream_status = payload.get("upstreamStatus")
+            response_status = upstream_status if isinstance(upstream_status, int) else 503
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_quote_routes",
+                        "dataSource": "manager",
+                        "error": "manager_read_failed",
+                        "managerDetail": payload,
                     }
-                    scanner_routes = [route for route in (scanner_data.get("routes") or []) if isinstance(route, dict)]
-                    scanner_by_key = {
-                        _root._route_dedup_key(route): route
-                        for route in scanner_routes
-                    }
-                    top_routes = scanner_routes
-                    snapshot_routes = scanner_routes
-                    snapshot_data["routes"] = scanner_routes
-                    if not base_routes:
-                        payload["routes"] = scanner_routes
-                else:
-                    payload["scannerState"] = {
-                        "status": "stale_refresh_queued",
-                        "stale": True,
-                        "snapshotUpdatedAt": snapshot_updated_at,
-                        "message": "scanner snapshot was stale; queued real-time scan; old scanner evidence was not merged",
-                    }
-                    scanner_by_key = {}
-                    _root.evict_stale_evidence_from_routes(
-                        [route for route in base_routes if not _has_preserved_manifest_evidence(route)]
-                    )
-            else:
-                scanner_container = scanner_snapshot
-                scanner_data = scanner_container.get("payload") if isinstance(scanner_container.get("payload"), dict) else {}
-                payload["scannerState"] = {
-                    "status": "fresh",
-                    "stale": False,
-                    "snapshotUpdatedAt": snapshot_updated_at,
-                    "message": "scanner snapshot is fresh; on-chain evidence merged.",
-                }
-                scanner_routes = [route for route in (scanner_data.get("routes") or []) if isinstance(route, dict)]
-                scanner_by_key = {
-                    _root._route_dedup_key(route): route
-                    for route in scanner_routes
-                }
-            for route in base_routes:
-                key = _root._route_dedup_key(route)
-                scanner_route = scanner_by_key.get(key)
-                if not isinstance(scanner_route, dict):
-                    continue
-                evidence = scanner_route.get("live_onchain_evidence")
-                if not isinstance(evidence, dict):
-                    quote_analysis = scanner_route.get("quoteAnalysis")
-                    if isinstance(quote_analysis, dict):
-                        evidence = quote_analysis.get("live_onchain_evidence")
-                if isinstance(evidence, dict) and evidence:
-                    _root._merge_onchain_evidence_into_route(route, evidence)
-        except (KeyError, TypeError, ValueError, AttributeError, OSError) as exc:
-            _root.logger.warning(
-                "quote-routes scanner merge failed for chain_id=%s protocols=%s: %s",
-                selected_chain_id,
-                protocols,
-                exc,
+                ),
+                response_status,
             )
-        scanner_state = payload.get("scannerState") if isinstance(payload.get("scannerState"), dict) else {}
-        if not use_live_estimate_fallback:
-            _root._merge_recent_attempt_evidence_into_routes(
-                base_routes,
-                chain_id=selected_chain_id,
-            )
-        if use_live_estimate_fallback and (snapshot_routes or top_routes):
-            _root.evict_stale_evidence_from_routes(
-                [route for route in base_routes if not _has_preserved_manifest_evidence(route)]
-            )
-            scanner_routes = base_routes
-            merged_by_key = {
-                _root._route_dedup_key(route): route
-                for route in scanner_routes
-                if isinstance(route, dict)
-            }
-            try:
-                from market.binance_market.dex_route_test import is_official_triangle_route
-            except Exception:
-                is_official_triangle_route = None
-
-            def _priority(route):
-                symbols = [str(s) for s in (route.get("routeSymbols") or []) if str(s).strip()]
-                if is_official_triangle_route and is_official_triangle_route(symbols):
-                    return 0
-                return 1
-            ordered_routes = sorted(base_routes, key=_priority)
-            live_count = 0
-            for route in ordered_routes:
-                key = _root._route_dedup_key(route)
-                if not key or live_count >= 1:
-                    continue
-                evidence = route.get("live_onchain_evidence") or {}
-                if isinstance(evidence, dict):
-                    status = str(evidence.get("status") or "").strip().lower()
-                    if status not in {"live_evidence_deferred", "requires_live_quoter", ""}:
-                        continue
-                analysis = route.get("quoteAnalysis") or {}
-                if isinstance(analysis, dict) and analysis.get("livePriceVerified"):
-                    continue
-                improved = _root._live_quote_deferred_route(
-                    route,
-                    chain_id=selected_chain_id,
-                    protocols=protocols,
-                )
-                if improved is not None:
-                    merged_by_key[key] = improved
-                    live_count += 1
-            if top_routes:
-                payload["routes"] = list(merged_by_key.values())
-                summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
-                summary["routeCount"] = len(payload["routes"])
-                payload["summary"] = summary
-            else:
-                snapshot_data["routes"] = list(merged_by_key.values())
-                summary = snapshot_data.get("summary") if isinstance(snapshot_data.get("summary"), dict) else {}
-                summary["routeCount"] = len(snapshot_data["routes"])
-                snapshot_data["summary"] = summary
-        payload["chain_selection"] = chain_selection
-        payload.setdefault("routes", [])
-        payload.setdefault("mode", "dex_quote_routes")
-        if isinstance(payload.get("routes"), list):
-            overview = _root.load_observation_overview_for_scope(
-                chain_id=selected_chain_id,
-                protocols=protocols,
-            )
-            filtered_routes = []
-            for route in payload["routes"]:
-                if not isinstance(route, dict):
-                    continue
-                route = _infer_route_addresses_from_pools(route)
-                if _route_has_unresolved_zero_address(route, protocols):
-                    continue
-                if not _route_has_complete_v4_pool_identity(route):
-                    continue
-                # Keep a closed loop even when its recommended hop pools are
-                # currently unusable, as long as it still carries hop candidates
-                # that the quote/routing page can substitute on a temporary
-                # basis. Dropping it here would hide the loop before any
-                # price-based replacement can be evaluated.
-                if _route_has_explicit_unusable_liquidity(route) and not (
-                    route.get("hopCandidates") or []
-                ):
-                    continue
-                route["activePoolMatch"] = _route_uses_active_v4_pools(
-                    route.get("routePools") or [],
-                    overview,
-                )
-                filtered_routes.append(route)
-            payload["routes"] = filtered_routes
-            summary = payload.get("summary")
-            if isinstance(summary, dict) and "routeCount" in summary:
-                summary["routeCount"] = len(filtered_routes)
-        try:
-            overview = _root.load_observation_overview_for_scope(
-                chain_id=selected_chain_id,
-                protocols=protocols,
-            )
-            if isinstance(overview, dict) and overview.get("exists"):
-                groups_payload = _root.closed_loop_route_groups_payload(
-                    overview,
-                    include_routes=False,
-                )
-                payload["closedLoopGroups"] = groups_payload.get("groups") or []
-            else:
-                payload["closedLoopGroups"] = []
-        except Exception as exc:
-            # The quote-routes surface should remain useful even if the
-            # grouped overview payload cannot be built for a chain.
-            _root.logger.warning(
-                "closed-loop groups overview unavailable for chain_id=%s protocols=%s: %s",
-                selected_chain_id,
-                protocols,
-                exc,
-            )
-            payload["closedLoopGroups"] = []
         return jsonify(_root._attach_dex_strategy(payload))
 
 
@@ -943,6 +813,28 @@ def register_dex_quote_route_test_routes(app) -> None:
 
         mode = str(body.get("mode") or "auto").strip().lower()
         broadcast = str(body.get("broadcast") or "").strip().lower() in {"1", "true", "yes", "on"}
+        if mode == "estimate":
+            resolved_addresses = _complete_route_addresses(
+                route_symbols,
+                route_addresses,
+                chain_id=selected_chain_id,
+                protocols=protocols,
+            )
+            if not resolved_addresses:
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "mode": "dex_quote_route_test",
+                            "error": "route_not_found",
+                            "detail": "route is not in the current closed-loop set",
+                            "routeSymbols": route_symbols,
+                            "amount": amount,
+                        }
+                    ),
+                    400,
+                )
+            route_addresses = resolved_addresses
         try:
             if mode == "estimate":
                 payload = estimate_route_live_quote(
@@ -1243,27 +1135,41 @@ def register_dex_quote_request_routes(app) -> None:
         pair = request.args.get("pair", "").strip()
         venue = request.args.get("venue", "").strip()
         amount = request.args.get("amount", "").strip() or None
-        _root._bootstrap_dex_surface_dependencies(
+        payload = quote_request_manager_page_payload(
             chain_id=selected_chain_id,
             protocols=protocols,
-            flow_name="dex_quote_request",
-        )
-        payload = _root._dex_surface_payload_for_chain(
-            flow_name="dex_quote_request",
-            mode="dex_quote_request",
-            chain_id=selected_chain_id,
-            protocols=protocols,
-            fallback=lambda: _root.dex_quote_request_payload(
-                chain_id=selected_chain_id,
-                protocols=protocols,
-                pair=pair,
-                venue=venue,
-                amount=amount,
-                use_static_observation=True,
-            ),
             pair=pair,
             venue=venue,
             amount=amount,
+            chain_selection=chain_selection,
+            request_id=getattr(g, "request_id", None),
         )
-        payload["chain_selection"] = chain_selection
-        return jsonify(_root._attach_dex_strategy(payload)), 200 if payload.get("ok") else 404
+        if not payload.get("ok"):
+            if payload.get("error") == "candidate_pair_not_found":
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "mode": "dex_quote_request",
+                            "dataSource": "manager",
+                            "error": "manager_request_not_found",
+                            "managerDetail": payload,
+                        }
+                    ),
+                    404,
+                )
+            upstream_status = payload.get("upstreamStatus")
+            response_status = upstream_status if isinstance(upstream_status, int) else 503
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_quote_request",
+                        "dataSource": "manager",
+                        "error": "manager_read_failed",
+                        "managerDetail": payload,
+                    }
+                ),
+                response_status,
+            )
+        return jsonify(_root._attach_dex_strategy(payload))

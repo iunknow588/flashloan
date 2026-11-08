@@ -1,0 +1,174 @@
+{
+  "evidenceId": "d9_32_runtime_core_manual_review_command_20261106",
+  "task": "D9.32",
+  "recordedAt": "2026-11-06T12:59:04.5496291+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmittedToRealWorker": false,
+    "signerUsed": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "command": "manual_review",
+      "auditEvent": "runtime_command_completed",
+      "auditEventIncludesCommandDryRunAndTransitionDetail": true,
+      "requestIdRequired": true,
+      "idempotencyKeyRequired": true,
+      "explicitDryRunRequiredAtFlaskBoundary": true,
+      "closedRuntimeRejectedBeforeNativeTransition": true
+    },
+    "nativePoolCommand": {
+      "file": "flashloan/rs-src/src/native_pool_registry.rs",
+      "operation": "wake_waiting_for_review",
+      "delegatesTo": "ClosedLoopWorkerPool.wake_waiting_for_review",
+      "optionsObjectRequired": true,
+      "acceptedOptionFields": [
+        "groupKey",
+        "routeSymbols",
+        "routeAddresses"
+      ],
+      "unknownOptionFieldsRejected": true,
+      "databaseScopeCheckedAgainstRuntimeCoreStatus": true,
+      "chainScopeMismatchRejected": true,
+      "nativeTransitionErrorCodesPreserved": [
+        "CLOSED_LOOP_GROUP_NOT_FOUND",
+        "CLOSED_LOOP_GROUP_BUSY",
+        "RUNTIME_CORE_NATIVE_POOL_UNAVAILABLE",
+        "RUNTIME_CORE_NATIVE_COMMAND_FAILED"
+      ]
+    },
+    "pyo3": {
+      "file": "flashloan/rs-src/src/lib.rs",
+      "runtimeCoreCommandOptionalArgument": "options_json",
+      "fiveArgumentCallRemainsCompatible": true,
+      "manualReviewSpecialDispatch": true,
+      "structuredErrorEnvelope": {
+        "ok": false,
+        "fields": [
+          "command",
+          "code",
+          "detail",
+          "upstreamStatus",
+          "requestId",
+          "idempotencyKey",
+          "dryRun",
+          "dataSource"
+        ]
+      }
+    },
+    "pythonRuntimeAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "method": "ChainRuntimeContext.execute_command",
+      "optionsArgument": "dict[str, Any] | None",
+      "optionsSerialization": "canonical compact JSON with sorted keys",
+      "optionsOmittedKeepsLegacyFiveArgumentCall": true,
+      "businessLogic": false
+    },
+    "flaskAdapter": {
+      "route": "/api/dex/closed-loop-groups/manual-review",
+      "handler": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "dispatchesTo": "RuntimeCore.execute_command('manual_review')",
+      "pythonScannerFallback": false,
+      "nativePoolRegistrationTouchBeforeCommand": true,
+      "requestHeadersRequired": [
+        "X-Request-Id",
+        "Idempotency-Key"
+      ],
+      "explicitDryRunRequired": true,
+      "closedLoopRouteValidationBeforeCommand": true,
+      "groupKeyNormalization": "anchor|sorted-middle-1|sorted-middle-2",
+      "missingRuntimeCoreStatus": 503,
+      "missingRuntimeCoreError": "runtime_core_command_unavailable"
+    },
+    "compatibility": {
+      "urlUnchanged": true,
+      "responseLayoutCompatibilityFieldsPreserved": true,
+      "chainSelectionPreserved": true,
+      "dryRunSuccessStatus": 200,
+      "manualBroadcastMigrated": false,
+      "manualBroadcastStillUsesExistingPath": true
+    }
+  },
+  "fileSha256": {
+    "flashloan/src/core/runtime/chain_runtime.py": "6179978CDD38D33D8C3FA09E9F10A3E19FA347C879ED9E59E55CF8CB57103865",
+    "flashloan/rs-src/src/native_pool_registry.rs": "72BD360C09EDECA5182FD3FCE8932B4F4BE7F8D41A69F41D0F5DE3927E1B54B2",
+    "flashloan/rs-src/src/runtime_core.rs": "7C436E58478156B2035B20F35C18CEDF89A164413C8AD1B49D3C34EE821793EB",
+    "flashloan/rs-src/src/lib.rs": "8FD19BCCF79ACF0B4D888A949DD870B04674367DE3A83944D4D5C158864C7E7E",
+    "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py": "FE570EA9F821416973FD9B651868ACCC67CB75F5E7FAF252E280E68C029689E8",
+    "flashloan/app_runtime/tests/functional/test_dex_closed_loop_manual_transition_routes.py": "E7B024189EC5E1A8CBE728EE556DFA346CB06BF15F23DFCAE925CAD13EE0DB4B"
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --all --manifest-path flashloan/rs-src/Cargo.toml",
+      "exitCode": 0,
+      "result": "Formatting completed."
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/rs-src/Cargo.toml",
+      "exitCode": 0,
+      "result": "Runtime Rust crate compiled."
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml",
+      "exitCode": 0,
+      "result": "Rust Manager workspace compiled."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/rs-src/Cargo.toml",
+      "exitCode": 0,
+      "result": "96 passed, 0 failed."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml",
+      "exitCode": 0,
+      "result": "142 passed, 0 failed across Manager workspace crates and integration tests."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_chain_runtime.py flashloan/app_runtime/tests/functional/test_dex_closed_loop_manual_transition_routes.py flashloan/app_runtime/tests/functional/test_web_app_assembly.py -q",
+      "exitCode": 0,
+      "result": "41 passed, 0 failed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "exitCode": 1,
+      "result": "42 passed, 6 failed; all six failures match the pre-existing architecture debt recorded by D9.31."
+    }
+  ],
+  "acceptance": {
+    "manualReviewRouteUsesRuntimeCoreCommand": true,
+    "pythonScannerBusinessImplementationBypassedForManualReview": true,
+    "manualReviewMissingRuntimeCoreFailsClosed": true,
+    "unknownRuntimeOptionsRejected": true,
+    "groupKeyRequiredAndNormalized": true,
+    "routeSymbolsAndAddressesValidatedAsStringArrays": true,
+    "dryRunStillReturnsHttp200": true,
+    "runtimeErrorStatusPreserved": true,
+    "nativeReviewTransitionRunsInsideClosedLoopWorkerPool": true,
+    "runtimeCommandCompletionAuditWrittenOnSuccess": true,
+    "nonClosedLoopRouteRejectedBeforeRuntime": true,
+    "manualBroadcastScopeExplicitlyDeferred": true
+  },
+  "architectureGuardFailures": [
+    "web/data_routes/dex_surface_routes_ops.py still contains five silent broad exception handlers and reads latest.json",
+    "core/db/cow_execution_review.py still contains a cross-package import",
+    "nested app_runtime/flashloan directory remains",
+    "dex/runtime/dex_opportunity_scanner_engine.py exceeds its 1000-line limit at 1222 lines",
+    "five active source files exceed 1000 lines",
+    "robinhood page read-path evidence JSON guard still finds dex_surface_routes_ops.py"
+  ],
+  "residualWork": [
+    "Manual broadcast still uses its existing path and is not part of D9.32.",
+    "No real review worker was woken and no real closed-loop transition was submitted.",
+    "No production database was read or written and no service was started or stopped.",
+    "No repaired wheel or fresh-venv smoke was produced for this narrower code slice.",
+    "The six architecture guard failures remain outside D9.32."
+  ]
+}

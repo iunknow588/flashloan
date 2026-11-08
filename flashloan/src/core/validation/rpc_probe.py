@@ -29,7 +29,13 @@ def probe_rpc_urls(
 
 
 def _http_json_rpc(url: str, payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
-    request = Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "flashloan-robinhood-rpc-probe/1.0",
+        },
+    )
     with urlopen(request, timeout=max(0.5, float(timeout_seconds))) as response:
         return json.loads(response.read().decode("utf-8"))
-

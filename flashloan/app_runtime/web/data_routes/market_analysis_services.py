@@ -26,7 +26,7 @@ from market.binance_market.strategy_runtime import (
     read_slippage_bps as read_market_slippage_bps,
 )
 from market.binance_market.opportunity_health import opportunity_health_rows, opportunity_health_summary
-from web.control_panel_liquidation_base import aave_rpc_urls, database_url_or_none
+from web.control_panel_liquidation_base import aave_rpc_urls, database_url
 from web.control_panel_market import (
     latest_arbitrage_simulation,
     latest_binance_extremes_file,
@@ -70,7 +70,7 @@ def strategy_config_payload() -> dict:
 
 
 def trade_stats_payload() -> dict:
-    return {"stats": safe_latest(lambda: read_trade_stats(database_url_or_none()))}
+    return {"stats": safe_latest(lambda: read_trade_stats(database_url()))}
 
 
 def testnet_trade_stats_payload() -> dict:

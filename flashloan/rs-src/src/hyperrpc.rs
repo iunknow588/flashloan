@@ -5,12 +5,10 @@ use crate::config::parse_u64_hexish;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Log {
-    pub address: String,
     pub topics: Vec<String>,
     pub data: String,
     pub block_number: u64,
     pub transaction_hash: String,
-    pub log_index: Option<u64>,
 }
 
 async fn json_rpc(
@@ -61,11 +59,6 @@ fn parse_log(value: &Value) -> Result<Log, String> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Log {
-        address: value
-            .get("address")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_lowercase(),
         topics,
         data: value
             .get("data")
@@ -83,11 +76,6 @@ fn parse_log(value: &Value) -> Result<Log, String> {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_lowercase(),
-        log_index: value
-            .get("logIndex")
-            .and_then(Value::as_str)
-            .map(parse_u64_hexish)
-            .transpose()?,
     })
 }
 
@@ -169,7 +157,10 @@ mod tests {
         });
         let log = parse_log(&value).unwrap();
         assert_eq!(log.block_number, 4663);
-        assert_eq!(log.topics[1], "0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168");
+        assert_eq!(
+            log.topics[1],
+            "0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168"
+        );
         assert_eq!(log.data, "0x1234");
     }
 }

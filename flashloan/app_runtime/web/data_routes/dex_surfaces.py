@@ -7,10 +7,6 @@ from flask import jsonify
 from core.api_response_contract import error_response
 from core.chain_data_registry import chain_data_by_chain_id
 from core.chain_selection import ChainSelectionError
-from core.db.storage_cow_execution import (
-    clear_cow_execution_attempts_jsonl,
-    load_recent_cow_execution_attempts_jsonl,
-)
 from core.market_observation_store import load_market_observation_overview_static
 from market.binance_market.dex_flash_loan_route_groups import closed_loop_route_groups_payload
 from market.binance_market.dex_strategy_registry import (
@@ -76,7 +72,6 @@ from core.dex_provenance import framework_label
 from web.data_routes.dex_surface_helpers import (
     _live_quote_deferred_route,
     _merge_live_route_estimate,
-    _merge_recent_attempt_evidence_into_routes,
     _reference_only_live_quote_context,
     _route_dedup_key,
     _scanner_snapshot_is_stale,

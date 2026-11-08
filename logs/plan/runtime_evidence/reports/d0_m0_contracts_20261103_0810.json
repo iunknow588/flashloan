@@ -1,0 +1,20 @@
+{
+  "capturedAt": "2026-11-03T16:10:00+08:00",
+  "scopes": ["M0"],
+  "contracts": {
+    "managerDtoVersion": "manager_dto_v1",
+    "nativeTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+    "usdgTokenKeyId": "robinhood:4663:0x1111111111111111111111111111111111111111",
+    "wethTokenKeyId": "robinhood:4663:0x2222222222222222222222222222222222222222",
+    "pairKeyId": "pair:v1:4663:0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222",
+    "routeKeyId": "route:v1:4663:robinhood:4663:0x2222222222222222222222222222222222222222:robinhood:4663:0x1111111111111111111111111111111111111111",
+    "poolKeySerialization": "camelCase",
+    "errorCodeSample": "UPSTREAM_VERSION_CHANGED",
+    "errorCodeRetryable": true
+  },
+  "tests": [
+    "contracts unit: 5 passed",
+    "contracts golden vectors: 1 passed"
+  ],
+  "conclusion": "passed"
+}

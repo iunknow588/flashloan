@@ -107,14 +107,22 @@ def _v4_incremental_database_state(
     chain_id: int,
     protocol: str = "uniswap_v4",
 ) -> dict[str, Any]:
-    """Return raw V4 pool/liquidity completeness for the incremental guard.
+    """Return V4 pool/liquidity completeness for the incremental guard.
 
-    Incremental Initialize scans are only safe when every pool in the SQLite
-    index has an explicit live liquidity snapshot.  Explicit zero-liquidity
-    pools are pruned after a completed rebuild, but until they are cleaned the
-    database is not a consistent executable index and a full scan is forced.
+    Completeness is scoped to YC/ZC eligible pools (known token universe,
+    fixed fee <= 3000, no hook).  Generic unknown pools outside that scope are
+    counted for reporting but never decide the scan mode; explicit
+    zero-liquidity verdicts are terminal and do not force a full rescan.
     """
     from core.db.storage_business_io import query
+
+    # Import lazily: robinhood_v4_idle_maintenance imports this module at
+    # module scope, so a top-level import here would form a cycle.
+    from dex.runtime.robinhood_v4_idle_maintenance import (
+        _candidate_eligible_liquidity_counts,
+        _known_pool_token_addresses,
+        _non_eligible_unknown_liquidity_count,
+    )
 
     rows = query(
         database,
@@ -139,6 +147,25 @@ def _v4_incremental_database_state(
     snapshot_count = int(row.get("snapshot_count") or 0)
     confirmed_count = int(row.get("confirmed_count") or 0)
     zero_count = int(row.get("zero_count") or 0)
+    known_token_addresses = _known_pool_token_addresses(
+        database,
+        network=network,
+        chain_id=chain_id,
+    )
+    eligible = _candidate_eligible_liquidity_counts(
+        database,
+        network=network,
+        chain_id=chain_id,
+        known_token_addresses=known_token_addresses,
+    )
+    generic_unknown_count = _non_eligible_unknown_liquidity_count(
+        database,
+        network=network,
+        chain_id=chain_id,
+        known_token_addresses=known_token_addresses,
+    )
+    eligible_pool_count = int(eligible["eligiblePoolCount"])
+    eligible_unknown_count = int(eligible["eligibleUnknownCount"])
     return {
         "poolCount": pool_count,
         "snapshotCount": snapshot_count,
@@ -146,7 +173,13 @@ def _v4_incremental_database_state(
         "zeroLiquidityPoolCount": zero_count,
         "missingLiquiditySnapshotCount": max(0, pool_count - snapshot_count),
         "unknownLiquidityCount": max(0, snapshot_count - confirmed_count - zero_count),
-        "complete": pool_count > 0 and confirmed_count == pool_count,
+        "totalPoolCount": pool_count,
+        "eligiblePoolCount": eligible_pool_count,
+        "eligibleConfirmedCount": int(eligible["eligibleConfirmedCount"]),
+        "eligibleZeroCount": int(eligible["eligibleZeroCount"]),
+        "eligibleUnknownCount": eligible_unknown_count,
+        "genericUnknownCount": generic_unknown_count,
+        "complete": eligible_pool_count > 0 and eligible_unknown_count == 0,
     }
 
 
@@ -319,13 +352,23 @@ def _merge_index_with_sqlite_pools(
     from core.rs_bridge import rust_available
 
     if rust_available():
-        return _rust_merge_v4_pool_index(
+        merged = _rust_merge_v4_pool_index(
             network,
             chain_id,
             onchain_payload,
             database_url=database,
             protocol=protocol,
         )
+        if not isinstance(merged, dict):
+            return merged
+        # Rust merge currently returns only pool rows/count metadata. Keep the
+        # on-chain top-level fields (poolManager etc.) so later liquidity steps
+        # can resolve the contract address without re-reading chain config.
+        return {
+            **onchain_payload,
+            **merged,
+            "pools": merged.get("pools") or [],
+        }
     from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
         load_v4_pool_index_payload,
     )
@@ -488,6 +531,7 @@ def _apply_batch_live_liquidity(
     and only an explicit ``liquidity is zero`` response proves a pool is empty.
     """
     from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+        _is_live_pool_state_completed,
         _batch_read_v4_pool_states,
     )
     from dex.intent_trade.chains.robinhood.v4_pool_index import (
@@ -537,9 +581,15 @@ def _apply_batch_live_liquidity(
             except Exception as exc:
                 errors.append(str(exc)[:240])
                 continue
-            if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+            if chunk_states and any(
+                _is_live_pool_state_completed(state)
+                for state in chunk_states.values()
+            ):
                 break
-        if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+        if chunk_states and any(
+            _is_live_pool_state_completed(state)
+            for state in chunk_states.values()
+        ):
             states.update(chunk_states)
         else:
             errors.append(f"{chunk[0]}..{chunk[-1]}: no_state_success")
@@ -643,25 +693,120 @@ def _pool_ids_arg(pool_ids: str | list[str] | None) -> list[str]:
     ]
 
 
+def _pool_payload_id(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(
+        value.get("poolId")
+        or value.get("pool_id")
+        or value.get("pool")
+        or ""
+    ).strip().lower()
+
+
+def _filter_index_payload_to_pool_ids(
+    index_payload: dict[str, Any],
+    pool_ids: list[str] | set[str] | tuple[str, ...],
+) -> dict[str, Any]:
+    """Keep pool rows and pool keys aligned for incremental imports."""
+    wanted_ids = {
+        str(pool_id).strip().lower()
+        for pool_id in pool_ids
+        if str(pool_id).strip().lower().startswith("0x")
+    }
+    pools = [
+        pool
+        for pool in (index_payload.get("pools") or [])
+        if _pool_payload_id(pool) in wanted_ids
+    ]
+    kept_ids = {_pool_payload_id(pool) for pool in pools}
+    pool_keys = [
+        key
+        for key in (index_payload.get("poolKeys") or [])
+        if _pool_payload_id(key) in kept_ids
+    ]
+    return {
+        **index_payload,
+        "pools": pools,
+        "poolKeys": pool_keys,
+        "poolCount": len(pools),
+    }
+
+
+def _directed_pool_count(
+    row: dict[str, Any],
+    direction_key: str,
+    direction: str,
+) -> int:
+    """Count YC/ZC candidate pools for one directed candidate pair row."""
+    if direction not in {"forward", "reverse"}:
+        return 0
+    yc_opt = 1 if str(row.get("yc_optimal") or "").strip().lower().startswith("0x") else 0
+    zc_opt = 1 if str(row.get("zc_optimal") or "").strip().lower().startswith("0x") else 0
+    try:
+        yc_backup = json.loads(row.get("yc_backup") or "[]")
+        zc_backup = json.loads(row.get("zc_backup") or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        yc_backup, zc_backup = [], []
+    yc_total = yc_opt + sum(
+        1
+        for item in (yc_backup if isinstance(yc_backup, list) else [])
+        if str(item or "").strip().lower().startswith("0x")
+    )
+    zc_total = zc_opt + sum(
+        1
+        for item in (zc_backup if isinstance(zc_backup, list) else [])
+        if str(item or "").strip().lower().startswith("0x")
+    )
+    left, _, right = direction_key.partition(":")
+    small, large = sorted((left, right))
+    forward_key = f"{small}:{large}"
+    if direction_key == forward_key:
+        return yc_total if direction == "forward" else zc_total
+    return zc_total if direction == "forward" else yc_total
+
+
 def _direction_backfill_plan(
     *,
     database: str,
     network: str,
     chain_id: int,
-    direction_limit: int = 5,
+    direction_target: int = builders.MAX_CANDIDATE_POOLS_PER_PAIR,
     protocol: str = "uniswap_v4",
+    reader: Any | None = None,
+    anchors: Iterable[str] | None = None,
+    anchor_addresses: dict[str, str] | None = None,
 ) -> dict:
-    """Return canonical token directions that have fewer than ``direction_limit`` pools.
+    """Return canonical token directions that have fewer than ``direction_target`` pools.
 
     Forward is the lower-address token to the higher-address token and reverse
     is the mirror, regardless of the anchor order stored in
     ``dex_candidate_pool_pairs``.  The floor for each edge is the earliest
     Initialize block already stored in SQLite for that edge; the reverse scan
     never goes earlier than the pool creation block.
-    """
-    from core.db.storage_business_io import query
 
-    rows = query(
+    ``anchors``/``anchor_addresses`` may provide the official anchor universe
+    so completely missing directions still appear in the plan.  Without them,
+    only directions already present in ``dex_candidate_pool_pairs`` are
+    considered and a pair with zero candidate pools is invisible.
+    """
+    from core.db.storage_business_io import query, query_read_only
+
+    reader = reader or query
+    address_by_symbol = {str(k).upper(): str(v).strip().lower() for k, v in (anchor_addresses or {}).items()}
+    anchor_symbols = tuple(str(item).strip().upper() for item in anchors or ())
+    if anchor_symbols and not address_by_symbol:
+        from dex.intent_trade.chains.robinhood_common.chain_config import (
+            all_anchor_addresses_by_symbol,
+        )
+
+        resolved = all_anchor_addresses_by_symbol(
+            network,
+            database_url=database,
+        )
+        address_by_symbol = {str(k).upper(): str(v).strip().lower() for k, v in resolved.items()}
+
+    rows = reader(
         database,
         """
         SELECT direction_key,
@@ -682,40 +827,45 @@ def _direction_backfill_plan(
         left, right = direction_key.split(":", 1)
         if not left.startswith("0x") or not right.startswith("0x"):
             continue
-        yc_opt = 1 if str(row.get("yc_optimal") or "").strip().lower().startswith("0x") else 0
-        zc_opt = 1 if str(row.get("zc_optimal") or "").strip().lower().startswith("0x") else 0
-        try:
-            yc_backup = json.loads(row.get("yc_backup") or "[]")
-            zc_backup = json.loads(row.get("zc_backup") or "[]")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            yc_backup, zc_backup = [], []
-        yc_total = yc_opt + sum(
-            1
-            for item in (yc_backup if isinstance(yc_backup, list) else [])
-            if str(item or "").strip().lower().startswith("0x")
-        )
-        zc_total = zc_opt + sum(
-            1
-            for item in (zc_backup if isinstance(zc_backup, list) else [])
-            if str(item or "").strip().lower().startswith("0x")
-        )
         small, large = sorted((left, right))
-        forward_key = f"{small}:{large}"
-        reverse_key = f"{large}:{small}"
+        totals = totals_by_pair.setdefault(
+            f"{small}:{large}",
+            {"forward": 0, "reverse": 0},
+        )
+        totals["forward"] += _directed_pool_count(row, direction_key, "forward")
+        totals["reverse"] += _directed_pool_count(row, direction_key, "reverse")
+    for address in sorted(
+        {
+            address
+            for address in address_by_symbol.values()
+            if str(address or "").strip().lower().startswith("0x")
+        }
+    ):
+        if not totals_by_pair:
+            totals_by_pair.setdefault(f"{address}:{address}", {"forward": 0, "reverse": 0})
+    direction_target = max(1, int(direction_target))
+    targets: dict[str, int] = {}
+    address_pairs: list[str] = []
+    anchor_addresses_list = sorted(
+        {
+            address
+            for address in address_by_symbol.values()
+            if str(address or "").strip().lower().startswith("0x")
+        }
+    )
+    pair_keys_to_check = [
+        f"{left}:{right}"
+        for left in anchor_addresses_list
+        for right in anchor_addresses_list
+        if left != right
+    ]
+    if not pair_keys_to_check:
+        pair_keys_to_check = list(totals_by_pair.keys())
+    for forward_key in pair_keys_to_check:
         totals = totals_by_pair.setdefault(
             forward_key,
             {"forward": 0, "reverse": 0},
         )
-        if direction_key == forward_key:
-            totals["forward"] += yc_total
-            totals["reverse"] += zc_total
-        else:
-            totals["reverse"] += yc_total
-            totals["forward"] += zc_total
-    direction_target = max(1, int(direction_limit))
-    targets: dict[str, int] = {}
-    address_pairs: list[str] = []
-    for forward_key, totals in sorted(totals_by_pair.items()):
         left, _, right = forward_key.partition(":")
         reverse_key = f"{right}:{left}"
         if totals["forward"] < direction_target:
@@ -733,7 +883,7 @@ def _direction_backfill_plan(
         }
     address_pairs = list(dict.fromkeys(address_pairs))
     placeholders = ",".join("?" for _ in address_pairs)
-    pool_rows = query(
+    pool_rows = reader(
         database,
         f"""
         SELECT p.address_pair,
@@ -766,6 +916,95 @@ def _direction_backfill_plan(
         "floor_block": min(floors) if floors else 0,
         "neededDirectionCount": len(targets),
         "basis": "direction_candidate_shortfall",
+    }
+
+
+def _dry_run_candidate_backfill_report(
+    *,
+    database: str,
+    network: str,
+    chain_id: int,
+    requested: dict[str, Any],
+) -> dict:
+    """Build a strict read-only candidate-backfill plan against the SQLite file.
+
+    The report reads only through ``query_read_only`` and never opens a
+    writable connection, so it is safe to run while the production process is
+    live and before a maintenance window is confirmed.
+    """
+    from core.db.storage_business_io import query_read_only
+
+    plan = _direction_backfill_plan(
+        database=database,
+        network=network,
+        chain_id=chain_id,
+        reader=query_read_only,
+    )
+    zero = "0x0000000000000000000000000000000000000000"
+    counts = {
+        "poolCount": query_read_only(
+            database,
+            """
+            SELECT COUNT(*) AS count FROM v4_exchange_pools
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+            """,
+            (network, chain_id, "uniswap_v4"),
+        ),
+        "confirmedLiquidityPoolCount": query_read_only(
+            database,
+            """
+            SELECT COUNT(*) AS count
+            FROM v4_exchange_pools p
+            LEFT JOIN v4_exchange_pool_liquidity_snapshots l
+              ON l.network = p.network AND l.chain_id = p.chain_id
+             AND l.protocol = p.protocol AND l.pool_id = p.pool_id
+            WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+              AND p.fee > 0 AND p.fee <= 3000 AND (p.fee & 8388608) = 0
+              AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = ?)
+              AND l.has_liquidity = 1
+            """,
+            (network, chain_id, "uniswap_v4", zero),
+        ),
+        "candidatePoolCount": query_read_only(
+            database,
+            """
+            SELECT COUNT(*) AS count FROM dex_candidate_pools
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+            """,
+            (network, chain_id, "uniswap_v4"),
+        ),
+        "candidatePoolPairCount": query_read_only(
+            database,
+            """
+            SELECT COUNT(*) AS count FROM dex_candidate_pool_pairs
+            WHERE network = ? AND chain_id = ? AND protocol = ?
+            """,
+            (network, chain_id, "uniswap_v4"),
+        ),
+    }
+    counts = {key: int((rows[0] or {}).get("count") or 0) for key, rows in counts.items()}
+    return {
+        "ok": True,
+        "dryRun": True,
+        "readOnly": True,
+        "database": str(database),
+        "network": network,
+        "chainId": chain_id,
+        "steps": [
+            {
+                "step": "v4_candidate_backfill_dry_run",
+                "ok": True,
+                "connection": "sqlite_mode_ro",
+                "writesSkipped": True,
+                "neededDirectionCount": plan["neededDirectionCount"],
+                "floorBlock": plan["floor_block"],
+                "basis": plan["basis"],
+            }
+        ],
+        "plan": plan,
+        "scope": counts,
+        "requested": requested,
+        "errors": [],
     }
 
 
@@ -888,29 +1127,62 @@ def refresh_v4_live(
     skip_build: bool = False,
     mark_recent_swaps: bool = False,
     pool_ids: str | list[str] | None = "",
+    import_pool_ids: str | list[str] | None = None,
     batch_size: int = 100,
     batch_liquidity: bool = False,
     anchors: str = "",
     verify_only: bool = False,
+    dry_run: bool = False,
     clear_cache: bool = True,
     prune_zero_liquidity: bool = True,
     prune_unknown_liquidity: bool = False,
     remove_json_evidence: bool = True,
+    replace_evidence: bool = True,
     full_index_scan: bool = False,
     from_block_override: int | None = None,
+    token_balance_scan_scope: str = "none",
 ) -> dict:
     """Rebuild Robinhood V4 SQLite tables from live/in-memory evidence.
 
     This is the shared entry point for CLI, page refresh and integration
-    callers. JSON evidence files are never read or written here.
+    callers. JSON evidence files are never read or written here.  ``dry_run``
+    returns a strict read-only candidate plan without opening a writable
+    SQLite connection or touching RPC.
     """
     network, chain_id, market_id = _network_scope(network, chain_id)
     database = absolute_database_path(database)
+    if dry_run:
+        return _dry_run_candidate_backfill_report(
+            database=str(database),
+            network=network,
+            chain_id=chain_id,
+            requested={
+                "candidateBackfill": bool(candidate_backfill),
+                "skipIndex": bool(skip_index),
+                "skipLiquidity": bool(skip_liquidity),
+                "poolIds": _pool_ids_arg(pool_ids),
+                "importPoolIds": _pool_ids_arg(import_pool_ids),
+                "batchSize": max(1, int(batch_size)),
+            },
+        )
     ensure_database_schema(str(database))
     explicit_anchors = anchors
 
     steps: list[dict] = []
     errors: list[str] = []
+    replace_evidence_guard: dict | None = None
+    if skip_index and replace_evidence:
+        # ``--skip-index`` reuses SQLite rows as the pool-key source.  A live
+        # incremental refresh only scanned the requested batch, so clearing
+        # all snapshots and importing placeholder rows for the untouched
+        # universe would erase positive liquidity evidence from the chain.
+        replace_evidence_guard = {
+            "step": "replace_evidence_guard",
+            "ok": True,
+            "reason": "skip_index_incremental_preserves_liquidity",
+            "replacedWith": False,
+        }
+        replace_evidence = False
 
     try:
         scan_state = load_v4_scan_state(
@@ -963,6 +1235,8 @@ def refresh_v4_live(
                 "scanMode": scan_decision["scanMode"],
             }
         )
+        if replace_evidence_guard is not None:
+            steps.append(replace_evidence_guard)
 
         backfill_activity: dict = {}
         if (
@@ -977,7 +1251,7 @@ def refresh_v4_live(
                     database=str(database),
                     network=network,
                     chain_id=chain_id,
-                    direction_limit=int(builders.MAX_CANDIDATE_POOLS_PER_PAIR),
+                    direction_target=int(builders.MAX_CANDIDATE_POOLS_PER_PAIR),
                 )
                 if plan.get("neededDirectionCount"):
                     if network == ROBINHOOD_TESTNET_NETWORK:
@@ -1074,10 +1348,81 @@ def refresh_v4_live(
             errors.append(f"v4_pool_liquidity: {exc}")
             steps.append({"step": "v4_pool_liquidity", "ok": False, "error": str(exc)})
 
+    accounting_activity: dict = {}
+    if (
+        not errors
+        and not verify_only
+        and network == ROBINHOOD_TESTNET_NETWORK
+        and token_balance_scan_scope != "none"
+    ):
+        try:
+            from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+                build_v4_pool_manager_accounting_payload,
+            )
+
+            accounting_payload = build_v4_pool_manager_accounting_payload(
+                database=str(database),
+                network=network,
+                chain_id=chain_id,
+                pool_manager=pool_manager or str(index_payload.get("poolManager") or ""),
+                rpc_url=rpc_url or None,
+                index_payload=index_payload,
+                scan_scope=token_balance_scan_scope,
+                multicall_chunk_size=batch_size,
+            )
+            from core.db.storage_v4_pool_manager_accounting import (
+                save_v4_pool_manager_accounting,
+            )
+
+            save_v4_pool_manager_accounting(
+                str(database),
+                network=network,
+                chain_id=chain_id,
+                pool_manager=accounting_payload["poolManager"],
+                block_number=accounting_payload["blockNumber"],
+                generated_at=accounting_payload["generatedAt"],
+                scan_scope=accounting_payload["scanScope"],
+                source_label="refresh_v4_live_poolmanager_balance_of",
+                native_balance_wei=accounting_payload["nativePoolManagerBalanceWei"],
+                sources=accounting_payload["flashAccountingSources"],
+                metadata=accounting_payload["metadata"],
+                errors=accounting_payload["errors"],
+            )
+            accounting_activity = {
+                "ok": True,
+                "sourceCount": accounting_payload["flashAccountingSourceCount"],
+                "blockNumber": accounting_payload["blockNumber"],
+                "scanScope": accounting_payload["scanScope"],
+                "errorCount": len(accounting_payload["errors"]),
+            }
+            steps.append(
+                {
+                    "step": "v4_pool_manager_accounting",
+                    "ok": True,
+                    **accounting_activity,
+                }
+            )
+        except Exception as exc:
+            errors.append(f"v4_pool_manager_accounting: {exc}")
+            steps.append(
+                {
+                    "step": "v4_pool_manager_accounting",
+                    "ok": False,
+                    "error": str(exc),
+                }
+            )
+
     import_result: dict = {}
     if not errors:
         try:
-            if skip_index and skip_liquidity:
+            if verify_only:
+                import_result = {
+                    "ok": True,
+                    "skipped": True,
+                    "source": "verify_only_no_db_writes",
+                    "detail": "read-only verification requested; import skipped",
+                }
+            elif skip_index and skip_liquidity:
                 import_result = {
                     "ok": True,
                     "skipped": True,
@@ -1085,13 +1430,22 @@ def refresh_v4_live(
                     "detail": "raw V4 tables already present in SQLite; business tables rebuilt only",
                 }
             else:
+                imported_pool_ids = _pool_ids_arg(import_pool_ids)
+                if imported_pool_ids:
+                    index_payload = _filter_index_payload_to_pool_ids(
+                        index_payload,
+                        imported_pool_ids,
+                    )
+                liquidity_payload = None
+                if not skip_index:
+                    liquidity_payload = _make_liquidity_payload(index_payload)
                 import_result = import_v4_evidence_rows(
                     database=str(database),
                     network=network,
                     chain_id=chain_id,
                     index_payload=index_payload,
-                    liquidity_payload=_make_liquidity_payload(index_payload),
-                    replace=True,
+                    liquidity_payload=liquidity_payload,
+                    replace=replace_evidence,
                 )
             steps.append(
                 {
@@ -1276,7 +1630,7 @@ def refresh_v4_live(
             steps.append({"step": "remove_v4_json_evidence", "ok": False, "error": str(exc)})
 
     cleared = 0
-    if clear_cache:
+    if clear_cache and not verify_only:
         try:
             cleared = _clear_dex_surface_cache(
                 chain_id=chain_id,
@@ -1310,6 +1664,7 @@ def refresh_v4_live(
         "jsonEvidenceRemoved": json_evidence_removed,
         "errors": errors,
         "cacheEntriesCleared": cleared,
+        "poolManagerAccounting": accounting_activity,
     }
 
 
@@ -1329,7 +1684,9 @@ def main() -> int:
         action="store_true",
         help=(
             "Scan newest Initialize logs backward for directions with fewer "
-            "than 5 candidate pools, stopping at the pool creation block."
+            "than 5 active candidate pools, stopping at the pool creation "
+            "block; the closed-loop route stays usable with 1 active pool "
+            "and 5 is the current dynamic backfill target."
         ),
     )
     parser.add_argument("--skip-index", action="store_true")
@@ -1337,10 +1694,24 @@ def main() -> int:
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--mark-recent-swaps", action="store_true")
     parser.add_argument("--pool-ids", default="", help="Comma-separated V4 pool ids to scan for live liquidity; empty means all.")
+    parser.add_argument(
+        "--import-pool-ids",
+        default="",
+        help="Comma-separated V4 pool ids whose evidence rows should be imported; empty means all scanned pool ids.",
+    )
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--batch-liquidity", action="store_true")
     parser.add_argument("--anchors", default="")
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Strict read-only candidate backfill plan. Opens SQLite with "
+            "mode=ro only, skips RPC, import, schema migration and cache "
+            "writes; safe to run before a maintenance window."
+        ),
+    )
     parser.add_argument("--no-clear-cache", dest="clear_cache", action="store_false")
     parser.add_argument(
         "--no-prune-zero-liquidity",
@@ -1374,6 +1745,12 @@ def main() -> int:
         default=None,
         help="Explicit Initialize scan start block; overrides persisted progress.",
     )
+    parser.add_argument(
+        "--token-balance-scan-scope",
+        default="none",
+        choices=("none", "active_plus_known", "full_index", "full_index_recent_swaps"),
+        help="Robinhood Testnet PoolManager balance scan scope persisted into SQLite.",
+    )
     parser.set_defaults(clear_cache=True)
     parser.set_defaults(prune_zero_liquidity=True)
     parser.set_defaults(prune_unknown_liquidity=False)
@@ -1392,16 +1769,19 @@ def main() -> int:
         skip_build=args.skip_build,
         mark_recent_swaps=args.mark_recent_swaps,
         pool_ids=args.pool_ids,
+        import_pool_ids=args.import_pool_ids,
         batch_size=args.batch_size,
         batch_liquidity=args.batch_liquidity,
         anchors=args.anchors,
         verify_only=args.verify_only,
+        dry_run=args.dry_run,
         clear_cache=args.clear_cache,
         prune_zero_liquidity=args.prune_zero_liquidity,
         prune_unknown_liquidity=args.prune_unknown_liquidity,
         remove_json_evidence=args.remove_json_evidence,
         full_index_scan=args.full_index_scan,
         from_block_override=args.from_block_override,
+        token_balance_scan_scope=args.token_balance_scan_scope,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if report.get("ok") else 1

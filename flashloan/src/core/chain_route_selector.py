@@ -76,7 +76,7 @@ def chain_display_name(selection: ChainSelection) -> str:
         return "CoW Rail"
     if selection.network == "robinhood-testnet":
         return "Robinhood Testnet"
-    if selection.market_type == "shadow_chain":
+    if selection.market_type == "shadow_chain" or selection.network == "robinhood":
         return "Robinhood Chain"
     if network:
         return f"{network.upper()} Chain"

@@ -1,0 +1,206 @@
+{
+  "evidenceId": "d9_28_generic_manager_views_20261106",
+  "task": "D9.28",
+  "recordedAt": "2026-11-06T05:52:07.8145727+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "views": [
+        "overview",
+        "candidate_edge",
+        "candidate_exchange",
+        "closed_loops",
+        "reviews",
+        "broadcasts"
+      ],
+      "optionValidation": "allow-listed JSON fields per view",
+      "directBusinessTableReads": false,
+      "businessWrites": false,
+      "viewResultCache": false
+    },
+    "pageAdapter": {
+      "file": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "mappedManagerPaths": [
+        "/v1/candidate-edge-pools",
+        "/v1/candidate-exchange-pools",
+        "/v1/closed-loops",
+        "/v1/reviews",
+        "/v1/broadcasts"
+      ],
+      "requestContextReadPath": "Rust RuntimeCore manager_view",
+      "requestContextHttpReadFallback": false,
+      "nonRequestTestAdapter": true,
+      "compareOnlyStillUsesManagerApi": true,
+      "explicitClearWriteStillUsesManagerApi": true
+    },
+    "pythonRuntimeAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "optionsSerialization": "compact sorted JSON",
+      "viewResultCache": false
+    },
+    "workerOwnership": {
+      "reviewSupervisor": "Rust review_manager",
+      "broadcastSupervisor": "Rust broadcast_manager",
+      "pageRefreshStartsOrStopsWorkers": false
+    }
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Formatting clean."
+    },
+    {
+      "command": "cargo check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "PyO3 extension compiles."
+    },
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "90 passed; 0 failed."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "141 passed across all workspace crates and integration tests."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py flashloan/app_runtime/tests/unit/test_chain_runtime.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "75 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "91 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py flashloan/app_runtime/tests/functional/test_web_app_assembly.py flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "workdir": "flashloan",
+      "exitCode": 124,
+      "result": "Combined command exceeded the 180 second tool timeout before reporting; split reruns passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "14 passed in 132.83 seconds."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "26 passed in 47.16 seconds."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "28 passed in 45.85 seconds."
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/runtime/chain_runtime.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "Python compilation valid."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "workdir": "flashloan",
+      "exitCode": 1,
+      "result": "40 passed, 6 failed; no D9.28-specific guard was added."
+    },
+    {
+      "command": "python -m maturin build --release --auditwheel repair --out target/runtime_core_wheel_20261106_v4_repair",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Wheel built and zlib.dll copied into flashloan_rs.libs."
+    },
+    {
+      "command": "fresh venv install and generic manager-view smoke",
+      "workdir": "flashloan/rs-src/target",
+      "exitCode": 0,
+      "result": "Unicode absolute path opened; overview, candidate_edge, candidate_exchange, closed_loops, reviews and broadcasts succeeded; invalid option and limit rejected; manager_write_requests=0; quick_check=ok; close succeeded."
+    },
+    {
+      "command": "manager-db migrate --db d9_28_runtime_core_manager_view_smoke.sqlite3",
+      "workdir": "flashloan/rs-src/target",
+      "exitCode": 0,
+      "result": "Fresh temporary DB migrated with 7 migrations and schema checksum sha256:643b8abec703dc4e2541794f01078cc098a55b9440e4c3d119b1a5909edcfee7."
+    },
+    {
+      "command": "manager-db migrate --db d9_28_runtime_core_manager_view_smoke.sqlite3",
+      "workdir": "flashloan/rs-src/target",
+      "exitCode": 0,
+      "result": "Second run appliedNow=false for all 7 migrations; aggregate checksum remained sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69."
+    }
+  ],
+  "artifacts": {
+    "wheelRepaired": "flashloan/rs-src/target/runtime_core_wheel_20261106_v4_repair/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelBytes": 4675156,
+    "wheelSmokeVenv": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v4_manager_view",
+    "temporaryDatabase": "flashloan/rs-src/target/d9_28_runtime_core_manager_view_smoke.sqlite3",
+    "temporaryDatabaseBytes": 593920
+  },
+  "temporaryDatabase": {
+    "purpose": "migration idempotency and RuntimeCore view smoke only",
+    "migrationCount": 7,
+    "secondApplyWasNoop": true,
+    "quickCheck": "ok",
+    "managerWriteRequests": 0,
+    "seedRowsRepresentProductionData": false
+  },
+  "architectureGuardFailures": [
+    "web/data_routes/dex_surface_routes_ops.py still reads latest.json",
+    "five silent broad except handlers remain",
+    "core/db/cow_execution_review.py cross-package import remains",
+    "nested app_runtime/flashloan directory remains",
+    "dex/runtime/dex_opportunity_scanner_engine.py exceeds 1000 lines",
+    "five active source files exceed 1000 lines"
+  ],
+  "acceptance": {
+    "overviewView": true,
+    "candidateEdgeView": true,
+    "candidateExchangeView": true,
+    "closedLoopView": true,
+    "reviewFilteringAndPagination": true,
+    "broadcastFilteringAndPagination": true,
+    "unknownViewRejected": true,
+    "unknownViewOptionsRejected": true,
+    "requestContextRuntimeCoreFailClosed": true,
+    "noManagerHttpReadFallbackForMigratedPageGet": true,
+    "compareDiagnosticsRemainManagerApi": true,
+    "writeClearRemainsManagerApi": true,
+    "unicodeAbsolutePathSmoke": true,
+    "repairedWheelImportable": true,
+    "temporaryManagerWrites": 0
+  },
+  "environmentNotes": [
+    "PowerShell stdin can replace Chinese characters before Python receives an inline smoke script; the final smoke used Python Unicode escapes for the Unicode absolute path.",
+    "No product Unicode-path defect was observed after passing the actual Unicode path."
+  ],
+  "residualWork": [
+    "Explicit page actions and broadcast clear still require RuntimeCore command APIs.",
+    "Direct Python calls without a Flask request context retain a ManagerApiClient test adapter; production request paths do not use it for mapped Manager GETs.",
+    "Production database migration/apply and service cutover were intentionally not performed.",
+    "Six pre-existing architecture guard failures remain outside D9.28."
+  ]
+}

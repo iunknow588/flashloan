@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-blocked-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "attemptedAt": "2026-10-21T15:01:00Z",
+  "status": "blocked",
+  "blockedReason": "rpc_getlogs_http_400_and_full_scan_timeout",
+  "probe": {
+    "ok": true,
+    "provider": "alchemy-robinhood-testnet",
+    "blockNumber": 140156573,
+    "method": "eth_blockNumber"
+  },
+  "failure": {
+    "tool": "collect_robinhood_v4_backfill_evidence.py",
+    "mode": "live_reverse_directional_backfill",
+    "error": "eth_getLogs over about 1036207 blocks returned HTTP 400; full collect run did not return within 10 minutes and was terminated"
+  },
+  "retryPolicy": "One full collect attempt and one bounded incremental eth_getLogs probe were made in this window; neither produced new evidence. Not retrying further in this window.",
+  "currentState": {
+    "sqliteOnlyDirectionShortfallCount": 120,
+    "targetPerDirection": 5,
+    "consistentSqliteSnapshot": true
+  },
+  "safety": {
+    "writesSqlite": false,
+    "buildsTransaction": false,
+    "broadcastsTransaction": false,
+    "observationOnly": true
+  },
+  "nextAction": "Wait for a stable RPC window or a log provider that accepts ~1M-block eth_getLogs, then rerun collect without --sqlite-only and refresh --candidate-backfill; keep readiness fail-closed until evidence lands."
+}

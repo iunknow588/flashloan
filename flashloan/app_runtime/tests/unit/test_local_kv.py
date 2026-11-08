@@ -73,10 +73,11 @@ def test_store_path_honors_flashloan_kv_path(monkeypatch, tmp_path):
     assert local_kv.store_path() == env_path.resolve()
 
 
-def test_store_path_resolves_relative_env_under_runtime_dir(monkeypatch):
+def test_store_path_resolves_relative_env_against_cwd(monkeypatch, tmp_path):
     monkeypatch.setenv("FLASHLOAN_KV_PATH", "relative_store.sqlite3")
+    monkeypatch.chdir(tmp_path)
 
-    assert local_kv.store_path() == local_kv._default_store_path().parent / "relative_store.sqlite3"
+    assert local_kv.store_path() == (tmp_path / "relative_store.sqlite3").resolve()
 
 
 def test_wal_is_enabled(tmp_path):

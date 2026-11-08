@@ -58,47 +58,59 @@ TriggerContextProvider = Callable[..., dict[str, Any]]
 AutoExecuteCallback = Callable[..., dict[str, Any]]
 
 _SCANNER: DexOpportunityScanner | None = None
+_SCANNERS_BY_CHAIN: dict[int, DexOpportunityScanner] = {}
 _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
-def get_dex_opportunity_scanner() -> DexOpportunityScanner:
+def _build_scanner() -> DexOpportunityScanner:
+    return DexOpportunityScanner(
+        interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 60.0, minimum=1.0, maximum=3600.0),
+        record_cooldown_seconds=_env_float(
+            "DEX_OPPORTUNITY_RECORD_COOLDOWN_SECONDS",
+            60.0,
+            minimum=0.0,
+            maximum=3600.0,
+        ),
+        auto_execute_cooldown_seconds=_env_float(
+            "DEX_AUTO_EXECUTE_COOLDOWN_SECONDS",
+            600.0,
+            minimum=0.0,
+            maximum=86400.0,
+        ),
+        auto_execute_callback=default_auto_execute_callback(),
+        auto_execute_enabled=default_auto_execute_env_enabled(),
+        record_opportunities=True,
+        evidence_workers=_scanner_evidence_worker_count(),
+        testnet_max_onchain_evidence_routes=int(
+            _env_float("DEX_OPPORTUNITY_TESTNET_MAX_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=1.0, maximum=1000.0)
+        ),
+        periodic_scan_enabled=str(
+            os.getenv("DEX_OPPORTUNITY_PERIODIC_SCAN_ENABLED", "true")
+        ).strip().lower()
+        in {"1", "true", "yes", "on"},
+    )
+
+
+def get_dex_opportunity_scanner(chain_id: int | None = None) -> DexOpportunityScanner:
     global _SCANNER
+    if chain_id is not None:
+        with _SCANNER_LOCK:
+            scanner = _SCANNERS_BY_CHAIN.get(int(chain_id))
+            if scanner is None:
+                scanner = _build_scanner()
+                _SCANNERS_BY_CHAIN[int(chain_id)] = scanner
+            return scanner
     with _SCANNER_LOCK:
         if _SCANNER is None:
-            _SCANNER = DexOpportunityScanner(
-                interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 180.0, minimum=1.0, maximum=3600.0),
-                record_cooldown_seconds=_env_float(
-                    "DEX_OPPORTUNITY_RECORD_COOLDOWN_SECONDS",
-                    60.0,
-                    minimum=0.0,
-                    maximum=3600.0,
-                ),
-                auto_execute_cooldown_seconds=_env_float(
-                    "DEX_AUTO_EXECUTE_COOLDOWN_SECONDS",
-                    600.0,
-                    minimum=0.0,
-                    maximum=86400.0,
-                ),
-                auto_execute_callback=default_auto_execute_callback(),
-                auto_execute_enabled=default_auto_execute_env_enabled(),
-                record_opportunities=True,
-                evidence_workers=_scanner_evidence_worker_count(),
-                testnet_max_onchain_evidence_routes=int(
-                    _env_float("DEX_OPPORTUNITY_TESTNET_MAX_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=1.0, maximum=1000.0)
-                ),
-                periodic_scan_enabled=str(
-                    os.getenv("DEX_OPPORTUNITY_PERIODIC_SCAN_ENABLED", "true")
-                ).strip().lower()
-                in {"1", "true", "yes", "on"},
-            )
+            _SCANNER = _build_scanner()
         return _SCANNER
 
 
 def ensure_dex_opportunity_scanner_running(
     *, chain_id: int | None = None, protocols: list[str] | None = None
 ) -> DexOpportunityScanner:
-    scanner = get_dex_opportunity_scanner()
+    scanner = get_dex_opportunity_scanner(chain_id=chain_id)
     scanner.start(chain_id=chain_id, protocols=protocols)
     snapshot = scanner.snapshot(chain_id=chain_id, protocols=protocols)
     if not (snapshot.get("snapshot") or {}).get("payload"):
@@ -131,18 +143,18 @@ def ensure_dex_opportunity_scanner_running(
 
 
 def run_dex_opportunity_scan_now(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
-    scanner = get_dex_opportunity_scanner()
+    scanner = get_dex_opportunity_scanner(chain_id=chain_id)
     return scanner.scan_async(chain_id=chain_id, protocols=protocols)
 
 
 def dex_opportunity_snapshot(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
-    scanner = get_dex_opportunity_scanner()
+    scanner = get_dex_opportunity_scanner(chain_id=chain_id)
     scanner.start(chain_id=chain_id, protocols=protocols)
     return scanner.snapshot(chain_id=chain_id, protocols=protocols)
 
 
 def dex_opportunity_scanner_status(*, chain_id: int | None = None) -> dict[str, Any]:
-    return get_dex_opportunity_scanner().status(chain_id=chain_id)
+    return get_dex_opportunity_scanner(chain_id=chain_id).status(chain_id=chain_id)
 
 
 def _reset_dex_opportunity_scanner_for_tests() -> None:
@@ -151,6 +163,9 @@ def _reset_dex_opportunity_scanner_for_tests() -> None:
         if _SCANNER is not None:
             _SCANNER.stop()
         _SCANNER = None
+        for scanner in _SCANNERS_BY_CHAIN.values():
+            scanner.stop()
+        _SCANNERS_BY_CHAIN.clear()
 
 
 __all__ = [

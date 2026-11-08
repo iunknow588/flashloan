@@ -1,20 +1,39 @@
 {
+  "schemaVersion": "contract-package-v1",
   "schema_version": "chain-data-v1",
   "network": "robinhood",
   "chain_id": 4663,
+  "chainId": 4663,
+  "displayName": "Robinhood Chain",
   "display_name": "Robinhood Chain",
+  "nativeSymbol": "ETH",
   "native_symbol": "ETH",
   "module": "DEX",
   "projectRoot": "contract/robinhood/DEX",
   "chainKey": "chain:4663",
-  "marketId": "dex-arbitrage-4663-uniswap-v4",
+  "marketId": "robinhood-dex-shadow",
   "feature": "dex_arbitrage",
+  "sourceContract": "RobinhoodPausedFlashLoanExecutor",
+  "executorContract": "RobinhoodPausedFlashLoanExecutor",
+  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood/chain.json",
   "mode": "mainnet_read_only_deferred_deploy",
-  "broadcastEnabled": false,
+  "broadcastEnabled": true,
   "readyForPausedDeploy": false,
+  "defaultDexChainSelector": false,
   "routePreflightStatus": "not_ready",
   "lastPreflightEvidence": "contract/robinhood/DEX/deployments/evidence/20260928T113307897Z-24476_robinhood-robinhood-mainnet-preflight/report.json",
   "lastReadinessEvidence": "contract/robinhood/DEX/deployments/evidence/20260911T220437175Z-54556_robinhood-robinhood-mainnet-preflight/report.json",
+  "deploymentStatus": "mainnet_code_complete_deferred_deploy",
+  "deploymentAddress": null,
+  "requiredAdapters": [
+    "flashSource",
+    "v4UniversalRouter",
+    "v4PoolManager",
+    "permit2"
+  ],
+  "optionalAdapters": [
+    "v3SwapRouter"
+  ],
   "deploymentGate": "blocked_until_fork_staticcall_pass",
   "source_chain_config": "../../../../flashloan/src/chains/robinhood/chain.json",
   "explorerUrl": "https://explorer.mainnet.chain.robinhood.com",
@@ -26,7 +45,7 @@
   "defaultPositionManager": "0x58DaEC3116AAe6D93017BAAEA7749052E8a04fa7",
   "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "officialV4": {
-    "arb": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+    "arb": "0x63743AB0f08a1ea8F7078893a88E943d6BEAbcFB",
     "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
   },
   "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
@@ -42,7 +61,7 @@
     "dex_arbitrage": {
       "default_market_id": "dex-arbitrage-4663-uniswap-v4",
       "protocol": "uniswap_v4",
-      "observation_only": true,
+    "observation_only": false,
       "protocol_supported": true
     }
   },

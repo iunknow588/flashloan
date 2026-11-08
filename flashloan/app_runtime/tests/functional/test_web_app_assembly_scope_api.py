@@ -128,10 +128,135 @@ def test_status_endpoint_includes_system_info(monkeypatch):
     assert "scan_version" not in data
 
 
+def test_status_falls_back_to_active_chain_runtime(monkeypatch):
+    from web import control_panel
+
+    class FakeRuntime:
+        chain_id = 4663
+        broadcast_gate = {
+            "autoExecuteEnabled": True,
+            "broadcastAllowed": True,
+            "privateKeyConfigured": True,
+            "broadcastEnabled": True,
+            "reasons": [],
+        }
+
+        def status(self):
+            return {
+                "chainId": 4663,
+                "network": "robinhood",
+                "rustRuntimeConfig": {"available": True, "active": True},
+                "broadcastGate": {"broadcastEnabled": True},
+                "executionBackend": "rust",
+            }
+
+        def runtime_core_status(self):
+            return {
+                "available": True,
+                "registered": True,
+                "state": "ready",
+                "generation": 7,
+                "snapshot_available": True,
+                "database_path": "local_store_4663.sqlite3",
+                "chain_id": 4663,
+            }
+
+        def closed_loop_control_status(self):
+            return {
+                "available": True,
+                "executionBackend": "rust",
+                "activeConcurrency": 1,
+                "workers": [{"group_key": "usdg|usde|eth"}],
+                "summary": {"idle": 1},
+                "reviewQueue": {
+                    "running": 1,
+                    "claimed": 2,
+                    "completed": 3,
+                    "failed": 0,
+                },
+                "executionQueue": {
+                    "queued": 0,
+                    "waiting": 1,
+                    "done": 3,
+                    "error": 0,
+                },
+                "maintenance": {"inProgress": False},
+            }
+
+        def page_context(self):
+            class Context:
+                def to_dict(self):
+                    return {"sourceDatabase": "local_store_4663.sqlite3"}
+
+            return Context()
+
+    class FakeRegistry:
+        def current(self):
+            return FakeRuntime()
+
+    monkeypatch.setattr(
+        "core.runtime.chain_runtime.chain_runtime_registry",
+        lambda: FakeRegistry(),
+    )
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "quick_observer_pid", lambda: None)
+    monkeypatch.setattr(control_panel, "observer_starting", False)
+    monkeypatch.setattr(control_panel, "observer_start_error", None)
+    monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
+    monkeypatch.setattr(control_panel, "safe_latest", lambda loader: loader() if callable(loader) else {})
+    monkeypatch.setattr(control_panel, "control_status_payload", lambda: {})
+    monkeypatch.setattr(control_panel, "strategy_config", lambda: {})
+    monkeypatch.setattr(control_panel, "displayed_symbols", lambda running: [])
+    monkeypatch.setattr(control_panel, "restrict_extremes_to_symbols", lambda rows, symbols: rows)
+    monkeypatch.setattr(control_panel, "opportunity_health_rows", lambda rows, config: [])
+    monkeypatch.setattr(control_panel, "background_activity_payload", lambda running, starting: {})
+    monkeypatch.setattr(control_panel, "observer_progress_payload", lambda *args: {})
+    monkeypatch.setattr(control_panel, "system_monitor_payload", lambda *args: {})
+    monkeypatch.setattr(control_panel, "opportunity_health_summary", lambda rows, config: {})
+    monkeypatch.setattr(control_panel, "unified_sampling_profile", lambda config: {})
+    monkeypatch.setattr(control_panel, "liquidation_scan_version", lambda: "status-version")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_scan_refresh_profile",
+        lambda: {
+            "core_opportunity_refresh_seconds": 1.0,
+            "high_frequency_refresh_seconds": 300.0,
+            "borrow_health_refresh_seconds": 1800.0,
+        },
+    )
+
+    data = app.test_client().get("/api/status").get_json()
+
+    assert data["chain_runtime"]["chainId"] == 4663
+    assert data["chain_runtime"]["broadcastGate"]["broadcastEnabled"] is True
+    scanner = data["dex_opportunity_scanner"]
+    assert scanner["dataSource"] == "rust_runtime_core"
+    assert scanner["managerAvailable"] is True
+    assert scanner["runtimeCore"]["state"] == "ready"
+    assert scanner["runtimeCore"]["generation"] == 7
+    assert scanner["reviewQueue"]["completed"] == 3
+    assert scanner["executionQueue"]["waiting"] == 1
+    assert scanner["broadcastGate"]["broadcastEnabled"] is True
+    assert data["page_context"]["sourceDatabase"] == "local_store_4663.sqlite3"
+
+
+def test_status_dex_dto_is_fail_closed_without_chain_runtime():
+    from web.control_panel_page_routes import _dex_manager_status_payload
+
+    payload = _dex_manager_status_payload(None)
+
+    assert payload["dataSource"] == "rust_runtime_core"
+    assert payload["managerAvailable"] is False
+    assert payload["runtimeCoreAvailable"] is False
+    assert payload["reason"] == "chain_runtime_required"
+    assert "running" not in payload
+    assert "scan_count" not in payload
+
+
 def test_borrow_pool_endpoint_does_not_include_system_version(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    monkeypatch.setattr(control_panel, "database_url", lambda: None)
 
     data = app.test_client().get("/api/liquidation/borrow-pool").get_json()
 
@@ -239,7 +364,7 @@ def test_page_state_apis_return_consistent_shape(monkeypatch):
     control_panel.LIQUIDATION_SCAN_CACHE.update({"running": False, "stage": "idle", "last_result": {}})
     control_panel.LIQUIDATION_DISCOVERY_CACHE.update({"running": False, "stage": "idle", "last_result": {}})
     control_panel.LIQUIDATION_ACCOUNT_BACKFILL_CACHE.update({"running": False, "stage": "idle", "error": None})
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: (["0x1"], "database"))
     monkeypatch.setattr(
         control_panel,

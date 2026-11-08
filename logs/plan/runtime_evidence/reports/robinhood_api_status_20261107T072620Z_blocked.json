@@ -1,0 +1,341 @@
+{
+  "schema": "robinhood-api-status-measurement-v1",
+  "taskId": "P0-1",
+  "generatedAt": "2026-11-07T07:26:20.688580+00:00",
+  "mode": "http-and-process-read-only",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4",
+    "primary": true
+  },
+  "authorities": {},
+  "server": {
+    "baseUrl": "http://127.0.0.1:5000",
+    "scheme": "http",
+    "host": "127.0.0.1",
+    "port": 5000,
+    "portOwner": {
+      "status": "not_listening",
+      "port": 5000
+    },
+    "processIdentity": {
+      "status": "not_listening",
+      "pid": null,
+      "port": 5000,
+      "expectedMarker": "flashloan/app_runtime/run.py",
+      "matchesExpectedMarker": false
+    }
+  },
+  "configuration": {
+    "statusSamples": 4,
+    "concurrency": 4,
+    "timeoutSeconds": 1.0,
+    "warmupSeconds": 0.0,
+    "resourceDurationSeconds": 0.0,
+    "resourceIntervalSeconds": 10.0,
+    "requiredResourceSeconds": 1800.0,
+    "includeSubmissionDryRun": false,
+    "maxRssGrowthMb": 64.0,
+    "maxThreadGrowth": 2
+  },
+  "endpoints": {
+    "health": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/healthz",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "status": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/api/status",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "submissionRead": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/api/dex/submissions?network=robinhood&chain_id=4663&protocol=uniswap_v4&market_id=dex-arbitrage-4663-uniswap-v4",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "submissionDryRun": null
+  },
+  "samples": {
+    "health": [
+      {
+        "startedAt": "2026-11-07T07:26:20.688580+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/healthz",
+        "status": null,
+        "elapsedMs": 2296.624,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 0
+      }
+    ],
+    "statusWarmup": [
+      {
+        "startedAt": "2026-11-07T07:26:24.002745+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": null,
+        "elapsedMs": 1014.579,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 0
+      }
+    ],
+    "statusConcurrent": [
+      {
+        "startedAt": "2026-11-07T07:26:25.017752+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": null,
+        "elapsedMs": 1014.545,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 0
+      },
+      {
+        "startedAt": "2026-11-07T07:26:25.018764+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": null,
+        "elapsedMs": 1013.553,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 1
+      },
+      {
+        "startedAt": "2026-11-07T07:26:25.018764+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": null,
+        "elapsedMs": 1013.363,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 2
+      },
+      {
+        "startedAt": "2026-11-07T07:26:25.019761+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": null,
+        "elapsedMs": 1012.821,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 3
+      }
+    ],
+    "submissionRead": [
+      {
+        "startedAt": "2026-11-07T07:26:22.994173+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/dex/submissions?network=robinhood&chain_id=4663&protocol=uniswap_v4&market_id=dex-arbitrage-4663-uniswap-v4",
+        "status": null,
+        "elapsedMs": 1007.638,
+        "bodyBytes": 0,
+        "bodySha256": null,
+        "contentType": null,
+        "requestId": null,
+        "error": "URLError: <urlopen error timed out>",
+        "parseError": null,
+        "payload": {
+          "type": "NoneType"
+        },
+        "sequence": 0
+      }
+    ],
+    "submissionDryRun": []
+  },
+  "summaries": {
+    "health": {
+      "sampleCount": 1,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [],
+      "successCount": 0,
+      "failureCount": 1,
+      "errorRate": 1.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 2296.624,
+        "p50": 2296.624,
+        "p95": 2296.624,
+        "max": 2296.624,
+        "mean": 2296.624
+      },
+      "bodyBytes": {
+        "min": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0
+      }
+    },
+    "status": {
+      "sampleCount": 5,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [],
+      "successCount": 0,
+      "failureCount": 5,
+      "errorRate": 1.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1012.821,
+        "p50": 1013.553,
+        "p95": 1014.572,
+        "max": 1014.579,
+        "mean": 1013.772
+      },
+      "bodyBytes": {
+        "min": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0
+      }
+    },
+    "statusConcurrent": {
+      "sampleCount": 4,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [],
+      "successCount": 0,
+      "failureCount": 4,
+      "errorRate": 1.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1012.821,
+        "p50": 1013.458,
+        "p95": 1014.396,
+        "max": 1014.545,
+        "mean": 1013.571
+      },
+      "bodyBytes": {
+        "min": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0
+      }
+    },
+    "submissionRead": {
+      "sampleCount": 1,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [],
+      "successCount": 0,
+      "failureCount": 1,
+      "errorRate": 1.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1007.638,
+        "p50": 1007.638,
+        "p95": 1007.638,
+        "max": 1007.638,
+        "mean": 1007.638
+      },
+      "bodyBytes": {
+        "min": 0,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0
+      }
+    }
+  },
+  "resourceObservation": null,
+  "gates": {
+    "healthAndCoreApis": {
+      "passed": false,
+      "health": false,
+      "healthContract": false,
+      "status": false,
+      "statusContract": false,
+      "submissionRead": false,
+      "submissionReadContract": false,
+      "submissionDryRun": true
+    },
+    "statusConcurrentLatency": {
+      "passed": false,
+      "concurrency": 4,
+      "sampleCount": 4,
+      "p95Ms": 1014.396,
+      "thresholdMs": 2000.0,
+      "errorRate": 1.0
+    },
+    "resourceStability": {
+      "applicable": false,
+      "durationPassed": false,
+      "growthPassed": false,
+      "requiredDurationSeconds": 1800.0,
+      "observedDurationSeconds": null,
+      "rssDeltaMb": null,
+      "maxRssGrowthMb": 64.0,
+      "threadDelta": null,
+      "maxThreadGrowth": 2
+    },
+    "allPassed": false
+  },
+  "blockers": [
+    "health_probe_failed",
+    "health_response_contract_failed",
+    "status_probe_failed",
+    "status_response_contract_failed",
+    "submission_read_probe_failed",
+    "submission_read_contract_failed",
+    "status_concurrent_p95_or_error_gate_failed"
+  ],
+  "warnings": [
+    "resource_observation_not_requested"
+  ],
+  "conclusion": "blocked"
+}

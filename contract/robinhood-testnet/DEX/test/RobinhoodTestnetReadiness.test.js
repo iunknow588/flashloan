@@ -1,7 +1,15 @@
 const { expect } = require("chai");
 const fs = require("fs");
 const path = require("path");
-const { configuredRpcSource, envBool, envNumber, normalizeAddress } = require("../scripts/preflight-robinhood-testnet");
+const {
+  configuredRpcSource,
+  envBool,
+  envNumber,
+  inspectV4FlashAccountingPoolsViaState,
+  normalizeAddress,
+  poolIdsFromChainTestPlan,
+  stateSlotForPool,
+} = require("../scripts/preflight-robinhood-testnet");
 const { summarize } = require("../scripts/check-robinhood-testnet-readiness");
 const { codeStatus, localArtifactCodeStatus } = require("../scripts/readback-robinhood-paused-executor");
 const {
@@ -105,6 +113,29 @@ describe("Robinhood testnet readiness helpers", function () {
     expect(normalizeAddress("0x0000000000000000000000000000000000000000")).to.equal("");
   });
 
+  it("computes deterministic PoolManager state slots from pool ids", function () {
+    const poolId = "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157";
+    const slot = stateSlotForPool(poolId);
+    expect(slot).to.match(/^0x[0-9a-f]{64}$/);
+    expect(stateSlotForPool(poolId)).to.equal(slot);
+  });
+
+  it("loads chain test plan pool ids for live extsload fallback", function () {
+    const ids = poolIdsFromChainTestPlan();
+    expect(ids.length).to.be.at.least(3);
+    for (const poolId of ids) {
+      expect(poolId).to.match(/^0x[0-9a-f]{64}$/);
+    }
+    expect(new Set(ids).size).to.equal(ids.length);
+  });
+
+  it("fails closed when the live extsload fallback has no pool manager address", async function () {
+    const result = await inspectV4FlashAccountingPoolsViaState({ address: "" });
+    expect(result.ok).to.equal(false);
+    expect(result.error).to.equal("pool_manager_address_missing");
+    expect(result.attempted).to.equal(false);
+  });
+
   it("defaults Robinhood testnet flash source kind to V4 PoolManager kind", function () {
     delete process.env.ROBINHOOD_TESTNET_FLASH_SOURCE_KIND;
     expect(envNumber("ROBINHOOD_TESTNET_FLASH_SOURCE_KIND", 4)).to.equal(4);
@@ -153,9 +184,26 @@ describe("Robinhood testnet readiness helpers", function () {
   });
 
   it("recognizes the official default Robinhood testnet RPC", function () {
-    const source = configuredRpcSource("https://rpc.testnet.chain.robinhood.com");
-    expect(source.configured).to.equal(true);
-    expect(source.host).to.equal("rpc.testnet.chain.robinhood.com");
+    const envNames = [
+      "ROBINHOOD_TESTNET_RPC_URL",
+      "ROBINHOOD_TESTNET_RPC",
+      "ROBINHOOD_TESTNET_RPCS",
+      "ROBINHOOD_TESTNET_RPC_URLS",
+      "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
+      "ROBINHOOD_TESTNET_ALCHEMY_RPC",
+    ];
+    const saved = envNames.map((name) => [name, process.env[name]]);
+    for (const name of envNames) delete process.env[name];
+    try {
+      const source = configuredRpcSource("https://rpc.testnet.chain.robinhood.com");
+      expect(source.configured).to.equal(true);
+      expect(source.host).to.equal("rpc.testnet.chain.robinhood.com");
+    } finally {
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
   });
 
   it("summarizes deployer balance readiness", function () {

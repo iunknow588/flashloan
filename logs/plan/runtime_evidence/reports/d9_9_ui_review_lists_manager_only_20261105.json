@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_9_ui_review_lists_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.9 Review list pages and review-success/review-failed routes use Manager API without legacy SQLite fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T10:30:00Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "Review lists are now manager-owned page reads. /api/dex/submissions/review, /review/<category>, /review-success and /review-failed call the Flask manager-only adapter, which calls /v1/reviews and maps Review Manager rows to the existing submission UI DTO. No legacy SQLite loader is reachable from these routes; manager unavailable returns 503 manager_read_failed and does not fall back. /v1/reviews now owns category/status/outcome filtering, pagination, category counts and page-scoped diagnostics/broadcast requests. The old SQLite-based review tests were converted into manager DTO contract fixtures so the old read path is no longer a production fallback.",
+  "implementation": {
+    "reviewManager": "flashloan/tools/review_manager/src/lib.rs",
+    "managerApi": "flashloan/tools/manager_api/src/lib.rs",
+    "managerAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "architectureGuard": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "routes": [
+      "GET /api/dex/submissions/review",
+      "GET /api/dex/submissions/review/<category>",
+      "GET /api/dex/submissions/review-success",
+      "GET /api/dex/submissions/review-failed"
+    ],
+    "upstream": "GET /v1/reviews?chainId=4663&category=&status=&outcome=&offset=&limit=",
+    "reviewCategories": [
+      "ready_not_submitted",
+      "confirmed_no_profit",
+      "data_incomplete",
+      "review_failed",
+      "other"
+    ],
+    "reviewPageFields": [
+      "categoryCounts",
+      "filteredCount",
+      "offset",
+      "limit",
+      "reviews",
+      "diagnostics",
+      "broadcastRequests"
+    ],
+    "legacySqliteReadFallback": false,
+    "managerUnavailableStatus": 503,
+    "pageUrlChanged": false,
+    "pageTemplateStructureChanged": false,
+    "dualAuthorityForMigratedScope": false,
+    "productionBroadcastEnabled": false
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p review-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 28
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "passed": 33
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k migrated_review_routes_are_manager_only",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex_submission_records.js",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "Review Manager classifies positive, non-positive, data_incomplete, not_executable and failed rows",
+    "Review Manager filters by category/status/outcome and paginates with page-scoped diagnostics/broadcast requests",
+    "/v1/reviews validates category/status/outcome and offset+limit <= 1000",
+    "Manager page adapter maps review rows to pair/path/createdAt/signedPnl/review summary fields",
+    "Review routes call review_manager_page_payload and never _load_submission_review_groups, _submission_record_api_payload or _submission_database_url",
+    "Manager unavailable returns 503 manager_read_failed without legacy SQLite fallback",
+    "Old SQLite review functional tests are replaced by manager DTO contract fixtures"
+  ],
+  "knownBoundary": "D9.9 covers review list reads only. Mainnet manager DB apply, Broadcast execution and production page cutover remain behind the planned M0-M8/P0 gates. The full test_architecture_guards.py file still reports six pre-existing unrelated failures in the current dirty worktree (broad exception audit, split package transitions, nested app_runtime/flashloan output directory, line-limit drift, and UI evidence JSON paths); the new migrated-review guard passes independently. No service restart, mainnet write, broadcast or destructive data operation was performed."
+}

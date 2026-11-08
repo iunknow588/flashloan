@@ -1,0 +1,57 @@
+{
+  "schema": "robinhood-mainnet-plan-baseline-v1",
+  "generatedAt": "2026-11-07T01:20:34Z",
+  "mode": "read-only",
+  "database": "flashloan/db/local_store_4663.sqlite3",
+  "method": "sqlite3 mode=ro + PRAGMA query_only; scripts/verify_candidate_pool_quality.py --chain-id 4663 --json",
+  "counts": {
+    "chain_tokens": 6353,
+    "cow_execution_attempts": 41,
+    "cow_execution_reviews": 11846,
+    "review_selected_profit_present": 8024,
+    "review_selected_profit_missing": 3822,
+    "v4_exchange_pools": 5540,
+    "v4_exchange_pool_liquidity_snapshots": 5468,
+    "v4_closed_loops": 192,
+    "v4_closed_loop_hops": 576,
+    "v4_closed_loop_optimizations": 0,
+    "v4_closed_loop_runtime_state": 97,
+    "v4_closed_loop_error_isolation": 3,
+    "dex_candidate_pools": 782,
+    "dex_candidate_pool_recommendations": 1172,
+    "market_observation_yz_pairs": 95680,
+    "market_observation_intermediate_pools": 693,
+    "market_observation_liquidity_snapshots": 8452
+  },
+  "closedLoop": {
+    "allStatus": "active",
+    "allSource": "database_builder",
+    "allRecommendationBasis": "directed_fixed_fee_no_hook_static_score",
+    "runtimeStates": {
+      "preflight_failed": 96,
+      "execution_success": 1
+    },
+    "loopKeyNormalization": "closed loop_key is address-based; runtime_state loop_key is symbol-based; baseline maps lowercase path_symbols_json 3-token cycle rotations",
+    "symbolRouteMatch": {
+      "closedMatched": 112,
+      "closedUnmatched": 80,
+      "runtimeMatched": 96,
+      "runtimeUnmatched": 1,
+      "unmatchedRuntimeSample": "aaa|bbb|ccc execution_success"
+    }
+  },
+  "candidateAudit": {
+    "candidateTotal": 782,
+    "eligibleTotal": 782,
+    "ineligibleTotal": 0,
+    "affectedClosedLoopCount": 0,
+    "affectedRecommendationCount": 0
+  },
+  "notes": [
+    "This file is a planning baseline, not a production acceptance result.",
+    "P0-2 baseline shows 112/192 closed loops match runtime by normalized symbol route; 80 closed loops are missing runtime state.",
+    "P0-2 also shows 1 unmatched runtime row aaa|bbb|ccc (execution_success); it must be classified as fixture/test residue or orphan before acceptance.",
+    "P0-4 has the read-only candidate-quality audit complete; downstream YZ/closed-loop rebuild is not performed.",
+    "Historical evidence is never rewritten; future baselines use a new timestamped file."
+  ]
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>提交记录</title>
+  <title>提交记录总览</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
@@ -36,6 +36,7 @@
     .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
     .badge.live { background: #dcfae6; color: #067647; }
     .badge.static { background: #fff3cd; color: #8a6116; }
+    .badge.warn { background: #fff3cd; color: #8a6116; }
     .badge.fail { background: #fee4e2; color: #b42318; }
     .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .tabs a { display: inline-flex; align-items: center; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; min-height: 32px; border-radius: 999px; padding: 0 12px; text-decoration: none; }
@@ -43,19 +44,27 @@
     .pagination { display: flex; gap: 10px; align-items: center; margin-top: 14px; font-size: 13px; color: #344054; }
     .pagination button { min-height: 30px; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; }
     .pagination button:disabled { opacity: .45; cursor: not-allowed; }
+    .bf-audit-list { display: grid; gap: 8px; margin-top: 8px; }
+    .bf-audit-item { border: 1px solid #fecaca; border-radius: 6px; background: #fff7f7; padding: 8px; overflow-wrap: anywhere; }
+    .bf-audit-item > div + div { margin-top: 4px; }
+    .bf-audit-item pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; color: #7f1d1d; }
     @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } main, header { padding-left: 18px; padding-right: 18px; } }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body data-dex-surface-template="submissions">
   <header>
-    <h1>成功提交记录</h1>
+    <h1>提交记录总览</h1>
     <nav>
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
       <a data-surface-link href="/dex/candidates">候选池</a>
-      <a data-surface-link href="/dex/submissions/success">成功记录</a>
-      <a data-surface-link href="/dex/submissions/failed">失败记录</a>
+      <a data-surface-link data-record-kind="overview" href="/dex/submissions">提交记录总览</a>
+      <a data-surface-link data-record-kind="review-success" href="/dex/submissions/review-success">复核成功记录</a>
+      <a data-surface-link data-record-kind="review-failed" href="/dex/submissions/review-failed">复核失败记录</a>
+      <a data-surface-link data-record-kind="execution-success" href="/dex/submissions/execution-success">链上提交执行成功记录</a>
+      <a data-surface-link data-record-kind="execution-failed" href="/dex/submissions/execution-failed">链上提交执行失败记录</a>
     </nav>
   </header>
   <main>
@@ -65,8 +74,11 @@
       <span id="message" class="muted">等待数据</span>
         </div>
     <div class="tabs">
-      <a href="/dex/submissions/success" class="active">成功记录</a>
-      <a href="/dex/submissions/failed">失败记录</a>
+      <a data-record-kind="overview" href="/dex/submissions" class="active">提交记录总览</a>
+      <a data-record-kind="review-success" href="/dex/submissions/review-success">复核成功记录</a>
+      <a data-record-kind="review-failed" href="/dex/submissions/review-failed">复核失败记录</a>
+      <a data-record-kind="execution-success" href="/dex/submissions/execution-success">链上提交执行成功记录</a>
+      <a data-record-kind="execution-failed" href="/dex/submissions/execution-failed">链上提交执行失败记录</a>
     </div>
     <section class="grid" id="routeFrameworkPanel">
       <div class="metric"><small>当前框架</small><strong id="frameworkSource">-</strong><span id="frameworkDecision">-</span></div>
@@ -75,15 +87,23 @@
       <div class="metric"><small>参考净利</small><strong id="frameworkProfit">-</strong><span id="frameworkProfitText">-</span></div>
     </section>
     <section class="grid">
-      <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
-      <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>链上执行/提交成功</span></div>
-      <div class="metric"><small>系统错误</small><strong id="failedCount">-</strong><span>RPC/连接/程序异常</span></div>
-      <div class="metric"><small>业务不可执行</small><strong id="blockedCount">-</strong><span>无利可图/池未初始化/兑换未解析</span></div>
+      <div class="metric" data-record-summary><small>提交记录总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
+      <div class="metric" data-record-summary><small>成功</small><strong id="successCount">-</strong><span>链上执行/提交成功</span></div>
+      <div class="metric" data-record-summary><small>提交失败</small><strong id="failedCount">-</strong><span>广播/提交失败</span></div>
+      <div class="metric" data-record-summary><small>业务不可执行</small><strong id="blockedCount">-</strong><span>无利可图/池未初始化/兑换未解析</span></div>
+      <div class="metric" data-record-summary><small>本页有利润估算</small><strong id="profitCount">-</strong><span>净利/参考净利大于 0</span></div>
+      <div class="metric" data-record-summary><small>本页无利润估算</small><strong id="noProfitCount">-</strong><span>净利/参考净利不大于 0 或未估算</span></div>
+      <div class="metric" data-record-summary><small>本页已确认</small><strong id="confirmedCount">-</strong><span>receiptStatus=0x1 或 confirmationStatus=confirmed</span></div>
+      <div class="metric" data-record-summary><small>唯一交易</small><strong id="uniqueTxCount">-</strong><span id="uniqueTxText">成功/失败/阻断</span></div>
+      <div class="metric" data-record-summary><small>闭环终态</small><strong id="terminalExecution">-</strong><span>复核通过后必须出现广播成功或广播失败终态</span></div>
+      <div class="metric" data-record-summary><small>未请求广播终态</small><strong id="executionNotRequested">-</strong><span>复核完成但未请求广播的显式终态</span></div>
+      <div class="metric" data-record-summary><small>周期终态合计</small><strong id="cycleTerminals">-</strong><span>成功、失败、未请求广播均计入周期终态</span></div>
+      <div class="metric" data-record-summary><small>缺失广播终态</small><strong id="missingBroadcast">-</strong><span>复核通过但无广播结果，超过时限后标记失败</span></div>
     </section>
     <section class="panel">
       <div class="table-wrap">
         <table>
-          <thead>
+          <thead id="recordHead">
             <tr>
               <th>时间</th>
               <th>网络</th>
@@ -105,11 +125,22 @@
         <button id="nextPageBtn" type="button">下一页</button>
       </div>
     </section>
+    <section class="panel" id="broadcastFailureAuditPanel">
+      <div class="muted">广播失败常驻记录（Broadcast Manager）</div>
+      <div id="broadcastFailureAuditBody" class="muted">加载中...</div>
+    </section>
   </main>
+  <script src="/static/dex_submission_records_config.js"></script>
+  <script src="/static/dex_submission_record_model.js"></script>
+  <script src="/static/dex_submission_record_render.js"></script>
+  <script src="/static/dex_submission_records.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     let latestRows = [];
-    let currentPage = 0;
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalAttempts = 0;
+    let activeRecordKind = "overview";
     const pageSize = 20;
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const uiError = value => {
@@ -118,7 +149,7 @@
       if (/[\u4e00-\u9fff]/.test(text)) return text;
       return `接口错误（${text}）`;
     };
-    const fmtTime = value => value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    const fmtTime = value => window.formatLocalDisplayTime(value);
     const recordTimeValue = row => {
       const raw = row.created_at || row.observed_at || row.updated_at || "";
       const parsed = raw ? new Date(raw).getTime() : NaN;
@@ -190,8 +221,20 @@
         clearTimeout(timer);
       }
     }
-    async function postJson(path) {
-      const response = await fetch(apiPath(path), {method: "POST", cache: "no-cache", headers: {"Accept": "application/json"}});
+    async function postJson(path, payload = {}, headers = {}) {
+      const requestId = String(headers["X-Request-Id"] || "").trim()
+        || `ui-request:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      const response = await fetch(apiPath(path), {
+        method: "POST",
+        cache: "no-cache",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-Request-Id": requestId,
+          ...headers,
+        },
+        body: JSON.stringify(payload)
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
@@ -216,6 +259,32 @@
     function evidence(row) {
       return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
     }
+    function confirmationStatusOf(row) {
+      const ev = evidence(row);
+      const auto = row.auto_execute && typeof row.auto_execute === "object" ? row.auto_execute : {};
+      const result = auto.result && typeof auto.result === "object" ? auto.result : {};
+      const explicit = String(
+        auto.confirmationStatus || result.confirmationStatus || ev.confirmationStatus || ""
+      ).trim().toLowerCase();
+      if (explicit) return explicit;
+      const receipt = String(
+        result.receiptStatus || ev.receiptStatus || ev.receipt_status || ""
+      ).trim().toLowerCase();
+      if (["0x1", "1", "confirmed", "success"].includes(receipt)) return "confirmed";
+      if (["0x0", "0", "failed", "reverted"].includes(receipt)) return "failed";
+      const raw = String(
+        row.review_category || row.category || row.status || row.state || row.submission_status || ""
+      ).trim().toLowerCase();
+      if (["confirmed_success", "settled", "executed", "success"].includes(raw) || raw.includes("confirmed")) {
+        return "confirmed";
+      }
+      if (["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete"].includes(raw)) {
+        return "pending";
+      }
+      const quote = row.quote || {};
+      if (row.tx_hash || row.transaction_hash || quote.tx_hash || quote.transaction_hash) return "pending";
+      return "none";
+    }
     function evidenceNeedsLiveReview(row) {
       if (rowIsConfirmedExecutionSuccess(row)) return false;
       const ev = evidence(row);
@@ -223,8 +292,11 @@
       return lower === "static_reference_pending_live_review" || lower === "static_reference_only" || lower === "static_live_quoter_estimate" || lower === "live_quote_reference_only";
     }
     function rowIsConfirmedExecutionSuccess(row) {
+      const confirmation = confirmationStatusOf(row);
+      if (confirmation === "confirmed") return true;
+      if (confirmation === "failed") return false;
       const raw = String(row.review_category || row.category || row.status || row.state || row.submission_status || "").toLowerCase();
-      return ["execution_success", "confirmed_success", "settled", "executed", "success"].includes(raw) || raw.includes("confirmed");
+      return ["confirmed_success", "settled", "executed", "success"].includes(raw) || raw.includes("confirmed");
     }
     function routeIdentity(row) {
       const ev = evidence(row);
@@ -279,6 +351,19 @@
       const evStatus = String(ev.status || ev.executionTrust || row.quote?.quote_status || "").toLowerCase();
       const raw = row.review_category || row.category || row.status || row.state || row.submission_status || "";
       const normalized = String(raw).toLowerCase();
+      const confirmation = confirmationStatusOf(row);
+      if (confirmation === "failed") {
+        return {label: "链上确认失败/已回滚", cls: "fail"};
+      }
+      if (confirmation === "pending") {
+        return {label: "已提交/待确认", cls: "static"};
+      }
+      if (confirmation === "confirmed") {
+        return {label: "执行成功/已确认", cls: "live"};
+      }
+      if (looksReviewDeferred(row)) {
+        return {label: "链上复核延后", cls: "warn"};
+      }
       if (["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete"].includes(normalized)) {
         return {label: "链上执行/提交成功", cls: "live"};
       }
@@ -294,8 +379,14 @@
       if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(normalized)) {
         return {label: "链上报价/复核失败", cls: "fail"};
       }
+      if (["rpc_busy", "live_evidence_deferred"].includes(normalized)) {
+        return {label: "链上复核延后", cls: "warn"};
+      }
       if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(evStatus)) {
         return {label: "链上报价/复核失败", cls: "fail"};
+      }
+      if (["rpc_busy", "live_evidence_deferred"].includes(evStatus)) {
+        return {label: "链上复核延后", cls: "warn"};
       }
       if (["not_executable", "quote_required", "blocked", "unsupported_route"].includes(normalized)) {
         return {label: "未执行/未提交", cls: "static"};
@@ -364,7 +455,7 @@
       const records = probeRecords(row);
       const bestAmount = submissionBestAmount(row);
       const symbol = submissionInputSymbol(row);
-      if (!records.length) return bestAmount === null ? "探测记录=未保存前后探测数据；最佳量暂未计算" : "探测记录=未保存前后探测数据；当前仅有最佳量可复盘";
+      if (!records.length) return bestAmount === null ? "探测记录=未保存前后探测数据；最佳交易量暂未计算" : "探测记录=未保存前后探测数据；当前仅有最佳交易量可复盘";
       const rows = records
         .map(item => ({value: item, amount: numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.bestAmount)}))
         .filter(item => item.amount !== null)
@@ -379,7 +470,7 @@
       if (exact >= 0) {
         const prevRow = rows[exact - 1];
         const nextRow = rows[exact + 1];
-        return `探测记录=最佳量 ${fmtAmount(bestAmount, 8)} ${symbol}${prevRow ? `；前一个 ${trend(prevRow, "前一个")}` : ""}${nextRow ? `；后一个 ${trend(nextRow, "后一个")}` : ""}`;
+        return `探测记录=最佳交易量 ${fmtAmount(bestAmount, 8)} ${symbol}${prevRow ? `；前一个 ${trend(prevRow, "前一个")}` : ""}${nextRow ? `；后一个 ${trend(nextRow, "后一个")}` : ""}`;
       }
       return `探测记录=${rows.map(item => trend(item, item.amount === bestAmount ? "最佳" : "探测")).filter(Boolean).join("；")}`;
     }
@@ -399,7 +490,7 @@
         const mark = item.isRecommended ? "推荐" : item.isBest ? "本次最佳" : (profit !== null && profit > 0 ? "盈利" : "");
         return `${fmtAmount(amountValue, 8)} ${calcSymbol}=净利${fmtSignedAmount(profit, 6)}${mark ? `(${mark})` : ""}`;
       }).filter(Boolean);
-      return `最佳量计算过程=${lines.join("；")}`;
+      return `最佳交易量计算过程=${lines.join("；")}`;
     }
     function profitReviewText(row) {
       const quote = row.quote || {};
@@ -419,11 +510,11 @@
       const referenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps ?? calc.referenceNetReturnBps);
       const parts = [];
       parts.push(`方向=${direction}`);
-      if (initialAmount !== null) parts.push(`初始测试量=${fmtAmount(initialAmount, 8)} ${symbol || ""}`.trim());
-      else parts.push("初始测试量=未记录");
+      if (initialAmount !== null) parts.push(`初始测试交易量=${fmtAmount(initialAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("初始测试交易量=未记录");
       if (initialProbeReason) parts.push(`初始探测依据=${offchainProbeReasonText(initialProbeReason)}`);
-      if (bestAmount !== null) parts.push(`最佳量=${fmtAmount(bestAmount, 8)} ${symbol || ""}`.trim());
-      else parts.push("最佳量=未计算");
+      if (bestAmount !== null) parts.push(`最佳交易量=${fmtAmount(bestAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("最佳交易量=未计算");
       if (profitAmount !== null) parts.push(`盈亏=${fmtSignedAmount(profitAmount, 6)} ${symbol || ""}`.trim());
       if (referenceNetReturnBps !== null) parts.push(`参考净利 BPS=${fmtAmount(referenceNetReturnBps, 2)}`);
       if (pct?.value != null) parts.push(`比例=${pct.value >= 0 ? "+" : ""}${pct.value.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`);
@@ -431,14 +522,16 @@
       const bestCalcText = reviewBestAmountCalculationText(row);
       if (bestCalcText) parts.push(bestCalcText);
       parts.push(reviewProbeText(row));
+      const selectedProfitText = selectedProfitReviewText(row);
+      if (selectedProfitText) parts.push(selectedProfitText);
       return parts.filter(Boolean).join(" | ");
     }
     function offchainProbeReasonText(reason) {
       return ({
         "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
         "one_basic_unit_fallback": "使用 1 个基础代币单位",
-        "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
-        "static_reference_pending_live_review": "当前为静态参考；初始量仅作为探测起点，不能作为已确认最佳量",
+        "onchain_review_best_amount_reused": "使用链上复核确认交易量作为初始交易量",
+        "static_reference_pending_live_review": "当前为静态参考；初始交易量仅作为探测起点，不能作为已确认最佳交易量",
         "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
         "no_offchain_initial_anchor": "暂无可用于价格/流动性锚点",
         "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
@@ -450,6 +543,54 @@
         .filter(Boolean)
         .map((line, index) => `<div class="review-line ${index === 0 ? "" : "muted"}">${esc(line)}</div>`)
         .join("");
+    }
+    function selectedProfitSourceLabel(source) {
+      const normalized = String(source || "").trim();
+      if (!normalized) return "未记录";
+      if (normalized.toLowerCase() === "native_rust_contract_preview") return "原生合约预览（链上复核）";
+      if (normalized.toLowerCase() === "sqlite_reference") return "管理器参考（非 eth_call）";
+      return normalized;
+    }
+    function selectedProfitReviewText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const live = evidence(row);
+      const selectedProfitAmount = humanTokenValue(
+        row.selectedProfitAmount ?? analysis.selectedProfitAmount ?? live.selectedProfitAmount
+      );
+      const selectedProfitSymbol = row.selectedProfitAmountSymbol
+        ?? analysis.selectedProfitAmountSymbol
+        ?? live.selectedProfitAmountSymbol
+        ?? submissionInputSymbol(row)
+        ?? "";
+      const selectedProfitSource = row.selectedProfitSource
+        ?? analysis.selectedProfitSource
+        ?? live.selectedProfitSource
+        ?? "";
+      const selectedProfitMissingReason = row.selectedProfitMissingReason
+        ?? analysis.selectedProfitMissingReason
+        ?? live.selectedProfitMissingReason
+        ?? "no_native_signed_profit";
+      const referenceAmount = humanTokenValue(
+        analysis.referenceNetProfitAmount
+        ?? live.referenceNetProfitAmount
+        ?? quote.referenceNetProfitAmount
+        ?? row.referenceNetProfitAmount
+      );
+      const referenceText = referenceAmount === null
+        ? "未记录"
+        : `${fmtSignedAmount(referenceAmount, 6)} ${selectedProfitSymbol || ""}`.trimEnd();
+      if (selectedProfitAmount !== null && selectedProfitAmount !== undefined) {
+        const delta = referenceAmount !== null && referenceAmount !== undefined
+          ? selectedProfitAmount - referenceAmount
+          : null;
+        const deltaText = delta !== null ? ` | delta=${fmtSignedAmount(delta, 6)} ${selectedProfitSymbol || ""}`.trimEnd() : "";
+        return `链上复核值=${fmtSignedAmount(selectedProfitAmount, 6)} ${selectedProfitSymbol || ""}`.trimEnd()
+          + ` | 参考执行估算=${referenceText}`
+          + deltaText
+          + ` | 来源=${selectedProfitSourceLabel(selectedProfitSource)}`;
+      }
+      return `无链上 signed 净值；参考执行估算=${referenceText} | 缺失原因=${selectedProfitMissingReason}`;
     }
     function lines(items) {
       return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
@@ -482,15 +623,23 @@
       const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || routeIdentity(row).status || "").toLowerCase();
       if (identityStatus === "token_discontinuity") return '<span class="badge fail">token 地址不连续</span>';
       if (rowIsConfirmedExecutionSuccess(row)) return '<span class="badge live">执行成功/已确认</span>';
+      const confirmation = confirmationStatusOf(row);
+      if (confirmation === "pending") return '<span class="badge static">已提交/待确认</span>';
+      if (confirmation === "failed") return '<span class="badge fail">链上确认失败/已回滚</span>';
+      if (looksReviewDeferred(row)) return '<span class="badge warn">链上复核延后</span>';
       const failureLabels = {
         not_enough_liquidity: "池当前没有 LP 流动性",
         pool_not_initialized: "池未初始化",
         missing_effective_pool: "池未初始化或缺少有效池",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
         rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+        rpc_busy: "链上复核延后：RPC 繁忙/限流",
+        live_evidence_deferred: "链上验证已延后",
         live_quote_failed: "链上报价未完成",
         missing_trigger_block: "缺失复核区块",
-        not_live_verified: "未通过链上复核"
+        not_live_verified: "未通过链上复核",
+        review_failed: "链上复核失败：报价数值不可用",
+        quote_unavailable: "链上复核失败：报价不可用"
       };
       if (failureLabels[status]) return `<span class="badge fail">${failureLabels[status]}</span>`;
       if (status === "static_reference_pending_live_review") return '<span class="badge fail">静态参考，待链上复核</span>';
@@ -503,26 +652,48 @@
     }
     function reasonText(row) {
       const ev = evidence(row);
-      const evReasons = ev.blockers || ev.blockers?.blockers || [];
+      const evReasons = [
+        ...(Array.isArray(ev.reviewFailureReasons) ? ev.reviewFailureReasons : []),
+        ev.reviewFailureDetail,
+        ...(Array.isArray(ev.blockers) ? ev.blockers : []),
+        ...(Array.isArray(ev.blockers?.blockers) ? ev.blockers.blockers : []),
+        ...(Array.isArray(ev.errorStack) ? ev.errorStack.map(item => (item && item.message) || (typeof item === "string" ? item : "")) : []),
+        ev.error,
+      ].filter(Boolean);
       const rawReasons = lines([
         row.reason,
         row.blocked_reason,
         ...(Array.isArray(row.blocked_reasons) ? row.blocked_reasons : []),
         ...(Array.isArray(row.reasons) ? row.reasons : []),
         row.error,
+        (row.auto_execute && row.auto_execute.reason) || "",
       ]);
       const reasonLabel = reason => {
         const normalized = String(reason || "").trim();
         const lower = normalized.toLowerCase();
         const timeoutEvidence = normalized.match(/^on-chain evidence timed out after ([0-9.]+)s$/i);
         if (timeoutEvidence) return `链上复核超时：RPC 未在期限内返回（${timeoutEvidence[1]} 秒）`;
+        const busyMarkers = ["network is busy", "please try again in a moment", "too many requests", "rate limit", "rate limited", "request rate", "429", "service unavailable", "temporarily unavailable", "overloaded", "server busy", "busy, please"];
+        const offlineMarkers = ["rpc is disabled because the chain link is dynamically offline", "automatic review cannot run", "chain link is dynamically offline"];
+        if (busyMarkers.some(marker => lower.includes(marker)) || lower === "rpc_busy" || lower === "live_evidence_deferred") {
+          return "链上复核延后：RPC 繁忙/限流";
+        }
+        if (offlineMarkers.some(marker => lower.includes(marker))) {
+          return "链上复核延后：RPC 动态离线/复核未运行";
+        }
+        if (lower.includes("review_failed_quote_unavailable") || lower.includes("quote values are unavailable") || lower.includes("quote unavailable")) {
+          return "链上复核失败：报价数值不可用，不能判定为不可盈利";
+        }
         if (rowIsConfirmedExecutionSuccess(row)) {
           if (lower.includes("static_reference_pending_live_review") || lower.includes("static_live_quoter_estimate") || lower.includes("live_quote_reference_only") || lower.includes("static_reference_only")) {
             return "已确认链上执行结果；以链上确认后的实际成交为准，不再依据静态参考状态";
           }
           return "执行成功/已确认；以链上确认结果为准";
         }
-        if (["broadcast_complete", "submitted_success", "broadcast_success", "broadcasted", "execution_success", "confirmed_success"].includes(lower)) {
+        if (confirmationStatusOf(row) === "confirmed") {
+          return "执行成功/已确认；以链上确认结果为准";
+        }
+        if (["broadcast_complete", "submitted_success", "broadcast_success", "broadcasted", "execution_success"].includes(lower)) {
           return "已提交链上交易；等待链上确认后才算最终成交确认";
         }
         if (lower === "broadcast disabled; static preflight passed") {
@@ -530,6 +701,18 @@
         }
         if (lower.startsWith("broadcast disabled")) {
           return "自动扫描复核并链上广播未开启；请检查链上执行配置后重试";
+        }
+        if (lower === "broadcast_result_missing") {
+          return "链上广播开关开启，但 worker 结果无广播结果；请查询服务器广播错误日志";
+        }
+        if (lower === "broadcast_failed" || lower === "broadcast_error") {
+          return "自动扫描已找到利润并尝试链上广播，但提交/确认失败；实际成交尚未产生";
+        }
+        if (lower === "broadcast_reverted") {
+          return "交易已上链但回执失败/执行回滚，未产生实际成交";
+        }
+        if (lower === "broadcast_pending_confirmation") {
+          return "已提交广播，等待链上确认";
         }
         if (lower === "missing_route_identity" || normalized.includes("missing_route_identity")) {
           return "路线缺少完整 token 地址身份；symbol 只能用于展示，不能作为链上复核或执行依据";
@@ -545,6 +728,20 @@
         ? ` token 连续性异常：${issues.map(item => `${item.fromHop || "?"}->${item.toHop || "?"} ${shortAddress(item.previousTokenOut)} != ${shortAddress(item.currentTokenIn)}`).join("；")}`
         : "";
       return `${prefix}${reasons}${issueText}`;
+    }
+    function looksReviewDeferred(row) {
+      const ev = evidence(row);
+      const status = String(ev.status || ev.executionTrust || "").toLowerCase();
+      const kind = String(ev.errorKind || ev.reviewFailureKind || "").toLowerCase();
+      if (["rpc_busy", "live_evidence_deferred"].includes(status)) return true;
+      if (kind === "rpc_busy") return true;
+      const auto = row.auto_execute && typeof row.auto_execute === "object" ? row.auto_execute : {};
+      const autoReason = String(auto.reason || (auto.auto_execute && typeof auto.auto_execute === "object" ? auto.auto_execute.reason : "") || "").toLowerCase();
+      if (autoReason === "rpc_busy") return true;
+      const lower = `${reasonText(row)} ${ev.reviewFailureKind || ev.errorKind || ""}`.toLowerCase();
+      const busyMarkers = ["network is busy", "please try again in a moment", "too many requests", "rate limit", "rate limited", "request rate", "429", "service unavailable", "temporarily unavailable", "overloaded", "server busy", "busy, please"];
+      const offlineMarkers = ["rpc is disabled because the chain link is dynamically offline", "automatic review cannot run", "chain link is dynamically offline"];
+      return busyMarkers.some(marker => lower.includes(marker)) || offlineMarkers.some(marker => lower.includes(marker));
     }
     function recordCopyText(row) {
       const ev = evidence(row);
@@ -572,7 +769,7 @@
         `地址身份：${identityLabel || "-"}`,
         `状态：${outcome.label}`,
         `执行方向：${reviewDirection}`,
-        `初始测试量：${reviewInitialAmount === null ? "未记录" : `${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
+        `初始测试交易量：${reviewInitialAmount === null ? "未记录" : `${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
         `初始探测依据：${reviewInitialProbeReason ? offchainProbeReasonText(reviewInitialProbeReason) : "-"}`,
         `最佳交易量：${reviewBestAmount === null ? "未计算" : `${fmtAmount(reviewBestAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
         `参考净利 BPS：${reviewReferenceNetReturnBps === null ? "-" : fmtAmount(reviewReferenceNetReturnBps, 2)}`,
@@ -581,6 +778,7 @@
         `触发区块：${ev.triggerBlockNumber || ev.trigger_block_number || "-"}`,
         `复核区块：${ev.blockNumber || ev.block_number || "-"}`,
         `复盘：${profitReviewText(row)}`,
+        `链上复核对比：${selectedProfitReviewText(row)}`,
         `订单/交易：${row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-"}`,
         "",
         "原因与复盘要点：",
@@ -614,19 +812,16 @@
       return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td class="review-cell">${profitReviewHtml(row)}</td><td>${outcomeCell}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button>${onchainButton}</td></tr>`;
     }
     function renderRows() {
-      const totalPages = Math.max(1, Math.ceil(latestRows.length / pageSize));
-      currentPage = Math.min(currentPage, totalPages - 1);
-      const start = currentPage * pageSize;
-      const visible = latestRows.slice(start, start + pageSize);
-      $("rows").innerHTML = visible.map((row, offset) => rowHtml(row, start + offset)).join("") || '<tr><td colspan="9">暂无提交记录。</td></tr>';
-      $("pageInfo").textContent = `第 ${currentPage + 1} / ${totalPages} 页 · ${latestRows.length} 条`;
-      $("prevPageBtn").disabled = currentPage <= 0;
-      $("nextPageBtn").disabled = currentPage >= totalPages - 1;
+      $("rows").innerHTML = latestRows.map((row, offset) => rowHtml(row, offset)).join("") || '<tr><td colspan="9">暂无提交记录。</td></tr>';
+      $("pageInfo").textContent = `第 ${currentPage} / ${totalPages} 页 · ${totalAttempts} 条`;
+      $("prevPageBtn").disabled = currentPage <= 1;
+      $("nextPageBtn").disabled = currentPage >= totalPages;
     }
-    async function refresh() {
-      $("message").textContent = "正在加载提交记录...";
+    async function loadPage(page) {
+      $("message").textContent = `正在加载第 ${page} 页提交记录...`;
       try {
-        const data = await fetchJsonWithTimeout("/api/dex/submissions?limit=300", 12000);
+        const submissionEndpoint = "/api/dex/submissions";
+        const data = await fetchJsonWithTimeout(`${submissionEndpoint}?page=${page}&page_size=${pageSize}`, 12000);
         const framework = data.routeFramework || {};
         $("frameworkSource").textContent = framework.routeFrameworkLabel || frameworkLabel(framework.routeFrameworkSource || framework.marketObservationSource || "-");
         $("frameworkDecision").textContent = framework.decisionBasis || "-";
@@ -642,33 +837,120 @@
         $("successCount").textContent = data.summary?.successCount ?? 0;
         $("failedCount").textContent = data.summary?.failedCount ?? 0;
         $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
+        const uniqueTxHash = data.summary?.uniqueTxHash || {};
+        $("uniqueTxCount").textContent = uniqueTxHash.total ?? 0;
+        $("uniqueTxText").textContent = `成功 ${uniqueTxHash.success ?? 0} · 失败 ${uniqueTxHash.failed ?? 0} · 阻断 ${uniqueTxHash.blocked ?? 0}`;
         $("source").textContent = data.source || "-";
-        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a)).slice(0, 200);
+        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a));
+        currentPage = data.pagination?.page || page;
+        totalPages = data.pagination?.total_pages || 1;
+        totalAttempts = data.pagination?.total ?? data.summary?.attemptCount ?? latestRows.length;
         renderRows();
-        const totalAttempts = data.summary?.attemptCount ?? latestRows.length;
-        $("message").textContent = totalAttempts > latestRows.length ? `已更新（分页展示最近 ${latestRows.length} 条，共 ${totalAttempts} 条）` : "已更新";
+        $("message").textContent = `已更新（第 ${currentPage} / ${totalPages} 页 · 共 ${totalAttempts} 条）`;
       } catch (error) {
         $("message").textContent = uiError(error.message);
       }
     }
-    async function clearRecords() {
-      if (!confirm("确认清空当前链路的提交记录和机会复盘记录？")) return;
-      $("clearBtn").disabled = true;
-      $("message").textContent = "正在清空当前链路记录...";
+    async function loadBroadcastFailureAudit() {
+      const body = $("broadcastFailureAuditBody");
+      if (!body) return;
       try {
-        const data = await postJson("/api/dex/submissions/clear");
-        $("message").textContent = `已清空 ${data.cleared ?? 0} 条记录`;
-        await refresh();
+        const data = await fetchJsonWithTimeout("/api/dex/closed-loop-broadcast-failures?limit=20", 8000);
+        const records = Array.isArray(data.records) ? data.records : [];
+        if (!records.length) {
+          body.innerHTML = `<div class="muted">暂无广播失败常驻记录${data.available ? "（Manager 记录可用）" : "（Manager 记录不可用）"}</div>`;
+          return;
+        }
+        const items = records.map(record => {
+          const observedAt = record.observedAt ? esc(fmtTime(record.observedAt)) : "时间未记录";
+          const groupKey = esc(record.groupKey || "-");
+          const routePath = esc(record.routePath || "-");
+          const error = esc(record.broadcastError || record.broadcastStatus || "-");
+          const profitText = record.selectedProfitRaw
+            ? `保留预期净盈亏 ${esc(String(record.selectedProfitRaw))}`
+            : "预期净盈亏原始值缺失";
+          const status = esc(record.broadcastStatus || record.status || "-");
+          return `<div class="bf-audit-item">
+            <div class="muted">${observedAt} | ${groupKey} | ${status}</div>
+            <div>${routePath}</div>
+            <div class="muted">${profitText}</div>
+            <pre>${error}</pre>
+          </div>`;
+        }).join("");
+        body.innerHTML = `<div class="muted">最近 ${records.length} 条广播失败（共 ${esc(String(data.recordCount ?? records.length))} 条）</div><div class="bf-audit-list">${items}</div>`;
+      } catch (error) {
+        body.innerHTML = `<div class="muted">广播失败记录读取失败：${esc(uiError(error.message))}</div>`;
+      }
+    }
+    const refresh = () => { loadPage(currentPage); loadBroadcastFailureAudit(); };
+    const recordRefresh = () => {
+      if (activeRecordKind === "overview") {
+        refresh();
+      } else if (window.DexSubmissionRecordPage) {
+        window.DexSubmissionRecordPage.refresh();
+      }
+    };
+    async function clearRecords() {
+      if (!confirm("确认清空当前链路的主网提交记录？机会复盘记录不会被删除。")) return;
+      $("clearBtn").disabled = true;
+      $("message").textContent = "正在清空当前链路主网提交记录...";
+      try {
+        const idempotencyKey = `ui-clear:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+        const data = await postJson(
+          "/api/dex/submissions/clear",
+          {recordKind: "submission", dryRun: false},
+          {"Idempotency-Key": idempotencyKey}
+        );
+        const cleared = data.cleared ?? 0;
+        const remaining = data.remaining ?? 0;
+        if (remaining > 0) {
+          $("message").textContent = `已清空 ${cleared} 条，仍有 ${remaining} 条提交记录`;
+        } else if (cleared > 0) {
+          $("message").textContent = `已清空 ${cleared} 条主网提交记录`;
+        } else {
+          $("message").textContent = "当前链路已无主网提交记录";
+        }
+        await recordRefresh();
       } catch (error) {
         $("message").textContent = uiError(error.message);
       } finally {
         $("clearBtn").disabled = false;
       }
     }
-    $("refreshBtn").onclick = refresh;
+    $("refreshBtn").onclick = recordRefresh;
     $("clearBtn").onclick = clearRecords;
-    $("prevPageBtn").onclick = () => { currentPage = Math.max(0, currentPage - 1); renderRows(); };
-    $("nextPageBtn").onclick = () => { currentPage += 1; renderRows(); };
+    $("prevPageBtn").onclick = () => {
+      if (activeRecordKind === "overview") {
+        if (currentPage > 1) loadPage(currentPage - 1);
+      } else if (window.DexSubmissionRecordPage) {
+        window.DexSubmissionRecordPage.previousPage();
+      }
+    };
+    $("nextPageBtn").onclick = () => {
+      if (activeRecordKind === "overview") {
+        if (currentPage < totalPages) loadPage(currentPage + 1);
+      } else if (window.DexSubmissionRecordPage) {
+        window.DexSubmissionRecordPage.nextPage();
+      }
+    };
+    async function copyRecord(row, button) {
+      const old = button.textContent;
+      button.disabled = true;
+      button.textContent = "读取详情...";
+      try {
+        let target = row;
+        if (row.id) {
+          const data = await fetchJsonWithTimeout(`/api/dex/submissions/detail?attempt_id=${encodeURIComponent(row.id)}`, 8000);
+          if (data?.attempt) target = data.attempt;
+        }
+        await copyText(recordCopyText(target), button);
+        setTimeout(() => { button.disabled = false; }, 1200);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = old;
+        $("message").textContent = uiError(error.message);
+      }
+    }
     async function checkOnchain(row, button) {
       const quote = row.quote || {};
       const txHash = row.tx_hash || row.transaction_hash || quote.tx_hash || quote.transaction_hash || row.order_uid || "";
@@ -716,16 +998,79 @@
       }
       const button = event.target.closest("[data-copy-record]");
       if (!button) return;
+      if (activeRecordKind !== "overview") return;
       const row = latestRows[Number(button.dataset.copyRecord)];
-      if (row) copyText(recordCopyText(row), button);
+      if (row) copyRecord(row, button);
+    });
+    const RECORD_TAB_KINDS = {
+      "overview": "提交记录总览",
+      "review-success": "复核成功记录",
+      "review-failed": "复核失败记录",
+      "execution-success": "链上提交执行成功记录",
+      "execution-failed": "链上提交执行失败记录",
+    };
+    const OVERVIEW_HEADERS = ['<th>时间</th>', '<th>网络</th>', '<th>路径</th>', '<th>证据来源</th>', '<th>链上区块</th>', '<th>盈亏/复盘</th>', '<th>结果/状态</th>', '<th>原因与复盘要点</th>', '<th>订单/交易</th>'].join("");
+    const OVERVIEW_METRICS = {
+      attemptCount: ["提交记录总数", "-"],
+      successCount: ["成功", "链上执行/提交成功"],
+      failedCount: ["提交失败", "广播/提交失败"],
+      blockedCount: ["业务不可执行", "无利可图/池未初始化/兑换未解析"],
+      profitCount: ["本页有利润估算", "净利/参考净利大于 0"],
+      noProfitCount: ["本页无利润估算", "净利/参考净利不大于 0 或未估算"],
+      confirmedCount: ["本页已确认", "receiptStatus=0x1 或 confirmationStatus=confirmed"],
+      uniqueTxCount: ["唯一交易", "成功/失败/阻断"],
+    };
+    const resetOverviewMetrics = () => {
+      Object.entries(OVERVIEW_METRICS).forEach(([id, [label, hint]]) => {
+        const node = $(id);
+        if (!node) return;
+        node.hidden = false;
+        const small = node.parentElement && node.parentElement.querySelector("small");
+        if (small) small.textContent = label;
+        const span = node.parentElement && node.parentElement.querySelector("span");
+        if (span) span.textContent = hint;
+      });
+    };
+    document.querySelectorAll("[data-record-kind]").forEach(tab => {
+      tab.addEventListener("click", event => {
+        event.preventDefault();
+        const kind = tab.getAttribute("data-record-kind");
+        if (!kind || !RECORD_TAB_KINDS[kind]) return;
+        activeRecordKind = kind;
+        document.querySelectorAll("[data-record-kind]").forEach(item => {
+          item.classList.toggle("active", item === tab);
+        });
+        if (kind === "overview") {
+          document.title = RECORD_TAB_KINDS.overview;
+          document.querySelector("h1").textContent = RECORD_TAB_KINDS.overview;
+          document.body.setAttribute("data-dex-surface-template", "submissions");
+          document.querySelector("#recordHead").innerHTML = `<tr>${OVERVIEW_HEADERS}</tr>`;
+          document.querySelector("#routeFrameworkPanel").style.display = "";
+          document.querySelector("#broadcastFailureAuditPanel").style.display = "";
+          document.querySelector("#clearBtn").style.display = "";
+          resetOverviewMetrics();
+          if (window.DexSubmissionRecordPage) window.DexSubmissionRecordPage.reset("overview");
+          currentPage = 1;
+          totalPages = 1;
+          latestRows = [];
+          recordRefresh();
+          return;
+        }
+        const controller = window.DexSubmissionRecordPage;
+        if (!controller) return;
+        document.querySelector("#routeFrameworkPanel").style.display = "none";
+        document.querySelector("#broadcastFailureAuditPanel").style.display = "none";
+        document.querySelector("#clearBtn").style.display = "none";
+        controller.switchKind(kind);
+      });
     });
     document.querySelectorAll("a[href^='/dex/']").forEach(link => {
       link.href = scopedHref(link.getAttribute("href"));
     });
     window.addEventListener("chainselectionchanged", event => {
-      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") recordRefresh();
     });
-    refresh();
+    recordRefresh();
   </script>
 </body>
 </html>

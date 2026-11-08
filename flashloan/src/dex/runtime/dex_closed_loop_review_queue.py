@@ -4,7 +4,7 @@ import heapq
 import os
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
 
@@ -37,6 +37,8 @@ class ClosedLoopReviewTask:
     error: str | None = None
     error_stack: list[dict[str, Any]] | None = None
     result: dict[str, Any] | None = None
+    last_heartbeat_at: float | None = None
+    stall_count: int = 0
 
 
 class ClosedLoopReviewQueue:
@@ -52,6 +54,15 @@ class ClosedLoopReviewQueue:
         self._tasks: dict[str, ClosedLoopReviewTask] = {}
         self._heap: list[tuple[int, int, str]] = []
         self._sequence = 0
+        self._metrics = {
+            "claimed": 0,
+            "completed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "backpressure": 0,
+            "stalled": 0,
+            "requeued": 0,
+        }
 
     def submit_group(
         self,
@@ -107,6 +118,7 @@ class ClosedLoopReviewQueue:
                 task.state = "running"
                 task.started_at = time.time()
                 task.updated_at = task.started_at
+                self._metrics["claimed"] += 1
                 return task
             return None
 
@@ -115,6 +127,7 @@ class ClosedLoopReviewQueue:
             task.state = "done"
             task.updated_at = time.time()
             task.result = result or {}
+            self._metrics["completed"] += 1
 
     def mark_error(
         self,
@@ -127,6 +140,82 @@ class ClosedLoopReviewQueue:
             task.updated_at = time.time()
             task.error = str(error)
             task.error_stack = error_stack
+            self._metrics["failed"] += 1
+
+    def mark_skipped(self, task: ClosedLoopReviewTask, *, reason: str = "") -> None:
+        """Finish one task without retrying it in the current queue cycle."""
+        with self._lock:
+            task.state = "skipped"
+            task.updated_at = time.time()
+            task.error = str(reason or "skipped")
+            self._metrics["skipped"] += 1
+
+    def record_backpressure(self) -> None:
+        with self._lock:
+            self._metrics["backpressure"] += 1
+
+    def touch_heartbeat(self, task: ClosedLoopReviewTask) -> None:
+        """Record that a running worker is still making progress."""
+        with self._lock:
+            task.last_heartbeat_at = time.time()
+            task.updated_at = task.last_heartbeat_at
+
+    def stale_audit(
+        self,
+        *,
+        queued_age_seconds: float = 60.0,
+        running_age_seconds: float = 300.0,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Return queued/running tasks that exceeded their lease threshold."""
+        current = now if now is not None else time.time()
+        with self._lock:
+            stale_queued: list[ClosedLoopReviewTask] = []
+            stale_running: list[ClosedLoopReviewTask] = []
+            for task in self._tasks.values():
+                if task.state == "queued":
+                    age = current - (task.updated_at or task.created_at)
+                    if age >= max(0.0, float(queued_age_seconds)):
+                        stale_queued.append(task)
+                elif task.state == "running":
+                    age = current - (task.last_heartbeat_at or task.started_at or task.updated_at or task.created_at)
+                    if age >= max(0.0, float(running_age_seconds)):
+                        stale_running.append(task)
+            oldest_queued_age = None
+            for task in self._tasks.values():
+                if task.state != "queued":
+                    continue
+                age = current - (task.updated_at or task.created_at)
+                if oldest_queued_age is None or age > oldest_queued_age:
+                    oldest_queued_age = age
+        return {
+            "staleQueued": [asdict(task) for task in stale_queued],
+            "staleRunning": [asdict(task) for task in stale_running],
+            "staleQueuedCount": len(stale_queued),
+            "staleRunningCount": len(stale_running),
+            "oldestQueuedAgeSeconds": oldest_queued_age,
+            "now": current,
+        }
+
+    def mark_stalled(self, task: ClosedLoopReviewTask, *, reason: str = "review_stall") -> None:
+        """Move an unclaimed task into the stalled terminal for audit."""
+        with self._lock:
+            task.state = "stalled"
+            task.error = str(reason or "review_stall")[:500]
+            task.stall_count += 1
+            task.updated_at = time.time()
+            self._metrics["stalled"] += 1
+
+    def requeue(self, task: ClosedLoopReviewTask) -> None:
+        """Requeue a stalled task so a recovered supervisor can consume it."""
+        with self._lock:
+            task.state = "queued"
+            task.error = None
+            task.error_stack = None
+            task.result = None
+            task.updated_at = time.time()
+            self._metrics["requeued"] += 1
+            self._push(task)
 
     def snapshot(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -145,6 +234,8 @@ class ClosedLoopReviewQueue:
                         "updated_at": task.updated_at,
                         "error": task.error,
                         "errorStack": task.error_stack or [],
+                        "last_heartbeat_at": task.last_heartbeat_at,
+                        "stall_count": task.stall_count,
                     }
                 )
             return rows
@@ -153,13 +244,21 @@ class ClosedLoopReviewQueue:
         with self._lock:
             return self._tasks.get(normalize_closed_loop_group_key(group_key))
 
-    def summary(self) -> dict[str, int]:
+    def summary(self) -> dict[str, Any]:
         with self._lock:
-            counts = {"queued": 0, "running": 0, "done": 0, "error": 0}
+            counts: dict[str, Any] = {"queued": 0, "running": 0, "done": 0, "error": 0}
             for task in self._tasks.values():
                 counts[task.state] = counts.get(task.state, 0) + 1
             counts["total"] = len(self._tasks)
+            counts["stalled_total"] = sum(
+                task.stall_count for task in self._tasks.values()
+            )
+            counts.update(self._metrics)
             return counts
+
+    def metrics(self) -> dict[str, int]:
+        with self._lock:
+            return dict(self._metrics)
 
     def _push(self, task: ClosedLoopReviewTask) -> None:
         heapq.heappush(self._heap, (task.priority, self._sequence, task.group_key))
@@ -184,9 +283,9 @@ class FixedRefreshPipeline:
     def _worker_count(self) -> int:
         raw = os.getenv("DEX_CLOSED_LOOP_GROUP_WORKERS", os.getenv("DEX_CLOSED_LOOP_WORKERS", "3"))
         try:
-            return max(1, min(8, int(raw)))
+            return max(1, min(64, int(raw)))
         except (TypeError, ValueError):
-            return 1
+            return 16
 
     def start(self) -> None:
         with self._lock:
@@ -216,7 +315,16 @@ class FixedRefreshPipeline:
         if task is None:
             return None
         try:
-            result = self.refresh_fn(task)
+            if task.chain_id is not None:
+                from core.db.chain_database_context import chain_database_scope
+
+                with chain_database_scope(
+                    chain_id=task.chain_id,
+                    source="closed-loop-review",
+                ):
+                    result = self.refresh_fn(task)
+            else:
+                result = self.refresh_fn(task)
         except Exception as exc:
             self.queue.mark_error(
                 task,

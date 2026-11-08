@@ -4,6 +4,10 @@
   "chain_id": 56,
   "display_name": "BNB Chain",
   "native_symbol": "BNB",
+  "database": {
+    "sqlite_dir": "../../../db",
+    "sqlite_file": "local_store_bnb.sqlite3"
+  },
   "rpc": {
     "primary": "https://bsc-dataseed.bnbchain.org",
     "fallbacks": [

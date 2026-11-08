@@ -61,7 +61,7 @@ def _direction_plan(
     chain_id: int,
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
-    direction_limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
 ) -> dict[str, Any]:
     from dex.tools.refresh_robinhood_v4_live import _direction_backfill_plan
 
@@ -69,7 +69,7 @@ def _direction_plan(
         database=database,
         network=network,
         chain_id=chain_id,
-        direction_limit=direction_limit,
+        direction_target=direction_target,
     )
     targets = dict(plan.get("targets") or {})
     if directions:
@@ -330,6 +330,7 @@ def collect_report(
     pool_manager: str = "",
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
+    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
     chunk_size: int = 500_000,
     min_chunk_size: int = 10_000,
     batch_size: int = 300,
@@ -369,7 +370,7 @@ def collect_report(
         chain_id=resolved_chain_id,
         directions=directions,
         limit_directions=limit_directions,
-        direction_limit=MAX_DIRECTION_CANDIDATE_POOLS,
+        direction_target=direction_target,
     )
     targets = plan.get("targets") or {}
     if not targets:
@@ -497,11 +498,14 @@ def collect_report(
         "scope": {
             "directionsRequested": list(directions) if directions else "all",
             "limitDirections": int(limit_directions or 0),
-            "candidateLimit": MAX_DIRECTION_CANDIDATE_POOLS,
+            "candidateLimit": int(direction_target),
             "forwardDirection": "lower_address_to_higher_address",
             "reverseDirection": "higher_address_to_lower_address",
             "searchOrder": "newest_to_oldest",
-            "stopCondition": "five_live_candidates_per_direction_or_pool_creation_floor",
+            "stopCondition": (
+                f"{int(direction_target)}_live_candidates_per_direction_"
+                "or_pool_creation_floor"
+            ),
         },
         "plan": plan,
         "scan": scan,
@@ -538,7 +542,7 @@ def collect_report_from_sqlite(
     chain_id: int | None = None,
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
-    direction_limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
 ) -> dict[str, Any]:
     """Build directional backfill evidence from existing SQLite rows only.
 
@@ -561,7 +565,7 @@ def collect_report_from_sqlite(
         chain_id=resolved_chain_id,
         directions=directions,
         limit_directions=limit_directions,
-        direction_limit=direction_limit,
+        direction_target=direction_target,
     )
     targets = plan.get("targets") or {}
     if not targets:
@@ -761,7 +765,7 @@ def collect_report_from_sqlite(
         "scope": {
             "directionsRequested": list(directions) if directions else "all",
             "limitDirections": int(limit_directions or 0),
-            "candidateLimit": MAX_DIRECTION_CANDIDATE_POOLS,
+            "candidateLimit": int(direction_target),
             "forwardDirection": "lower_address_to_higher_address",
             "reverseDirection": "higher_address_to_lower_address",
             "searchOrder": "existing_sqlite_snapshot_only",
@@ -860,6 +864,12 @@ def main() -> int:
         default="",
         help="Comma-separated canonical token:token direction keys; default is all shortfall directions.",
     )
+    parser.add_argument(
+        "--direction-target",
+        type=int,
+        default=MAX_DIRECTION_CANDIDATE_POOLS,
+        help="Pools needed per direction before the shortfall is considered satisfied.",
+    )
     parser.add_argument("--limit-directions", type=int, default=0)
     parser.add_argument("--chunk-size", type=int, default=500_000)
     parser.add_argument("--min-chunk-size", type=int, default=10_000)
@@ -886,6 +896,7 @@ def main() -> int:
             database=args.database,
             directions=parsed_directions,
             limit_directions=args.limit_directions,
+            direction_target=args.direction_target,
         )
     else:
         report = collect_report(
@@ -894,6 +905,7 @@ def main() -> int:
             pool_manager=args.pool_manager,
             directions=parsed_directions,
             limit_directions=args.limit_directions,
+            direction_target=args.direction_target,
             chunk_size=args.chunk_size,
             min_chunk_size=args.min_chunk_size,
             batch_size=args.batch_size,

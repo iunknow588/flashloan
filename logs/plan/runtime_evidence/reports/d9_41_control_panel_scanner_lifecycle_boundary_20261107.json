@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "flashloan-plan-runtime-evidence-v1",
+  "taskId": "D9.41",
+  "milestone": "M9",
+  "title": "Bound control panel DEX scanner lifecycle to Manager read-only",
+  "status": "passed",
+  "date": "2026-11-07",
+  "scope": {
+    "modules": [
+      "flashloan/app_runtime/web/control_panel_page_routes.py",
+      "flashloan/app_runtime/web/templates/control_panel.html"
+    ],
+    "archivedUnder": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "statusDto": {
+      "dataSource": "rust_runtime_core",
+      "managerAvailable": true,
+      "runtimeCore": "runtime_core_status",
+      "closedLoop": "closed_loop_control_status",
+      "broadcastGate": "broadcast_gate",
+      "pythonScannerFields": 0
+    },
+    "controlPanelChange": {
+      "removed": [
+        "setupDexAutoExecuteToggle",
+        "dexAutoExecuteToggle",
+        "dex-quotes-auto-execute-enabled"
+      ],
+      "removedScannerStatusFields": [
+        "running",
+        "interval_seconds",
+        "scan_count",
+        "recorded_attempt_count",
+        "auto_execute_count",
+        "auto_execute_cooldown_seconds"
+      ],
+      "diagnosticRoutesPreserved": [
+        "/api/dex/opportunity-scanner/start",
+        "/api/dex/opportunity-scanner/snapshot",
+        "/api/dex/opportunity-scanner/scan-now",
+        "/api/dex/opportunity-scanner/auto-execute",
+        "/api/dex/opportunity-scanner/stats/reset"
+      ]
+    }
+  },
+  "implementation": {
+    "statusBuilder": "_dex_manager_status_payload",
+    "runtimeCoreRegisteredRequired": true,
+    "managerUnavailableMode": "fail_closed",
+    "architectureGuard": "test_d9_41_control_panel_scanner_lifecycle_is_manager_read_only",
+    "formalPagesBoundToScannerRoutes": false
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "python -m py_compile web/control_panel_page_routes.py tests/functional/test_web_app_assembly_scope_api.py tests/unit/test_architecture_guards.py",
+        "exitCode": 0
+      },
+      {
+        "command": "python -m pytest tests/functional/test_web_app_assembly_scope_api.py tests/functional/test_control_panel_status_api.py tests/unit/test_architecture_guards.py -q --tb=short",
+        "exitCode": 0,
+        "summary": "87 passed in 31.81s"
+      },
+      {
+        "command": "node --check - (control_panel.html embedded main script)",
+        "exitCode": 0
+      },
+      {
+        "command": "rg -n get_dex_opportunity_scanner|chain_runtime\\.scanner|/api/dex/opportunity-scanner|dexAutoExecuteToggle|setupDexAutoExecuteToggle|scan_count|interval_seconds over control panel and formal DEX template files",
+        "exitCode": 1,
+        "matches": 0,
+        "note": "rg exit 1 means no matches; scanner routes remain only in the diagnostic ops module"
+      }
+    ]
+  },
+  "safety": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "migrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmitted": false,
+    "transactionSigned": false,
+    "transactionBroadcast": false,
+    "historicalEvidenceModified": false
+  }
+}

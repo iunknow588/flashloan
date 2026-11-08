@@ -23,7 +23,7 @@ from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
 )
-from core.db.direction_pool_score import has_confirmed_liquidity, score_pool_by_direction
+from core.db.direction_pool_score import has_confirmed_depth, score_pool_by_direction
 from dex.intent_trade.chains.robinhood_common.chain_config import (
     ROBINHOOD_MARKET_ID,
     ROBINHOOD_TESTNET_MARKET_ID,
@@ -332,7 +332,7 @@ def _build_loops(
         eligible = [
             row
             for row in rows
-            if has_confirmed_liquidity(
+            if has_confirmed_depth(
                 row,
                 min_usd=1000.0,
                 fallback_token_base=1.0,
@@ -421,7 +421,7 @@ def _find_pool_for_hop(
             _text(pool.get("token1")),
         }
         == {input_address, output_address}
-        and has_confirmed_liquidity(
+        and has_confirmed_depth(
             pool,
             min_usd=1000.0,
             fallback_token_base=1.0,
@@ -564,7 +564,7 @@ if __name__ == "__main__":
             )
         )
         raise SystemExit(2)
-    database = args.database or str(Path(__file__).resolve().parents[2] / "runtime" / "local_store.sqlite3")
+    database = args.database or str(Path(__file__).resolve().parents[3] / "db" / "local_store.sqlite3")
     result = import_existing_json(
         database,
         runtime_root=args.runtime_root or None,

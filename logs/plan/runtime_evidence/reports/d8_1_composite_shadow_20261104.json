@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d8_1_composite_shadow_20261104",
+  "milestone": "M8",
+  "task": "D6.1 Composite Manager pipeline audit and checkpoint shadow",
+  "status": "shadow_complete_not_production",
+  "generatedAt": "2026-11-04T11:50:00Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/tools",
+  "decision": "M8 Composite Manager is complete for pipeline shadow audit, upstream consistency checks, step lifecycle, checkpoint recovery, idempotency, and the HTTP boundary. It does not execute business rebuilds or own Review/Broadcast runtime workers. Production pipeline authority remains legacy, and the mainnet database was not migrated or written.",
+  "migration": {
+    "id": "20261104_006_composite_schema",
+    "checksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+    "schemaChecksum": "sha256:643b8abec703dc4e2541794f01078cc098a55b9440e4c3d119b1a5909edcfee7",
+    "migrationFile": "flashloan/tools/manager_db/migrations/20261104_006_composite_schema.sql",
+    "migrationLedger": "schema_migrations",
+    "tables": [
+      "manager_pipeline_runs",
+      "manager_pipeline_steps",
+      "manager_pipeline_events",
+      "manager_events"
+    ],
+    "secondRunAppliedNow": false,
+    "tempDatabaseHashAfterFirstMigrate": "03C3ED5A07B12E5585A6639009E0C102E5CAA22C6AB47E99D1160EE4E16E03C7",
+    "tempDatabaseHashAfterSecondMigrate": "03C3ED5A07B12E5585A6639009E0C102E5CAA22C6AB47E99D1160EE4E16E03C7",
+    "tempDatabaseHashesEqual": true,
+    "tempDatabasePath": "flashloan/tools/target/m8_composite_migration_20261104.sqlite3",
+    "tempDatabaseRemovedAfterVerification": true
+  },
+  "mainnetReadOnlyPreflight": {
+    "command": "cargo run --quiet -p manager-db -- preflight --db ..\\db\\local_store_4663.sqlite3",
+    "workingDirectory": "flashloan/tools",
+    "exitCode": 0,
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "quickCheck": "ok",
+    "readyForMigration": true,
+    "fileSizeBytes": 3315490816,
+    "migrationLedger": "schema_migrations",
+    "managerTargetTableCount": 41,
+    "presentManagerTargetTableCount": 0,
+    "incompatibleTargetTableCount": 0,
+    "viewPresent": false,
+    "productionMigrationApplied": false,
+    "businessRowsWritten": false,
+    "serviceStartedOrStopped": false
+  },
+  "implementation": {
+    "crate": "flashloan/tools/composite_manager",
+    "apiRoutes": [
+      "GET /v1/pipeline/status",
+      "GET /v1/pipeline/runs",
+      "GET /v1/pipeline/runs/{run_id}",
+      "POST /v1/pipeline/refresh",
+      "POST /v1/pipeline/steps/begin",
+      "POST /v1/pipeline/steps/complete"
+    ],
+    "capabilitiesMilestone": "M8",
+    "capabilities": [
+      "pipeline.read",
+      "pipeline.refresh",
+      "pipeline.step.begin",
+      "pipeline.step.complete"
+    ],
+    "authorityEnv": "COMPOSITE_MANAGER_AUTHORITY",
+    "authorityModes": [
+      "legacy",
+      "manager",
+      "rollback"
+    ],
+    "defaultAuthority": "legacy",
+    "writeHeadersRequired": [
+      "X-Request-Id",
+      "Idempotency-Key"
+    ],
+    "explicitDryRunRequired": true,
+    "dryRunPolicy": "dryRun=true performs no writes to pipeline runs, steps, events, manager_events, business tables, or idempotency records.",
+    "applyTransaction": "apply writes the run, steps, events, manager_events, and idempotency ledger in one SQLite IMMEDIATE transaction.",
+    "idempotencyPolicy": "The same Idempotency-Key and same request digest return idempotentReplay=true. A changed digest returns IDEMPOTENCY_KEY_REUSED. requestId is excluded from the digest.",
+    "fixedStepOrder": [
+      "pool_scope",
+      "candidate_edge",
+      "candidate_exchange",
+      "closed_loop",
+      "review",
+      "broadcast"
+    ],
+    "defaultRefreshSteps": [
+      "candidate_edge",
+      "candidate_exchange",
+      "closed_loop",
+      "review",
+      "broadcast"
+    ],
+    "checkpointPolicy": "A failed step can be retried from the latest successful checkpoint. Completed and idle steps cannot be begun again.",
+    "terminalPolicy": "The broadcast step cannot complete while reviewed broadcast attempts remain pending.",
+    "statusFields": [
+      "latestRun",
+      "steps",
+      "events",
+      "currentStep",
+      "checkpointStepId",
+      "upstream",
+      "upstreamAssessment"
+    ]
+  },
+  "upstreamConsistency": {
+    "tokenLibraries": "All four library versions and checksums must be a single state.",
+    "poolScope": "The materialized and live scope checksum must agree with the scope library versions and checksums.",
+    "candidateEdge": "Candidate edge version/checksum must reference the current pool scope and token library snapshot.",
+    "candidateExchange": "Observation version/checksum must reference the current candidate edge and scope snapshot.",
+    "closedLoop": "Closed-loop version/checksum must reference one candidate edge and observation snapshot.",
+    "review": "Review state must reference one closed-loop version/checksum and the complete upstream chain.",
+    "broadcast": "Broadcast state must reference the review snapshot and retain pending attempts as a blocking condition.",
+    "crossVersionWriteRejected": true
+  },
+  "runtimeOwnership": {
+    "managerRule": "Composite Manager is an orchestration/audit state layer. It does not execute candidate, YZ, closed-loop, review, or broadcast business rebuild logic.",
+    "reviewQueue": "The legacy ReviewSupervisor remains the runtime producer for its review queue; review_manager persists review evidence and requests only.",
+    "broadcastQueue": "The native Rust ExecutionQueue and rust-closed-loop-exec-* workers remain the execution queue owner; broadcast_manager persists attempts and terminal outcomes only.",
+    "managerThreadsStarted": false,
+    "managerQueueOwned": false,
+    "rpcCallsMade": false,
+    "businessTablesWrittenByM8": false
+  },
+  "verification": {
+    "cargoFmtAllCheck": {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    "cargoClippyWorkspaceAllTargetsDWarnings": {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exitCode": 0
+    },
+    "cargoTestWorkspace": {
+      "command": "cargo test --workspace",
+      "exitCode": 0,
+      "totalTests": 125,
+      "compositeManagerTests": 5,
+      "managerApiTests": 21,
+      "migrationSmokeTests": 5
+    },
+    "fixtures": [
+      "write requests require X-Request-Id, Idempotency-Key, and explicit dryRun",
+      "legacy and rollback authority reject dryRun=false writes",
+      "dry-run creates no pipeline run, step, event, manager_event, or idempotency rows",
+      "apply and same-key replay are stable",
+      "changed content under the same idempotency key returns IDEMPOTENCY_KEY_REUSED",
+      "empty, duplicate, and out-of-order requestedSteps are rejected",
+      "upstream version or checksum mismatch blocks refresh",
+      "failed step can be retried from the checkpoint",
+      "completed and idle steps cannot be begun again",
+      "status and run detail expose currentStep, checkpointStepId, and upstreamAssessment",
+      "broadcast completion is blocked while pending attempts remain"
+    ],
+    "knownFailures": []
+  },
+  "knownBoundary": "M8 production authority remains legacy. This evidence does not apply the manager migration to the real mainnet database, does not switch production pipeline writes, does not start or stop the running service, and does not authorize real broadcast. M9 UI compatibility may call manager_api, but production cutover still requires the ordered M1-M7 real-copy bootstrap, compare evidence, maintenance-window apply, and all P0 gates."
+}

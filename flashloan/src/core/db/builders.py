@@ -28,7 +28,8 @@ from core.db.direction_integrity import (
 )
 from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
-    has_confirmed_liquidity,
+    MIN_DIRECTION_CANDIDATE_POOLS,
+    has_confirmed_depth,
     score_pool_by_direction,
 )
 from core.db.storage_business_io import delete_rows, query
@@ -90,6 +91,9 @@ MAX_FIXED_FEE = 100_000
 # the sort key, so YC and ZC can legitimately choose different pool orders.
 MAX_RECOMMENDATIONS_PER_HOP = MAX_DIRECTION_CANDIDATE_POOLS
 MAX_CANDIDATE_POOLS_PER_PAIR = MAX_DIRECTION_CANDIDATE_POOLS
+# Backfill/readiness target per direction. One active pool is enough to
+# satisfy a closed-loop direction; the max constant is only a rank cap.
+MIN_CANDIDATE_POOLS_PER_PAIR = MIN_DIRECTION_CANDIDATE_POOLS
 NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
 
 
@@ -492,13 +496,13 @@ def _select_recommendations(
     """Return up to N directional recommendations, best static output first.
 
     Pool inclusion is the same for both directions: a physical V4 pool exists
-    as a two-sided market, so ``has_confirmed_liquidity`` is called without a
+    as a two-sided market, so ``has_confirmed_depth`` is called without a
     direction.  Direction only changes the output score/order.
     """
     confirmed = [
         pool
         for pool in pools
-        if has_confirmed_liquidity(
+        if has_confirmed_depth(
             pool,
             min_usd=1000.0,
             fallback_token_base=1.0,
@@ -554,7 +558,7 @@ def _candidate_rows(
             if (
                 _is_fixed_fee(pool, max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
                 and _has_no_hook(pool)
-                and has_confirmed_liquidity(
+                and has_confirmed_depth(
                     pool,
                     min_usd=1000.0,
                     fallback_token_base=1.0,
@@ -1113,7 +1117,7 @@ def build_market_observation_anchor(
             confirmed_matched = [
                 pool
                 for pool in matched
-                if has_confirmed_liquidity(
+                if has_confirmed_depth(
                     pool,
                     min_usd=1000.0,
                     fallback_token_base=1.0,

@@ -1,0 +1,175 @@
+{
+  "schemaVersion": "robinhood-testnet-auto-scan-window-v1",
+  "window": {
+    "startUtc": "2026-10-24T19:45:00+00:00",
+    "endUtc": "2026-10-24T21:55:00+00:00",
+    "durationSeconds": 7800
+  },
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "attemptsInWindow": 276,
+  "runtimeSnapshot": null,
+  "runtimeSnapshotRetry": false,
+  "broadcastGates": {
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false
+  },
+  "success": {
+    "uniqueSuccessCount": 0,
+    "successes": [],
+    "profitBySymbol": [],
+    "gasSummary": {
+      "gasUsedMin": null,
+      "gasUsedMax": null,
+      "gasUsedTotal": null,
+      "effectiveGasPriceMin": null,
+      "effectiveGasPriceMax": null
+    }
+  },
+  "failure": {
+    "failedCount": 0,
+    "blockedCount": 276,
+    "failedSample": [],
+    "blockedSample": [
+      {
+        "createdAt": "2026-10-24T21:54:32.228192200+00:00",
+        "observedAt": "2026-10-24T21:54:32.228192200+00:00",
+        "pair": "AMD -> AMZN -> TSLA -> AMD",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:32.228192200+00:00",
+        "observedAt": "2026-10-24T21:54:32.228192200+00:00",
+        "pair": "AMD -> TSLA -> AMZN -> AMD",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:30.882436800+00:00",
+        "observedAt": "2026-10-24T21:54:30.882436800+00:00",
+        "pair": "AMZN -> AMD -> TSLA -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:30.882436800+00:00",
+        "observedAt": "2026-10-24T21:54:30.882436800+00:00",
+        "pair": "AMZN -> TSLA -> AMD -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:27.972215300+00:00",
+        "observedAt": "2026-10-24T21:54:27.972215300+00:00",
+        "pair": "TSLA -> AMD -> AMZN -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:27.972215300+00:00",
+        "observedAt": "2026-10-24T21:54:27.972215300+00:00",
+        "pair": "TSLA -> AMZN -> AMD -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:25.730983800+00:00",
+        "observedAt": "2026-10-24T21:54:25.730983800+00:00",
+        "pair": "ETH -> NFLX -> PLTR -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:25.730983800+00:00",
+        "observedAt": "2026-10-24T21:54:25.730983800+00:00",
+        "pair": "ETH -> PLTR -> NFLX -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:23.193596700+00:00",
+        "observedAt": "2026-10-24T21:54:23.193596700+00:00",
+        "pair": "NFLX -> PLTR -> ETH -> NFLX",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-24T21:54:23.193596700+00:00",
+        "observedAt": "2026-10-24T21:54:23.193596700+00:00",
+        "pair": "NFLX -> ETH -> PLTR -> NFLX",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      }
+    ]
+  },
+  "funnel": {
+    "reviewedCount": 276,
+    "withExpectedProfitCount": 12,
+    "broadcastCount": 0,
+    "successTxCount": 0,
+    "uniqueSuccessCount": 0,
+    "uniqueSuccessWithExpectedProfitCount": 0,
+    "realizedProfitBySymbol": []
+  },
+  "t21FieldCounts": {
+    "netProductDeltaRaw": 0,
+    "ArbitrageNotProfitable": 0,
+    "netProfitAmountMissingReason": 276
+  },
+  "conclusion": "Observed 130 minutes; 0 unique on-chain success tx with 0 failed and 276 blocked attempts; netProductDeltaRaw=0, ArbitrageNotProfitable=0.",
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  }
+}

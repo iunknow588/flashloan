@@ -1,0 +1,118 @@
+{
+  "evidenceId": "d9_36_route_identity_core_boundary_20261106",
+  "task": "D9.36 move route symbol/address identity into core and close silent exception boundaries",
+  "recordedAt": "2026-11-06T18:45:16+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmittedToRealWorker": false,
+    "signedTransaction": false,
+    "broadcastSent": false,
+    "historicalEvidenceRewrittenAsPass": false
+  },
+  "implementation": {
+    "newCoreModule": "flashloan/src/core/route_symbol_identity.py",
+    "coreConsumer": "flashloan/src/core/db/cow_execution_review.py",
+    "removedCrossPackageImport": "market.binance_market.dex_route_helpers",
+    "identitySources": [
+      "chain-owned v4_token_allowlist",
+      "active SQLite chain_tokens robinhood_stock rows for mainnet"
+    ],
+    "strictFallbackBehavior": [
+      "unknown route symbols return no addresses",
+      "ambiguous route symbols return no addresses",
+      "missing allowlist returns no addresses",
+      "incomplete route length returns unresolved symbols"
+    ],
+    "silentExceptionsClosed": [
+      "flashloan/src/core/chain_selection.py",
+      "flashloan/src/market/binance_market/dex_route_test.py",
+      "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py"
+    ],
+    "nestedDirectoryRemoved": "flashloan/app_runtime/flashloan",
+    "testsAdded": [
+      "flashloan/app_runtime/tests/unit/test_route_symbol_identity.py"
+    ],
+    "testsUpdated": [
+      "flashloan/app_runtime/tests/unit/test_storage_cow_execution_review.py"
+    ]
+  },
+  "verification": [
+    {
+      "command": "python -m py_compile src/core/route_symbol_identity.py src/core/db/cow_execution_review.py app_runtime/tests/unit/test_route_symbol_identity.py",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_route_symbol_identity.py app_runtime/tests/unit/test_storage_cow_execution_review.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "20 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_chain_data_registry.py app_runtime/tests/unit/test_dex_route_test.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "88 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_api_scope_policy.py app_runtime/tests/unit/test_chain_selection.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "33 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 1,
+      "previousResult": "43 passed, 5 failed",
+      "result": "46 passed, 2 failed",
+      "remainingFailures": [
+        {
+          "test": "test_refactored_helper_modules_stay_under_line_limits",
+          "file": "flashloan/src/dex/runtime/dex_opportunity_scanner_engine.py",
+          "lineCount": 1222,
+          "limit": 1000
+        },
+        {
+          "test": "test_active_source_files_stay_under_1000_lines",
+          "files": [
+            "flashloan/src/core/db/page_payloads.py: 1011",
+            "flashloan/src/core/db/storage_cow_execution.py: 1263",
+            "flashloan/src/market/binance_market/dex_route_helpers.py: 1095",
+            "flashloan/app_runtime/web/static/dex_submission_records.js: 1037",
+            "flashloan/app_runtime/web/data_routes/manager_page_compare.py: 5038"
+          ]
+        }
+      ]
+    }
+  ],
+  "architectureGuardObservation": {
+    "crossPackageImportResolved": true,
+    "silentBroadExceptionFailuresResolved": true,
+    "nestedDirectoryFailureResolved": true,
+    "remainingFailureCategories": [
+      "file line-limit debt"
+    ]
+  },
+  "documentation": {
+    "updated": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "singleCurrentPlanPreserved": true
+  },
+  "boundaries": [
+    "Market route helpers keep compatibility wrappers for existing callers.",
+    "Core identity resolution does not guess unknown, missing, or ambiguous addresses.",
+    "No page URL, DTO field, refresh period, or runtime worker behavior changed.",
+    "No production database was read or written.",
+    "No service was started or stopped.",
+    "No transaction was signed or broadcast.",
+    "Prior evidence files were left unchanged."
+  ]
+}

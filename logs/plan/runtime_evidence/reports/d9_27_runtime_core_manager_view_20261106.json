@@ -1,0 +1,141 @@
+{
+  "evidenceId": "d9_27_runtime_core_manager_view_20261106",
+  "task": "D9.27",
+  "recordedAt": "2026-11-06T05:52:07.8145727+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "view": "overview",
+      "managerCall": "composite_manager::read_manager_overview_snapshot",
+      "directBusinessTableReads": false,
+      "businessWrites": false,
+      "requiresPriorSnapshot": false
+    },
+    "pyo3Export": {
+      "name": "runtime_core_manager_view",
+      "signature": "runtime_core_manager_view(chain_id, view, limit=1000, options_json=None)",
+      "file": "flashloan/rs-src/src/lib.rs"
+    },
+    "pythonAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "role": "PyO3 forwarding only",
+      "managerViewCache": false
+    },
+    "pageAdapters": {
+      "file": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "routes": [
+        "/api/dex/overview",
+        "/api/dex/quote-routes",
+        "/api/dex/quote-request"
+      ],
+      "httpManagerApiReadFallbackInRequestContext": false,
+      "runtimeDataSource": "rust_runtime_core",
+      "businessDataSource": "manager"
+    }
+  },
+  "commands": [
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "90 passed; 0 failed."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "All workspace crates passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py flashloan/app_runtime/tests/unit/test_chain_runtime.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "67 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py flashloan/app_runtime/tests/unit/test_chain_runtime.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "75 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "91 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "14 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "26 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "28 passed."
+    },
+    {
+      "command": "python -m maturin build --release --auditwheel repair --out target/runtime_core_wheel_20261106_v3_repair",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Wheel built and zlib.dll packaged under flashloan_rs.libs."
+    },
+    {
+      "command": "fresh venv install and overview manager-view smoke",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Export present; overview succeeded; unknown view and invalid limit were rejected; close succeeded."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "workdir": "flashloan",
+      "exitCode": 1,
+      "result": "40 passed, 6 failed; all failures are pre-existing and outside D9.27."
+    }
+  ],
+  "artifacts": {
+    "wheelRepaired": "flashloan/rs-src/target/runtime_core_wheel_20261106_v3_repair/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelSmokeVenv": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v3_manager_view"
+  },
+  "architectureGuardFailures": [
+    "web/data_routes/dex_surface_routes_ops.py still reads latest.json",
+    "five silent broad except handlers remain",
+    "core/db/cow_execution_review.py cross-package import remains",
+    "nested app_runtime/flashloan directory remains",
+    "dex/runtime/dex_opportunity_scanner_engine.py exceeds 1000 lines",
+    "five active source files exceed 1000 lines"
+  ],
+  "acceptance": {
+    "overviewUsesRuntimeCore": true,
+    "requestContextFailsClosedWithoutRuntimeCore": true,
+    "noManagerHttpReadFallbackForMigratedOverviewRoutes": true,
+    "pageBusinessDataSourceRemainsManager": true,
+    "runtimeCoreDiagnosticsExposed": true,
+    "repairedWheelImportable": true,
+    "managerWriteRequestsWritten": 0
+  },
+  "residualWork": [
+    "General Manager view dispatch is implemented by D9.28.",
+    "Explicit page commands still require RuntimeCore command APIs.",
+    "Production migration/apply and service cutover were intentionally not performed."
+  ]
+}

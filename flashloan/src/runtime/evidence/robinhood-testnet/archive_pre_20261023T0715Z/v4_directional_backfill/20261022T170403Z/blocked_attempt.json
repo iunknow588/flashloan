@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-blocked-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "attemptedAt": "2026-10-22T17:04:03Z",
+  "status": "blocked",
+  "blockedReason": "rpc_log_query_timeout_and_handshake_timeout",
+  "probe": {
+    "ok": false,
+    "rpcUrl": "https://rpc.testnet.chain.robinhood.com/rpc",
+    "method": "eth_getLogs"
+  },
+  "failure": {
+    "tool": "refresh_robinhood_v4_live.py",
+    "mode": "v4_pool_index_full_forced_db_incomplete",
+    "error": "failed to fetch 0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438 logs 90000000-92499999 after 6 attempts; last: eth_getLogs https://rpc.testnet.chain.robinhood.com/rpc failed: <urlopen error _ssl.c:993: The handshake operation timed out>; recent failures: [\"https://rpc.testnet.chain.robinhood.com/rpc 90000000-94999999: eth_getLogs https://rpc.testnet.chain.robinhood.com/rpc error: {'code': -32000, 'message': 'log query timed out'}\", \"https://rpc.testnet.chain.robinhood.com/rpc 90000000-94999999: eth_getLogs https://rpc.testnet.chain.robinhood.com/rpc failed: <urlopen error _ssl.c:993: The handshake operation timed out>\", \"https://rpc.testnet.chain.robinhood.com/rpc 90000000-94999999: eth_getLogs https://rpc.testnet.chain.robinhood.com/rpc failed: <urlopen error _ssl.c:993: The handshake operation timed out>\"]"
+  },
+  "retryPolicy": "6 attempts; last two failures were SSL handshake timeouts after a log query timeout. Not retrying further in this window.",
+  "safety": {
+    "writesSqlite": false,
+    "broadcastsTransaction": false
+  },
+  "nextAction": "Wait for a stable RPC window, then rerun refresh_robinhood_v4_live.py --network robinhood-testnet --chain-id 46630 --candidate-backfill, followed by collect_robinhood_v4_backfill_evidence.py --sqlite-only."
+}

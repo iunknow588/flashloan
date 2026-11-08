@@ -36,25 +36,11 @@ V4_CONTRACT_KEYS = (
 )
 
 OFFICIAL_V4_SOURCE_URLS = {
-    "v4_pool_manager": (
-        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
-        "v4-core/0.4.0/UniswapV4PoolManager.json"
-    ),
-    "v4_quoter": (
-        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
-        "v4-periphery/0.4.0/Quoter.json"
-    ),
-    "position_manager": (
-        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
-        "v4-periphery/0.4.0/PositionManager.json"
-    ),
-    "permit2": (
-        "https://docs.uniswap.org/contracts/permit2/addresses"
-    ),
-    "universal_router": (
-        "https://raw.githubusercontent.com/uniswap/v4-deployments/main/"
-        "v4-periphery/0.4.0/UniversalRouter.json"
-    ),
+    "v4_pool_manager": "https://docs.uniswap.org/contracts/v4/deployments",
+    "v4_quoter": "https://docs.uniswap.org/contracts/v4/deployments",
+    "position_manager": "https://docs.uniswap.org/contracts/v4/deployments",
+    "permit2": "https://docs.uniswap.org/contracts/v4/deployments",
+    "universal_router": "https://docs.uniswap.org/contracts/v4/deployments",
 }
 
 

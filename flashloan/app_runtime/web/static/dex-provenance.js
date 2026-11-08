@@ -19,6 +19,7 @@
     if (includes(current.staticFrameworkSources, value)) return current.staticFrameworkLabel || "静态框架";
     if (value === normalize(current.candidateFrameworkSource)) return current.candidateFrameworkLabel || "候选框架";
     if (value === normalize(current.computedFrameworkSource)) return current.computedFrameworkLabel || "链上重算";
+    if (includes(current.managerFrameworkSources, value)) return current.managerFrameworkLabel || "管理模块闭环";
     return String(source || "-");
   }
 

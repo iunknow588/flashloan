@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "flashloan-plan-runtime-evidence-v1",
+  "taskId": "D9.39",
+  "milestone": "M9",
+  "title": "Broadcast failure audit page projection switched to Broadcast Manager",
+  "status": "passed",
+  "date": "2026-11-06",
+  "scope": {
+    "route": "/api/dex/closed-loop-broadcast-failures",
+    "page": "/dex/submissions",
+    "managerView": "/v1/broadcasts",
+    "managerFilter": {
+      "status": "failed"
+    },
+    "legacyEvidenceReadRemoved": true,
+    "urlPreserved": true,
+    "pageStructurePreserved": true,
+    "zeroLimitCompatibility": {
+      "routeBehavior": "returns an empty record list",
+      "managerMinimumLimit": 1,
+      "projectionRule": "query Manager with limit=1, then truncate mapped records to zero"
+    },
+    "responseFieldsPreserved": [
+      "ok",
+      "mode",
+      "available",
+      "recordCount",
+      "records",
+      "records[].groupKey",
+      "records[].routePath",
+      "records[].broadcastError",
+      "records[].selectedProfitRaw"
+    ]
+  },
+  "implementation": {
+    "newModule": "flashloan/app_runtime/web/data_routes/manager_broadcast_failure_payload.py",
+    "compatibilityFacade": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeModule": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "managerAuthority": "broadcast_manager",
+    "failClosed": true,
+    "legacyFallback": false
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "python -m py_compile manager_broadcast_failure_payload.py manager_page_compare.py dex_surface_routes_ops.py test_manager_page_compare.py test_architecture_guards.py test_web_app_assembly_dex_records.py",
+        "exitCode": 0
+      },
+      {
+        "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_architecture_guards.py flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+        "exitCode": 0,
+        "summary": "130 passed in 33.67s"
+      },
+      {
+        "command": "python -m json.tool logs/plan/runtime_evidence/reports/d9_39_broadcast_failure_manager_projection_20261106.json",
+        "exitCode": 0,
+        "summary": "Evidence JSON parsed successfully"
+      }
+    ],
+    "legacySymbolScan": {
+      "command": "rg -n broadcast_failure_audit|load_broadcast_failure_audit_records|broadcast_failure_audit_path over route and manager projection",
+      "matchesInRoute": 0,
+      "matchesInManagerProjection": 0
+    }
+  },
+  "safety": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "migrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmitted": false,
+    "transactionSigned": false,
+    "transactionBroadcast": false,
+    "historicalEvidenceModified": false
+  }
+}

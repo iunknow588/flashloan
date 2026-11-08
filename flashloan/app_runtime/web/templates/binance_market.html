@@ -105,6 +105,7 @@
     .review-group-note { margin-bottom: 8px; font-size: 12px; color: #667085; }
     @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body>
   <header>
@@ -308,6 +309,23 @@
         </table>
         <div id="aavePager" class="review-pager"></div>
       </div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>Rust BNB 行情存储</h2>
+      <div id="bnbRustStoreMeta" class="context">等待加载</div>
+      <div class="grid">
+        <div class="card"><small>采集间隔</small><strong id="bnbCollectorInterval">-</strong><span id="bnbCollectorStatus">-</span></div>
+        <div class="card"><small>采集次数</small><strong id="bnbCollectorCount">-</strong><span id="bnbCollectorFailed">-</span></div>
+        <div class="card"><small>BNB 最新快照</small><strong id="bnbLatestPrice">-</strong><span id="bnbSnapshotAt">-</span></div>
+        <div class="card"><small>行情观察记录</small><strong id="bnbObservationCount">-</strong><span id="bnbObservationSources">-</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>时间</th><th>Source</th><th>轮次</th><th>路径/周期数</th><th>成功报价</th><th>成本前盈利</th></tr></thead>
+          <tbody id="bnbObservationBody"></tbody>
+        </table>
+      </div>
+      <div id="bnbRustStoreNote" class="context"></div>
     </section>
   </main>
     <script src="/static/binance_market_helpers.js"></script>

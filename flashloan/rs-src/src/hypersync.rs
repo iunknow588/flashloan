@@ -84,11 +84,6 @@ pub async fn query_logs(
                 })
                 .collect::<Vec<_>>();
             Ok(Log {
-                address: item
-                    .get("address")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_lowercase(),
                 topics,
                 data: item
                     .get("data")
@@ -107,10 +102,6 @@ pub async fn query_logs(
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_lowercase(),
-                log_index: item
-                    .get("log_index")
-                    .and_then(Value::as_u64)
-                    .or_else(|| item.get("logIndex").and_then(Value::as_u64)),
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -144,15 +135,7 @@ pub async fn query_all_logs(
     let mut cursor = from_block;
     while cursor <= to_block {
         let page = query_logs(
-            client,
-            endpoint,
-            token,
-            address,
-            topic0,
-            topic1,
-            topic2,
-            cursor,
-            to_block,
+            client, endpoint, token, address, topic0, topic1, topic2, cursor, to_block,
         )
         .await?;
         all_logs.extend(page.logs);

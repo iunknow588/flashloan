@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import re
+from typing import Any
 
 from flask import request
 
@@ -26,6 +28,95 @@ DEX_QUOTE_PROTOCOLS = {
 }
 
 MAX_CANDIDATE_PAGE_SIZE = 1000
+_UNRESOLVED_PLACEHOLDER_SYMBOL_RE = re.compile(r"0X[0-9A-F]{6,8}")
+
+
+def _placeholder_symbol(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    normalized = text.upper()
+    return text if _UNRESOLVED_PLACEHOLDER_SYMBOL_RE.fullmatch(normalized) else ""
+
+
+def _sibling_address(parent: Any, key: str) -> str:
+    if not isinstance(parent, dict):
+        return ""
+    direct_keys = (
+        "token0",
+        "token1",
+        "currency0",
+        "currency1",
+        "address",
+        "asset",
+        "tokenAddress",
+        "token0Address",
+        "token1Address",
+    )
+    value = parent.get(key.replace("Symbol", "").replace("symbol", "address"))
+    if isinstance(value, str) and len(value) == 42 and value.lower().startswith("0x"):
+        return value
+    for candidate in direct_keys:
+        value = parent.get(candidate)
+        if isinstance(value, str) and len(value) == 42 and value.lower().startswith("0x"):
+            return value
+    return ""
+
+
+def mask_dex_surface_placeholder_symbols(payload: Any) -> Any:
+    """Replace unresolved 0X placeholder symbols at the API boundary.
+
+    The SQLite pool_key JSON keeps the raw on-chain ERC20 symbol for tokens
+    that were never resolved.  Those values are displayed as
+    ``UNRESOLVED:<address[:10]>`` so the page never presents a placeholder as
+    a real symbol.
+    """
+
+    placeholder_cache: dict[str, str] = {}
+    node_memo: dict[int, Any] = {}
+
+    def _cached_placeholder(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+        text = value.strip()
+        if not text or len(text) < 8 or len(text) > 10:
+            return ""
+        if not (text.startswith("0x") or text.startswith("0X")):
+            return ""
+        cached = placeholder_cache.get(text)
+        if cached is None:
+            cached = text if _UNRESOLVED_PLACEHOLDER_SYMBOL_RE.fullmatch(text.upper()) else ""
+            placeholder_cache[text] = cached
+        return cached
+
+    def _mask(node: Any) -> Any:
+        if isinstance(node, dict):
+            node_id = id(node)
+            cached = node_memo.get(node_id)
+            if cached is not None:
+                return cached
+            masked = {
+                key: (
+                    "UNRESOLVED:"
+                    + (_sibling_address(node, key)[:10] or "unknown")
+                    if _cached_placeholder(value)
+                    else _mask(value)
+                )
+                for key, value in node.items()
+            }
+            node_memo[node_id] = masked
+            return masked
+        if isinstance(node, list):
+            node_id = id(node)
+            cached = node_memo.get(node_id)
+            if cached is not None:
+                return cached
+            masked = [_mask(value) for value in node]
+            node_memo[node_id] = masked
+            return masked
+        return node
+
+    return _mask(payload)
 
 
 def _number_like(value: object) -> int:
@@ -249,7 +340,7 @@ def _request_chain_selection_or_default() -> dict | None:
         except ImportError:
             return None
         try:
-            database_url = shared.panel_call("database_url_or_none")
+            database_url = shared.panel_call("database_url")
         except Exception:
             database_url = None
         try:
@@ -326,10 +417,16 @@ def attach_dex_strategy(payload: dict) -> dict:
         "/api/dex/quote-routes": "dex_quote_routes",
         "/api/dex/quote-request": "dex_quote_request",
         "/api/dex/submissions": "dex_submission_review",
+        "/api/dex/submissions/review": "dex_submission_review_records",
+        "/api/dex/submissions/review-success": "dex_submission_review_success_records",
+        "/api/dex/submissions/review-failed": "dex_submission_review_failed_records",
+        "/api/dex/submissions/execution-success": "dex_submission_execution_success_records",
+        "/api/dex/submissions/execution-failed": "dex_submission_execution_failed_records",
         "/api/dex-pools/candidates": "dex_pool_candidates",
         "/api/dex-pools/candidates/refresh": "dex_pool_candidates",
     }
     payload.setdefault("mode", mode_by_path.get(request.path, ""))
+    payload.setdefault("dataSource", "legacy")
     payload["dex_strategy"] = request_dex_strategy_arg()
     return payload
 
@@ -344,6 +441,7 @@ __all__ = [
     "attach_dex_strategy",
     "chain_flow_protocol",
     "dex_surface_payload_for_chain",
+    "mask_dex_surface_placeholder_symbols",
     "overview_response_payload",
     "paginate_candidate_payload",
     "request_dex_protocols_arg",

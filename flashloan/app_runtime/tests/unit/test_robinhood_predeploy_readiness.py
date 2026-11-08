@@ -238,7 +238,7 @@ def test_predeploy_readiness_chain_test_plan_build_prefers_trigger_block_attempt
         picked["triggerBlockNumber"] = attempt.get("quote", {}).get("live_onchain_evidence", {}).get("triggerBlockNumber")
         return {"plan": {"sentinel": True}}
 
-    monkeypatch.setattr(predeploy_checker, "load_recent_cow_execution_attempts_jsonl", fake_loader)
+    monkeypatch.setattr(predeploy_checker, "load_recent_cow_execution_attempts_source", fake_loader)
     monkeypatch.setattr(predeploy_checker, "chain_test_package_flow", fake_package_flow)
 
     plan = predeploy_checker._build_chain_test_plan_from_local_attempts(plan_path, chain_json)

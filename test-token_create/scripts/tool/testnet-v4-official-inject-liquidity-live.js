@@ -1,6 +1,6 @@
 const path = require("path");
 const fs = require("fs");
-const { ethers, artifacts } = require("../lib/hardhat");
+const { ethers, artifacts, network } = require("../lib/hardhat");
 const v4Liquidity = require("../lib/v4-liquidity-common");
 const poolKeyHelper = require("./v4-official-pool-keys");
 
@@ -54,9 +54,11 @@ function readArg(name, fallback) {
 }
 
 function readBoolArg(name, fallback) {
-  const value = readArg(name, "");
-  if (value) return value === "true" || value === "1" || value === "yes";
-  return fallback;
+  const idx = process.argv.indexOf(`--${name}`);
+  if (idx < 0) return fallback;
+  const value = process.argv[idx + 1];
+  if (value === undefined || value.startsWith("--")) return true;
+  return value === "true" || value === "1" || value === "yes" || value === "on";
 }
 
 const PAIRS = [
@@ -92,6 +94,16 @@ function toToken(value) {
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
+}
+
+function assertExpectedChain(expectedChainId) {
+  const actual = Number(network.config?.chainId || network.name || 0);
+  if (actual !== Number(expectedChainId)) {
+    throw new Error(
+      `network guard failed: current chainId=${actual}, expected=${expectedChainId}; ` +
+      "run under the correct hardhat --network"
+    );
+  }
 }
 
 function writeManifest(manifest) {
@@ -249,6 +261,9 @@ async function logOwnerBalance(owner, token, label) {
 }
 
 async function main() {
+  assertExpectedChain(
+    process.env.ROBINHOOD_TESTNET_CHAIN_ID || process.env.FLASHLOAN_CHAIN_ID || 46630
+  );
   const allowBroadcast = readBoolArg(
     "broadcast",
     process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST === "true"

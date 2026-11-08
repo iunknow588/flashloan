@@ -29,6 +29,50 @@ def _clear_dex_auto_execute_env():
 
 
 @pytest.fixture(autouse=True)
+def _clear_rust_closed_loop_flag():
+    key = "DEX_CLOSED_LOOP_NATIVE_RUST"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    yield
+    if previous is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = previous
+
+
+@pytest.fixture(autouse=True)
+def _disable_background_dex_opportunity_threads():
+    key = "DEX_OPPORTUNITY_SCANNER_BACKGROUND_ENABLED"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    yield
+    if previous is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = previous
+
+
+@pytest.fixture(autouse=True)
+def _disable_dex_rpc_rate_limit():
+    key = "DEX_RPC_MIN_INTERVAL_SECONDS"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    try:
+        from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+            reset_dex_rpc_rate_limit_for_tests,
+        )
+
+        reset_dex_rpc_rate_limit_for_tests()
+        yield
+    finally:
+        reset_dex_rpc_rate_limit_for_tests()
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+@pytest.fixture(autouse=True)
 def _stop_global_dex_opportunity_scanner():
     yield
     try:

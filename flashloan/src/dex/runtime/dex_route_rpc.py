@@ -12,6 +12,10 @@ from core.chain_data_registry import chain_data_by_chain_id
 from core.rs_bridge import load_v4_receipt, rust_available
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    clear_v4_rpc_offline,
+    mark_v4_rpc_offline,
+)
 
 
 def fetch_dex_tx_receipt(*, chain_id: int, tx_hash: str) -> dict[str, Any]:
@@ -147,19 +151,9 @@ def _probe_robinhood_family_rpc(chain_id: int) -> tuple[str, int]:
     connection-refused failures before an official route test starts.
     """
     chain_id = int(chain_id)
-    if chain_id == ROBINHOOD_CHAIN_ID:
-        urls = robinhood.rpc_urls_from_env()
-    elif chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
-        urls = robinhood.testnet_rpc_urls_from_env()
-    else:
-        urls = []
+    urls = robinhood_family_rpc_urls(chain_id)
     if not urls:
-        row = chain_data_by_chain_id(chain_id) or {}
-        urls = [str(url).strip() for url in row.get("rpc_urls") or [] if str(url).strip()]
-        rpc_url = str(row.get("rpc_url") or "").strip()
-        if rpc_url:
-            urls.append(rpc_url)
-    if not urls:
+        mark_v4_rpc_offline(chain_id, reason="no_rpc_urls")
         raise RuntimeError(f"Robinhood chain {chain_id} RPC unavailable: no RPC URLs configured")
     timeout = float(os.getenv("DEX_ONCHAIN_RPC_PROBE_TIMEOUT_SECONDS", "8") or 8)
     ssl_ctx = ssl.create_default_context()
@@ -195,11 +189,36 @@ def _probe_robinhood_family_rpc(chain_id: int) -> tuple[str, int]:
             returned_chain_id = int(str(values.get(1) or "0x0"), 16)
             block_number = int(str(values.get(2) or "0x0"), 16)
             if returned_chain_id == chain_id and block_number > 0:
+                clear_v4_rpc_offline(chain_id)
                 return url, block_number
             failures.append(f"{url}: chain/block mismatch chain={returned_chain_id} block={block_number}")
         except Exception as exc:
             failures.append(f"{url}: {exc}")
+    mark_v4_rpc_offline(chain_id, reason="rpc_probe_failed")
     raise RuntimeError(f"Robinhood chain {chain_id} RPC unavailable: " + "; ".join(failures[:5]))
+
+
+def robinhood_family_rpc_urls(chain_id: int) -> list[str]:
+    """Return deduplicated Robinhood-family RPC candidates for one chain."""
+    chain_id = int(chain_id)
+    if chain_id == ROBINHOOD_CHAIN_ID:
+        urls = robinhood.rpc_urls_from_env()
+    elif chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
+        urls = robinhood.testnet_rpc_urls_from_env()
+    else:
+        urls = []
+    if not urls:
+        row = chain_data_by_chain_id(chain_id) or {}
+        urls = [str(url).strip() for url in row.get("rpc_urls") or [] if str(url).strip()]
+        rpc_url = str(row.get("rpc_url") or "").strip()
+        if rpc_url:
+            urls.append(rpc_url)
+    deduped: list[str] = []
+    for url in urls:
+        value = str(url or "").strip()
+        if value and value not in deduped:
+            deduped.append(value)
+    return deduped
 
 
 def _probe_robinhood_testnet_rpc() -> tuple[str, int]:

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>复核成功记录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 28px; }
+    header { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border-bottom: 1px solid #d9dee7; flex-wrap: wrap; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 34px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .tabs a { display: inline-flex; align-items: center; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; min-height: 32px; border-radius: 999px; padding: 0 12px; text-decoration: none; }
+    .tabs a.active { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .muted, .metric span { color: #667085; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child, th:nth-child(3), td:nth-child(3) { text-align: left; }
+    td.left { text-align: left; }
+    td.route-cell { min-width: 300px; max-width: 460px; white-space: normal; line-height: 1.45; }
+    td.reason { max-width: 460px; white-space: normal; line-height: 1.45; }
+    code.tx { font-family: Consolas, "Courier New", monospace; font-size: 11px; }
+    .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
+    .badge.live { background: #dcfae6; color: #067647; }
+    .badge.static { background: #fff3cd; color: #8a6116; }
+    .badge.fail { background: #fee4e2; color: #b42318; }
+    .empty { text-align: center; color: #667085; padding: 28px; }
+    .pagination { display: flex; gap: 10px; align-items: center; margin-top: 14px; font-size: 13px; color: #344054; }
+    .pagination button { min-height: 30px; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; }
+    .pagination button:disabled { opacity: .45; cursor: not-allowed; }
+    @media (max-width: 860px) { header { display: flex; } nav { margin-top: 10px; width: 100%; } main, header { padding-left: 18px; padding-right: 18px; } }
+  </style>
+  <script src="/static/time_display.js"></script>
+</head>
+<body data-dex-surface-template="submissions_review_success">
+  <header>
+    <h1>复核成功记录</h1>
+    <nav>
+      <a data-surface-link data-record-kind="overview" href="/dex/submissions">提交记录总览</a>
+      <a data-surface-link data-record-kind="review-success" href="/dex/submissions/review-success" class="active">复核成功记录</a>
+      <a data-surface-link data-record-kind="review-failed" href="/dex/submissions/review-failed">复核失败记录</a>
+      <a data-surface-link data-record-kind="execution-success" href="/dex/submissions/execution-success">链上提交执行成功记录</a>
+      <a data-surface-link data-record-kind="execution-failed" href="/dex/submissions/execution-failed">链上提交执行失败记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn">刷新记录</button>
+      <span id="message" class="muted">等待记录</span>
+    </div>
+    <div class="tabs">
+      <a data-record-kind="overview" href="/dex/submissions">提交记录总览</a>
+      <a data-record-kind="review-success" href="/dex/submissions/review-success" class="active">复核成功记录</a>
+      <a data-record-kind="review-failed" href="/dex/submissions/review-failed">复核失败记录</a>
+      <a data-record-kind="execution-success" href="/dex/submissions/execution-success">链上提交执行成功记录</a>
+      <a data-record-kind="execution-failed" href="/dex/submissions/execution-failed">链上提交执行失败记录</a>
+    </div>
+    <section class="grid">
+      <div class="metric" data-record-summary><small>复核记录总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
+      <div class="metric" data-record-summary><small>当前窗口记录</small><strong id="pageAttemptCount">-</strong><span>当前 limit 窗口内加载的记录数</span></div>
+      <div class="metric" data-record-summary><small>本页有利润估算</small><strong id="profitCount">-</strong><span>净利/参考净利大于 0</span></div>
+      <div class="metric" data-record-summary><small>本页无利润估算</small><strong id="noProfitCount">-</strong><span>净利/参考净利不大于 0 或未估算</span></div>
+      <div class="metric" data-record-summary><small>唯一交易</small><strong id="uniqueTxCount">-</strong><span>成功/失败/阻断交易哈希去重</span></div>
+    </section>
+    <section class="grid">
+      <div class="metric" data-record-summary><small>闭环总数</small><strong id="closedLoopTotal">-</strong><span>状态机活动闭环，是主网闭环权威数量</span></div>
+      <div class="metric" data-record-summary><small>复核成功闭环</small><strong id="reviewSuccessLoops">-</strong><span>每个闭环最新复核为完成</span></div>
+      <div class="metric" data-record-summary><small>复核失败闭环</small><strong id="reviewFailedLoops">-</strong><span>每个闭环最新复核为失败</span></div>
+      <div class="metric" data-record-summary><small>复核延迟闭环</small><strong id="reviewDeferredLoops">-</strong><span>最新复核为 RPC busy/延迟</span></div>
+      <div class="metric" data-record-summary><small>无复核闭环</small><strong id="reviewMissingLoops">-</strong><span>有闭环状态但缺少最新复核记录</span></div>
+      <div class="metric" data-record-summary><small>广播闭环</small><strong id="broadcastLoops">-</strong><span>已产生真实链上执行记录的闭环</span></div>
+      <div class="metric" data-record-summary><small>缺失广播终态</small><strong id="missingBroadcast">-</strong><span>已请求广播但无结果的闭环</span></div>
+      <div class="metric" data-record-summary><small>提交成功总次数</small><strong id="submissionSuccessTotal">-</strong><span>全部闭环累计成功提交次数</span></div>
+      <div class="metric" data-record-summary><small>提交失败总次数</small><strong id="submissionFailedTotal">-</strong><span>全部闭环累计提交失败次数</span></div>
+      <div class="metric" data-record-summary><small>执行成功总次数</small><strong id="executionSuccessTotal">-</strong><span>全部闭环累计执行成功次数</span></div>
+      <div class="metric" data-record-summary><small>执行失败总次数</small><strong id="executionFailedTotal">-</strong><span>全部闭环累计执行失败次数</span></div>
+    </section>
+    <section class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead id="recordHead">
+            <tr>
+              <th>时间</th>
+              <th>网络</th>
+              <th>路径</th>
+              <th>利润估算</th>
+              <th>复核结论</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="prevPageBtn" type="button">上一页</button>
+        <span id="pageInfo">第 1 / 1 页</span>
+        <button id="nextPageBtn" type="button">下一页</button>
+      </div>
+    </section>
+  </main>
+  <script src="/static/dex_submission_records_config.js"></script>
+  <script src="/static/dex_submission_record_model.js"></script>
+  <script src="/static/dex_submission_record_render.js"></script>
+  <script src="/static/dex_submission_records.js"></script>
+  <script>
+    window.DexSubmissionRecordPage.init("review-success");
+  </script>
+</body>
+</html>

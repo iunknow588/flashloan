@@ -1,7 +1,8 @@
 const path = require("path");
 const fs = require("fs");
-const { ethers, artifacts } = require("../lib/hardhat");
+const { ethers, artifacts, network } = require("../lib/hardhat");
 const poolKeyHelper = require("./v4-official-pool-keys");
+const { matchesArtifactRuntime } = require("./official-v4-immutable-code");
 
 const MANIFEST_PATH = process.env.FLASHLOAN_MANIFEST_PATH
   ? path.resolve(process.env.FLASHLOAN_MANIFEST_PATH)
@@ -53,7 +54,20 @@ function safeKeys(keys) {
   }));
 }
 
+function assertExpectedChain(expectedChainId) {
+  const actual = Number(network.config?.chainId || network.name || 0);
+  if (actual !== Number(expectedChainId)) {
+    throw new Error(
+      `network guard failed: current chainId=${actual}, expected=${expectedChainId}; ` +
+      "run under the correct hardhat --network"
+    );
+  }
+}
+
 async function main() {
+  assertExpectedChain(
+    process.env.ROBINHOOD_TESTNET_CHAIN_ID || process.env.FLASHLOAN_CHAIN_ID || 46630
+  );
   if (process.env.ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST !== "true") {
     throw new Error("ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST must be true");
   }
@@ -92,26 +106,48 @@ async function main() {
     "pool-keys-json",
     process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_POOL_KEYS_JSON || ""
   );
-  const keys = poolKeyHelper.resolveRoutePoolKeys(
-    routeAddresses,
-    explicitPoolKeysJson,
-    { fee, tickSpacing, hooks }
-  );
-  const directions = [
-    zeroForOne(keys[0], routeAddresses[0]),
-    zeroForOne(keys[1], routeAddresses[1]),
-    zeroForOne(keys[2], routeAddresses[2]),
+  const buildKeys = (groupRouteAddresses) =>
+    poolKeyHelper.resolveRoutePoolKeys(
+      groupRouteAddresses,
+      explicitPoolKeysJson,
+      { fee, tickSpacing, hooks }
+    );
+  const directionsFor = (groupKeys, groupRouteAddresses) => [
+    zeroForOne(groupKeys[0], groupRouteAddresses[0]),
+    zeroForOne(groupKeys[1], groupRouteAddresses[1]),
+    zeroForOne(groupKeys[2], groupRouteAddresses[2]),
   ];
-  const reverseKeys = [keys[2], keys[1], keys[0]];
-  const reverseDirections = [!directions[2], !directions[1], !directions[0]];
-  const keysets = [keys, reverseKeys];
-  const directionsets = [directions, reverseDirections];
+  const keys = buildKeys(routeAddresses);
+  const directions = directionsFor(keys, routeAddresses);
+  const keysets = [keys];
+  const directionsets = [directions];
+  const reverseSymbols = [symbols[0], symbols[2], symbols[1], symbols[0]];
+  const includeReverse = String(
+    readArg("both", process.env.ROBINHOOD_TESTNET_COMPOSER_BOTH || "1")
+  ).trim().toLowerCase();
+  if (
+    includeReverse !== "0"
+    && includeReverse !== "false"
+    && includeReverse !== "no"
+    && !explicitPoolKeysJson
+  ) {
+    const reverseAddresses = [
+      routeAddresses[0],
+      routeAddresses[2],
+      routeAddresses[1],
+      routeAddresses[0],
+    ];
+    const reverseKeys = buildKeys(reverseAddresses);
+    const reverseDirections = directionsFor(reverseKeys, reverseAddresses);
+    keysets.push(reverseKeys);
+    directionsets.push(reverseDirections);
+  }
 
   console.log("official V4 composer route:");
   console.log(`  poolManager=${poolManagerAddress}`);
   console.log(`  executor=${executorAddress}`);
   console.log(`  route=${symbols.join(" -> ")}`);
-  console.log(`  directions=${directions.join(",")}`);
+  console.log(`  groups=${keysets.length} directions=${directionsets.map(group => group.join(",")).join(" | ")}`);
 
   const Token = (address) => new ethers.Contract(address, ERC20_ABI, owner);
   for (const [index, address] of routeAddresses.entries()) {
@@ -126,22 +162,72 @@ async function main() {
   const forceRedeploy =
     process.env.ROBINHOOD_TESTNET_OFFICIAL_COMPOSER_FORCE_REDEPLOY === "true" ||
     process.argv.includes("--force-redeploy");
+  const deployOnly =
+    process.env.ROBINHOOD_TESTNET_OFFICIAL_COMPOSER_DEPLOY_ONLY === "true" ||
+    process.argv.includes("--deploy-only");
   let existingBytecode = "0x";
   if (existingComposer) {
     existingBytecode = String(await ethers.provider.getCode(existingComposer)).toLowerCase();
   }
 
-  let composer;
+  let composer = null;
   if (existingComposer && existingBytecode !== "0x" && !forceRedeploy) {
     composer = await ethers.getContractAt("ArbitrageComposer", existingComposer);
+    if (!matchesArtifactRuntime(expectedBytecode, existingBytecode)) {
+      console.warn("warning: existing ArbitrageComposer does not match local artifact; a redeploy is required");
+      composer = null;
+    } else {
+      const actualExecutor = await composer.executor();
+      if (String(actualExecutor).toLowerCase() !== executorAddress.toLowerCase()) {
+        console.warn(
+          `warning: existing ArbitrageComposer executor=${actualExecutor} does not match officialV4.arb=${executorAddress}`
+        );
+        composer = null;
+      }
+    }
+  }
+  if (composer === null) {
+    if (process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_COMPOSER_BROADCAST === "true" || process.argv.includes("--broadcast") || forceRedeploy) {
+      composer = await ComposerFactory.deploy(poolManagerAddress, executorAddress);
+      await composer.waitForDeployment();
+      const deployedComposer = await composer.getAddress();
+      const deployedCode = String(await ethers.provider.getCode(deployedComposer)).toLowerCase();
+      manifest.officialV4 = manifest.officialV4 || {};
+      manifest.officialV4.composer = deployedComposer;
+      manifest.officialV4.composerCode = deployedCode;
+      manifest.officialV4.composerAuthority = {
+        address: deployedComposer,
+        evidenceType: "official_v4_custom_contracts_code_check",
+        source: "flashloan/src/runtime/evidence/robinhood-testnet/official_v4_custom_contracts/latest.json",
+        checkedAt: new Date().toISOString(),
+        codeBytes: (deployedCode.length - 2) / 2,
+        status: "present",
+      };
+      fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+      console.log(`deployed ArbitrageComposer=${deployedComposer}`);
+      if (deployOnly) {
+        console.log(
+          "\nOFFICIAL_V4_COMPOSER_RESULT_JSON " +
+            JSON.stringify({
+              ok: true,
+              detail: "deploy_only_complete",
+              composer: deployedComposer,
+              executor: executorAddress,
+              poolManager: poolManagerAddress,
+              codeBytes: (deployedCode.length - 2) / 2,
+              broadcastDisabled: true,
+            })
+        );
+        return;
+      }
+    } else {
+      throw new Error(
+        "ArbitrageComposer is missing, stale, or points to a different executor; " +
+        "run with ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_COMPOSER_BROADCAST=true or --broadcast to redeploy"
+      );
+    }
+  } else if (composer) {
     console.log(`using existing ArbitrageComposer=${existingComposer}`);
-  } else if (process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_COMPOSER_BROADCAST === "true" || process.argv.includes("--broadcast") || forceRedeploy) {
-    composer = await ComposerFactory.deploy(poolManagerAddress, executorAddress);
-    await composer.waitForDeployment();
-    manifest.officialV4 = manifest.officialV4 || {};
-    manifest.officialV4.composer = await composer.getAddress();
-    fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n", "utf8");
-    console.log(`deployed ArbitrageComposer=${manifest.officialV4.composer}`);
   } else {
     throw new Error("ArbitrageComposer not deployed; run with ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_COMPOSER_BROADCAST=true or --broadcast first");
   }
@@ -195,7 +281,7 @@ async function main() {
     result[3]
   );
   const routeIndex = Number(decoded[4]);
-  const selectedSymbols = routeIndex === 0 ? symbols : [symbols[0], symbols[2], symbols[1], symbols[0]];
+  const selectedSymbols = routeIndex === 0 ? symbols : reverseSymbols;
   const selectedKeys = result[4];
   const selectedDirections = result[5];
 

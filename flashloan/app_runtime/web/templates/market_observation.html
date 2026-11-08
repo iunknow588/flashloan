@@ -139,6 +139,10 @@
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const list = value => Array.isArray(value) ? value : [];
+    const compact = (value, max = 32) => {
+      const text = String(value ?? "");
+      return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+    };
     const OBSERVATION_POOL_PREVIEW_LIMIT = 80;
     const MARKET_PAGER_SIZE = 20;
     const marketObservationPages = {};
@@ -202,8 +206,25 @@
       return data;
     }
 
-    async function postJson(path) {
-      const response = await fetch(apiPath(path), { method: "POST", cache: "no-cache", headers: { "Accept": "application/json" } });
+    function requestToken(prefix) {
+      const random = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      return `${prefix}:${random}`;
+    }
+
+    async function postJson(path, payload = {}) {
+      const response = await fetch(apiPath(path), {
+        method: "POST",
+        cache: "no-cache",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-Request-Id": requestToken("ui-market-observation-refresh"),
+          "Idempotency-Key": requestToken("ui-market-observation-refresh"),
+        },
+        body: JSON.stringify(payload),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.refresh_state?.message || `HTTP ${response.status}`);
       return data;
@@ -232,15 +253,22 @@
     }
 
     function poolLabelText(pool) {
-      const symbolPair = pool?.symbolPair
-        || [pool?.token0Symbol, pool?.token1Symbol].filter(Boolean).join(":")
-        || "";
+      const tokenLabels = [];
+      for (let index = 0; index <= 1; index += 1) {
+        const symbol = pool?.[`token${index}Symbol`] || "";
+        const name = pool?.[`token${index}Name`] || "";
+        const nameResolved = pool?.[`token${index}NameResolved`] !== false
+          && !pool?.[`token${index}NameMissing`];
+        const label = nameResolved && name ? `${symbol}·${name}` : symbol;
+        if (label) tokenLabels.push(label);
+      }
+      const symbolPair = pool?.symbolPair || tokenLabels.join(":") || "";
       const venue = String(pool?.dex || pool?.protocol || "uniswap_v4").replace(/_/g, " ");
       const poolId = shortAddress(pool?.pool || pool?.poolId || "");
       if (symbolPair) {
-        return poolId ? `${venue} ${symbolPair} ${poolId}` : `${venue} ${symbolPair}`;
+        return compact(poolId ? `${venue} ${symbolPair} ${poolId}` : `${venue} ${symbolPair}`, 72);
       }
-      return poolId || "-";
+      return compact(poolId || "-", 48);
     }
 
     function poolBadgeHtml(pool) {
@@ -254,7 +282,8 @@
       const roleBadge = roleLabel
         ? `<span class="badge ${role === "backup" ? "warn" : "good"}">${esc(roleLabel)}</span>`
         : "";
-      return `${roleBadge}<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${esc(hookText)}</span>`;
+      const tokenStatuses = `${poolTokenStatusBadge(pool, 0)}${poolTokenStatusBadge(pool, 1)}`;
+      return `${roleBadge}<span class="badge ${cls}" title="${esc(title)}">${esc(poolLabelText(pool))} / ${marketFeeText(pool)} / ${marketLiquidityText(pool)}${esc(hookText)}</span>${tokenStatuses}`;
     }
 
     function associatedPoolFallbackHtml(row) {
@@ -276,6 +305,58 @@
       return symbols.map(symbol => `<span class="badge neutral">${esc(symbol)}</span>`).join("") || '<span class="badge neutral">-</span>';
     }
 
+    function tokenLabelText(token) {
+      const symbol = token?.symbol || token?.counterSymbol || "-";
+      const name = token?.name || token?.counterName || "";
+      const nameResolved = token?.nameResolved == null
+        ? (token?.counterNameResolved !== false)
+        : Boolean(token?.nameResolved);
+      const nameMissing = token?.nameMissing != null
+        ? Boolean(token?.nameMissing)
+        : (token?.counterNameMissing || nameResolved === false);
+      return nameResolved && name && !nameMissing ? `${symbol}·${name}` : symbol;
+    }
+
+    function tokenStatusBadge(token) {
+      const symbolResolved = token?.symbolResolved == null
+        ? (token?.counterSymbolResolved !== false)
+        : Boolean(token?.symbolResolved);
+      const nameMissing = token?.nameMissing != null
+        ? Boolean(token?.nameMissing)
+        : (token?.counterNameMissing || token?.nameResolved === false || token?.counterNameResolved === false);
+      if (symbolResolved === false) {
+        const fallback = token?.nameFallbackSymbol || token?.counterNameFallbackSymbol || token?.symbol || token?.counterSymbol || "-";
+        const symbolBadge = `<span class="badge reject" title="${esc(`代币符号未解析：${token?.rawSymbol || token?.counterSymbolRaw || token?.symbol || "-"}`)}">SYMBOL UNRESOLVED</span>`;
+        if (nameMissing) {
+          return symbolBadge + `<span class="badge warn" title="${esc(`名称缺失，当前使用符号兜底：${fallback}`)}">NAME MISSING</span>`;
+        }
+        return symbolBadge;
+      }
+      if (nameMissing) {
+        const fallback = token?.nameFallbackSymbol || token?.counterNameFallbackSymbol || token?.symbol || token?.counterSymbol || "-";
+        return `<span class="badge warn" title="${esc(`名称缺失，当前使用符号兜底：${fallback}`)}">NAME MISSING</span>`;
+      }
+      return "";
+    }
+
+    function tokenBadgeHtml(token) {
+      return `<span class="badge neutral" title="${esc(token?.address || "-")}">${esc(compact(tokenLabelText(token), 36))}</span>${tokenStatusBadge(token)}`;
+    }
+
+    function poolTokenStatusBadge(pool, index) {
+      const token = {
+        symbol: pool?.[`token${index}Symbol`],
+        name: pool?.[`token${index}Name`],
+        symbolResolved: pool?.[`token${index}SymbolResolved`],
+        nameResolved: pool?.[`token${index}NameResolved`],
+        nameMissing: pool?.[`token${index}NameMissing`],
+        nameFallbackSymbol: pool?.[`token${index}NameFallbackSymbol`],
+        symbolRaw: pool?.[`token${index}SymbolRaw`],
+        address: pool?.[`token${index}`],
+      };
+      return tokenStatusBadge(token);
+    }
+
     function associatedPairsFromPools(pools) {
       const grouped = new Map();
       list(pools).forEach(pool => {
@@ -285,8 +366,28 @@
           grouped.set(key, {
             symbolPair: pool?.symbolPair || "-",
             addressPair: key,
-            token0: { symbol: pool?.token0Symbol, address: pool?.token0, associatedFunds: pool?.token0AssociatedFunds },
-            token1: { symbol: pool?.token1Symbol, address: pool?.token1, associatedFunds: pool?.token1AssociatedFunds },
+            token0: {
+              symbol: pool?.token0Symbol,
+              name: pool?.token0Name,
+              symbolResolved: pool?.token0SymbolResolved,
+              nameResolved: pool?.token0NameResolved,
+              nameMissing: pool?.token0NameMissing,
+              nameFallbackSymbol: pool?.token0NameFallbackSymbol,
+              rawSymbol: pool?.token0SymbolRaw,
+              address: pool?.token0,
+              associatedFunds: pool?.token0AssociatedFunds,
+            },
+            token1: {
+              symbol: pool?.token1Symbol,
+              name: pool?.token1Name,
+              symbolResolved: pool?.token1SymbolResolved,
+              nameResolved: pool?.token1NameResolved,
+              nameMissing: pool?.token1NameMissing,
+              nameFallbackSymbol: pool?.token1NameFallbackSymbol,
+              rawSymbol: pool?.token1SymbolRaw,
+              address: pool?.token1,
+              associatedFunds: pool?.token1AssociatedFunds,
+            },
             associatedFundSymbols: [],
             poolCount: 0,
             pools: [],
@@ -375,6 +476,29 @@
       return value || "关联观察交易对";
     }
 
+    function directionTokenObject(direction, side) {
+      const direct = direction?.[side] || {};
+      const isToken0 = side === "token0";
+      return {
+        symbol: direct?.symbol || (isToken0 ? direction?.anchorSymbol : direction?.counterSymbol) || "-",
+        name: direct?.name || (isToken0 ? direction?.anchorName : direction?.counterName) || "",
+        nameResolved: direct?.nameResolved != null
+          ? Boolean(direct?.nameResolved)
+          : Boolean(isToken0 ? direction?.anchorNameResolved : direction?.counterNameResolved),
+        nameMissing: direct?.nameMissing != null
+          ? Boolean(direct?.nameMissing)
+          : Boolean(isToken0 ? direction?.anchorNameMissing : direction?.counterNameMissing),
+        nameFallbackSymbol: direct?.nameFallbackSymbol || (isToken0 ? direction?.anchorNameFallbackSymbol : direction?.counterNameFallbackSymbol) || "",
+        symbolResolved: direct?.symbolResolved != null
+          ? Boolean(direct?.symbolResolved)
+          : Boolean(isToken0 ? direction?.anchorSymbolResolved : direction?.counterSymbolResolved),
+        rawSymbol: direct?.rawSymbol || "",
+        symbolRaw: direct?.symbolRaw || "",
+        counterSymbolRaw: direct?.counterSymbolRaw || "",
+        address: direct?.address || (isToken0 ? direction?.anchorAddress : direction?.counterAddress) || "",
+      };
+    }
+
     function associatedPairHtml(row) {
       const pools = list(row?.pools);
       const directSwapPools = list(row?.directSwapPools).length ? list(row?.directSwapPools) : pools;
@@ -391,13 +515,15 @@
         const token0Funds = list(direction?.token0?.associatedFunds || direction?.token0AssociatedFunds);
         const token1Funds = list(direction?.token1?.associatedFunds || direction?.token1AssociatedFunds);
         const prefix = directions.length > 1 ? `方向 ${index + 1}：` : "";
-        return `<div class="meta-line">${esc(prefix)}起点/终点资金池 ${esc(anchorSymbol)}；Y=${esc(direction?.token0?.symbol || "-")} 关联 ${fundListHtml(token0Funds)}；Z=${esc(direction?.token1?.symbol || "-")} 关联 ${fundListHtml(token1Funds)}。</div>`;
+        const yBadge = tokenBadgeHtml(directionTokenObject(direction, "token0"));
+        const zBadge = tokenBadgeHtml(directionTokenObject(direction, "token1"));
+        return `<div class="meta-line">${esc(prefix)}起点/终点资金池 ${esc(anchorSymbol)}；Y=${yBadge} 关联 ${fundListHtml(token0Funds)}；Z=${zBadge} 关联 ${fundListHtml(token1Funds)}。</div>`;
       }).join("");
       return `<div class="route-card">
         <div class="route-head">
           <div class="route-title">
             <strong>Y-Z 交易对：${esc(row?.symbolPair || "-")}</strong>
-            <div class="route-subtitle">资金池 ${esc(anchorSymbol)} · ${esc(row?.addressPair || "-")} · ${esc(reasonText(row?.observationReason))}</div>
+            <div class="route-subtitle">资金池 ${esc(anchorSymbol)} · ${esc(row?.addressPair || "-")} · ${esc(reasonText(row?.observationReason))}；交易对按方向展示，资金池标签按 token0:token1 物理顺序</div>
           </div>
           <div class="chip-row">
             <span class="chip">${esc(anchorSymbol)}<small>资金池</small></span>
@@ -474,8 +600,8 @@
           </div>
         </div>
         <div class="route-pairs">
-          <div class="pair-line"><strong>${esc(row?.token0Symbol || "-")}</strong><div class="pool-list">${fundListHtml(token0Funds)}</div></div>
-          <div class="pair-line"><strong>${esc(row?.token1Symbol || "-")}</strong><div class="pool-list">${fundListHtml(token1Funds)}</div></div>
+          <div class="pair-line"><strong>${esc(row?.token0Symbol || "-")}</strong>${poolTokenStatusBadge(row, 0)}<div class="pool-list">${fundListHtml(token0Funds)}</div></div>
+          <div class="pair-line"><strong>${esc(row?.token1Symbol || "-")}</strong>${poolTokenStatusBadge(row, 1)}<div class="pool-list">${fundListHtml(token1Funds)}</div></div>
         </div>
       </div>`;
     }
@@ -485,8 +611,8 @@
       if (!rows.length) return `<div class="empty">${esc(emptyText)}</div>`;
       return rows.map(token => {
         const pools = list(token?.pools);
-        const title = [token?.symbol, token?.address].filter(Boolean).join(" / ") || "-";
-        return `<span class="badge neutral" title="${esc(title)}">${esc(token?.symbol || "-")} ${esc(token?.poolCount || pools.length || 0)}</span>`;
+        const title = [token?.symbol, token?.name, token?.address].filter(Boolean).join(" / ") || "-";
+        return `${tokenBadgeHtml(token)}<span class="badge neutral" title="${esc(title)}">${esc(token?.poolCount || pools.length || 0)}</span>`;
       }).join("");
     }
 
@@ -668,7 +794,7 @@
           <div class="pair-line">
             <strong>中间一跳</strong>
             <div class="pool-list">
-              ${pagedBridgePoolGroups.map(bridgePoolGroupHtml).join("") || '<span class="badge neutral">暂无中间一跳池</span>'}
+              ${pagedBridgePoolGroups.map(bridgePoolGroupHtml).join("") || (state.reachable ? '<span class="badge warn">中间一跳池分组未返回，请刷新观察数据</span>' : '<span class="badge neutral">暂无中间一跳池</span>')}
             </div>
             ${marketPagerHtml(bridgePoolGroups.length, safeBridgePage, "bridge", group?.anchorSymbol)}
           </div>
@@ -752,7 +878,10 @@
       if (!query.get("feature")) query.set("feature", "dex_arbitrage");
       query.set("full", "0");
       try {
-        const data = await postJson(`/api/dex/market-observation/refresh?${query.toString()}`);
+        const data = await postJson(
+          `/api/dex/market-observation/refresh?${query.toString()}`,
+          { dryRun: false },
+        );
         await refresh();
         $("message").textContent = `${data.refresh_state?.message || "增量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
       } catch (error) {
@@ -765,7 +894,10 @@
       if (!query.get("feature")) query.set("feature", "dex_arbitrage");
       query.set("full", "1");
       try {
-        const data = await postJson(`/api/dex/market-observation/refresh?${query.toString()}`);
+        const data = await postJson(
+          `/api/dex/market-observation/refresh?${query.toString()}`,
+          { dryRun: false },
+        );
         await refresh();
         $("message").textContent = `${data.refresh_state?.message || "全量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
       } catch (error) {

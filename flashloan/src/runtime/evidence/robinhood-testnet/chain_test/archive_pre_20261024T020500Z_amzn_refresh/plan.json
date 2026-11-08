@@ -1,0 +1,517 @@
+{
+  "attempt": {
+    "blockNumber": 118022639,
+    "createdAt": "2026-09-12T10:22:00Z",
+    "observedAt": "2026-09-12T10:22:00Z",
+    "pair": "TZ -> TB -> TA -> TZ",
+    "pathText": "TZ -> TB -> TA -> TZ",
+    "reviewBlockNumber": 118022639,
+    "routePath": [
+      "TZ",
+      "TB",
+      "TA",
+      "TZ"
+    ],
+    "state": "live_verified",
+    "status": "live_verified",
+    "triggerBlockNumber": 118022639
+  },
+  "chainId": 46630,
+  "chainTestScope": {
+    "canBroadcast": false,
+    "canCaptureLiveOpportunity": false,
+    "canDeployTestnet": true,
+    "canRunForkStaticcall": true,
+    "chainId": 46630,
+    "disabledReason": null,
+    "enabled": true,
+    "mode": "testnet_deploy_readback_only",
+    "network": "robinhood-testnet"
+  },
+  "checklist": [
+    {
+      "detail": "锁定 TZ -> TB -> TA -> TZ / 触发区块 118022639",
+      "done": true,
+      "id": "freeze_snapshot",
+      "status": "done",
+      "title": "冻结链上复核快照"
+    },
+    {
+      "detail": "在 contract/robinhood 下保留链别信息与后续部署占位",
+      "done": true,
+      "id": "build_contract_dir",
+      "status": "done",
+      "title": "准备链别合约信息目录"
+    },
+    {
+      "detail": "按链上复核路径生成 flashloan / AMM 交换参数",
+      "done": true,
+      "id": "calldata_builder",
+      "status": "done",
+      "title": "生成交易 calldata"
+    },
+    {
+      "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
+      "done": true,
+      "id": "risk_guard",
+      "status": "done",
+      "title": "Add slippage and repayment constraints"
+    },
+    {
+      "detail": "只读 Quoter 已复核后仍需本地仿真",
+      "done": true,
+      "id": "fork_staticcall",
+      "status": "done",
+      "title": "执行 fork/static-call 仿真"
+    },
+    {
+      "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
+      "done": false,
+      "id": "broadcast_gate",
+      "status": "blocked",
+      "title": "保持广播闸门关闭"
+    },
+    {
+      "detail": "完成后把方案、清单、测试包归档到部署目录",
+      "done": false,
+      "id": "archive_outputs",
+      "status": "pending",
+      "title": "归档实施方案与测试包"
+    }
+  ],
+  "contractHandoff": {
+    "contractDir": "E:\\2026OPC大赛\\flashLoan\\contract\\robinhood-testnet\\DEX\\config\\chain-test-package",
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": false
+    },
+    "expectedFiles": [
+      "README.md",
+      "contracts.json"
+    ]
+  },
+  "decision": {
+    "blockedReasons": [],
+    "canBroadcast": false,
+    "canDeployTestnet": true,
+    "canRunForkPreflight": true,
+    "canSubmitOrder": false,
+    "needsLiveQuoter": false,
+    "readyForTransactionPreflight": true,
+    "requiresTransactionDevelopment": true,
+    "trustedForExecution": false
+  },
+  "evidence": {
+    "allHopsQuoted": true,
+    "blockNumber": 118022639,
+    "blockers": [],
+    "borrowInputAmount": 0.0001,
+    "borrowInputSymbol": "TZ",
+    "executionTrust": "live_quoter_verified_readonly",
+    "finalOutputAmount": 0.000991022300317058,
+    "finalOutputSymbol": "TZ",
+    "finalOutputUsd": 0.000991022300317058,
+    "grossProfitAmount": 0.000891022300317058,
+    "grossProfitUsd": null,
+    "latestSnapshotUpdatedAt": "",
+    "liveProfitPercent": null,
+    "meetsMinProfitThreshold": true,
+    "meetsOffchainProfitThreshold": true,
+    "meetsSubmissionProfitThreshold": true,
+    "minProfitUsd": 6.0,
+    "netPositiveAfterCosts": true,
+    "netProfitAmount": 0.000890972300317058,
+    "netProfitAmountBps": 8909.72300317058,
+    "netProfitAmountSymbol": "TZ",
+    "netProfitBps": null,
+    "netProfitUsd": null,
+    "profitBasis": "borrow_token",
+    "profitableAfterCosts": true,
+    "readyForTransactionPreflight": true,
+    "readyForTransactionPreflightRaw": true,
+    "referenceNetProfitUsd": null,
+    "routeChainSubmissionCandidate": null,
+    "routeClosed": true,
+    "routeExecutableCandidate": null,
+    "routeExecutionSizeProbe": null,
+    "routeExecutionSizeProbeExceeded": false,
+    "routeExecutionSizeProbeStatus": "",
+    "routeExecutionSizeShortfallRaw": null,
+    "routeMaxExecutableAmountRaw": null,
+    "routeOriginalExecutionSizeProbeExceeded": false,
+    "routeOriginalExecutionSizeShortfallRaw": null,
+    "routeOriginalRequestedBorrowAmountRaw": 100000000000000,
+    "routeRecommendedBorrowAmountRaw": null,
+    "routeRequestedBorrowAmountRaw": 100000000000000,
+    "routeSelectedBorrowAmountRaw": 100000000000000,
+    "status": "live_verified",
+    "submissionNetProfitAmount": 0.000890972300317058,
+    "tokenContinuity": true,
+    "tokenContinuityIssues": [],
+    "triggerBlockNumber": 118022639,
+    "trustedForExecution": false
+  },
+  "forkEvidence": {
+    "broadcastEnabled": false,
+    "calldataBuild": {
+      "attempted": true,
+      "calldataCount": 3,
+      "finalToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "initialToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "ok": true,
+      "targetCount": 3
+    },
+    "chainId": 46630,
+    "evidencePath": "contract/robinhood-testnet/DEX/deployments/evidence/20261021T163751867Z-20116_hardhat-robinhood-v4-fork-staticcall/report.json",
+    "forkEstimateGas": {
+      "attempted": true,
+      "error": null,
+      "gas": "1030720",
+      "ok": true
+    },
+    "forkStaticCall": {
+      "ok": true,
+      "resultLength": 128
+    },
+    "forkedBlockNumber": 118022640,
+    "mode": "hardhat_fork_readonly_staticcall",
+    "network": "robinhood-testnet",
+    "passed": true,
+    "pausedGate": {
+      "afterRestoredClosed": true,
+      "beforeClosed": true
+    },
+    "poolAudit": {
+      "attempted": true,
+      "blockers": [],
+      "items": [
+        {
+          "amountInRaw": "100000000000000",
+          "blockers": [],
+          "computedPoolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "hop": 1,
+          "minAmountOutRaw": "992013436199234",
+          "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "poolMatch": true,
+          "tokenIn": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "tokenOut": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "zeroForOne": true
+        },
+        {
+          "amountInRaw": "996998428340939",
+          "blockers": [],
+          "computedPoolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "hop": 2,
+          "minAmountOutRaw": "98903584145185",
+          "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "poolMatch": true,
+          "tokenIn": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "tokenOut": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "zeroForOne": true
+        },
+        {
+          "amountInRaw": "99400587080588",
+          "blockers": [],
+          "computedPoolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "hop": 3,
+          "minAmountOutRaw": "986067188815472",
+          "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "poolMatch": true,
+          "tokenIn": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "tokenOut": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "zeroForOne": false
+        }
+      ],
+      "ok": true
+    },
+    "readback": {
+      "codeBytes": 21131,
+      "executorAddress": "0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB",
+      "hasCode": true,
+      "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+      "pausedAfter": true,
+      "pausedAfterUnpause": false,
+      "pausedBefore": true
+    },
+    "request": {
+      "amount": "100000000000000",
+      "finalToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "gasReserve": "0",
+      "minProfit": "1",
+      "swapCalldatas": [
+        "0xf3cd914c00000000000000000000000005a31b34a1bf8edb08cbfa2e9d860e6d0939313e00000000000000000000000028cc9a0b94ad34a3a0cb2734c8d58ad95862c6c40000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffa50cef85c00000000000000000000000000000000000000000000000000000000001000276a400000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000",
+        "0xf3cd914c00000000000000000000000028cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4000000000000000000000000b169fe96425783d7ba7a9f905fe8de5f80e3fdc80000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001fffffffffffffffffffffffffffffffffffffffffffffffffffc753c36d64d3500000000000000000000000000000000000000000000000000000001000276a400000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000",
+        "0xf3cd914c00000000000000000000000005a31b34a1bf8edb08cbfa2e9d860e6d0939313e000000000000000000000000b169fe96425783d7ba7a9f905fe8de5f80e3fdc80000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffa5987f510c74000000000000000000000000fffd8963efd1fc6a506488495d951d5263988d2500000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "swapTargets": [
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+      ],
+      "token": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E"
+    },
+    "runAt": "2026-10-21T16:37:48.795Z",
+    "schemaVersion": "robinhood-testnet-v4-fork-staticcall-v1",
+    "status": "fork_staticcall_passed"
+  },
+  "generatedAt": "2026-10-22T22:54:30.944778+00:00",
+  "legacyMarketId": "robinhood-testnet-dex-paused",
+  "marketId": "dex-arbitrage-46630-uniswap-v4",
+  "network": "robinhood-testnet",
+  "preflightSpec": {
+    "broadcastEnabled": false,
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": false
+    },
+    "executionRequest": {
+      "amount": "100000000000000",
+      "borrowTokenIsNative": false,
+      "calldataStatus": "pending",
+      "executorContract": "RobinhoodPausedFlashLoanExecutor",
+      "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "function": "requestV4FlashLoan",
+      "gasReserve": "0",
+      "minProfit": "1",
+      "nativeValueForwardingPolicy": "forward_amountInRaw_on_hops_where_tokenIn_is_zero_address",
+      "requiresNativeValueForwarding": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModel": {
+        "allV4Hops": true,
+        "mixedProtocolRoute": false,
+        "nestedUnlockAvoidance": true,
+        "requiresDirectPoolManagerFlow": true,
+        "requiresNativeValueForwarding": false,
+        "requiresUniversalRouter": false,
+        "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+        "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+        "status": "planned",
+        "usesNativeBorrow": false
+      },
+      "struct": "V4FlashAccountingRequest",
+      "swapValues": [
+        "0",
+        "0",
+        "0"
+      ],
+      "token": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "transactionValueRaw": "0"
+    },
+    "repaymentConstraint": {
+      "borrowAmountRaw": "100000000000000",
+      "borrowSymbol": "TZ",
+      "borrowToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "finalAmountRaw": "991022300317058",
+      "finalSymbol": "TZ",
+      "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "flashLoanFeeBps": 5.0,
+      "gasReserveRaw": "0",
+      "minProfitRaw": "1",
+      "minProfitRule": "positive_x_profit_min_raw_unit",
+      "profitBasis": "borrow_token",
+      "repayAmountRaw": "100050000000000"
+    },
+    "requiredChecks": [
+      "calldata_matches_verified_hops",
+      "each_hop_min_amount_out_enforced",
+      "flashloan_repay_amount_enforced",
+      "final_token_balance_covers_repay_and_min_profit",
+      "fork_staticcall_or_fork_transaction_simulation_passed",
+      "broadcast_gate_remains_disabled_until_trusted_for_execution"
+    ],
+    "routeHops": [
+      {
+        "amountIn": "0.0001",
+        "amountInRaw": "100000000000000",
+        "amountOut": "0.000996998428340939",
+        "amountOutRaw": "996998428340939",
+        "fee": 3000,
+        "fromSymbol": "TZ",
+        "hop": 1,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "992013436199234",
+        "outputDecimals": 18,
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": null,
+        "toSymbol": "TB",
+        "tokenIn": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "tokenOut": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      },
+      {
+        "amountIn": "0.000996998428340939",
+        "amountInRaw": "996998428340939",
+        "amountOut": "0.000099400587080588",
+        "amountOutRaw": "99400587080588",
+        "fee": 3000,
+        "fromSymbol": "TB",
+        "hop": 2,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "98903584145185",
+        "outputDecimals": 18,
+        "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": null,
+        "toSymbol": "TA",
+        "tokenIn": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "tokenOut": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      },
+      {
+        "amountIn": "0.000099400587080588",
+        "amountInRaw": "99400587080588",
+        "amountOut": "0.000991022300317058",
+        "amountOutRaw": "991022300317058",
+        "fee": 3000,
+        "fromSymbol": "TA",
+        "hop": 3,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "986067188815472",
+        "outputDecimals": 18,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": null,
+        "toSymbol": "TZ",
+        "tokenIn": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "tokenOut": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      }
+    ],
+    "slippageBps": 50,
+    "status": "ready_for_fork_staticcall"
+  },
+  "route": {
+    "analysisStage": "",
+    "closed": true,
+    "hopCount": 3,
+    "path": [
+      "TZ",
+      "TB",
+      "TA",
+      "TZ"
+    ],
+    "pathText": "TZ -> TB -> TA -> TZ",
+    "tokenContinuous": true
+  },
+  "simulationEvidence": {
+    "broadcastEnabled": false,
+    "calldataBuild": {
+      "attempted": true,
+      "calldataCount": 3,
+      "finalToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "initialToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "ok": true,
+      "targetCount": 3
+    },
+    "chainId": 46630,
+    "evidencePath": "contract/robinhood-testnet/DEX/deployments/evidence/20261021T163751867Z-20116_hardhat-robinhood-v4-fork-staticcall/report.json",
+    "forkEstimateGas": {
+      "attempted": true,
+      "error": null,
+      "gas": "1030720",
+      "ok": true
+    },
+    "forkStaticCall": {
+      "ok": true,
+      "resultLength": 128
+    },
+    "forkedBlockNumber": 118022640,
+    "mode": "hardhat_fork_readonly_staticcall",
+    "network": "robinhood-testnet",
+    "passed": true,
+    "pausedGate": {
+      "afterRestoredClosed": true,
+      "beforeClosed": true
+    },
+    "poolAudit": {
+      "attempted": true,
+      "blockers": [],
+      "items": [
+        {
+          "amountInRaw": "100000000000000",
+          "blockers": [],
+          "computedPoolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "hop": 1,
+          "minAmountOutRaw": "992013436199234",
+          "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "poolMatch": true,
+          "tokenIn": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "tokenOut": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "zeroForOne": true
+        },
+        {
+          "amountInRaw": "996998428340939",
+          "blockers": [],
+          "computedPoolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "hop": 2,
+          "minAmountOutRaw": "98903584145185",
+          "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "poolMatch": true,
+          "tokenIn": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "tokenOut": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "zeroForOne": true
+        },
+        {
+          "amountInRaw": "99400587080588",
+          "blockers": [],
+          "computedPoolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "hop": 3,
+          "minAmountOutRaw": "986067188815472",
+          "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "poolMatch": true,
+          "tokenIn": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "tokenOut": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "zeroForOne": false
+        }
+      ],
+      "ok": true
+    },
+    "readback": {
+      "codeBytes": 21131,
+      "executorAddress": "0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB",
+      "hasCode": true,
+      "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+      "pausedAfter": true,
+      "pausedAfterUnpause": false,
+      "pausedBefore": true
+    },
+    "request": {
+      "amount": "100000000000000",
+      "finalToken": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "gasReserve": "0",
+      "minProfit": "1",
+      "swapCalldatas": [
+        "0xf3cd914c00000000000000000000000005a31b34a1bf8edb08cbfa2e9d860e6d0939313e00000000000000000000000028cc9a0b94ad34a3a0cb2734c8d58ad95862c6c40000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffa50cef85c00000000000000000000000000000000000000000000000000000000001000276a400000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000",
+        "0xf3cd914c00000000000000000000000028cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4000000000000000000000000b169fe96425783d7ba7a9f905fe8de5f80e3fdc80000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001fffffffffffffffffffffffffffffffffffffffffffffffffffc753c36d64d3500000000000000000000000000000000000000000000000000000001000276a400000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000",
+        "0xf3cd914c00000000000000000000000005a31b34a1bf8edb08cbfa2e9d860e6d0939313e000000000000000000000000b169fe96425783d7ba7a9f905fe8de5f80e3fdc80000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffa5987f510c74000000000000000000000000fffd8963efd1fc6a506488495d951d5263988d2500000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "swapTargets": [
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+      ],
+      "token": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E"
+    },
+    "runAt": "2026-10-21T16:37:48.795Z",
+    "schemaVersion": "robinhood-testnet-v4-fork-staticcall-v1",
+    "status": "fork_staticcall_passed"
+  }
+}

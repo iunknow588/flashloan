@@ -2,29 +2,29 @@
 
 - 网络：`robinhood-testnet`
 - 链 ID：`46630`
-- 路径：`TZ -> TB -> TA -> TZ`
-- Execution mode: `pool_manager_direct_swap_settle_take`
-- 触发区块：`118022639`
-- 复核区块：`118022639`
+- 路径：`ETH -> NFLX -> PLTR -> ETH`
+- Execution mode: `mixed_protocol_executor`
+- 触发区块：`None`
+- 复核区块：`None`
 - 证据状态：`live_verified`
-- Trusted for execution: `no`
-- Ready for preflight: `yes`
+- Trusted for execution: `yes`
+- Ready for preflight: `no`
 
 ## Size Gate
 
-- Requested borrow raw: `100000000000000`
+- Requested borrow raw: ``
 - Max executable raw: ``
 
 ## 结论
 
-Current evidence can enter fork/static-call preflight, but it is not broadcast-ready.
+Current evidence is blocked by preflight prerequisites and cannot enter calldata or fork/static-call.
 
 ## 关键阻断
 - none
 
 ## Next Steps
 
-1. Pin the route and block snapshot.
-2. Generate calldata and minOut constraints.
-3. Run static-call or transaction simulation on a fork.
-4. Consider signing and broadcast only after preflight passes.
+1. Rebuild the real closed route from candidate pools and token addresses.
+2. Re-run read-only on-chain quoter validation.
+3. Generate calldata and fork/static-call tasks after audit passes.
+4. Keep the broadcast gate closed.

@@ -27,7 +27,27 @@ STABLE_SYMBOLS = {
     "USDG", "USDF", "USD1", "USDT", "USDT.E",
 }
 
-_TOKEN_METADATA_CACHE: dict[str, dict[str, Any]] | None = None
+_TOKEN_METADATA_CACHE: dict[tuple[str, int], dict[str, dict[str, Any]]] = {}
+
+
+def _load_sqlite_v4_token_metadata(
+    *,
+    network: str,
+    chain_id: int,
+) -> dict[str, dict[str, Any]]:
+    try:
+        from core.db.database_path import absolute_database_path
+        from dex.intent_trade.chains.robinhood_common.v4_sqlite_view import (
+            load_v4_chain_token_metadata,
+        )
+
+        return load_v4_chain_token_metadata(
+            network,
+            int(chain_id),
+            database_url=str(absolute_database_path()),
+        )
+    except Exception:
+        return {}
 
 
 def _load_v4_token_metadata(
@@ -35,18 +55,24 @@ def _load_v4_token_metadata(
     network: str = NETWORK,
     chain_id: int = MAINNET_CHAIN_ID,
 ) -> dict[str, dict[str, Any]]:
-    global _TOKEN_METADATA_CACHE
-    if _TOKEN_METADATA_CACHE is not None:
-        return _TOKEN_METADATA_CACHE
-    path = default_v4_token_metadata_path(network=network, chain_id=chain_id)
-    payload = _read_json(path)
-    tokens = payload.get("tokens") if isinstance(payload.get("tokens"), dict) else {}
-    _TOKEN_METADATA_CACHE = {
-        str(address or "").strip().lower(): row
-        for address, row in tokens.items()
-        if isinstance(row, dict)
-    }
-    return _TOKEN_METADATA_CACHE
+    cache_key = (network, int(chain_id))
+    cached = _TOKEN_METADATA_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    tokens = _load_sqlite_v4_token_metadata(network=network, chain_id=chain_id)
+    if not tokens:
+        # Build/evidence tools still read the auditable JSON artifact; UI
+        # read paths resolve SQLite first and never depend on this fallback.
+        path = default_v4_token_metadata_path(network=network, chain_id=chain_id)
+        payload = _read_json(path)
+        token_rows = payload.get("tokens") if isinstance(payload.get("tokens"), dict) else {}
+        tokens = {
+            str(address or "").strip().lower(): row
+            for address, row in token_rows.items()
+            if isinstance(row, dict)
+        }
+    _TOKEN_METADATA_CACHE[cache_key] = tokens
+    return tokens
 
 
 def _metadata_lookup(address: str, *, network: str = NETWORK, chain_id: int = MAINNET_CHAIN_ID) -> dict[str, Any]:

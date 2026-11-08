@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_11_ui_overview_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.11 DEX overview uses a Composite Manager projection through manager_api without legacy overview fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T07:13:44+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "/api/dex/overview is now an unconditional manager-only read. manager_api exposes /v1/overview, backed by Composite Manager aggregation of Candidate Edge, Candidate Exchange, Closed-loop, Review signed PnL, Broadcast and pipeline/version state. Token symbols and addresses are resolved from admitted Token Manager rows; pool references remain PoolId/KEY-ID based. The Flask route no longer calls legacy overview bootstrap, surface loaders, dex_overview_payload or overview caches, and returns 503 manager_read_failed without fallback when manager is unavailable. The page URL and DOM structure remain unchanged.",
+  "implementation": {
+    "managerAggregate": "flashloan/tools/composite_manager/src/overview.rs",
+    "managerApi": "flashloan/tools/manager_api/src/lib.rs",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "template": "flashloan/app_runtime/web/templates/dex_overview.html",
+    "provenance": "flashloan/src/core/dex_provenance.py",
+    "routes": [
+      "GET /v1/overview?chainId=4663&limit=1000",
+      "GET /api/dex/overview"
+    ],
+    "managerInputs": [
+      "candidate-edge snapshot",
+      "candidate-exchange YZ and liquidity snapshot",
+      "closed-loop loops, hops and runtime state",
+      "review signed PnL and broadcast requests",
+      "broadcast status",
+      "pipeline/upstream version assessment",
+      "admitted token catalog"
+    ],
+    "pageCompatibilityFields": [
+      "summary",
+      "arbitragePaths",
+      "arbitragePathGroups",
+      "watchPairs",
+      "liquidPoolRegistry",
+      "routeFramework",
+      "flashLoanLiquidity",
+      "poolStaticTable"
+    ],
+    "managerDiagnostics": [
+      "versions",
+      "pipelineStatus",
+      "dataQuality",
+      "dataSource=manager"
+    ],
+    "legacyOverviewReadFallback": false,
+    "legacyCacheFallback": false,
+    "usdDepthRequired": false,
+    "pnlSource": "manager_review_signed_pnl",
+    "missingPnlMarkedComplete": false,
+    "pageUrlChanged": false,
+    "pageTemplateStructureChanged": false,
+    "productionWritesEnabled": false
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p manager-api -p composite-manager",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p composite-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 30
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_architecture_guards.py -q -k \"manager_page_compare.py or migrated_dex_overview_route\"",
+      "exitCode": 0,
+      "passed": 35,
+      "deselected": 40
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "exitCode": 0,
+      "passed": 14
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_minimal_interfaces_are_consistent app_runtime/tests/functional/test_web_app_assembly.py::test_robinhood_mainnet_dex_surface_apis_use_chain_flows app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handlers_return_contract_valid_json_payloads app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handler_payloads_include_request_correlation_header -q",
+      "exitCode": 0,
+      "passed": 5
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_pool_candidates_surfaces.py -q -k \"dex_provenance_framework_label\"",
+      "exitCode": 0,
+      "passed": 1,
+      "deselected": 29
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex-provenance.js",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "Composite overview endpoint returns an empty but valid manager projection from a temporary migrated manager DB",
+    "Overview Flask route calls overview_manager_page_payload even without manager_compare and never calls legacy bootstrap or overview loaders",
+    "Manager unavailable returns 503 manager_read_failed without SQLite fallback",
+    "Architecture guard rejects legacy overview symbols in the migrated route body",
+    "Route fixtures still expose summary, arbitragePaths, routeFramework and manager-selected scope",
+    "Provenance maps manager_closed_loop to a distinct manager label",
+    "Route-symbol tests include non-USD paths and do not require any USD leg"
+  ],
+  "knownBoundary": "D9.11 migrates the DEX overview read path only. It does not perform M1-M8 production apply, does not start or stop the service, does not write the mainnet database and does not enable real broadcast. The manager projection needs real production-copy data to validate non-empty route/pool equivalence and attempt/string ID continuity. The full architecture-guard file was not rerun because prior evidence records unrelated pre-existing failures; the new overview guard passes independently. No historical evidence was modified."
+}

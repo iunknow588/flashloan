@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _repo_root() -> Path:
     current = Path(__file__).resolve()
@@ -142,3 +144,28 @@ def test_test_token_create_root_has_main_entry():
     source = main_entry.read_text(encoding="utf-8")
     assert "parents[1]" in source
     assert "from multi_chain_cli import main as cli_main" in source
+
+
+def test_chain_sqlite_archive_tool_uses_vacuum_into_and_official_database_only():
+    tool = ROOT / "flashloan" / "src" / "dex" / "tools" / "archive_robinhood_chain_sqlite.py"
+    source = tool.read_text(encoding="utf-8")
+
+    assert tool.is_file()
+    assert "VACUUM INTO ?" in source
+    assert "refusing to archive a non-official database" in source
+    assert "chain_{chain_id}_archive_{stamp or _stamp()}.sqlite3" in source
+
+
+def test_chain_sqlite_archive_tool_rejects_non_official_database(tmp_path):
+    import importlib
+    import sys as py_sys
+
+    tool_dir = ROOT / "flashloan" / "src" / "dex" / "tools"
+    if str(tool_dir) not in py_sys.path:
+        py_sys.path.insert(0, str(tool_dir))
+    module = importlib.import_module("archive_robinhood_chain_sqlite")
+
+    other = tmp_path / "other.sqlite3"
+    other.write_text("not sqlite", encoding="utf-8")
+    with pytest.raises(ValueError, match="refusing to archive a non-official database"):
+        module._validate_source_database(other)

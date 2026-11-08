@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-11-03T16:10:00+08:00",
+  "migrationId": "20261103_001_manager_schema",
+  "checksum": "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+  "tempDatabaseRun": {
+    "first": {
+      "appliedNow": true,
+      "migrationTable": "schema_migrations"
+    },
+    "second": {
+      "appliedNow": false,
+      "migrationTable": "schema_migrations"
+    }
+  },
+  "tempDatabaseObjects": [
+    "pool_scope_config:table",
+    "schema_migrations:table",
+    "token_admission_events:table",
+    "token_core:table",
+    "token_extension:table",
+    "token_library_catalog:view",
+    "token_library_state:table",
+    "token_stocks:table",
+    "token_test:table",
+    "v4_exchange_pools_core4:table"
+  ],
+  "tempDatabaseCounts": {
+    "token_core": 0,
+    "pool_scope_config": 0,
+    "v4_exchange_pools_core4": 0
+  },
+  "mainnetReadOnlyPreflight": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "fileSizeBytes": 3315490816,
+    "quickCheck": "ok",
+    "migrationLedgerDecision": "schema_migrations",
+    "targetTablesPresent": false,
+    "viewPresent": false,
+    "applied": false
+  },
+  "conclusion": "passed"
+}

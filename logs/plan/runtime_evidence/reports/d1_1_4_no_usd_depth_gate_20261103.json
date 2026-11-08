@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-11-04T04:06:04+08:00",
+  "milestone": "M1",
+  "task": "D1.1.4-rule-update",
+  "status": "passed",
+  "ruleChange": {
+    "previousConditionRemoved": "candidate and YZ pools required a USD-related deep/liquid/live_liquid depth label",
+    "currentAdmissionRule": [
+      "extension requires a direct V4 pool to core, stocks, or test/TZ",
+      "metadata must normalize successfully",
+      "fee must be fixed and in 1..=3000",
+      "dynamic fee and special fee must be zero",
+      "hooks must be zero",
+      "has_liquidity must equal 1",
+      "liquidity_index must be positive"
+    ],
+    "usdDepthRelationshipRequired": false,
+    "legacyUsdDepthLabels": "diagnostic only",
+    "extensionMayContain": [
+      "core tokens",
+      "stock tokens",
+      "TA",
+      "TB"
+    ],
+    "tzRule": "TZ remains test primary and is not assigned an extension membership"
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "testsPassed": 73,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager -p manager-api -p pool-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_direction_pool_model.py app_runtime/tests/unit/test_direction_candidate_limits.py -q",
+      "exitCode": 0,
+      "testsPassed": 23,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo run --quiet --manifest-path flashloan/tools/Cargo.toml --bin token-manager -- audit-metadata --db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+      "exitCode": 0,
+      "databaseAccess": "read-only"
+    }
+  ],
+  "mainnetReadOnlyAudit": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "network": "robinhood",
+    "chainId": 4663,
+    "uniqueTokens": 4485,
+    "libraryMemberships": {
+      "core": 4,
+      "stocks": 194,
+      "extension": 78,
+      "test": 1
+    },
+    "extensionOverlap": 33,
+    "extensionOnly": 45,
+    "extensionOverlapByPrimaryLibrary": {
+      "core": 4,
+      "stocks": 29,
+      "test": 0
+    },
+    "testTokenCandidates": {
+      "TZ": "test primary only",
+      "TA": "extension through direct TZ pool",
+      "TB": "extension through direct TZ pool"
+    },
+    "liquidityEligibility": {
+      "poolCount": 5459,
+      "qualifiedPoolCount": 1025,
+      "qualifiedPoolsByLegacyUsdDepthLabelDiagnosticOnly": {
+        "deep": 319,
+        "liquid": 1,
+        "thin": 26,
+        "unpriced": 679
+      },
+      "strictUsdDepthPoolCountDiagnosticOnly": 320,
+      "positiveLiquidityPoolsExcludedByLegacyStrictUsdDepthOnly": 705
+    },
+    "usdgDiagnostics": {
+      "rawDistinctCounterparts": 1005,
+      "metadataAcceptedCounterparts": 95,
+      "liquidityQualifiedCounterparts": 63,
+      "liquidityQualifiedAndMetadataAcceptedCounterparts": 35,
+      "strictUsdDepthCounterpartsDiagnosticOnly": 3
+    }
+  },
+  "concurrencyNote": {
+    "mainnetServiceActive": true,
+    "serviceStartedOrStopped": false,
+    "schemaMigrationApplied": false,
+    "businessTableWritten": false,
+    "interpretation": "The source database was opened through read-only adapters; counts are an as-of audit and do not require file timestamps to be stable."
+  },
+  "sourceHashes": {
+    "flashloan/tools/token_manager/src/classification.rs": "sha256:4b94f0d4b10b06c8a0b1872b46f09f1f7e3dd756b12bfc15ce8b500a3cfdba8d",
+    "flashloan/tools/token_manager/src/main.rs": "sha256:ea78eedb8a72e7219786972d1915018b9468ce08028586027e4ed2060803be66",
+    "flashloan/tools/pool_manager/src/lib.rs": "sha256:6d3c5c7aa5e2fbf147c72b93e71ebcc61a470c6288482ca400a05d233f507ce3",
+    "flashloan/src/core/db/direction_pool_score.py": "sha256:9d281cd7d0cf31fb60fc6fb11947139dc3f4578bfe4c7740db3065ca79875399",
+    "flashloan/app_runtime/tests/unit/test_direction_pool_model.py": "sha256:dbdf2541a5406c116f7cf356aa568f897d8925466540d71c3c16e41694db9792",
+    "flashloan/src/dex/runtime/robinhood_v4_idle_maintenance.py": "sha256:c001b49e360566d97437ecdb5d00838c32f33feec47c6c61811efde1b9ed5614"
+  },
+  "historicalEvidencePolicy": "The prior d1_1_4 evidence remains unchanged; this file records the later rule change and fresh read-only recomputation.",
+  "conclusion": "The USD depth condition is removed from extension, candidate pool, and YZ admission. Positive on-chain liquidity remains mandatory. No mainnet migration, apply, service restart, or business write occurred."
+}

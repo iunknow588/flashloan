@@ -430,7 +430,10 @@ def test_dex_opportunity_scanner_uses_registry_network_for_testnet(tmp_path):
 
 
 def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
-    from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+    from core.db.storage_cow_execution_jsonl import (
+        append_cow_execution_attempts_jsonl,
+        load_recent_cow_execution_attempts_jsonl,
+    )
     from runtime.dex_opportunity_scanner import DexOpportunityScanner
 
     log_path = tmp_path / "cow_execution_attempts.jsonl"
@@ -591,7 +594,7 @@ def test_dex_opportunity_snapshot_starts_scanner_for_fresh_review(monkeypatch):
             calls["snapshot"] += 1
             return {"ok": True, "scanner": {"running": False}, "snapshot": {"chain_id": 46630}}
 
-    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda: FakeScanner())
+    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda chain_id=None: FakeScanner())
 
     payload = dex_opportunity_scanner.dex_opportunity_snapshot(chain_id=46630, protocols=["uniswap_v4"])
 
@@ -633,7 +636,7 @@ def test_ensure_dex_opportunity_scanner_running_populates_first_snapshot(monkeyp
         _lock = __import__("threading").Lock()
         _snapshots = {}
 
-    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda: FakeScanner())
+    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda chain_id=None: FakeScanner())
     monkeypatch.setattr(
         dex_opportunity_scanner,
         "dex_overview_payload",
@@ -1258,7 +1261,7 @@ def test_dex_submission_review_hides_quote_only_rows_without_tx_hash():
     assert payload["attempts"][0]["tx_hash"] == "0x" + "a" * 64
 
 
-def test_dex_submission_review_hides_broadcast_attempt_without_tx_hash():
+def test_dex_submission_review_keeps_failed_broadcast_attempt_without_tx_hash():
     payload = dex_surfaces.dex_submission_review_payload(
         attempts=[
             {
@@ -1269,6 +1272,28 @@ def test_dex_submission_review_hides_broadcast_attempt_without_tx_hash():
                 "pair": "TZ -> TA -> TB -> TZ",
                 "error": "official_arb_broadcast_failed",
                 "blocked_reasons": ["static_call_ok"],
+            }
+        ],
+        groups={},
+        source="jsonl",
+    )
+
+    assert payload["summary"]["attemptCount"] == 1
+    assert payload["summary"]["failedCount"] == 1
+    assert payload["summary"]["successCount"] == 0
+    assert payload["attempts"][0]["state"] == "submission_failed"
+
+
+def test_dex_submission_review_hides_broadcast_disabled_attempt_without_tx_hash():
+    payload = dex_surfaces.dex_submission_review_payload(
+        attempts=[
+            {
+                "review_category": "execution_failed",
+                "state": "submission_failed",
+                "execution_phase": "submission",
+                "precheck": {"broadcast": True},
+                "broadcastDisabled": True,
+                "pair": "TZ -> TA -> TB -> TZ",
             }
         ],
         groups={},
@@ -1410,5 +1435,38 @@ def test_closed_loop_quad_group_evidence_is_reused_within_one_scan():
     assert calls["count"] == 1
     assert attempts[0]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
     assert attempts[1]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
+
+
+def test_scanner_start_honors_background_disabled_env(tmp_path):
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    scanner = DexOpportunityScanner(
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        interval_seconds=60.0,
+    )
+    scanner.start(chain_id=46630, protocols=["uniswap_v4"])
+
+    assert scanner._thread is None
+    assert scanner.closed_loop_review_pipeline._threads == []
+    scanner.stop()
+
+
+def test_scanner_start_starts_background_threads_when_enabled(tmp_path, monkeypatch):
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    monkeypatch.setenv("DEX_OPPORTUNITY_SCANNER_BACKGROUND_ENABLED", "1")
+    monkeypatch.setenv("DEX_CLOSED_LOOP_SUPERVISOR_ENABLED", "0")
+    scanner = DexOpportunityScanner(
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        interval_seconds=60.0,
+    )
+    scanner.start(chain_id=46630, protocols=["uniswap_v4"])
+
+    try:
+        assert scanner._thread is not None
+        assert scanner._thread.daemon is True
+        assert len(scanner.closed_loop_review_pipeline._threads) >= 1
+    finally:
+        scanner.stop()
 
 

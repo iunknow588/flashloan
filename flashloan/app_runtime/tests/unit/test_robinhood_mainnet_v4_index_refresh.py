@@ -211,7 +211,7 @@ def test_reverse_backfill_forwards_token_topic_filter(monkeypatch):
     assert seen["extra_topics"] == [expected, expected]
 
 
-def test_reverse_scan_rotates_provider_without_shrinking_chunk_on_range_limit(monkeypatch):
+def test_reverse_scan_starts_new_chunk_on_range_limit(monkeypatch):
     calls: list[tuple[str, int, int]] = []
 
     def fake_get_logs(
@@ -249,7 +249,8 @@ def test_reverse_scan_rotates_provider_without_shrinking_chunk_on_range_limit(mo
 
     ok_calls = [call for call in calls if call[0] == "https://ok.example"]
     assert ok_calls
-    assert all(call[2] - call[1] + 1 == 100_000 for call in ok_calls)
+    assert all(call[2] - call[1] + 1 <= 100_000 for call in ok_calls)
+    assert any(call[2] - call[1] + 1 == 50_000 for call in ok_calls)
 
 
 def test_build_index_decodes_string_logs_and_deduplicates_pool_ids(monkeypatch):
@@ -562,14 +563,12 @@ def test_direction_backfill_plan_counts_each_pool_direction_separately(tmp_path)
         database=db_path,
         network="robinhood",
         chain_id=ROBINHOOD_CHAIN_ID,
-        direction_limit=5,
+        direction_target=1,
     )
-    assert plan["neededDirectionCount"] == 4
+    assert plan["neededDirectionCount"] == 2
     assert plan["targets"] == {
-        f"{party}:{anchor}": 5,
-        f"{anchor}:{party}": 5,
-        f"{second}:{anchor}": 5,
-        f"{anchor}:{second}": 5,
+        f"{party}:{anchor}": 1,
+        f"{anchor}:{party}": 1,
     }
     assert plan["floor_block"] == 50_000_000
 

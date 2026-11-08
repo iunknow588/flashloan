@@ -8,7 +8,7 @@ from bot.execution.external_liquidation_index import fetch_external_borrower_acc
 
 
 def discover_and_sync_liquidation_accounts(ctx: Any, force_full: bool = False) -> dict:
-    if not ctx.database_url_or_none():
+    if not ctx.database_url():
         return {"saved": False, "count": 0, "error": "local KV store unavailable"}
     if os.getenv("LIQUIDATION_AUTO_DISCOVER_ACCOUNTS", "true").strip().lower() in {"0", "false", "no"}:
         return {"saved": False, "count": 0, "error": "auto discovery disabled"}

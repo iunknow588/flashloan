@@ -1,0 +1,46 @@
+﻿{
+    "bind":  "127.0.0.1:18091",
+    "databaseConfigured":  false,
+    "health":  {
+                   "ok":  true,
+                   "status":  "ok",
+                   "version":  "manager_dto_v1"
+               },
+    "capabilities":  {
+                         "ok":  true,
+                         "version":  "manager_dto_v1",
+                         "data":  {
+                                      "milestone":  "M1",
+                                      "migrationId":  "20261103_001_manager_schema",
+                                      "migrationChecksum":  "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+                                      "businessWritesEnabled":  false,
+                                      "tokenReadsEnabled":  false,
+                                      "capabilities":  [
+                                                           "health",
+                                                           "capabilities",
+                                                           "tokens.query",
+                                                           "tokens.resolve"
+                                                       ]
+                                  }
+                     },
+    "tokenRouteWithoutDatabase":  {
+                                      "httpStatus":  503,
+                                      "body":  {
+                                                   "ok":  false,
+                                                   "version":  "manager_dto_v1",
+                                                   "generatedAt":  "2026-11-03T19:20:37.261854700+00:00",
+                                                   "chainId":  null,
+                                                   "data":  null,
+                                                   "error":  {
+                                                                 "code":  "UPSTREAM_UNAVAILABLE",
+                                                                 "message":  "MANAGER_DB_PATH is not configured",
+                                                                 "retryable":  true,
+                                                                 "stage":  "list_tokens",
+                                                                 "details":  {
+
+                                                                             }
+                                                             }
+                                               }
+                                  },
+    "processStopped":  true
+}

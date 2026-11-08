@@ -1,0 +1,107 @@
+{
+  "schema": "robinhood-mainnet-runtime-scope-audit-v1",
+  "generatedAt": "2026-11-07T02:40:00Z",
+  "revalidatedAt": "2026-11-07T03:59:39Z",
+  "mode": "read-only",
+  "database": "flashloan/db/local_store_4663.sqlite3",
+  "databaseMetadata": {
+    "dataVersion": 2,
+    "journalMode": "wal",
+    "quickCheck": "ok"
+  },
+  "method": "sqlite3 -readonly with PRAGMA busy_timeout/query_only; original scoped audit derived canonical keys from v4_closed_loops.path_symbols_json and runtime rows, then a follow-up scoped query revalidated directed-symbol, Y/Z-group and physical loop_key coverage",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "sourceCounts": {
+    "chain_tokens": 6353,
+    "v4_closed_loops": 192,
+    "v4_closed_loop_hops": 576,
+    "v4_closed_loop_runtime_state_all_scopes": 97,
+    "v4_closed_loop_runtime_state_mainnet_scope": 96,
+    "v4_closed_loop_runtime_state_out_of_scope": 1,
+    "dex_candidate_pools": 782,
+    "dex_candidate_pool_recommendations": 1172,
+    "market_observation_yz_pairs": 95680,
+    "market_observation_intermediate_pools": 693,
+    "market_observation_liquidity_snapshots": 8452,
+    "v4_exchange_pools": 5540,
+    "v4_exchange_pool_liquidity_snapshots": 5468,
+    "cow_execution_attempts": 41,
+    "cow_execution_reviews": 11844,
+    "review_selected_profit_present": 8024,
+    "review_selected_profit_missing": 3820
+  },
+  "candidateAudit": {
+    "candidateTotal": 782,
+    "eligibleTotal": 782,
+    "ineligibleTotal": 0,
+    "affectedClosedLoopCount": 0,
+    "affectedRecommendationCount": 0
+  },
+  "closedLoopRuntimeAudit": {
+    "closedRows": 192,
+    "closedDirectedSymbolKeys": 192,
+    "closedCanonicalYzGroups": 96,
+    "sharedLoopRowsAcrossYzGroups": 96,
+    "runtimeRowsInScope": 96,
+    "exactDirectedSymbolMatched": 96,
+    "exactDirectedSymbolMissing": 96,
+    "orphanDirectedSymbolKeysInScope": 0,
+    "canonicalYzGroupMatched": 96,
+    "canonicalYzGroupMissing": 0,
+    "orphanCanonicalYzGroupsInScope": 0,
+    "physicalLoopKeyMatchedInScope": 0,
+    "physicalLoopKeyMissingInScope": 192,
+    "physicalLoopKeyOrphanInScope": 96,
+    "runtimeStateCountsInScope": {
+      "preflight_failed": 96
+    },
+    "outOfScopeRuntimeRows": [
+      {
+        "network": "robinhood-testnet",
+        "chainId": 46630,
+        "protocol": "uniswap_v4",
+        "marketId": "dex-arbitrage-46630-uniswap-v4",
+        "loopKey": "aaa|bbb|ccc",
+        "state": "execution_success",
+        "classification": "testnet_row_excluded_from_mainnet_acceptance"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "code": "CLOSED_LOOP_RUNTIME_DIRECTION_COLLAPSE",
+      "severity": "high",
+      "summary": "Mainnet has 192 directed closed loops but only 96 runtime rows; the existing runtime keys use anchor|sorted(Y,Z) symbol groups, while closed-loop loop_key values are address paths.",
+      "impact": "A runtime row cannot uniquely represent both directed routes when Y-Z direction affects selected pools, preflight, review, PnL or broadcast identity. Direct physical loop_key matching also fails for every runtime row.",
+      "requiredFix": "Introduce a route-specific runtime identity that preserves direction and address/path identity; do not accept sorted-symbol group coverage as one-to-one coverage."
+    },
+    {
+      "code": "RUNTIME_AUDIT_SCOPE_FILTER_MISSING",
+      "severity": "medium",
+      "summary": "Counting v4_closed_loop_runtime_state without network/chain/protocol/market filters included one Testnet row.",
+      "impact": "Unscoped counts can misstate mainnet coverage and produce an invalid missing/orphan conclusion.",
+      "requiredFix": "Every runtime coverage audit must require an explicit scope and report out-of-scope rows separately."
+    }
+  ],
+  "corrections": [
+    {
+      "supersedes": "Derived runtime coverage fields in runtime_evidence/reports/robinhood_mainnet_baseline_20261107.json",
+      "previousStatement": "runtime=97, closedMatched=112, closedUnmatched=80, runtimeUnmatched=1",
+      "currentFinding": "scoped runtime=96, exact directed matched=96, exact directed missing=96, canonical group missing=0, out-of-scope runtime=1"
+    }
+  ],
+  "notes": [
+    "This report is a read-only audit snapshot, not a production acceptance result.",
+    "The physical loop_key comparison was revalidated at 2026-11-07T03:59:39Z against the same live SQLite scope; generatedAt remains the original audit timestamp.",
+    "The prior baseline file remains unchanged as historical evidence; its derived runtime-coverage fields are superseded by this file.",
+    "Directed-symbol comparison currently has 96 matches, 96 missing and 0 orphans; physical loop_key comparison has 0 matches, 192 missing and 96 runtime orphans.",
+    "Canonical Y/Z group coverage is complete, but group coverage is not equivalent to directed route coverage.",
+    "The Testnet aaa|bbb|ccc row must be excluded from mainnet acceptance and must not be deleted without separate Testnet evidence and approval.",
+    "The candidate quality audit remains 782/782 eligible with zero affected closed loops in this snapshot."
+  ]
+}

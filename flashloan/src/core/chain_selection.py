@@ -113,6 +113,15 @@ def _normalise_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         row["is_default"] = bool(row.get("is_default", False))
         row["chain_default"] = bool(row.get("chain_default", False))
+        try:
+            from core.chain_data_registry import default_market_id_for_feature
+
+            configured_default = default_market_id_for_feature(feature)
+            if configured_default:
+                row["is_default"] = _normalise_market_id(configured_default) == _normalise_market_id(market_id)
+        except (ImportError, IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError):
+            # Registry defaults are advisory; stale rows keep their stored flag.
+            configured_default = ""
         if row.get("chain_id") is not None:
             try:
                 row["chain_id"] = int(row["chain_id"])

@@ -337,6 +337,20 @@ def _official_v4_arb_candidate_route(
     return route_symbols, route_addresses, steps, keys, zero_for_one, pool_ids
 
 
+def _official_v4_candidate_signature(
+    candidate: tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]],
+) -> tuple[Any, ...]:
+    """Return a stable identity used to de-duplicate directed pool candidates."""
+    symbols, addresses, _steps, keys, directions, pool_ids, _pools = candidate
+    return (
+        tuple(str(symbol or "").upper() for symbol in symbols),
+        tuple(str(address or "").lower() for address in addresses),
+        tuple(str(pool_id or "").lower() for pool_id in pool_ids),
+        tuple(tuple(key) for key in keys),
+        tuple(bool(direction) for direction in directions),
+    )
+
+
 def _official_v4_route_components(
     route: dict[str, Any],
     *,
@@ -421,10 +435,8 @@ def official_v4_arb_static_hop_rows(
             tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]],
         ]
     ] = []
-    # Quote routing already fixes one direction set per flash-loan anchor, but
-    # the group can still contain address/pool variants.  Pick the single
-    # highest-static-profit directed route before assembling contract arrays so
-    # keysets/directionsets always have length 1.
+    # The group can contain address/pool variants.  Keep every directed
+    # candidate so the contract can select the best pool for each direction.
     for group_route in (routes_group or [route]):
         if not isinstance(group_route, dict):
             continue
@@ -456,9 +468,22 @@ def official_v4_arb_static_hop_rows(
             item[1],
         )
     )
-    candidates = [collected[0][2]]
-    keysets = [candidate[3] for candidate in candidates]
-    directionsets = [candidate[4] for candidate in candidates]
+    # A direction is only best for the pool set it belongs to.  Keep every
+    # candidate supplied by the ordered YC/ZC groups; reverse is the separate
+    # [X, Z, Y] closed loop with its own pools, not a reversed copy of the
+    # same forward pools.
+    contract_candidates: list[
+        tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]]
+    ] = []
+    seen_candidates: set[tuple[Any, ...]] = set()
+    for candidate in (item[2] for item in collected):
+        signature = _official_v4_candidate_signature(candidate)
+        if signature in seen_candidates:
+            continue
+        seen_candidates.add(signature)
+        contract_candidates.append(candidate)
+    keysets = [candidate[3] for candidate in contract_candidates]
+    directionsets = [candidate[4] for candidate in contract_candidates]
     block_number: int | None = None
     try:
         block_number = int(w3.eth.block_number)
@@ -503,7 +528,7 @@ def official_v4_arb_static_hop_rows(
         session_fingerprint(
             block_number=block_number,
             sqrt_price_x96=",".join(key_sqrt_values),
-            direction=directionsets[0] if directionsets else None,
+            direction=",".join(str(list(direction_set)) for direction_set in directionsets) if directionsets else None,
         ),
     )
 
@@ -560,9 +585,9 @@ def official_v4_arb_static_hop_rows(
             int(result[3]),
             int(result[4]),
         )
-        if route_index >= len(candidates):
+        if route_index >= len(contract_candidates):
             return None
-        selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = candidates[route_index]
+        selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = contract_candidates[route_index]
         amounts = [out_tb, out_ta, out_tz]
         hop_rows: list[dict[str, Any]] = []
         for index, step in enumerate(selected_steps):

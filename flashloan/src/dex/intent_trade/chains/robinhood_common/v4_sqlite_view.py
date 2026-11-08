@@ -8,6 +8,8 @@ JSON evidence files; ``sqlite_db`` is the only business-data source.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from typing import Any
 
 from core.db.database_path import absolute_database_path
@@ -18,6 +20,14 @@ from core.db.storage_v4_exchange import (
     load_v4_pool_liquidity,
     load_v4_pool_liquidity_refreshed_at,
 )
+
+
+_V4_POOL_PAYLOAD_CACHE: dict[
+    tuple[str, str, str, int, str],
+    tuple[float, dict[str, Any]],
+] = {}
+_V4_POOL_PAYLOAD_CACHE_LOCK = threading.Lock()
+_V4_POOL_PAYLOAD_CACHE_TTL_SECONDS = 15.0
 
 
 def _text(value: object) -> str:
@@ -255,6 +265,18 @@ def _liquidity_payload(
     protocol: str,
 ) -> dict[str, Any]:
     db = str(absolute_database_path(database_url))
+    from core.db.storage_v4_pool_manager_accounting import (
+        load_v4_pool_manager_accounting,
+    )
+
+    accounting = load_v4_pool_manager_accounting(
+        db,
+        network=network,
+        chain_id=int(chain_id),
+        protocol=protocol,
+    )
+    flash_accounting_sources = accounting.get("sources") or []
+    native_balance_wei = accounting.get("nativePoolManagerBalanceWei") or None
     rows = load_v4_pool_liquidity(
         db,
         network=network,
@@ -284,7 +306,10 @@ def _liquidity_payload(
         "poolKeys": [],
         "poolCount": len(pools),
         "generatedAt": refreshed_at,
-        "flashAccountingSources": [],
+        "nativePoolManagerBalanceWei": native_balance_wei,
+        "flashAccountingSourceCount": len(flash_accounting_sources),
+        "flashAccountingSources": flash_accounting_sources,
+        "accountingSnapshot": accounting,
         "source": "sqlite_db",
     }
     return {
@@ -309,11 +334,18 @@ def load_v4_pool_index_payload(
     database_url: str | None = None,
     protocol: str = "uniswap_v4",
 ) -> dict[str, Any]:
-    return _index_payload(
+    return _cached_pool_payload(
+        "index",
         network,
         int(chain_id),
         database_url=database_url,
         protocol=protocol,
+        builder=lambda: _index_payload(
+            network,
+            int(chain_id),
+            database_url=database_url,
+            protocol=protocol,
+        ),
     )
 
 
@@ -324,12 +356,68 @@ def load_v4_pool_liquidity_payload(
     database_url: str | None = None,
     protocol: str = "uniswap_v4",
 ) -> dict[str, Any]:
-    return _liquidity_payload(
+    return _cached_pool_payload(
+        "liquidity",
         network,
         int(chain_id),
         database_url=database_url,
         protocol=protocol,
+        builder=lambda: _liquidity_payload(
+            network,
+            int(chain_id),
+            database_url=database_url,
+            protocol=protocol,
+        ),
     )
+
+
+def _cached_pool_payload(
+    kind: str,
+    network: str,
+    chain_id: int,
+    *,
+    database_url: str | None,
+    protocol: str,
+    builder: Any,
+) -> dict[str, Any]:
+    db = str(absolute_database_path(database_url))
+    cache_key = (kind, db, str(network).strip().lower(), int(chain_id), str(protocol).strip().lower())
+    now = time.time()
+    with _V4_POOL_PAYLOAD_CACHE_LOCK:
+        cached = _V4_POOL_PAYLOAD_CACHE.get(cache_key)
+        if cached is not None and now - cached[0] < _V4_POOL_PAYLOAD_CACHE_TTL_SECONDS:
+            return cached[1]
+    payload = builder()
+    with _V4_POOL_PAYLOAD_CACHE_LOCK:
+        _V4_POOL_PAYLOAD_CACHE[cache_key] = (time.time(), payload)
+    return payload
+
+
+def clear_v4_pool_payload_cache(
+    *,
+    database_url: str | None = None,
+    network: str | None = None,
+    chain_id: int | None = None,
+    protocol: str | None = None,
+) -> int:
+    db = str(absolute_database_path(database_url)) if database_url is not None else None
+    normalized_network = str(network).strip().lower() if network else None
+    normalized_protocol = str(protocol).strip().lower() if protocol else None
+    cleared = 0
+    with _V4_POOL_PAYLOAD_CACHE_LOCK:
+        for cache_key in list(_V4_POOL_PAYLOAD_CACHE):
+            kind, cached_db, cached_network, cached_chain_id, cached_protocol = cache_key
+            if db is not None and cached_db != db:
+                continue
+            if normalized_network and cached_network != normalized_network:
+                continue
+            if chain_id is not None and cached_chain_id != int(chain_id):
+                continue
+            if normalized_protocol and cached_protocol != normalized_protocol:
+                continue
+            _V4_POOL_PAYLOAD_CACHE.pop(cache_key, None)
+            cleared += 1
+    return cleared
 
 
 def load_v4_chain_token_metadata(
@@ -361,6 +449,7 @@ def load_v4_chain_token_metadata(
 
 
 __all__ = [
+    "clear_v4_pool_payload_cache",
     "load_v4_chain_token_metadata",
     "load_v4_pool_index_payload",
     "load_v4_pool_liquidity_payload",

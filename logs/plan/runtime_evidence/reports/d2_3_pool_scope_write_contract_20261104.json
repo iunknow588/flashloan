@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "generatedAt": "2026-11-04T06:07:54+08:00",
+  "milestone": "M2",
+  "task": "D2.3",
+  "status": "temporary_database_and_api_contract_passed_production_apply_pending",
+  "migration": {
+    "migrationId": "20261103_001_manager_schema",
+    "previousChecksum": "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+    "currentChecksum": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+    "addedControlTable": "manager_write_requests",
+    "oldChecksumEvidenceRetained": true,
+    "productionMigrationApplied": false,
+    "oldChecksumTargetsMustBeRecreatedBeforeUse": true
+  },
+  "writeContract": {
+    "routes": [
+      "POST /v1/pools/scopes/rebuild",
+      "POST /v1/pools/scopes/repair"
+    ],
+    "requiredHeaders": [
+      "X-Request-Id",
+      "Idempotency-Key"
+    ],
+    "explicitDryRunRequired": true,
+    "applyAuthorityModes": [
+      "manager"
+    ],
+    "legacyOrRollbackApply": "TOKEN_AUTHORITY_WRITE_DENIED",
+    "transactionMode": "IMMEDIATE",
+    "atomicWrites": [
+      "v4_exchange_pools_core4",
+      "pool_scope_config",
+      "manager_write_requests"
+    ],
+    "dryRunBusinessWrites": false,
+    "dryRunIdempotencyWrites": false,
+    "sameKeySameDigest": "return_first_persisted_result_with_idempotentReplay_true",
+    "sameKeyDifferentDigest": "IDEMPOTENCY_KEY_REUSED",
+    "stickyResultFields": [
+      "changedRows",
+      "materializedChecksum",
+      "libraryVersions",
+      "libraryChecksums"
+    ]
+  },
+  "validation": {
+    "commands": [
+      {
+        "command": "cargo fmt --all -- --check",
+        "exitCode": 0
+      },
+      {
+        "command": "cargo check --workspace --all-targets",
+        "exitCode": 0
+      },
+      {
+        "command": "cargo test --workspace",
+        "exitCode": 0,
+        "passed": 85,
+        "failed": 0
+      },
+      {
+        "command": "cargo clippy --workspace --all-targets -- -D warnings",
+        "exitCode": 0
+      },
+      {
+        "command": "cargo run -q -p manager-db -- preflight --db flashloan/db/local_store_4663.sqlite3",
+        "exitCode": 0
+      }
+    ],
+    "tempDatabaseCoverage": {
+      "migrationAppliedTwice": true,
+      "secondMigrationNoop": true,
+      "checksumStableAcrossRepeatedMigration": true,
+      "scopeDryRunMatchesApplyChecksum": true,
+      "scopeRepeatedApplyStable": true,
+      "idempotentReplayReturnsOriginalChangedRows": true,
+      "differentDigestRejected": true,
+      "idempotencyInsertFailureRollsBackPoolsAndConfig": true,
+      "legacyAuthorityApplyRejectedWithoutWrites": true
+    },
+    "mainnetReadOnlyPreflight": {
+      "database": "flashloan/db/local_store_4663.sqlite3",
+      "fileSizeBytes": 3315490816,
+      "quickCheck": "ok",
+      "migrationLedgerDecision": "schema_migrations",
+      "managerWriteRequestsPresent": false,
+      "allTargetTablesPresent": false,
+      "viewPresent": false
+    }
+  },
+  "serviceSafety": {
+    "mainnetServiceStartedOrStopped": false,
+    "mainnetDatabaseMigrated": false,
+    "mainnetBusinessWritePerformed": false,
+    "productionApplyRequiresMaintenanceWindow": true
+  },
+  "relatedEvidence": [
+    "plan/runtime_evidence/reports/d2_1_core4_scope_materialization_20261103.json",
+    "plan/runtime_evidence/reports/d2_2_pool_key_id_golden_20261103.json",
+    "plan/runtime_evidence/reports/d0_m0_migration_20261103_0810.json"
+  ]
+}

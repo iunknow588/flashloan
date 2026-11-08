@@ -1,0 +1,34 @@
+{
+  "schema": "closed-loop-residue-scope-regression-v1",
+  "generatedAt": "2026-11-08T18:36:21Z",
+  "task": "P0-2.5",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "conclusion": "engineering_passed_runtime_validation_pending",
+  "testCommand": "python -m pytest -q flashloan/app_runtime/tests/unit/test_20261101_test_residue_prune.py flashloan/app_runtime/tests/unit/test_v4_maintenance_workers.py flashloan/app_runtime/tests/unit/test_observe_dex_closed_loops.py",
+  "testResult": {
+    "passed": 20,
+    "failed": 0,
+    "exitCode": 0,
+    "durationSeconds": 9.26
+  },
+  "assertions": {
+    "knownTestnetResidueIsProtectedByDefault": true,
+    "explicitCleanupRequiresApprovalAndSnapshot": true,
+    "maintenanceWorkersPreserveProtectedResidue": true,
+    "observationRequiresExplicitScope": true,
+    "outOfScopeRowsAreSeparated": true
+  },
+  "productionBoundary": {
+    "serviceRestarted": false,
+    "runtimeProcessLoadedNewCode": false,
+    "productionObservationWindowCollected": false,
+    "migrationScriptExists": false,
+    "productionRestartTarget": "P0-2.6",
+    "note": "本证据只关闭 P0-2.5 的代码与单测部分。P0-2.5 继续在 copy DB/隔离进程验证维护与观察 scope；生产重启会立即触发 v4_closed_loop_worker 自动回填，必须延后到 P0-2.6 受控 apply 完成后执行。"
+  }
+}

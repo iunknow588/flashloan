@@ -3,24 +3,18 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 from core.chain_data_registry import chain_data_file_path
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
-from dex.intent_trade.chains.robinhood_common.v4_quote_core import V4_POOLS_SLOT
 from dex.intent_trade.chains.robinhood_common.chain_config import (
     MAINNET_ANCHOR_ADDRESS_BY_SYMBOL,
 )
 from dex.intent_trade.chains.robinhood.config import rpc_urls_from_env as _mainnet_rpc_urls_from_env
 from dex.intent_trade.chains.common.dex_candidate_tables import build_robinhood_pool_candidates, read_json_object
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups, pair_classification
-
-from web3 import Web3
-from eth_utils import keccak
 
 
 APP_ROOT = Path(__file__).resolve().parents[3]
@@ -98,6 +92,7 @@ _MAINNET_SYMBOL_BY_ADDRESS.update(_MAINNET_TEST_ADDRESS_BY_SYMBOL)
 _MAINNET_SYMBOL_BY_ADDRESS.update(_MAINNET_STABLE_ADDRESS_BY_SYMBOL)
 _MAINNET_STOCK_TOKEN_BY_ADDRESS: dict[str, dict[str, Any]] = {}
 _MAINNET_STOCK_TOKENS_LOADED = False
+_MAINNET_STOCK_TOKEN_CACHE_BY_PATH: dict[str, dict[str, dict[str, Any]]] = {}
 
 
 def _json_object(value: Any) -> dict[str, Any]:
@@ -115,15 +110,19 @@ def _json_object(value: Any) -> dict[str, Any]:
 def _mainnet_stock_token_by_address() -> dict[str, dict[str, Any]]:
     """Return official stock anchors from SQLite ``chain_tokens`` only."""
     global _MAINNET_STOCK_TOKEN_BY_ADDRESS, _MAINNET_STOCK_TOKENS_LOADED
-    if _MAINNET_STOCK_TOKENS_LOADED:
-        return _MAINNET_STOCK_TOKEN_BY_ADDRESS
-    _MAINNET_STOCK_TOKENS_LOADED = True
+    from core.db.database_path import absolute_database_path
+
+    database = str(absolute_database_path())
+    cached = _MAINNET_STOCK_TOKEN_CACHE_BY_PATH.get(database)
+    if cached is not None:
+        _MAINNET_STOCK_TOKEN_BY_ADDRESS = cached
+        _MAINNET_STOCK_TOKENS_LOADED = True
+        return cached
     try:
-        from core.db.database_path import absolute_database_path
         from core.db.storage_chain_core import load_chain_tokens
 
         rows = load_chain_tokens(
-            str(absolute_database_path()),
+            database,
             network="robinhood",
             chain_id=4663,
         )
@@ -149,7 +148,9 @@ def _mainnet_stock_token_by_address() -> dict[str, dict[str, Any]]:
             "address": address,
             "decimals": decimals,
         }
+    _MAINNET_STOCK_TOKEN_CACHE_BY_PATH[database] = result
     _MAINNET_STOCK_TOKEN_BY_ADDRESS = result
+    _MAINNET_STOCK_TOKENS_LOADED = True
     _MAINNET_SYMBOL_BY_ADDRESS.update(
         {
             address: str(item.get("symbol") or "").strip().upper()
@@ -309,6 +310,13 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         raw_fee_int = 0
     dynamic_fee = bool(raw_fee_int & MAINNET_V4_DYNAMIC_FEE_FLAG)
     special_fee = dynamic_fee or raw_fee_int > MAINNET_V4_SPECIAL_FEE_THRESHOLD
+    hooks = str(row.get("hooks") or "").strip().lower()
+    zero_hook = not hooks or hooks == _ZERO_ADDRESS
+    usable_for_observation = (
+        not special_fee
+        and 0 < raw_fee_int <= MAINNET_V4_MAX_OBSERVATION_FIXED_FEE
+        and zero_hook
+    )
     liquidity_index = row.get("liquidityIndex")
     if liquidity_index is None:
         try:
@@ -330,6 +338,17 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
     balances = row.get("balances")
     if not isinstance(balances, dict):
         balances = {"tvlUsd": row.get("estimatedTvlUsd") or row.get("tvlUsd") or 0}
+    reject_reasons: list[str] = []
+    if dynamic_fee:
+        reject_reasons.append("dynamic_fee")
+    elif special_fee:
+        reject_reasons.append("special_fee")
+    if not zero_hook:
+        reject_reasons.append("non_zero_hook")
+    if raw_fee_int <= 0:
+        reject_reasons.append("missing_fee")
+    elif raw_fee_int > MAINNET_V4_MAX_OBSERVATION_FIXED_FEE:
+        reject_reasons.append("fixed_fee_too_high")
     return {
         "pool": pool_id,
         "poolId": pool_id,
@@ -342,20 +361,16 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
         "dynamicFee": dynamic_fee,
         "specialFee": special_fee,
         "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else (int(raw_fee_int) if raw_fee_int else row.get("fee")),
-        "usableForObservation": (
-            not special_fee
-            and 0 < raw_fee_int <= MAINNET_V4_MAX_OBSERVATION_FIXED_FEE
-            and str(row.get("hooks") or "").strip().lower() in ("", _ZERO_ADDRESS)
-        ),
+        "usableForObservation": usable_for_observation,
         "hasLiquidity": has_liquidity,
         "liquidityIndex": liquidity_index,
         "estimatedTvlUsd": row.get("estimatedTvlUsd") or balances.get("tvlUsd"),
         "depthStatus": row.get("depthStatus") or "",
         "tickSpacing": row.get("tickSpacing"),
         "hooks": row.get("hooks"),
-        "quality": "pass",
+        "quality": "pass" if usable_for_observation else "rejected",
         "status": row.get("status") or "initialized_pool",
-        "rejectReasons": [],
+        "rejectReasons": reject_reasons,
         "token0": token0,
         "token1": token1,
         "token0Symbol": symbol0,
@@ -404,6 +419,21 @@ def _v4_pool_observation_candidate(candidate: dict[str, Any]) -> bool:
     return not hooks or hooks == _ZERO_ADDRESS
 
 
+def _is_live_pool_state_completed(state: dict[str, Any] | None) -> bool:
+    """Return whether a batch state is a real live-state result.
+
+    A generic error leaves the pool unknown, but an explicit ``liquidity is
+    zero`` response is a completed read and must not be discarded with the
+    rest of the batch.
+    """
+    if not isinstance(state, dict):
+        return False
+    error = state.get("error")
+    if not error:
+        return True
+    return "liquidity is zero" in str(error).lower()
+
+
 def _batch_read_v4_pool_states(
     *,
     rpc_url: str,
@@ -411,121 +441,28 @@ def _batch_read_v4_pool_states(
     pool_ids: list[str],
     timeout: float = 20.0,
 ) -> dict[str, dict[str, Any]]:
-    """Read live slot0+liquidity for many V4 pools in one JSON-RPC batch.
+    """Read live slot0+liquidity for many V4 pools in one Rust batch call.
 
-    Uniswap V4 stores each pool as a packed ``Pool.State`` struct starting at
-    ``keccak256(poolId || 6)``. The liquidity field is the third 32-byte slot.
-    This keeps candidate refresh fast enough to run against the full indexed
-    set without thousands of sequential RPC calls.
+    Network reads are intentionally Rust-owned. This Python wrapper only
+    normalises the caller contract and keeps the live-state path patchable in
+    unit tests.
     """
-    results: dict[str, dict[str, Any]] = {}
-    if not rpc_url or not pool_ids:
-        return results
-    payload: list[dict[str, Any]] = []
-    id_map: dict[int, tuple[str, str, bytes]] = {}
-    next_id = 1
-    for pool_id in pool_ids:
-        normalized_id = str(pool_id or "").strip().lower()
-        if not normalized_id.startswith("0x") or len(normalized_id) != 66:
-            continue
-        pool_id_bytes = bytes.fromhex(normalized_id[2:])
-        state_slot = keccak(pool_id_bytes + V4_POOLS_SLOT)
-        liquidity_slot = (int.from_bytes(state_slot, "big") + 2).to_bytes(32, "big")
-        for slot, kind in ((state_slot, "slot0"), (liquidity_slot, "liquidity")):
-            request_id = next_id
-            next_id += 1
-            id_map[request_id] = (normalized_id, kind, slot)
-            selector = Web3.keccak(text="extsload(bytes32)")[:4]
-            call_data = selector + slot
-            payload.append(
-                {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "method": "eth_call",
-                    "params": [{"to": Web3.to_checksum_address(pool_manager), "data": "0x" + call_data.hex()}, "latest"],
-                }
-            )
-    if not payload:
-        return results
-    decoded_response = None
-    last_error: Exception | None = None
-    for attempt in range(1, 3):
-        try:
-            body = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                rpc_url,
-                data=body,
-                headers={
-                    "content-type": "application/json",
-                    "user-agent": "flashloan-robinhood-mainnet-v4-candidate-batch/1.0",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                decoded_response = json.loads(response.read().decode("utf-8"))
-                break
-        except Exception as exc:
-            last_error = exc
-            if attempt >= 2:
-                raise RuntimeError(f"robinhood mainnet V4 pool state batch eth_call failed; {last_error}") from last_error
-            time.sleep(0.4 * attempt)
-    if decoded_response is None:
-        return results
-    rows = decoded_response if isinstance(decoded_response, list) else [decoded_response]
-    values: dict[tuple[str, str], bytes] = {}
-    errors: dict[tuple[str, str], str] = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        request_id = row.get("id")
-        if request_id not in id_map:
-            continue
-        pool_id, kind, _ = id_map[int(request_id)]
-        if "result" in row and row["result"]:
-            values[(pool_id, kind)] = bytes.fromhex(str(row["result"]).removeprefix("0x"))
-        elif "error" in row:
-            errors[(pool_id, kind)] = str(row["error"])
-    for pool_id in pool_ids:
-        normalized_id = str(pool_id or "").strip().lower()
-        if not normalized_id.startswith("0x") or len(normalized_id) != 66:
-            continue
-        slot0_raw = values.get((normalized_id, "slot0"))
-        liquidity_raw = values.get((normalized_id, "liquidity"))
-        if slot0_raw is None or liquidity_raw is None:
-            results[normalized_id] = {
-                "error": errors.get((normalized_id, "slot0")) or errors.get((normalized_id, "liquidity")) or "V4 pool state batch response missing slot0/liquidity",
-                "poolId": normalized_id,
-                "poolManager": Web3.to_checksum_address(pool_manager),
-                "source": "pool_manager_extsload_live_state_batch",
-            }
-            continue
-        slot0_value = int.from_bytes(slot0_raw, "big")
-        sqrt_price_x96 = slot0_value & ((1 << 160) - 1)
-        tick = (slot0_value >> 160) & ((1 << 24) - 1)
-        if tick & (1 << 23):
-            tick -= 1 << 24
-        protocol_fee = (slot0_value >> 184) & 0xFFFFFF
-        lp_fee = (slot0_value >> 208) & 0xFFFFFF
-        liquidity = int.from_bytes(liquidity_raw, "big") & ((1 << 128) - 1)
-        if sqrt_price_x96 <= 0:
-            results[normalized_id] = {"error": "robinhood mainnet pool manager live slot0 missing sqrtPriceX96", "poolId": normalized_id, "poolManager": Web3.to_checksum_address(pool_manager), "source": "pool_manager_extsload_live_state_batch"}
-            continue
-        if liquidity <= 0:
-            results[normalized_id] = {"error": "robinhood mainnet pool manager live liquidity is zero", "poolId": normalized_id, "poolManager": Web3.to_checksum_address(pool_manager), "source": "pool_manager_extsload_live_state_batch"}
-            continue
-        results[normalized_id] = {
-            "source": "pool_manager_extsload_live_state_batch",
-            "poolManager": Web3.to_checksum_address(pool_manager),
-            "poolId": normalized_id,
-            "stateSlot": state_slot.hex(),
-            "sqrtPriceX96": str(sqrt_price_x96),
-            "tick": int(tick),
-            "protocolFee": int(protocol_fee),
-            "lpFee": int(lp_fee),
-            "liquidity": str(liquidity),
-            "rpcUrl": rpc_url,
-        }
-    return results
+    from core.rs_bridge import read_v4_pool_states as rust_read_v4_pool_states
+
+    requested = [
+        str(pool_id or "").strip()
+        for pool_id in pool_ids
+        if str(pool_id or "").strip().startswith("0x")
+        and len(str(pool_id or "").strip()) == 66
+    ]
+    if not rpc_url or not requested:
+        return {}
+    return rust_read_v4_pool_states(
+        rpc_url=str(rpc_url),
+        pool_manager=str(pool_manager),
+        pool_ids=requested,
+        timeout=float(timeout or 20.0),
+    )
 
 
 def _mainnet_rpc_urls() -> tuple[str, ...]:
@@ -610,9 +547,15 @@ def _decorate_candidates_with_live_state(
                     errors.append(str(exc))
                     time.sleep(0.3)
                     continue
-                if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+                if chunk_states and any(
+                    _is_live_pool_state_completed(state)
+                    for state in chunk_states.values()
+                ):
                     break
-            if chunk_states and any(not state.get("error") for state in chunk_states.values()):
+            if chunk_states and any(
+                _is_live_pool_state_completed(state)
+                for state in chunk_states.values()
+            ):
                 states.update(chunk_states)
             else:
                 errors.append(f"{chunk[0]}..{chunk[-1]}: no_state_success")
@@ -634,16 +577,20 @@ def _decorate_candidates_with_live_state(
                 candidate["tvlUsd"] = 0
                 candidate["balances"] = {"tvlUsd": 0}
                 candidate["depthStatus"] = "live_liquidity_zero"
-                candidate["liquiditySource"] = "pool_manager_extsload_live_state_batch"
+                candidate["liquiditySource"] = (
+                    (state or {}).get("source")
+                    or "pool_manager_extsload_live_state_batch_rust"
+                )
                 summary["liveNoLiquidityPoolCount"] = summary.get("liveNoLiquidityPoolCount") or 0
                 summary["liveNoLiquidityPoolCount"] += 1
+                candidate["liquidityError"] = None
             else:
                 candidate["depthStatus"] = "live_liquidity_unavailable"
                 candidate["liquiditySource"] = candidate.get("liquiditySource") or "pool_manager_extsload_live_state_batch"
                 summary["liveStateUnavailablePoolCount"] = summary.get("liveStateUnavailablePoolCount") or 0
                 summary["liveStateUnavailablePoolCount"] += 1
+                candidate["liquidityError"] = error_message
             candidate["usableForObservation"] = _v4_pool_observation_candidate(candidate)
-            candidate["liquidityError"] = (state or {}).get("error") or "live_state_missing"
             continue
         liquid = str(state.get("liquidity") or "0")
         has_liquidity = int(liquid) > 0
@@ -921,17 +868,22 @@ def build_mainnet_static_candidate_payload(
         pool_manager=pool_manager,
         rpc_url=rpc_url or _mainnet_rpc_url(),
     )
-    _selected, pair_summaries = _select_mainnet_representative_candidates(
-        scoped_candidates,
-        max_candidates_per_pair=max_candidates_per_pair,
-        fixed_fee_only=fixed_fee_only,
-        liquid_only=True,
-    )
+    normal_candidates = [
+        candidate
+        for candidate in scoped_candidates
+        if _v4_pool_observation_candidate(candidate)
+    ]
     abnormal_candidates = [
         candidate
         for candidate in scoped_candidates
         if not _v4_pool_observation_candidate(candidate)
     ]
+    _selected, pair_summaries = _select_mainnet_representative_candidates(
+        normal_candidates,
+        max_candidates_per_pair=max_candidates_per_pair,
+        fixed_fee_only=fixed_fee_only,
+        liquid_only=True,
+    )
     abnormal_selected: list[dict[str, Any]] = []
     if max_candidates_per_pair > 0 and abnormal_candidates:
         abnormal_selected, _ = _select_mainnet_representative_candidates(
@@ -941,9 +893,9 @@ def build_mainnet_static_candidate_payload(
             liquid_only=False,
         )
     selected_source = (
-        scoped_candidates
+        normal_candidates
         if max_candidates_per_pair <= 0
-        else list(dict.fromkeys([*_selected, *abnormal_selected]))
+        else _selected
     )
     selected = sorted(
         selected_source,
@@ -965,18 +917,13 @@ def build_mainnet_static_candidate_payload(
         "generatedBlockNumber": index_payload.get("generatedBlockNumber"),
         "poolManager": pool_manager,
         "pools": selected,
+        "abnormalPools": abnormal_selected if max_candidates_per_pair > 0 else abnormal_candidates,
         "summary": {
             "poolCount": len(selected),
             "candidateRouteCount": len(selected),
             "sourceIndexedPoolCount": len(rows),
             "sourceScopedPoolCount": len(scoped_candidates),
-            "normalObservationPoolCount": len(
-                [
-                    candidate
-                    for candidate in scoped_candidates
-                    if _v4_pool_observation_candidate(candidate)
-                ]
-            ),
+            "normalObservationPoolCount": len(normal_candidates),
             "abnormalObservationPoolCount": len(abnormal_candidates),
             "fixedFeePoolCount": len(
                 [
@@ -991,6 +938,11 @@ def build_mainnet_static_candidate_payload(
                     for candidate in scoped_candidates
                     if _v4_is_special_fee_candidate(candidate)
                 ]
+            ),
+            "candidateAbnormalPoolCount": (
+                len(abnormal_selected)
+                if max_candidates_per_pair > 0
+                else len(abnormal_candidates)
             ),
             "representativeSelection": {
                 "maxCandidatesPerPair": max_candidates_per_pair,

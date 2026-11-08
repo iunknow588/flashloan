@@ -1,9 +1,11 @@
 {
+  "schemaVersion": "contract-package-v1",
   "chainId": 4663,
-  "deploymentGate": "blocked_until_fork_staticcall_pass",
+  "chainKey": "chain:4663",
   "marketId": "robinhood-dex-shadow",
+  "deploymentGate": "blocked_until_fork_staticcall_pass",
   "multicall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
-  "broadcastEnabled": false,
+  "broadcastEnabled": true,
   "routePreflightStatus": "not_ready",
   "lastPreflightEvidence": "contract/robinhood/DEX/deployments/evidence/20260928T113307897Z-24476_robinhood-robinhood-mainnet-preflight/report.json",
   "lastReadinessEvidence": "contract/robinhood/DEX/deployments/evidence/20260911T220437175Z-54556_robinhood-robinhood-mainnet-preflight/report.json",
@@ -13,6 +15,18 @@
   "sourceContract": "RobinhoodPausedFlashLoanExecutor",
   "executorContract": "RobinhoodPausedFlashLoanExecutor",
   "network": "robinhood",
+  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood/chain.json",
+  "mode": "mainnet_read_only_deferred_deploy",
+  "deploymentFile": null,
+  "requiredAdapters": [
+    "flashSource",
+    "v4UniversalRouter",
+    "v4PoolManager",
+    "permit2"
+  ],
+  "optionalAdapters": [
+    "v3SwapRouter"
+  ],
   "deploymentAddress": null,
   "deploymentStatus": "mainnet_code_complete_deferred_deploy",
   "defaultFlashSourceKind": 4,
@@ -22,11 +36,13 @@
   "defaultV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
   "defaultPositionManager": "0x58DaEC3116AAe6D93017BAAEA7749052E8a04fa7",
   "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "defaultWrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  "defaultMulticall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
   "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "v3Router": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "flashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "officialV4": {
-    "arb": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+    "arb": "0x63743AB0f08a1ea8F7078893a88E943d6BEAbcFB",
     "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
   },
   "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",

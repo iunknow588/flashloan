@@ -9,6 +9,9 @@ import pytest
 
 import core.rs_bridge as rs_bridge
 from dex.intent_trade.chains.robinhood import v4_quote_adapter
+from dex.intent_trade.chains.robinhood_testnet import (
+    v4_quote_adapter as testnet_v4_quote_adapter,
+)
 from dex.runtime import dex_route_rpc
 
 
@@ -18,6 +21,7 @@ class _FakeFlashloanRs:
         self.submit_calls: list[tuple[str, str, str | None]] = []
         self.receipt_calls: list[tuple[str, str, bool, int]] = []
         self.nonce_calls: list[tuple[str, str, int]] = []
+        self.pool_state_calls: list[tuple[str, str, str, int]] = []
 
     def resolve_private_key_hex(self, private_key: str) -> dict[str, Any]:
         return {"address": "0xfcad0b19bb29d4674531d6f115237e16afce377c"}
@@ -90,6 +94,29 @@ class _FakeFlashloanRs:
         self.nonce_calls.append((rpc_url, signer_address, timeout_seconds))
         return {"nonce": 7}
 
+    def read_v4_pool_states(
+        self,
+        rpc_url: str,
+        pool_manager: str,
+        pool_ids_json: str,
+        timeout_seconds: int = 20,
+    ) -> dict[str, Any]:
+        self.pool_state_calls.append((rpc_url, pool_manager, pool_ids_json, timeout_seconds))
+        pool_id = json.loads(pool_ids_json)[0]
+        return {
+            "ok": True,
+            "states": {
+                pool_id: {
+                    "poolId": pool_id,
+                    "sqrtPriceX96": "1",
+                    "tick": 0,
+                    "liquidity": "1000",
+                    "source": "pool_manager_extsload_live_state_batch_rust",
+                }
+            },
+            "errors": [],
+        }
+
 
 @pytest.fixture
 def fake_rust(monkeypatch: pytest.MonkeyPatch) -> _FakeFlashloanRs:
@@ -109,6 +136,11 @@ def fake_rust(monkeypatch: pytest.MonkeyPatch) -> _FakeFlashloanRs:
         lambda: rs_bridge.submit_v4_route({"rpc_url": "http://rpc"}, "0x02"),
         lambda: rs_bridge.load_v4_receipt(["http://rpc"], "0xabc"),
         lambda: rs_bridge.get_v4_pending_nonce("http://rpc", "0xabc"),
+        lambda: rs_bridge.read_v4_pool_states(
+            rpc_url="http://rpc",
+            pool_manager="0x" + "1" * 40,
+            pool_ids=["0x" + "2" * 32],
+        ),
     ],
 )
 def test_execution_bridge_requires_rust_when_unavailable(
@@ -142,6 +174,49 @@ def test_execution_bridge_wrappers_call_rust(fake_rust: _FakeFlashloanRs) -> Non
     nonce = rs_bridge.get_v4_pending_nonce("http://rpc", "0xabc", timeout_seconds=30)
     assert nonce["nonce"] == 7
     assert fake_rust.nonce_calls[0][2] == 30
+
+    pool_id = "0x" + "22" * 32
+    states = rs_bridge.read_v4_pool_states(
+        rpc_url="http://rpc",
+        pool_manager="0x" + "11" * 20,
+        pool_ids=[pool_id],
+        timeout=30,
+    )
+    assert states[pool_id]["source"] == "pool_manager_extsload_live_state_batch_rust"
+    assert fake_rust.pool_state_calls[0][0] == "http://rpc"
+    assert json.loads(fake_rust.pool_state_calls[0][2]) == [pool_id]
+    assert fake_rust.pool_state_calls[0][3] == 30
+
+
+def test_batch_read_v4_pool_states_delegates_to_rust_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
+        _batch_read_v4_pool_states,
+    )
+
+    pool_id = "0x" + "33" * 32
+    captured: dict[str, Any] = {}
+
+    def fake_bridge(**kwargs: Any) -> dict[str, dict[str, Any]]:
+        captured.update(kwargs)
+        return {
+            pool_id: {
+                "poolId": pool_id,
+                "liquidity": "1000",
+                "source": "pool_manager_extsload_live_state_batch_rust",
+            }
+        }
+
+    monkeypatch.setattr(rs_bridge, "read_v4_pool_states", fake_bridge)
+    result = _batch_read_v4_pool_states(
+        rpc_url="http://rpc",
+        pool_manager="0x" + "11" * 20,
+        pool_ids=[pool_id, "invalid", ""],
+    )
+    assert result[pool_id]["source"] == "pool_manager_extsload_live_state_batch_rust"
+    assert captured["rpc_url"] == "http://rpc"
+    assert captured["pool_ids"] == [pool_id]
 
 
 def test_fetch_dex_tx_receipt_prefers_rust(
@@ -208,3 +283,70 @@ def test_v4_quote_adapter_uses_rust_revert_data(
             hook_data=b"",
         )
     assert getattr(exc_info.value, "data", None) == "0x486aa307"
+
+
+@pytest.mark.parametrize(
+    ("adapter", "rpc_urls_env_name"),
+    [
+        (v4_quote_adapter, "rpc_urls_from_env"),
+        (testnet_v4_quote_adapter, "testnet_rpc_urls_from_env"),
+    ],
+)
+def test_v4_quote_adapter_fails_over_when_primary_rpc_is_busy(
+    fake_rust: _FakeFlashloanRs,
+    monkeypatch: pytest.MonkeyPatch,
+    adapter: Any,
+    rpc_urls_env_name: str,
+) -> None:
+    primary_url = "https://primary-rpc.invalid"
+    backup_url = "https://backup-rpc.invalid"
+    attempted_urls: list[str] = []
+
+    def fake_quote(
+        request_json: str,
+        rpc_url: str,
+        quoter_address: str,
+        call_from: str | None = None,
+        timeout_seconds: int = 20,
+    ) -> dict[str, Any]:
+        attempted_urls.append(rpc_url)
+        if rpc_url == primary_url:
+            return {
+                "ok": False,
+                "error": "eth_call: the network is busy, please try again in a moment",
+            }
+        return {"ok": True, "amountOutRaw": "0x64", "gasEstimate": "0x5208"}
+
+    monkeypatch.setenv("DEX_ONCHAIN_QUOTE_RETRY_ATTEMPTS", "0")
+    monkeypatch.setattr(rs_bridge, "quote_v4_exact_input_single", fake_quote)
+    monkeypatch.setattr(
+        adapter.robinhood,
+        rpc_urls_env_name,
+        lambda: (primary_url, backup_url),
+    )
+
+    class Provider:
+        endpoint_uri = primary_url
+
+    class W3:
+        provider = Provider()
+
+    amount_out, gas_estimate = adapter._quote_v4_exact_input_single(
+        w3=W3(),
+        network="robinhood",
+        chain_id=4663,
+        quoter_address="0x" + "1" * 40,
+        pool_key=(
+            "0x" + "1" * 40,
+            "0x" + "2" * 40,
+            3000,
+            60,
+            "0x" + "0" * 40,
+        ),
+        zero_for_one=True,
+        amount_in_raw=1,
+        hook_data=b"",
+    )
+
+    assert (amount_out, gas_estimate) == (100, 21000)
+    assert attempted_urls == [primary_url, backup_url]

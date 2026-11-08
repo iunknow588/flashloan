@@ -12,7 +12,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator
 
-from core.local_kv import ensure_store, store_path
+from core.db.database import Database
+from core.db.database_path import resolve_database_path
 
 SCHEMA_MIGRATIONS = (
     (
@@ -50,6 +51,10 @@ SCHEMA_MIGRATIONS = (
     (
         "20260805_cow_execution_attempts",
         "Record CoW quote and execution-precheck outcomes for DEX arbitrage review.",
+    ),
+    (
+        "20261025_cow_execution_review_table",
+        "Split review-class CoW attempts into cow_execution_reviews; cow_execution_attempts keeps submission and execution records.",
     ),
     (
         "20260807_control_panel_parameters",
@@ -94,46 +99,38 @@ SCHEMA_MIGRATIONS = (
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 
-def database_url_or_none(database_url: str | None = None) -> str | None:
+def database_url(database_url: str | None = None) -> str | None:
     """Return the local KV store path."""
 
-    return str(store_path(database_url))
+    return str(resolve_database_path(database_url))
 
 
 def configured_database_url(database_url: str | None = None) -> str:
     """Resolve and create the local KV store."""
 
-    resolved = store_path(database_url)
-    ensure_store(resolved)
-    return str(resolved)
+    resolved = Database.from_url(database_url)
+    resolved.ensure()
+    return str(resolved.path)
 
 
 @contextmanager
 def db_connection(database_url: str, connect_timeout: int = 8) -> Iterator[sqlite3.Connection]:
     """Yield a local SQLite connection with WAL mode enabled."""
 
-    resolved = store_path(database_url)
-    ensure_store(resolved)
-    connection = sqlite3.connect(str(resolved), timeout=max(1.0, float(connect_timeout or 1)))
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA busy_timeout=5000")
-    try:
+    resolved = Database.from_url(database_url).ensure()
+    with Database(
+        resolved,
+        connect_timeout=max(1.0, float(connect_timeout or 1)),
+    ).connection() as connection:
         yield connection
-        connection.commit()
-    except BaseException:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
 
 
 def dedicated_db_connection(database_url: str, connect_timeout: int = 8):
-    resolved = store_path(database_url)
-    ensure_store(resolved)
-    connection = sqlite3.connect(str(resolved), timeout=max(1.0, float(connect_timeout or 1)))
-    connection.row_factory = sqlite3.Row
-    return connection
+    resolved = Database.from_url(database_url).ensure()
+    return Database(
+        resolved,
+        connect_timeout=max(1.0, float(connect_timeout or 1)),
+    ).connect()
 
 
 def utc_from_ms(ms: int) -> str:
@@ -144,7 +141,7 @@ __all__ = [
     "EXPECTED_SCHEMA_MIGRATION_IDS",
     "SCHEMA_MIGRATIONS",
     "configured_database_url",
-    "database_url_or_none",
+    "database_url",
     "db_connection",
     "dedicated_db_connection",
     "utc_from_ms",

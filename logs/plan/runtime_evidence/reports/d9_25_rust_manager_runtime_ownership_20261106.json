@@ -1,0 +1,127 @@
+{
+  "evidenceId": "d9_25_rust_manager_runtime_ownership_20261106",
+  "task": "D9.25",
+  "recordedAt": "2026-11-06T03:55:53.1607303+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "authority": {
+    "reviewManager": {
+      "mainThread": "flashloan/tools/review_manager/src/runtime.rs::ReviewSupervisor",
+      "boundedRuntime": "flashloan/tools/review_manager/src/runtime.rs::ReviewRuntime",
+      "queueState": "review-manager command channel with ReviewRuntime permits"
+    },
+    "broadcastManager": {
+      "mainThread": "flashloan/tools/broadcast_manager/src/runtime.rs::BroadcastSupervisor",
+      "queue": "flashloan/tools/broadcast_manager/src/runtime.rs::ExecutionQueue",
+      "workerThreadPrefix": "rust-broadcast-manager-exec-*"
+    },
+    "pyo3Host": "flashloan/rs-src/src/worker_pool.rs::ClosedLoopWorkerPool",
+    "pythonProductionAssembly": {
+      "pythonReviewSupervisor": false,
+      "pythonBroadcastSupervisor": false,
+      "allowedPythonUse": [
+        "direct legacy tests",
+        "legacy non-native fallback",
+        "compatibility fixtures"
+      ]
+    }
+  },
+  "rustRuntimeCoreContract": {
+    "status": "frozen_for_next_implementation",
+    "requiredLanguage": "Rust",
+    "uiBoundary": "PyO3",
+    "pythonAuthorityAllowed": false,
+    "owner": "One RuntimeCore per chain in flashloan-rs",
+    "responsibilities": [
+      "chain identity",
+      "manager DTO memory snapshots",
+      "aggregate upstream versions and checksums",
+      "pipeline status projection",
+      "recent event sequence",
+      "explicit command ingress with request and idempotency metadata"
+    ],
+    "forbiddenResponsibilities": [
+      "direct business SQLite access",
+      "pool quality algorithms",
+      "PnL calculation",
+      "transaction signing",
+      "transaction broadcast",
+      "page refresh scheduling",
+      "business table writes outside owning managers"
+    ],
+    "pythonTransitionalRole": "core/runtime/chain_runtime.py may only host and proxy the PyO3 RuntimeCore until the adapter is removed"
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "workdir": "flashloan/tools",
+      "exitCode": 1,
+      "result": "Format-only diff detected in newly migrated Rust manager files."
+    },
+    {
+      "command": "cargo fmt --all",
+      "workdir": "flashloan/tools",
+      "exitCode": 0,
+      "result": "Rust workspace formatted."
+    },
+    {
+      "command": "cargo check -p review-manager -p broadcast-manager",
+      "workdir": "flashloan/tools",
+      "exitCode": 0,
+      "result": "Review and Broadcast manager crates compile."
+    },
+    {
+      "command": "cargo test -p review-manager -p broadcast-manager",
+      "workdir": "flashloan/tools",
+      "exitCode": 0,
+      "result": "19 tests passed: broadcast-manager 11, review-manager 8."
+    },
+    {
+      "command": "cargo check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "PyO3 host compiles against manager-owned runtime types."
+    },
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "84 Rust tests passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py flashloan/app_runtime/tests/unit/test_dex_closed_loop_review_queue.py flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py -q",
+      "exitCode": 0,
+      "result": "61 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py flashloan/app_runtime/tests/functional/test_navigation_flow.py flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "result": "57 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "result": "55 passed after rejecting the Python core-object facade direction."
+    },
+    {
+      "command": "python -m py_compile flashloan/src/dex/runtime/v4_maintenance_workers.py flashloan/src/dex/runtime/dex_opportunity_scanner_engine.py flashloan/src/dex/runtime/closed_loop_supervisor.py flashloan/src/dex/runtime/dex_closed_loop_review_queue.py",
+      "exitCode": 0,
+      "result": "Python compilation valid."
+    }
+  ],
+  "documentCorrections": [
+    "D9.23 historical boundary analysis marked superseded by D9.25.",
+    "D9.24 Python manager reassembly marked rejected and not valid for acceptance.",
+    "Development plan freezes Rust RuntimeCore as the only UI-facing in-memory big object.",
+    "Implementation and architecture manuals now identify Rust Review/Broadcast supervisors as runtime owners."
+  ],
+  "nextGate": "D9.26 implement RuntimeCore in flashloan-rs, then convert Python ChainRuntimeContext to a thin PyO3 adapter that holds no authoritative manager cache or orchestration."
+}

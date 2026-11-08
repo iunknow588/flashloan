@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "robinhood-mainnet-bridge-pairs-readonly-v1",
+  "chainId": 4663,
+  "route": [
+    "WETH",
+    "SPY",
+    "USDG",
+    "WETH"
+  ],
+  "addresses": [
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+  ],
+  "profitable": false,
+  "broadcast": false,
+  "ok": false,
+  "detail": "missing_route_pool_key",
+  "missingHops": "hops 1,2,3",
+  "note": "no V4 Quoter call attempted because one or more hops are absent from the mainnet v4_pool_index evidence"
+}

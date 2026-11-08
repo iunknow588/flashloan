@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_12_ui_candidate_pools_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.12 Candidate pools page uses Manager API as the only business read and fails closed without legacy fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T08:54:23+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The candidate pool GET route is now manager-owned. Flask maps /v1/candidate-edge-pools to the existing candidate page DTO, including anchorGroups, shared/YC/ZC pools, pairs, abnormal sections, pagination and token metadata, and returns manager_read_failed with dataSource=manager when the manager response is unavailable, malformed or out of scope. Legacy candidate loaders/bootstrap/paginator are not called by this route. The refresh endpoint remains a legacy maintenance entry until the M3 production builder/apply authority is switched, so the GET cutover does not also claim the write authority.",
+  "implementation": {
+    "candidateEdgeManager": "flashloan/tools/candidate_edge_pool_manager/src/lib.rs",
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "flaskRoute": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "pythonTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+    "architectureGuards": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "functionalTests": "flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py",
+    "workflowTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "CandidateEdgeSnapshot gains a bounded tokens array read from token_library_catalog for only the anchors/candidates referenced by the current candidate scope",
+    "Candidate page GET calls candidate_manager_page_payload unconditionally and no longer calls _bootstrap_dex_surface_dependencies, dex_pool_candidates_payload, paginate_candidate_payload or candidate_manager_shadow_payload",
+    "Candidate DTO validates status.enabled and status.chainId, required arrays and optional tokens array before rendering",
+    "Candidate page summary exposes usdDepthRequired=false and keeps manager status counts separate from bounded snapshot row counts",
+    "Manager read failure returns HTTP 503 with manager_read_failed, dataSource=manager and managerDetail; no legacy fallback",
+    "Candidate refresh route remains legacy-only for maintenance until M3 authority/apply cutover",
+    "Architecture and functional tests lock the candidate GET authority boundary and manager DTO fields"
+  ],
+  "verification": [
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/manager_page_compare.py app_runtime/web/data_routes/dex_surface_routes_ops.py app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_architecture_guards.py app_runtime/tests/functional/test_api_handler_payload_contract.py app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p candidate-edge-pool-manager -p manager-api",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p candidate-edge-pool-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 29
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "passed": 42
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k \"migrated_dex_pool_candidates_route_is_manager_only or migrated_dex_overview_route_is_manager_only\"",
+      "exitCode": 0,
+      "passed": 2,
+      "deselected": 40
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_pool_candidates.py -q",
+      "exitCode": 0,
+      "passed": 55,
+      "skipped": 1
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_pool_candidates_surfaces.py -q",
+      "exitCode": 0,
+      "passed": 30
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_dex_route_test.py -q",
+      "exitCode": 0,
+      "passed": 76
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q -k read_only",
+      "exitCode": 0,
+      "passed": 2,
+      "deselected": 12
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 28
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "note": "Only LF/CRLF warnings from the existing dirty worktree"
+    }
+  ],
+  "fixtures": [
+    "Candidate manager DTO maps token metadata, abnormal tokens, anchor groups, shared/YC/ZC pools, pairs and per-group pagination",
+    "Candidate manager DTO accepts empty snapshots and page=1000/page_size=60 deterministically",
+    "Candidate manager DTO rejects wrong-chain scope and malformed token field",
+    "Candidate route calls only candidate_manager_page_payload and returns manager_read_failed on manager error",
+    "Candidate route never invokes legacy bootstrap/payload/pagination or shadow opt-in",
+    "Rust candidate snapshot returns USDG/TA/TB token metadata from the current candidate scope"
+  ],
+  "observedBaseline": {
+    "fullArchitectureGuard": {
+      "passed": 36,
+      "failed": 6,
+      "assessment": "The same six pre-existing dirty-worktree failures observed in prior slices: broad exception audit, split package transitions, nested app_runtime/flashloan output directory, line-limit drift, and UI evidence JSON paths. The new migrated candidate-pool route guard passes independently."
+    }
+  },
+  "knownBoundary": "D9.12 covers code, tests and the manager-only candidate GET read path only. It does not apply production manager data, start or stop the service, write the mainnet database, or enable real broadcast. /api/dex-pools/candidates/refresh remains a legacy maintenance entry until M3 production builder/authority and apply-window gates are met. No historical evidence was modified."
+}

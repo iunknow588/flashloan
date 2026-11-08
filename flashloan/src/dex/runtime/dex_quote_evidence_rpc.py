@@ -10,6 +10,10 @@ from web3 import Web3
 
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
+from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    clear_v4_rpc_offline,
+    mark_v4_rpc_offline,
+)
 
 from dex.runtime.dex_quote_evidence_common import (
     _evidence_attr_or_default,
@@ -106,11 +110,13 @@ def _probe_robinhood_testnet_rpc_fast() -> str | None:
             chain_id = int(str(values.get(1) or "0x0"), 16)
             block_number = int(str(values.get(2) or "0x0"), 16)
             if chain_id == ROBINHOOD_TESTNET_CHAIN_ID and block_number > 0:
+                clear_v4_rpc_offline(ROBINHOOD_TESTNET_CHAIN_ID)
                 return url
             failures.append(f"{url}: chain/block mismatch chain={chain_id} block={block_number}")
         except Exception as exc:
             failures.append(f"{url}: {exc}")
     if failures:
+        mark_v4_rpc_offline(ROBINHOOD_TESTNET_CHAIN_ID, reason="rpc_probe_failed")
         raise RuntimeError("Robinhood Testnet RPC unavailable: " + "; ".join(failures[:5]))
     return None
 
@@ -140,18 +146,26 @@ def _connect_robinhood_family(chain_id: int | None, network: str) -> tuple[Any, 
             )
             try:
                 if int(w3.eth.chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
+                    clear_v4_rpc_offline(ROBINHOOD_TESTNET_CHAIN_ID)
                     return w3, probed_url
                 failures.append(f"{probed_url}: post-probe chain id mismatch")
             except Exception as exc:
                 failures.append(f"{probed_url}: post-probe web3 handshake failed: {exc}")
         if not probed_url and not failures:
             failures.append("no Robinhood Testnet RPC URLs configured")
+        mark_v4_rpc_offline(ROBINHOOD_TESTNET_CHAIN_ID, reason="rpc_probe_failed")
         raise RuntimeError(
             "Robinhood Testnet RPC unavailable after fast probe: "
             + "; ".join(failures[:5])
         )
-    connect_robinhood = _evidence_attr_or_default("_connect_robinhood", _connect_robinhood)
-    return connect_robinhood()
+    try:
+        connect_robinhood = _evidence_attr_or_default("_connect_robinhood", _connect_robinhood)
+        result = connect_robinhood()
+        clear_v4_rpc_offline(robinhood.CHAIN_ID)
+        return result
+    except Exception as exc:
+        mark_v4_rpc_offline(robinhood.CHAIN_ID, reason="rpc_probe_failed")
+        raise
 
 def _is_robinhood_family(chain_id: int | None, network: str) -> bool:
     normalized_network = _robinhood_network_for_chain_id(chain_id, network)

@@ -69,6 +69,20 @@ def _quote_failure_status(error: object) -> str:
     )
     if any(marker in message for marker in markers):
         return "not_enough_liquidity"
+    transient_markers = (
+        "network is busy",
+        "please try again",
+        "too many requests",
+        "rate limit",
+        "rate limited",
+        "429",
+        "service unavailable",
+        "temporarily unavailable",
+        "server busy",
+        "overloaded",
+    )
+    if any(marker in message for marker in transient_markers):
+        return "rpc_verification_timeout"
     if "rpc" in message and "unavailable after" in message and "connect attempt" in message:
         return "rpc_verification_failed"
     if "rpc" in message and (
@@ -297,7 +311,13 @@ def _route_quote_analysis(
     current_usd = float(notional_usd)
     closed_loop_same_symbol = bool(input_symbol and output_symbol == input_symbol)
     requested_token_basis_input_amount = token_basis_input_amount
-    if closed_loop_same_symbol and requested_token_basis_input_amount is not None:
+    if use_static_observation and requested_token_basis_input_amount is None:
+        # A closed loop used to auto-derive a 1-token basis and then send a live
+        # adapter quote even in static observation mode.  Static scans must not
+        # trigger per-edge RPC while building the surface: keep the basis as an
+        # explicit reference amount only when the caller requested one.
+        token_basis_input_amount = None
+    elif closed_loop_same_symbol and requested_token_basis_input_amount is not None:
         token_basis_input_amount = requested_token_basis_input_amount
     elif closed_loop_same_symbol and input_symbol and price_map.get(input_symbol):
         token_basis_input_amount = current_usd / price_map[input_symbol]
@@ -342,7 +362,12 @@ def _route_quote_analysis(
                 to_symbol=to_symbol,
                 from_address=from_address,
                 to_address=to_address,
-                input_amount=current_amount if not use_static_observation else None,
+                input_amount=(
+                    current_amount
+                    if current_amount is not None
+                    and (not use_static_observation or token_basis_input_amount is not None)
+                    else None
+                ),
                 input_usd=current_usd,
                 price_map=price_map,
                 chain_id=chain_id,

@@ -36,15 +36,19 @@ interface IOfficialV4PoolManagerArb {
     ) external returns (int256 packedDelta);
 }
 
+interface IPoolManagerExtsloadOfficialV4Arb {
+    function extsload(bytes32 slot) external view returns (bytes32 value);
+}
+
 contract OfficialV4FlashArb {
     error BadPoolManagerCallback();
     error InvalidRequest();
     error SwapNotResolved();
     error TransferFailed();
     error ArbitrageNotProfitable(uint256 received, uint256 required);
-    error Reentrancy();
-    error NoProfitableRoute();
-    error DexError(uint256 code);
+error Reentrancy();
+error NoProfitableRoute();
+error DexError(uint256 code);
 
     uint160 private constant MIN_SQRT_PRICE = 4295128740;
     uint160 private constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970341;
@@ -189,6 +193,11 @@ contract OfficialV4FlashArb {
     }
 
     /// @notice Reads-only adaptive peak search from `initialAmount`.
+    /// @dev `isBestAmount=true` treats `initialAmount` as a caller-selected
+    /// exact amount and verifies only that amount; external per-probe ladders
+    /// use this so every eth_call starts from a fresh simulated pool state.
+    /// `isBestAmount=false` runs the contract-side adaptive peak search inside
+    /// one call and is used by the broadcast-from-initial amount entry.
     /// @dev The initial amount is only the search origin. A profitable origin
     /// is doubled until the first non-improving or failed probe is found. An
     /// unprofitable origin is halved until a profitable base is found. The
@@ -368,6 +377,77 @@ contract OfficialV4FlashArb {
         return (selectedAmount, selectedRouteIndex, selectedProfit, attemptedCount);
     }
 
+    /// @notice Selects the best entry/bridge/exit pools from the current
+    /// on-chain prices without executing any swap. The caller can then compute
+    /// the best trade amount only for the selected single route.
+    function previewBestPool(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata entryKeys,
+        bool[] calldata entryDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata bridgeKeys,
+        bool[] calldata bridgeDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata exitKeys,
+        bool[] calldata exitDirections
+    )
+        external
+        view
+        returns (
+            uint256 entryIndex,
+            uint256 bridgeIndex,
+            uint256 exitIndex,
+            uint256 netProduct
+        )
+    {
+        (entryIndex, bridgeIndex, exitIndex, netProduct) = _selectBestRoute(
+            tokenZ,
+            entryKeys,
+            entryDirections,
+            bridgeKeys,
+            bridgeDirections,
+            exitKeys,
+            exitDirections
+        );
+        if (netProduct <= 1e18) revert NoProfitableRoute();
+    }
+
+    /// @notice Read-only best-route preview that never reverts for a low
+    /// netProduct. Every no-profit result still returns concrete numbers:
+    /// the selected candidate indices, the fee-adjusted rate product and its
+    /// signed deviation from 1e18. This is the required on-chain review
+    /// surface so loss/zero rows are never reduced to a bare revert.
+    function previewBestPoolDetailed(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata entryKeys,
+        bool[] calldata entryDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata bridgeKeys,
+        bool[] calldata bridgeDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata exitKeys,
+        bool[] calldata exitDirections
+    )
+        external
+        view
+        returns (
+            uint256 entryIndex,
+            uint256 bridgeIndex,
+            uint256 exitIndex,
+            uint256 netProduct,
+            int256 netProductDelta,
+            bool profitable
+        )
+    {
+        (entryIndex, bridgeIndex, exitIndex, netProduct) = _selectBestRoute(
+            tokenZ,
+            entryKeys,
+            entryDirections,
+            bridgeKeys,
+            bridgeDirections,
+            exitKeys,
+            exitDirections
+        );
+        netProductDelta = int256(netProduct) - 1e18;
+        profitable = netProduct > 1e18;
+    }
+
     /// @notice Broadcast wrapper for the official V4 executor. Takes an already
     /// preselected amount (for example produced by previewArbitrageBestAmount)
     /// and reuses the original direction-selection logic once, without scanning
@@ -395,6 +475,64 @@ contract OfficialV4FlashArb {
             minProfit
         );
         routeIndex = selectedRouteIndex;
+    }
+
+    /// @notice Broadcast entry for the preselected best amount. The caller
+    /// passes every candidate pool per hop; the contract re-reads the latest
+    /// prices, selects the best entry/bridge/exit combination, and then
+    /// executes that single route atomically.
+    function runArbitrageBestPoolsWithSelectedAmount(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata entryKeys,
+        bool[] calldata entryDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata bridgeKeys,
+        bool[] calldata bridgeDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata exitKeys,
+        bool[] calldata exitDirections,
+        uint256 selectedAmount,
+        uint256 minProfit
+    )
+        external
+        returns (
+            uint256 outTb,
+            uint256 outTa,
+            uint256 outTz,
+            uint256 profit,
+            uint256 entryIndex,
+            uint256 bridgeIndex,
+            uint256 exitIndex
+        )
+    {
+        if (selectedAmount == 0) revert InvalidRequest();
+        uint256 netProduct;
+        (entryIndex, bridgeIndex, exitIndex, netProduct) = _selectBestRoute(
+            tokenZ,
+            entryKeys,
+            entryDirections,
+            bridgeKeys,
+            bridgeDirections,
+            exitKeys,
+            exitDirections
+        );
+        if (netProduct <= 1e18) revert NoProfitableRoute();
+
+        IOfficialV4PoolManagerArb.PoolKey[3] memory keys = [
+            entryKeys[entryIndex],
+            bridgeKeys[bridgeIndex],
+            exitKeys[exitIndex]
+        ];
+        bool[3] memory zeroForOne = [
+            entryDirections[entryIndex],
+            bridgeDirections[bridgeIndex],
+            exitDirections[exitIndex]
+        ];
+        (outTb, outTa, outTz, profit) = this.runArbitrage(
+            tokenZ,
+            keys,
+            zeroForOne,
+            selectedAmount,
+            minProfit
+        );
     }
 
     /// @notice Convenience execution entry that reviews first, then broadcasts
@@ -537,6 +675,8 @@ contract OfficialV4FlashArb {
 
     uint256 private constant MAX_AMOUNT_SEARCH_STEPS = 24;
 
+    uint256 private constant MAX_HOP_CANDIDATES = 5;
+
     function _doubleAmount(uint256 amount) private pure returns (uint256) {
         if (amount > type(uint256).max / 2) return 0;
         return amount * 2;
@@ -587,5 +727,173 @@ contract OfficialV4FlashArb {
             } catch {}
         }
         executable = profit > 0;
+    }
+
+    function _selectBestRoute(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata entryKeys,
+        bool[] calldata entryDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata bridgeKeys,
+        bool[] calldata bridgeDirections,
+        IOfficialV4PoolManagerArb.PoolKey[] calldata exitKeys,
+        bool[] calldata exitDirections
+    )
+        private
+        view
+        returns (
+            uint256 entryIndex,
+            uint256 bridgeIndex,
+            uint256 exitIndex,
+            uint256 netProduct
+        )
+    {
+        if (
+            entryKeys.length == 0 ||
+            entryKeys.length != entryDirections.length ||
+            entryKeys.length > MAX_HOP_CANDIDATES ||
+            bridgeKeys.length == 0 ||
+            bridgeKeys.length != bridgeDirections.length ||
+            bridgeKeys.length > MAX_HOP_CANDIDATES ||
+            exitKeys.length == 0 ||
+            exitKeys.length != exitDirections.length ||
+            exitKeys.length > MAX_HOP_CANDIDATES
+        ) {
+            revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
+        }
+
+        uint256 bestEntryRate;
+        uint256 bestBridgeRate;
+        uint256 bestExitRate;
+        (entryIndex, bestEntryRate) = _bestHopRate(entryKeys, entryDirections);
+        (bridgeIndex, bestBridgeRate) = _bestHopRate(bridgeKeys, bridgeDirections);
+        (exitIndex, bestExitRate) = _bestHopRate(exitKeys, exitDirections);
+        if (bestEntryRate == 0 || bestBridgeRate == 0 || bestExitRate == 0) {
+            return (0, 0, 0, 0);
+        }
+        netProduct = _mulDiv(_mulDiv(bestEntryRate, bestBridgeRate, 1e18), bestExitRate, 1e18);
+        if (!_routeIsAnchored(
+            tokenZ,
+            entryKeys[entryIndex],
+            entryDirections[entryIndex],
+            bridgeKeys[bridgeIndex],
+            bridgeDirections[bridgeIndex],
+            exitKeys[exitIndex],
+            exitDirections[exitIndex]
+        )) {
+            revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
+        }
+    }
+
+    function _bestHopRate(
+        IOfficialV4PoolManagerArb.PoolKey[] calldata keys,
+        bool[] calldata directions
+    ) private view returns (uint256 bestIndex, uint256 bestRate) {
+        for (uint256 i = 0; i < keys.length; i++) {
+            uint256 rate = _feeAdjustedRate(keys[i], directions[i]);
+            if (rate > bestRate) {
+                bestRate = rate;
+                bestIndex = i;
+            }
+        }
+    }
+
+    function _feeAdjustedRate(
+        IOfficialV4PoolManagerArb.PoolKey calldata key,
+        bool zeroForOne
+    ) private view returns (uint256) {
+        uint256 rate = _rate18(key, zeroForOne);
+        if (rate == 0) return 0;
+        uint256 fee = uint256(key.fee);
+        uint256 factor = fee > 1_000_000 ? 0 : 1e18 - fee * 1e12;
+        return _mulDiv(rate, factor, 1e18);
+    }
+
+    function _rate18(
+        IOfficialV4PoolManagerArb.PoolKey calldata key,
+        bool zeroForOne
+    ) private view returns (uint256) {
+        uint160 sqrtPriceX96 = _sqrtPriceX96(key);
+        if (sqrtPriceX96 == 0) return 0;
+        uint256 square = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
+        uint256 price18 = _mulDiv(square, 1e18, 1 << 192);
+        if (zeroForOne) return price18;
+        return price18 == 0 ? 0 : 1e36 / price18;
+    }
+
+    function _sqrtPriceX96(
+        IOfficialV4PoolManagerArb.PoolKey calldata key
+    ) private view returns (uint160) {
+        bytes32 id = _poolId(key);
+        bytes32 stateSlot = keccak256(abi.encodePacked(id, uint256(6)));
+        (bool ok, bytes memory ret) = address(poolManager).staticcall(
+            abi.encodeWithSignature("extsload(bytes32)", stateSlot)
+        );
+        if (!ok || ret.length < 32) return 0;
+        return uint160(uint256(bytes32(ret)));
+    }
+
+    function _poolId(
+        IOfficialV4PoolManagerArb.PoolKey calldata key
+    ) private pure returns (bytes32) {
+        return keccak256(abi.encode(key));
+    }
+
+    function _routeIsAnchored(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey calldata entryKey,
+        bool entryZeroForOne,
+        IOfficialV4PoolManagerArb.PoolKey calldata bridgeKey,
+        bool bridgeZeroForOne,
+        IOfficialV4PoolManagerArb.PoolKey calldata exitKey,
+        bool exitZeroForOne
+    ) private pure returns (bool) {
+        if (_routeTokenInput(entryKey, entryZeroForOne) != tokenZ) return false;
+        if (_routeTokenOutput(exitKey, exitZeroForOne) != tokenZ) return false;
+        if (_routeTokenOutput(entryKey, entryZeroForOne) != _routeTokenInput(bridgeKey, bridgeZeroForOne)) return false;
+        if (_routeTokenOutput(bridgeKey, bridgeZeroForOne) != _routeTokenInput(exitKey, exitZeroForOne)) return false;
+        return true;
+    }
+
+    function _mulDiv(
+        uint256 x,
+        uint256 y,
+        uint256 denominator
+    ) private pure returns (uint256 result) {
+        unchecked {
+            uint256 prod0;
+            uint256 prod1;
+            assembly {
+                let mm := mulmod(x, y, not(0))
+                prod0 := mul(x, y)
+                prod1 := sub(sub(mm, prod0), lt(mm, prod0))
+            }
+            if (prod1 == 0) {
+                require(denominator > 0);
+                return prod0 / denominator;
+            }
+            require(denominator > prod1);
+            uint256 remainder;
+            assembly {
+                remainder := mulmod(x, y, denominator)
+                prod1 := sub(prod1, gt(remainder, prod0))
+                prod0 := sub(prod0, remainder)
+            }
+            uint256 twos = denominator & (~denominator + 1);
+            assembly {
+                denominator := div(denominator, twos)
+                prod0 := div(prod0, twos)
+                twos := add(div(sub(0, twos), twos), 1)
+            }
+            prod0 |= prod1 * twos;
+            uint256 inv = (3 * denominator) ^ 2;
+            inv *= 2 - denominator * inv;
+            inv *= 2 - denominator * inv;
+            inv *= 2 - denominator * inv;
+            inv *= 2 - denominator * inv;
+            inv *= 2 - denominator * inv;
+            inv *= 2 - denominator * inv;
+            result = prod0 * inv;
+            require(result / prod0 == inv, "mulDiv overflow");
+        }
     }
 }

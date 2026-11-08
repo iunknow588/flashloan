@@ -1,0 +1,88 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedCount": 76,
+      "blockedSamplesWithExpectedPnl": [],
+      "blockedWithExpectedPnlCount": 0,
+      "blockedWithMissingPnlCount": 76
+    },
+    "failed": {
+      "expectedPnlBySymbol": [],
+      "failedClosedLoops": [],
+      "failedCount": 0
+    },
+    "funnel": {
+      "broadcastCount": 0,
+      "realizedProfitBySymbol": [],
+      "reviewedCount": 76,
+      "successTxCount": 0,
+      "uniqueSuccessCount": 0,
+      "uniqueSuccessWithExpectedProfitCount": 0,
+      "withExpectedProfitCount": 0
+    },
+    "ready": {
+      "readyCount": 0,
+      "readySamples": []
+    },
+    "success": {
+      "gasAssessment": {
+        "belowGasCostCount": 0,
+        "evaluableEthCount": 0,
+        "items": [],
+        "missingGasCount": 0,
+        "needsTokenPriceQuoteCount": 0,
+        "netPositiveAfterGasCount": 0
+      },
+      "precisionAssessment": {
+        "assessmentCounts": {},
+        "items": [],
+        "rowCount": 0,
+        "usdNetProfitAvailableCount": 0
+      },
+      "profitBySymbol": [],
+      "successes": [],
+      "uniqueSuccessCount": 0
+    },
+    "t21FieldCounts": {
+      "ArbitrageNotProfitable": 0,
+      "netProductDeltaRaw": 0,
+      "netProfitAmountMissingReason": 76
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "chainTokenMetadata": {
+    "available": true,
+    "rowCount": 39675,
+    "source": "sqlite_chain_tokens",
+    "trustedDecimalsCount": 58,
+    "unavailableReason": null
+  },
+  "conclusion": "0 unique on-chain success broadcasts with signed profit by symbol: no signed profit value; 0 failed broadcasts with expected P&L by symbol: no expected numeric value; 76 blocked/quote rows present, of which 0 carry an expected numeric P&L.",
+  "generatedAt": "2026-10-22T23:19:56Z",
+  "range": {
+    "endUtc": "2026-10-22T23:19:25.393677700+00:00",
+    "firstObservedAt": "2026-10-22T23:14:52.041821300+00:00",
+    "lastObservedAt": "2026-10-22T23:19:25.393677700+00:00",
+    "startUtc": "2026-10-22T23:14:52.041821300+00:00"
+  },
+  "rowCount": 76,
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-closed-loop-pnl-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\logs\\cow_execution_attempts\\robinhood-testnet\\46630\\attempts.jsonl",
+  "usdReference": {
+    "available": true,
+    "maxAgeSeconds": 21600,
+    "maxReferenceLagSeconds": 86400,
+    "observedAt": "2026-10-22T15:49:44.159+00:00",
+    "priceCount": 707,
+    "source": "binance_market_snapshot",
+    "unavailableReason": null
+  }
+}

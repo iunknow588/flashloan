@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_17_ui_quote_routes_static_retired_20261105",
+  "milestone": "M9",
+  "task": "D9.17 quote page retires the /api/dex/quote-routes/static snapshot and reads closed-loop routes only from the manager-only /api/dex/quote-routes projection",
+  "status": "completed",
+  "generatedAt": "2026-11-06T00:29:04+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The quote page initial load, refresh and retry flows now call the manager-only /api/dex/quote-routes projection. The browser no longer requests /api/dex/quote-routes/static. The static endpoint remains only for legacy regression fixtures and diagnostics and is explicitly marked as unavailable as a page data source. The opportunity-scanner snapshot/start/scan-now surface remains a separate M9 migration item and is not claimed manager-only here.",
+  "implementation": {
+    "quotePage": "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js",
+    "legacyStaticRoute": "flashloan/app_runtime/web/data_routes/dex_surface_routes_quotes.py",
+    "uiGuard": "flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py",
+    "workflowTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+    "assemblyTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "Renamed the quote-page state from staticRoutesLoaded to managerRoutesLoaded",
+    "Renamed renderStaticRoutes to renderManagerRoutes so the UI only consumes the manager route projection",
+    "Changed the initial route load, refresh flow and failure retry flow to fetch /api/dex/quote-routes with the existing timeout policy",
+    "Changed page source text from static closed-loop wording to Manager closed-loop wording",
+    "Annotated /api/dex/quote-routes/static as a legacy regression-fixture and diagnostics endpoint that pages must not reference",
+    "Added a UI architecture guard that rejects /api/dex/quote-routes/static from quotes_app.js and requires the manager route fetch and manager-render symbols",
+    "Updated the current development plan, implementation handbook and manager API README with the D9.17 boundary and evidence"
+  ],
+  "verification": [
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_mainnet_observation_isolation.py -q",
+      "exitCode": 0,
+      "passed": 35
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly.py app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 53
+    },
+    {
+      "command": "python -m py_compile app_runtime/tests/unit/test_mainnet_observation_isolation.py app_runtime/web/data_routes/dex_surface_routes_quotes.py",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex_quotes/quotes_app.js",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check -- flashloan/app_runtime/web/static/dex_quotes/quotes_app.js flashloan/app_runtime/web/data_routes/dex_surface_routes_quotes.py flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py logs/plan/开发计划_20261103.md logs/plan/Rust管理模块实施手册_20261103.md flashloan/tools/manager_api/README.md",
+      "exitCode": 0,
+      "note": "Only LF/CRLF warnings from pre-existing tracked worktree files"
+    }
+  ],
+  "fixtures": [
+    "quotes_app.js contains no /api/dex/quote-routes/static reference",
+    "quotes_app.js fetches /api/dex/quote-routes with the manager route timeout",
+    "managerRoutesLoaded gates the manager route projection load",
+    "renderManagerRoutes consumes the manager route DTO",
+    "Web assembly and workflow tests continue to exercise the migrated quote page",
+    "JavaScript syntax validation passes after the route-source cutover"
+  ],
+  "dbWrites": 0,
+  "mainnetApply": false,
+  "serviceRestart": false,
+  "realBroadcast": false,
+  "knownBoundary": "D9.17 removes the quote page dependency on the static quote-route snapshot. It does not migrate the opportunity-scanner snapshot, scanner start or scan-now maintenance endpoints, apply production manager data, start or stop the service, write the mainnet database, or enable real broadcast. The quote page is not claimed fully manager-only until the scanner surface is separately migrated. No historical evidence was modified."
+}

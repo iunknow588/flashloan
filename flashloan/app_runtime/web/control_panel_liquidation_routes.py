@@ -139,7 +139,7 @@ def register_liquidation_routes(app, panel) -> None:
     def liquidation_borrow_pool_batches_api():
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         market_kwargs = _request_market_kwargs()
-        database_url = panel_call("database_url_or_none")
+        database_url = panel_call("database_url")
         if not database_url:
             return jsonify({"configured": False, "batches": [], "error": "local KV store unavailable"})
         try:
@@ -150,7 +150,7 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/borrow-pool/latest-batch")
     def liquidation_borrow_pool_latest_batch_api():
         market_kwargs = _request_market_kwargs()
-        database_url = panel_call("database_url_or_none")
+        database_url = panel_call("database_url")
         if not database_url:
             return jsonify({"configured": False, "batch": None, "error": "local KV store unavailable"})
         try:
@@ -163,7 +163,7 @@ def register_liquidation_routes(app, panel) -> None:
     def liquidation_high_frequency_pool_api():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
         market_kwargs = _request_market_kwargs()
-        database_url = panel_call("database_url_or_none")
+        database_url = panel_call("database_url")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "local KV store unavailable"})
         try:
@@ -176,7 +176,7 @@ def register_liquidation_routes(app, panel) -> None:
     def liquidation_core_opportunities_api():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
         market_kwargs = _request_market_kwargs()
-        database_url = panel_call("database_url_or_none")
+        database_url = panel_call("database_url")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "local KV store unavailable"})
         try:
@@ -494,7 +494,7 @@ def register_liquidation_routes(app, panel) -> None:
         chain_id = _optional_request_int_arg("chain_id")
         if _is_bnb_venus_request(market_id, chain_id):
             return jsonify(bnb_venus_accounts_payload(page=page, page_size=page_size))
-        database_url = panel_call("database_url_or_none")
+        database_url = panel_call("database_url")
         if database_url:
             try:
                 paged = panel_call(
@@ -560,7 +560,7 @@ def register_liquidation_routes(app, panel) -> None:
         if not accounts:
             return jsonify({"error": "accounts is required"}), 400
         try:
-            database_url = panel_call("database_url_or_none")
+            database_url = panel_call("database_url")
             if not database_url:
                 return jsonify({"error": "local KV store unavailable"}), 400
             panel_call("ensure_database_schema_cached", database_url)

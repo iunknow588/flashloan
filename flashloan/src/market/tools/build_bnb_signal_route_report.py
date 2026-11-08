@@ -14,6 +14,8 @@ from typing import Any
 SRC_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SRC_ROOT.parents[1]
 DEFAULT_DATA_DIR = REPO_ROOT / "data_info" / "BNB"
+DEFAULT_SOURCE = "bnb_ui_signal_shadow_observation"
+OBSERVATION_TABLE = "bnb_market_observations"
 
 STABLES = {"USDT", "USDC", "BUSD", "FDUSD", "TUSD"}
 BINANCE_SYMBOL_ALIASES = {
@@ -60,6 +62,26 @@ def _read_records(path: Path) -> list[dict[str, Any]]:
             if isinstance(payload, dict):
                 records.append(payload)
     return records
+
+
+def load_records(
+    source: str = DEFAULT_SOURCE,
+    *,
+    limit: int = 10000,
+) -> list[dict[str, Any]]:
+    """Load BNB shadow observations from the Rust-owned SQLite store."""
+    from core.rs_bridge import load_bnb_market_observations
+
+    payload = load_bnb_market_observations(
+        source=source,
+        limit=max(1, min(10000, int(limit))),
+    )
+    rows = payload.get("rows") or []
+    return [
+        row["payload"]
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("payload"), dict)
+    ]
 
 
 def _canonical_symbol(symbol: Any) -> str:
@@ -251,7 +273,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
         "",
         "## 说明",
         "",
-        "- 数据来源：`BNB_UI信号链上影子观察_原始.jsonl`。",
+        f"- 数据来源：SQLite 表 `{OBSERVATION_TABLE}`（`source={DEFAULT_SOURCE}`）。",
         "- 每个栏目对应一次“时间 + UI 交易对”触发。主路径严格遵循信号方向：先用 U 买入下跌币，再换成上涨币，最后卖出上涨币归还 U；同次反向报价仅作对照。",
         "- 每个栏目固定三张表：U-X、X-Y、Y-C。每跳仅使用静态表中已选的高质量池；空白行表示该次未对其他候选池执行报价，不表示链上没有其他池。",
         "- 币安价格行使用该次 UI 信号的 Binance 当前价格换算成同一笔输入的理论输出，只作为参照；真实判断以池子的逐跳只读报价和最终回款为准。",
@@ -336,13 +358,18 @@ def build_report(records: list[dict[str, Any]]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a BNB three-hop report grouped by UI trigger.")
-    parser.add_argument("--input", type=Path, default=DEFAULT_DATA_DIR / "BNB_UI信号链上影子观察_原始.jsonl")
+    parser.add_argument("--input", type=Path, default=None, help="Legacy JSONL input; defaults to SQLite when omitted.")
+    parser.add_argument("--source", default=DEFAULT_SOURCE, help="SQLite observation source when --input is omitted.")
+    parser.add_argument("--limit", type=int, default=10000, help="Maximum SQLite observations to read.")
     parser.add_argument("--output", type=Path, default=DEFAULT_DATA_DIR / "BNB交易信号逐跳复盘.md")
     args = parser.parse_args()
 
-    if not args.input.exists():
-        raise SystemExit(f"Input file does not exist: {args.input}")
-    write_report(args.input, args.output)
+    if args.input is not None:
+        if not args.input.exists():
+            raise SystemExit(f"Input file does not exist: {args.input}")
+        write_report(args.input, args.output)
+    else:
+        write_report_from_database(args.output, source=args.source, limit=args.limit)
     print(args.output)
     return 0
 
@@ -350,6 +377,16 @@ def main() -> int:
 def write_report(input_path: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(build_report(_read_records(input_path)), encoding="utf-8")
+
+
+def write_report_from_database(
+    output_path: Path,
+    *,
+    source: str = DEFAULT_SOURCE,
+    limit: int = 10000,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(build_report(load_records(source, limit=limit)), encoding="utf-8")
 
 
 if __name__ == "__main__":

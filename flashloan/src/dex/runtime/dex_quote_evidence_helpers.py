@@ -66,6 +66,7 @@ from dex.runtime.dex_quote_evidence_pool import (
 )
 
 from dex.runtime.dex_quote_evidence_size import (
+    _liquidity_cap_raw,
     _offchain_initial_probe_amount_raw,
     _pool_borrow_side_amount,
     _route_size_advice,

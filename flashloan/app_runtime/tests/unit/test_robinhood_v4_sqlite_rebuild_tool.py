@@ -6,8 +6,10 @@ import sys
 import pytest
 
 from core.db.storage_chain_core import seed_chain_tokens
+from core.db.direction_pool_score import MAX_DIRECTION_CANDIDATE_POOLS
 from core.db.import_existing_json import import_existing_json
 from core.db.import_v4_evidence import import_v4_evidence_payloads
+from core.db.storage_business_io import execute
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     clear_v4_exchange_evidence,
@@ -27,6 +29,7 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (
     ROBINHOOD_CHAIN_ID,
     ROBINHOOD_NETWORK,
     ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_MARKET_ID,
     ROBINHOOD_TESTNET_NETWORK,
     TESTNET_ANCHOR_ADDRESS_BY_SYMBOL,
 )
@@ -275,6 +278,62 @@ def test_import_v4_evidence_payloads_imports_from_memory_without_json(tmp_path, 
     assert len(liquidity) == 1
     assert liquidity[0]["has_liquidity"] == 1
     assert liquidity[0]["liquidity_index"] == 1000.0
+
+
+def test_incremental_import_preserves_existing_token_category(tmp_path):
+    database = str(tmp_path / "preserve-category.sqlite3")
+    ensure_database_schema(database)
+    from core.db.storage_business_io import query
+
+    custom = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    seed_chain_tokens(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        token_rows=[
+            {
+                "token_address": custom,
+                "token_symbol": "CUSTOM",
+                "token_decimals": 18,
+                "token_metadata": {
+                    "category": "stablecoin",
+                    "source": "operator_seed",
+                },
+            }
+        ],
+    )
+    payloads = _memory_evidence_payload()
+    tz = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"]
+    payloads["index"]["pools"] = [
+        {
+            **payloads["index"]["pools"][0],
+            "token0": custom,
+            "token0Symbol": "CUSTOM",
+            "token1": tz,
+            "token1Symbol": "TZ",
+        }
+    ]
+    import_v4_evidence_payloads(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        index_payload=payloads["index"],
+        liquidity_payload=payloads["liquidity"],
+    )
+
+    rows = query(
+        database,
+        """
+        SELECT token_symbol, token_metadata_json
+        FROM chain_tokens
+        WHERE network = ? AND chain_id = ? AND lower(token_address) = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, custom.lower()),
+    )
+    assert len(rows) == 1
+    metadata = json.loads(rows[0]["token_metadata_json"])
+    assert metadata.get("category") == "stablecoin"
+    assert metadata.get("source") == "operator_seed"
 
 
 def test_import_v4_evidence_payloads_skips_index_rows_without_explicit_liquidity(tmp_path):
@@ -603,6 +662,60 @@ def test_v4_sqlite_view_loaders_mark_source_as_sqlite(tmp_path):
     assert liquidity["pools"][0]["source"] == "sqlite_db"
 
 
+def test_sqlite_pool_manager_accounting_sources_round_trip(tmp_path):
+    from core.db.storage_v4_pool_manager_accounting import (
+        load_v4_pool_manager_accounting,
+        save_v4_pool_manager_accounting,
+    )
+
+    database = str(tmp_path / "accounting.sqlite3")
+    ensure_database_schema(database)
+    _seed_testnet_anchor_pair(database)
+    source = {
+        "address": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+        "symbol": "TZ",
+        "decimals": 18,
+        "poolManagerBalanceRaw": "4112807689333827121636",
+        "poolManagerBalance": 4112.807689333827,
+        "poolIds": [],
+        "source": "refresh_v4_live_poolmanager_balance_of",
+    }
+    save_v4_pool_manager_accounting(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        pool_manager="0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        block_number=137_676_557,
+        scan_scope="active_plus_known",
+        native_balance_wei="1016132958653746712869",
+        sources=[source],
+    )
+
+    loaded = load_v4_pool_manager_accounting(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert loaded["ok"] is True
+    assert loaded["sourceCount"] == 1
+    assert loaded["balanceOwner"] == "poolManager"
+    assert "flash_loan_repayment_source_balances" in loaded["balanceSemantics"]
+    assert loaded["balanceReadMode"] == "rpc_snapshot_at_block"
+    assert loaded["sources"][0]["poolManagerBalanceRaw"] == source["poolManagerBalanceRaw"]
+
+    liquidity = load_v4_pool_liquidity_payload(
+        ROBINHOOD_TESTNET_NETWORK,
+        ROBINHOOD_TESTNET_CHAIN_ID,
+        database_url=database,
+    )
+    assert liquidity["ok"] is True
+    payload = liquidity["payload"]
+    assert payload["source"] == "sqlite_db"
+    assert payload["flashAccountingSourceCount"] == 1
+    assert payload["flashAccountingSources"][0]["symbol"] == "TZ"
+    assert payload["nativePoolManagerBalanceWei"] == "1016132958653746712869"
+
+
 def test_robinhood_v4_default_loaders_do_not_read_json(monkeypatch):
     from pathlib import Path
 
@@ -782,6 +895,66 @@ def test_refresh_v4_live_incremental_preserves_existing_liquidity(tmp_path):
     assert liquidity[0]["has_liquidity"] == 1
 
 
+def test_refresh_v4_live_skip_index_forces_incremental_evidence_preserve(
+    tmp_path,
+    monkeypatch,
+):
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+    from dex.tools.refresh_robinhood_v4_live import refresh_v4_live
+
+    database = str(tmp_path / "incremental-guard.sqlite3")
+    _seed_testnet_anchor_pair(database)
+    monkeypatch.setattr(
+        live_tool,
+        "_apply_live_liquidity",
+        lambda **kwargs: {
+            "blockNumber": 1,
+            "liquidityMarkedPoolCount": 0,
+            "liquidityZeroPoolCount": 0,
+            "scannedPoolCount": 0,
+            "liquidityErrors": [],
+        },
+    )
+    monkeypatch.setattr(
+        live_tool,
+        "_connect_rpc",
+        lambda network, chain_id, rpc_url=None: (
+            type("FakeW3", (), {"eth": type("FakeEth", (), {"block_number": 1})()}),
+            "http://rpc.test",
+        ),
+    )
+
+    report = refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        skip_index=True,
+        skip_liquidity=False,
+        skip_build=True,
+        replace_evidence=True,
+        clear_cache=False,
+    )
+
+    assert report["ok"] is True
+    assert any(
+        step.get("step") == "replace_evidence_guard"
+        for step in report["steps"]
+    )
+    from core.db.storage_business_io import query
+
+    liquidity = query(
+        database,
+        """
+        SELECT pool_id, has_liquidity
+        FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
+    assert len(liquidity) == 1
+    assert liquidity[0]["has_liquidity"] == 1
+
+
 def test_refresh_v4_live_cold_import_disabled_is_rpc_free(tmp_path, monkeypatch):
     from dex.tools import refresh_robinhood_v4_live as live_tool
 
@@ -791,10 +964,15 @@ def test_refresh_v4_live_cold_import_disabled_is_rpc_free(tmp_path, monkeypatch)
 
     def _fail_connect(*args: object, **kwargs: object) -> tuple[object, str]:
         calls.append((args, kwargs))
-        raise AssertionError("cold import must not connect RPC when DEX_V4_LIVE_QUOTE_ENABLED=0")
+        raise AssertionError("cold import must not connect RPC when the chain link is offline")
 
     monkeypatch.setattr(live_tool, "_connect_rpc", _fail_connect)
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    from dex.intent_trade.chains.robinhood_common import rpc_gate
+    monkeypatch.setattr(
+        rpc_gate,
+        "_OFFLINE_REASONS",
+        {ROBINHOOD_TESTNET_CHAIN_ID: "test_offline"},
+    )
     report = live_tool.refresh_v4_live(
         database=database,
         network=ROBINHOOD_TESTNET_NETWORK,
@@ -809,6 +987,151 @@ def test_refresh_v4_live_cold_import_disabled_is_rpc_free(tmp_path, monkeypatch)
 
     assert report["ok"] is True
     assert calls == []
+
+
+def test_refresh_v4_live_dry_run_is_read_only_and_plans_small_batch(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    database = str((tmp_path / "dry-run.sqlite3").resolve())
+    _seed_testnet_anchor_pair(database)
+    tz = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"].lower()
+    usde = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"].lower()
+    now = "2026-10-22T00:00:00Z"
+    for direction_key in (f"{tz}:{usde}", f"{usde}:{tz}"):
+        execute(
+            database,
+            """
+            INSERT INTO dex_candidate_pool_pairs (
+                network, chain_id, protocol, anchor_scope, anchor_symbol,
+                anchor_address, counter_address, address_pair, direction_key,
+                pool_count, fixed_fee_liquid_pool_count, priced_pool_count,
+                yc_optimal_pool_id, zc_optimal_pool_id,
+                yc_backup_pool_ids_json, zc_backup_pool_ids_json,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, '[]', '[]', ?, ?)
+            """,
+            (
+                ROBINHOOD_TESTNET_NETWORK,
+                ROBINHOOD_TESTNET_CHAIN_ID,
+                "uniswap_v4",
+                ROBINHOOD_TESTNET_MARKET_ID,
+                "TZ",
+                tz,
+                usde,
+                f"{tz}:{usde}",
+                direction_key,
+                0,
+                0,
+                0,
+                now,
+                now,
+            ),
+        )
+
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def _fail_connect(*args: object, **kwargs: object) -> tuple[object, str]:
+        calls.append((args, kwargs))
+        raise AssertionError("dry-run must not connect RPC")
+
+    monkeypatch.setattr(live_tool, "_connect_rpc", _fail_connect)
+    before_files = {item.name: item.stat().st_size for item in tmp_path.iterdir()}
+
+    report = live_tool.refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        candidate_backfill=True,
+        skip_index=True,
+        skip_liquidity=True,
+        pool_ids=["0x" + "aa" * 32],
+        import_pool_ids=["0x" + "bb" * 32],
+        batch_size=5,
+        dry_run=True,
+        clear_cache=False,
+    )
+
+    after_files = {item.name: item.stat().st_size for item in tmp_path.iterdir()}
+    assert report["ok"] is True
+    assert report["dryRun"] is True
+    assert report["readOnly"] is True
+    assert report["steps"][0]["connection"] == "sqlite_mode_ro"
+    assert report["plan"]["neededDirectionCount"] == 2
+    assert set(report["plan"]["targets"]) == {f"{tz}:{usde}", f"{usde}:{tz}"}
+    assert report["requested"]["poolIds"] == ["0x" + "aa" * 32]
+    assert report["requested"]["importPoolIds"] == ["0x" + "bb" * 32]
+    assert report["requested"]["batchSize"] == 5
+    assert calls == []
+    assert after_files == before_files
+
+
+def test_direction_backfill_plan_enumerates_missing_anchor_directions(
+    tmp_path,
+) -> None:
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    database = str((tmp_path / "direction-plan.sqlite3").resolve())
+    ensure_database_schema(database)
+    tz = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"].lower()
+    usde = TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"].lower()
+
+    plan = live_tool._direction_backfill_plan(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        anchor_addresses={"TZ": tz, "USDE": usde},
+    )
+
+    assert plan["neededDirectionCount"] == 2
+    assert set(plan["targets"]) == {f"{tz}:{usde}", f"{usde}:{tz}"}
+    assert set(plan["targets"].values()) == {MAX_DIRECTION_CANDIDATE_POOLS}
+    assert plan["basis"] == "direction_candidate_shortfall"
+
+
+def test_refresh_v4_live_main_dry_run_prints_read_only_report(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    database = str((tmp_path / "cli-dry-run.sqlite3").resolve())
+    _seed_testnet_anchor_pair(database)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "refresh_robinhood_v4_live.py",
+            "--database",
+            database,
+            "--network",
+            ROBINHOOD_TESTNET_NETWORK,
+            "--chain-id",
+            str(ROBINHOOD_TESTNET_CHAIN_ID),
+            "--dry-run",
+            "--candidate-backfill",
+            "--skip-index",
+            "--skip-liquidity",
+            "--pool-ids",
+            "0x" + "aa" * 32,
+            "--import-pool-ids",
+            "0x" + "bb" * 32,
+            "--batch-size",
+            "3",
+            "--no-clear-cache",
+        ],
+    )
+
+    assert live_tool.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["ok"] is True
+    assert report["dryRun"] is True
+    assert report["readOnly"] is True
+    assert report["requested"]["batchSize"] == 3
+    assert report["requested"]["poolIds"] == ["0x" + "aa" * 32]
 
 
 def test_v4_incremental_guard_requires_every_pool_has_confirmed_liquidity(tmp_path):
@@ -827,6 +1150,10 @@ def test_v4_incremental_guard_requires_every_pool_has_confirmed_liquidity(tmp_pa
     )
     assert state["poolCount"] == 1
     assert state["confirmedLiquidityPoolCount"] == 1
+    assert state["eligiblePoolCount"] == 1
+    assert state["eligibleConfirmedCount"] == 1
+    assert state["eligibleUnknownCount"] == 0
+    assert state["genericUnknownCount"] == 0
     assert state["complete"] is True
 
     decision = _resolve_v4_scan_decision(
@@ -840,7 +1167,7 @@ def test_v4_incremental_guard_requires_every_pool_has_confirmed_liquidity(tmp_pa
     assert decision["forcedFullScan"] is False
 
 
-def test_v4_incremental_guard_forces_full_scan_for_missing_or_zero_liquidity(tmp_path):
+def test_v4_incremental_guard_scopes_missing_and_zero_liquidity_to_eligible_pools(tmp_path):
     from core.db.storage_business_io import execute
     from dex.tools.refresh_robinhood_v4_live import (
         _v4_incremental_database_state,
@@ -918,7 +1245,9 @@ def test_v4_incremental_guard_forces_full_scan_for_missing_or_zero_liquidity(tmp
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
     )
     assert zero_state["zeroLiquidityPoolCount"] == 1
-    assert zero_state["complete"] is False
+    assert zero_state["eligibleZeroCount"] == 1
+    assert zero_state["eligibleUnknownCount"] == 0
+    assert zero_state["complete"] is True
 
     zero_decision = _resolve_v4_scan_decision(
         database_state=zero_state,
@@ -926,8 +1255,78 @@ def test_v4_incremental_guard_forces_full_scan_for_missing_or_zero_liquidity(tmp
         full_index_scan=False,
         from_block_override=None,
     )
-    assert zero_decision["scanMode"] == "full_forced_db_incomplete"
-    assert zero_decision["fromBlock"] == 0
+    assert zero_decision["scanMode"] == "incremental"
+    assert zero_decision["fromBlock"] == 1001
+
+
+def test_v4_incremental_guard_ignores_generic_unknown_pools(tmp_path):
+    from core.db.storage_business_io import execute
+    from dex.tools.refresh_robinhood_v4_live import (
+        _v4_incremental_database_state,
+        _resolve_v4_scan_decision,
+    )
+
+    database = str(tmp_path / "guard-generic-unknown.sqlite3")
+    _seed_testnet_anchor_pair(database)
+
+    # Give the known fixture tokens an explicit category so the maintenance
+    # helper does not fall back to treating every raw pool token as eligible.
+    execute(
+        database,
+        """
+        UPDATE chain_tokens
+        SET token_metadata_json = '{\"category\":\"test_fixture\"}'
+        WHERE network = ? AND chain_id = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
+    execute(
+        database,
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_identity_mode,
+            pool_manager, token0, token1, fee, dynamic_fee, special_fee,
+            tick_spacing, hooks, address_pair, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'v4_pool_id', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+            "uniswap_v4",
+            "pool-generic-unknown",
+            "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "0x" + "11" * 20,
+            "0x" + "22" * 20,
+            3000,
+            0,
+            0,
+            60,
+            "0x0000000000000000000000000000000000000000",
+            "generic:unknown",
+            "2026-10-17T00:00:00Z",
+            "2026-10-17T00:00:00Z",
+        ),
+    )
+
+    state = _v4_incremental_database_state(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+    assert state["totalPoolCount"] == 2
+    assert state["eligiblePoolCount"] == 1
+    assert state["eligibleUnknownCount"] == 0
+    assert state["genericUnknownCount"] == 1
+    assert state["complete"] is True
+
+    decision = _resolve_v4_scan_decision(
+        database_state=state,
+        last_scanned_block=1000,
+        full_index_scan=False,
+        from_block_override=None,
+    )
+    assert decision["scanMode"] == "incremental"
+    assert decision["forcedFullScan"] is False
 
 
 def test_v4_incremental_guard_skips_force_for_explicit_overrides(tmp_path):
@@ -1073,6 +1472,54 @@ def test_v4_incremental_index_merges_existing_sqlite_pools_with_new_pools(tmp_pa
     assert "pool-tz-usde" in pool_ids
     assert new_pool_id in pool_ids
     assert merged["generatedBlockNumber"] == 123457
+    assert merged["poolManager"] == onchain["poolManager"]
+
+
+def test_incremental_import_filters_pool_keys_with_pool_rows():
+    from dex.tools.refresh_robinhood_v4_live import _filter_index_payload_to_pool_ids
+
+    first = "0x" + "11" * 32
+    second = "0x" + "22" * 32
+    payload = {
+        "poolCount": 2,
+        "pools": [{"poolId": first}, {"poolId": second}],
+        "poolKeys": [
+            {"poolId": first, "token0": "0x01", "token1": "0x02"},
+            {"poolId": second, "token0": "0x03", "token1": "0x04"},
+        ],
+    }
+
+    filtered = _filter_index_payload_to_pool_ids(payload, [first])
+
+    assert filtered["poolCount"] == 1
+    assert [row["poolId"] for row in filtered["pools"]] == [first]
+    assert [row["poolId"] for row in filtered["poolKeys"]] == [first]
+
+
+def test_mainnet_incremental_import_filters_pool_keys_with_pool_rows():
+    """Mainnet uses the same incremental import entry; poolKeys must stay scoped too."""
+    from dex.tools.refresh_robinhood_v4_live import _filter_index_payload_to_pool_ids
+
+    first = "0x" + "77" * 32
+    second = "0x" + "88" * 32
+    payload = {
+        "poolCount": 2,
+        "poolManager": "0x1234",
+        "pools": [
+            {"poolId": first, "token0": "0x01", "token1": "0x02", "fee": 3000},
+            {"poolId": second, "token0": "0x03", "token1": "0x04", "fee": 500},
+        ],
+        "poolKeys": [
+            {"poolId": first, "token0": "0x01", "token1": "0x02"},
+            {"poolId": second, "token0": "0x03", "token1": "0x04"},
+        ],
+    }
+
+    filtered = _filter_index_payload_to_pool_ids(payload, [first])
+
+    assert filtered["poolCount"] == 1
+    assert [row["poolId"] for row in filtered["pools"]] == [first]
+    assert [row["poolId"] for row in filtered["poolKeys"]] == [first]
 
 
 def test_testnet_backfill_liquidity_confirm_calls_batch_without_w3(monkeypatch):
@@ -1103,3 +1550,47 @@ def test_testnet_backfill_liquidity_confirm_calls_batch_without_w3(monkeypatch):
     assert confirmed == {pool_id}
     assert seen["kwargs"]["rpc_url"] == "https://fake-testnet.example"
     assert seen["kwargs"]["pool_ids"] == [pool_id]
+
+
+def test_mainnet_batch_refresh_accepts_explicit_zero_liquidity_chunk(monkeypatch):
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    pool_id = "0x" + "ee" * 32
+    index_payload = {
+        "network": "robinhood",
+        "chainId": 4663,
+        "poolManager": "0x" + "44" * 20,
+        "pools": [{"poolId": pool_id}],
+    }
+
+    def fake_batch(**kwargs):
+        assert kwargs["pool_ids"] == [pool_id]
+        return {
+            pool_id: {
+                "error": "robinhood mainnet pool manager live liquidity is zero",
+                "source": "pool_manager_extsload_live_state_batch_rust",
+            }
+        }
+
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood.dex_pool_candidates._batch_read_v4_pool_states",
+        fake_batch,
+    )
+    result = live_tool._apply_batch_live_liquidity(
+        index_payload=index_payload,
+        w3=None,
+        rpc_url="https://fake-mainnet.example",
+        pool_manager="0x" + "44" * 20,
+        pool_ids=[pool_id],
+        batch_size=10,
+        block_number=123,
+    )
+
+    pool = index_payload["pools"][0]
+    assert result["liquidityZeroPoolCount"] == 1
+    assert result["liquidityErrorCount"] == 0
+    assert result["liquidityErrors"] == []
+    assert pool["hasLiquidity"] is False
+    assert pool["liquidity"] == ""
+    assert pool["depthStatus"] == "live_liquidity_zero"
+    assert pool["liquidityError"] is None

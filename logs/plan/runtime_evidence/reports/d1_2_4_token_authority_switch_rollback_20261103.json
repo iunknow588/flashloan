@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "milestone": "M1",
+  "task": "D1.2.4",
+  "title": "Token Manager authority switch and rollback drill",
+  "recordedAt": "2026-11-04T04:44:01+08:00",
+  "status": "temporary_database_drill_passed_production_switch_pending",
+  "authorityContract": {
+    "environmentVariable": "TOKEN_MANAGER_AUTHORITY",
+    "modes": [
+      "legacy",
+      "manager",
+      "rollback"
+    ],
+    "default": "legacy",
+    "invalidModePolicy": "fail_closed",
+    "rollbackReasonVariable": "TOKEN_MANAGER_ROLLBACK_REASON"
+  },
+  "productionDatabase": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "sizeBytes": 3315490816,
+    "quickCheck": "ok",
+    "migrationLedger": "schema_migrations",
+    "authorityModeObserved": "legacy",
+    "migrationApplied": false,
+    "businessWritePerformed": false,
+    "managerTablesPresent": {
+      "token_core": false,
+      "token_stocks": false,
+      "token_extension": false,
+      "token_test": false,
+      "token_library_state": false,
+      "token_admission_events": false,
+      "pool_scope_config": false,
+      "v4_exchange_pools_core4": false
+    },
+    "observedServiceProcesses": [
+      {
+        "pid": 20080,
+        "name": "python",
+        "startedAt": "2026-11-03T07:52:19"
+      },
+      {
+        "pid": 20404,
+        "name": "python",
+        "startedAt": "2026-11-03T07:52:19"
+      },
+      {
+        "pid": 25572,
+        "name": "node",
+        "startedAt": "2026-11-03T19:08:45"
+      },
+      {
+        "pid": 30296,
+        "name": "node",
+        "startedAt": "2026-11-03T19:08:49"
+      }
+    ],
+    "serviceStartedOrStopped": false
+  },
+  "switchDrill": {
+    "database": "temporary SQLite created by test_manager_projection_switch_rollback_and_restart_are_auditable",
+    "fixtureRows": {
+      "legacyChainTokens": 2,
+      "managerCoreRows": 1,
+      "managerExtensionRows": 3,
+      "managerAdmissionEvents": 1
+    },
+    "legacyStage": {
+      "seedWriteAllowed": true,
+      "legacyOrphanRowsPreserved": true
+    },
+    "managerStage": {
+      "pythonSecondAuthorityWriteDenied": true,
+      "deniedCode": "TOKEN_AUTHORITY_WRITE_DENIED",
+      "projectionDryRunRows": 2,
+      "projectionApplyRows": 2,
+      "projectedStatuses": [
+        "admitted",
+        "candidate_only"
+      ],
+      "excludedStatusCounts": {
+        "blocked": 1,
+        "pending_review": 1
+      },
+      "extensionOverlapDeduplicated": 1,
+      "chainTokensRowsAfterProjection": 3,
+      "nonManagerOrphanPreserved": true,
+      "dryRunEqualsApplyChecksum": true,
+      "legacyRowsForExcludedStatus": 0,
+      "readyForProjection": true,
+      "blockedLegacyProjectionConflictFailsClosed": true
+    },
+    "rollbackStage": {
+      "withoutReasonDenied": true,
+      "withoutReasonCode": "TOKEN_AUTHORITY_ROLLBACK_REASON_REQUIRED",
+      "withReasonLegacyWriteAllowed": true,
+      "managerTokenRowsPreserved": true,
+      "managerLibraryStatePreserved": true,
+      "managerAdmissionEventsPreserved": true,
+      "idempotencyRecordsDeleted": false
+    },
+    "managerRestartStage": {
+      "firstProjectionRepairedRollbackChange": true,
+      "firstProjectionChangedRows": 1,
+      "restartChecksumEqualsOriginalApply": true,
+      "secondProjectionChangedRows": 0,
+      "secondProjectionChecksumStable": true
+    }
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "summary": "75 tests passed"
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager -p manager-api -p pool-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_token_authority.py flashloan/app_runtime/tests/unit/test_resolve_robinhood_testnet_token_metadata.py -q",
+      "exitCode": 0,
+      "summary": "12 tests passed"
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/db/token_authority.py flashloan/src/core/db/storage_chain_core.py flashloan/src/dex/tools/resolve_robinhood_testnet_token_metadata.py",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo run --manifest-path flashloan/tools/Cargo.toml --bin manager-db -- preflight --db flashloan/db/local_store_4663.sqlite3",
+      "exitCode": 0,
+      "summary": "read-only quick_check=ok; all M0 manager targets absent"
+    },
+    {
+      "command": "python -m core.db.token_authority status --database flashloan/db/local_store_4663.sqlite3",
+      "exitCode": 0,
+      "summary": "mode=legacy; databaseExists=true"
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "exitCode": 1,
+      "summary": "31 passed, 6 failed"
+    }
+  ],
+  "residualFailures": {
+    "architectureGuard": [
+      "test_no_silent_broad_exceptions_are_added",
+      "test_split_packages_exist_without_cross_imports",
+      "test_app_runtime_moved_packages_are_shim_only",
+      "test_refactored_helper_modules_stay_under_line_limits",
+      "test_active_source_files_stay_under_1000_lines",
+      "test_robinhood_page_read_paths_do_not_read_ui_evidence_json"
+    ],
+    "classification": "pre-existing dirty-worktree architecture debt; none reference the D1.2.4 token authority files",
+    "repairAction": "not repaired in this task; preserve as M9 architecture-guard blockers"
+  },
+  "rollbackPolicy": {
+    "deleteManagerTables": false,
+    "deleteAdmissionEvents": false,
+    "deleteLibraryState": false,
+    "resetGit": false,
+    "restoreProductionAuthorityAtThisTask": false
+  }
+}

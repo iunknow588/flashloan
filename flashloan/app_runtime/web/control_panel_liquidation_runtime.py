@@ -104,7 +104,7 @@ def liquidation_affected_accounts_for_market_assets(
     chain_id: int | None = None,
 ) -> list[str]:
     cp = _control_panel()
-    database_url = cp.database_url_or_none()
+    database_url = cp.database_url()
     if not database_url:
         return []
     limit, _ = parse_env_int("LIQUIDATION_ENGINE_MAX_ACCOUNTS", 100, minimum=1)
@@ -154,7 +154,7 @@ def liquidation_price_triggered_accounts(
 
 def liquidation_engine_core_accounts() -> list[str]:
     cp = _control_panel()
-    database_url = cp.database_url_or_none()
+    database_url = cp.database_url()
     if not database_url:
         return []
     config = LiquidationEngineConfig.from_env()

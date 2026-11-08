@@ -1,0 +1,221 @@
+{
+  "evidenceId": "d4_1_candidate_exchange_shadow_20261104",
+  "generatedAt": "2026-11-04T08:24:00+08:00",
+  "status": "code_temporary_db_and_compare_only_complete_production_cutover_pending",
+  "milestone": "M4/D4.1",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "candidateScope": "core4",
+    "exchangeScope": "candidate_exchange",
+    "poolSelection": "both_end",
+    "core4Selection": "edge_any",
+    "usdDepthRequired": false,
+    "usdTvlRequired": false,
+    "usdgOrUsdeRelationshipRequired": false
+  },
+  "managerTables": [
+    "v4_exchange_pools_candidate_exchange",
+    "manager_market_observation_library_state",
+    "manager_market_observation_yz_pairs",
+    "manager_market_observation_intermediate_pools",
+    "manager_market_observation_abnormal_yz_pairs",
+    "manager_market_observation_abnormal_intermediate_pools",
+    "manager_market_observation_liquidity_snapshots"
+  ],
+  "legacyTablesLeftUntouched": [
+    "market_observation_yz_pairs",
+    "market_observation_intermediate_pools",
+    "market_observation_abnormal_yz_pairs",
+    "market_observation_abnormal_intermediate_pools",
+    "market_observation_liquidity_snapshots"
+  ],
+  "migration": {
+    "migrationIds": [
+      "20261103_001_manager_schema",
+      "20261104_001_candidate_edge_schema",
+      "20261104_002_candidate_exchange_schema"
+    ],
+    "migrationChecksums": {
+      "20261103_001_manager_schema": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+      "20261104_001_candidate_edge_schema": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+      "20261104_002_candidate_exchange_schema": "sha256:1349a2eb5e98a97bb1d2de893e1c598002762545e23e35685b5de7c78f1ea112"
+    },
+    "schemaChecksum": "sha256:aee22b8326fbdd3ff9463bf8e14679ac2be03e754d800cee98cb0591f6ecfa75",
+    "temporaryDatabase": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\m4_shadow_evidence_20261104_final2.sqlite3",
+    "firstRunAppliedNow": true,
+    "secondRunAppliedNow": false,
+    "databaseSha256AfterFirstRun": "51126A0595755D7CF1398905D280B7DE1FF8EFA102627B5D49477D4FA4C52714",
+    "databaseSha256AfterSecondRun": "51126A0595755D7CF1398905D280B7DE1FF8EFA102627B5D49477D4FA4C52714",
+    "hashContract": "same-file before/after repeated no-op; schema_migrations.applied_at makes cross-run byte equality out of scope",
+    "legacyMarketObservationTablesReusedByManagerMigration": false
+  },
+  "sourceDatabaseReadOnlyPreflight": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "fileSizeBytes": 3315490816,
+    "quickCheck": "ok",
+    "readyForMigration": true,
+    "migrationLedger": "schema_migrations",
+    "managerTargetTableCount": 24,
+    "managerTargetTablesPresent": 0,
+    "incompatibleTargetTables": 0,
+    "walShmPresent": true,
+    "fileSha256": null,
+    "fileSha256BlockedByRunningService": true,
+    "migrationApplied": false,
+    "businessRowsWritten": false,
+    "serviceStartedOrStopped": false
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --workspace --all-targets",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "passed": 101,
+      "failed": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --lib",
+      "workingDirectory": "flashloan/rs-src",
+      "exitCode": 0,
+      "passed": 88,
+      "failed": 0
+    },
+    {
+      "command": "cargo run -q -p manager-db -- migrate --db target/m4_shadow_evidence_20261104_final2.sqlite3",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "appliedNow": true
+    },
+    {
+      "command": "cargo run -q -p manager-db -- migrate --db target/m4_shadow_evidence_20261104_final2.sqlite3",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "appliedNow": false
+    },
+    {
+      "command": "Get-FileHash -Algorithm SHA256 -LiteralPath target/m4_shadow_evidence_20261104_final2.sqlite3",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "hashAfterFirst": "51126A0595755D7CF1398905D280B7DE1FF8EFA102627B5D49477D4FA4C52714",
+      "hashAfterSecond": "51126A0595755D7CF1398905D280B7DE1FF8EFA102627B5D49477D4FA4C52714"
+    },
+    {
+      "command": "cargo run -q -p manager-db -- preflight --db E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "Get-FileHash -Algorithm SHA256 -LiteralPath E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+      "workingDirectory": "E:\\2026OPC大赛\\flashLoan",
+      "exitCode": 1,
+      "blockedBy": "file locked by running mainnet service"
+    }
+  ],
+  "workspaceTests": {
+    "candidateEdgePoolManager": 6,
+    "candidateExchangePoolManager": 4,
+    "managerApi": 16,
+    "managerContractsUnit": 9,
+    "managerContractsGolden": 1,
+    "managerDb": 5,
+    "poolManager": 11,
+    "tokenManager": 49,
+    "total": 101
+  },
+  "fixtureEvidence": {
+    "anchorCount": 1,
+    "tokenCount": 4,
+    "directionCount": 12,
+    "emptyDirectionCount": 8,
+    "normalPoolCount": 2,
+    "abnormalDirectionCount": 6,
+    "abnormalPoolCount": 3,
+    "liquiditySnapshotCount": 5,
+    "nonCoreBothEndDirectPair": "STOCK <-> EXT_A entered normal YZ",
+    "dryRunPersistedNoRows": true,
+    "repeatApplyPersistedZeroRows": true,
+    "upstreamVersionChangeRejectedBeforeWrite": true,
+    "consumersNeedRebuildEmitted": true
+  },
+  "compareOnlyGate": {
+    "endpoint": "GET /v1/candidate-exchange-pools/compare",
+    "readOnly": true,
+    "writesBusinessRows": false,
+    "writesIdempotencyRows": false,
+    "writesEvents": false,
+    "compares": [
+      "yzPairs",
+      "pools",
+      "abnormalYzPairs",
+      "abnormalPools"
+    ],
+    "outputs": [
+      "managerChecksum",
+      "legacyChecksum",
+      "managerRowCount",
+      "legacyRowCount",
+      "managerOnlyCount",
+      "legacyOnlyCount",
+      "fieldMismatchCount",
+      "causeCounts",
+      "differenceSamples",
+      "differencesTruncated",
+      "readyForCutover"
+    ],
+    "oldUsdDepthGateRemovalAttribution": "legacyUsdDepthGateRemoved",
+    "managerOnlyFromOldUsdDepthGateDoesNotBlockCutover": true,
+    "legacyOnlyOrFieldMismatchBlocksCutover": true,
+    "databaseBytesUnchangedDuringReadOnlyComparison": true
+  },
+  "apiSurface": {
+    "list": "GET /v1/candidate-exchange-pools?chainId=4663&anchorTokenKeyId=&limit=200",
+    "compare": "GET /v1/candidate-exchange-pools/compare?chainId=4663&legacyAnchorScope=&sampleLimit=50",
+    "rebuild": "POST /v1/candidate-exchange-pools/rebuild",
+    "requiresHeaders": ["X-Request-Id", "Idempotency-Key"],
+    "requiresExplicitBooleanDryRun": true,
+    "authorityEnv": "CANDIDATE_EXCHANGE_MANAGER_AUTHORITY",
+    "defaultAuthority": "legacy",
+    "authorityIsolatedFromTokenPoolAndCandidate": true,
+    "legacyAuthorityPermitsDryRunAndCompareOnly": true,
+    "legacyAuthorityDeniesApply": true
+  },
+  "upstreamLock": [
+    "candidateEdgeVersion",
+    "candidateEdgeChecksum",
+    "poolScopeChecksum",
+    "libraryVersions",
+    "libraryChecksums"
+  ],
+  "productionCutoverGatesRemaining": [
+    "bootstrap M1 token libraries in a production copy",
+    "materialize M2 core4 scope in the same production copy",
+    "materialize M3 manager_dex_candidate shadow and compare-only gates in that copy",
+    "materialize M4 manager_market_observation shadow in the same copy",
+    "run compare-only against corresponding legacy market_observation scope and attribute every difference",
+    "obtain zero structural differences and zero unresolved legacy keys",
+    "record pre-apply quick_check, counts, database size, service PID, and WAL/SHM state",
+    "perform production migration and M4 authority cutover in a separate maintenance window",
+    "keep P0 and M7 real broadcast gates independent from M4 shadow completion"
+  ],
+  "nextExecutableTask": {
+    "id": "D5.1/M5",
+    "scope": "design and implement Closed-loop Manager single-upstream-version consumption and consumersNeedRebuild propagation",
+    "productionDependency": "M1-M4 production bootstrap, real-copy comparison, and cutover"
+  }
+}

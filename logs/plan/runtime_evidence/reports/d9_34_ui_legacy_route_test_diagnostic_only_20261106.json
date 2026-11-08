@@ -1,0 +1,123 @@
+{
+  "evidenceId": "d9_34_ui_legacy_route_test_diagnostic_only_20261106",
+  "task": "D9.34 isolate legacy quote route-test from active UI execution paths",
+  "recordedAt": "2026-11-06T15:28:24+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmittedToRealWorker": false,
+    "signedTransaction": false,
+    "broadcastSent": false,
+    "historicalEvidenceRewrittenAsPass": false
+  },
+  "implementation": {
+    "activeFile": "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js",
+    "activeRouteButtonDispatch": {
+      "reviewButtonAttribute": "data-route-static-call",
+      "reviewHandler": "requestManualNativeReview",
+      "broadcastButtonAttribute": "data-route-broadcast",
+      "broadcastHandler": "requestManualNativeBroadcast",
+      "legacyEstimateBranchActive": false,
+      "legacyRouteTestActive": false
+    },
+    "manualReview": {
+      "invalidRouteQuoteStatus": "closed_loop_route_unsupported",
+      "invalidRouteDispatchedToRuntimeCore": false,
+      "fourSegmentRouteDispatch": "ChainRuntimeContext.execute_command('manual_review')",
+      "returnsAfterAsyncTransitionQueue": true
+    },
+    "manualBroadcast": {
+      "existingWaitingExecutionTaskOnly": true,
+      "requotes": false,
+      "recomputesSignedPnl": false,
+      "createsNewBroadcastRequest": false,
+      "realBroadcastEnabled": false
+    },
+    "legacyRouteTest": {
+      "endpoint": "/api/dex/quote-route/test",
+      "function": "runRouteTest",
+      "classification": "diagnostic_fixture_only",
+      "sourceCommentRequired": "Diagnostic fixture retained for legacy regression comparisons only.",
+      "endpointPostOccurrencesInQuotesApp": 1,
+      "activeReturnCallForbidden": true,
+      "activeLatestRoutesCallForbidden": true
+    },
+    "regressionContracts": {
+      "buttonDispatchAssertions": true,
+      "legacyModeBranchForbidden": true,
+      "invalidRouteFailsBeforeRuntimeCore": true,
+      "refreshDoesNotTriggerRouteWork": true,
+      "managerProjectionOnly": true
+    }
+  },
+  "verification": [
+    {
+      "command": "node --check app_runtime/web/static/dex_quotes/quotes_app.js",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex_quotes/quotes_render.js",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_dex_quotes_route_execution_gates.py app_runtime/tests/unit/test_mainnet_observation_isolation.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "42 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_dex_route_test.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "76 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py app_runtime/tests/unit/test_dex_quotes_route_execution_gates.py app_runtime/tests/unit/test_mainnet_observation_isolation.py app_runtime/tests/functional/test_dex_closed_loop_manual_transition_routes.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "128 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_api_scope_policy.py app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "86 passed"
+    }
+  ],
+  "architectureGuardObservation": {
+    "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q --tb=short",
+    "exitCode": 1,
+    "result": "42 passed, 6 failed",
+    "failuresArePreExistingAndOutsideD934": true,
+    "failureCategories": [
+      "broad exception audit baseline",
+      "split package cross-import transition",
+      "nested app_runtime/flashloan directory",
+      "line-limit drift",
+      "UI evidence JSON read path"
+    ]
+  },
+  "documentation": {
+    "updated": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "singleCurrentPlanPreserved": true
+  },
+  "boundaries": [
+    "D9.34 changes the quote page active execution routing and its regression contracts only.",
+    "The legacy route-test endpoint and function remain available for tests and regression comparison.",
+    "Non-four-segment routes fail before RuntimeCore dispatch.",
+    "Manual review and manual broadcast remain asynchronous state transitions; the UI does not wait for worker completion.",
+    "Manual broadcast does not requote, recompute PnL, create a new request, sign, or send a transaction.",
+    "No production database or migration state was read or written.",
+    "No service was started or stopped.",
+    "Prior evidence files were not modified."
+  ]
+}

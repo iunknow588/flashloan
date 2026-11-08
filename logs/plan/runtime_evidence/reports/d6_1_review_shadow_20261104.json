@@ -1,0 +1,69 @@
+{
+  "evidenceId": "d6_1_review_shadow_20261104",
+  "milestone": "M6",
+  "title": "Review Manager shadow and API evidence",
+  "status": "shadow-complete",
+  "generatedAt": "2026-11-04T03:30:00Z",
+  "decision": "M6 implementation is complete for shadow and HTTP boundary; production review authority remains legacy and the mainnet database was not migrated or written.",
+  "migration": {
+    "id": "20261104_004_review_schema",
+    "checksum": "sha256:9fd93a7568fadea5d691fbed0997de509aa82905b37a2c84c65beff6ca94d6d8",
+    "schemaChecksum": "sha256:39dfc08b28e5d8ff1e0ea7f5ce7018e2ce2027bdc80fbe64594277f869f174e6",
+    "appliedNowOnFreshTempDb": true,
+    "appliedNowOnSecondRun": false,
+    "tables": [
+      "manager_review_library_state",
+      "manager_v4_reviews",
+      "manager_v4_review_diagnostics",
+      "manager_v4_review_broadcast_requests"
+    ],
+    "tempDatabaseHashAfterFirstMigrate": "9AFF786E79A18503E6DCCF1FB28F6DBC0F1B7B699175F682678A3EF839F084A7",
+    "tempDatabaseHashAfterSecondMigrate": "9AFF786E79A18503E6DCCF1FB28F6DBC0F1B7B699175F682678A3EF839F084A7"
+  },
+  "mainnetPreflight": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "quickCheck": "ok",
+    "readyForMigration": true,
+    "fileSizeBytes": 3315490816,
+    "migrationLedger": "schema_migrations",
+    "managerTargetTablesPresent": 0,
+    "applied": false,
+    "wroteBusinessData": false,
+    "restartedService": false
+  },
+  "implementation": {
+    "crate": "flashloan/tools/review_manager",
+    "migration": "flashloan/tools/manager_db/migrations/20261104_004_review_schema.sql",
+    "apiRoutes": [
+      "GET /v1/reviews",
+      "POST /v1/reviews/run"
+    ],
+    "authorityEnv": "REVIEW_MANAGER_AUTHORITY",
+    "pnlPolicy": "Review Manager validates and persists external runArbitrage evidence; it does not calculate or invent PnL.",
+    "broadcastPolicy": "Only ok=true, executable=true, complete signed PnL, and strictly positive amount creates request_status=generated; no transaction is sent.",
+    "diagnosticPolicy": "SwapNotResolved, revert, quote_failed, rpc_unavailable and evidence_missing remain structured diagnostics and never replace signed PnL.",
+    "idempotencyPolicy": "Idempotency-Key plus request digest returns idempotentReplay=true; different digest returns IDEMPOTENCY_KEY_REUSED; requestId is not part of the digest."
+  },
+  "verification": {
+    "cargoFmtCheck": "passed",
+    "cargoCheckWorkspace": "passed",
+    "cargoClippyWorkspaceAllTargetsDWarnings": "passed",
+    "cargoTestWorkspace": {
+      "passed": true,
+      "totalTests": 113,
+      "reviewManagerTests": 5,
+      "managerApiTests": 19,
+      "migrationSmokeTests": 5
+    },
+    "fixtures": [
+      "missing signed PnL is data_incomplete",
+      "diagnostics do not substitute for signed PnL",
+      "positive executable review creates generated broadcast request",
+      "zero and non-executable reviews create no broadcast request",
+      "dry-run writes no review or idempotency rows",
+      "repeated apply is checksum stable",
+      "stale closed-loop version is rejected before writes"
+    ]
+  },
+  "knownBoundary": "Current production authority remains legacy. M6 complete reviews depend on M1-M5 real mainnet shadow bootstrap and cutover; M7 Broadcast Manager is required before any transaction broadcast."
+}

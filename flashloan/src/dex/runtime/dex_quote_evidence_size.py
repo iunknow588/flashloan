@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from decimal import Decimal
+import os
 from typing import Any
 
 from dex.runtime.dex_quote_evidence_common import (
@@ -27,10 +28,10 @@ def _offchain_initial_probe_amount_raw(
     requestedAmount 或 recommendedBorrowInputAmount 时，优先使用这些外部给定值，
     避免把用户/上游已经确定的初始量覆盖掉。
     规则：
-    - 只使用传入 price_map 的可信稳定币/稳定池价格锚点；
+    - 不通过 price_map/USD 反推初始量；
       绝不从 referenceInputAmount/notionalUsd 反推 TZ_USDT 价格；
-    - 没有显式初始量且没有可信价格时，使用一个基础代币单位 10 ** input_decimals；
-    - 仅在推导默认初始量时，若路由包含池子余额信息，会将初始探测值限制在池子流动性的 2% 以内，
+    - 没有显式初始量时，使用一个借币代币单位 10 ** input_decimals；
+    - 若路由包含池子余额信息，初始探测值默认使用池子借款侧深度的 50% 作为估算上限，
       避免一开始就把过度资金穿透整个池子；
     - 无法计算时返回 0，由调用方决定是否回退到请求量。
     """
@@ -60,15 +61,11 @@ def _offchain_initial_probe_amount_raw(
             "requested_borrow_amount_fallback",
             ["requested_borrow_amount_fallback"],
         )
-    input_price = price_map.get(input_symbol) if input_symbol else None
-    if input_price is not None and input_price > 0:
-        amount_raw = max(1, _raw_from_human(Decimal(str(1000.0 / input_price)), input_decimals))
-        reason = "stablecoin_usd_1000u_anchor"
-        reasons = ["stablecoin_usd_1000u_anchor"]
-    elif input_decimals is not None and input_decimals > 0:
+    _ = price_map
+    if input_decimals is not None and input_decimals > 0:
         amount_raw = max(1, int(Decimal(10) ** int(input_decimals)))
-        reason = "one_basic_unit_fallback"
-        reasons = ["one_basic_unit_fallback"]
+        reason = "one_borrow_token_unit_default"
+        reasons = ["one_borrow_token_unit_default"]
     else:
         return 0, "borrow_token", "no_offchain_initial_anchor", ["no_offchain_initial_anchor"]
     one_basic_unit_raw = (
@@ -78,8 +75,9 @@ def _offchain_initial_probe_amount_raw(
     )
     liquidity_cap_raw, liquidity_reason = _liquidity_cap_raw(pools, input_symbol, input_decimals)
     if liquidity_cap_raw is not None and liquidity_cap_raw > 0 and amount_raw > liquidity_cap_raw:
-        # 2% liquidity cap is only a conservative search starting point. It
-        # must never force the initial probe below one basic token unit.
+        # Liquidity cap is an estimated upper bound, not a hard maximum below
+        # the configured minimum probe size. Keep the initial default at one
+        # borrow-token unit unless the depth estimate is even smaller.
         amount_raw = max(int(liquidity_cap_raw), one_basic_unit_raw)
         reason = liquidity_reason or "liquidity_cap"
         reasons.append(liquidity_reason or "liquidity_cap")
@@ -176,11 +174,16 @@ def _liquidity_cap_raw(
     input_symbol: str,
     input_decimals: int,
 ) -> tuple[int | None, str | None]:
+    try:
+        share = float(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_POOL_DEPTH_SHARE", "0.5"))
+    except (TypeError, ValueError):
+        share = 0.5
+    share = max(0.01, min(0.5, share))
     pool_cap_raw = _pool_borrow_liquidity_raw(pools, input_symbol, input_decimals)
     if pool_cap_raw is not None:
-        pool_cap_raw = max(1, pool_cap_raw // 50)
+        pool_cap_raw = max(1, int(pool_cap_raw * share))
     if pool_cap_raw is not None:
-        return pool_cap_raw, "liquidity_cap_pool_reserve_2pct"
+        return pool_cap_raw, f"liquidity_cap_pool_reserve_{int(round(share * 100))}pct"
     return None, None
 
 def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | None, int | None, int | None]:

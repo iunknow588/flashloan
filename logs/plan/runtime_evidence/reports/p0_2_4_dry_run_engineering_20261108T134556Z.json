@@ -1,0 +1,91 @@
+{
+  "schema": "closed-loop-runtime-identity-p0-2-4-evidence-v1",
+  "generatedAt": "2026-11-08T13:45:56Z",
+  "task": "P0-2.4",
+  "evidenceLevel": "engineering_and_read_only_snapshot_dry_run",
+  "conclusion": "passed",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "authority": "legacy_python_closed_loop_runtime_identity",
+  "databasePath": "logs/plan/back/p0_2_4_snapshot_20261108T130233Z/local_store_4663.sqlite3",
+  "databaseSha256": "aff2aa735262ec83b6102b8b1347140d9781b9f89ea0cbf9d5ab71aac0b987d9",
+  "sourceReport": {
+    "path": "logs/plan/runtime_evidence/reports/p0_2_4_snapshot_canonical_20261108T130558Z.json",
+    "checksum": "f9b65f508faeaaa291c7c1fce129fed842cdf2146ebdb9ed3159f2da6fd31bd7",
+    "keyMode": "directed-symbol",
+    "coverage": {
+      "closedLoops": 192,
+      "runtimeStates": 96,
+      "exactMatched": 96,
+      "exactMissing": 96,
+      "yzGroupMatched": 96,
+      "physicalLoopKeyMatched": 0,
+      "physicalLoopKeyOrphan": 96
+    }
+  },
+  "dryRunReport": {
+    "path": "logs/plan/runtime_evidence/reports/closed_loop_runtime_identity_migration_20261108T131053Z.json",
+    "schema": "closed-loop-runtime-identity-migration-v1",
+    "mode": "dry-run",
+    "exitCode": 0,
+    "findingCodes": [
+      "OUT_OF_SCOPE_ROWS_EXCLUDED"
+    ],
+    "findingsDisposition": "informational_only_out_of_scope_testnet_row"
+  },
+  "counts": {
+    "closedLoops": 192,
+    "proposedDirectionMappings": 192,
+    "proposedRuntimeStates": 192,
+    "archivePlans": 96,
+    "rekeyPlans": 96,
+    "reverseInsertPlans": 96,
+    "sourceRuntimeGroups": 96,
+    "sourceExactDirectedMatches": 96,
+    "unresolvedDirections": 0,
+    "duplicateDirectedKey": 0,
+    "unresolvedAddress": 0,
+    "crossScopeConflict": 0,
+    "uniqueTargets": 192,
+    "invalidPhysicalKeys": 0
+  },
+  "targetState": "offchain_pending",
+  "outOfScope": {
+    "runtimeStates": 1,
+    "description": "Known robinhood-testnet 46630 aaa|bbb|ccc residue excluded from the mainnet migration plan."
+  },
+  "tests": {
+    "pyCompile": {
+      "command": "python -m py_compile scripts/migrate_closed_loop_runtime_identity.py flashloan/app_runtime/tests/unit/test_migrate_closed_loop_runtime_identity.py",
+      "exitCode": 0
+    },
+    "migrationUnit": {
+      "command": "python -m pytest -q flashloan/app_runtime/tests/unit/test_migrate_closed_loop_runtime_identity.py",
+      "passed": 6,
+      "failed": 0,
+      "exitCode": 0
+    },
+    "identityRegression": {
+      "command": "python -m pytest -q flashloan/app_runtime/tests/unit/test_audit_closed_loop_runtime_sync.py flashloan/app_runtime/tests/unit/test_closed_loop_identity.py flashloan/app_runtime/tests/unit/test_closed_loop_state_machine.py",
+      "passed": 48,
+      "failed": 0,
+      "exitCode": 0
+    }
+  },
+  "snapshotIntegrity": {
+    "quickCheck": "ok",
+    "closedLoops": 192,
+    "runtimeStates": 96
+  },
+  "productionBoundary": {
+    "productionDatabaseWritten": false,
+    "productionServiceRestarted": false,
+    "productionWorkerExecuted": false,
+    "managerApplyExecuted": false,
+    "note": "P0-2.4 used a read-only snapshot and dry-run plan. It is not production apply or runtime acceptance."
+  }
+}

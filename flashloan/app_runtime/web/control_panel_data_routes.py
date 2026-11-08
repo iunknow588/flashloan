@@ -11,7 +11,6 @@ from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
     COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
     COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
-    append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
     build_cow_market_claim_candidate_attempts,
     build_cow_market_candidate_attempts,
@@ -24,10 +23,7 @@ from dex.runtime.cow_arbitrage_daemon import (
 )
 from dex.runtime.ui_signal_pool_evidence import record_ui_signal_pool_evidence
 from dex.runtime.cow_attempt_log import (
-    COW_EXECUTION_ATTEMPT_LOG_PATH,
-    COW_EXECUTION_ATTEMPT_LOG_ROOT,
     COW_EXECUTION_RETENTION_DAYS,
-    cow_execution_attempt_log_path,
     record_cow_attempt_list_safely,
     record_cow_execution_attempts_safely,
 )
@@ -118,7 +114,7 @@ def _request_cow_network_arg() -> str:
         return selected[0]
     try:
         chain_selection = resolve_request_chain_selection(
-            database_url=panel_call("database_url_or_none"),
+            database_url=panel_call("database_url"),
             feature="dex_arbitrage",
         )
         network = str(getattr(chain_selection, "network", "") or "").strip().lower()
@@ -139,7 +135,7 @@ def _optional_request_chain_selection(*, feature: str | None = None) -> dict | N
             return None
         try:
             return resolve_request_chain_selection(
-                database_url=panel_call("database_url_or_none"),
+                database_url=panel_call("database_url"),
                 feature=feature,
             ).as_dict()
         except ChainSelectionError:
@@ -150,7 +146,7 @@ def _optional_request_chain_selection(*, feature: str | None = None) -> dict | N
             return None
     try:
         return resolve_request_chain_selection(
-            database_url=panel_call("database_url_or_none"),
+            database_url=panel_call("database_url"),
             feature=feature,
         ).as_dict()
     except ChainSelectionError:

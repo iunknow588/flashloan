@@ -1,0 +1,34 @@
+{
+  "chainId": 4663,
+  "cleaned": {
+    "dex_candidate_pool_recommendations": 0,
+    "dex_candidate_pools": 0,
+    "v4_closed_loop_hops": 0,
+    "v4_closed_loop_optimizations": 0,
+    "v4_closed_loops": 0,
+    "v4_exchange_pool_liquidity_snapshots": 0,
+    "v4_exchange_pools": 0
+  },
+  "cleanedPoolCount": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "generatedAt": "2026-11-03T00:02:28.328645Z",
+  "mode": "zero_liquidity_pool_cleanup",
+  "network": "robinhood",
+  "ok": true,
+  "phase": "completed",
+  "poolIds": [
+    "0x0041fbbac004b429ee0cd1e9c59c7ea68bf9deb04acb8b76da61844f0c6dd83c",
+    "0x36234ef1d896ae6fc77612485565c714fa55a994c4075da3697e06016fb658c8"
+  ],
+  "retained": {
+    "v4_exchange_pool_liquidity_snapshots": "retained_for_liquidity_recovery; raw pool rows and snapshots are never deleted by dynamic-scan cleanup",
+    "v4_exchange_pools": 2
+  },
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": true
+  },
+  "schemaVersion": "robinhood-testnet-v4-zero-liquidity-cleanup-evidence-v1"
+}

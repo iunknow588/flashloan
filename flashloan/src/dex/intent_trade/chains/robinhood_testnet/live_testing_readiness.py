@@ -7,7 +7,13 @@ from typing import Any
 
 from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
 from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
-from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import (
+    _sqlite_token_liquidity_evidence,
+)
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+)
 from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import (
     _as_dict,
     _as_list,
@@ -54,12 +60,27 @@ def _chain_opportunity_snapshot(
     return candidates[0][1]
 
 
+def _load_sqlite_pool_evidence(chain_test_plan: dict[str, Any]) -> dict[str, Any]:
+    repayment = _as_dict(_as_dict(chain_test_plan.get("preflightSpec")).get("repaymentConstraint"))
+    route_hops = _as_list(chain_test_plan.get("preflightSpec", {}).get("routeHops"))
+    first_hop = _as_dict(route_hops[0]) if route_hops else {}
+    token_address = _text(repayment.get("borrowToken")) or _text(first_hop.get("tokenIn"))
+    return _sqlite_token_liquidity_evidence(
+        database=None,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        token_address=token_address,
+    )
+
+
 def summarize_robinhood_testnet_live_testing_readiness(
     *,
     chain_metadata: dict[str, Any],
     contracts_metadata: dict[str, Any],
     chain_test_plan: dict[str, Any],
     v4_pool_liquidity: dict[str, Any] | None = None,
+    sqlite_pool_evidence: dict[str, Any] | None = None,
     chain_test_audit: dict[str, Any] | None = None,
     current_opportunity_snapshot: dict[str, Any] | None = None,
     route_capture: dict[str, Any] | None = None,
@@ -95,11 +116,20 @@ def summarize_robinhood_testnet_live_testing_readiness(
     plan_evidence = _as_dict(chain_test_plan.get("evidence"))
     plan_scope = _plan_scope(chain_test_plan)
     plan_scope_ok = _is_testnet_plan_scope(chain_test_plan)
+    if v4_pool_liquidity is None:
+        from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+            load_robinhood_testnet_v4_pool_liquidity,
+        )
+
+        v4_pool_liquidity = load_robinhood_testnet_v4_pool_liquidity()
+    if sqlite_pool_evidence is None:
+        sqlite_pool_evidence = _load_sqlite_pool_evidence(chain_test_plan)
     normal_probe = resolve_robinhood_testnet_normal_flash_probe(
         chain_metadata=chain_metadata,
         contracts_metadata=contracts_metadata,
         chain_test_plan=chain_test_plan,
         v4_pool_liquidity=v4_pool_liquidity,
+        sqlite_pool_evidence=sqlite_pool_evidence,
     )
     chain_broadcast_enabled = _bool(chain_metadata.get("broadcastEnabled"))
     contract_broadcast_enabled = _bool(contracts_metadata.get("broadcastEnabled"))
@@ -247,6 +277,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
         "profitableRouteLiveTestComplete": profitable_route_live_test_complete,
         "profitableRouteLiveTestTxHash": profitable_route_live_tx_hash,
         "normalTestnetProbe": normal_probe,
+        "sqlitePoolEvidence": normal_probe.get("sqliteLiquidityEvidence"),
         "gates": {
             "chainTestReady": chain_test_ready,
             "normalProbeLiveTestComplete": normal_probe_live_test_complete,
@@ -263,6 +294,9 @@ def summarize_robinhood_testnet_live_testing_readiness(
             "candidatePoolSupplyEvidenceUnset": candidate_pool_supply_evidence_unset,
             "opportunitySnapshotNewerThanPlan": snapshot_is_newer_than_plan,
             "currentSnapshotHasNoLiveProfitableRoute": current_snapshot_has_no_live_profitable_route,
+            "sqlitePoolEvidenceReady": bool(
+                (normal_probe.get("sqliteLiquidityEvidence") or {}).get("ready")
+            ),
         },
         "evidence": {
             "chainTestPlan": chain_metadata.get("lastChainTestPlanEvidence"),

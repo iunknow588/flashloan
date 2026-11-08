@@ -4,8 +4,23 @@ const hre = require("hardhat");
 const { loadChainConfig } = require(path.resolve(__dirname, "../../../../scripts/tool/load-chain-config.js"));
 
 const ROBINHOOD_TESTNET_CHAIN_JSON = path.resolve(__dirname, "../config/chain.json");
-const TESTNET_RPC = loadChainConfig(46630).rpcUrl;
+const ROBINHOOD_TESTNET_REPO_ROOT = path.resolve(__dirname, "../../../..");
+const ROBINHOOD_TESTNET_CHAIN_TEST_PLAN = path.join(
+  ROBINHOOD_TESTNET_REPO_ROOT,
+  "flashloan",
+  "src",
+  "runtime",
+  "evidence",
+  "robinhood-testnet",
+  "chain_test",
+  "latest",
+  "plan.json",
+);
+const TESTNET_RPC =
+  loadChainConfig(46630).rpc.primary || loadChainConfig(46630).rpcUrl;
 const V4_SWAP_TOPIC = hre.ethers.id("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
+const V4_POOLS_SLOT = "0x0000000000000000000000000000000000000000000000000000000000000006";
+const POOL_MANAGER_EXTSLOAD_ABI = ["function extsload(bytes32 slot) view returns (bytes32)"];
 
 function normalizeAddress(value) {
   const raw = String(value || "").trim();
@@ -126,6 +141,95 @@ function writeEvidence(report) {
   return reportPath;
 }
 
+function stateSlotForPool(poolId) {
+  const raw = String(poolId || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(raw)) throw new Error(`invalid_pool_id: ${raw}`);
+  const poolIdHex = hre.ethers.zeroPadValue(raw, 32);
+  return hre.ethers.keccak256(hre.ethers.concat([poolIdHex, V4_POOLS_SLOT]));
+}
+
+function poolIdsFromChainTestPlan(planPath = ROBINHOOD_TESTNET_CHAIN_TEST_PLAN) {
+  let payload;
+  try {
+    payload = JSON.parse(fs.readFileSync(planPath, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return [];
+  }
+  const ids = new Set();
+  const hops = payload?.preflightSpec?.routeHops;
+  if (Array.isArray(hops)) {
+    for (const hop of hops) {
+      const raw = String(hop?.pool || hop?.poolId || hop?.poolKey || "").trim().toLowerCase();
+      if (/^0x[0-9a-f]{64}$/.test(raw)) ids.add(raw);
+    }
+  }
+  const attempt = payload?.attempt;
+  if (attempt && typeof attempt === "object") {
+    const pathText = attempt?.route?.poolPathKey || attempt?.poolPathKey || "";
+    for (const raw of String(pathText || "").split("|")) {
+      const normalized = String(raw || "").trim().toLowerCase();
+      if (/^0x[0-9a-f]{64}$/.test(normalized)) ids.add(normalized);
+    }
+  }
+  return Array.from(ids).sort();
+}
+
+async function inspectV4FlashAccountingPoolsViaState(addressInfo, options = {}) {
+  const address = addressInfo.address || "";
+  const minUsablePools = Number(options.minUsablePools ?? envNumber("ROBINHOOD_TESTNET_MIN_USABLE_V4_POOL_COUNT", 1));
+  const report = {
+    attempted: false,
+    address: address || null,
+    source: "pool_manager_extsload_live_state_chain_test_plan",
+    minUsablePools,
+    poolIds: [],
+    activePoolIds: [],
+    usableFlashAccountingPoolCount: 0,
+    nativeBalanceWei: null,
+    ok: false,
+    error: null,
+  };
+  if (!address) {
+    report.error = "pool_manager_address_missing";
+    return report;
+  }
+  const poolIds = Array.isArray(options.poolIds) && options.poolIds.length
+    ? options.poolIds.map((item) => String(item || "").trim().toLowerCase())
+    : poolIdsFromChainTestPlan();
+  const normalizedPoolIds = poolIds.filter((item) => /^0x[0-9a-f]{64}$/.test(item));
+  if (!normalizedPoolIds.length) {
+    report.error = "chain_test_plan_pool_ids_unavailable";
+    return report;
+  }
+  report.attempted = true;
+  report.poolIds = normalizedPoolIds;
+  try {
+    const poolManager = await hre.ethers.getContractAt(POOL_MANAGER_EXTSLOAD_ABI, address);
+    const activePoolIds = new Set();
+    for (const poolId of normalizedPoolIds) {
+      const stateSlot = stateSlotForPool(poolId);
+      const liquiditySlot = hre.ethers.toBeHex(BigInt(stateSlot) + 3n, 32);
+      const [slot0Raw, liquidityRaw, nativeBalance] = await Promise.all([
+        poolManager.extsload(stateSlot),
+        poolManager.extsload(liquiditySlot),
+        hre.ethers.provider.getBalance(address),
+      ]);
+      const slot0 = BigInt(slot0Raw);
+      const sqrtPriceX96 = slot0 & ((1n << 160n) - 1n);
+      const liquidity = BigInt(liquidityRaw) & ((1n << 128n) - 1n);
+      if (sqrtPriceX96 > 0n && liquidity > 0n) activePoolIds.add(poolId);
+      report.nativeBalanceWei = nativeBalance.toString();
+    }
+    report.activePoolIds = Array.from(activePoolIds).sort();
+    report.usableFlashAccountingPoolCount = report.activePoolIds.length;
+    report.ok = report.usableFlashAccountingPoolCount >= minUsablePools;
+    if (!report.ok) report.error = "testnet_usable_pool_missing";
+  } catch (error) {
+    report.error = error.shortMessage || error.message || String(error);
+  }
+  return report;
+}
+
 async function codeStatus(label, addressInfo, { required = false } = {}) {
   const address = addressInfo.address || "";
   const base = {
@@ -166,6 +270,7 @@ async function inspectV4FlashAccountingPools(addressInfo, options = {}) {
   const report = {
     attempted: false,
     address: address || null,
+    source: "pool_manager_swap_logs",
     lookbackBlocks,
     minUsablePools,
     fromBlock: null,
@@ -214,10 +319,58 @@ async function inspectV4FlashAccountingPools(addressInfo, options = {}) {
     report.activePoolIds = Array.from(activePoolIds).sort().slice(0, activePoolIdLimit > 0 ? activePoolIdLimit : undefined);
     report.usableFlashAccountingPoolCount = activePoolIds.size;
     report.nativeBalanceWei = nativeBalance.toString();
-    report.ok = activePoolIds.size >= minUsablePools;
+    if (activePoolIds.size < minUsablePools) {
+      const fallback = await inspectV4FlashAccountingPoolsViaState(addressInfo, {
+        minUsablePools,
+      });
+      report.fallback = {
+        attempted: fallback.attempted,
+        source: fallback.source,
+        poolIds: fallback.poolIds,
+        activePoolIds: fallback.activePoolIds,
+        usableFlashAccountingPoolCount: fallback.usableFlashAccountingPoolCount,
+        nativeBalanceWei: fallback.nativeBalanceWei,
+        ok: fallback.ok,
+        error: fallback.error,
+      };
+      if (fallback.ok) {
+        report.source = fallback.source;
+        report.activePoolIds = Array.from(new Set([...report.activePoolIds, ...fallback.activePoolIds])).sort();
+        report.usableFlashAccountingPoolCount = report.activePoolIds.length;
+        report.nativeBalanceWei = fallback.nativeBalanceWei || report.nativeBalanceWei;
+      }
+    }
+    report.ok = report.usableFlashAccountingPoolCount >= minUsablePools;
     if (!report.ok) report.error = "testnet_usable_pool_missing";
   } catch (error) {
-    report.error = error.shortMessage || error.message || String(error);
+    const getLogsError = error.shortMessage || error.message || String(error);
+    report.getLogsError = getLogsError;
+    report.error = getLogsError;
+    try {
+      const fallback = await inspectV4FlashAccountingPoolsViaState(addressInfo, {
+        minUsablePools,
+      });
+      report.fallback = {
+        attempted: fallback.attempted,
+        source: fallback.source,
+        poolIds: fallback.poolIds,
+        activePoolIds: fallback.activePoolIds,
+        usableFlashAccountingPoolCount: fallback.usableFlashAccountingPoolCount,
+        nativeBalanceWei: fallback.nativeBalanceWei,
+        ok: fallback.ok,
+        error: fallback.error,
+      };
+      if (fallback.ok) {
+        report.source = fallback.source;
+        report.activePoolIds = fallback.activePoolIds;
+        report.usableFlashAccountingPoolCount = fallback.usableFlashAccountingPoolCount;
+        report.nativeBalanceWei = fallback.nativeBalanceWei;
+        report.ok = true;
+        report.error = null;
+      }
+    } catch (fallbackError) {
+      report.fallbackError = fallbackError.shortMessage || fallbackError.message || String(fallbackError);
+    }
   }
   return report;
 }
@@ -411,9 +564,12 @@ if (require.main === module) {
 module.exports = {
   buildRobinhoodTestnetPreflight,
   inspectV4FlashAccountingPools,
+  inspectV4FlashAccountingPoolsViaState,
+  poolIdsFromChainTestPlan,
   configuredRpcSource,
   ROBINHOOD_TESTNET_CHAIN_JSON,
   ROBINHOOD_TESTNET_DEFAULTS,
+  stateSlotForPool,
   envBool,
   envNumber,
   envString,

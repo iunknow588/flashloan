@@ -20,7 +20,7 @@ from dex.intent_trade.chains.robinhood.chain_test_policy import (
     normalize_robinhood_chain_test_network,
 )
 from core.evidence_scope import evidence_scope_mismatch_reasons
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts_source
 
 
 def _default_output_dir(network: str) -> Path:
@@ -195,6 +195,7 @@ def chain_test_package_flow(
     trigger_block: int | None = None,
     output_dir: Path | None = None,
     contract_dir: Path | None = None,
+    preserve_fork_evidence: bool = True,
     **_: object,
 ) -> dict:
     requested_network = _text(request.network if request is not None else "").lower()
@@ -209,8 +210,10 @@ def chain_test_package_flow(
     if selected_attempt is None and attempt_json is not None:
         selected_attempt = _read_json(attempt_json)
     if selected_attempt is None:
-        rows = load_recent_cow_execution_attempts_jsonl(
-            log_path or SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts",
+        from core.db.database_path import absolute_database_path
+
+        rows = load_recent_cow_execution_attempts_source(
+            absolute_database_path(log_path),
             limit=limit,
             networks=[requested_network],
             chain_ids=[requested_chain_id],
@@ -231,7 +234,12 @@ def chain_test_package_flow(
     _assert_scoped_path(output_dir, network=network, kind="output")
     _assert_scoped_path(contract_dir, network=network, kind="contract")
     _assert_attempt_scope(selected_attempt, network=network, chain_id=chain_id)
-    plan = write_robinhood_chain_test_package(output_dir, selected_attempt, contract_dir=contract_dir)
+    plan = write_robinhood_chain_test_package(
+        output_dir,
+        selected_attempt,
+        contract_dir=contract_dir,
+        preserve_fork_evidence=preserve_fork_evidence,
+    )
     return {
         "ok": True,
         "network": network,
@@ -249,13 +257,23 @@ def chain_test_package_flow(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a Robinhood chain-test package from a verified attempt row.")
     parser.add_argument("--attempt-json", type=Path, help="One attempt row as JSON.")
-    parser.add_argument("--log-path", type=Path, default=SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts")
+    parser.add_argument(
+        "--log-path",
+        type=Path,
+        default=SRC_ROOT.parent / "db" / "local_store.sqlite3",
+        help="SQLite store path for attempts.",
+    )
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--pair", default="USDG -> WETH -> VLAD -> WETH -> USDG")
     parser.add_argument("--trigger-block", type=int, default=None)
     parser.add_argument("--network", default=ROBINHOOD_NETWORK)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--contract-dir", type=Path, default=None)
+    parser.add_argument(
+        "--no-preserve-fork-evidence",
+        action="store_true",
+        help="Rebuild without carrying over existing fork/static-call evidence.",
+    )
     args = parser.parse_args()
     network = normalize_robinhood_chain_test_network(args.network)
     if network not in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}:
@@ -269,7 +287,7 @@ def main() -> int:
     if args.attempt_json:
         attempt = _read_json(args.attempt_json)
     else:
-        rows = load_recent_cow_execution_attempts_jsonl(
+        rows = load_recent_cow_execution_attempts_source(
             args.log_path,
             limit=args.limit,
             networks=[network],
@@ -277,7 +295,12 @@ def main() -> int:
         )
         attempt = _select_attempt(rows, args.pair, trigger_block=args.trigger_block)
     _assert_attempt_scope(attempt, network=network, chain_id=chain_id)
-    plan = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
+    plan = write_robinhood_chain_test_package(
+        output_dir,
+        attempt,
+        contract_dir=contract_dir,
+        preserve_fork_evidence=not args.no_preserve_fork_evidence,
+    )
     print(
         json.dumps(
             {

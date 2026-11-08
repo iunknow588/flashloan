@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
@@ -26,6 +26,21 @@ from dex.intent_trade.chains.robinhood_testnet.v4_liquidity_metrics import (
     _liquidity_depth_status,
     _liquidity_reserve_metrics,
 )
+from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity_helpers import (
+    _balance_raw,
+    _flash_accounting_sources,
+    _flash_pool_ids,
+    _index_pool_keys,
+    _load_token_balance_scan_cache,
+    _pool_key_currency_address,
+    _preflight_report_candidates,
+    _report_chain_id,
+    _resolve_workspace_path,
+    _token_balance_scan_cache_path,
+    _workspace_root,
+    _write_token_balance_scan_cache,
+    default_contract_metadata_path,
+)
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     ERC20_ABI,
     MULTICALL3_ABI,
@@ -50,156 +65,6 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     _topic_address,
     _web3,
 )
-
-
-def _workspace_root() -> Path:
-    current = Path(__file__).resolve()
-    for parent in current.parents:
-        if (parent / "contract").exists() and (parent / "flashloan").exists():
-            return parent
-    return current.parents[5]
-
-
-def _resolve_workspace_path(value: object, *, base: Path | None = None) -> Path | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    path = Path(text)
-    if path.is_absolute():
-        return path
-    return (base or _workspace_root()) / path
-
-
-def default_contract_metadata_path() -> Path:
-    return _workspace_root() / "contract" / "robinhood-testnet" / "DEX" / "config" / "contracts.json"
-
-
-def _preflight_report_candidates(base: Path | None = None) -> list[Path]:
-    evidence_root = (base or _workspace_root()) / "contract" / "robinhood-testnet" / "DEX" / "deployments" / "evidence"
-    if not evidence_root.exists():
-        return []
-    return sorted(evidence_root.glob("*robinhoodTestnet-robinhood-testnet-preflight/report.json"))
-
-
-def _flash_pool_ids(report: dict[str, Any]) -> list[str]:
-    flash = report.get("flashAccountingLiquidity") if isinstance(report.get("flashAccountingLiquidity"), dict) else {}
-    return [
-        str(pool_id)
-        for pool_id in flash.get("activePoolIds") or []
-        if isinstance(pool_id, str) and pool_id.startswith("0x") and len(pool_id) == 66
-    ]
-
-
-def _report_chain_id(report: dict[str, Any]) -> int:
-    rpc = report.get("rpc") if isinstance(report.get("rpc"), dict) else {}
-    return int(rpc.get("chainId") or report.get("chainId") or report.get("expectedChainId") or 0)
-
-
-def _balance_raw(metadata: dict[str, Any]) -> int:
-    try:
-        return int(str(metadata.get("poolManagerBalanceRaw") or "0"))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _flash_accounting_sources(
-    pool_keys: list[dict[str, Any]],
-    *,
-    native_balance_wei: object,
-) -> list[dict[str, Any]]:
-    by_address: dict[str, dict[str, Any]] = {}
-    try:
-        native_raw = int(str(native_balance_wei or "0"))
-    except (TypeError, ValueError):
-        native_raw = 0
-    if native_raw > 0:
-        by_address[ZERO_ADDRESS] = {
-            "address": ZERO_ADDRESS,
-            "symbol": "ETH",
-            "decimals": 18,
-            "poolManagerBalanceRaw": str(native_raw),
-            "poolManagerBalance": native_raw / 10**18,
-            "poolIds": [],
-            "source": "nativePoolManagerBalanceWei",
-        }
-    for pool_key in pool_keys:
-        pool_id = str(pool_key.get("poolId") or "").strip()
-        for currency_key, metadata_key in (("currency0", "currency0Metadata"), ("currency1", "currency1Metadata")):
-            metadata = pool_key.get(metadata_key) if isinstance(pool_key.get(metadata_key), dict) else {}
-            address = str(pool_key.get(currency_key) or metadata.get("address") or "").strip()
-            if not address:
-                continue
-            raw = _balance_raw(metadata)
-            if raw <= 0:
-                continue
-            current = by_address.setdefault(
-                address.lower(),
-                {
-                    "address": address,
-                    "symbol": str(metadata.get("symbol") or address[:8]).strip(),
-                    "decimals": metadata.get("decimals"),
-                    "poolManagerBalanceRaw": str(raw),
-                    "poolManagerBalance": metadata.get("poolManagerBalance"),
-                    "poolIds": [],
-                    "source": "decoded_pool_key_metadata",
-                },
-            )
-            if raw > _balance_raw(current):
-                current["poolManagerBalanceRaw"] = str(raw)
-                current["poolManagerBalance"] = metadata.get("poolManagerBalance")
-                current["symbol"] = str(metadata.get("symbol") or current.get("symbol") or address[:8]).strip()
-                current["decimals"] = metadata.get("decimals", current.get("decimals"))
-            if pool_id and pool_id not in current["poolIds"]:
-                current["poolIds"].append(pool_id)
-    return sorted(
-        by_address.values(),
-        key=lambda item: (
-            str(item.get("symbol") or ""),
-            str(item.get("address") or ""),
-        ),
-    )
-
-
-def _pool_key_currency_address(pool_key: dict[str, Any], currency_key: str) -> str:
-    token_key = "token0" if currency_key == "currency0" else "token1"
-    metadata_key = "currency0Metadata" if currency_key == "currency0" else "currency1Metadata"
-    metadata = pool_key.get(metadata_key) if isinstance(pool_key.get(metadata_key), dict) else {}
-    return str(pool_key.get(currency_key) or pool_key.get(token_key) or metadata.get("address") or "").strip()
-
-
-def _index_pool_keys(active_pool_ids: list[str] | None = None) -> tuple[list[dict[str, Any]], str | None]:
-    try:
-        from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import load_robinhood_testnet_v4_pool_index
-
-        index = load_robinhood_testnet_v4_pool_index()
-    except Exception:
-        return [], None
-    if not index.get("ok"):
-        return [], index.get("source")
-    active = {str(pool_id or "").lower() for pool_id in active_pool_ids or []}
-    rows = []
-    for pool in _as_list(index.get("pools")):
-        pool_id = str(pool.get("poolId") or pool.get("pool_id") or "").strip()
-        if active and pool_id.lower() not in active:
-            continue
-        pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else pool
-        row = {**pool_key, "poolId": pool_id}
-        for extra_key in (
-            "recentSwapActive",
-            "status",
-            "latestSwapAmount0",
-            "latestSwapAmount1",
-            "latestSwapBlockNumber",
-            "latestSwapFee",
-            "latestSwapLiquidity",
-            "latestSwapSqrtPriceX96",
-            "latestSwapTick",
-            "latestSwapTransactionHash",
-        ):
-            if pool.get(extra_key) is not None:
-                row[extra_key] = pool[extra_key]
-        rows.append(row)
-    return rows, index.get("source")
 
 
 def _known_token_pool_ids() -> dict[str, list[str]]:
@@ -291,54 +156,6 @@ def _known_token_pool_ids() -> dict[str, list[str]]:
     return result
 
 
-def _token_balance_scan_cache_path() -> Path | None:
-    latest_path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_liquidity")
-    if latest_path is None:
-        return None
-    return latest_path.parent / "token_balance_scan_cache.json"
-
-
-def _load_token_balance_scan_cache(*, pool_manager: str) -> dict[str, Any]:
-    path = _token_balance_scan_cache_path()
-    if path is None:
-        return {"entries": {}}
-    payload = _read_json(path)
-    if not payload or payload.get("_error"):
-        return {"path": str(path), "entries": {}}
-    if str(payload.get("schemaVersion") or "") != TOKEN_BALANCE_SCAN_CACHE_SCHEMA:
-        return {"path": str(path), "entries": {}}
-    if str(payload.get("poolManager") or "").lower() != str(pool_manager or "").lower():
-        return {"path": str(path), "entries": {}}
-    entries = payload.get("entries") if isinstance(payload.get("entries"), dict) else {}
-    return {**payload, "path": str(path), "entries": entries}
-
-
-def _write_token_balance_scan_cache(
-    *,
-    pool_manager: str,
-    pool_index_source: str | None,
-    entries: dict[str, dict[str, Any]],
-    scan_scope: str,
-) -> str | None:
-    path = _token_balance_scan_cache_path()
-    if path is None:
-        return None
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "schemaVersion": TOKEN_BALANCE_SCAN_CACHE_SCHEMA,
-        "network": ROBINHOOD_TESTNET_NETWORK,
-        "chainId": ROBINHOOD_TESTNET_CHAIN_ID,
-        "poolManager": pool_manager,
-        "poolIndexSource": pool_index_source,
-        "lastScanScope": scan_scope,
-        "refreshedAt": _stamp(),
-        "entryCount": len(entries),
-        "entries": entries,
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return str(path)
-
-
 def _decode_multicall_value(w3: Web3, return_data: object, output_types: list[str]) -> Any:
     raw = bytes(return_data)
     if not raw:
@@ -428,6 +245,11 @@ def _batch_eth_call_values(
                     },
                     method="POST",
                 )
+                from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+                    throttle_rpc_call,
+                )
+
+                throttle_rpc_call(rpc_url)
                 with urllib_request.urlopen(req, timeout=20) as response:
                     decoded_response = json.loads(response.read().decode("utf-8"))
                     break
@@ -468,6 +290,11 @@ def _individual_balance_values(w3: Web3, addresses: list[str], *, pool_manager: 
     errors: list[str] = []
     pm = Web3.to_checksum_address(pool_manager)
     for address in addresses:
+        from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+            throttle_rpc_call,
+        )
+
+        throttle_rpc_call(_rpc_url_from_env_or_default())
         try:
             contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=ERC20_ABI)
             values[address.lower()] = int(contract.functions.balanceOf(pm).call())
@@ -480,12 +307,19 @@ def _individual_metadata_values(w3: Web3, addresses: list[str]) -> tuple[dict[tu
     values: dict[tuple[str, str], Any] = {}
     errors: list[str] = []
     for address in addresses:
+        from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+            throttle_rpc_call,
+        )
+
+        rpc_url = _rpc_url_from_env_or_default()
         try:
+            throttle_rpc_call(rpc_url)
             contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=ERC20_ABI)
             values[(address.lower(), "symbol")] = str(contract.functions.symbol().call()).strip()
         except Exception as exc:
             errors.append(f"symbol:{address}:{str(exc)[:120]}")
         try:
+            throttle_rpc_call(rpc_url)
             contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=ERC20_ABI)
             values[(address.lower(), "decimals")] = int(contract.functions.decimals().call())
         except Exception as exc:
@@ -501,11 +335,19 @@ def _pool_index_token_balance_sources(
     scan_scope: str,
     multicall_chunk_size: int,
     max_scan_seconds: int | None = None,
+    pool_keys: list[dict[str, Any]] | None = None,
+    known_token_pool_ids: dict[str, list[str]] | None = None,
+    use_cache: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     normalized_scope = str(scan_scope or "active_plus_known").strip().lower()
     full_index = normalized_scope == "full_index"
     recent_swaps_only = normalized_scope in {"full_index_recent_swaps", "recent_swaps"}
-    pool_keys, pool_index_source = _index_pool_keys(None if (full_index or recent_swaps_only) else active_pool_ids)
+    if pool_keys is None:
+        pool_keys, pool_index_source = _index_pool_keys(
+            None if (full_index or recent_swaps_only) else active_pool_ids
+        )
+    else:
+        pool_index_source = "sqlite_db"
     token_pool_ids: dict[str, list[str]] = {}
     for pool_key in pool_keys:
         pool_id = str(pool_key.get("poolId") or "").strip()
@@ -516,14 +358,34 @@ def _pool_index_token_balance_sources(
             bucket = token_pool_ids.setdefault(address.lower(), [])
             if pool_id and pool_id not in bucket:
                 bucket.append(pool_id)
-    cache = _load_token_balance_scan_cache(pool_manager=pool_manager)
+    if known_token_pool_ids is not None:
+        known_addresses = {
+            str(address).strip().lower()
+            for address in known_token_pool_ids
+            if str(address or "").strip().lower()
+        }
+        token_pool_ids = {
+            address: pool_ids
+            for address, pool_ids in token_pool_ids.items()
+            if address.lower() in known_addresses
+        }
+    cache = (
+        _load_token_balance_scan_cache(pool_manager=pool_manager)
+        if use_cache
+        else {"entries": {}}
+    )
     cache_entries: dict[str, dict[str, Any]] = {
         str(address).lower(): dict(entry)
         for address, entry in (cache.get("entries") or {}).items()
         if isinstance(entry, dict)
     }
     if normalized_scope == "active_plus_known":
-        for address, source_keys in _known_token_pool_ids().items():
+        known = (
+            known_token_pool_ids
+            if known_token_pool_ids is not None
+            else _known_token_pool_ids()
+        )
+        for address, source_keys in known.items():
             if _is_address(address) and address.lower() != ZERO_ADDRESS.lower():
                 bucket = token_pool_ids.setdefault(address, [])
                 for source_key in source_keys:
@@ -679,12 +541,14 @@ def _pool_index_token_balance_sources(
                 entry["decimals"] = int(individual_metadata[(address, "decimals")])
             entry["metadataScannedAt"] = _stamp()
     errors.extend(metadata_errors)
-    cache_path = _write_token_balance_scan_cache(
-        pool_manager=pool_manager,
-        pool_index_source=pool_index_source,
-        entries=cache_entries,
-        scan_scope=normalized_scope,
-    )
+    cache_path = None
+    if use_cache:
+        cache_path = _write_token_balance_scan_cache(
+            pool_manager=pool_manager,
+            pool_index_source=pool_index_source,
+            entries=cache_entries,
+            scan_scope=normalized_scope,
+        )
 
     sources: list[dict[str, Any]] = []
     for normalized in positive_addresses:
@@ -747,6 +611,132 @@ def _pool_index_token_balance_sources(
             if (address, "symbol") not in metadata_values or (address, "decimals") not in metadata_values
         ),
         "tokenBalanceScanErrors": errors,
+    }
+
+
+def _index_pool_key_rows(index_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw in index_payload.get("poolKeys") or index_payload.get("pools") or []:
+        if not isinstance(raw, dict):
+            continue
+        key = raw.get("poolKey") if isinstance(raw.get("poolKey"), dict) else raw
+        row = dict(key)
+        row["poolId"] = (
+            str(row.get("poolId") or raw.get("poolId") or raw.get("pool_id") or "").strip()
+        )
+        rows.append(row)
+    return rows
+
+
+def build_v4_pool_manager_accounting_payload(
+    *,
+    database: str | None = None,
+    network: str = ROBINHOOD_TESTNET_NETWORK,
+    chain_id: int = ROBINHOOD_TESTNET_CHAIN_ID,
+    pool_manager: str = "",
+    rpc_url: str | None = None,
+    index_payload: dict[str, Any] | None = None,
+    scan_scope: str = "active_plus_known",
+    multicall_chunk_size: int = 50,
+    max_scan_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Read live PoolManager balances and return an in-memory snapshot payload.
+
+    The index payload is passed from SQLite in the normal refresh flow. JSON
+    evidence files and JSON balance caches are deliberately not read here.
+    """
+    from core.db.database_path import absolute_database_path
+
+    from dex.intent_trade.chains.robinhood_common.chain_config import (
+        all_anchor_addresses_by_symbol,
+    )
+
+    resolved_database = str(absolute_database_path(database))
+    resolved_pool_manager = str(
+        pool_manager
+        or (index_payload or {}).get("poolManager")
+        or ROBINHOOD_TESTNET_V4_POOL_MANAGER
+    ).strip()
+    if rpc_url:
+        w3 = _web3(rpc_url)
+        resolved_rpc_url = rpc_url
+    else:
+        w3, resolved_rpc_url = _connect_chain_rpc(
+            network,
+            chain_id,
+        )
+    if int(w3.eth.chain_id) != int(chain_id):
+        raise ValueError(f"RPC returned chainId {int(w3.eth.chain_id)}, expected {chain_id}")
+
+    pool_keys = _index_pool_key_rows(index_payload or {})
+    actual_pool_ids_by_token: dict[str, list[str]] = {}
+    for pool_key in pool_keys:
+        pool_id = str(pool_key.get("poolId") or "").strip()
+        if not pool_id:
+            continue
+        for currency_key in ("currency0", "currency1"):
+            address = _pool_key_currency_address(pool_key, currency_key).lower()
+            if not _is_address(address) or address.lower() == ZERO_ADDRESS.lower():
+                continue
+            bucket = actual_pool_ids_by_token.setdefault(address, [])
+            if pool_id not in bucket:
+                bucket.append(pool_id)
+
+    anchor_addresses = all_anchor_addresses_by_symbol(
+        network,
+        database_url=resolved_database,
+    )
+    known_token_pool_ids: dict[str, list[str]] = {}
+    for symbol, address in anchor_addresses.items():
+        normalized = str(address or "").strip().lower()
+        if not _is_address(normalized) or normalized == ZERO_ADDRESS.lower():
+            continue
+        bucket = known_token_pool_ids.setdefault(normalized, [])
+        source_key = f"sqlite-anchor.{symbol}"
+        if source_key not in bucket:
+            bucket.append(source_key)
+        for pool_id in actual_pool_ids_by_token.get(normalized, []):
+            if pool_id not in bucket:
+                bucket.append(pool_id)
+
+    sources, metadata = _pool_index_token_balance_sources(
+        active_pool_ids=[],
+        pool_manager=resolved_pool_manager,
+        rpc_url=resolved_rpc_url,
+        scan_scope=scan_scope,
+        multicall_chunk_size=multicall_chunk_size,
+        max_scan_seconds=max_scan_seconds,
+        pool_keys=pool_keys,
+        known_token_pool_ids=known_token_pool_ids,
+        use_cache=False,
+    )
+    native_raw = int(w3.eth.get_balance(Web3.to_checksum_address(resolved_pool_manager)))
+    if native_raw > 0:
+        sources.append(
+            {
+                "address": ZERO_ADDRESS,
+                "symbol": "ETH",
+                "decimals": 18,
+                "poolManagerBalanceRaw": str(native_raw),
+                "poolManagerBalance": native_raw / 10**18,
+                "metadataOk": True,
+                "poolIds": actual_pool_ids_by_token.get(ZERO_ADDRESS.lower(), []),
+                "source": "nativePoolManagerBalanceWei",
+            }
+        )
+    return {
+        "ok": True,
+        "network": network,
+        "chainId": chain_id,
+        "poolManager": Web3.to_checksum_address(resolved_pool_manager),
+        "blockNumber": int(w3.eth.block_number),
+        "generatedAt": _stamp(),
+        "scanScope": scan_scope,
+        "nativePoolManagerBalanceWei": str(native_raw),
+        "flashAccountingSources": sources,
+        "flashAccountingSourceCount": len(sources),
+        "metadata": metadata,
+        "errors": metadata.get("tokenBalanceScanErrors") or [],
     }
 
 
@@ -845,7 +835,11 @@ def _apply_extsload_liquidity(
             state = states.get(str(pool.get("poolId") or "").lower()) or {}
             if state.get("error"):
                 error_message = str(state.get("error") or "")
-                if "liquidity is zero" in error_message.lower():
+                error_text = error_message.lower()
+                if (
+                    "liquidity is zero" in error_text
+                    or "missing sqrtpricex96" in error_text
+                ):
                     pool["liquidityError"] = None
                     pool["hasLiquidity"] = False
                     pool["liquidityIndex"] = 0
@@ -1273,6 +1267,7 @@ def load_robinhood_testnet_v4_pool_liquidity(path: Path | None = None) -> dict[s
 
 
 __all__ = [
+    "build_v4_pool_manager_accounting_payload",
     "build_v4_pool_liquidity_from_contract_evidence",
     "default_contract_metadata_path",
     "load_robinhood_testnet_v4_pool_liquidity",

@@ -1,0 +1,1244 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedConfirmedNoProfitCount": 0,
+      "blockedCount": 49,
+      "blockedMissingEvidenceBreakdown": {
+        "manual_review_not_profitable": 4,
+        "quoter_unavailable": 45
+      },
+      "blockedNotVerifiedCount": 4,
+      "blockedQuoteFailedCount": 45,
+      "blockedQuoteInsufficientLiquidityCount": 0,
+      "blockedRpcTransportErrorCount": 0,
+      "blockedSamplesWithExpectedPnl": [],
+      "blockedWithExpectedPnlCount": 0,
+      "blockedWithMissingPnlCount": 49
+    },
+    "failed": {
+      "expectedPnlBySymbol": [],
+      "failedClosedLoops": [],
+      "failedCount": 0
+    },
+    "funnel": {
+      "broadcastCount": 10,
+      "realizedProfitBySymbol": [
+        {
+          "count": 1,
+          "symbol": "TZ",
+          "total": "0.001467058761064403"
+        },
+        {
+          "count": 6,
+          "symbol": "ETH",
+          "total": "0.001003382765311516"
+        }
+      ],
+      "reviewedCount": 59,
+      "successTxCount": 10,
+      "uniqueSuccessCount": 7,
+      "uniqueSuccessWithExpectedProfitCount": 7,
+      "withExpectedProfitCount": 10,
+      "withoutExpectedProfitCount": 49
+    },
+    "groupPnlByClosedLoopGroup": [
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|ETH|TSLA|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 3
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 3,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> ETH -> TSLA -> AMZN",
+            "rowCount": 3,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMZN|TSLA|ETH|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 3
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 3,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> TSLA -> ETH -> AMZN",
+            "rowCount": 3,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMZN|ETH|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 6
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 6,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "ETH",
+          "TSLA",
+          "AMZN"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMZN|TSLA|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.001612480825246455",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> AMZN -> TSLA -> ETH",
+            "rowCount": 18,
+            "signedRowCount": 4,
+            "sum": "0.001612480825246455",
+            "total": "0.001612480825246455"
+          },
+          {
+            "direction": "ETH|TSLA|AMZN|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.000343763844788740",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> TSLA -> AMZN -> ETH",
+            "rowCount": 18,
+            "signedRowCount": 5,
+            "sum": "0.000343763844788740",
+            "total": "0.000343763844788740"
+          }
+        ],
+        "groupKey": "ETH|AMZN|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 2,
+        "profitableDirections": [
+          {
+            "direction": "ETH|AMZN|TSLA|ETH",
+            "sum": "0.001612480825246455",
+            "symbol": "ETH"
+          },
+          {
+            "direction": "ETH|TSLA|AMZN|ETH",
+            "sum": "0.000343763844788740",
+            "symbol": "ETH"
+          }
+        ],
+        "routeSymbols": [
+          "ETH",
+          "AMZN",
+          "TSLA",
+          "ETH"
+        ],
+        "rowCount": 36,
+        "signedRowCount": 9,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMZN|ETH|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 3
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 3,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> AMZN -> ETH -> TSLA",
+            "rowCount": 3,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TSLA|ETH|AMZN|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "manual_review_not_profitable": 4,
+              "quoter_unavailable": 3
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 7,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> ETH -> AMZN -> TSLA",
+            "rowCount": 7,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "TSLA|AMZN|ETH",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "manual_review_not_profitable": 4,
+          "quoter_unavailable": 6
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 10,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TSLA",
+          "ETH",
+          "AMZN",
+          "TSLA"
+        ],
+        "rowCount": 10,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TZ|TA|TB|TZ",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TZ -> TA -> TB -> TZ",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TZ|TB|TA|TZ",
+            "expectedProfitSymbol": "TZ",
+            "expectedSignedProfit": "0.001467058761064403",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TZ -> TB -> TA -> TZ",
+            "rowCount": 3,
+            "signedRowCount": 1,
+            "sum": "0.001467058761064403",
+            "total": "0.001467058761064403"
+          }
+        ],
+        "groupKey": "TZ|TA|TB",
+        "hasMissingPnl": true,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 4
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 4,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "TZ|TB|TA|TZ",
+            "sum": "0.001467058761064403",
+            "symbol": "TZ"
+          }
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TA",
+          "TB",
+          "TZ"
+        ],
+        "rowCount": 7,
+        "signedRowCount": 1,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      }
+    ],
+    "ready": {
+      "readyCount": 0,
+      "readySamples": []
+    },
+    "reviewConsistency": {
+      "reviewConsistentCount": 10,
+      "reviewInconsistentPositiveEstimateCount": 0,
+      "totalReviewedCount": 59
+    },
+    "success": {
+      "gasAssessment": {
+        "belowGasCostCount": 1,
+        "evaluableEthCount": 6,
+        "items": [
+          {
+            "assessment": "net_positive_after_gas",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.000781120541851303",
+            "gasCostEth": "0.00000303551",
+            "gasUsedInt": 303551,
+            "netAfterGasEth": "0.000778085031851303",
+            "pair": "ETH -> AMZN -> TSLA -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "net_positive_after_gas",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.00016526308964543",
+            "gasCostEth": "0.00000292194",
+            "gasUsedInt": 292194,
+            "netAfterGasEth": "0.00016234114964543",
+            "pair": "ETH -> TSLA -> AMZN -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "net_positive_after_gas",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.000047150030370674",
+            "gasCostEth": "0.00000287466",
+            "gasUsedInt": 287466,
+            "netAfterGasEth": "0.000044275370370674",
+            "pair": "ETH -> AMZN -> TSLA -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "net_positive_after_gas",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.000006478273226946",
+            "gasCostEth": "0.00000287629",
+            "gasUsedInt": 287629,
+            "netAfterGasEth": "0.000003601983226946",
+            "pair": "ETH -> TSLA -> AMZN -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "net_positive_after_gas",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "0.000003089711173175",
+            "gasCostEth": "0.0000028753",
+            "gasUsedInt": 287530,
+            "netAfterGasEth": "2.14411173175E-7",
+            "pair": "ETH -> AMZN -> TSLA -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "below_gas_cost",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "2.81119043988E-7",
+            "gasCostEth": "0.00000286848",
+            "gasUsedInt": 286848,
+            "netAfterGasEth": "-0.000002587360956012",
+            "pair": "ETH -> TSLA -> AMZN -> ETH",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              }
+            }
+          },
+          {
+            "assessment": "needs_token_price_quote",
+            "effectiveGasPriceInt": 10000000,
+            "expectedProfitSymbol": "TZ",
+            "expectedSignedProfit": "0.001467058761064403",
+            "gasUsedInt": 243095,
+            "missingReason": "no fresh ETH/token price quote; profit symbol differs from ETH gas currency",
+            "pair": "TZ -> TB -> TA -> TZ",
+            "usdReference": {
+              "eth": {
+                "fresh": false,
+                "priceUsd": "2374.89",
+                "snapshotAgeSeconds": 250836,
+                "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH",
+                "unavailableReason": "usd_snapshot_too_old"
+              },
+              "profitSymbol": {
+                "fresh": false,
+                "priceUsd": null,
+                "snapshotSymbol": null,
+                "symbol": "TZ",
+                "unavailableReason": "no_usd_price_for_symbol"
+              }
+            }
+          }
+        ],
+        "missingGasCount": 0,
+        "needsTokenPriceQuoteCount": 1,
+        "netPositiveAfterGasCount": 5
+      },
+      "precisionAssessment": {
+        "assessmentCounts": {
+          "usd_reference_unavailable": 7
+        },
+        "items": [
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.016406120541851303,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000781120541851303",
+            "netProfitBps": "499.91714678483396",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d9000",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.00797776308964543,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.00016526308964543",
+            "netProfitBps": "211.5367547461504",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x1bc16d674ec800",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.003953400030370674,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000047150030370674",
+            "netProfitBps": "120.70407774892544",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a76400",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.001959603273226946,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000006478273226946",
+            "netProfitBps": "33.168758921963516",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x6f05b59d3b200",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.000979652211173175,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000003089711173175",
+            "netProfitBps": "31.638642413312",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d900",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.000244421744043988,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "2.81119043988E-7",
+            "netProfitBps": "11.514636041748481",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a7640",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "TZ",
+            "finalOutputAmount": 1.0014670587610643,
+            "finalOutputSymbol": "TZ",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.001467058761064403",
+            "netProfitBps": "14.670587610644029",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+              "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a7640000",
+            "selectionReason": null,
+            "symbol": "TZ",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": null,
+              "snapshotSymbol": null,
+              "symbol": "TZ",
+              "unavailableReason": "no_usd_price_for_symbol"
+            },
+            "usdReferenceSource": null
+          }
+        ],
+        "rowCount": 7,
+        "usdNetProfitAvailableCount": 0
+      },
+      "profitBySymbol": [
+        {
+          "count": 1,
+          "symbol": "TZ",
+          "total": "0.001467058761064403"
+        },
+        {
+          "count": 6,
+          "symbol": "ETH",
+          "total": "0.001003382765311516"
+        }
+      ],
+      "successes": [
+        {
+          "blockNumber": "0x8896bc6",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:03:06.609281300+00:00",
+          "createdAtLocal": "2026-10-27T06:03:06+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000781120541851303",
+          "gasUsed": "0x4a1bf",
+          "gasUsedInt": 303551,
+          "observedAt": "2026-10-26T22:03:06.609281300+00:00",
+          "observedAtLocal": "2026-10-27T06:03:06+08:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.016406120541851303,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000781120541851303",
+            "netProfitBps": "499.91714678483396",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d9000",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x8896ee7",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:06:25.544072700+00:00",
+          "createdAtLocal": "2026-10-27T06:06:25+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.00016526308964543",
+          "gasUsed": "0x47562",
+          "gasUsedInt": 292194,
+          "observedAt": "2026-10-26T22:06:25.544072700+00:00",
+          "observedAtLocal": "2026-10-27T06:06:25+08:00",
+          "pair": "ETH -> TSLA -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.00797776308964543,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.00016526308964543",
+            "netProfitBps": "211.5367547461504",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x1bc16d674ec800",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x88971e8",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:06:37.450126100+00:00",
+          "createdAtLocal": "2026-10-27T06:06:37+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000047150030370674",
+          "gasUsed": "0x462ea",
+          "gasUsedInt": 287466,
+          "observedAt": "2026-10-26T22:06:37.450126100+00:00",
+          "observedAtLocal": "2026-10-27T06:06:37+08:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.003953400030370674,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000047150030370674",
+            "netProfitBps": "120.70407774892544",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a76400",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x8897223",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:10:06.965090100+00:00",
+          "createdAtLocal": "2026-10-27T06:10:06+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000006478273226946",
+          "gasUsed": "0x4638d",
+          "gasUsedInt": 287629,
+          "observedAt": "2026-10-26T22:10:06.965090100+00:00",
+          "observedAtLocal": "2026-10-27T06:10:06+08:00",
+          "pair": "ETH -> TSLA -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.001959603273226946,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000006478273226946",
+            "netProfitBps": "33.168758921963516",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x6f05b59d3b200",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x88975c6",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:10:08.297504600+00:00",
+          "createdAtLocal": "2026-10-27T06:10:08+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000003089711173175",
+          "gasUsed": "0x4632a",
+          "gasUsedInt": 287530,
+          "observedAt": "2026-10-26T22:10:08.297504600+00:00",
+          "observedAtLocal": "2026-10-27T06:10:08+08:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.000979652211173175,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.000003089711173175",
+            "netProfitBps": "31.638642413312",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d900",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x8897605",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:10:21.613071800+00:00",
+          "createdAtLocal": "2026-10-27T06:10:21+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "2.81119043988E-7",
+          "gasUsed": "0x46080",
+          "gasUsedInt": 286848,
+          "observedAt": "2026-10-26T22:10:21.613071800+00:00",
+          "observedAtLocal": "2026-10-27T06:10:21+08:00",
+          "pair": "ETH -> TSLA -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "ETH",
+            "finalOutputAmount": 0.000244421744043988,
+            "finalOutputSymbol": "ETH",
+            "livePriceVerified": true,
+            "netProfitAmount": "2.81119043988E-7",
+            "netProfitBps": "11.514636041748481",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x0000000000000000000000000000000000000000",
+              "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a7640",
+            "selectionReason": null,
+            "symbol": "ETH",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": false,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": "2374.89",
+              "snapshotAgeSeconds": 250836,
+              "snapshotObservedAt": "2026-10-24T01:04:34.346+00:00",
+              "snapshotSymbol": "ETHUSDT",
+              "symbol": "ETH",
+              "unavailableReason": "usd_snapshot_too_old"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x8899769",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-10-26T22:44:04.240524600+00:00",
+          "createdAtLocal": "2026-10-27T06:44:04+08:00",
+          "effectiveGasPrice": "0x989680",
+          "effectiveGasPriceInt": 10000000,
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "0.001467058761064403",
+          "gasUsed": "0x3b597",
+          "gasUsedInt": 243095,
+          "observedAt": "2026-10-26T22:44:04.240524600+00:00",
+          "observedAtLocal": "2026-10-27T06:44:04+08:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "usd_reference_unavailable"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "TZ",
+            "finalOutputAmount": 1.0014670587610643,
+            "finalOutputSymbol": "TZ",
+            "livePriceVerified": true,
+            "netProfitAmount": "0.001467058761064403",
+            "netProfitBps": "14.670587610644029",
+            "netProfitUsd": null,
+            "routeTokenAddresses": [
+              "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+              "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+            ],
+            "selectedBorrowInputAmountRaw": "0xde0b6b3a7640000",
+            "selectionReason": null,
+            "symbol": "TZ",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": null,
+            "usdReference": {
+              "fresh": false,
+              "priceUsd": null,
+              "snapshotSymbol": null,
+              "symbol": "TZ",
+              "unavailableReason": "no_usd_price_for_symbol"
+            },
+            "usdReferenceSource": null
+          },
+          "state": "execution_success"
+        }
+      ],
+      "uniqueSuccessCount": 7
+    },
+    "t21FieldCounts": {
+      "ArbitrageNotProfitable": 0,
+      "netProductDeltaRaw": 0,
+      "netProfitAmountMissingReason": 169
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "chainTokenMetadata": {
+    "available": true,
+    "rowCount": 39675,
+    "source": "sqlite_chain_tokens",
+    "trustedDecimalsCount": 39,
+    "unavailableReason": null
+  },
+  "conclusion": "7 unique on-chain success broadcasts with signed profit by symbol: 0.001467058761064403 TZ across 1 tx, 0.001003382765311516 ETH across 6 tx; 0 failed broadcasts with expected P&L by symbol: no expected numeric value; 49 blocked/quote rows present, of which 0 carry an expected numeric P&L.",
+  "generatedAt": "2026-10-26T22:45:11Z",
+  "generatedAtLocal": "2026-10-27T06:45:11+08:00",
+  "range": {
+    "endLocal": "2026-10-27T06:50:00+08:00",
+    "endUtc": "2026-10-26T22:50:00Z",
+    "firstObservedAt": "2026-10-26T22:00:09.104263500+00:00",
+    "firstObservedAtLocal": "2026-10-27T06:00:09+08:00",
+    "lastObservedAt": "2026-10-26T22:45:09.952543+00:00",
+    "lastObservedAtLocal": "2026-10-27T06:45:09+08:00",
+    "startLocal": "2026-10-27T05:50:00+08:00",
+    "startUtc": "2026-10-26T21:50:00Z"
+  },
+  "rowCount": 59,
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-closed-loop-pnl-v1",
+  "source": "flashloan\\src\\runtime\\local_store.sqlite3",
+  "usdReference": {
+    "available": true,
+    "maxAgeSeconds": 21600,
+    "maxReferenceLagSeconds": 86400,
+    "observedAt": "2026-10-24T01:04:34.346+00:00",
+    "priceCount": 707,
+    "source": "binance_market_snapshot",
+    "unavailableReason": null
+  }
+}

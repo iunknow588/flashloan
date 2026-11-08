@@ -304,7 +304,7 @@ def main() -> int:
         description="Read-only live verification of Robinhood Testnet ETH/stock pool depth."
     )
     parser.add_argument("--rpc-url", default="", help="Optional RPC URL override.")
-    parser.add_argument("--database", default="", help="SQLite database path (defaults to local_store.sqlite3).")
+    parser.add_argument("--database", default="", help="SQLite database path (defaults to flashloan/db/local_store.sqlite3).")
     args = parser.parse_args()
 
     database = absolute_database_path(args.database)

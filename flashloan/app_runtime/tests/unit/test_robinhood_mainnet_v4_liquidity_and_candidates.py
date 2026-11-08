@@ -137,7 +137,7 @@ def test_liquidity_writer_outputs_required_evidence_fields(tmp_path, monkeypatch
     assert liquid["depthStatus"] == "deep"
 
 
-def test_static_candidate_payload_keeps_every_indexed_pool_when_max_per_pair_zero(
+def test_static_candidate_payload_keeps_every_fixed_fee_pool_when_max_per_pair_zero(
     monkeypatch,
 ):
     usde = "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34"
@@ -216,7 +216,22 @@ def test_static_candidate_payload_keeps_every_indexed_pool_when_max_per_pair_zer
         rpc_url="",
     )
 
-    assert len(payload["pools"]) == 3
-    assert payload["summary"]["poolCount"] == 3
+    assert len(payload["pools"]) == 2
+    assert all(
+        not pool.get("dynamicFee")
+        and not pool.get("specialFee")
+        and pool.get("usableForObservation") is True
+        for pool in payload["pools"]
+    )
+    abnormal = payload["abnormalPools"]
+    assert len(abnormal) == 1
+    assert abnormal[0]["poolId"] == "0x" + "dd" * 32
+    assert abnormal[0]["dynamicFee"] is True
+    assert abnormal[0]["specialFee"] is True
+    assert abnormal[0]["usableForObservation"] is False
+    assert abnormal[0]["quality"] == "rejected"
+    assert payload["summary"]["poolCount"] == 2
+    assert payload["summary"]["candidateRouteCount"] == 2
     assert payload["summary"]["sourceIndexedPoolCount"] == 3
     assert payload["summary"]["specialFeePoolCount"] == 1
+    assert payload["summary"]["candidateAbnormalPoolCount"] == 1

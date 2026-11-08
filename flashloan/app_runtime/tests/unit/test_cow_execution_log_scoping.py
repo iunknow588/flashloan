@@ -1,9 +1,16 @@
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import threading
 
 import pytest
 
-from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, clear_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts
+from core.db.storage_cow_execution_jsonl import (
+    append_cow_execution_attempts_jsonl,
+    clear_cow_execution_attempts_jsonl,
+    load_recent_cow_execution_attempts_jsonl,
+)
 from core.evidence_scope import evidence_scope_matches
 from dex.runtime import cow_attempt_log
 from web import control_panel_data_routes as shared
@@ -31,20 +38,9 @@ def _attempt(*, network: str, chain_id: int, pair: str, observed_at: str) -> dic
     }
 
 
-def test_cow_execution_attempt_log_path_uses_chain_scoped_directory(tmp_path, monkeypatch):
-    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
-
-    path = shared.cow_execution_attempt_log_path(network="robinhood-testnet", chain_id=46630)
-    fallback_path = shared.cow_execution_attempt_log_path(
-        market_state={"cow_filter": {"network": "robinhood-testnet", "chain_id": 46630}}
-    )
-
-    assert path.as_posix().endswith("cow_execution_attempts/robinhood-testnet/46630/attempts.jsonl")
-    assert fallback_path == path
-
-
 def test_record_cow_attempt_list_safely_groups_attempts_by_scope(tmp_path, monkeypatch):
-    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
+    database_path = tmp_path / "local_store.sqlite3"
+    monkeypatch.setattr(cow_attempt_log, "database_url", lambda: str(database_path))
     monkeypatch.setattr(cow_attempt_log, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
 
     attempts = [
@@ -52,45 +48,43 @@ def test_record_cow_attempt_list_safely_groups_attempts_by_scope(tmp_path, monke
             network="robinhood",
             chain_id=4663,
             pair="robinhood-mainnet",
-            observed_at="2026-08-29T09:43:51+00:00",
+            observed_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
         ),
         _attempt(
             network="robinhood-testnet",
             chain_id=46630,
             pair="robinhood-testnet",
-            observed_at="2026-08-29T09:43:52+00:00",
+            observed_at=datetime.now(timezone.utc).isoformat(),
         ),
     ]
 
     result = shared.record_cow_attempt_list_safely(attempts, database_url=None)
 
     assert result["recorded"] == 2
-    assert len(result["log_paths"]) == 2
-    normalized_paths = [Path(path).as_posix() for path in result["log_paths"]]
-    assert any(path.endswith("cow_execution_attempts/robinhood/4663/attempts.jsonl") for path in normalized_paths)
-    assert any(path.endswith("cow_execution_attempts/robinhood-testnet/46630/attempts.jsonl") for path in normalized_paths)
-    assert (tmp_path / "cow_execution_attempts" / "robinhood" / "4663" / "attempts.jsonl").exists()
-    assert (tmp_path / "cow_execution_attempts" / "robinhood-testnet" / "46630" / "attempts.jsonl").exists()
+    assert result["source"] == "sqlite"
+    assert len(result["ids"]) == 2
+    assert result["log_paths"] == []
+    rows = load_recent_cow_execution_attempts(database_path, limit=10)
+    assert {row["network"] for row in rows} == {"robinhood", "robinhood-testnet"}
 
 
 def test_record_cow_attempt_list_safely_can_disable_market_candidate_dedupe(tmp_path, monkeypatch):
-    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
+    database_path = tmp_path / "local_store.sqlite3"
+    monkeypatch.setattr(cow_attempt_log, "database_url", lambda: str(database_path))
     monkeypatch.setattr(cow_attempt_log, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
 
     calls = []
 
-    def fake_append(path, attempts, *, retention_days, dedupe_market_candidates):
+    def fake_record(database_url, attempts, *, dedupe_market_candidates):
         calls.append(
             {
-                "path": Path(path).as_posix(),
                 "count": len(attempts),
                 "dedupe_market_candidates": dedupe_market_candidates,
-                "retention_days": retention_days,
             }
         )
-        return len(attempts)
+        return [1]
 
-    monkeypatch.setattr(cow_attempt_log, "append_cow_execution_attempts_jsonl", fake_append)
+    monkeypatch.setattr(cow_attempt_log, "record_cow_execution_attempts", fake_record)
 
     result = shared.record_cow_attempt_list_safely(
         [
@@ -107,7 +101,7 @@ def test_record_cow_attempt_list_safely_can_disable_market_candidate_dedupe(tmp_
 
     assert result["recorded"] == 1
     assert calls[0]["dedupe_market_candidates"] is False
-    assert calls[0]["path"].endswith("cow_execution_attempts/robinhood-testnet/46630/attempts.jsonl")
+    assert result["source"] == "sqlite"
 
 
 def test_jsonl_directory_root_aggregates_and_clears_per_network(tmp_path):
@@ -164,6 +158,45 @@ def test_jsonl_directory_root_aggregates_and_clears_per_network(tmp_path):
     assert cleared["cleared"] == 1
     assert cleared["remaining"] == 2
     assert {row["pair"] for row in remaining} == {"legacy-mainnet", "nested-mainnet"}
+
+
+def test_jsonl_concurrent_appends_do_not_lose_rows_or_leave_tmp_files(tmp_path):
+    path = tmp_path / "attempts.jsonl"
+    failures = []
+
+    def append_batch(worker: int) -> None:
+        try:
+            append_cow_execution_attempts_jsonl(
+                path,
+                [
+                    _attempt(
+                        network="robinhood-testnet",
+                        chain_id=46630,
+                        pair=f"worker-{worker}-{index}",
+                        observed_at=f"2026-10-20T00:{worker:02d}:{index:02d}+00:00",
+                    )
+                    for index in range(3)
+                ],
+                dedupe_market_candidates=False,
+            )
+        except Exception as exc:  # pragma: no cover - surfaced by assertions
+            failures.append(exc)
+
+    threads = [threading.Thread(target=append_batch, args=(worker,)) for worker in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert failures == []
+    rows = load_recent_cow_execution_attempts_jsonl(path, limit=100)
+    assert len(rows) == 24
+    assert {row["pair"] for row in rows} == {
+        f"worker-{worker}-{index}"
+        for worker in range(8)
+        for index in range(3)
+    }
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_real_cow_execution_jsonl_rows_keep_consistent_scope():

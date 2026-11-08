@@ -9,10 +9,19 @@ Q96 = 1 << 96
 DEFAULT_DECIMALS = 18
 DEFAULT_MIN_POOL_DEPTH_USD = 1000.0
 DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE = 1.0
+# A direction is usable as soon as one confirmed-liquidity candidate exists.
+# This is the completion floor for backfill/readiness gates.
+MIN_DIRECTION_CANDIDATE_POOLS = 1
+# This remains an upper bound for recommendation-list truncation only.
 MAX_DIRECTION_CANDIDATE_POOLS = 5
 LIVE_STATE_EVIDENCE_SOURCES = {
     "pool_manager_extsload_live_state_batch",
+    "pool_manager_extsload_live_state_batch_rust",
 }
+
+# Legacy USD depth labels remain available for display and diagnostics. They
+# are not candidate or YZ admission gates: a live V4 pool may be executable
+# without any derived USD valuation.
 
 
 def _text(value: Any) -> str:
@@ -100,23 +109,25 @@ def has_confirmed_liquidity(
     min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
 ) -> bool:
-    """Confirm a physical pool has enough depth.
+    """Confirm a physical pool has positive on-chain liquidity evidence.
 
     Depth is a two-sided market fact. Direction may change the score and the
     preferred pool, but it must never change whether a pool is included, so
     this gate deliberately has no ``token_in`` parameter.
 
-    Confirmed liquidity is a two-sided market fact and the observation layer
-    treats ``has_liquidity=1`` as liquid regardless of the evidence source.
-    The candidate layer must use the same gate, so a confirmed row is never
-    rejected just because a derived USD depth is tiny.  USD evidence is the
-    primary depth gate; when USD depth is small or missing, the fallback is
-    the published liquidity index, or one whole token unit from raw liquidity.
+    Confirmed liquidity is a two-sided market fact and the candidate, YZ and
+    observation layers use the same gate. A derived USD depth is optional
+    evidence only; pools are never rejected for lacking a USD relationship.
     """
     evidence_source = _text(pool.get("evidence_source") or pool.get("evidenceSource"))
     has_liquidity = pool.get("has_liquidity")
     if has_liquidity is None:
         has_liquidity = pool.get("hasLiquidity")
+    # Explicit zero-liquidity evidence always wins over stale depth.  The pool
+    # metadata is kept in the raw V4 tables so a later positive snapshot makes
+    # the pool eligible again; it is only excluded from the candidate surface.
+    if has_liquidity is not None and not _truthy(has_liquidity):
+        return False
     if evidence_source in LIVE_STATE_EVIDENCE_SOURCES and _truthy(has_liquidity):
         raw_liquidity = _number(pool.get("liquidity"))
         liquidity_index = _number(pool.get("liquidity_index") or pool.get("liquidityIndex"))
@@ -135,6 +146,20 @@ def has_confirmed_liquidity(
     if liquidity_index >= fallback_token_base:
         return True
     return False
+
+
+def has_confirmed_depth(
+    pool: dict[str, Any],
+    *,
+    min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
+    fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
+) -> bool:
+    """Return whether a pool is eligible for candidate/YZ construction.
+
+    The historical USD depth status is intentionally ignored. Candidate and
+    YZ eligibility follows confirmed on-chain liquidity only.
+    """
+    return has_confirmed_liquidity(pool, min_usd=min_usd, fallback_token_base=fallback_token_base)
 
 
 def _liquidity_capacity(
@@ -220,12 +245,12 @@ def select_directional_pool_ids(
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
     decimals_by_address: dict[str, object] | None = None,
 ) -> list[str]:
-    """Return the best directed pool ids that still have confirmed depth.
+    """Return the best directed pool ids that still have confirmed liquidity.
 
     Order is the current static direction score, so the first id is the
     replacement for the stored primary pool when the original recommendation
     has lost liquidity.  The caller decides whether to keep the pool id as a
-    backup; this helper never returns an id that fails the depth gate.
+    backup; this helper never returns an id that fails the liquidity gate.
 
     Pool inclusion is deliberately direction-independent.  A physical V4 pool
     either exists as a two-sided market or it does not; direction may change
@@ -246,7 +271,7 @@ def select_directional_pool_ids(
         token1 = _text(pool.get("token1") or pool.get("currency1"))
         if {token_in_norm, token_out_norm} != {token0, token1}:
             continue
-        if not has_confirmed_liquidity(
+        if not has_confirmed_depth(
             pool,
             min_usd=min_usd,
             fallback_token_base=fallback_token_base,
@@ -284,7 +309,9 @@ def select_directional_pool_ids(
 __all__ = [
     "DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE",
     "DEFAULT_MIN_POOL_DEPTH_USD",
+    "MIN_DIRECTION_CANDIDATE_POOLS",
     "MAX_DIRECTION_CANDIDATE_POOLS",
+    "has_confirmed_depth",
     "has_confirmed_liquidity",
     "pool_depth_usd",
     "score_pool_by_direction",

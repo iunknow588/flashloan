@@ -32,7 +32,7 @@ from dex.intent_trade.chains.robinhood_common.market_observation_core import (
 from core.db.database_path import absolute_database_path as _testnet_db_path
 from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
-    has_confirmed_liquidity as _testnet_db_has_confirmed_liquidity,
+    has_confirmed_depth as _testnet_db_has_confirmed_depth,
     select_directional_pool_ids as _testnet_db_select_directional_pool_ids,
 )
 
@@ -310,7 +310,7 @@ def _testnet_db_pool_has_liquidity(row: dict[str, Any]) -> bool:
 def _testnet_db_pool_usable_with_depth(row: dict[str, Any]) -> bool:
     return (
         _testnet_db_pool_usable(row)
-        and _testnet_db_has_confirmed_liquidity(
+        and _testnet_db_has_confirmed_depth(
             row,
             min_usd=1000.0,
             fallback_token_base=1.0,

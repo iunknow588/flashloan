@@ -79,29 +79,29 @@ def test_robinhood_mainnet_and_testnet_have_separate_data_and_handlers():
     )
 
 
-def test_flash_loan_pool_default_scope_is_robinhood_testnet_v4():
+def test_flash_loan_pool_default_scope_is_robinhood_mainnet_v4():
     scope = default_flash_loan_pool_scope()
 
     assert scope == {
-        "network": "robinhood-testnet",
-        "chain_id": 46630,
-        "market_id": "dex-arbitrage-46630-uniswap-v4",
-        "legacy_market_id": "robinhood-testnet-dex-paused",
+        "network": "robinhood",
+        "chain_id": 4663,
+        "market_id": "dex-arbitrage-4663-uniswap-v4",
+        "legacy_market_id": "robinhood-dex-shadow",
         "protocol": "uniswap_v4",
     }
-    assert chain_default_protocol_preferences()[46630] == ["uniswap_v4"]
-    assert chain_contracts("robinhood-testnet")["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert chain_default_protocol_preferences()[4663] == ["uniswap_v4"]
+    assert chain_contracts("robinhood")["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
 
 
 def test_feature_default_scope_comes_from_chain_registry():
     scope = default_chain_scope("dex_arbitrage")
 
-    assert scope["network"] == "robinhood-testnet"
-    assert scope["chain_id"] == 46630
-    assert scope["market_id"] == "dex-arbitrage-46630-uniswap-v4"
-    assert scope["legacy_market_id"] == "robinhood-testnet-dex-paused"
-    assert default_market_id_for_feature("dex_arbitrage") == "dex-arbitrage-46630-uniswap-v4"
-    assert default_market_id_for_feature("liquidation") == "liquidation-46630-morpho-blue"
+    assert scope["network"] == "robinhood"
+    assert scope["chain_id"] == 4663
+    assert scope["market_id"] == "dex-arbitrage-4663-uniswap-v4"
+    assert scope["legacy_market_id"] == "robinhood-dex-shadow"
+    assert default_market_id_for_feature("dex_arbitrage") == "dex-arbitrage-4663-uniswap-v4"
+    assert default_market_id_for_feature("liquidation") == "liquidation-4663-aave-v3"
 
 
 def test_global_chain_id_and_config_summary_are_chain_owned():

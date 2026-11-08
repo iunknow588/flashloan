@@ -58,7 +58,7 @@ def test_account_pool_state_payload_redacts_registry_errors(monkeypatch):
 
     class Panel:
         @staticmethod
-        def database_url_or_none():
+        def database_url():
             return database_url
 
         @staticmethod

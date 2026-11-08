@@ -114,9 +114,6 @@ def test_control_panel_navigation_chain_links_expected_pages():
 
     for token in [
         'data-dex-surface-template="quotes"',
-        "/api/dex/opportunity-scanner/start",
-        "/api/dex/opportunity-scanner/snapshot",
-        "/api/dex/opportunity-scanner/scan-now",
         'id="routeList"',
         'id="routeCount"',
         "报价与路由",
@@ -125,8 +122,16 @@ def test_control_panel_navigation_chain_links_expected_pages():
     ]:
         assert token in dex_arbitrage_panel
 
+    for scanner_endpoint in (
+        "/api/dex/opportunity-scanner/start",
+        "/api/dex/opportunity-scanner/snapshot",
+        "/api/dex/opportunity-scanner/scan-now",
+    ):
+        assert scanner_endpoint not in dex_arbitrage_panel
+
     assert 'value="sepolia"' not in binance_market_html
-    assert "autoExecuteToggle" in binance_market_html
+    assert "autoExecuteToggle" not in binance_market_html
+    assert "resetStatsBtn" not in binance_market_html
     assert 'data-route-action="auto-execute"' not in binance_market_html
     assert 'data-app-shell="true"' in dex_arbitrage_panel
     assert 'data-app-shell="true"' in binance_market_html
@@ -143,7 +148,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'data-shell-link="/dex"' in binance_market_html
     assert 'data-shell-link="/flash-loan/pools"' in dex_arbitrage_panel
     assert 'data-shell-link="/flash-loan/pools"' in binance_market_html
-    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-46630-uniswap-v4",chain_id:"46630"}' in binance_market_html
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-4663-uniswap-v4",chain_id:"4663"}' in binance_market_html
     assert '/static/chain-selector.js' in binance_market_html
     assert 'data-chain-selector-component="true"' in binance_market_html
 

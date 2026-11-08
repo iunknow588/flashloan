@@ -100,6 +100,77 @@ def _source_row_balance_raw(source_row: dict[str, Any]) -> int:
     return 0
 
 
+def _sqlite_token_liquidity_evidence(
+    *,
+    database: str | None,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    token_address: str,
+) -> dict[str, Any]:
+    """Return verified SQLite pool/liquidity evidence for one token.
+
+    This deliberately reads only already-indexed pool rows and already
+    recorded liquidity snapshots.  It does not scan RPC logs and it does not
+    fabricate PoolManager token balances.  The result proves how many pools
+    touching this token have explicit nonzero liquidity evidence, while
+    borrowable flash-accounting balance remains an external on-chain fact.
+    """
+    normalized_token = _normalize_address(token_address)
+    if not normalized_token:
+        return {
+            "ready": False,
+            "poolCount": 0,
+            "reason": "token_address_missing",
+            "source": "sqlite_db",
+        }
+    try:
+        from core.db.database_path import absolute_database_path
+        from core.db.storage_business_io import query
+
+        resolved_database = str(absolute_database_path(database))
+        rows = query(
+            resolved_database,
+            """
+            SELECT COUNT(*) AS pool_count,
+                   COUNT(DISTINCT p.pool_id) AS distinct_pool_count
+            FROM v4_exchange_pools p
+            JOIN v4_exchange_pool_liquidity_snapshots s
+              ON s.network = p.network AND s.chain_id = p.chain_id
+             AND s.protocol = p.protocol AND s.pool_id = p.pool_id
+            WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+              AND s.has_liquidity = 1
+              AND (lower(p.token0) = lower(?) OR lower(p.token1) = lower(?))
+            """,
+            (
+                network,
+                chain_id,
+                protocol,
+                normalized_token,
+                normalized_token,
+            ),
+        )
+        row = rows[0] if rows else {}
+        pool_count = int(row.get("distinct_pool_count") or row.get("pool_count") or 0)
+        return {
+            "ready": pool_count > 0,
+            "poolCount": pool_count,
+            "reason": (
+                "verified_sqlite_liquidity_pool_count"
+                if pool_count > 0
+                else "no_verified_sqlite_liquidity_pool"
+            ),
+            "source": "sqlite_db",
+        }
+    except Exception as exc:
+        return {
+            "ready": False,
+            "poolCount": 0,
+            "reason": f"sqlite_read_failed:{type(exc).__name__}",
+            "source": "sqlite_db",
+        }
+
+
 def _load_plan() -> dict[str, Any]:
     return _read_json(chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "chain_test"))
 
@@ -199,6 +270,7 @@ def _resolve_probe_token_and_amount(
     chain_test_plan: dict[str, Any],
     liquidity: dict[str, Any],
     pool_manager: str,
+    sqlite_pool_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     route_hops = _plan_route_hops(chain_test_plan)
     repayment = _as_dict(_as_dict(chain_test_plan.get("preflightSpec")).get("repaymentConstraint"))
@@ -213,6 +285,7 @@ def _resolve_probe_token_and_amount(
     decimals = _int(first_hop.get("inputDecimals")) or _int(first_hop.get("outputDecimals")) or None
     source_rows = _source_rows(liquidity, pool_manager=pool_manager)
     source_row = _best_source_row(source_rows, token_address=token_address, token_symbol=token_symbol)
+    sqlite_pool_evidence = sqlite_pool_evidence or {}
     if not token_address:
         token_address = _normalize_address(source_row.get("currency_address") or source_row.get("token_address"))
     if not token_symbol:
@@ -220,6 +293,9 @@ def _resolve_probe_token_and_amount(
     if _int(source_row.get("decimals")):
         decimals = int(source_row["decimals"])
     balance_raw = _source_row_balance_raw(source_row)
+    sqlite_evidence_checked = bool(sqlite_pool_evidence.get("poolCount") is not None)
+    candidate_pool_count = int(sqlite_pool_evidence.get("poolCount") or 0)
+    sqlite_pool_ready = bool(sqlite_pool_evidence.get("ready"))
     balance_human = None
     if balance_raw > 0:
         try:
@@ -253,6 +329,13 @@ def _resolve_probe_token_and_amount(
             "ready": bool(balance_raw > 0 and amount_raw > 0 and balance_raw >= amount_raw),
             "source": source_row.get("source") or "",
         },
+        "sqliteLiquidityEvidence": {
+            "ready": sqlite_pool_ready,
+            "poolCount": candidate_pool_count,
+            "checked": sqlite_evidence_checked,
+            "source": sqlite_pool_evidence.get("source") or "",
+            "reason": sqlite_pool_evidence.get("reason") or "",
+        },
         "selectedSource": source_row,
     }
 
@@ -263,6 +346,7 @@ def resolve_robinhood_testnet_normal_flash_probe(
     contracts_metadata: dict[str, Any] | None = None,
     chain_test_plan: dict[str, Any] | None = None,
     v4_pool_liquidity: dict[str, Any] | None = None,
+    sqlite_pool_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     chain_row = chain_data_by_network(ROBINHOOD_TESTNET_NETWORK) or {}
     chain_metadata = chain_metadata or {}
@@ -283,14 +367,31 @@ def resolve_robinhood_testnet_normal_flash_probe(
         pool_manager = _normalize_address(chain_row.get("contracts", {}).get("v4_pool_manager")) if isinstance(chain_row.get("contracts"), dict) else ""
 
     probe = _resolve_probe_address(chain_metadata=chain_metadata, contracts_metadata=contracts_metadata)
+    if sqlite_pool_evidence is None:
+        plan = chain_test_plan or _load_plan()
+        repayment = _as_dict(_as_dict(plan.get("preflightSpec")).get("repaymentConstraint"))
+        first_hop = _plan_route_hops(plan)[0] if _plan_route_hops(plan) else {}
+        token_address = (
+            _normalize_address(repayment.get("borrowToken"))
+            or _normalize_address(first_hop.get("tokenIn"))
+        )
+        sqlite_pool_evidence = _sqlite_token_liquidity_evidence(
+            database=None,
+            network=ROBINHOOD_TESTNET_NETWORK,
+            chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+            protocol="uniswap_v4",
+            token_address=token_address,
+        )
     resolved = _resolve_probe_token_and_amount(
         chain_test_plan=chain_test_plan,
         liquidity=v4_pool_liquidity,
         pool_manager=pool_manager or _normalize_address(v4_pool_liquidity.get("poolManager")),
+        sqlite_pool_evidence=sqlite_pool_evidence,
     )
     token = resolved["token"]
     amount = resolved["amount"]
     borrowable_liquidity = _as_dict(resolved.get("borrowableLiquidity"))
+    sqlite_pool_evidence = _as_dict(resolved.get("sqliteLiquidityEvidence"))
     route_hops = _plan_route_hops(chain_test_plan)
     ready = bool(
         probe.get("address")
@@ -309,6 +410,12 @@ def resolve_robinhood_testnet_normal_flash_probe(
     if not borrowable_liquidity.get("ready"):
         available_raw = _int(borrowable_liquidity.get("raw")) or 0
         requested_raw = _int(amount.get("amount")) or 0
+        if (
+            available_raw <= 0
+            and sqlite_pool_evidence.get("checked") is True
+            and not sqlite_pool_evidence.get("ready")
+        ):
+            blockers.append("sqlite_verified_liquidity_pool_not_available")
         if available_raw <= 0:
             blockers.append("borrowable_liquidity_not_verified")
         elif requested_raw > available_raw:
@@ -326,6 +433,7 @@ def resolve_robinhood_testnet_normal_flash_probe(
         "token": token,
         "amount": amount,
         "borrowableLiquidity": borrowable_liquidity,
+        "sqliteLiquidityEvidence": sqlite_pool_evidence,
         "route": {
             "pathText": _text(chain_test_plan.get("route", {}).get("pathText")),
             "closed": bool(_as_dict(chain_test_plan.get("route")).get("closed")),

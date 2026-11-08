@@ -32,7 +32,7 @@ from bot.execution.liquidation_scan import LiquidationScanConfig
 from bot.liquidation.pause_guard import pause_guard_controls
 from core.db.storage import (
     configured_database_url as storage_configured_database_url,
-    database_url_or_none as storage_database_url_or_none,
+    database_url as storage_database_url,
 )
 
 load_env_files(__file__, override=False)
@@ -114,14 +114,14 @@ def write_liquidation_runtime_config(values: dict) -> dict[str, float | str]:
 
 
 def read_liquidation_runtime_config_parameters() -> dict:
-    database_url = database_url_or_none()
+    resolved_database_url = database_url()
     file_values: dict[str, float] = {}
     raw = read_json_parameter(LIQUIDATION_CONFIG_PATH, legacy_paths=LEGACY_LIQUIDATION_CONFIG_PATHS) or {}
     if isinstance(raw, dict):
         file_values = {key: raw[key] for key in DEFAULT_LIQUIDATION_CONFIG if key in raw}
-    if database_url:
+    if resolved_database_url:
         try:
-            stored = load_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE)
+            stored = load_page_parameter_map(resolved_database_url, LIQUIDATION_CONFIG_PAGE)
             if stored:
                 try:
                     sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, stored)
@@ -130,7 +130,7 @@ def read_liquidation_runtime_config_parameters() -> dict:
                     pass
                 return stored
             if file_values:
-                save_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE, file_values)
+                save_page_parameter_map(resolved_database_url, LIQUIDATION_CONFIG_PAGE, file_values)
                 try:
                     sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, file_values)
                 except Exception:
@@ -143,11 +143,11 @@ def read_liquidation_runtime_config_parameters() -> dict:
 
 
 def save_liquidation_runtime_config_parameters(values: dict) -> bool:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return False
     try:
-        save_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE, values)
+        save_page_parameter_map(resolved_database_url, LIQUIDATION_CONFIG_PAGE, values)
         try:
             sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, values)
         except Exception:
@@ -167,7 +167,7 @@ def liquidation_scan_refresh_profile() -> dict[str, float]:
     profile = resolve_market_scan_refresh_profile(
         market.market_id,
         feature=market.feature,
-        database_url=database_url_or_none(),
+        database_url=database_url(),
     )
     configured = read_liquidation_runtime_config_parameters()
 
@@ -228,13 +228,13 @@ def liquidation_market_payload(market_id: str | None = None, chain_id: int | Non
         if market_id is not None or chain_id is not None
         else liquidation_market_config()
     )
-    database_url = database_url_or_none()
+    resolved_database_url = database_url()
     active = market.as_dict()
     return {
         "market_id": active.get("market_id"),
         "chain_id": active.get("chain_id"),
         "active": active,
-        "supported_markets": supported_market_summaries(database_url or None),
+        "supported_markets": supported_market_summaries(resolved_database_url or None),
     }
 
 
@@ -476,7 +476,7 @@ def liquidation_execution_controls() -> dict:
         LIQUIDATION_PAUSE_GUARD_PATH,
         enabled=env_bool("LIQUIDATION_AUTO_PAUSE_ENABLED", True),
         threshold=auto_pause_threshold,
-        database_url=database_url_or_none(),
+        database_url=database_url(),
     )
     return {
         "execution_enabled": bool(config_health.get("execution_enabled")),
@@ -543,5 +543,5 @@ def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
     return reasons
 
 
-def database_url_or_none() -> Optional[str]:
-    return storage_database_url_or_none()
+def database_url() -> Optional[str]:
+    return storage_database_url()

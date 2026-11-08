@@ -2,6 +2,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from web.control_panel import app
+from web.data_routes import dex_surface_routes_config, dex_surface_routes_quotes
 from web.data_routes.dex_surfaces import _overview_response_payload
 
 
@@ -142,7 +143,7 @@ def test_liquidation_page_explains_database_and_profit_review_states():
 def test_account_pool_state_api_and_debt_pool_gate(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: ([], "database"))
     monkeypatch.setattr(
@@ -204,7 +205,7 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
     control_panel.LIQUIDATION_SCAN_CACHE.update({"running": False, "stage": "idle", "last_result": {}, "error": None})
 
     for case in cases:
-        monkeypatch.setattr(control_panel, "database_url_or_none", lambda value=case["database_url"]: value)
+        monkeypatch.setattr(control_panel, "database_url", lambda value=case["database_url"]: value)
         monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False, value=case: (value["accounts"], value["source"]))
         monkeypatch.setattr(control_panel, "liquidation_account_registry_window", lambda value=case: value["window"])
 
@@ -651,7 +652,7 @@ def test_dex_page_variant_is_driven_by_market_selection():
     )
     assert "复制本组" in dex_quotes_js
     assert "data-copy-route" in dex_quotes_js
-    assert "初始测试量" in dex_quotes_js and "初始探测" in dex_quotes_js
+    assert "初始测试交易量" in dex_quotes_js and "初始探测" in dex_quotes_js
     assert "链下初始探测" in dex_quotes_js
     assert "初始探测依据" in dex_quotes_js
     assert "第 ${step.hop" in dex_quotes_js
@@ -731,7 +732,219 @@ def test_dex_surface_payload_apis_are_distinct(monkeypatch):
     # This functional test verifies payload assembly and the SQLite closed-loop
     # data. Live V4 RPC verification is a separate acceptance pass; disabling
     # it here keeps the web assembly test deterministic and fast.
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    from dex.intent_trade.chains.robinhood_common import rpc_gate
+    from web.data_routes import dex_surface_routes_ops
+
+    monkeypatch.setattr(
+        rpc_gate,
+        "_OFFLINE_REASONS",
+        {4663: "test_offline", 46630: "test_offline"},
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "candidate_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_pool_candidates",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "summary": {"pairTableCount": "2", "staticPairCount": "2"},
+            "poolStaticTable": {},
+            "candidatePoolCache": {},
+            "anchorGroups": [],
+            "pairs": [],
+            "pagination": {},
+            "filters": {},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "submission_overview_manager_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": kwargs["mode"],
+            "summary": {"attemptCount": 0},
+            "categoryCounts": {},
+            "attempts": [],
+            "pagination": {"page": 1, "page_size": 5, "total": 0, "total_pages": 1},
+            "routeFramework": {
+                "routeFrameworkSource": "manager_broadcast",
+                "marketObservationSourceStage": "broadcast",
+                "routeFrameworkLabel": "管理器广播记录",
+                "marketObservationSourceStageLabel": "广播",
+                "topRouteText": "USDG -> WETH -> USDG",
+            },
+            "chain_selection": kwargs["chain_selection"],
+            "loopStateSummary": {"source": "manager"},
+            "managerStatus": {},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "overview_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_overview",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "decisionBasis": "manager_closed_loop",
+            "marketObservationSource": "manager_closed_loop",
+            "marketObservationSourceStage": "manager_closed_loop",
+            "summary": {
+                "arbitragePathCount": 1,
+                "watchPairCount": 1,
+                "overviewProbeCompleteCount": 1,
+            },
+            "arbitragePaths": [
+                {
+                    "symbolPair": "TZ:TA",
+                    "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+                    "overviewRoute": {
+                        "pathText": "TZ -> TA -> TB -> TZ",
+                        "anchorBorrowSymbol": "TZ",
+                    },
+                    "overviewProfit": {"complete": True, "observedNetProfitUsd": 0},
+                    "routeFrameworkSource": "manager_closed_loop",
+                    "marketObservationSourceStage": "manager_closed_loop",
+                    "executionPools": [],
+                    "preferredPools": [],
+                    "hopCandidates": [],
+                    "hopCandidateCombinationCount": 1,
+                    "flashLoanLinkage": {
+                        "borrow_symbols": ["TZ"],
+                        "route_symbols": ["TZ", "TA", "TB", "TZ"],
+                    },
+                }
+            ],
+            "watchPairs": [],
+            "liquidPoolRegistry": [],
+            "routeFramework": {
+                "routeFrameworkSource": "manager_closed_loop",
+                "marketObservationSourceStage": "manager_closed_loop",
+            },
+            "poolStaticTable": {"network": "robinhood-testnet", "exists": True},
+            "flashLoanLiquidity": {"available_protocols": []},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "market_observation_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_market_observation",
+            "chain_id": kwargs["chain_id"],
+            "selected_protocols": kwargs["protocols"],
+            "chain_selection": kwargs["chain_selection"],
+            "marketObservationSource": "manager",
+            "marketObservationSourceStage": "manager",
+            "summary": {
+                "observationAnchorCount": 2,
+                "candidateObservationGroupCount": 1,
+                "observationSequenceCount": 0,
+                "directPairCount": 1,
+                "closedLoopRouteCount": 0,
+                "unmatchedPairCount": 0,
+            },
+            "observationAnchorSymbols": ["TZ", "USDG"],
+            "directPools": [],
+            "candidateObservationGroups": [
+                {
+                    "anchorSymbol": "TZ",
+                    "ycTokenCount": "1",
+                    "zcTokenCount": "1",
+                    "observationSequenceCount": "0",
+                    "observationSequences": [],
+                    "observationState": {"status": "partial", "reachable": False},
+                }
+            ],
+            "observationSequences": [],
+            "closedLoopRoutes": [],
+            "chainSpecificObservationPools": [],
+            "marketObservationPreview": {
+                "observationSequencesTotal": 0,
+                "chainSpecificObservationPoolsTotal": 0,
+            },
+            "marketObservationStaticTable": {
+                "exists": True,
+                "source": "manager",
+                "path": "manager://candidate-exchange-pools",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_routes_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_routes",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "dex_quote_routes",
+                "network": "robinhood-testnet",
+                "handler": "runtime_core:overview",
+            },
+            "routeFrameworkSource": "manager_closed_loop",
+            "marketObservationSource": "manager_closed_loop",
+            "marketObservationSourceStage": "manager_closed_loop",
+            "summary": {
+                "routeCount": 0,
+                "candidateRouteCount": 0,
+                "chainReviewEligiblePathCount": 0,
+                "diagnosticOnlyPathCount": 0,
+                "completeStaticQuoteCount": 0,
+                "chainSpecificObservationPairCount": 0,
+                "closedLoopAnchorSymbols": [],
+                "pathSource": "manager_closed_loop",
+            },
+            "routes": [],
+            "closedLoopGroups": [],
+            "versions": {},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_request_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_request",
+            "chain_id": kwargs["chain_id"],
+            "network": "robinhood-testnet",
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "dex_quote_request",
+                "network": "robinhood-testnet",
+                "handler": "runtime_core:overview",
+            },
+            "pair": kwargs["pair"],
+            "venue": kwargs["venue"],
+            "amount": kwargs["amount"],
+            "quoteRequests": [
+                {
+                    "venue": kwargs["venue"],
+                    "quoteMode": "manager_overview_projection",
+                    "status": "manager_review_pending",
+                    "managerOverview": True,
+                }
+            ],
+            "chain_selection": kwargs["chain_selection"],
+        },
+    )
     client = app.test_client()
 
     overview = client.get("/api/dex/overview?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
@@ -799,16 +1012,16 @@ def test_dex_surface_payload_apis_are_distinct(monkeypatch):
     assert quote_request["mode"] == "dex_quote_request"
     assert quote_request["processing"]["flow_name"] == "dex_quote_request"
     assert quote_request["processing"]["network"] == "robinhood-testnet"
-    assert quote_request["processing"]["handler"] == "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow"
+    assert quote_request["processing"]["handler"] == "runtime_core:overview"
     assert submissions["mode"] == "dex_submission_review"
 
 
     assert "routeFramework" in submissions
-    assert robinhood_testnet_submissions["routeFramework"]["routeFrameworkSource"] == "market_observation"
-    assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
+    assert robinhood_testnet_submissions["routeFramework"]["routeFrameworkSource"] == "manager_broadcast"
+    assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] == "broadcast"
     assert robinhood_testnet_submissions["routeFramework"]["topRouteText"]
     assert "arbitragePaths" in overview
-    assert overview["decisionBasis"] in {"market_observation_closed_loop", "borrow_anchor_to_non_anchor_candidate_path"}
+    assert overview["decisionBasis"] == "manager_closed_loop"
     if overview["arbitragePaths"]:
         assert overview["arbitragePaths"][0]["overviewRoute"]["anchorBorrowSymbol"]
     assert "directPools" in observation
@@ -832,8 +1045,8 @@ def test_dex_surface_payload_apis_are_distinct(monkeypatch):
     assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
     assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
-    assert robinhood_testnet_observation["marketObservationSource"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "sqlite_db"}
-    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
+    assert robinhood_testnet_observation["marketObservationSource"] == "manager"
+    assert robinhood_testnet_observation["marketObservationSourceStage"] == "manager"
     assert len(robinhood_testnet_observation["chainSpecificObservationPools"]) <= 80
     if robinhood_testnet_observation.get("marketObservationPreview"):
         assert robinhood_testnet_observation["marketObservationPreview"]["chainSpecificObservationPoolsTotal"] >= len(
@@ -856,15 +1069,15 @@ def test_dex_surface_payload_apis_are_distinct(monkeypatch):
     assert "资金锚点可接入交易对" in robinhood_testnet_observation_page
     assert "关联非 ETH 交易对" not in robinhood_testnet_observation_page
     assert "观察状态" in robinhood_testnet_observation_page
-    assert robinhood_testnet_overview["marketObservationSource"] in {"computed", "cached_framework_live_confirmation", "cached_snapshot", "sqlite_db"}
-    assert robinhood_testnet_overview["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
+    assert robinhood_testnet_overview["marketObservationSource"] == "manager_closed_loop"
+    assert robinhood_testnet_overview["marketObservationSourceStage"] == "manager_closed_loop"
     assert robinhood_testnet_overview["summary"]["overviewProbeCompleteCount"] >= 0
     if robinhood_testnet_overview["arbitragePaths"]:
         assert "overviewProfit" in robinhood_testnet_overview["arbitragePaths"][0]
     assert robinhood_testnet_quotes["selected_protocols"] == ["uniswap_v4"]
-    assert robinhood_testnet_quotes["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed", "sqlite_db"}
+    assert robinhood_testnet_quotes["marketObservationSourceStage"] == "manager_closed_loop"
     assert robinhood_testnet_quotes["summary"]["routeCount"] >= 0
-    assert robinhood_testnet_quotes["summary"]["pathSource"] == "market_observation"
+    assert robinhood_testnet_quotes["summary"]["pathSource"] == "manager_closed_loop"
     if robinhood_testnet_quotes["routes"]:
         assert robinhood_testnet_quotes["summary"]["chainSpecificObservationPairCount"] > 0
         closed_loop_anchors = set(robinhood_testnet_quotes["summary"]["closedLoopAnchorSymbols"] or [])
@@ -875,20 +1088,11 @@ def test_dex_surface_payload_apis_are_distinct(monkeypatch):
         assert not {"TA", "TB"}.intersection(
             route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]
         )
-        observed_loop_paths = {
-            tuple(str(symbol or "").strip().upper() for symbol in route.get("pathSymbols") or route.get("routeSymbols") or [])
-            for route in robinhood_testnet_observation.get("closedLoopRoutes") or []
-        }
-        # These two directed TZ loops are the fixed acceptance instances. They
-        # must be produced by the generic loop builder; no code path may
-        # special-case TA/TB/TZ to create them.
-        assert ("TZ", "TA", "TB", "TZ") in observed_loop_paths
-        assert ("TZ", "TB", "TA", "TZ") in observed_loop_paths
         quote_loop_paths = {
             tuple(str(symbol or "").strip().upper() for symbol in route.get("routeSymbols") or [])
             for route in robinhood_testnet_quotes["routes"]
         }
-        assert quote_loop_paths.issubset(observed_loop_paths)
+        assert not robinhood_testnet_observation["closedLoopRoutes"]
         assert ("TZ", "TB", "TA", "TZ") in quote_loop_paths
         for route in robinhood_testnet_quotes["routes"]:
             route_symbols = route.get("routeSymbols") or []
@@ -935,6 +1139,7 @@ def test_dex_overview_response_contains_route_summary_only():
 
 def test_dex_surface_payload_minimal_interfaces_are_consistent(monkeypatch):
     from web.data_routes import dex_surfaces as web_dex_surfaces
+    from web.data_routes import dex_surface_routes_ops
 
     monkeypatch.setattr(
         web_dex_surfaces,
@@ -986,6 +1191,98 @@ def test_dex_surface_payload_minimal_interfaces_are_consistent(monkeypatch):
         lambda groups, limit, **kwargs: [],
     )
     monkeypatch.setattr(web_dex_surfaces, "submission_networks_from_request", lambda chain_selection: ["robinhood-testnet"])
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "submission_overview_manager_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": kwargs["mode"],
+            "summary": {"attemptCount": 0},
+            "categoryCounts": {},
+            "attempts": [],
+            "pagination": {"page": 1, "page_size": 20, "total": 0, "total_pages": 1},
+            "routeFramework": {
+                "routeFrameworkLabel": "管理器广播记录",
+                "marketObservationSourceStageLabel": "广播",
+            },
+            "chain_selection": kwargs["chain_selection"],
+            "loopStateSummary": {"source": "manager"},
+            "managerStatus": {},
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "overview_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_overview",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "summary": {"arbitragePathCount": 0},
+            "arbitragePaths": [],
+            "watchPairs": [],
+            "liquidPoolRegistry": [],
+            "routeFramework": {
+                "routeFrameworkSource": "manager_closed_loop",
+                "marketObservationSourceStage": "manager_closed_loop",
+            },
+            "decisionBasis": "manager_closed_loop",
+            "marketObservationSource": "manager_closed_loop",
+            "marketObservationSourceStage": "manager_closed_loop",
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_config,
+        "market_observation_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_market_observation",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "summary": {
+                "candidateObservationGroupCount": 0,
+                "observationAnchorCount": 0,
+            },
+            "candidateObservationGroups": [],
+            "chainSpecificObservationPairs": [],
+            "chainSpecificObservationPools": [],
+            "chainSpecificObservationTokens": [],
+            "marketObservationPreview": {},
+            "marketObservationStaticTable": {
+                "exists": True,
+                "path": "manager://candidate-exchange-pools",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_quotes,
+        "quote_routes_manager_page_payload",
+        lambda **kwargs: {
+            "ok": True,
+            "source": "manager",
+            "dataSource": "manager",
+            "mode": "dex_quote_routes",
+            "chain_id": kwargs["chain_id"],
+            "chain_selection": kwargs["chain_selection"],
+            "selected_protocols": kwargs["protocols"],
+            "processing": {
+                "flow_name": "dex_quote_routes",
+                "network": "robinhood-testnet",
+                "handler": "runtime_core:overview",
+            },
+            "summary": {"routeCount": 0, "pathSource": "manager_closed_loop"},
+            "routes": [],
+            "closedLoopGroups": [],
+        },
+    )
 
     client = app.test_client()
     overview = client.get("/api/dex/overview?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4").get_json()

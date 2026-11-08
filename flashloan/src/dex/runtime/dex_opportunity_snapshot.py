@@ -4,9 +4,12 @@ import os
 
 from typing import Any
 
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
-from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
-from dex.runtime.dex_opportunity_helpers import _chain_key
+from core.db.storage_cow_execution import (
+    load_auto_execute_log_stats,
+    load_recent_cow_execution_attempt_summaries,
+)
+from core.db.storage_common import database_url
+from dex.runtime.dex_opportunity_helpers import _chain_key, _network_for_chain_id
 def _route_simple_key(route: dict[str, Any]) -> tuple[Any, ...]:
     addresses = route.get("routeAddresses") if isinstance(route.get("routeAddresses"), list) else route.get("addresses")
     if isinstance(addresses, list):
@@ -147,9 +150,15 @@ def _scanner_evidence_timeout_seconds() -> float:
 
 def _closed_loop_workers() -> int:
     try:
-        return max(1, min(8, int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "3") or "3")))
+        return max(
+            1,
+            min(
+                64,
+                int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "16") or "16"),
+            ),
+        )
     except (TypeError, ValueError):
-        return 3
+        return 16
 
 
 def _auto_execute_log_stats(chain_id: int | None, since: str | None = None) -> dict[str, Any]:
@@ -157,10 +166,22 @@ def _auto_execute_log_stats(chain_id: int | None, since: str | None = None) -> d
     if chain_id is None:
         return {"auto_execute_count": 0, "last_auto_execute_at": None}
     try:
-        log_path = cow_execution_attempt_log_path(chain_id=int(chain_id))
-        attempts = load_recent_cow_execution_attempts_jsonl(
-            log_path,
-            limit=10000,
+        stats = load_auto_execute_log_stats(
+            database_url(),
+            limit=2000,
+            networks=[_network_for_chain_id(chain_id)],
+            chain_ids=[int(chain_id)],
+            since=since,
+        )
+    except Exception:
+        stats = None
+    if stats is not None:
+        return stats
+    try:
+        attempts = load_recent_cow_execution_attempt_summaries(
+            database_url(),
+            limit=2000,
+            networks=[_network_for_chain_id(chain_id)],
             chain_ids=[int(chain_id)],
         )
     except Exception:

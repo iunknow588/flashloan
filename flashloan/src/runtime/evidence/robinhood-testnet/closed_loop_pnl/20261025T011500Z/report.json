@@ -1,0 +1,1017 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedConfirmedNoProfitCount": 48,
+      "blockedCount": 128,
+      "blockedMissingEvidenceBreakdown": {
+        "no_profitable_route": 48,
+        "quoter_unavailable": 80
+      },
+      "blockedNotVerifiedCount": 0,
+      "blockedQuoteFailedCount": 80,
+      "blockedQuoteInsufficientLiquidityCount": 0,
+      "blockedRpcTransportErrorCount": 0,
+      "blockedSamplesWithExpectedPnl": [],
+      "blockedWithExpectedPnlCount": 0,
+      "blockedWithMissingPnlCount": 128
+    },
+    "failed": {
+      "expectedPnlBySymbol": [],
+      "failedClosedLoops": [],
+      "failedCount": 0
+    },
+    "funnel": {
+      "broadcastCount": 0,
+      "realizedProfitBySymbol": [],
+      "reviewedCount": 128,
+      "successTxCount": 0,
+      "uniqueSuccessCount": 0,
+      "uniqueSuccessWithExpectedProfitCount": 0,
+      "withExpectedProfitCount": 0,
+      "withoutExpectedProfitCount": 128
+    },
+    "groupPnlByClosedLoopGroup": [
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|AMZN|ETH|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> AMZN -> ETH -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMD|ETH|AMZN|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> ETH -> AMZN -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMD|AMZN|ETH",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "AMD"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|AMZN|TSLA|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> AMZN -> TSLA -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMD|TSLA|AMZN|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> TSLA -> AMZN -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMD|AMZN|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMD",
+          "AMZN",
+          "TSLA",
+          "AMD"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|ETH|TSLA|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> ETH -> TSLA -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMD|TSLA|ETH|AMD",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMD -> TSLA -> ETH -> AMD",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMD|ETH|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMD",
+          "ETH",
+          "TSLA",
+          "AMD"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|AMD|ETH|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> AMD -> ETH -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMZN|ETH|AMD|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> ETH -> AMD -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMZN|AMD|ETH",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "AMD",
+          "ETH",
+          "AMZN"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|AMD|TSLA|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> AMD -> TSLA -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMZN|TSLA|AMD|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> TSLA -> AMD -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMZN|AMD|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "AMD",
+          "TSLA",
+          "AMZN"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|ETH|TSLA|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> ETH -> TSLA -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "AMZN|TSLA|ETH|AMZN",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "AMZN -> TSLA -> ETH -> AMZN",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "AMZN|ETH|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "ETH",
+          "TSLA",
+          "AMZN"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMD|AMZN|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> AMD -> AMZN -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "ETH|AMZN|AMD|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> AMZN -> AMD -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "ETH|AMD|AMZN",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMD",
+          "AMZN",
+          "ETH"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMD|TSLA|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> AMD -> TSLA -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "ETH|TSLA|AMD|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> TSLA -> AMD -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "ETH|AMD|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMD",
+          "TSLA",
+          "ETH"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMZN|TSLA|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> AMZN -> TSLA -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "ETH|TSLA|AMZN|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> TSLA -> AMZN -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "ETH|AMZN|TSLA",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMZN",
+          "TSLA",
+          "ETH"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|NFLX|PLTR|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> NFLX -> PLTR -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "ETH|PLTR|NFLX|ETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "ETH -> PLTR -> NFLX -> ETH",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "ETH|NFLX|PLTR",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "ETH"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "NFLX|ETH|PLTR|NFLX",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "NFLX -> ETH -> PLTR -> NFLX",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "NFLX|PLTR|ETH|NFLX",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "NFLX -> PLTR -> ETH -> NFLX",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "NFLX|ETH|PLTR",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "NFLX",
+          "PLTR",
+          "ETH",
+          "NFLX"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "PLTR|ETH|NFLX|PLTR",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "PLTR -> ETH -> NFLX -> PLTR",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "PLTR|NFLX|ETH|PLTR",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "PLTR -> NFLX -> ETH -> PLTR",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "PLTR|ETH|NFLX",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "PLTR",
+          "ETH",
+          "NFLX",
+          "PLTR"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMD|AMZN|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> AMD -> AMZN -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TSLA|AMZN|AMD|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> AMZN -> AMD -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "TSLA|AMD|AMZN",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TSLA",
+          "AMD",
+          "AMZN",
+          "TSLA"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMD|ETH|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> AMD -> ETH -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TSLA|ETH|AMD|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "no_profitable_route": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> ETH -> AMD -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "TSLA|AMD|ETH",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "no_profitable_route": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TSLA",
+          "AMD",
+          "ETH",
+          "TSLA"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMZN|ETH|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> AMZN -> ETH -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TSLA|ETH|AMZN|TSLA",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TSLA -> ETH -> AMZN -> TSLA",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "TSLA|AMZN|ETH",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TSLA",
+          "AMZN",
+          "ETH",
+          "TSLA"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TZ|TA|TB|TZ",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TZ -> TA -> TB -> TZ",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "TZ|TB|TA|TZ",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "TZ -> TB -> TA -> TZ",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "TZ|TA|TB",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 8
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 8,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TZ",
+          "TA",
+          "TB",
+          "TZ"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      }
+    ],
+    "ready": {
+      "readyCount": 0,
+      "readySamples": []
+    },
+    "success": {
+      "gasAssessment": {
+        "belowGasCostCount": 0,
+        "evaluableEthCount": 0,
+        "items": [],
+        "missingGasCount": 0,
+        "needsTokenPriceQuoteCount": 0,
+        "netPositiveAfterGasCount": 0
+      },
+      "precisionAssessment": {
+        "assessmentCounts": {},
+        "items": [],
+        "rowCount": 0,
+        "usdNetProfitAvailableCount": 0
+      },
+      "profitBySymbol": [],
+      "successes": [],
+      "uniqueSuccessCount": 0
+    },
+    "t21FieldCounts": {
+      "ArbitrageNotProfitable": 0,
+      "netProductDeltaRaw": 0,
+      "netProfitAmountMissingReason": 128
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "chainTokenMetadata": {
+    "available": true,
+    "rowCount": 39675,
+    "source": "sqlite_chain_tokens",
+    "trustedDecimalsCount": 58,
+    "unavailableReason": null
+  },
+  "conclusion": "0 unique on-chain success broadcasts with signed profit by symbol: no signed profit value; 0 failed broadcasts with expected P&L by symbol: no expected numeric value; 128 blocked/quote rows present, of which 0 carry an expected numeric P&L.",
+  "generatedAt": "2026-10-25T01:14:47Z",
+  "generatedAtLocal": "2026-10-25T09:14:47+08:00",
+  "range": {
+    "endLocal": "2026-10-25T09:15:00+08:00",
+    "endUtc": "2026-10-25T01:15:00Z",
+    "firstObservedAt": "2026-10-25T00:58:31.196304400+00:00",
+    "firstObservedAtLocal": "2026-10-25T08:58:31+08:00",
+    "lastObservedAt": "2026-10-25T01:13:54.352927100+00:00",
+    "lastObservedAtLocal": "2026-10-25T09:13:54+08:00",
+    "startLocal": "2026-10-25T08:58:00+08:00",
+    "startUtc": "2026-10-25T00:58:00Z"
+  },
+  "rowCount": 128,
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-closed-loop-pnl-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "usdReference": {
+    "available": true,
+    "maxAgeSeconds": 21600,
+    "maxReferenceLagSeconds": 86400,
+    "observedAt": "2026-10-24T01:04:34.346+00:00",
+    "priceCount": 707,
+    "source": "binance_market_snapshot",
+    "unavailableReason": null
+  }
+}

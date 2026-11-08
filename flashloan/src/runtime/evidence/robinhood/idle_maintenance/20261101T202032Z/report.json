@@ -1,0 +1,695 @@
+{
+  "afterPlan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "candidateDirectionTarget": 1,
+    "counts": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 1,
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 1,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": 1,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 1,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": 1,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 1
+    },
+    "directionTarget": 5,
+    "floorBlock": 79647842,
+    "maximumDirectionTarget": 5,
+    "minimumDirectionTarget": 1,
+    "neededDirectionCount": 0,
+    "observedAt": "2026-11-01T20:20:32.073204Z",
+    "satisfiedDirectionCount": 6,
+    "selectedPools": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647902,
+          "liquidity": "232437777852747926193098037124867361",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 2.3243777785274794e+17,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        }
+      ],
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647870,
+          "liquidity": "321583099568587869389905962421",
+          "liquidityBlockNumber": 103650184,
+          "liquidityIndex": 321583099568.5879,
+          "liquidityReadAt": "2026-11-01T20:06:24.666888Z",
+          "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647902,
+          "liquidity": "232437777852747926193098037124867361",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 2.3243777785274794e+17,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        }
+      ],
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647842,
+          "liquidity": "94869383691057056614213572248122612",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 9.486938369105706e+16,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+          "tickSpacing": 60,
+          "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647870,
+          "liquidity": "321583099568587869389905962421",
+          "liquidityBlockNumber": 103650184,
+          "liquidityIndex": 321583099568.5879,
+          "liquidityReadAt": "2026-11-01T20:06:24.666888Z",
+          "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647842,
+          "liquidity": "94869383691057056614213572248122612",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 9.486938369105706e+16,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+          "tickSpacing": 60,
+          "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ]
+    },
+    "targets": {}
+  },
+  "backfill": {
+    "directionCounts": {},
+    "initializeLogCount": 147964,
+    "neededDirectionCount": 6,
+    "ok": false,
+    "satisfiedDirectionCount": 0,
+    "scannedSegmentCount": 241,
+    "selectedPoolCount": 0,
+    "stoppedReason": "floor_reached_or_range_exhausted",
+    "targets": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 5,
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 5,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": 5,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 5,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": 5,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 5
+    }
+  },
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "directionTarget": 5,
+  "freshness": {
+    "ageSeconds": 26.648178,
+    "latestSnapshotAt": "2026-11-01T20:06:25Z",
+    "liquidityReadAt": "2026-11-01T20:06:24.666888Z",
+    "observedAt": "2026-10-11T00:40:50.673593Z",
+    "refreshedAt": "2026-11-01T20:06:25Z",
+    "snapshotCount": 3,
+    "stale": false,
+    "ttlSeconds": 900
+  },
+  "generatedAt": "2026-11-01T20:06:51.522799Z",
+  "import": {
+    "chainId": 4663,
+    "detail": "raw V4 tables imported directly from in-memory evidence; JSON files are not read",
+    "indexLiquidityRowCount": 0,
+    "liquidityRowCount": 0,
+    "network": "robinhood",
+    "ok": true,
+    "source": "onchain_evidence_payload",
+    "tokenCount": 0,
+    "v4PoolCount": 0
+  },
+  "maintenanceWorkers": {
+    "chainId": 4663,
+    "dependencies": {
+      "v4_broadcast_execution_worker": [
+        "v4_onchain_review_worker"
+      ],
+      "v4_candidate_yc_zc_worker": [
+        "v4_pool_liquidity_worker"
+      ],
+      "v4_closed_loop_worker": [
+        "v4_market_observation_worker"
+      ],
+      "v4_dex_overview_worker": [
+        "v4_market_observation_worker",
+        "v4_closed_loop_worker"
+      ],
+      "v4_market_observation_worker": [
+        "v4_candidate_yc_zc_worker"
+      ],
+      "v4_onchain_review_worker": [
+        "v4_market_observation_worker"
+      ],
+      "v4_pool_liquidity_worker": []
+    },
+    "generatedAt": "2026-11-01T20:06:51.522799Z",
+    "network": "robinhood",
+    "ok": true,
+    "order": [
+      "v4_pool_liquidity_worker",
+      "v4_candidate_yc_zc_worker",
+      "v4_market_observation_worker",
+      "v4_dex_overview_worker",
+      "v4_closed_loop_worker",
+      "v4_onchain_review_worker",
+      "v4_broadcast_execution_worker"
+    ],
+    "protocol": "uniswap_v4",
+    "scope": {
+      "eligiblePoolCount": 1090,
+      "explicitZeroLiquidityPoolCount": 0,
+      "pendingLiquidityCount": 0
+    },
+    "workers": {
+      "v4_broadcast_execution_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T20:02:39.251360Z",
+        "mode": "execution_watch_ok",
+        "pool_count": 1,
+        "refreshed_at": "2026-11-01T20:02:39.251360Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 1,
+        "worker": "v4_broadcast_execution_worker"
+      },
+      "v4_candidate_yc_zc_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T17:06:18.385303Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-01T17:06:18.385303Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_candidate_yc_zc_worker"
+      },
+      "v4_closed_loop_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T19:37:47.557420Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-01T19:37:47.557420Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_closed_loop_worker"
+      },
+      "v4_dex_overview_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T20:02:37.855377Z",
+        "mode": "complete",
+        "pool_count": 1,
+        "refreshed_at": "2026-11-01T20:02:37.855377Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 1,
+        "worker": "v4_dex_overview_worker"
+      },
+      "v4_market_observation_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T20:02:34.284422Z",
+        "mode": "complete",
+        "pool_count": 199,
+        "refreshed_at": "2026-11-01T20:02:34.284422Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 199,
+        "worker": "v4_market_observation_worker"
+      },
+      "v4_onchain_review_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 0,
+        "last_scanned_at": "2026-11-01T20:02:43.977136Z",
+        "mode": "reviewer_watch_ok",
+        "pool_count": 64,
+        "refreshed_at": "2026-11-01T20:02:43.977136Z",
+        "remaining_pool_count": 0,
+        "scanned_pool_count": 64,
+        "worker": "v4_onchain_review_worker"
+      },
+      "v4_pool_liquidity_worker": {
+        "batch_size": 512,
+        "cursor": 0,
+        "cursor_pool_id": "",
+        "error": null,
+        "last_block_number": 103650184,
+        "last_scanned_at": "2026-11-01T20:06:25.207741Z",
+        "mode": "complete",
+        "pool_count": 1090,
+        "refreshed_at": "2026-11-01T20:06:25.207741Z",
+        "remaining_pool_count": 1090,
+        "scanned_pool_count": 1090,
+        "worker": "v4_pool_liquidity_worker"
+      }
+    }
+  },
+  "mode": "full_scope_refresh",
+  "network": "robinhood",
+  "ok": true,
+  "phase": "completed",
+  "plan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "candidateDirectionTarget": 5,
+    "counts": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 1,
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 1,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": 1,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 1,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": 1,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 1
+    },
+    "floorBlock": 79647842,
+    "maximumDirectionTarget": 5,
+    "minimumDirectionTarget": 1,
+    "neededDirectionCount": 6,
+    "observedAt": "2026-11-01T20:06:51.623180Z",
+    "satisfiedDirectionCount": 6,
+    "selectedPools": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647902,
+          "liquidity": "232437777852747926193098037124867361",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 2.3243777785274794e+17,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        }
+      ],
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647870,
+          "liquidity": "321583099568587869389905962421",
+          "liquidityBlockNumber": 103650184,
+          "liquidityIndex": 321583099568.5879,
+          "liquidityReadAt": "2026-11-01T20:06:24.666888Z",
+          "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647902,
+          "liquidity": "232437777852747926193098037124867361",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 2.3243777785274794e+17,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        }
+      ],
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647842,
+          "liquidity": "94869383691057056614213572248122612",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 9.486938369105706e+16,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+          "tickSpacing": 60,
+          "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647870,
+          "liquidity": "321583099568587869389905962421",
+          "liquidityBlockNumber": 103650184,
+          "liquidityIndex": 321583099568.5879,
+          "liquidityReadAt": "2026-11-01T20:06:24.666888Z",
+          "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "tickSpacing": 60,
+          "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ],
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": [
+        {
+          "estimatedTvlUsd": null,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 79647842,
+          "liquidity": "94869383691057056614213572248122612",
+          "liquidityBlockNumber": 89668143,
+          "liquidityIndex": 9.486938369105706e+16,
+          "liquidityReadAt": "2026-10-16T00:56:56.848618Z",
+          "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+          "tickSpacing": 60,
+          "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        }
+      ]
+    },
+    "targets": {
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 5,
+      "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 5,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09": 5,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830": 5,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09": 5,
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 5
+    }
+  },
+  "poolLiquidityWorker": null,
+  "priceChange": {
+    "basis": "route_direction_pool_snapshots",
+    "changedPoolCount": 0,
+    "changes": [
+      {
+        "afterPrice": null,
+        "basis": "sqrt_price_x96",
+        "beforePrice": null,
+        "changeBps": 0.0,
+        "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "token1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      },
+      {
+        "afterPrice": null,
+        "basis": "sqrt_price_x96",
+        "beforePrice": null,
+        "changeBps": 0.0,
+        "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "token0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+      },
+      {
+        "afterPrice": null,
+        "basis": "sqrt_price_x96",
+        "beforePrice": null,
+        "changeBps": 0.0,
+        "poolId": "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+        "token0": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "token1": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+      }
+    ],
+    "compareCount": 3,
+    "maxChangeBps": 0.0,
+    "maxChangePoolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+    "maxChangeToken0": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+    "maxChangeToken1": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+    "thresholdBps": 50,
+    "triggered": false
+  },
+  "progress": [
+    {
+      "ok": true,
+      "phase": "existing_closed_loops",
+      "step": "scope_rebuild"
+    }
+  ],
+  "prune": {
+    "afterLiquidityCount": 5509,
+    "afterPoolCount": 5509,
+    "beforeLiquidityCount": 5509,
+    "beforePoolCount": 5509,
+    "deletedPoolCount": 0,
+    "deletedUnknownLiquidityCount": 0,
+    "deletedZeroLiquidityCount": 0
+  },
+  "rebuildAnchors": [
+    {
+      "anchorSymbol": "TZ",
+      "candidate": {
+        "abnormalCounts": {
+          "pairs": 0,
+          "pools": 0,
+          "tokens": 0
+        },
+        "abnormalPairCount": 0,
+        "abnormalPoolCount": 0,
+        "abnormalTokenCount": 0,
+        "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "anchorSymbol": "TZ",
+        "counts": {
+          "pairs": 4,
+          "pools": 2,
+          "recommendations": 4,
+          "tokens": 2
+        },
+        "pairCount": 4,
+        "poolCount": 2,
+        "recommendationCount": 4,
+        "tokenCount": 2
+      },
+      "closedLoops": {
+        "anchorAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "anchorSymbol": "TZ",
+        "counts": {
+          "hops": 6,
+          "loops": 2,
+          "optimizations": 0
+        },
+        "hopCount": 6,
+        "loopCount": 2
+      },
+      "observation": {
+        "abnormalCounts": {
+          "pairs": 0,
+          "pools": 0
+        },
+        "abnormalDirectionCount": 0,
+        "abnormalPoolCount": 0,
+        "anchorSymbol": "TZ",
+        "counts": {
+          "liquidity": 1,
+          "pairs": 2,
+          "pools": 1
+        },
+        "directionCount": 2,
+        "noPoolDirectionCount": 0,
+        "poolCount": 1,
+        "tokenCount": 2
+      }
+    }
+  ],
+  "refresh": {
+    "errors": [],
+    "liquidityPoolCount": null,
+    "ok": true,
+    "poolCount": null,
+    "steps": [
+      {
+        "databaseState": {
+          "complete": true,
+          "confirmedLiquidityPoolCount": 5509,
+          "eligibleConfirmedCount": 1090,
+          "eligiblePoolCount": 1090,
+          "eligibleUnknownCount": 0,
+          "eligibleZeroCount": 0,
+          "genericUnknownCount": 0,
+          "missingLiquiditySnapshotCount": 0,
+          "poolCount": 5509,
+          "snapshotCount": 5509,
+          "totalPoolCount": 5509,
+          "unknownLiquidityCount": 0,
+          "zeroLiquidityPoolCount": 0
+        },
+        "forcedFullScan": false,
+        "ok": true,
+        "reason": null,
+        "scanMode": "incremental",
+        "step": "v4_incremental_guard"
+      },
+      {
+        "fromBlock": null,
+        "generatedBlockNumber": null,
+        "ok": true,
+        "poolCount": 5509,
+        "scanMode": "incremental",
+        "source": "sqlite_db",
+        "step": "v4_pool_index"
+      },
+      {
+        "blockNumber": 103657079,
+        "errorCount": 3,
+        "markedPoolCount": 0,
+        "ok": true,
+        "scannedPoolCount": 5509,
+        "source": null,
+        "step": "v4_pool_liquidity"
+      },
+      {
+        "ok": true,
+        "skipped": false,
+        "step": "import_v4_evidence_payloads",
+        "tokenCount": 2077,
+        "v4PoolCount": 5509
+      },
+      {
+        "anchorCount": 199,
+        "ok": true,
+        "step": "build_all_anchor_data"
+      },
+      {
+        "afterPoolCount": 5509,
+        "deletedPoolCount": 0,
+        "deletedUnknownLiquidityCount": 0,
+        "deletedZeroLiquidityCount": 0,
+        "ok": true,
+        "step": "prune_non_executable_pools"
+      },
+      {
+        "ok": true,
+        "routeCount": 380,
+        "step": "dex_overview_snapshot"
+      },
+      {
+        "directionCandidateLimit": 5,
+        "lastScannedBlock": 103657079,
+        "liquidityScanBlock": 103657079,
+        "ok": true,
+        "scanMode": "incremental",
+        "step": "v4_scan_state"
+      }
+    ]
+  },
+  "refreshPoolCount": 3,
+  "refreshPoolIds": [
+    "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+    "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+    "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0"
+  ],
+  "routeAddresses": [
+    "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+    "0x02a0bacc642d501422af804a462f98335b2bbf09",
+    "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+    "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+  ],
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": true
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 5,
+    "directions": [],
+    "routeAddresses": []
+  },
+  "scopeRebuild": {
+    "ok": true,
+    "phase": "existing_closed_loops",
+    "rebuilt": false,
+    "result": null
+  },
+  "scopeRoute": {
+    "anchorSymbol": "TZ",
+    "basis": "sqlite_closed_loops",
+    "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+    "routeAddresses": [
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer",
+  "triggerImmediateReview": false
+}

@@ -1,0 +1,77 @@
+{
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "error": "build_v4_directional_pool_backfill() got an unexpected keyword argument 'exclude_pool_ids'",
+  "freshness": {
+    "ageSeconds": 1117.119273,
+    "latestSnapshotAt": "2026-10-26T20:24:32Z",
+    "liquidityReadAt": "2026-10-26T20:23:54.553638Z",
+    "observedAt": "2026-10-15T13:03:29.574853Z",
+    "refreshedAt": "2026-10-26T20:24:32Z",
+    "snapshotCount": 39195,
+    "stale": true,
+    "ttlSeconds": 900
+  },
+  "generatedAt": "2026-10-26T20:43:08.259682Z",
+  "mode": "idle_maintenance",
+  "network": "robinhood-testnet",
+  "ok": false,
+  "phase": "backfill_failed",
+  "plan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "counts": {
+      "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": 0,
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 0,
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000": 0,
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 0,
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000": 0,
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": 0
+    },
+    "directionTarget": 1,
+    "floorBlock": 91000224,
+    "neededDirectionCount": 6,
+    "observedAt": "2026-10-26T20:43:08.975257Z",
+    "satisfiedDirectionCount": 0,
+    "selectedPools": {
+      "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": [],
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": [],
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000": [],
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": [],
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000": [],
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": []
+    },
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": 1,
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 1,
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000": 1,
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 1,
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000": 1,
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0": 1
+    }
+  },
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 1,
+    "directions": [
+      "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000",
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93"
+    ],
+    "routeAddresses": [
+      "0x0000000000000000000000000000000000000000",
+      "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "0x0000000000000000000000000000000000000000"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer",
+  "stoppedReason": "rpc_backfill_failed"
+}

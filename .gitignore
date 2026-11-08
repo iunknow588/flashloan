@@ -71,6 +71,7 @@ runtime/run-*.log
 data_info/**/*.log
 
 # Local SQLite KV runtime database (generated, do not commit)
+flashloan/db/
 local_store.sqlite3
 local_store.sqlite3-shm
 local_store.sqlite3-wal
@@ -79,7 +80,18 @@ tmp_*.sqlite3*
 *.sqlite3.bak
 data_info/_build/
 flashloan/rs-src/target/
+flashloan/tools/**/target/
+flashloan/tools/target/
 runtime/external/rh-flash-toolkit/
+logs/archive_root_*/
+logs/*.log
+logs/**/*.log
+logs/plan/runtime_evidence/history/*.jsonl
+pytest_tmp_*/
+flashloan/.pytest_tmp/
+flashloan/src/runtime/evidence/chain_archive/
+flashloan/src/runtime/evidence/**/*.bak
+runtime/evidence/root_snapshots_*/
 contract/avalanche*/DEX/deployments/evidence/
 contract/avalanche*/BOT/deployments/evidence/
 flashloan/src/runtime/logs/
@@ -106,7 +118,14 @@ flashloan/src/runtime/evidence/robinhood/v4_pool_index/full_latest.json
 flashloan/src/runtime/evidence/robinhood-testnet/v4_pool_index/latest.json
 flashloan/src/runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json
 flashloan/src/runtime/evidence/**/token_balance_scan_cache.json
+flashloan/src/runtime/evidence/robinhood/dex_v4_address_provenance/
+flashloan/src/runtime/evidence/robinhood-testnet/dex_v4_address_provenance/
+flashloan/src/runtime/evidence/robinhood-testnet/live_testing_readiness/
+flashloan/src/runtime/evidence/robinhood-testnet/official_v4_custom_contracts/
+flashloan/src/runtime/evidence/robinhood-testnet/v4_directional_backfill/
 flashloan/src/runtime/evidence/robinhood/eth_pair_scan_progress.json
+contract/robinhood-testnet/DEX/deployments/evidence/
+contract/robinhood-testnet/DEX/deployments/
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/observation.json
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/shards-observation/
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/overview.json

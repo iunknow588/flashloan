@@ -378,7 +378,6 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "chain_default": True,
-        "is_default": True,
         "migration_type": "dex_single_chain_market_registry",
     },
     "dex-arbitrage-43114-traderjoe-v2": {
@@ -448,11 +447,12 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
         "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
         "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
-        "observation_only": True,
+        "observation_only": False,
         "protocol_supported": True,
-        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "chain_default": True,
-        "migration_type": "robinhood_mainnet_v4_read_only_quote_supported_execution_deferred",
+        "is_default": True,
+        "migration_type": "robinhood_mainnet_v4_live_testing_progression",
     },
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {
         "legacy_market_id": LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID,

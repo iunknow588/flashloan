@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "robinhood-testnet-auto-scan-verification-v2",
+  "runAt": "2026-10-21T22:21:02.602630Z",
+  "operatorInstruction": "open testnet broadcast and verify testnet auto-scan tasks",
+  "broadcastGates": {
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "chainBroadcastEnabled": true,
+    "contractBroadcastEnabled": true,
+    "liveTestingReadinessReadyForLiveTest": true,
+    "liveTestingReadinessBroadcastEnabled": true,
+    "liveTestingReadinessBlockingReasons": [],
+    "readinessNote": "point-in-time true at 2026-10-21T22:14:08Z; auto-scan keeps updating the opportunity snapshot, so a later no-write check can report chain_test_plan_stale_against_current_opportunity_snapshot"
+  },
+  "runtime": {
+    "baseUrl": "http://127.0.0.1:5003",
+    "chainId": 46630,
+    "marketId": "dex-arbitrage-46630-uniswap-v4",
+    "protocols": "uniswap_v4",
+    "scannerRunning": true,
+    "autoExecuteEnabled": true,
+    "lastScannerError": null,
+    "autoExecuteCount": 199,
+    "autoBroadcastCount": 199,
+    "closedLoopReviewCount": 69212,
+    "autoExecuteCooldownSeconds": 600.0
+  },
+  "chainTestPlan": {
+    "generatedAt": "2026-10-21T22:13:46.074450+00:00",
+    "attemptState": "live_verified",
+    "readyForTransactionPreflight": true,
+    "trustedForExecution": false,
+    "forkStatus": "fork_staticcall_passed",
+    "forkPassed": true,
+    "forkedBlockNumber": 118022640
+  },
+  "verification": {
+    "chainTestAudit": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    },
+    "predeployReadinessNoWrite": {
+      "forkStaticcallPassed": true,
+      "readyForForkStaticcall": true,
+      "readyForPausedRedeploy": true,
+      "blockingReasons": [
+        "broadcast_gate_not_closed",
+        "latest_executor_gate_not_ready",
+        "current_executor_mismatch_not_ready"
+      ]
+    }
+  },
+  "successSubmissions": [
+    {
+      "observedAt": "2026-10-21T21:59:30.201349+00:00",
+      "createdAt": "2026-10-21T22:00:02.302106+00:00",
+      "txHash": "0x0dd6c8bc612a0bb14d5ecdd9036daa2c9b544b80c29c42d14f9eab5501be78a6",
+      "blockNumberHex": "0x85d4c65",
+      "gasUsedHex": "0x4c6a1",
+      "effectiveGasPriceHex": "0x989680",
+      "route": "TSLA -> ETH -> AMZN -> TSLA",
+      "amount": "0.001953125",
+      "broadcast": true
+    },
+    {
+      "observedAt": "2026-10-21T21:59:40.365796+00:00",
+      "createdAt": "2026-10-21T22:00:02.302106+00:00",
+      "txHash": "0x51a3fd27e7f434dbb5bf7a25ef1e5c8fc0a0db6a1d05cfcbe2855224d344ee9d",
+      "blockNumberHex": "0x85d4ca3",
+      "gasUsedHex": "0x462c5",
+      "effectiveGasPriceHex": "0x989680",
+      "route": "ETH -> AMD -> AMZN -> ETH",
+      "amount": "0.00006103515625",
+      "broadcast": true
+    }
+  ],
+  "failureSummary": {
+    "endpoint": "/api/dex/submissions/failed",
+    "attemptCount": 69,
+    "blockedCount": 64,
+    "businessBlockedCount": 64,
+    "failedCount": 5,
+    "systemErrorCount": 5,
+    "successCount": 0
+  },
+  "failureSample": [
+    {
+      "category": "not_executable",
+      "txHash": null,
+      "blockers": [
+        "execution reverted"
+      ]
+    },
+    {
+      "category": "not_executable",
+      "txHash": null,
+      "blockers": [
+        "hop AMD->ETH verification failed: quoter exact-input call failed; execution reverted",
+        "price impact cannot be confirmed"
+      ]
+    },
+    {
+      "category": "not_executable",
+      "txHash": null,
+      "blockers": [
+        "hop TZ->TB verification failed: quoter exact-input call failed; execution reverted",
+        "price impact cannot be confirmed"
+      ]
+    }
+  ],
+  "conclusion": "Testnet broadcast switch is enabled and auto-scan runs continuously. Two unique on-chain success transactions were observed at 2026-10-21T22:00:02Z after the switch was enabled, with broadcast receipts recorded in cow execution attempts. In the same bounded window there are also quoter/not-profitable rows that remain fail-closed with no txHash. Mainnet broadcast remains false.",
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "uniqueSuccessfulBroadcastCount": 2,
+    "writesSqlite": false
+  }
+}

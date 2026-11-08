@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_13_ui_closed_loop_groups_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.13 Closed-loop groups page uses the Manager API as the only business read and fails closed without legacy fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T14:36:00+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The closed-loop groups GET route is manager-owned. Flask maps /v1/closed-loops loops and hops to the existing page DTO, including groups, summary, flashLoanToken metadata, routeCount, poolDependencyCount and include_routes projection. The route no longer reads legacy observation overview, static tables, cache or the closed_loop_route_groups_payload shadow path. When the manager response is unavailable, malformed, or scoped to another chain, Flask returns 503 manager_read_failed with dataSource=manager and no legacy fallback.",
+  "implementation": {
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "flaskRoute": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "pythonTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+    "architectureGuards": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "functionalTests": "flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py",
+    "workflowTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "/api/dex/closed-loop-groups calls closed_loop_manager_page_payload unconditionally and no longer invokes legacy observation overview or closed_loop_route_groups_payload",
+    "ClosedLoopSnapshot loops/hops are mapped to page groups, summary and compact include_routes projection; routePools are preview-only and do not affect closed-loop or PnL authority",
+    "flashLoanToken, startToken and endToken metadata come from ClosedLoopRow anchor metadata; routeCount and poolDependencyCount are derived from manager loops and poolIds",
+    "borrowableBasis=closed_loop_manager_anchor and summary.usdDepthRequired=false; no USD depth or USD TVL gate is introduced",
+    "snapshotLimited is set when loops exceed the manager snapshot limit; page group counts stay separate from full status counts",
+    "Manager response errors, missing arrays, invalid token fields and chain scope mismatch return 503 manager_read_failed with dataSource=manager; no legacy fallback",
+    "Architecture and workflow tests lock the closed-loop groups GET authority boundary and manager DTO contract"
+  ],
+  "verification": [
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/manager_page_compare.py app_runtime/web/data_routes/dex_surface_routes_config.py app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_architecture_guards.py app_runtime/tests/functional/test_api_handler_payload_contract.py app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "passed": 47
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k \"migrated_dex_closed_loop_groups_route_is_manager_only or migrated_dex_market_observation_route_is_manager_only\"",
+      "exitCode": 0,
+      "passed": 2,
+      "deselected": 42,
+      "note": "D9.13 regression includes the closed-loop guard in this combined run"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "exitCode": 0,
+      "passed": 14
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 28
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "note": "One existing LF/CRLF warning in .vscode/settings.json from the dirty worktree"
+    }
+  ],
+  "fixtures": [
+    "Closed-loop manager DTO maps loops/hops into groups with flashLoanToken metadata, routeCount and deduplicated poolDependencyCount",
+    "include_routes=false returns compact groups and include_routes=true returns preview routePools projected from loop plus hop poolIds",
+    "Closed-loop manager DTO rejects missing arrays, invalid token metadata, wrong chain scope and manager errors with manager_read_failed",
+    "Closed-loop groups route calls only closed_loop_manager_page_payload and returns 503 on manager failure",
+    "Closed-loop groups route never invokes legacy observation, cache or shadow opt-in",
+    "Web assembly workflow keeps the closed-loop groups route reachable and the manager-only DTO stable"
+  ],
+  "dbWrites": 0,
+  "mainnetApply": false,
+  "serviceRestart": false,
+  "realBroadcast": false,
+  "knownBoundary": "D9.13 covers code, tests, manager-only closed-loop groups GET and fail-closed behavior. It does not apply production manager data, start or stop the service, write the mainnet database, enable real broadcast, or change the closed-loop refresh/rebuild authority. /v1/closed-loops/compare remains diagnostic only. M5 production authority still requires M1-M4 real mainnet copy bootstrap and apply-window gates. No historical evidence was modified."
+}

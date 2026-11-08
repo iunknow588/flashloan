@@ -86,8 +86,10 @@ const ROUTE_UI_STATE = Object.freeze({
   PREFLIGHT_RUNNING: "preflight_running",
   PREFLIGHT_DONE: "preflight_done",
   PREFLIGHT_FAILED: "preflight_failed",
+  EXECUTION_NOT_REQUESTED: "execution_not_requested",
   EXECUTION_PENDING: "execution_pending",
   EXECUTION_SUBMITTED: "execution_submitted",
+  EXECUTION_SUCCESS: "execution_success",
   EXECUTION_FAILED: "execution_failed",
 });
 
@@ -112,6 +114,10 @@ const ROUTE_UI_TRANSITIONS = Object.freeze({
     ROUTE_UI_STATE.PREFLIGHT_RUNNING,
     ROUTE_UI_STATE.PREFLIGHT_FAILED,
     ROUTE_UI_STATE.EXECUTION_PENDING,
+    ROUTE_UI_STATE.EXECUTION_NOT_REQUESTED,
+  ],
+  [ROUTE_UI_STATE.EXECUTION_NOT_REQUESTED]: [
+    ROUTE_UI_STATE.PREFLIGHT_RUNNING,
   ],
   [ROUTE_UI_STATE.PREFLIGHT_FAILED]: [
     ROUTE_UI_STATE.PREFLIGHT_RUNNING,
@@ -124,7 +130,9 @@ const ROUTE_UI_TRANSITIONS = Object.freeze({
   [ROUTE_UI_STATE.EXECUTION_SUBMITTED]: [
     ROUTE_UI_STATE.EXECUTION_FAILED,
     ROUTE_UI_STATE.EXECUTION_PENDING,
+    ROUTE_UI_STATE.EXECUTION_SUCCESS,
   ],
+  [ROUTE_UI_STATE.EXECUTION_SUCCESS]: [],
   [ROUTE_UI_STATE.EXECUTION_FAILED]: [
     ROUTE_UI_STATE.EXECUTION_PENDING,
   ],
@@ -134,8 +142,10 @@ const inferUiState = route => {
   const stage = String(route?.__reviewStage || "");
   if (["preflight_failed"].includes(stage)) return ROUTE_UI_STATE.PREFLIGHT_FAILED;
   if (stage === "preflight") return hasConfirmedBestAmount(route) ? ROUTE_UI_STATE.PREFLIGHT_DONE : ROUTE_UI_STATE.OFFCHAIN_ESTIMATE;
+  if (stage === "execution_not_requested") return ROUTE_UI_STATE.EXECUTION_NOT_REQUESTED;
   if (stage === "execution_pending") return ROUTE_UI_STATE.EXECUTION_PENDING;
   if (stage === "execution_failed") return ROUTE_UI_STATE.EXECUTION_FAILED;
+  if (stage === "execution_success") return ROUTE_UI_STATE.EXECUTION_SUCCESS;
   if (stage === "execution") return ROUTE_UI_STATE.EXECUTION_SUBMITTED;
   if (route?.reviewMode === "pending_offchain_review") return ROUTE_UI_STATE.OFFCHAIN_PENDING;
   if (routeNeedsLiveReview(route)) return ROUTE_UI_STATE.OFFCHAIN_ESTIMATE;
@@ -289,9 +299,6 @@ const bestAmountMissingOf = (route, evidence, analysis) => {
   return picked === null || picked === undefined || picked === "";
 };
 
-const canAutoEstimate = route => [ROUTE_UI_STATE.OFFCHAIN_ESTIMATE, ROUTE_UI_STATE.OFFCHAIN_PENDING].includes(effectiveUiState(route));
-const canAutoRefresh = route => [ROUTE_UI_STATE.OFFCHAIN_ESTIMATE, ROUTE_UI_STATE.OFFCHAIN_PENDING].includes(effectiveUiState(route));
-
 const shouldPreserveRouteState = route => [
   ROUTE_UI_STATE.PREFLIGHT_RUNNING,
   ROUTE_UI_STATE.PREFLIGHT_DONE,
@@ -357,9 +364,9 @@ const hintAmountPart = (value, symbol) => {
 const estimateBestAmountHint = ({amount, symbol, initialAmount, initialSymbol}) => {
   if (Number.isFinite(Number(initialAmount)) && Number(initialAmount) > 0
       && Math.abs(Number(amount) - Number(initialAmount)) / Number(initialAmount) > 0.01) {
-    return `量级提示=链下估算初始量 ${hintAmountPart(amount, symbol)}；初始探测 ${hintAmountPart(initialAmount, initialSymbol)} 只是起点，最终最佳量由链上复核确认`;
+    return `量级提示=链下估算初始交易量 ${hintAmountPart(amount, symbol)}；初始探测 ${hintAmountPart(initialAmount, initialSymbol)} 只是起点，最终最佳交易量由链上复核确认`;
   }
-  return `量级提示=链下估算初始量 ${hintAmountPart(amount, symbol)}；仅作为链上合约初始值，最佳量由链上复核确认`;
+  return `量级提示=链下估算初始交易量 ${hintAmountPart(amount, symbol)}；仅作为链上合约初始值，最终最佳交易量由链上复核确认`;
 };
 
 const preflightBestAmountHint = ({amount, symbol}) => {
@@ -367,7 +374,7 @@ const preflightBestAmountHint = ({amount, symbol}) => {
 };
 
 const executionBestAmountHint = ({amount, symbol}) => {
-  return `量级提示=本次链上执行选用金额为 ${hintAmountPart(amount, symbol)}`;
+  return `量级提示=本次链上执行选用交易量为 ${hintAmountPart(amount, symbol)}`;
 };
 
 const bestAmountHint = ({evidence, analysis, amount, symbol, initialAmount, initialSymbol, executionCount = 0, stage = "estimate"}) => {
@@ -382,7 +389,7 @@ const bestAmountHint = ({evidence, analysis, amount, symbol, initialAmount, init
 
 const estimateBestAmountDisplayLabel = () => "最佳交易量";
 const preflightBestAmountDisplayLabel = () => "最佳交易量";
-const executionBestAmountDisplayLabel = () => "链上执行金额";
+const executionBestAmountDisplayLabel = () => "链上执行交易量";
 
 const bestAmountDisplayLabel = ({evidence, analysis, stage = "estimate"}) => {
   if (["execution", "execution_pending", "execution_failed"].includes(stage)) return executionBestAmountDisplayLabel();

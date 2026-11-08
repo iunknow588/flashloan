@@ -1,0 +1,92 @@
+{
+  "evidenceId": "d7_1_broadcast_shadow_20261104",
+  "milestone": "M7",
+  "title": "Broadcast Manager shadow, API and runtime-ownership evidence",
+  "status": "shadow-complete",
+  "generatedAt": "2026-11-04T07:23:06Z",
+  "decision": "M7 Broadcast Manager is complete for shadow persistence and the HTTP boundary. Production broadcast authority remains legacy, no transaction was sent, the mainnet database was not migrated or written, and runtime worker ownership remains with the existing Rust execution queue.",
+  "migration": {
+    "id": "20261104_005_broadcast_schema",
+    "checksum": "sha256:2fd966028dfc99e0dd6f364b16f173e66db46341b107ada666f8cc42f0e6d057",
+    "schemaChecksum": "sha256:15469a6391823df6257f5b2b6e9e721c518f3ee1b57993f26676fcc1fac48560",
+    "appliedNowOnFreshTempDb": true,
+    "appliedNowOnSecondRun": false,
+    "tables": [
+      "manager_broadcast_library_state",
+      "manager_cow_execution_attempts",
+      "manager_broadcast_attempt_diagnostics"
+    ],
+    "tempDatabaseHashAfterFirstMigrate": "6B0B54BDE827E9933618D378099D0DBA3FC0FAEA05E649F30E8CA4A203C1E9FE",
+    "tempDatabaseHashAfterSecondMigrate": "6B0B54BDE827E9933618D378099D0DBA3FC0FAEA05E649F30E8CA4A203C1E9FE",
+    "tempDatabaseHashesEqual": true
+  },
+  "mainnetPreflight": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "quickCheck": "ok",
+    "readyForMigration": true,
+    "fileSizeBytes": 3315490816,
+    "migrationLedger": "schema_migrations",
+    "managerTargetTableCount": 37,
+    "managerTargetTablesPresent": 0,
+    "incompatibleTargetTables": 0,
+    "applied": false,
+    "wroteBusinessData": false,
+    "restartedService": false
+  },
+  "implementation": {
+    "crate": "flashloan/tools/broadcast_manager",
+    "migrationFile": "flashloan/tools/manager_db/migrations/20261104_005_broadcast_schema.sql",
+    "apiRoutes": [
+      "GET /v1/broadcasts",
+      "POST /v1/broadcasts/submit",
+      "POST /v1/broadcasts/finalize"
+    ],
+    "authorityEnv": "BROADCAST_MANAGER_AUTHORITY",
+    "requestPolicy": "Only generated or confirmed Review broadcast requests with complete positive signed PnL can create pending attempts.",
+    "submitPolicy": "Submit persists attempt_id, loop_key, Review and closed-loop versions, signer, nonce, gas, RPC, and evidence. It does not calculate PnL, sign, touch the network, or broadcast.",
+    "finalizePolicy": "Finalize permits only pending to success or failed. Success requires tx_hash. Failed attempts retain nonce, RPC, tx_hash, receipt, status reason, and structured diagnostics.",
+    "idempotencyPolicy": "Idempotency-Key plus request digest returns idempotentReplay=true; a different digest returns IDEMPOTENCY_KEY_REUSED; requestId is excluded from the digest.",
+    "dryRunPolicy": "dryRun=true writes no attempts, diagnostics, state, events, or idempotency rows."
+  },
+  "runtimeOwnership": {
+    "managerRule": "Manager crates own durable domain state and do not start worker threads or hold runtime queues.",
+    "reviewRuntime": {
+      "legacyClass": "ReviewSupervisor",
+      "queue": "ClosedLoopReviewQueue",
+      "workers": "ThreadPoolExecutor thread_name_prefix=review-worker",
+      "supervisorThread": "review-supervisor",
+      "managerBoundary": "review_manager persists review evidence, signed PnL, diagnostics, and broadcast requests; it does not own the review worker pool."
+    },
+    "broadcastRuntime": {
+      "nativeOwner": "flashloan/rs-src/src/worker_pool.rs",
+      "queue": "ExecutionQueue",
+      "workers": "rust-closed-loop-exec-*",
+      "pythonSupervisor": "BroadcastSupervisor is observation-only and must not create, replace, or resend a raw transaction.",
+      "managerBoundary": "broadcast_manager persists pending attempts and terminal outcomes; it does not own the execution queue or send transactions."
+    },
+    "apiBoundary": "manager_api validates requests, enforces authority/idempotency, and exposes read snapshots; HTTP handlers never act as background workers."
+  },
+  "verification": {
+    "cargoFmtAllCheck": "passed",
+    "cargoCheckWorkspace": "passed",
+    "cargoClippyWorkspaceAllTargetsDWarnings": "passed",
+    "cargoTestWorkspace": {
+      "passed": true,
+      "totalTests": 119,
+      "broadcastManagerTests": 5,
+      "managerApiTests": 20,
+      "migrationSmokeTests": 5
+    },
+    "fixtures": [
+      "dry-run creates no attempt or idempotency rows",
+      "apply and same-key replay are stable",
+      "success requires tx hash",
+      "terminal attempts cannot be finalized twice",
+      "failed attempt retains nonce, RPC, tx hash, and diagnostic",
+      "stale Review version is rejected before writes",
+      "non-eligible Review request is rejected",
+      "manager_api requires X-Request-Id, Idempotency-Key, and explicit dryRun"
+    ]
+  },
+  "knownBoundary": "Current production authority remains legacy. M7 shadow completion does not enable real broadcast. Real broadcast still requires M1-M6 real-mainnet shadow bootstrap, compare/cutover evidence, all P0 gates, and an independent broadcast window."
+}

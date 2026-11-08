@@ -163,9 +163,17 @@ def chain_selection_payload(
         or None
     )
     page_pathname = urlsplit(page_path).path.rstrip("/") or "/"
-    if default_market_id is None and page_pathname in {"/flash-loan", "/flash-loan/pools"}:
+    if (
+        default_market_id is None
+        and page_pathname in {"/flash-loan", "/flash-loan/pools"}
+        and (not requested_feature or requested_feature == "dex_arbitrage")
+    ):
         default_market_id = str(default_flash_loan_pool_scope()["market_id"])
-    if default_market_id is None and page_pathname in {"/", "/bot"}:
+    if (
+        default_market_id is None
+        and page_pathname in {"/", "/bot"}
+        and (not requested_feature or requested_feature == "liquidation")
+    ):
         default_market_id = default_market_id_for_feature("liquidation")
     available = available_chain_selections(database_url=database_url, feature=requested_feature)
     selected = resolve_request_chain_selection(

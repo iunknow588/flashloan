@@ -1,7 +1,11 @@
 import core.db.cow_execution_review as cow_execution_review
 import pytest
 
-from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts
+from core.db.storage_cow_execution_jsonl import (
+    append_cow_execution_attempts_jsonl,
+    load_recent_cow_execution_attempts_jsonl,
+)
 from core.db.cow_execution_review import _build_review_summary, _review_route_identity
 from core.cow_evidence_helpers import dedupe_attempts_by_route_evidence
 
@@ -129,6 +133,39 @@ def test_review_summary_infers_net_positive_for_legacy_evidence(tmp_path):
     assert reviewed["readyForTransactionPreflight"] is False
 
 
+def test_review_summary_carries_cost_model_profit_fields_for_ui(tmp_path):
+    usdg = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    weth = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+    cats = "0x7195e2088f3DFCca56e6A71D129051963Ed9657A"
+    attempt = _attempt_with_route_addresses([usdg, weth, cats, weth, usdg])
+    attempt["quote"]["live_onchain_evidence"]["costModel"].update(
+        {
+            "netProfitAmount": 0.000274380284735805,
+            "netProfitAmountSymbol": "USDG",
+            "netProfitAmountBps": 702.4135289236608,
+            "finalOutputAmount": 0.004180630284735805,
+            "borrowInputAmount": 0.00390625,
+            "gasUsed": 306481,
+            "gasCostEth": 0.00306481,
+            "netAfterGasEth": None,
+        }
+    )
+
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    assert append_cow_execution_attempts_jsonl(path, [attempt]) == 1
+    row = load_recent_cow_execution_attempts_jsonl(path, limit=1, networks=["robinhood"])[0]
+    reviewed = row["review_summary"]["onchain_evidence"]
+    compact_quote_evidence = row["quote"]["live_onchain_evidence"]
+
+    assert reviewed["costModel"]["netProfitAmount"] == pytest.approx(0.000274380284735805)
+    assert reviewed["netProfitAmount"] == pytest.approx(0.000274380284735805)
+    assert reviewed["netProfitAmountSymbol"] == "USDG"
+    assert reviewed["netProfitAmountBps"] == pytest.approx(702.4135289236608)
+    assert reviewed["finalOutputAmount"] == pytest.approx(0.004180630284735805)
+    assert reviewed["gasUsed"] == 306481
+    assert compact_quote_evidence["costModel"]["netProfitAmount"] == pytest.approx(0.000274380284735805)
+
+
 def test_jsonl_attempt_loading_requires_network_and_chain_scope(tmp_path):
     route_addresses = [
         "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
@@ -180,6 +217,8 @@ def test_jsonl_append_rejects_contradictory_nested_scope(tmp_path):
 
 def test_review_route_identity_resolves_known_robinhood_symbols():
     row = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
         "route_path": ["TZ", "TB", "TA", "TZ"],
     }
     quote = {
@@ -193,7 +232,7 @@ def test_review_route_identity_resolves_known_robinhood_symbols():
     identity = _review_route_identity(row, quote, {})
 
     assert identity["status"] == "ok"
-    assert identity["address_source"] == "robinhood_testnet_v4_token_allowlist"
+    assert identity["address_source"] == "chain_owned_allowlist"
     assert identity["route_addresses"] == [
         "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
         "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
@@ -202,8 +241,10 @@ def test_review_route_identity_resolves_known_robinhood_symbols():
     ]
 
 
-def test_review_route_identity_ambiguous_weth_returns_symbol_only():
+def test_review_route_identity_resolves_native_weth_eth_and_observed_symbol():
     row = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
         "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
     }
     quote = {
@@ -216,15 +257,22 @@ def test_review_route_identity_ambiguous_weth_returns_symbol_only():
     }
     identity = _review_route_identity(row, quote, {})
 
-    assert identity["status"] == "symbol_only"
-    assert identity["identity_mode"] == "symbol_fallback"
-    assert identity["address_source"] is None
-    assert identity["route_addresses"] == []
-    assert identity["routeAddresses"] == []
+    assert identity["status"] == "ok"
+    assert identity["identity_mode"] == "address"
+    assert identity["address_source"] == "chain_owned_allowlist"
+    assert identity["route_addresses"] == [
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    ]
+    assert identity["routeAddresses"] == identity["route_addresses"]
 
 
 def test_review_route_identity_unknown_symbol_returns_symbol_only():
     row = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
         "route_path": ["WETH", "ETH", "UNKNOWN_SYMBOL", "WETH"],
     }
     quote = {
@@ -245,8 +293,13 @@ def test_review_route_identity_unknown_symbol_returns_symbol_only():
 
 
 def test_review_route_identity_missing_allowlist_returns_symbol_only(monkeypatch):
-    monkeypatch.setattr(cow_execution_review, "_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES", {})
+    monkeypatch.setattr(
+        "core.route_symbol_identity.official_route_addresses",
+        lambda *args, **kwargs: [],
+    )
     row = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
         "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
     }
     quote = {
@@ -267,6 +320,8 @@ def test_review_route_identity_missing_allowlist_returns_symbol_only(monkeypatch
 
 def test_review_summary_prefers_quote_business_status_over_identity_warning():
     row = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
         "route_path": ["TZ", "TB", "TA", "TZ"],
     }
     quote = {
@@ -315,10 +370,10 @@ def test_review_summary_maps_rpc_timeout_to_timeout_message():
 def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, monkeypatch):
     from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
 
-    log_path = tmp_path / "attempts.jsonl"
+    database_path = tmp_path / "local_store.sqlite3"
     monkeypatch.setattr(
-        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
-        lambda **kwargs: log_path,
+        "core.db.storage_common.database_url",
+        lambda: str(database_path),
     )
     route_symbols = ["WETH", "ETH", "0XC9F9C8", "WETH"]
     route_addresses = [
@@ -356,8 +411,8 @@ def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, mon
     )
 
     assert recorded["recorded"] == 1
-    rows = load_recent_cow_execution_attempts_jsonl(
-        log_path,
+    rows = load_recent_cow_execution_attempts(
+        database_path,
         limit=1,
         networks=["robinhood-testnet"],
         chain_ids=[46630],
@@ -374,10 +429,10 @@ def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, mon
 def test_route_test_recorder_blocks_unprofitable_from_submission(tmp_path, monkeypatch):
     from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
 
-    log_path = tmp_path / "attempts_route_unprofitable.jsonl"
+    database_path = tmp_path / "local_store.sqlite3"
     monkeypatch.setattr(
-        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
-        lambda **kwargs: log_path,
+        "core.db.storage_common.database_url",
+        lambda: str(database_path),
     )
     payload = {
         "ok": True,
@@ -401,8 +456,8 @@ def test_route_test_recorder_blocks_unprofitable_from_submission(tmp_path, monke
     )
 
     assert recorded["recorded"] == 1
-    rows = load_recent_cow_execution_attempts_jsonl(
-        log_path,
+    rows = load_recent_cow_execution_attempts(
+        database_path,
         limit=1,
         networks=["robinhood-testnet"],
         chain_ids=[46630],
@@ -416,10 +471,10 @@ def test_route_test_recorder_blocks_unprofitable_from_submission(tmp_path, monke
 def test_route_test_recorder_marks_broadcast_completed_as_submitted_success(tmp_path, monkeypatch):
     from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
 
-    log_path = tmp_path / "attempts_broadcast_complete.jsonl"
+    database_path = tmp_path / "local_store.sqlite3"
     monkeypatch.setattr(
-        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
-        lambda **kwargs: log_path,
+        "core.db.storage_common.database_url",
+        lambda: str(database_path),
     )
     payload = {
         "ok": True,
@@ -467,8 +522,8 @@ def test_route_test_recorder_marks_broadcast_completed_as_submitted_success(tmp_
     )
 
     assert recorded["recorded"] == 1
-    rows = load_recent_cow_execution_attempts_jsonl(
-        log_path,
+    rows = load_recent_cow_execution_attempts(
+        database_path,
         limit=1,
         networks=["robinhood-testnet"],
         chain_ids=[46630],
@@ -485,3 +540,51 @@ def test_route_test_recorder_marks_broadcast_completed_as_submitted_success(tmp_
     assert rows[0]["probe_records"]
     assert rows[0]["quote"]["best_amount_calculation"]["recommendedBorrowInputAmount"] == 10.0
     assert rows[0]["quote"]["probe_records"][1]["isRecommended"] is True
+
+
+def test_route_test_recorder_requires_tx_hash_for_broadcast_success(tmp_path, monkeypatch):
+    from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
+
+    database_path = tmp_path / "local_store.sqlite3"
+    monkeypatch.setattr(
+        "core.db.storage_common.database_url",
+        lambda: str(database_path),
+    )
+    payload = {
+        "ok": True,
+        "mode": "dex_route_broadcast_test",
+        "quoteStatus": "live_verified",
+        "executionTrust": "live_quoter_verified_readonly",
+        "readyForTransactionPreflight": True,
+        "bestAmountConfirmed": True,
+        "profit": "0.5",
+        "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+        "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+        "steps": [],
+        "analysis": {"referenceNetProfitAmount": 0.5},
+    }
+    recorded = record_dex_route_test_attempt(
+        payload,
+        chain_id=46630,
+        route_symbols=["TZ", "TA", "TB", "TZ"],
+        amount=1.0,
+        amount_source="requested",
+        mode="auto",
+        broadcast=True,
+        fallback_networks=["robinhood-testnet"],
+    )
+
+    assert recorded["recorded"] == 1
+    rows = load_recent_cow_execution_attempts(
+        database_path,
+        limit=1,
+        networks=["robinhood-testnet"],
+        chain_ids=[46630],
+    )
+    assert len(rows) == 1
+    assert rows[0]["state"] == "submission_failed"
+    assert rows[0]["tx_hash"] == ""
+    assert rows[0]["broadcastPerformed"] is False
+    assert rows[0]["precheck"]["can_submit_order"] is False
+    assert rows[0]["precheck"]["checks_passed"] is False
+    assert rows[0]["quote"]["quote_verified"] is False

@@ -29,6 +29,19 @@ from core.workflow_context import inject_workflow_context_markup
 
 ROBINHOOD_CHAIN_ID = 4663
 ROBINHOOD_TESTNET_CHAIN_ID = 46630
+DEFAULT_DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS = 60
+
+
+def _dex_quotes_ui_refresh_interval_seconds() -> int:
+    raw = os.getenv(
+        "DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS",
+        str(DEFAULT_DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS),
+    ).strip()
+    try:
+        value = int(float(raw))
+    except (OverflowError, TypeError, ValueError):
+        value = DEFAULT_DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS
+    return max(10, min(3600, value))
 
 
 def _request_scope_defaults(
@@ -107,6 +120,12 @@ def _html_response(
         html = _prepare_embedded_html(html)
     if page_surface:
         html = _add_body_attribute(html, "data-page-surface", page_surface)
+    if page_surface == "quotes":
+        html = _add_body_attribute(
+            html,
+            "data-dex-quotes-ui-refresh-interval-seconds",
+            str(_dex_quotes_ui_refresh_interval_seconds()),
+        )
     if feature == "dex_arbitrage" and not shell_enabled:
         html = inject_dex_provenance_markup(html)
     if include_chain_selector:
@@ -190,7 +209,7 @@ def _request_optional_int(name: str) -> int | None:
 
 
 def _panel_database_url(panel) -> str | None:
-    getter = getattr(panel, "database_url_or_none", None)
+    getter = getattr(panel, "database_url", None)
     if not callable(getter):
         return None
     try:
@@ -450,8 +469,14 @@ def _market_page_response(
         selected_template = panel.DEX_QUOTES_TEMPLATE_PATH
     elif variant.feature == "dex_arbitrage" and variant.surface == "submissions":
         selected_template = panel.DEX_SUBMISSIONS_TEMPLATE_PATH
-    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_failed":
-        selected_template = panel.DEX_SUBMISSIONS_FAILED_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_review_success":
+        selected_template = panel.DEX_REVIEW_SUCCESS_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_review_failed":
+        selected_template = panel.DEX_REVIEW_FAILED_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_execution_success":
+        selected_template = panel.DEX_EXECUTION_SUCCESS_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_execution_failed":
+        selected_template = panel.DEX_EXECUTION_FAILED_TEMPLATE_PATH
     elif variant.template_kind == "single_chain":
         selected_template = panel.DEX_SINGLE_CHAIN_TEMPLATE_PATH
     elif selected_template is None and variant.feature == "dex_arbitrage":

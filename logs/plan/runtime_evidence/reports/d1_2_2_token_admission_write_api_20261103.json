@@ -1,0 +1,78 @@
+{
+  "capturedAt": "2026-11-04T04:06:04+08:00",
+  "milestone": "M1",
+  "task": "D1.2.2",
+  "status": "passed",
+  "scope": {
+    "endpoints": [
+      "/v1/tokens/admit",
+      "/v1/tokens/block"
+    ],
+    "network": "robinhood",
+    "chainId": 4663,
+    "databaseMode": "temporary manager schema for tests",
+    "mainnetMigrationOrApply": false,
+    "mainnetBusinessWrites": false,
+    "httpBusinessWritesEnabledWhenDatabaseConfigured": true
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "workspaceTestsPassed": 73,
+      "managerApiTestsPassed": 9,
+      "tokenManagerTestsPassed": 49,
+      "poolManagerTestsPassed": 6,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager -p manager-api -p pool-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_direction_pool_model.py app_runtime/tests/unit/test_direction_candidate_limits.py -q",
+      "exitCode": 0,
+      "testsPassed": 23,
+      "testsFailed": 0
+    }
+  ],
+  "apiContract": {
+    "requiredHeaders": {
+      "X-Request-Id": "visible ASCII, non-empty",
+      "Idempotency-Key": "visible ASCII, non-empty"
+    },
+    "requiredBodyField": "dryRun=true|false",
+    "targetStatus": {
+      "/v1/tokens/admit": "admitted",
+      "/v1/tokens/block": "blocked"
+    },
+    "applyTransaction": "IMMEDIATE; status, library state/version/checksum, admission event, and idempotency record commit atomically",
+    "dryRun": "computes the same read/version/checksum preview and rolls back every write",
+    "idempotentReplay": "same key and request digest returns the original result with idempotentReplay=true",
+    "idempotencyConflict": "same key with a different request digest returns IDEMPOTENCY_KEY_REUSED / HTTP 409",
+    "admissionSource": "manager_api",
+    "requestIdStorage": "audit event evidence only"
+  },
+  "testCoverage": [
+    "missing headers and missing explicit dryRun are rejected",
+    "dry-run and apply compute the same checksum",
+    "dry-run does not persist token state, library version, or events",
+    "apply increments version once and writes one admission event",
+    "same-content idempotent replay does not increment version or add an event",
+    "different-content idempotency-key reuse returns a stable conflict"
+  ],
+  "sourceHashes": {
+    "flashloan/tools/manager_api/src/lib.rs": "sha256:da4614c12dd623e7104b429bfd1c3a4aeb8bec2b7f096f85ed2ba843113e2385",
+    "flashloan/tools/token_manager/src/admission.rs": "sha256:9f54546465418fe6db012e002305b48485e76ee4f54fcfff24d81f3b13945cad",
+    "flashloan/tools/manager_contracts/src/error.rs": "sha256:333569add48cd8d0d9411faa51d3e06ca4b63b71cc3ad8e9828c1bf3c70f58f0"
+  },
+  "conclusion": "D1.2.2 passes with atomic admission writes, explicit dry-run semantics, idempotency replay/conflict handling, and no mainnet business write."
+}

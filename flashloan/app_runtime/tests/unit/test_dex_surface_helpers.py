@@ -1,27 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from web.data_routes import dex_surface_helpers
 from web.data_routes import dex_surface_routes_quotes
 from dex.runtime.dex_opportunity_helpers import _merge_onchain_evidence_into_route
-
-
-def _attempt(route_symbols, *, created_at, status):
-    return {
-        "chain_id": 46630,
-        "created_at": created_at,
-        "observed_at": created_at,
-        "route_path": route_symbols,
-        "quote": {
-            "live_onchain_evidence": {
-                "status": status,
-                "executionTrust": status,
-                "blockNumber": 1,
-            }
-        },
-    }
 
 
 def test_route_dedup_key_prefers_addresses_over_symbols():
@@ -73,144 +56,6 @@ def test_zero_address_filtering_rejects_native_placeholder_routes():
     }
     assert dex_surface_routes_quotes._route_has_zero_address(zero_route) is True
     assert dex_surface_routes_quotes._route_has_zero_address(clean_route) is False
-
-
-def test_merge_recent_attempt_evidence_ignores_stale_history(monkeypatch):
-    now = datetime.now(timezone.utc)
-    old = _attempt(
-        ["TZ", "TB", "TA", "TZ"],
-        created_at=(now - timedelta(seconds=7200)).isoformat(),
-        status="live_verified",
-    )
-    routes = [
-        {
-            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
-            "quoteAnalysis": {"requiresLiveQuoter": True},
-        }
-    ]
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "cow_execution_attempt_log_path",
-        lambda **kwargs: Path("unused/attempts.jsonl"),
-    )
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "load_recent_cow_execution_attempts_jsonl",
-        lambda *args, **kwargs: [old],
-    )
-
-    dex_surface_helpers._merge_recent_attempt_evidence_into_routes(
-        routes,
-        chain_id=46630,
-        max_age_seconds=600,
-    )
-
-    assert "live_onchain_evidence" not in routes[0]
-
-
-def test_merge_recent_attempt_evidence_keeps_fresh_history(monkeypatch):
-    now = datetime.now(timezone.utc)
-    fresh = _attempt(
-        ["TZ", "TB", "TA", "TZ"],
-        created_at=(now - timedelta(seconds=30)).isoformat(),
-        status="not_enough_liquidity",
-    )
-    routes = [
-        {
-            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
-            "quoteAnalysis": {"requiresLiveQuoter": True},
-        }
-    ]
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "cow_execution_attempt_log_path",
-        lambda **kwargs: Path("unused/attempts.jsonl"),
-    )
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "load_recent_cow_execution_attempts_jsonl",
-        lambda *args, **kwargs: [fresh],
-    )
-
-    dex_surface_helpers._merge_recent_attempt_evidence_into_routes(
-        routes,
-        chain_id=46630,
-        max_age_seconds=600,
-    )
-
-    assert routes[0]["live_onchain_evidence"]["status"] == "not_enough_liquidity"
-
-
-def test_merge_recent_attempt_evidence_replaces_static_manifest_with_live_verified(monkeypatch):
-    now = datetime.now(timezone.utc)
-    fresh = {
-        "chain_id": 4663,
-        "created_at": (now - timedelta(seconds=30)).isoformat(),
-        "observed_at": (now - timedelta(seconds=30)).isoformat(),
-        "route_path": ["TZ", "TB", "TA", "TZ"],
-        "quote": {
-            "live_onchain_evidence": {
-                "status": "live_verified",
-                "executionTrust": "live_quoter_verified_readonly",
-                "bestAmountConfirmed": True,
-                "bestAmountMissing": False,
-                "routeSymbols": ["TZ", "TB", "TA", "TZ"],
-                "hops": [
-                    {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "status": "live_verified"},
-                    {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "status": "live_verified"},
-                    {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "status": "live_verified"},
-                ],
-                "costModel": {
-                    "borrowInputSymbol": "TZ",
-                    "borrowInputAmount": 16384.0,
-                    "selectedBorrowInputAmount": 16384.0,
-                    "netProfitAmount": 92565.84103581037,
-                    "bestAmountConfirmed": True,
-                    "bestAmountMissing": False,
-                },
-            }
-        },
-    }
-    routes = [
-        {
-            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
-            "live_onchain_evidence": {
-                "status": "static_reference_pending_live_review",
-                "quoteBlockSource": "mainnet_v4_manifest_initial_probe",
-                "bestAmountConfirmed": False,
-                "bestAmountMissing": True,
-                "hops": [],
-                "costModel": {
-                    "borrowInputAmount": 1.0,
-                    "selectedBorrowInputAmount": 1.0,
-                    "bestAmountConfirmed": False,
-                    "bestAmountMissing": True,
-                },
-            },
-        }
-    ]
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "cow_execution_attempt_log_path",
-        lambda **kwargs: Path("unused/attempts.jsonl"),
-    )
-    monkeypatch.setattr(
-        dex_surface_helpers,
-        "load_recent_cow_execution_attempts_jsonl",
-        lambda *args, **kwargs: [fresh],
-    )
-
-    dex_surface_helpers._merge_recent_attempt_evidence_into_routes(
-        routes,
-        chain_id=4663,
-        max_age_seconds=600,
-    )
-
-    evidence = routes[0]["live_onchain_evidence"]
-    assert evidence["status"] == "live_verified"
-    assert evidence["bestAmountConfirmed"] is True
-    assert evidence["costModel"]["selectedBorrowInputAmount"] == 16384.0
-    assert evidence["costModel"]["netProfitAmount"] == 92565.84103581037
 
 
 def test_evict_stale_evidence_clears_old_live_evidence():

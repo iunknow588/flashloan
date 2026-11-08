@@ -284,8 +284,8 @@ def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
         ])
     for value in candidates:
         try:
-            parsed = int(str(value or "").strip())
-        except (TypeError, ValueError):
+            parsed = int(Decimal(str(value or "").strip()))
+        except (TypeError, ValueError, ArithmeticError):
             continue
         if parsed > 0:
             return parsed
@@ -300,8 +300,25 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, cha
     if len(tokens) < 2:
         return None
     token0, token1 = tokens[:2]
-    if {from_symbol, to_symbol} != {token0.get("symbol"), token1.get("symbol")}:
-        return None
+    token0_symbol = _norm_symbol(token0.get("symbol"))
+    token1_symbol = _norm_symbol(token1.get("symbol"))
+    requested_symbols = {_norm_symbol(from_symbol), _norm_symbol(to_symbol)}
+    if requested_symbols != {token0_symbol, token1_symbol}:
+        try:
+            metadata = _v4_token_metadata_cache(
+                _pool_manager_address(pool, chain_id),
+                chain_id=chain_id,
+            )
+            resolved0 = metadata.get(str(token0.get("address") or "").strip().lower(), {})
+            resolved1 = metadata.get(str(token1.get("address") or "").strip().lower(), {})
+            resolved0_symbol = _norm_symbol(resolved0.get("symbol"))
+            resolved1_symbol = _norm_symbol(resolved1.get("symbol"))
+            if requested_symbols != {resolved0_symbol, resolved1_symbol}:
+                return None
+            token0_symbol = resolved0_symbol
+            token1_symbol = resolved1_symbol
+        except Exception:
+            return None
     decimals0 = _v4_token_decimals(pool, 0, chain_id=chain_id)
     decimals1 = _v4_token_decimals(pool, 1, chain_id=chain_id)
     if decimals0 is None or decimals1 is None:
@@ -310,9 +327,9 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, cha
     human_price = raw_price * (Decimal(10) ** (decimals0 - decimals1))
     if human_price <= 0:
         return None
-    if from_symbol == token0.get("symbol") and to_symbol == token1.get("symbol"):
+    if _norm_symbol(from_symbol) == token0_symbol and _norm_symbol(to_symbol) == token1_symbol:
         return float(human_price)
-    if from_symbol == token1.get("symbol") and to_symbol == token0.get("symbol"):
+    if _norm_symbol(from_symbol) == token1_symbol and _norm_symbol(to_symbol) == token0_symbol:
         return float(Decimal(1) / human_price)
     return None
 def _v4_static_depth_impact_bps(
@@ -338,6 +355,74 @@ def _v4_static_depth_impact_bps(
         next_sqrt = sqrt_price + amount_raw / Decimal(str(liquidity))
     price_ratio = (next_sqrt / sqrt_price) ** 2
     return float(abs(Decimal(1) - price_ratio) * Decimal(10_000))
+
+def _v4_pool_exact_output_amount(
+    *,
+    pool: dict[str, Any],
+    from_symbol: str,
+    to_symbol: str,
+    from_address: str | None = None,
+    to_address: str | None = None,
+    input_amount: float | None,
+    chain_id: int | None = None,
+) -> float | None:
+    """Compute an exact-input V4 output from the local pool snapshot.
+
+    Constant-product math is done in raw token units so token decimal counts
+    come from SQLite metadata, never from an 18-decimal assumption. The result
+    is the estimated output for the full pool liquidity, which is a closer
+    reference than ``input * spot_rate * fee_factor`` without any RPC quote.
+    """
+    if _pool_protocol(pool) != "uniswap_v4":
+        return None
+    if input_amount is None or float(input_amount) <= 0:
+        return None
+    in_index = _pool_side_index(pool, from_symbol, from_address)
+    out_index = _pool_side_index(pool, to_symbol, to_address)
+    if in_index not in {0, 1} or out_index not in {0, 1} or in_index == out_index:
+        return None
+    decimals_in = _v4_token_decimals(pool, in_index, chain_id=chain_id)
+    decimals_out = _v4_token_decimals(pool, out_index, chain_id=chain_id)
+    if decimals_in is None or decimals_out is None:
+        return None
+    liquidity = pool.get("liquidity") or pool.get("liquidity_index") or pool.get("liquidityIndex")
+    sqrt_price_x96 = _pool_sqrt_price_x96(pool)
+    if liquidity in (None, "") or sqrt_price_x96 is None:
+        return None
+    dynamic_fee = bool(
+        pool.get("special_fee")
+        or pool.get("dynamic_fee")
+        or str(pool.get("fee_label") or "").strip().lower() in {"dynamic", "special"}
+    )
+    if dynamic_fee:
+        return None
+    try:
+        fee_numerator = int(Decimal(str(pool.get("fee") or "0").strip()))
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+    if fee_numerator < 0 or fee_numerator >= 1_000_000:
+        return None
+    try:
+        liquidity_decimal = Decimal(str(liquidity))
+        sqrt_price = Decimal(str(sqrt_price_x96)) / (Decimal(2) ** 96)
+        amount_in = Decimal(str(input_amount)) * (Decimal(10) ** int(decimals_in))
+        if fee_numerator > 0:
+            amount_in = amount_in * (Decimal(1_000_000) - Decimal(fee_numerator)) // Decimal(1_000_000)
+        if liquidity_decimal <= 0 or sqrt_price <= 0 or amount_in <= 0:
+            return None
+        if in_index == 0:
+            output_raw = (amount_in * liquidity_decimal * sqrt_price * sqrt_price) // (
+                liquidity_decimal + amount_in * sqrt_price
+            )
+        else:
+            output_raw = (amount_in * liquidity_decimal) // (
+                sqrt_price * (liquidity_decimal * sqrt_price + amount_in)
+            )
+        if output_raw <= 0:
+            return None
+        return float(Decimal(output_raw) / (Decimal(10) ** int(decimals_out)))
+    except (TypeError, ValueError, ArithmeticError):
+        return None
 def _static_depth_available(pool: dict[str, Any]) -> bool:
     protocol = _pool_protocol(pool)
     if protocol == "uniswap_v4":
@@ -376,7 +461,26 @@ def _reference_price_quote(
         input_price = price_map.get(from_symbol)
         if input_price and input_price > 0:
             input_amount = input_usd / input_price
-    output_amount = input_amount * rate * fee_factor if input_amount is not None and rate is not None else None
+    exact_output_amount = (
+        _v4_pool_exact_output_amount(
+            pool=pool,
+            from_symbol=from_symbol,
+            to_symbol=to_symbol,
+            from_address=from_address,
+            to_address=to_address,
+            input_amount=input_amount,
+            chain_id=chain_id,
+        )
+        if _pool_protocol(pool) == "uniswap_v4"
+        else None
+    )
+    output_amount = (
+        exact_output_amount
+        if exact_output_amount is not None
+        else input_amount * rate * fee_factor
+        if input_amount is not None and rate is not None
+        else None
+    )
     output_usd = None
     output_price = price_map.get(to_symbol)
     reference_usd_mode = "priced_output"
@@ -392,6 +496,13 @@ def _reference_price_quote(
         reference_usd_mode = "fee_only_without_trusted_output_usd_price"
     else:
         return None
+    reference_effective_rate = (
+        output_amount / input_amount
+        if exact_output_amount is not None and input_amount
+        else rate * fee_factor
+        if rate is not None
+        else None
+    )
     price_impact_bps = _v4_static_depth_impact_bps(
         pool,
         from_symbol=from_symbol,
@@ -417,7 +528,7 @@ def _reference_price_quote(
         "effectiveRate": None,
         "referenceOutputAmount": output_amount,
         "referenceOutputUsd": output_usd,
-        "referenceEffectiveRate": rate * fee_factor if rate is not None else None,
+        "referenceEffectiveRate": reference_effective_rate,
         "reserveInUsd": _pool_reserve_usd(pool, _pool_side_index(pool, from_symbol, from_address) or 0, price_map),
         "reserveOutUsd": _pool_reserve_usd(pool, _pool_side_index(pool, to_symbol, to_address) or 0, price_map),
         "priceImpactBps": price_impact_bps,

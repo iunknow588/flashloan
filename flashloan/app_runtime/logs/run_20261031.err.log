@@ -1,0 +1,54 @@
+chain runtime active: chain_id=4663 network=robinhood database=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.6:5000
+Press CTRL+C to quit
+V4 maintenance workers running: ['v4_broadcast_execution_worker', 'v4_candidate_yc_zc_worker', 'v4_closed_loop_worker', 'v4_dex_overview_worker', 'v4_market_observation_worker', 'v4_onchain_review_worker', 'v4_pool_liquidity_worker']
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [31/Oct/2026 05:01:09] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:01:11] "GET /api/status?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:01:31] "GET /dex/candidates?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:01:36] "GET /dex/submissions?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:01:39] "GET /api/dex-pools/candidates?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:01:58] "GET /api/dex/submissions?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:02:27] "GET /api/dex/submissions?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:02:33] "GET /api/dex-pools/candidates?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:03:14] "GET /api/dex/submissions?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:05:34] "GET /api/dex/submissions/review-success?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:05:35] "GET /api/dex/submissions/review-failed?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:05:35] "GET /api/dex/submissions/execution-success?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:05:36] "GET /api/dex/submissions/execution-failed?chain_id=4663&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [31/Oct/2026 05:06:21] "GET /api/dex/submissions/review-success?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [31/Oct/2026 05:06:22] "GET /api/dex/submissions/review-failed?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [31/Oct/2026 05:07:09] "GET /api/dex/submissions/review-success?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:07:11] "GET /api/dex/submissions/review-failed?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:07:35] "GET /api/dex/submissions/review-success?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+127.0.0.1 - - [31/Oct/2026 05:07:36] "GET /api/dex/submissions/review-failed?chain_id=4663&dex_strategy=closed_loop_routes&page=1&page_size=5 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.ordofi.network'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(

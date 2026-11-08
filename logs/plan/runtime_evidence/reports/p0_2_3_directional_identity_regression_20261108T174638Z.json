@@ -1,0 +1,50 @@
+{
+  "schema": "closed-loop-directional-identity-regression-v1",
+  "generatedAt": "2026-11-08T17:46:38Z",
+  "tasks": [
+    "P0-2.2",
+    "P0-2.3"
+  ],
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "conclusion": "engineering_passed_production_migration_pending",
+  "testCommand": "python -m pytest -q flashloan/app_runtime/tests/unit/test_closed_loop_identity.py flashloan/app_runtime/tests/unit/test_closed_loop_state_machine.py flashloan/app_runtime/tests/unit/test_closed_loop_consumer.py flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py",
+  "testResult": {
+    "passed": 138,
+    "failed": 0,
+    "exitCode": 0,
+    "durationSeconds": 20.28
+  },
+  "compileCommand": "python -m py_compile flashloan/src/dex/runtime/closed_loop_identity.py flashloan/src/dex/runtime/closed_loop_state_machine.py flashloan/src/dex/runtime/closed_loop_consumer.py flashloan/src/dex/runtime/closed_loop_review_classifier.py flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py flashloan/app_runtime/web/data_routes/manager_overview_payload.py",
+  "compileExitCode": 0,
+  "assertions": {
+    "physicalLoopKeyIsRuntimeIdentity": true,
+    "oppositeDirectionsRemainDistinct": true,
+    "directedSymbolKeyIsDiagnosticOnly": true,
+    "workerGroupKeyOnlyReusesWorker": true,
+    "crossScopeRowsAreNotMatchedOrPruned": true,
+    "legacySymbolGroupsRemainVisibleForMigrationDiagnostics": true,
+    "knownTestnetResidueIsProtectedByDefault": true,
+    "terminalAndActiveStatesAreNotPruned": true,
+    "managerOverviewCarriesDirectionState": true
+  },
+  "productionBoundary": {
+    "databaseApplyExecuted": false,
+    "serviceRestarted": false,
+    "runningProcessMayStillUsePreviousCode": true,
+    "currentDirectedClosed": 192,
+    "currentDirectedRuntime": 96,
+    "currentPhysicalLoopKeyMatched": 0,
+    "currentPhysicalLoopKeyMissing": 192,
+    "currentPhysicalLoopKeyOrphan": 96,
+    "note": "P0-2.2/P0-2.3 只归档工程与单测完成；生产数据库迁移、服务重启和 192/192 运行验收仍由 P0-2.4 至 P0-2.7 完成。"
+  },
+  "evidence": [
+    "logs/plan/closed_loop_runtime_identity_contract_20261108.md",
+    "logs/plan/runtime_evidence/reports/closed_loop_runtime_sync_20261108T041955Z_robinhood-4663-uniswap_v4.json"
+  ]
+}

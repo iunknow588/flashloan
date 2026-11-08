@@ -75,6 +75,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "broadcast-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "review-manager",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -85,6 +99,34 @@ name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+
+[[package]]
+name = "candidate-edge-pool-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "candidate-exchange-pool-manager"
+version = "0.1.0"
+dependencies = [
+ "candidate-edge-pool-manager",
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "pool-manager",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "cc"
@@ -128,6 +170,41 @@ dependencies = [
  "iana-time-zone",
  "num-traits",
  "windows-link",
+]
+
+[[package]]
+name = "closed-loop-manager"
+version = "0.1.0"
+dependencies = [
+ "candidate-edge-pool-manager",
+ "candidate-exchange-pool-manager",
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "composite-manager"
+version = "0.1.0"
+dependencies = [
+ "broadcast-manager",
+ "candidate-edge-pool-manager",
+ "candidate-exchange-pool-manager",
+ "chrono",
+ "closed-loop-manager",
+ "hex",
+ "manager-contracts",
+ "pool-manager",
+ "review-manager",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "token-manager",
 ]
 
 [[package]]
@@ -348,19 +425,30 @@ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 name = "flashloan-rs"
 version = "0.1.0"
 dependencies = [
+ "broadcast-manager",
+ "candidate-edge-pool-manager",
+ "candidate-exchange-pool-manager",
  "chrono",
+ "closed-loop-manager",
+ "composite-manager",
  "hex",
  "k256",
+ "manager-contracts",
+ "manager-db",
  "num-bigint",
  "num-traits",
+ "pool-manager",
  "pyo3",
  "reqwest",
+ "review-manager",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "sha3",
  "tempfile",
  "tiny-keccak",
+ "token-manager",
  "tokio",
 ]
 
@@ -899,6 +987,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
+name = "manager-contracts"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_json",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "manager-db"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1057,6 +1166,19 @@ name = "pkg-config"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
+
+[[package]]
+name = "pool-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "portable-atomic"
@@ -1296,6 +1418,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "review-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "closed-loop-manager",
+ "hex",
+ "manager-contracts",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,6 +1466,7 @@ dependencies = [
  "fallible-streaming-iterator",
  "hashlink",
  "libsqlite3-sys",
+ "serde_json",
  "smallvec",
 ]
 
@@ -1719,6 +1856,21 @@ name = "tinyvec"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
+name = "token-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "manager-db",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
 
 [[package]]
 name = "tokio"

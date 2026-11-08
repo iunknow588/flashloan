@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 import subprocess
 from types import SimpleNamespace
 from typing import Any
@@ -22,6 +23,7 @@ from dex.runtime.dex_route_rpc import _probe_robinhood_family_rpc, fetch_dex_tx_
 from market.binance_market.dex_route_helpers import _match_route
 from market.binance_market.dex_route_helpers import _norm_symbols
 from market.binance_market.dex_route_helpers import (
+    _official_v4_route_pool_key_groups,
     _official_v4_route_pool_keys,
     _route_addresses_from_route,
 )
@@ -73,7 +75,11 @@ def _chain_supports_official_v4_arb(chain_id: int | None) -> bool:
 
 def _official_arb_script_for_chain(chain_id: int) -> Path:
     network = _robinhood_network_name(chain_id)
-    return ROOT / "test-token_create" / "scripts" / "tool" / f"{network}-v4-official-arb-live.js"
+    script_network = {
+        "robinhood-testnet": "testnet",
+        "robinhood": "mainnet",
+    }.get(network, network)
+    return ROOT / "test-token_create" / "scripts" / "tool" / f"{script_network}-v4-official-arb-live.js"
 
 
 def _official_dex_dir_for_chain(chain_id: int) -> Path:
@@ -130,12 +136,17 @@ def _steps_have_live_onchain_evidence(steps: list[dict[str, Any]], analysis: dic
     )
 
 
-def _raw_amount_to_human(value: Any, decimals: int = 18) -> float | None:
+def _raw_amount_to_human(value: Any, decimals: int | None = None) -> float | None:
     """Convert a raw integer on-chain amount to a human-readable float.
 
     The official arb script now emits ``profitHuman`` / ``outAmountHuman``.
-    This helper is only a fallback for older outputs that carried raw wei.
+    This helper is only a fallback for older outputs that carried raw
+    integers, and it requires the actual borrow-token decimals.  No
+    18-decimal fallback is applied: without the decimals the raw amount
+    cannot be converted into a verified human value.
     """
+    if decimals is None:
+        return None
     try:
         raw = int(str(value or ""))
     except (TypeError, ValueError):
@@ -323,7 +334,6 @@ def estimate_route_live_quote(
             ref_net_profit_bps = ref_net_profit_amount / input_amount * 10_000.0
         except (TypeError, ValueError):
             pass
-    best_amount_confirmed_for_preflight = False
     failure_statuses = [_step_failure_status(step) for step in steps]
     liquidity_failed = "not_enough_liquidity" in failure_statuses
     rpc_failed = "rpc_verification_failed" in failure_statuses
@@ -337,7 +347,6 @@ def estimate_route_live_quote(
         bool(step.get("liveQuoteError"))
         for step in steps
     )
-    best_amount_confirmed_for_preflight = bool(best_amount_confirmed)
     quote_status = (
         "live_verified"
         if live_verified
@@ -361,8 +370,6 @@ def estimate_route_live_quote(
     ref_net_profit = analysis.get("referenceNetProfitAmount")
     if live_verified and ref_net_profit is not None and float(ref_net_profit) < 0:
         quote_status = "route_unprofitable"
-    if quote_status == "live_verified" and not best_amount_confirmed_for_preflight:
-        quote_status = "static_reference_pending_live_review"
     execution_trust = (
         "live_v4_adapter"
         if quote_status == "live_verified" or quote_status == "route_unprofitable"
@@ -381,7 +388,6 @@ def estimate_route_live_quote(
     profitable = bool(ref_net_profit_amount is not None and float(ref_net_profit_amount) > 0)
     ready_for_transaction_preflight = bool(
         live_verified
-        and best_amount_confirmed_for_preflight
         and quote_status == "live_verified"
         and profitable
     )
@@ -448,7 +454,7 @@ def estimate_route_live_quote(
         "bestAmountConfirmationReason": best_amount_confirmation_reason,
         "amountOptimizationMethod": amount_optimization_method,
         "amountOptimizationHint": (
-            f"已从初始请求量 {amount_optimized_from} {route_symbols[0] if route_symbols else ''} 调整到 {amount} {route_symbols[0] if route_symbols else ''}；该值仅作为链上复核初始量，最佳量由链上复核确认"
+            f"已从初始请求量 {amount_optimized_from} {route_symbols[0] if route_symbols else ''} 调整到 {amount} {route_symbols[0] if route_symbols else ''}；该值仅作为链上复核初始量，最佳交易量由链上复核确认"
             if amount_optimized
             else None
         ),
@@ -491,7 +497,7 @@ def estimate_route_live_quote(
             "bestAmountConfirmationReason": best_amount_confirmation_reason,
             "amountOptimizationMethod": amount_optimization_method,
             "amountOptimizationHint": (
-                f"已从初始请求量 {amount_optimized_from} 调整到 {amount}；该值仅作为链上复核初始量，最佳量由链上复核确认"
+                f"已从初始请求量 {amount_optimized_from} 调整到 {amount}；该值仅作为链上复核初始量，最佳交易量由链上复核确认"
                 if amount_optimized
                 else None
             ),
@@ -530,7 +536,7 @@ def _fixed_amount_pnl_payload(
     live_verified = _steps_have_live_onchain_evidence(steps, analysis)
     quote_status = (
         "live_verified"
-        if live_verified and profitable and best_amount_confirmed_for_preflight
+        if live_verified and profitable
         else "route_unprofitable"
         if live_verified and ref_net_profit_amount is not None and float(ref_net_profit_amount) <= 0
         else "static_reference_pending_live_review"
@@ -660,12 +666,731 @@ def _observation_fixed_route(
     return None
 
 
+def _pool_token_pair_addresses(pool: dict[str, Any]) -> list[str]:
+    """Return the two token addresses carried by one V4 pool row."""
+    pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
+    candidates: list[list[str]] = []
+    for pair_key in ("token0", "currency0"):
+        first = str(pool.get(pair_key) or pool_key.get(pair_key) or "").strip()
+        if not first:
+            continue
+        second_key = "token1" if pair_key == "token0" else "currency1"
+        second = str(pool.get(second_key) or pool_key.get(second_key) or "").strip()
+        if second:
+            candidates.append([first.lower(), second.lower()])
+    route_addresses = [
+        str(item or "").strip().lower()
+        for item in (pool.get("routeAddresses") or [])
+        if str(item or "").strip()
+    ]
+    if len(route_addresses) >= 2:
+        candidates.append(route_addresses[:2])
+    for candidate in candidates:
+        if len(candidate) == 2 and candidate[0] and candidate[1] and candidate[0] != candidate[1]:
+            return candidate
+    return []
+
+
+def _pool_for_hop(
+    pools: list[dict[str, Any]],
+    from_address: str,
+    to_address: str,
+    *,
+    hop_index: int | None = None,
+) -> dict[str, Any] | None:
+    from_addr = str(from_address or "").strip().lower()
+    to_addr = str(to_address or "").strip().lower()
+    matches: list[dict[str, Any]] = []
+    for pool in pools:
+        if not isinstance(pool, dict):
+            continue
+        pair = _pool_token_pair_addresses(pool)
+        if len(pair) == 2 and from_addr in pair and to_addr in pair:
+            matches.append(pool)
+    if not matches:
+        return None
+    if hop_index is None:
+        return matches[0]
+
+    direction_key = f"{from_addr}:{to_addr}"
+
+    def score(pool: dict[str, Any]) -> tuple[int, int, int, int, int, int]:
+        recommendations = (
+            pool.get("recommendationsByDirection")
+            if isinstance(pool.get("recommendationsByDirection"), dict)
+            else {}
+        )
+        recommendation = recommendations.get(direction_key) or {}
+        try:
+            recommendation_rank = int(recommendation.get("rank") or 0)
+        except (TypeError, ValueError):
+            recommendation_rank = 0
+        preferred = (
+            pool.get("is_first_hop_recommended")
+            if hop_index == 0
+            else pool.get("is_third_hop_recommended")
+            if hop_index == 2
+            else 0
+        )
+        try:
+            liquidity = int(pool.get("liquidity") or 0)
+        except (TypeError, ValueError):
+            liquidity = 0
+        return (
+            1 if recommendation_rank > 0 else 0,
+            -recommendation_rank,
+            1 if bool(preferred) else 0,
+            1 if bool(pool.get("usable_for_observation")) else 0,
+            1 if bool(pool.get("has_liquidity")) else 0,
+            liquidity,
+        )
+
+    return max(matches, key=score)
+
+
+def _offline_v4_pool_exact_output_raw(
+    *,
+    pool: dict[str, Any],
+    from_address: str,
+    to_address: str,
+    amount_in_raw: int,
+) -> int | None:
+    """Compute one Uniswap V4 exact-input output from the local pool snapshot.
+
+    Constant-product math is done in raw token units. For token0 -> token1 the
+    output is ``amount * L * sqrtPrice ** 2 / (L + amount * sqrtPrice)``; the
+    reverse direction uses ``amount * L / (sqrtPrice * (L * sqrtPrice + amount))``.
+    """
+    pair = _pool_token_pair_addresses(pool)
+    from_addr = str(from_address or "").strip().lower()
+    to_addr = str(to_address or "").strip().lower()
+    if len(pair) != 2 or from_addr not in pair or to_addr not in pair:
+        return None
+    from_side = 0 if from_addr == pair[0] else 1 if from_addr == pair[1] else None
+    if from_side is None:
+        return None
+    liquidity = pool.get("liquidity") or pool.get("liquidity_index") or pool.get("liquidityIndex")
+    sqrt_price_x96 = pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96")
+    pool_key_sqrt_price_x96 = pool.get("poolKeySqrtPriceX96")
+    if liquidity in (None, "") or sqrt_price_x96 in (None, ""):
+        return None
+    try:
+        liquidity_decimal = Decimal(str(liquidity))
+        fee = int(pool.get("fee") or 0)
+        amount_in = Decimal(int(amount_in_raw))
+        if fee > 0:
+            amount_in = amount_in * (Decimal(1_000_000) - Decimal(fee)) // Decimal(1_000_000)
+        if liquidity_decimal <= 0 or amount_in <= 0:
+            return None
+        prices: list[Decimal] = []
+        for raw_price in (sqrt_price_x96, pool_key_sqrt_price_x96):
+            if raw_price in (None, ""):
+                continue
+            sqrt_price = Decimal(str(raw_price)) / (Decimal(2) ** 96)
+            if sqrt_price > 0 and sqrt_price not in prices:
+                prices.append(sqrt_price)
+        if not prices:
+            return None
+        if len(prices) == 2:
+            ratio = prices[0] / prices[1]
+            # A candidate row whose live sqrt price diverges by six orders of
+            # magnitude from its immutable PoolKey is corrupt/stale data, not
+            # a market move. Use the PoolKey snapshot until pool-manager refresh
+            # replaces the row.
+            if ratio > Decimal(1_000_000) or ratio < Decimal("0.000001"):
+                prices = [prices[1], prices[0]]
+        for sqrt_price in prices:
+            if from_side == 0:
+                output_raw = (amount_in * liquidity_decimal * sqrt_price * sqrt_price) // (
+                    liquidity_decimal + amount_in * sqrt_price
+                )
+            else:
+                output_raw = (amount_in * liquidity_decimal) // (
+                    sqrt_price * (liquidity_decimal * sqrt_price + amount_in)
+                )
+            if output_raw > 0:
+                return int(output_raw)
+        return None
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+
+
+def _offline_pool_token_decimals_map(chain_id: int, pool_manager: str) -> dict[str, int]:
+    """Read token decimals from the SQLite chain token registry only.
+
+    The local database is the only acceptable source for per-token decimals.
+    No 18-decimal fallback is applied: a pool that lacks the registry row
+    cannot form a closed-loop reference P&L.
+    """
+    try:
+        from market.binance_market.dex_surface_v4 import _v4_token_metadata_cache
+
+        metadata = _v4_token_metadata_cache(str(pool_manager or ""), chain_id=int(chain_id))
+    except Exception:
+        metadata = {}
+    decimals: dict[str, int] = {}
+    for address, row in metadata.items():
+        if not isinstance(row, dict):
+            continue
+        raw = row.get("decimals")
+        try:
+            value = int(raw) if raw not in (None, "") else None
+        except (TypeError, ValueError):
+            value = None
+        if value is not None:
+            decimals[str(address or "").strip().lower()] = value
+    return decimals
+
+
+def _borrow_token_decimals_from_registry(*, chain_id: int, borrow_address: str) -> int | None:
+    """Resolve borrow-token decimals from the SQLite chain token registry.
+
+    No 18-decimal fallback is applied: a route whose borrow token lacks
+    registry decimals cannot form a validated closed loop and must fail
+    closed instead of guessing a decimal count.
+    """
+    normalized_address = str(borrow_address or "").strip().lower()
+    resolved_chain_id = int(chain_id or 0)
+    if not normalized_address or not resolved_chain_id:
+        return None
+    network = (
+        "robinhood-testnet"
+        if resolved_chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        else "robinhood"
+    )
+    try:
+        from core.db.storage_chain_core import load_chain_tokens
+
+        database_path = ""
+        try:
+            from core.runtime.chain_runtime import chain_runtime_registry
+
+            database_path = str(
+                chain_runtime_registry().get(resolved_chain_id).database_url
+            )
+        except (
+            AttributeError,
+            ImportError,
+            KeyError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ):
+            database_path = ""
+        if not database_path:
+            from core.db.chain_database_context import chain_database_path
+
+            database_path = str(
+                chain_database_path(resolved_chain_id, network).resolve()
+            )
+        for row in load_chain_tokens(
+            database_path,
+            network=network,
+            chain_id=resolved_chain_id,
+        ):
+            if (
+                str(row.get("token_address") or "").strip().lower()
+                != normalized_address
+            ):
+                continue
+            raw = row.get("token_decimals")
+            if raw in (None, ""):
+                return None
+            return int(raw)
+    except (
+        ImportError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        sqlite3.Error,
+        TypeError,
+        ValueError,
+    ):
+        database_path = ""
+    try:
+        from market.binance_market.dex_surface_v4 import (
+            _pool_manager_address,
+            _v4_token_metadata_cache,
+        )
+
+        pool_manager = _pool_manager_address({}, chain_id=resolved_chain_id)
+        row = _v4_token_metadata_cache(pool_manager, chain_id=int(chain_id)).get(
+            normalized_address
+        )
+        raw = (row or {}).get("decimals") if isinstance(row, dict) else None
+        value = int(raw) if raw not in (None, "") else None
+        return value
+    except Exception:
+        return None
+
+
+def _offline_pool_token_pnl_reference(
+    *,
+    chain_id: int,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    amount: float,
+    protocols: list[str] | None = None,
+    route: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a borrow-token P&L reference from the local V4 pool snapshot.
+
+    The estimate is deliberately token-based: final output, net profit and
+    return bps are all measured in the first-hop borrow token. It never
+    converts through USD and never assumes a token decimal count.
+    """
+    from market.binance_market.dex_surface_graph import _route_pools
+    from market.binance_market.dex_surface_route_quotes import (
+        DEFAULT_FLASH_LOAN_FEE_BPS,
+    )
+
+    route_symbols = _norm_symbols(route_symbols)
+    route_addresses = [
+        str(item or "").strip()
+        for item in route_addresses
+        if str(item or "").strip()
+    ]
+    error_payload = {
+        "ok": False,
+        "mode": "dex_route_fixed_amount_pnl_offline_pool_snapshot",
+        "error": "offline_pool_token_pnl_unavailable",
+        "detail": (
+            "local V4 pool snapshot lacks required token decimals, liquidity "
+            "or sqrtPriceX96 for borrow-token P&L; no 18-decimal fallback applied"
+        ),
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "amount": float(amount),
+    }
+    if not isinstance(route, dict):
+        _, _, route, _, load_error = _load_route_context(
+            chain_id=chain_id,
+            protocols=protocols or ["uniswap_v4"],
+            route_symbols=route_symbols,
+            route=None,
+        )
+        if load_error is not None or not isinstance(route, dict):
+            return error_payload
+    if not route_addresses and isinstance(route, dict):
+        route_addresses = [
+            str(item or "").strip()
+            for item in route.get("routeAddresses") or []
+            if str(item or "").strip()
+        ]
+    if len(route_symbols) < 2 or len(route_addresses) != len(route_symbols):
+        return error_payload
+    pools = _route_pools(route)
+    pool_manager = str(
+        (pools[0].get("poolManager") if pools else None)
+        or (route.get("poolManager") or "")
+    ).strip()
+    decimals_map = _offline_pool_token_decimals_map(chain_id, pool_manager)
+    token_decimals: dict[str, int] = {}
+    for address in route_addresses:
+        value = decimals_map.get(str(address or "").strip().lower())
+        if value is not None:
+            token_decimals[str(address or "").strip().lower()] = value
+    if any(
+        str(address or "").strip().lower() not in token_decimals
+        for address in route_addresses
+    ):
+        return error_payload
+    current_amount = float(amount)
+    steps: list[dict[str, Any]] = []
+    for index in range(len(route_symbols) - 1):
+        from_address = route_addresses[index]
+        to_address = route_addresses[index + 1]
+        pool = _pool_for_hop(pools, from_address, to_address)
+        if pool is None:
+            return error_payload
+        decimals_in = token_decimals[str(from_address or "").strip().lower()]
+        decimals_out = token_decimals[str(to_address or "").strip().lower()]
+        amount_in_raw = int(Decimal(str(current_amount)) * (Decimal(10) ** decimals_in))
+        output_raw = _offline_v4_pool_exact_output_raw(
+            pool=pool,
+            from_address=from_address,
+            to_address=to_address,
+            amount_in_raw=amount_in_raw,
+        )
+        if output_raw is None:
+            return error_payload
+        output_amount = float(Decimal(output_raw) / (Decimal(10) ** decimals_out))
+        fee_bps = int(pool.get("fee") or 0) / 100.0
+        steps.append(
+            {
+                "hop": index + 1,
+                "fromSymbol": route_symbols[index],
+                "toSymbol": route_symbols[index + 1],
+                "tokenIn": from_address,
+                "tokenOut": to_address,
+                "pool": pool.get("pool") or pool.get("poolId"),
+                "feeBps": fee_bps,
+                "inputAmount": current_amount,
+                "outputAmount": output_amount,
+                "referenceOutputAmount": output_amount,
+                "effectiveRate": output_amount / current_amount if current_amount > 0 else None,
+                "referenceEffectiveRate": output_amount / current_amount if current_amount > 0 else None,
+                "priceImpactBps": None,
+                "executionTrust": "offline_pool_snapshot_reference",
+                "quoteSource": "local_sqlite_v4_pool_snapshot",
+                "liveQuoteError": None,
+            }
+        )
+        current_amount = output_amount
+    flash_loan_fee_amount = float(amount) * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    net_profit_amount = current_amount - float(amount) - flash_loan_fee_amount
+    net_return_bps = (
+        net_profit_amount / float(amount) * 10_000.0
+        if float(amount) > 0
+        else None
+    )
+    analysis = {
+        "method": "offline_v4_pool_snapshot_token_basis",
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "referenceInputSymbol": route_symbols[0],
+        "referenceInputAmount": float(amount),
+        "referenceFinalOutputAmount": current_amount,
+        "referenceFinalOutputSymbol": route_symbols[0],
+        "referenceNetProfitAmount": net_profit_amount,
+        "referenceNetReturnBps": net_return_bps,
+        "referenceReturnBasis": "borrow_token",
+        "referenceReturnTrusted": True,
+        "tokenDecimalsTrusted": True,
+        "complete": True,
+        "requiresLiveQuoter": True,
+        "steps": steps,
+        "offlinePoolSnapshotSource": "sqlite_db",
+        "offlinePoolSnapshotBasis": "borrow_token",
+    }
+    return _fixed_amount_pnl_payload(
+        chain_id=chain_id,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        analysis=analysis,
+        amount=amount,
+    )
+
+
+def _offline_candidate_pool_payload(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize a pool-manager candidate row for offline route math."""
+    raw_key = row.get("pool_key_json")
+    if isinstance(raw_key, str):
+        try:
+            pool_key = json.loads(raw_key)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+    elif isinstance(raw_key, dict):
+        pool_key = raw_key
+    else:
+        return None
+    if not isinstance(pool_key, dict):
+        return None
+    pool_id = str(row.get("pool_id") or pool_key.get("poolId") or "").strip()
+    token0 = str(
+        row.get("token0") or pool_key.get("token0") or pool_key.get("currency0") or ""
+    ).strip().lower()
+    token1 = str(
+        row.get("token1") or pool_key.get("token1") or pool_key.get("currency1") or ""
+    ).strip().lower()
+    candidate_sqrt_price = row.get("sqrt_price_x96") or ""
+    pool_key_sqrt_price = pool_key.get("sqrtPriceX96") or ""
+    sqrt_price = candidate_sqrt_price or pool_key_sqrt_price
+    liquidity = row.get("liquidity") or ""
+    if not pool_id or not token0 or not token1 or token0 == token1:
+        return None
+    if not str(sqrt_price).strip() or not str(liquidity).strip():
+        return None
+    try:
+        fee = int(row.get("fee") if row.get("fee") not in (None, "") else pool_key.get("fee"))
+    except (TypeError, ValueError):
+        return None
+    return {
+        "pool": pool_id,
+        "poolId": pool_id,
+        "poolManager": row.get("pool_manager") or pool_key.get("poolManager"),
+        "poolKey": pool_key,
+        "token0": token0,
+        "token1": token1,
+        "currency0": token0,
+        "currency1": token1,
+        "fee": fee,
+        "liquidity": str(liquidity),
+        "liquidity_index": row.get("liquidity_index"),
+        "sqrtPriceX96": str(sqrt_price),
+        "poolKeySqrtPriceX96": str(pool_key_sqrt_price or ""),
+        "has_liquidity": row.get("has_liquidity"),
+        "usable_for_observation": row.get("usable_for_observation"),
+        "is_first_hop_recommended": row.get("is_first_hop_recommended"),
+        "is_third_hop_recommended": row.get("is_third_hop_recommended"),
+    }
+
+
+def _offline_candidate_pools_for_route(
+    *,
+    database_url: str,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    route_addresses: list[str],
+) -> list[dict[str, Any]]:
+    """Read only the pool-manager-owned candidate surface for a route."""
+    from core.db.storage_business_io import query as _query
+
+    placeholders = ",".join("?" for _ in route_addresses)
+    rows = _query(
+        database_url,
+        f"""
+        SELECT pool_id, pool_key_json, pool_manager, token0, token1, fee,
+               sqrt_price_x96, has_liquidity, liquidity, liquidity_index,
+               usable_for_observation, is_first_hop_recommended,
+               is_third_hop_recommended
+        FROM dex_candidate_pools
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND (token0 IN ({placeholders}) OR token1 IN ({placeholders}))
+        ORDER BY updated_at DESC, pool_id
+        """,
+        (network, int(chain_id), protocol, *route_addresses, *route_addresses),
+    )
+    direction_keys = [
+        f"{route_addresses[index].lower()}:{route_addresses[index + 1].lower()}"
+        for index in range(len(route_addresses) - 1)
+    ]
+    recommendation_placeholders = ",".join("?" for _ in direction_keys)
+    recommendation_rows = _query(
+        database_url,
+        f"""
+        SELECT pool_id, direction_key, hop, rank
+        FROM dex_candidate_pool_recommendations
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND direction_key IN ({recommendation_placeholders})
+        ORDER BY direction_key, rank
+        """,
+        (network, int(chain_id), protocol, *direction_keys),
+    )
+    recommendations: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in recommendation_rows:
+        pool_id = str(row.get("pool_id") or "").strip().lower()
+        direction_key = str(row.get("direction_key") or "").strip().lower()
+        if pool_id and direction_key:
+            recommendations[(pool_id, direction_key)] = {
+                "hop": row.get("hop"),
+                "rank": row.get("rank"),
+            }
+    pools: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        pool = _offline_candidate_pool_payload(row)
+        if pool is None:
+            continue
+        key = (
+            str(pool["poolId"]).lower(),
+            str(pool["token0"]).lower(),
+            str(pool["token1"]).lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        pool["recommendationsByDirection"] = {
+            direction_key: recommendation
+            for (pool_id, direction_key), recommendation in recommendations.items()
+            if pool_id == str(pool["poolId"]).lower()
+        }
+        pools.append(pool)
+    return pools
+
+
+def _offline_v4_route_sqlite_pnl_reference(
+    *,
+    chain_id: int,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    amount: float,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Fast borrow-token P&L reference read directly from SQLite tables only.
+
+    The full market payload path can take tens of seconds because it rebuilds
+    the route framework and reads every candidate pool. This entry keeps the
+    same token-basis math but only queries ``chain_tokens`` and
+    ``dex_candidate_pools`` for the exact route addresses, so unprofitable
+    routes still get concrete signed profit/final-output values without a slow
+    observation reload.
+    """
+    from core.db.database_path import absolute_database_path
+    from market.binance_market.dex_surface_route_quotes import (
+        DEFAULT_FLASH_LOAN_FEE_BPS,
+    )
+
+    route_symbols = _norm_symbols(route_symbols)
+    route_addresses = [
+        str(item or "").strip().lower()
+        for item in route_addresses
+        if str(item or "").strip()
+    ]
+    network = _robinhood_network_name(int(chain_id or 0))
+    protocol = "uniswap_v4"
+    db = str(absolute_database_path(database_url))
+    error_payload = {
+        "ok": False,
+        "mode": "dex_route_fixed_amount_pnl_offline_sqlite_snapshot",
+        "error": "offline_sqlite_route_pnl_unavailable",
+        "reason": "pool_manager_refresh_required",
+        "detail": (
+            "SQLite chain token decimals or an eligible pool-manager candidate "
+            "pool is missing; raw pool-table fallback is disabled"
+        ),
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "amount": float(amount),
+    }
+    if len(route_symbols) != 4 or len(route_addresses) != 4:
+        return error_payload
+    if not (float(amount) > 0):
+        return error_payload
+    placeholders = ",".join("?" for _ in route_addresses)
+    try:
+        from core.db.storage_business_io import query as _query
+
+        token_rows = _query(
+            db,
+            f"""
+            SELECT token_address, token_decimals
+            FROM chain_tokens
+            WHERE network = ? AND chain_id = ? AND token_address IN ({placeholders})
+            """,
+            (network, int(chain_id), *route_addresses),
+        )
+    except Exception:
+        return error_payload
+    token_decimals: dict[str, int] = {}
+    for row in token_rows:
+        address = str(row.get("token_address") or "").strip().lower()
+        raw_decimals = row.get("token_decimals")
+        if not address:
+            continue
+        try:
+            value = int(raw_decimals) if raw_decimals not in (None, "") else None
+        except (TypeError, ValueError):
+            value = None
+        if value is not None:
+            token_decimals[address] = value
+    if any(
+        str(address or "").strip().lower() not in token_decimals
+        for address in route_addresses
+    ):
+        return error_payload
+    try:
+        pools = _offline_candidate_pools_for_route(
+            database_url=db,
+            network=network,
+            chain_id=int(chain_id),
+            protocol=protocol,
+            route_addresses=route_addresses,
+        )
+    except Exception:
+        return error_payload
+    if not pools:
+        return error_payload
+    current_amount = float(amount)
+    steps: list[dict[str, Any]] = []
+    for index in range(len(route_symbols) - 1):
+        from_address = route_symbols[index]
+        to_address = route_symbols[index + 1]
+        from_token = route_addresses[index]
+        to_token = route_addresses[index + 1]
+        hop_pool = _pool_for_hop(
+            pools,
+            from_token,
+            to_token,
+            hop_index=index,
+        )
+        if hop_pool is None:
+            return error_payload
+        amount_in_raw = int(
+            Decimal(str(current_amount)) * (Decimal(10) ** token_decimals[from_token])
+        )
+        output_raw = _offline_v4_pool_exact_output_raw(
+            pool=hop_pool,
+            from_address=from_token,
+            to_address=to_token,
+            amount_in_raw=amount_in_raw,
+        )
+        if output_raw is None:
+            return error_payload
+        output_amount = float(
+            Decimal(output_raw) / (Decimal(10) ** token_decimals[to_token])
+        )
+        fee_bps = int(hop_pool.get("fee") or 0) / 100.0
+        steps.append(
+            {
+                "hop": index + 1,
+                "fromSymbol": from_address,
+                "toSymbol": to_address,
+                "tokenIn": from_token,
+                "tokenOut": to_token,
+                "pool": hop_pool.get("pool") or hop_pool.get("poolId"),
+                "feeBps": fee_bps,
+                "inputAmount": current_amount,
+                "outputAmount": output_amount,
+                "referenceOutputAmount": output_amount,
+                "effectiveRate": (
+                    output_amount / current_amount if current_amount > 0 else None
+                ),
+                "referenceEffectiveRate": (
+                    output_amount / current_amount if current_amount > 0 else None
+                ),
+                "priceImpactBps": None,
+                "executionTrust": "offline_sqlite_pool_snapshot_reference",
+                "quoteSource": "local_sqlite_v4_pool_snapshot",
+                "liveQuoteError": None,
+            }
+        )
+        current_amount = output_amount
+    flash_loan_fee_amount = float(amount) * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    net_profit_amount = current_amount - float(amount) - flash_loan_fee_amount
+    net_return_bps = (
+        net_profit_amount / float(amount) * 10_000.0
+        if float(amount) > 0
+        else None
+    )
+    analysis = {
+        "method": "offline_v4_sqlite_route_snapshot_token_basis",
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "referenceInputSymbol": route_symbols[0],
+        "referenceInputAmount": float(amount),
+        "referenceFinalOutputAmount": current_amount,
+        "referenceFinalOutputSymbol": route_symbols[0],
+        "referenceNetProfitAmount": net_profit_amount,
+        "referenceNetReturnBps": net_return_bps,
+        "referenceReturnBasis": "borrow_token",
+        "referenceReturnTrusted": True,
+        "tokenDecimalsTrusted": True,
+        "complete": True,
+        "requiresLiveQuoter": True,
+        "steps": steps,
+        "offlinePoolSnapshotSource": "sqlite_db",
+        "offlinePoolSnapshotBasis": "borrow_token",
+    }
+    return _fixed_amount_pnl_payload(
+        chain_id=chain_id,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        analysis=analysis,
+        amount=amount,
+    )
+
+
 def estimate_fixed_amount_pnl_quick(
     *,
     chain_id: int,
     route_symbols: list[str],
     amount: float,
+    route_addresses: list[str] | None = None,
     protocols: list[str] | None = None,
+    prefer_sqlite_snapshot: bool = False,
 ) -> dict[str, Any]:
     """Fast fixed-amount P&L estimate using the local observation snapshot.
 
@@ -673,48 +1398,71 @@ def estimate_fixed_amount_pnl_quick(
     when the caller already knows the exact route and only needs a single
     amount's reference output/profit. It never broadcasts a transaction.
     """
+    route_addresses = [
+        str(item or "").strip()
+        for item in (route_addresses or [])
+        if str(item or "").strip()
+    ]
+    if len(route_addresses) != 4:
+        route_addresses = _official_route_addresses(route_symbols, chain_id=int(chain_id or 0))
+    if prefer_sqlite_snapshot and len(route_addresses) == 4:
+        try:
+            sqlite_pnl = _offline_v4_route_sqlite_pnl_reference(
+                chain_id=chain_id,
+                route_symbols=route_symbols,
+                route_addresses=route_addresses,
+                amount=amount,
+            )
+            if sqlite_pnl.get("referenceNetProfitAmount") is not None:
+                return sqlite_pnl
+        except (
+            ArithmeticError,
+            ImportError,
+            KeyError,
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+        ):
+            sqlite_pnl = {}
     route = _observation_fixed_route(
         chain_id=chain_id,
         protocols=protocols or ["uniswap_v4"],
         route_symbols=route_symbols,
     )
     if route is None:
-        return {
-            "ok": False,
-            "mode": "dex_route_fixed_amount_pnl_quick",
-            "error": "observation_route_not_found",
-            "routeSymbols": route_symbols,
-            "amount": float(amount),
-            "errorStack": _structured_route_error(
-                "observation_route_not_found",
-                error_code=ErrorCode.DEX_ROUTE_INVALID,
-                flow="dex_route_fixed_amount_pnl_quick",
-                node_id="route_observation",
-            ),
-        }
+        return _offline_pool_token_pnl_reference(
+            chain_id=chain_id,
+            route_symbols=route_symbols,
+            route_addresses=[],
+            amount=amount,
+            protocols=protocols or ["uniswap_v4"],
+        )
     from market.binance_market.dex_surface_quotes import _route_quote_analysis
 
-    key = "DEX_V4_LIVE_QUOTE_ENABLED"
-    previous = os.environ.get(key)
-    os.environ[key] = "0"
-    try:
-        analysis = _route_quote_analysis(
-            route,
-            price_map={},
-            chain_id=chain_id,
-            token_basis_input_amount=amount,
-        )
-    finally:
-        if previous is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = previous
+    analysis = _route_quote_analysis(
+        route,
+        price_map={},
+        chain_id=chain_id,
+        token_basis_input_amount=amount,
+        use_static_observation=True,
+    )
     route_symbols = list(analysis.get("routeSymbols") or route["routeSymbols"])
     route_addresses = [
         str(item)
         for item in analysis.get("routeAddresses") or route.get("routeAddresses") or []
         if str(item).strip()
     ]
+    if analysis.get("referenceNetProfitAmount") is None:
+        return _offline_pool_token_pnl_reference(
+            chain_id=chain_id,
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            amount=amount,
+            protocols=protocols or ["uniswap_v4"],
+            route=route,
+        )
     return _fixed_amount_pnl_payload(
         chain_id=chain_id,
         route_symbols=route_symbols,
@@ -886,6 +1634,140 @@ _OFFICIAL_V4_RUN_BEST_ABI = [
 ]
 
 
+_OFFICIAL_V4_POOL_PREVIEW_ABI = [
+    {
+        "type": "function",
+        "name": "previewBestPool",
+        "stateMutability": "view",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "entryKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "entryDirections", "type": "bool[]"},
+            {
+                "name": "bridgeKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "bridgeDirections", "type": "bool[]"},
+            {
+                "name": "exitKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "exitDirections", "type": "bool[]"},
+        ],
+        "outputs": [
+            {"name": "entryIndex", "type": "uint256"},
+            {"name": "bridgeIndex", "type": "uint256"},
+            {"name": "exitIndex", "type": "uint256"},
+            {"name": "netProduct", "type": "uint256"},
+        ],
+    }
+]
+
+_OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR = bytes.fromhex(
+    Web3.keccak(
+        text=(
+            "previewBestPool(address,"
+            "(address,address,uint24,int24,address)[],bool[],"
+            "(address,address,uint24,int24,address)[],bool[],"
+            "(address,address,uint24,int24,address)[],bool[])"
+        )
+    ).hex()[2:10]
+)
+
+
+def _official_v4_contract_has_selector(
+    w3: Any,
+    arb_address: str,
+    selector: bytes,
+) -> bool:
+    """Return whether the deployed arb runtime contains the requested selector."""
+    code = w3.eth.get_code(Web3.to_checksum_address(arb_address))
+    return selector in bytes(code)
+
+
+_OFFICIAL_V4_POOL_RUN_ABI = [
+    {
+        "type": "function",
+        "name": "runArbitrageBestPoolsWithSelectedAmount",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "entryKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "entryDirections", "type": "bool[]"},
+            {
+                "name": "bridgeKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "bridgeDirections", "type": "bool[]"},
+            {
+                "name": "exitKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "exitDirections", "type": "bool[]"},
+            {"name": "selectedAmount", "type": "uint256"},
+            {"name": "minProfit", "type": "uint256"},
+        ],
+        "outputs": [
+            {"name": "outTb", "type": "uint256"},
+            {"name": "outTa", "type": "uint256"},
+            {"name": "outTz", "type": "uint256"},
+            {"name": "profit", "type": "uint256"},
+            {"name": "entryIndex", "type": "uint256"},
+            {"name": "bridgeIndex", "type": "uint256"},
+            {"name": "exitIndex", "type": "uint256"},
+        ],
+    }
+]
+
+
 def _single_direction_contract_sets(
     keys: list[list[Any]],
     directions: list[bool],
@@ -894,12 +1776,308 @@ def _single_direction_contract_sets(
     return [list(keys)], [list(directions)]
 
 
+def _official_v4_hop_candidate_sets(
+    pool_key_groups: list[list[dict[str, Any]]],
+    route_addresses: list[str],
+) -> tuple[list[list[Any]], list[bool], list[list[Any]], list[bool], list[list[Any]], list[bool]]:
+    """Flatten backup pool groups into one candidate array per hop.
+
+    Every complete route in ``route_pool_key_groups`` contributes one
+    entry/bridge/exit pool.  Duplicate pool+direction pairs are removed so the
+    broadcast payload stays small while still carrying every backup pool.
+    Directions are derived from the fixed token order of the closed triangle.
+    """
+    if len(route_addresses) != 4 or route_addresses[0].lower() != route_addresses[-1].lower():
+        raise ValueError("official V4 route must be a closed 4-address triangle")
+    hop_keys: list[list[list[Any]]] = [[], [], []]
+    hop_directions: list[list[bool]] = [[], [], []]
+    seen: set[tuple[Any, ...]] = set()
+    for pool_keys in pool_key_groups:
+        if len(pool_keys) != 3:
+            raise ValueError("official V4 pool key group must contain exactly 3 PoolKeys")
+        keys: list[list[Any]] = []
+        for index in range(3):
+            key = pool_keys[index]
+            keys.append(
+                [
+                    str(key.get("currency0") or ""),
+                    str(key.get("currency1") or ""),
+                    int(key.get("fee") or 0),
+                    int(key.get("tickSpacing") or 0),
+                    str(key.get("hooks") or "0x0000000000000000000000000000000000000000"),
+                ]
+            )
+        for hop_index in range(3):
+            input_token = str(route_addresses[hop_index]).lower()
+            output_token = str(route_addresses[hop_index + 1]).lower()
+            key = keys[hop_index]
+            direction = input_token == key[0].lower()
+            key_in = key[0].lower() if direction else key[1].lower()
+            key_out = key[1].lower() if direction else key[0].lower()
+            if key_in != input_token or key_out != output_token:
+                raise ValueError("official V4 pool key group hop does not match route token order")
+            identity = (tuple(key), direction)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            hop_keys[hop_index].append(list(key))
+            hop_directions[hop_index].append(direction)
+    if any(len(items) == 0 for items in hop_keys):
+        raise ValueError("official V4 route needs at least one pool per hop")
+    return (
+        hop_keys[0],
+        hop_directions[0],
+        hop_keys[1],
+        hop_directions[1],
+        hop_keys[2],
+        hop_directions[2],
+    )
+
+
+def _selected_route_symbols(route_symbols: list[str], route_index: int) -> list[str]:
+    """Return forward or reverse symbols for the selected triangle route index."""
+    if int(route_index or 0) == 0:
+        return list(route_symbols)
+    return [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
+
+
+def _preview_official_v4_best_amount(
+    contract: Any,
+    *,
+    token: str,
+    keysets: list[list[list[Any]]],
+    directionsets: list[list[bool]],
+    amount_raw: int,
+    min_profit: int,
+    is_best_amount: bool,
+    block_number: int | str,
+) -> tuple[int, int, int, int]:
+    """Call previewArbitrageBestAmount and return its four decoded outputs."""
+    result = contract.functions.previewArbitrageBestAmount(
+        Web3.to_checksum_address(token),
+        keysets,
+        directionsets,
+        amount_raw,
+        min_profit,
+        is_best_amount,
+    ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
+    return tuple(int(item) for item in result)
+
+
+def _official_v4_probe_single_route(
+    contract: Any,
+    *,
+    token: str,
+    keysets: list[list[list[Any]]],
+    directionsets: list[list[bool]],
+    amount_raw: int,
+    min_profit: int,
+    block_number: int | str,
+) -> tuple[bool, int, int, int]:
+    """Probe one exact amount on one fixed route with isBestAmount=true."""
+    try:
+        selected_amount_raw, route_index, selected_profit_raw, attempted_count = (
+            _preview_official_v4_best_amount(
+                contract,
+                token=token,
+                keysets=keysets,
+                directionsets=directionsets,
+                amount_raw=amount_raw,
+                min_profit=min_profit,
+                is_best_amount=True,
+                block_number=block_number,
+            )
+        )
+        if selected_amount_raw <= 0 or selected_profit_raw <= 0 or int(route_index) != 0:
+            return False, 0, 0, 1
+        return True, amount_raw, selected_profit_raw, int(attempted_count)
+    except Exception as exc:
+        data = str(getattr(exc, "data", "") or "")
+        message = str(exc)
+        if "0x4f422847" in data or "NoProfitableRoute" in message:
+            return False, 0, 0, 1
+        lowered = message.lower()
+        if data in ("", "0x") and (
+            "execution reverted" in lowered
+            or "revert" in lowered
+            or "call exception" in lowered
+        ):
+            return False, 0, 0, 1
+        raise
+
+
+def _official_v4_preview_best_amount_single_call(
+    contract: Any,
+    *,
+    token: str,
+    keysets: list[list[list[Any]]],
+    directionsets: list[list[bool]],
+    amount_raw: int,
+    min_profit: int,
+    block_number: int | str,
+) -> tuple[int, int, int, int]:
+    """Run the contract-internal adaptive search in one eth_call."""
+    return _preview_official_v4_best_amount(
+        contract,
+        token=token,
+        keysets=keysets,
+        directionsets=directionsets,
+        amount_raw=amount_raw,
+        min_profit=min_profit,
+        is_best_amount=False,
+        block_number=block_number,
+    )
+
+
+def _double_amount_python(amount: int) -> int:
+    max_uint256 = (1 << 256) - 1
+    if amount > max_uint256 // 2:
+        return 0
+    return amount * 2
+
+
+def _official_v4_adaptive_best_amount_single_route(
+    contract: Any,
+    *,
+    token: str,
+    keysets: list[list[list[Any]]],
+    directionsets: list[list[bool]],
+    initial_amount_raw: int,
+    min_profit: int,
+    block_number: int | str,
+    max_steps: int = 24,
+) -> tuple[int, int, int]:
+    """Run the same fixed-route probe ladder as the JS live script."""
+    max_steps = max(1, int(max_steps))
+    selected_amount = 0
+    selected_profit = 0
+    attempted_count = 0
+    base_amount = 0
+    lower_amount = 0
+    upper_amount = 0
+    has_upper_amount = False
+
+    def probe(amount_raw: int) -> tuple[bool, int, int, int]:
+        return _official_v4_probe_single_route(
+            contract,
+            token=token,
+            keysets=keysets,
+            directionsets=directionsets,
+            amount_raw=amount_raw,
+            min_profit=min_profit,
+            block_number=block_number,
+        )
+
+    initial_ok, _, initial_profit, initial_attempts = probe(initial_amount_raw)
+    attempted_count += initial_attempts
+    if initial_ok:
+        selected_amount = initial_amount_raw
+        selected_profit = initial_profit
+        base_amount = initial_amount_raw
+        lower_amount = initial_amount_raw // 2
+        candidate = _double_amount_python(base_amount)
+        for _ in range(max_steps):
+            if candidate <= 0:
+                break
+            ok, _, profit, attempts = probe(candidate)
+            attempted_count += attempts
+            if ok and profit > selected_profit:
+                selected_amount = candidate
+                selected_profit = profit
+                base_amount = candidate
+                lower_amount = candidate // 2
+            else:
+                upper_amount = candidate
+                has_upper_amount = True
+                break
+            candidate = _double_amount_python(candidate)
+        if not has_upper_amount and selected_amount > 0:
+            upper_amount = _double_amount_python(selected_amount)
+            base_amount = selected_amount
+            lower_amount = selected_amount // 2
+            has_upper_amount = upper_amount > 0
+    else:
+        upper_amount = initial_amount_raw
+        candidate = initial_amount_raw // 2
+        for _ in range(max_steps):
+            if candidate <= 0:
+                break
+            ok, _, profit, attempts = probe(candidate)
+            attempted_count += attempts
+            if ok:
+                selected_amount = candidate
+                selected_profit = profit
+                base_amount = candidate
+                lower_amount = candidate // 2
+                has_upper_amount = True
+                break
+            upper_amount = candidate
+            candidate //= 2
+
+    if has_upper_amount and selected_amount > 0:
+        for _ in range(max_steps):
+            if upper_amount <= base_amount + 1 or lower_amount >= base_amount:
+                break
+            if upper_amount <= lower_amount:
+                break
+            left_mid = lower_amount + (base_amount - lower_amount) // 2
+            right_mid = base_amount + (upper_amount - base_amount) // 2
+            if (
+                left_mid <= lower_amount
+                or left_mid >= base_amount
+                or right_mid <= base_amount
+                or right_mid >= upper_amount
+            ):
+                break
+            left_ok, _, left_profit, left_attempts = probe(left_mid)
+            right_ok, _, right_profit, right_attempts = probe(right_mid)
+            attempted_count += left_attempts + right_attempts
+            if not left_ok and not right_ok:
+                break
+            left_improves = left_ok and left_profit > selected_profit
+            right_improves = right_ok and right_profit > selected_profit
+            if not left_improves and not right_improves:
+                break
+            if left_ok and right_ok:
+                if left_profit >= right_profit:
+                    if left_improves:
+                        selected_amount = left_mid
+                        selected_profit = left_profit
+                elif right_improves:
+                    selected_amount = right_mid
+                    selected_profit = right_profit
+            elif left_ok and left_improves:
+                selected_amount = left_mid
+                selected_profit = left_profit
+            elif right_ok and right_improves:
+                selected_amount = right_mid
+                selected_profit = right_profit
+
+            old_base = base_amount
+            if left_ok and right_ok:
+                if left_profit >= right_profit:
+                    upper_amount = old_base
+                    base_amount = left_mid
+                else:
+                    lower_amount = old_base
+                    base_amount = right_mid
+            elif left_ok:
+                upper_amount = old_base
+                base_amount = left_mid
+            else:
+                lower_amount = old_base
+                base_amount = right_mid
+
+    return selected_amount, selected_profit, attempted_count
+
+
 def _official_v4_preview_python(
     *,
     route_symbols: list[str],
     route_addresses: list[str],
     amount: float,
-    route_pool_keys: list[dict[str, Any]],
+    route_pool_keys: list[dict[str, Any]] | None = None,
+    route_pool_key_groups: list[list[dict[str, Any]]] | None = None,
     chain_id: int,
 ) -> tuple[dict[str, Any], str] | None:
     """Run the official V4 static preview from Python instead of Hardhat.
@@ -909,8 +2087,37 @@ def _official_v4_preview_python(
     """
     if not v4_live_quote_enabled(chain_id=int(chain_id)):
         return None
-    if len(route_pool_keys) != 3 or len(route_addresses) != len(route_symbols):
+    if len(route_addresses) != len(route_symbols):
         return None
+    if route_pool_key_groups is None:
+        route_pool_key_groups = [route_pool_keys] if route_pool_keys else []
+    if not route_pool_key_groups:
+        return None
+    borrow_decimals = _borrow_token_decimals_from_registry(
+        chain_id=int(chain_id),
+        borrow_address=route_addresses[0],
+    )
+    if borrow_decimals is None:
+        return (
+            {
+                "ok": False,
+                "error": "borrow_token_decimals_missing",
+                "detail": (
+                    "SQLite chain_tokens 缺少借币代币 decimals；未采用 18 位假设，"
+                    "该闭环无法形成可验证的链上金额换算，复核关闭"
+                ),
+                "quoteStatus": "missing_token_metadata",
+                "evidenceStatus": "missing_token_metadata",
+                "executionTrust": "missing_token_metadata",
+                "routeSymbols": route_symbols,
+                "routeAddresses": route_addresses,
+                "amount": amount,
+                "initialAmount": amount,
+                "staticCall": "skipped",
+                "method": "previewBestPool",
+            },
+            "borrow token decimals missing from SQLite chain_tokens; fail closed without 18-decimal assumption",
+        )
     try:
         rpc_url, block_number = _probe_robinhood_family_rpc(chain_id)
     except Exception as exc:
@@ -920,22 +2127,34 @@ def _official_v4_preview_python(
     arb_address = _official_v4_arb_address(chain_id=chain_id)
     if not arb_address:
         return None
-    keys: list[list[Any]] = []
-    for index in range(3):
-        key = route_pool_keys[index]
-        currency0 = str(key.get("currency0") or "")
-        currency1 = str(key.get("currency1") or "")
-        fee = int(key.get("fee") or 0)
-        tick_spacing = int(key.get("tickSpacing") or 0)
-        hooks = str(key.get("hooks") or "0x0000000000000000000000000000000000000000")
-        keys.append([currency0, currency1, fee, tick_spacing, hooks])
-    directions: list[bool] = []
-    for index in range(3):
-        input_token = str(route_addresses[index]).lower()
-        directions.append(input_token == keys[index][0].lower())
-    keysets, directionsets = _single_direction_contract_sets(keys, directions)
-    amount_raw = int(Decimal(str(amount)) * (Decimal(10) ** 18))
-    selected_amount_method = "onchain_preview_adaptive_best_amount"
+    try:
+        (
+            entry_keys,
+            entry_directions,
+            bridge_keys,
+            bridge_directions,
+            exit_keys,
+            exit_directions,
+        ) = _official_v4_hop_candidate_sets(
+            route_pool_key_groups,
+            route_addresses,
+        )
+    except ValueError:
+        return None
+
+    amount_raw = int(Decimal(str(amount)) * (Decimal(10) ** int(borrow_decimals)))
+    search_mode = str(os.getenv("DEX_OFFICIAL_V4_SEARCH_MODE", "") or "").strip().lower()
+    inner_single_call = search_mode in {
+        "inner",
+        "inner_single_call",
+        "single_call",
+        "contract_internal",
+    }
+    selected_amount_method = (
+        "onchain_preview_best_amount_inner_single_call"
+        if inner_single_call
+        else "onchain_preview_adaptive_best_amount_single_route"
+    )
     try:
         w3 = Web3(
             Web3.HTTPProvider(
@@ -953,28 +2172,122 @@ def _official_v4_preview_python(
         )
         contract = w3.eth.contract(
             address=Web3.to_checksum_address(arb_address),
-            abi=_OFFICIAL_V4_PREVIEW_ABI + _OFFICIAL_V4_RUN_ABI,
+            abi=(
+                _OFFICIAL_V4_POOL_PREVIEW_ABI
+                + _OFFICIAL_V4_PREVIEW_ABI
+                + _OFFICIAL_V4_RUN_ABI
+            ),
         )
-        preview_result = contract.functions.previewArbitrageBestAmount(
+        if not _official_v4_contract_has_selector(
+            w3,
+            arb_address,
+            _OFFICIAL_V4_PREVIEW_BEST_POOL_SELECTOR,
+        ):
+            return (
+                {
+                    "ok": False,
+                    "error": "official_v4_arb_contract_outdated",
+                    "detail": (
+                        "链上 OfficialV4FlashArb 缺少 previewBestPool，"
+                        "请先部署与本地工件一致的官方 arb 合约"
+                    ),
+                    "errorDetail": "official_v4_arb_contract_outdated",
+                    "method": "previewBestPool",
+                    "arbAddress": arb_address,
+                    "routeSymbols": route_symbols,
+                    "amount": amount,
+                    "initialAmount": amount,
+                    "staticCall": "skipped",
+                    "quoteStatus": "contract_outdated",
+                    "evidenceStatus": "contract_outdated",
+                    "executionTrust": "contract_outdated",
+                },
+                "official V4 on-chain arb contract is outdated; deploy latest artifact first",
+            )
+        pool_result = contract.functions.previewBestPool(
             Web3.to_checksum_address(route_addresses[0]),
-            keysets,
-            directionsets,
-            amount_raw,
-            1,
-            False,
+            entry_keys,
+            entry_directions,
+            bridge_keys,
+            bridge_directions,
+            exit_keys,
+            exit_directions,
         ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
-        selected_amount_raw, route_index, selected_profit_raw, attempted_count = (
-            int(preview_result[0]),
-            int(preview_result[1]),
-            int(preview_result[2]),
-            int(preview_result[3]),
+        entry_index, bridge_index, exit_index, net_product = (
+            int(pool_result[0]),
+            int(pool_result[1]),
+            int(pool_result[2]),
+            int(pool_result[3]),
         )
-        if selected_amount_raw <= 0:
+        if net_product <= 10**18:
+            raise RuntimeError("NoProfitableRoute")
+        selected_keys = [
+            entry_keys[entry_index],
+            bridge_keys[bridge_index],
+            exit_keys[exit_index],
+        ]
+        selected_directions = [
+            entry_directions[entry_index],
+            bridge_directions[bridge_index],
+            exit_directions[exit_index],
+        ]
+        # The best-amount preview receives exactly one pool group: the route
+        # selected above from current on-chain prices.
+        keysets, directionsets = _single_direction_contract_sets(selected_keys, selected_directions)
+        selected_route_index = 0
+        if inner_single_call:
+            (
+                selected_amount_raw,
+                selected_route_index,
+                selected_profit_raw,
+                attempted_count,
+            ) = _official_v4_preview_best_amount_single_call(
+                contract,
+                token=route_addresses[0],
+                keysets=keysets,
+                directionsets=directionsets,
+                amount_raw=amount_raw,
+                min_profit=1,
+                block_number=block_number,
+            )
+            if (
+                selected_amount_raw <= 0
+                or selected_profit_raw <= 0
+                or int(selected_route_index) >= len(keysets)
+            ):
+                raise RuntimeError("NoProfitableRoute")
+            selected_keys = keysets[selected_route_index]
+            selected_directions = directionsets[selected_route_index]
+        else:
+            # Every probe is one eth_call. The JS script keeps MAX_STEPS=24,
+            # but the testnet RPC is slow enough that the full ladder can
+            # exceed the web request budget. Keep the default aligned with
+            # the script and let operators lower the budget for the
+            # interactive page.
+            try:
+                max_probe_steps = max(1, int(os.getenv("DEX_OFFICIAL_V4_SEARCH_STEPS", "24") or 24))
+            except (TypeError, ValueError):
+                max_probe_steps = 24
+            (
+                selected_amount_raw,
+                selected_profit_raw,
+                attempted_count,
+            ) = _official_v4_adaptive_best_amount_single_route(
+                contract,
+                token=route_addresses[0],
+                keysets=keysets,
+                directionsets=directionsets,
+                initial_amount_raw=amount_raw,
+                min_profit=1,
+                block_number=block_number,
+                max_steps=max_probe_steps,
+            )
+        if selected_amount_raw <= 0 or selected_profit_raw <= 0:
             raise RuntimeError("NoProfitableRoute")
         run_result = contract.functions.runArbitrage(
             Web3.to_checksum_address(route_addresses[0]),
-            keysets[route_index],
-            directionsets[route_index],
+            selected_keys,
+            selected_directions,
             selected_amount_raw,
             1,
         ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
@@ -994,152 +2307,70 @@ def _official_v4_preview_python(
                     "amount": amount,
                     "initialAmount": amount,
                     "staticCall": "reverted",
-                    "method": "previewArbitrageBestAmount",
-                    "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+                "method": "previewBestPool",
+                "bestAmountMethod": selected_amount_method,
                     "quoteStatus": "route_unprofitable",
                     "evidenceStatus": "route_unprofitable",
                     "executionTrust": "route_unprofitable",
                 },
                 "",
             )
-        # Some RPCs cannot execute the adaptive best-amount preview within
-        # eth_call gas limits.  Fall back to a fixed-amount runArbitrageBest
-        # static call so mainnet review can still confirm a closed loop with
-        # the caller-provided initial amount.
-        try:
-            w3 = Web3(
-                Web3.HTTPProvider(
-                    rpc_url,
-                request_kwargs={
-                    "timeout": 60,
-                    "verify": False,
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "User-Agent": "flashloan-robinhood-mainnet-route-preview/1.0",
-                            "Connection": "close",
-                        },
-                    },
-                )
-            )
-            run_contract = w3.eth.contract(
-                address=Web3.to_checksum_address(arb_address),
-                abi=_OFFICIAL_V4_RUN_BEST_ABI,
-            )
-            best_result = run_contract.functions.runArbitrageBest(
-                Web3.to_checksum_address(route_addresses[0]),
-                keysets,
-                directionsets,
-                amount_raw,
-                1,
-            ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
-            out_tb, out_ta, out_tz, profit_raw, route_index = (
-                int(best_result[0]),
-                int(best_result[1]),
-                int(best_result[2]),
-                int(best_result[3]),
-                int(best_result[4]),
-            )
-            if profit_raw <= 0:
-                return (
-                    {
-                        "ok": False,
-                        "error": "static_arb_call_reverted",
-                        "detail": "fixed amount runArbitrageBest was not profitable on chain",
-                        "errorDetail": "NoProfitableRoute()",
-                        "errorData": "0x4f422847",
-                        "errorSelector": "0x4f422847",
-                        "routeSymbols": route_symbols,
-                        "amount": amount,
-                        "initialAmount": amount,
-                        "staticCall": "reverted",
-                        "method": "runArbitrageBest",
-                        "bestAmountMethod": "fixed_amount_runArbitrageBest",
-                        "quoteStatus": "route_unprofitable",
-                        "evidenceStatus": "route_unprofitable",
-                        "executionTrust": "route_unprofitable",
-                    },
-                    "",
-                )
-            selected_amount_raw = amount_raw
-            selected_profit_raw = profit_raw
-            attempted_count = 2
-            selected_amount_method = "fixed_amount_runArbitrageBest"
-            selected_symbols = route_symbols
-            return (
-                {
-                    "ok": True,
-                    "routeSymbols": selected_symbols,
-                    "amount": amount,
-                    "initialAmount": amount,
-                    "bestAmount": str(float(selected_amount_raw) / 10**18),
-                    "bestAmountRaw": str(selected_amount_raw),
-                    "profit": str(profit_raw),
-                    "profitHuman": str(float(profit_raw) / 10**18),
-                    "outTb": str(out_tb),
-                    "outTa": str(out_ta),
-                    "outTz": str(out_tz),
-                    "outAmount": str(float(out_tz) / 10**18),
-                    "outAmountHuman": str(float(out_tz) / 10**18),
-                    "selectedAmount": str(selected_amount_raw),
-                    "selectedAmountMethod": selected_amount_method,
-                    "selectedAmountAttemptedCount": str(attempted_count),
-                    "selectedRouteIndex": route_index,
-                    "staticCall": "ok",
-                    "bestAmountMethod": selected_amount_method,
-                    "bestAmountAttemptedCount": str(attempted_count),
-                },
-                "official V4 on-chain preview selected from Python",
-            )
-        except Exception as fallback_exc:
-            fallback_data = str(getattr(fallback_exc, "data", "") or "")
-            if "0x4f422847" in fallback_data or "NoProfitableRoute" in str(fallback_exc):
-                return (
-                    {
-                        "ok": False,
-                        "error": "static_arb_call_reverted",
-                        "detail": "链上复核未通过：NoProfitableRoute()",
-                        "errorDetail": "NoProfitableRoute()",
-                        "errorData": "0x4f422847",
-                        "errorSelector": "0x4f422847",
-                        "routeSymbols": route_symbols,
-                        "amount": amount,
-                        "initialAmount": amount,
-                        "staticCall": "reverted",
-                        "method": "runArbitrageBest",
-                        "bestAmountMethod": "fixed_amount_runArbitrageBest",
-                        "quoteStatus": "route_unprofitable",
-                        "evidenceStatus": "route_unprofitable",
-                        "executionTrust": "route_unprofitable",
-                    },
-                    "",
-                )
-            return None
-        return None
-    selected_symbols = route_symbols
+        detail = str(exc)[:300]
+        return (
+            {
+                "ok": False,
+                "error": "static_arb_call_reverted",
+                "detail": detail,
+                "errorDetail": detail,
+                "errorData": str(getattr(exc, "data", "") or "")[:300],
+                "routeSymbols": route_symbols,
+                "amount": amount,
+                "initialAmount": amount,
+                "staticCall": "reverted",
+                "method": "previewBestPool",
+                "bestAmountMethod": selected_amount_method,
+                "quoteStatus": "route_unprofitable",
+                "evidenceStatus": "route_unprofitable",
+                "executionTrust": "route_unprofitable",
+            },
+            "",
+        )
     return (
         {
             "ok": True,
-            "routeSymbols": selected_symbols,
+            "routeSymbols": route_symbols,
+            "selectedRouteSymbols": route_symbols,
+            "selectedPool": {
+                "entryIndex": entry_index,
+                "bridgeIndex": bridge_index,
+                "exitIndex": exit_index,
+                "netProduct": str(net_product),
+            },
             "amount": amount,
             "initialAmount": amount,
-            "bestAmount": str(float(selected_amount_raw) / 10**18),
+            "bestAmount": str(float(selected_amount_raw) / (10 ** int(borrow_decimals))),
             "bestAmountRaw": str(selected_amount_raw),
+            "borrowTokenDecimals": int(borrow_decimals),
             "profit": str(profit_raw),
-            "profitHuman": str(float(profit_raw) / 10**18),
+            "profitHuman": str(float(profit_raw) / (10 ** int(borrow_decimals))),
             "outTb": str(out_tb),
             "outTa": str(out_ta),
             "outTz": str(out_tz),
-            "outAmount": str(float(out_tz) / 10**18),
-            "outAmountHuman": str(float(out_tz) / 10**18),
+            "outAmount": str(float(out_tz) / (10 ** int(borrow_decimals))),
+            "outAmountHuman": str(float(out_tz) / (10 ** int(borrow_decimals))),
             "selectedAmount": str(selected_amount_raw),
             "selectedAmountMethod": selected_amount_method,
             "selectedAmountAttemptedCount": str(attempted_count),
-            "selectedRouteIndex": route_index,
+            "selectedRouteIndex": selected_route_index,
             "staticCall": "ok",
             "bestAmountMethod": selected_amount_method,
             "bestAmountAttemptedCount": str(attempted_count),
         },
-        "official V4 on-chain preview selected from Python",
+        (
+            "official V4 on-chain price-pool selection + contract-internal best amount"
+            if inner_single_call
+            else "official V4 on-chain price-pool selection + single-route best amount"
+        ),
     )
 
 
@@ -1183,12 +2414,37 @@ def _official_v4_signer_for_chain(chain_id: int) -> tuple[str | None, str | None
     return None, None
 
 
+def _parse_official_v4_arb_result_json(output: str) -> dict[str, Any] | None:
+    """Parse the complete official V4 result object from the script output.
+
+    The live broadcast payload contains nested pool selections, so a naive
+    non-greedy brace regex stops at the first nested closing brace and yields
+    an incomplete JSON object. ``raw_decode`` consumes exactly one complete
+    JSON value, which keeps earlier failure/preview objects and a later
+    successful broadcast object all readable in turn.
+    """
+    if not isinstance(output, str):
+        return None
+    decoder = json.JSONDecoder()
+    parsed: dict[str, Any] | None = None
+    for marker in re.finditer(r"OFFICIAL_V4_ARB_RESULT_JSON", output):
+        tail = output[marker.end():].lstrip(" \t\r\n")
+        try:
+            value, _end = decoder.raw_decode(tail)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            parsed = value
+    return parsed
+
+
 def _official_v4_broadcast_python(
     *,
     route_symbols: list[str],
     route_addresses: list[str],
     amount: float,
-    route_pool_keys: list[dict[str, Any]],
+    route_pool_keys: list[dict[str, Any]] | None = None,
+    route_pool_key_groups: list[list[dict[str, Any]]] | None = None,
     chain_id: int,
 ) -> dict[str, Any] | None:
     """Broadcast through Python when the Hardhat JS live script is unavailable.
@@ -1196,12 +2452,15 @@ def _official_v4_broadcast_python(
     This path keeps mainnet usable after the operator configures an official
     V4 arb/composer address plus a chain-scoped signer. The static preview still
     runs first and no transaction is sent unless it reports a positive profit.
+    The broadcast payload is not a single fixed route: it carries entry, bridge,
+    and exit candidate pools and lets the contract reselect by current price.
     """
     preview = _official_v4_preview_python(
         route_symbols=route_symbols,
         route_addresses=route_addresses,
         amount=amount,
         route_pool_keys=route_pool_keys,
+        route_pool_key_groups=route_pool_key_groups,
         chain_id=int(chain_id),
     )
     if preview is None:
@@ -1280,26 +2539,71 @@ def _official_v4_broadcast_python(
             "broadcastAttempted": False,
         }
 
-    keys: list[list[Any]] = []
-    for key in route_pool_keys:
-        keys.append(
-            [
-                str(key.get("currency0") or ""),
-                str(key.get("currency1") or ""),
-                int(key.get("fee") or 0),
-                int(key.get("tickSpacing") or 0),
-                str(key.get("hooks") or "0x0000000000000000000000000000000000000000"),
-            ]
+    route_key_groups = route_pool_key_groups if route_pool_key_groups is not None else (
+        [route_pool_keys] if route_pool_keys else []
+    )
+    if not route_key_groups:
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_route_pool_identity_missing",
+            "detail": "Python broadcast skipped because no complete per-hop pool candidate groups were provided",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": False,
+            "broadcastFailed": False,
+        }
+    try:
+        (
+            entry_keys,
+            entry_directions,
+            bridge_keys,
+            bridge_directions,
+            exit_keys,
+            exit_directions,
+        ) = _official_v4_hop_candidate_sets(
+            route_key_groups,
+            route_addresses,
         )
-    directions: list[bool] = []
-    for index in range(3):
-        input_token = str(route_addresses[index]).lower()
-        directions.append(input_token == keys[index][0].lower())
-    keysets, directionsets = _single_direction_contract_sets(keys, directions)
-    route_index = 0
+    except Exception as exc:
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_candidate_sets_invalid",
+            "detail": f"Python broadcast hop candidate sets invalid: {str(exc)[:300]}",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": False,
+            "broadcastFailed": False,
+        }
     selected_amount_raw = int(parsed.get("selectedAmount") or parsed.get("bestAmountRaw") or 0)
     if selected_amount_raw <= 0:
-        selected_amount_raw = int(Decimal(str(parsed.get("bestAmount") or amount)) * (Decimal(10) ** 18))
+        borrow_decimals = _borrow_token_decimals_from_registry(
+            chain_id=int(chain_id),
+            borrow_address=route_addresses[0],
+        )
+        if borrow_decimals is None:
+            return {
+                "ok": False,
+                "mode": "dex_route_broadcast_test",
+                "error": "official_arb_broadcast_borrow_token_decimals_missing",
+                "detail": (
+                    "SQLite chain_tokens 缺少借币代币 decimals；未采用 18 位假设，"
+                    "广播金额无法从 human 值换算为 raw 值"
+                ),
+                "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+                "routeAddresses": route_addresses,
+                "broadcast": True,
+                "broadcastAttempted": False,
+                "quoteStatus": "missing_token_metadata",
+                "evidenceStatus": "missing_token_metadata",
+                "executionTrust": "missing_token_metadata",
+            }
+        selected_amount_raw = int(
+            Decimal(str(parsed.get("bestAmount") or amount)) * (Decimal(10) ** int(borrow_decimals))
+        )
 
     try:
         w3 = Web3(
@@ -1319,12 +2623,16 @@ def _official_v4_broadcast_python(
         account = w3.eth.account.from_key(private_key)
         contract = w3.eth.contract(
             address=Web3.to_checksum_address(arb_address),
-            abi=_OFFICIAL_V4_RUN_ABI,
+            abi=_OFFICIAL_V4_POOL_RUN_ABI,
         )
-        tx_fn = contract.functions.runArbitrage(
+        tx_fn = contract.functions.runArbitrageBestPoolsWithSelectedAmount(
             Web3.to_checksum_address(route_addresses[0]),
-            keysets[route_index],
-            directionsets[route_index],
+            entry_keys,
+            entry_directions,
+            bridge_keys,
+            bridge_directions,
+            exit_keys,
+            exit_directions,
             selected_amount_raw,
             1,
         )
@@ -1379,12 +2687,20 @@ def _official_v4_broadcast_python(
         "bestAmount": parsed.get("bestAmount"),
         "bestAmountConfirmed": True,
         "bestAmountMissing": False,
-        "bestAmountMethod": parsed.get("bestAmountMethod") or "onchain_preview_adaptive_best_amount",
+        "bestAmountMethod": parsed.get("bestAmountMethod") or "onchain_preview_adaptive_best_amount_single_route",
         "bestAmountAttemptedCount": parsed.get("bestAmountAttemptedCount"),
         "broadcast": True,
         "broadcastAttempted": True,
         "broadcastDisabled": False,
         "broadcastChannel": "public_rpc_python",
+        "broadcastMethod": "runArbitrageBestPoolsWithSelectedAmount",
+        "method": "runArbitrageBestPoolsWithSelectedAmount",
+        "selectedPool": parsed.get("selectedPool"),
+        "broadcastCandidatePoolCounts": {
+            "entry": len(entry_keys),
+            "bridge": len(bridge_keys),
+            "exit": len(exit_keys),
+        },
         "staticCall": "ok",
         "staticCallPassed": True,
         "quoteStatus": "live_verified",
@@ -1644,13 +2960,22 @@ def run_official_v4_arb_route_test(
     hardhat_network = _hardhat_network_for_chain(int(chain_id))
     env_prefix = _robinhood_env_prefix(int(chain_id))
 
-    route_pool_keys = _official_v4_route_pool_keys(
+    route_pool_key_groups = _official_v4_route_pool_key_groups(
         route_symbols=route_symbols,
         chain_id=int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID),
         protocols=["uniswap_v4"],
         route_addresses=route_addresses or None,
     )
-    if len(route_pool_keys) != 3:
+    if not route_pool_key_groups:
+        route_pool_keys_fallback = _official_v4_route_pool_keys(
+            route_symbols=route_symbols,
+            chain_id=int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID),
+            protocols=["uniswap_v4"],
+            route_addresses=route_addresses or None,
+        )
+        route_pool_key_groups = [route_pool_keys_fallback] if route_pool_keys_fallback else []
+    route_pool_keys = route_pool_key_groups[0] if route_pool_key_groups else []
+    if not route_pool_key_groups or any(len(group) != 3 for group in route_pool_key_groups):
         route_text = " -> ".join(str(item) for item in route_symbols) if isinstance(route_symbols, list) else str(route_symbols or "-")
         payload = {
             "ok": False,
@@ -1682,19 +3007,19 @@ def run_official_v4_arb_route_test(
         return {
             "ok": False,
             "mode": "dex_route_broadcast_test",
-            "error": "official_v4_readonly_preview_live_quote_disabled",
+            "error": "official_v4_readonly_preview_rpc_unavailable",
             "detail": (
-                "official V4 read-only preview is disabled: "
-                "DEX_V4_LIVE_QUOTE_ENABLED is not set to an enabled value"
+                "official V4 read-only preview is unavailable: RPC link is "
+                "dynamically offline"
             ),
-            "quoteStatus": "live_quote_disabled",
-            "evidenceStatus": "live_quote_disabled",
-            "executionTrust": "live_quote_disabled",
+            "quoteStatus": "rpc_unavailable",
+            "evidenceStatus": "rpc_unavailable",
+            "executionTrust": "rpc_unavailable",
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
             "broadcast": broadcast,
             "errorStack": _structured_route_error(
-                "official_v4_readonly_preview_live_quote_disabled",
+                "official_v4_readonly_preview_rpc_unavailable",
                 error_code=ErrorCode.DEX_RPC_FAILED,
                 flow="dex_route_broadcast_test",
                 node_id="python_preview",
@@ -1708,6 +3033,7 @@ def run_official_v4_arb_route_test(
             route_addresses=route_addresses,
             amount=amount,
             route_pool_keys=route_pool_keys,
+            route_pool_key_groups=route_pool_key_groups,
             chain_id=int(chain_id or 0),
         )
         if python_broadcast is not None:
@@ -1748,6 +3074,23 @@ def run_official_v4_arb_route_test(
     env["HARDHAT_NETWORK"] = hardhat_network
     env[f"{env_prefix}_ALLOW_V4_AMM_LIVE_TEST"] = "true"
     env[f"{env_prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST"] = "true" if broadcast else "false"
+    chain_network = _robinhood_network_name(int(chain_id or 0))
+    manifest_network = "mainnet" if chain_network == "robinhood" else "testnet"
+    env["FLASHLOAN_MANIFEST_MIRROR_PATH"] = str(
+        ROOT
+        / "contract"
+        / chain_network
+        / "DEX"
+        / "config"
+        / f"{manifest_network}-v4-amm"
+        / "manifest.json"
+    )
+    borrow_decimals = _borrow_token_decimals_from_registry(
+        chain_id=int(chain_id or 0),
+        borrow_address=route_addresses[0] if route_addresses else "",
+    )
+    if borrow_decimals is not None:
+        env[f"{env_prefix}_OFFICIAL_ARB_BORROW_DECIMALS"] = str(borrow_decimals)
     # The official testnet endpoint currently serves a Let's Encrypt cert that
     # only pins an IP address, not rpc.testnet.chain.robinhood.com. Disabling
     # TLS hostname verification for this child Hardhat process keeps local
@@ -1809,6 +3152,10 @@ def run_official_v4_arb_route_test(
         route_pool_keys,
         separators=(",", ":"),
     )
+    env[f"{env_prefix}_OFFICIAL_ARB_POOL_KEY_GROUPS_JSON"] = json.dumps(
+        route_pool_key_groups,
+        separators=(",", ":"),
+    )
     env[f"{env_prefix}_OFFICIAL_ARB_AMOUNT"] = str(amount)
     env[f"{env_prefix}_OFFICIAL_ARB_AMOUNT_IS_BEST"] = "true" if amount_is_best else "false"
     env[f"{env_prefix}_OFFICIAL_ARB_REUSE_AMOUNT"] = "true" if amount_is_best else "false"
@@ -1822,6 +3169,7 @@ def run_official_v4_arb_route_test(
             route_addresses=route_addresses,
             amount=amount,
             route_pool_keys=route_pool_keys,
+            route_pool_key_groups=route_pool_key_groups,
             chain_id=int(chain_id),
         )
         if python_preview is not None:
@@ -1940,12 +3288,7 @@ def run_official_v4_arb_route_test(
             continue
 
         appended = result.stdout + "\n" + result.stderr
-        parsed = {}
-        for json_match in re.finditer(r"OFFICIAL_V4_ARB_RESULT_JSON\s+(\{.*?\})", appended, flags=re.DOTALL):
-            try:
-                parsed = json.loads(json_match.group(1))
-            except json.JSONDecodeError:
-                continue
+        parsed = _parse_official_v4_arb_result_json(appended) or {}
 
         lowered = appended.lower()
         retryable = any(
@@ -1985,7 +3328,7 @@ def run_official_v4_arb_route_test(
         or (
             "preselected_best_amount"
             if best_amount_from_chain and bool(amount_is_best)
-            else "onchain_preview_adaptive_best_amount"
+            else "onchain_preview_adaptive_best_amount_single_route"
             if best_amount_from_chain
             else "requested_borrow_amount_unconfirmed"
         )
@@ -2007,11 +3350,17 @@ def run_official_v4_arb_route_test(
     raw_profit = parsed.get("profit")
     profit_human = parsed.get("profitHuman")
     if profit_human is None:
-        profit_human = _raw_amount_to_human(raw_profit)
+        profit_human = _raw_amount_to_human(
+            raw_profit,
+            decimals=parsed.get("borrowTokenDecimals"),
+        )
     raw_out_amount = parsed.get("outAmount")
     out_amount_human = parsed.get("outAmountHuman")
     if out_amount_human is None:
-        out_amount_human = _raw_amount_to_human(raw_out_amount)
+        out_amount_human = _raw_amount_to_human(
+            raw_out_amount,
+            decimals=parsed.get("borrowTokenDecimals"),
+        )
     static_call_ok = str(parsed.get("staticCall") or "").strip().lower() in {"ok", "passed"}
     profitable = bool(profit_human is not None and float(profit_human) > 0)
     # The official V4 script executes all three swaps in one contract eth_call
@@ -2143,7 +3492,7 @@ def run_official_v4_arb_route_test(
             "offchainInitialProbeReason": (
                 "onchain_review_best_amount_reused"
                 if best_amount_from_chain and bool(amount_is_best)
-                else "onchain_preview_adaptive_best_amount"
+                else "onchain_preview_adaptive_best_amount_single_route"
                 if best_amount_from_chain
                 else "requested_borrow_amount_fallback"
             ),
@@ -2159,23 +3508,6 @@ def run_official_v4_arb_route_test(
             str(parsed.get("detail") or "")
             or "broadcast disabled; static preflight passed"
         )
-    if bool(broadcast and parsed.get("txHash") and parsed.get("ok") is True):
-        ready_for_transaction_preflight = True
-        quote_status = "live_verified"
-        execution_trust = "live_quoter_verified_readonly"
-        payload["readyForTransactionPreflight"] = True
-        payload["quoteStatus"] = "live_verified"
-        payload["evidenceStatus"] = "live_verified"
-        payload["executionTrust"] = "live_quoter_verified_readonly"
-        if isinstance(payload.get("evidence"), dict):
-            payload["evidence"]["status"] = "live_verified"
-            payload["evidence"]["executionTrust"] = "live_quoter_verified_readonly"
-            payload["evidence"]["readyForTransactionPreflight"] = True
-            payload["evidence"]["bestAmountConfirmed"] = True
-            if isinstance(payload["evidence"].get("costModel"), dict):
-                payload["evidence"]["costModel"]["readyForTransactionPreflight"] = True
-                payload["evidence"]["costModel"]["profitable"] = True
-                payload["evidence"]["costModel"]["bestAmountConfirmed"] = True
     if parsed.get("staticCall") == "reverted" and parsed.get("error") == "static_arb_call_reverted":
         payload["detail"] = _static_call_revert_detail(parsed)
     if "already broadcast-disabled" not in payload["detail"] and result.returncode != 0:
@@ -2212,19 +3544,32 @@ def run_official_v4_arb_route_test(
                 evidence["costModel"]["bestAmountMissing"] = False
     # The official V4 contract can revert with NoProfitableRoute without
     # returning a numeric final output. Keep that on-chain conclusion, but
-    # attach a negative reference P&L from the local observation snapshot so
-    # the UI never claims net profit is not positive while showing a blank
-    # net-profit value.
+    # attach a negative borrow-token reference P&L from the local observation
+    # or V4 pool snapshot so the UI never claims net profit is not positive
+    # while showing a blank net-profit value.
     if quote_status == "route_unprofitable" and profit_human is None:
         try:
             fallback_pnl = estimate_fixed_amount_pnl_quick(
                 chain_id=int(chain_id),
                 route_symbols=route_symbols,
                 amount=amount,
+                route_addresses=route_addresses,
                 protocols=["uniswap_v4"],
+                prefer_sqlite_snapshot=True,
             )
         except Exception:
             fallback_pnl = {}
+        if not isinstance(fallback_pnl, dict) or fallback_pnl.get("referenceNetProfitAmount") is None:
+            try:
+                fallback_pnl = _offline_pool_token_pnl_reference(
+                    chain_id=int(chain_id),
+                    route_symbols=route_symbols,
+                    route_addresses=route_addresses,
+                    amount=amount,
+                    protocols=["uniswap_v4"],
+                )
+            except Exception:
+                fallback_pnl = {}
         fallback_net = fallback_pnl.get("referenceNetProfitAmount")
         fallback_bps = fallback_pnl.get("referenceNetReturnBps")
         fallback_out = fallback_pnl.get("referenceFinalOutputAmount")

@@ -1,0 +1,26 @@
+[package]
+name = "pool-manager"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "pool_manager"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pool-manager"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+hex.workspace = true
+manager-contracts = { path = "../manager_contracts" }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2.workspace = true
+
+[dev-dependencies]
+manager-db = { path = "../manager_db" }
+tempfile = "3"

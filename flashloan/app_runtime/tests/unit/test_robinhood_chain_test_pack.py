@@ -6,7 +6,12 @@ import dex.intent_trade.chains.robinhood.chain_test_pack as chain_test_pack
 from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
 from dex.intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
 from dex.intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test_scope
-from dex.tools.build_robinhood_chain_test_package import _assert_attempt_scope
+from dex.runtime import rust_closed_loop
+from dex.tools.build_robinhood_chain_test_package import (
+    _assert_attempt_scope,
+    _default_log_path,
+    _select_attempt,
+)
 
 
 def _pool_id(char: str) -> str:
@@ -761,6 +766,46 @@ def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path)
     assert "Route execution mode" in notes
 
 
+def test_write_robinhood_chain_test_package_preserves_fork_evidence_on_rebuild(tmp_path):
+    attempt = _sample_attempt()
+    attempt["network"] = "robinhood-testnet"
+    attempt["chain_id"] = 46630
+    attempt.pop("market_id", None)
+    attempt["quote"]["live_onchain_evidence"]["network"] = "robinhood-testnet"
+    attempt["quote"]["live_onchain_evidence"]["chainId"] = 46630
+    output_dir = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "chain_test" / "latest"
+    contract_dir = tmp_path / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain-test-package"
+
+    first = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
+    fork_evidence = {
+        "status": "fork_staticcall_passed",
+        "passed": True,
+        "chainId": 46630,
+        "network": "robinhood-testnet",
+        "evidencePath": "report.json",
+    }
+    first["forkEvidence"] = fork_evidence
+    first["simulationEvidence"] = fork_evidence
+    (output_dir / "plan.json").write_text(
+        json.dumps(first, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    rebuilt = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
+
+    assert rebuilt["forkEvidence"]["status"] == "fork_staticcall_passed"
+    assert rebuilt["simulationEvidence"]["passed"] is True
+    assert any(item["id"] == "fork_staticcall" and item["done"] is True for item in rebuilt["checklist"])
+
+    dropped = write_robinhood_chain_test_package(
+        output_dir,
+        attempt,
+        contract_dir=contract_dir,
+        preserve_fork_evidence=False,
+    )
+    assert "forkEvidence" not in dropped
+
+
 def test_audit_accepts_complete_preflight_plan():
     plan = build_robinhood_chain_test_plan(_sample_attempt())
 
@@ -785,6 +830,63 @@ def test_audit_rejects_broadcast_and_incomplete_hop_data():
     assert "broadcast_without_execution_trust" in codes
     assert "preflight_broadcast_enabled_without_trust" in codes
     assert "hop_required_field_missing" in codes
+
+
+def test_native_aggregate_preview_cannot_become_live_ready_chain_test_package(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
+    )
+    route = {
+        "routeSymbols": ["AAA", "BBB", "CCC", "AAA"],
+        "routeAddresses": [
+            "0x" + ("1" * 40),
+            "0x" + ("2" * 40),
+            "0x" + ("3" * 40),
+            "0x" + ("1" * 40),
+        ],
+        "quoteStatus": "requires_live_quoter",
+        "pools": [],
+    }
+    result = {
+        "method": "previewBestPool+previewArbitrageBestAmount+runArbitrage",
+        "status": "profitable_amount_found",
+        "selectedAmountRaw": "0x0f4240",
+        "selectedProfitRaw": "0x0493e0",
+        "initialAmountRaw": "0x0f4240",
+        "attempts": [
+            {
+                "amountRaw": "0x0f4240",
+                "profitRaw": "0x0493e0",
+                "ok": True,
+                "profitable": True,
+            }
+        ],
+    }
+    attempt = rust_closed_loop.build_native_worker_attempt(
+        route=route,
+        result=result,
+        chain_id=46630,
+        observed_at="2026-10-29T00:00:00+00:00",
+    )
+
+    assert attempt is not None
+    plan = build_robinhood_chain_test_plan(attempt)
+    audit = audit_robinhood_chain_test_plan(plan)
+    codes = {issue["code"] for issue in audit["issues"]}
+
+    assert plan["chainId"] == 46630
+    assert plan["evidence"]["status"] == "static_reference_pending_live_review"
+    assert plan["preflightSpec"]["routeHops"] == []
+    assert plan["decision"]["readyForTransactionPreflight"] is False
+    assert plan["decision"]["trustedForExecution"] is False
+    assert audit["ok"] is False
+    assert "route_hop_count_mismatch" in codes
+    assert "repayment_token_missing" in codes
+    assert "trusted_without_fork_evidence" not in codes
 
 
 def test_plan_blocks_same_symbol_different_token_route():
@@ -832,6 +934,38 @@ def test_chain_test_package_rejects_testnet_attempt_for_mainnet_scope():
 
     assert "network_scope_mismatch" in message
     assert "chain_id_scope_mismatch" in message
+
+
+def test_select_attempt_skips_blocked_execution_state():
+    failed = _sample_attempt()
+    failed["state"] = "execution_failed"
+    failed["created_at"] = "2026-10-21T09:25:12+00:00"
+    ready = _sample_attempt()
+
+    selected = _select_attempt([failed, ready], None)
+
+    assert selected["state"] == "ready_for_transaction_development"
+
+
+def test_select_attempt_rejects_only_blocked_candidates():
+    failed = _sample_attempt()
+    failed["state"] = "execution_failed"
+
+    try:
+        _select_attempt([failed], None)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("expected execution_failed attempt to be rejected")
+
+    assert "no Robinhood attempt row was found" in message
+
+
+def test_chain_test_testnet_default_store_is_scoped_to_46630():
+    path = _default_log_path("robinhood-testnet")
+
+    assert path.name == "local_store_46630.sqlite3"
+    assert path.parent.name == "db"
 
 
 

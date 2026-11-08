@@ -7,6 +7,10 @@ function routeTestStatusText(result) {
   const map = {
     "rpc_verification_timeout": "链上复核超时：RPC 未在期限内返回",
     "rpc_verification_failed": "链上复核失败：RPC 不可用",
+    "live_quote_disabled": "实时报价已禁用，报价与路由页面不可用",
+    "official_v4_readonly_preview_live_quote_disabled": "实时报价已禁用，报价与路由页面不可用",
+    "rpc_unavailable": "实时报价不可用：RPC 链路动态离线",
+    "official_v4_readonly_preview_rpc_unavailable": "实时报价不可用：RPC 链路动态离线",
     "live_quote_failed": "链上报价失败",
     "quote_failed": "链上报价失败",
     "not_enough_liquidity": "链上复核：池当前没有 LP 流动性",
@@ -53,12 +57,15 @@ function preflightResultPassed(result) {
 function preflightRouteTestSummary(result) {
   const failureText = String(result?.detail || result?.errorDetail || result?.error || "").trim().replace(/^链上复核(?:失败|未通过)?[:：，]?\s*/, "");
   const terminalText = routeTestStatusText(result);
+  const status = String(result?.quoteStatus || result?.evidenceStatus || result?.executionTrust || "").toLowerCase();
+  const disabledStatus = status === "live_quote_disabled" || status === "official_v4_readonly_preview_live_quote_disabled" || status === "rpc_unavailable" || status === "official_v4_readonly_preview_rpc_unavailable";
+  if (disabledStatus) return "实时报价已禁用，报价与路由页面不可用";
   if (result?.ok === false) return failureText
     ? `链上复核失败：${terminalText || failureText}`
     : (terminalText ? `链上复核失败：${terminalText}` : "链上复核失败：后台未返回链上结果");
   if (terminalText) return `链上复核失败：${terminalText}`;
   if (result?.txHash) return `链上复核完成 | 已返回链上复核结果：${result.txHash}`;
-  if (!preflightResultPassed(result)) return "链上复核未通过：最佳量未计算成功";
+  if (!preflightResultPassed(result)) return "链上复核未通过：最佳交易量未计算成功";
   if (result?.staticCallPassed) return "链上复核通过";
   if (result?.broadcastDisabled && result?.detail) return `链上复核通过 | 未提交链上交易：${result.detail}`;
   if (result?.detail && !result?.steps) return String(result.detail);
@@ -72,9 +79,11 @@ function preflightRouteTestSummary(result) {
 }
 
 function preflightRouteTestAdvice(result) {
-  if (result?.txHash) return "建议：链上复核通过；当前金额已通过链上复核，请确认金额后点击链上执行。";
+  if (result?.txHash) return "建议：链上复核通过；当前交易量已通过链上复核，请确认交易量后点击链上执行。";
   const terminalText = routeTestStatusText(result);
   const status = String(result?.quoteStatus || result?.evidenceStatus || result?.executionTrust || "").toLowerCase();
+  const disabledStatus = status === "live_quote_disabled" || status === "official_v4_readonly_preview_live_quote_disabled" || status === "rpc_unavailable" || status === "official_v4_readonly_preview_rpc_unavailable";
+  if (disabledStatus) return "建议：实时报价已禁用，报价与路由页面不可用；请查看 DEX 总览的静态数据，启用对应链的实时报价后重试。";
   const rpcFailure = !terminalText || status.includes("rpc_verification") || status.includes("rpc") || /timeout|timed out|unavailable/i.test(String(result?.detail || result?.error || ""));
   const rawDetail = String(result?.detail || result?.error || terminalText || "后台未返回结果").trim().replace(/[。！\s]+$/, "");
   const detail = ["missing_route_pool_identity", "missing_route_identity", "missing_configuration"].includes(status)
@@ -85,13 +94,13 @@ function preflightRouteTestAdvice(result) {
     ? `建议：链上复核未通过；原因：${detail}。`
     : `建议：链上复核未通过；原因：${detail}，${rpcFailure ? "请稍后重试或检查 RPC 配置" : "请根据原因调整路线/池配置后重试"}。`;
   if (terminalText) {
-    if (status === "missing_route_pool_identity") return "建议：链上复核未通过；原因：缺少中间桥池 PoolKey；请先补全市场观察中的中间桥池身份后重试，不能作为已确认最佳量。";
-    if (status === "missing_route_identity") return "建议：链上复核未通过；原因：缺少路线身份；请先补全路由地址/池身份后重试，不能作为已确认最佳量。";
+    if (status === "missing_route_pool_identity") return "建议：链上复核未通过；原因：缺少中间桥池 PoolKey；请先补全市场观察中的中间桥池身份后重试，不能作为已确认最佳交易量。";
+    if (status === "missing_route_identity") return "建议：链上复核未通过；原因：缺少路线身份；请先补全路由地址/池身份后重试，不能作为已确认最佳交易量。";
     if (status === "missing_configuration") return "建议：链上复核未通过；原因：缺少链上配置；请检查官方 V4 仲裁合约和链级配置后重试。";
-    return `建议：链上复核未通过；原因：${terminalText}，${rpcFailure ? "请稍后重试或检查 RPC 配置" : "请根据上述原因处理后重试，不能作为已确认最佳量"}。`;
+    return `建议：链上复核未通过；原因：${terminalText}，${rpcFailure ? "请稍后重试或检查 RPC 配置" : "请根据上述原因处理后重试，不能作为已确认最佳交易量"}。`;
   }
-  if (!preflightResultPassed(result)) return "建议：链上复核未通过：最佳量未计算成功，不能进入链上执行；请重新链上复核并完成最佳量计算后再执行。";
-  return "建议：链上复核通过；尚未执行链上交易。请确认金额后点击链上执行。";
+  if (!preflightResultPassed(result)) return "建议：链上复核未通过：最佳交易量未计算成功，不能进入链上执行；请重新完成链上复核并计算最佳交易量后再执行。";
+  return "建议：链上复核通过；尚未执行链上交易。请确认交易量后点击链上执行。";
 }
 
 function markPreflightFailed(route, detail, status = "rpc_verification_failed") {

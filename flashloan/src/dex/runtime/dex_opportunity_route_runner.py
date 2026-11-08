@@ -106,9 +106,15 @@ def _scanner_evidence_timeout_seconds() -> float:
 
 def _closed_loop_workers() -> int:
     try:
-        return max(1, min(8, int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "3") or "3")))
+        return max(
+            1,
+            min(
+                64,
+                int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "16") or "16"),
+            ),
+        )
     except (TypeError, ValueError):
-        return 3
+        return 16
 
 
 def _broadcast_profit_value(payload: Any) -> float | None:
@@ -168,12 +174,26 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
         # review. Give that route one immediate retry before reporting failure.
         time.sleep(1.0)
         evidence = build_route_onchain_evidence(*args, **kwargs)
-    if str(evidence.get("status") or "").lower() == "not_enough_liquidity":
+    original_status = str(evidence.get("status") or "").lower()
+    retryable_quote_statuses = {
+        "not_enough_liquidity",
+        "live_quote_failed",
+        "hop_1_live_quote_failed",
+        "quote_failed",
+    }
+    terminal_failure_statuses = {
+        "rpc_verification_failed",
+        "rpc_verification_timeout",
+        "pool_not_initialized",
+        "adapter_required",
+        "missing_trigger_block",
+    }
+    if original_status in retryable_quote_statuses:
         # The quick UI scan keeps full size probing off to stay responsive.
-        # When the requested amount is not liquid enough, keep halving until a
+        # When the requested amount fails the live quoter, keep halving until a
         # smaller amount quotes or the retry budget is exhausted. This gives
         # operators concrete evidence about whether the pool has any usable
-        # liquidity at all, instead of a bare "not enough liquidity".
+        # liquidity at all, instead of a bare first-hop failure.
         original_amount_raw = evidence.get("selectedBorrowInputAmountRaw") or evidence.get("requestedBorrowInputAmountRaw")
         liquidity_retry_attempts = max(0, int(os.getenv("DEX_OPPORTUNITY_SCANNER_LIQUIDITY_RETRY_ATTEMPTS", "3")))
         try:
@@ -186,8 +206,8 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
                 {
                     "attempt": 1,
                     "amountRaw": str(original_int_raw),
-                    "status": "not_enough_liquidity",
-                    "failureReason": "not_enough_liquidity",
+                    "status": original_status,
+                    "failureReason": original_status,
                 }
             ]
             succeeded_evidence = None
@@ -200,15 +220,22 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
                 retry_kwargs["borrow_input_amount_override_raw"] = retry_amount_raw
                 halved_evidence = build_route_onchain_evidence(*args, **retry_kwargs)
                 halved_status = str(halved_evidence.get("status") or "").lower()
+                terminal_failure = halved_status in terminal_failure_statuses
                 probe_attempts.append(
                     {
                         "attempt": attempt_index + 1,
                         "amountRaw": str(retry_amount_raw),
                         "status": halved_status,
-                        "failureReason": None if halved_status != "not_enough_liquidity" else "not_enough_liquidity",
+                        "failureReason": (
+                            halved_status
+                            if halved_status in retryable_quote_statuses
+                            else ("terminal_failure" if terminal_failure else None)
+                        ),
                     }
                 )
-                if halved_status != "not_enough_liquidity":
+                if terminal_failure:
+                    break
+                if halved_status not in retryable_quote_statuses:
                     succeeded_evidence = deepcopy(halved_evidence)
                     break
 
@@ -239,7 +266,11 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
             last_attempt = probe_attempts[-1]
             evidence["executionSizeProbe"] = {
                 "status": "route_execution_size_probe_liquidity_retry",
-                "searchStatus": "halved_amount_quoted" if succeeded_evidence is not None else "not_enough_liquidity",
+                "searchStatus": (
+                    "halved_amount_quoted"
+                    if succeeded_evidence is not None
+                    else original_status
+                ),
                 "probeAttempts": len(probe_attempts),
                 "maxProbeAttempts": liquidity_retry_attempts + 1,
                 "requestedAmountRaw": str(original_int_raw),
@@ -296,16 +327,8 @@ def _evidence_provider_with_timeout(evidence_provider, timeout_seconds: float, *
 
 
 def _reference_only_quote_payload(**kwargs):
-    key = "DEX_V4_LIVE_QUOTE_ENABLED"
-    previous = os.environ.get(key)
-    os.environ[key] = "0"
-    try:
-        return _quote_routes_payload_from_facade(**kwargs)
-    finally:
-        if previous is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = previous
+    """Assemble Robinhood closed-loop routes from SQLite without a legacy flag."""
+    return _quote_routes_payload_from_facade(**kwargs)
 
 
 def default_quote_payload_provider(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
@@ -518,10 +541,11 @@ def build_dex_opportunity_attempts(
 
 
 def default_record_attempts(attempts: list[dict[str, Any]]) -> dict[str, Any]:
+    from core.db.storage_common import database_url
     from dex.runtime.cow_attempt_log import record_cow_attempt_list_safely
 
     return record_cow_attempt_list_safely(
         attempts,
-        database_url=None,
+        database_url=database_url(),
         dedupe_market_candidates=False,
     )

@@ -1,75 +1,73 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
+import sys
 
-from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
 from core.db.storage_cow_execution import (
-    append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
+    record_cow_execution_attempts,
 )
+from core.db.storage_common import database_url
 from dex.runtime.cow_submission_pause import cow_submission_pause_guard_status
 
-# Runtime evidence is shared through the canonical src/runtime directory.
-SRC_ROOT = Path(__file__).resolve().parents[2]
-COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
-COW_EXECUTION_ATTEMPT_LOG_ROOT = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts"
 COW_EXECUTION_RETENTION_DAYS = 7
 
 
-def cow_execution_attempt_log_path(
+def _refresh_expected_vs_actual_after_success(
+    attempts: list[dict],
     *,
-    network: str | None = None,
-    chain_id: int | None = None,
-    market_state: dict | None = None,
-    fallback: Path | None = None,
-) -> Path:
-    state = market_state if isinstance(market_state, dict) else {}
-    state_filter = state.get("cow_filter") if isinstance(state.get("cow_filter"), dict) else {}
+    database_url: str,
+) -> dict | None:
+    """Refresh canonical realized-profit evidence after a real success.
 
-    resolved_network = str(
-        network
-        or state_filter.get("network")
-        or state.get("network")
-        or state.get("cow_network")
-        or ""
-    ).strip().lower()
-    resolved_chain_id = chain_id
-    if resolved_chain_id is None:
-        for value in (
-            state_filter.get("chain_id"),
-            state.get("chain_id"),
-            state.get("cow_chain_id"),
-        ):
-            if value is None or value == "":
-                continue
-            try:
-                resolved_chain_id = int(value)
-                break
-            except (TypeError, ValueError):
-                continue
-    row = None
-    if resolved_chain_id is not None:
-        row = chain_data_by_chain_id(int(resolved_chain_id))
-    elif resolved_network:
-        row = chain_data_by_network(resolved_network)
-    if row:
-        resolved_network = str(row.get("network") or resolved_network or "").strip().lower()
-        if resolved_chain_id is None:
-            try:
-                resolved_chain_id = int(row.get("chain_id"))
-            except (TypeError, ValueError):
-                resolved_chain_id = resolved_chain_id
-    if not resolved_network and resolved_chain_id is None:
-        if fallback is not None:
-            return fallback
-        return COW_EXECUTION_ATTEMPT_LOG_PATH
-    if not resolved_network:
-        row = chain_data_by_network(state.get("network") or state.get("cow_network"))
-        if row:
-            resolved_network = str(row.get("network") or "").strip().lower()
-    scope_network = resolved_network or "unknown"
-    scope_chain = str(resolved_chain_id if resolved_chain_id is not None else "no-chain-id")
-    return COW_EXECUTION_ATTEMPT_LOG_ROOT / scope_network / scope_chain / "attempts.jsonl"
+    The analyzer is deliberately invoked only for the two Robinhood runtime
+    stores. Test databases and unrelated chains must not overwrite canonical
+    evidence files.
+    """
+    if str(os.environ.get("ROBINHOOD_EXPECTED_VS_ACTUAL_AUTO_REFRESH", "1")).lower() in {
+        "0",
+        "false",
+        "no",
+    }:
+        return None
+    successful = [
+        item
+        for item in attempts
+        if isinstance(item, dict)
+        and str(item.get("state") or "").strip().lower() == "execution_success"
+        and str(item.get("tx_hash") or item.get("transaction_hash") or "").strip()
+    ]
+    if not successful:
+        return None
+    db_text = str(database_url or "")
+    if db_text.startswith("sqlite:///"):
+        db_text = db_text[10:]
+    db_path = Path(db_text).resolve()
+    if db_path.name not in {"local_store_4663.sqlite3", "local_store_46630.sqlite3"}:
+        return {"ok": False, "reason": "non_canonical_runtime_store"}
+    root = Path(__file__).resolve().parents[4]
+    analyzer = root / "scripts" / "analyze_robinhood_v4_expected_vs_actual.py"
+    if not analyzer.exists():
+        return {"ok": False, "reason": "analyzer_missing"}
+    command = [sys.executable, str(analyzer), "--store", str(db_path)]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "reason": "analyzer_launch_failed", "error": str(exc)[:300]}
+    return {
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "reason": None if completed.returncode == 0 else "analyzer_failed",
+    }
 
 
 def _cow_submission_pause_guard(*, database_url: str | None = None) -> dict:
@@ -95,27 +93,28 @@ def record_cow_attempt_list_safely(
             "error": None,
             "pause_guard": pause_guard,
         }
-    grouped_attempts: dict[Path, list[dict]] = {}
-    for attempt in attempts:
-        if not isinstance(attempt, dict):
-            continue
-        path = cow_execution_attempt_log_path(
-            network=attempt.get("network") or attempt.get("cow_network"),
-            chain_id=attempt.get("chain_id") or attempt.get("cow_chain_id"),
-            market_state=attempt.get("market_state"),
-        )
-        grouped_attempts.setdefault(path, []).append(attempt)
-    file_count = 0
-    log_paths: list[str] = []
-    for path, rows in grouped_attempts.items():
-        file_count += append_cow_execution_attempts_jsonl(
-            path,
-            rows,
-            retention_days=COW_EXECUTION_RETENTION_DAYS,
-            dedupe_market_candidates=dedupe_market_candidates,
-        )
-        log_paths.append(str(path))
-    return {"recorded": file_count, "source": "jsonl", "error": None, "log_paths": log_paths}
+    resolved_database_url = str(database_url or "").strip()
+    if not resolved_database_url:
+        resolved_database_url = str(globals()["database_url"]())
+    ids = record_cow_execution_attempts(
+        resolved_database_url,
+        [attempt for attempt in attempts if isinstance(attempt, dict)],
+        dedupe_market_candidates=dedupe_market_candidates,
+    )
+    result = {
+        "recorded": len(ids),
+        "source": "sqlite",
+        "error": None,
+        "ids": ids,
+        "log_paths": [],
+    }
+    refresh = _refresh_expected_vs_actual_after_success(
+        attempts,
+        database_url=resolved_database_url,
+    )
+    if refresh is not None:
+        result["expectedVsActualRefresh"] = refresh
+    return result
 
 
 def record_cow_execution_attempts_safely(
@@ -131,10 +130,7 @@ def record_cow_execution_attempts_safely(
 
 
 __all__ = [
-    "COW_EXECUTION_ATTEMPT_LOG_PATH",
-    "COW_EXECUTION_ATTEMPT_LOG_ROOT",
     "COW_EXECUTION_RETENTION_DAYS",
-    "cow_execution_attempt_log_path",
     "record_cow_attempt_list_safely",
     "record_cow_execution_attempts_safely",
 ]

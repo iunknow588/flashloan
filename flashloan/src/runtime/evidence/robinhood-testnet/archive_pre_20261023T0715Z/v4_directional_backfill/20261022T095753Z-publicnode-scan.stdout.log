@@ -1,0 +1,112 @@
+{
+  "chainId": 46630,
+  "network": "robinhood-testnet",
+  "ok": true,
+  "reportPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_directional_backfill\\20261022T101829Z\\report.json",
+  "summaryPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_directional_backfill\\20261022T101829Z\\summary.md"
+}
+{
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "generatedAt": "2026-10-22T10:18:29.126482Z",
+  "indexedLiquidity": {
+    "liveConfirmedPoolCount": 4,
+    "poolCount": 5
+  },
+  "network": "robinhood-testnet",
+  "plan": {
+    "basis": "direction_candidate_shortfall",
+    "floor_block": 91000224,
+    "neededDirectionCount": 2,
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 5,
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 5
+    }
+  },
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "observationOnly": true,
+    "writesSqlite": false
+  },
+  "scan": {
+    "directionCounts": {
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 2,
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 2
+    },
+    "directionTargets": {
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 5,
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 5
+    },
+    "discoveryMethod": "poolmanager_initialize_log_reverse_directional_backfill",
+    "existingIndexLiveConfirmedCount": 4,
+    "existingIndexPoolCount": 5,
+    "fromBlock": 91000224,
+    "initializeLogCount": 0,
+    "neededDirectionCount": 2,
+    "providerCount": 3,
+    "providerUrls": [
+      "https://robinhood-sepolia-rpc.publicnode.com",
+      "https://rpc.testnet.chain.robinhood.com/rpc",
+      "https://rpc.testnet.chain.robinhood.com"
+    ],
+    "satisfiedDirectionCount": 0,
+    "scanChunkSize": 500000,
+    "scanDirection": "newest_to_oldest",
+    "scannedSegmentCount": 1590,
+    "selectedPoolCount": 4,
+    "stoppedReason": "floor_reached_or_range_exhausted",
+    "toBlock": 140685017
+  },
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-evidence-v1",
+  "scope": {
+    "candidateLimit": 5,
+    "directionsRequested": [
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+    ],
+    "forwardDirection": "lower_address_to_higher_address",
+    "limitDirections": 0,
+    "reverseDirection": "higher_address_to_lower_address",
+    "searchOrder": "newest_to_oldest",
+    "stopCondition": "five_live_candidates_per_direction_or_pool_creation_floor"
+  },
+  "selectedPools": [
+    {
+      "fee": 3000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 115018326,
+      "poolId": "0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0",
+      "tickSpacing": 60,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93"
+    },
+    {
+      "fee": 3000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 91563087,
+      "poolId": "0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e",
+      "tickSpacing": 60,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+    },
+    {
+      "fee": 10000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 91000224,
+      "poolId": "0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a",
+      "tickSpacing": 200,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93"
+    },
+    {
+      "fee": 10000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 91000224,
+      "poolId": "0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066",
+      "tickSpacing": 200,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+    }
+  ]
+}

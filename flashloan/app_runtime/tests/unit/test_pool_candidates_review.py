@@ -88,7 +88,7 @@ def test_path_candidates_dedupe_reverse_closed_loop_directions():
 
 
 def test_clear_cow_execution_attempts_jsonl_filters_by_network(tmp_path):
-    from core.db.storage_cow_execution import (
+    from core.db.storage_cow_execution_jsonl import (
         append_cow_execution_attempts_jsonl,
         clear_cow_execution_attempts_jsonl,
         load_recent_cow_execution_attempts_jsonl,
@@ -523,7 +523,6 @@ def test_robinhood_testnet_live_v4_adapter_quotes_mark_live_verified(monkeypatch
         "executionPools": [pool_xy],
     }
 
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "1")
     monkeypatch.setattr(dex_surfaces, "load_v4_sdk_adapter", lambda **kwargs: object())
 
     def fake_quote_v4_exact_input_single(*, adapter, request):
@@ -580,7 +579,6 @@ def test_robinhood_testnet_v4_pool_id_only_routes_still_use_live_adapter(monkeyp
         "executionPools": [pool_xy],
     }
 
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "1")
     monkeypatch.setattr(dex_surfaces, "load_v4_sdk_adapter", lambda **kwargs: object())
 
     def fake_quote_v4_exact_input_single(*, adapter, request):

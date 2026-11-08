@@ -30,13 +30,25 @@ def _probe_robinhood_testnet_route_execution_size(
     initial_probe_amount_raw: int | None = None,
     max_attempts: int | None = None,
     min_probe_amount_raw: int | None = None,
+    max_probe_amount_raw: int | None = None,
 ) -> dict[str, Any]:
     max_attempts = max(1, int(max_attempts or os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", str(DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS)) or DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS))
     min_probe_amount_raw = max(1, int(min_probe_amount_raw or os.getenv("DEX_V4_EXECUTION_SIZE_MIN_PROBE_AMOUNT_RAW", "1") or 1))
     max_probe_multiplier = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_MULTIPLIER", "64") or 64))
-    target_amount_raw = max(1, int(requested_amount_raw))
-    initial_probe_amount_raw = max(1, int(initial_probe_amount_raw or target_amount_raw))
-    max_probe_amount_raw = min((1 << 128) - 1, max(target_amount_raw, min_probe_amount_raw) * max_probe_multiplier)
+    requested_target_amount_raw = max(1, int(requested_amount_raw))
+    initial_probe_amount_raw = max(1, int(initial_probe_amount_raw or requested_target_amount_raw))
+    safety_max_probe_amount_raw = max(requested_target_amount_raw, min_probe_amount_raw) * max_probe_multiplier
+    if max_probe_amount_raw is not None and int(max_probe_amount_raw) > 0:
+        max_probe_amount_raw = min(
+            max(min_probe_amount_raw, int(max_probe_amount_raw)),
+            safety_max_probe_amount_raw,
+        )
+    else:
+        max_probe_amount_raw = safety_max_probe_amount_raw
+    max_probe_amount_raw = min((1 << 128) - 1, max_probe_amount_raw)
+    target_amount_raw = requested_target_amount_raw
+    target_amount_raw = min(target_amount_raw, max_probe_amount_raw)
+    initial_probe_amount_raw = min(initial_probe_amount_raw, max_probe_amount_raw)
     attempts = 0
     candidate_rows: list[dict[str, Any]] = []
 
@@ -170,6 +182,9 @@ def _probe_robinhood_testnet_route_execution_size(
             "maxProbeAttempts": max_attempts,
             "requestedAmountRaw": str(target_amount_raw),
             "initialProbeAmountRaw": str(initial_probe_amount_raw),
+            "minProbeAmountRaw": str(min_probe_amount_raw),
+            "minProbeAmountHuman": "0.001 borrow token unit",
+            "maxProbeAmountRaw": str(max_probe_amount_raw),
             "selectedProfitableAmountRaw": None,
             "maxExecutableAmountRaw": None,
             "firstFailureAmountRaw": str(target_amount_raw),
@@ -267,6 +282,9 @@ def _probe_robinhood_testnet_route_execution_size(
             "maxProbeAttempts": max_attempts,
             "requestedAmountRaw": str(target_amount_raw),
             "initialProbeAmountRaw": str(initial_probe_amount_raw),
+            "minProbeAmountRaw": str(min_probe_amount_raw),
+            "minProbeAmountHuman": "0.001 borrow token unit",
+            "maxProbeAmountRaw": str(max_probe_amount_raw),
             "selectedProfitableAmountRaw": None,
             "maxExecutableAmountRaw": None,
             "firstFailureAmountRaw": str(target_amount_raw),
@@ -383,6 +401,9 @@ def _probe_robinhood_testnet_route_execution_size(
         "maxProbeAttempts": max_attempts,
         "requestedAmountRaw": str(target_amount_raw),
         "initialProbeAmountRaw": str(initial_probe_amount_raw),
+        "minProbeAmountRaw": str(min_probe_amount_raw),
+        "minProbeAmountHuman": "0.001 borrow token unit",
+        "maxProbeAmountRaw": str(max_probe_amount_raw),
         "selectedProfitableAmountRaw": str(selected_amount_raw),
         "maxExecutableAmountRaw": str(selected_amount_raw),
         "bestProfitAmountRaw": str(selected_amount_raw),

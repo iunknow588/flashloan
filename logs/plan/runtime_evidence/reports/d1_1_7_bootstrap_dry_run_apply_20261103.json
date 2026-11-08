@@ -1,0 +1,184 @@
+﻿{
+    "capturedAt":  "2026-11-04T02:24:07+08:00",
+    "milestone":  "M1",
+    "task":  "D1.1.7",
+    "status":  "passed",
+    "scope":  {
+                  "sourceDatabase":  "flashloan/db/local_store_4663.sqlite3",
+                  "registry":  "flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+                  "targetDatabase":  "temporary SQLite, created and disposed by bootstrap-simulate",
+                  "network":  "robinhood",
+                  "chainId":  4663,
+                  "sqliteOpenFlags":  "source: SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX; temp: read-write",
+                  "mainnetMigrationOrApply":  false,
+                  "businessWritesPerformed":  false,
+                  "httpBusinessWritesEnabled":  false,
+                  "contract":  [
+                                   "M0 migration is applied twice on the same temporary DB and the second run must be a no-op with the same checksum",
+                                   "all four library writes must dry-run against the empty temporary DB and leave row and event counts unchanged",
+                                   "first apply and repeated apply must produce the same library version and metadata checksum",
+                                   "repeated apply must insert/update/event 0 rows and treat every proposal as unchanged",
+                                   "core, stocks, and test primary memberships must have zero duplicates",
+                                   "pending_review or blocked rows visible to downstream consumers must be zero",
+                                   "mainnet database remains unmigrated and unwritten"
+                               ]
+              },
+    "commands":  [
+                     {
+                         "command":  "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+                         "exitCode":  0
+                     },
+                     {
+                         "command":  "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+                         "exitCode":  0
+                     },
+                     {
+                         "exitCode":  0,
+                         "command":  "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+                         "testsFailed":  0,
+                         "tokenManagerTestsPassed":  39,
+                         "workspaceTestsPassed":  56
+                     },
+                     {
+                         "command":  "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager --all-targets --no-deps -- -D warnings",
+                         "exitCode":  0
+                     },
+                     {
+                         "exitCode":  0,
+                         "command":  "cargo run --quiet --manifest-path flashloan/tools/Cargo.toml --bin token-manager -- bootstrap-simulate --source-db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+                         "outputReport":  "plan/runtime_evidence/reports/d1_1_7_bootstrap_simulate_raw.txt"
+                     }
+                 ],
+    "newSimulationTests":  [
+                               "temporary bootstrap is dry-run safe and idempotent",
+                               "primary conflict fails the simulation"
+                           ],
+    "sourceInputs":  {
+                         "normalizedAcceptedRecords":  4683,
+                         "normalizedRejectedRecords":  1868,
+                         "v4PoolReferences":  10934,
+                         "v4PoolLiquidityEvidenceRows":  5459
+                     },
+    "bootstrap":  {
+                      "sourceCheckpoint":  "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+                      "proposedMemberships":  277,
+                      "admissionByLibrary":  {
+                                                 "core":  {
+                                                              "admitted":  4
+                                                          },
+                                                 "stocks":  {
+                                                                "admitted":  194
+                                                            },
+                                                 "test":  {
+                                                              "admitted":  1
+                                                          },
+                                                 "extension":  {
+                                                                   "candidate_only":  78
+                                                               }
+                                             },
+                      "finalRowCounts":  {
+                                             "core":  4,
+                                             "stocks":  194,
+                                             "test":  1,
+                                             "extension":  78
+                                         },
+                      "finalEventCount":  277,
+                      "finalLibraryStateCount":  4,
+                      "quickCheck":  "ok",
+                      "migration":  {
+                                        "migrationId":  "20261103_001_manager_schema",
+                                        "checksum":  "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+                                        "firstAppliedNow":  true,
+                                        "secondWasNoop":  true,
+                                        "checksumStable":  true,
+                                        "migrationTable":  "schema_migrations"
+                                    },
+                      "libraries":  [
+                                        {
+                                            "library":  "core",
+                                            "proposedWrites":  4,
+                                            "rowsBeforeDryRun":  0,
+                                            "rowsAfterDryRun":  0,
+                                            "eventsBeforeDryRun":  0,
+                                            "eventsAfterDryRun":  0,
+                                            "firstApplyInserted":  4,
+                                            "firstApplyVersion":  1,
+                                            "repeatedApplyInserted":  0,
+                                            "repeatedApplyUnchanged":  4,
+                                            "repeatedApplyVersion":  1,
+                                            "metadataChecksum":  "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452"
+                                        },
+                                        {
+                                            "library":  "stocks",
+                                            "proposedWrites":  194,
+                                            "rowsBeforeDryRun":  0,
+                                            "rowsAfterDryRun":  0,
+                                            "eventsBeforeDryRun":  0,
+                                            "eventsAfterDryRun":  0,
+                                            "firstApplyInserted":  194,
+                                            "firstApplyVersion":  1,
+                                            "repeatedApplyInserted":  0,
+                                            "repeatedApplyUnchanged":  194,
+                                            "repeatedApplyVersion":  1,
+                                            "metadataChecksum":  "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e"
+                                        },
+                                        {
+                                            "library":  "test",
+                                            "proposedWrites":  1,
+                                            "rowsBeforeDryRun":  0,
+                                            "rowsAfterDryRun":  0,
+                                            "eventsBeforeDryRun":  0,
+                                            "eventsAfterDryRun":  0,
+                                            "firstApplyInserted":  1,
+                                            "firstApplyVersion":  1,
+                                            "repeatedApplyInserted":  0,
+                                            "repeatedApplyUnchanged":  1,
+                                            "repeatedApplyVersion":  1,
+                                            "metadataChecksum":  "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+                                        },
+                                        {
+                                            "library":  "extension",
+                                            "proposedWrites":  78,
+                                            "rowsBeforeDryRun":  0,
+                                            "rowsAfterDryRun":  0,
+                                            "eventsBeforeDryRun":  0,
+                                            "eventsAfterDryRun":  0,
+                                            "firstApplyInserted":  78,
+                                            "firstApplyVersion":  1,
+                                            "repeatedApplyInserted":  0,
+                                            "repeatedApplyUnchanged":  78,
+                                            "repeatedApplyVersion":  1,
+                                            "metadataChecksum":  "sha256:ebb0602ddc8702ecc8b08e99d633358605f346eee74654175fb636a9f40c8a17"
+                                        }
+                                    ],
+                      "gates":  {
+                                    "tempDatabaseOnly":  true,
+                                    "secondMigrationWasNoop":  true,
+                                    "migrationChecksumStable":  true,
+                                    "dryRunsPersistedNoRows":  true,
+                                    "allDryRunResultsMatchFirstApply":  true,
+                                    "allRepeatedAppliesAreIdempotent":  true,
+                                    "allLibraryChecksumsStable":  true,
+                                    "primaryLibraryDuplicateCount":  0,
+                                    "pendingOrBlockedDownstreamVisibleCount":  0,
+                                    "quickCheckPassed":  true,
+                                    "readyForProductionApply":  false,
+                                    "reason":  "Mainnet target still has no M0 token schema; production migration/apply remains out of scope for D1.1.7."
+                                }
+                  },
+    "concurrencyNote":  {
+                            "mainnetServiceActive":  true,
+                            "mainnetDatabaseObservedAsReadOnly":  true,
+                            "interpretation":  "bootstrap-simulate opened the mainnet DB read-only, created a disposable temporary DB for all migration and write exercises, and never attempted production apply."
+                        },
+    "sourceHashes":  {
+                         "flashloan/tools/token_manager/src/classification.rs":  "sha256:888500be9a14f2b0d49d88ee3ff0a9db3090dbf860f0658bcf5fa620e7435b64",
+                         "flashloan/tools/token_manager/src/simulation.rs":  "sha256:7667a4eda505d80ad312c5831441a0ef1729759275f63a91fb56f3ee931664a1",
+    "flashloan/tools/token_manager/src/lib.rs":  "sha256:95ae1496a57e11af40b628d6c0b2d93a8f2ae840febfa435011217f2a0ab7380",
+                         "flashloan/tools/token_manager/src/main.rs":  "sha256:d93a29d60b54642023266553d4cccd21298498836ef9847ec7a2698556808278",
+                         "flashloan/tools/token_manager/src/store.rs":  "sha256:8cccf8dfe7f550f931fd13bd6cd9c8f88442aee7a05609231b838fc35677a2eb",
+                         "flashloan/tools/token_manager/Cargo.toml":  "sha256:93e26e7d0104aa8ae3e34ca8d5ef47034ad7c639f91d3036bead09ccc4b28ad2"
+                     },
+    "nextTask":  "D1.2.1: implement read-only Token Manager HTTP query/resolve API; production bootstrap apply remains blocked until the complete M0 target schema and maintenance-window gates are confirmed.",
+    "conclusion":  "D1.1.7 passes: bootstrap dry-run, first apply, repeated apply, checksum stability, primary-library exclusivity, and no mainnet migration/apply are all verified on a disposable temporary SQLite database."
+}

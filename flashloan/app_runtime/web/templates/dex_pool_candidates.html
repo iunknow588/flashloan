@@ -69,6 +69,7 @@
       .section-head { display: block; }
     }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body>
   <header>
@@ -153,7 +154,7 @@
       const text = String(value || "-").trim();
       return text.length > max ? `${text.slice(0, max)}...` : text;
     };
-    const fmtTime = value => value ? new Date(value).toLocaleString([], { hour12: false }) : "-";
+    const fmtTime = value => window.formatLocalDisplayTime(value);
     const num = value => {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) return "-";
@@ -240,6 +241,31 @@
       const resp = await fetch(path, { headers: { "Accept": "application/json" }, cache: "no-cache" });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `请求失败（HTTP ${resp.status}）`);
+      return data;
+    }
+
+    function requestToken(prefix) {
+      const random = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      return `${prefix}:${random}`;
+    }
+
+    async function postJson(path, payload = {}, headers = {}) {
+      const response = await fetch(path, {
+        method: "POST",
+        cache: "no-cache",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-Request-Id": String(headers["X-Request-Id"] || "").trim()
+            || requestToken("ui-request"),
+          ...headers,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
 
@@ -389,8 +415,8 @@
 
     function renderTokenChips(tokens) {
       return (tokens || []).map(token => {
-        const label = token.address ? `${token.symbol} ${shortAddress(token.address)}` : token.symbol;
-        return `<span class="chip" title="${esc(token.symbol)}">${esc(compact(label, 34))}<small>${esc(token.poolCount || 0)}池</small></span>`;
+        const label = tokenIdentityText(token);
+        return `<span class="chip" title="${esc(token.name || token.symbol || "-")}">${esc(label)}${nameStatusBadge(token)}<small>${esc(token.poolCount || 0)}池</small></span>`;
       }).join("");
     }
 
@@ -405,11 +431,11 @@
         </thead>
         <tbody>${items.map(row => {
           const balances = row.balances || {};
-          const counter = row.counterSymbol ? `${row.counterSymbol} ${shortAddress(row.counterAddress)}` : "-";
+          const counter = row.counterSymbol || row.counterName ? poolCounterText(row) : "-";
           return `<tr>
             <td title="${esc(row.routeText || "-")}">${esc(compact(row.routeText || "-", 36))}</td>
             <td class="addr" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
-            <td title="${esc(counter)}">${esc(compact(counter, 30))}</td>
+            <td title="${esc(counter)}">${esc(compact(counter, 34))}${poolCounterBadge(row)}</td>
             <td>${esc(row.protocol || row.dex || "-")}</td>
             <td>${poolFeeText(row)}</td>
             <td>${num(balances.tvlUsd)}</td>
@@ -420,6 +446,49 @@
           </tr>`;
         }).join("")}</tbody>
       </table></div>`;
+    }
+
+    function tokenIdentityText(token) {
+      const symbol = token?.symbol || token?.counterSymbol || "-";
+      const name = token?.name || token?.counterName || "";
+      const address = token?.address || token?.counterAddress || "";
+      const parts = [symbol];
+      if (name) parts.push(name);
+      if (address) parts.push(shortAddress(address));
+      return compact(parts.join(" · "), 46);
+    }
+
+    function nameStatusBadge(token) {
+      const missing = token?.nameMissing != null
+        ? Boolean(token.nameMissing)
+        : (token?.nameResolved === false || token?.counterNameResolved === false);
+      if (!missing) return "";
+      const fallback = token?.nameFallbackSymbol || token?.counterNameFallbackSymbol || token?.symbol || token?.counterSymbol || "-";
+      return `<span class="badge warn" title="${esc(`名称缺失，当前使用符号兜底：${fallback}`)}">NAME MISSING</span>`;
+    }
+
+    function poolCounterText(row) {
+      if (!row?.counterSymbol && !row?.counterName) return "-";
+      const parts = [row.counterSymbol || "-"];
+      if (row.counterName) parts.push(row.counterName);
+      if (row.counterAddress) parts.push(shortAddress(row.counterAddress));
+      return compact(parts.join(" · "), 40);
+    }
+
+    function poolCounterBadge(row) {
+      if (row?.counterSymbolResolved === false) {
+        const fallback = row?.counterNameFallbackSymbol || row?.counterSymbol || "-";
+        const symbolBadge = `<span class="badge reject" title="${esc(`代币符号未解析：${row.counterSymbolRaw || row.counterSymbol || "-"}`)}">SYMBOL UNRESOLVED</span>`;
+        if (row?.counterNameMissing || row?.counterNameResolved === false) {
+          return symbolBadge + `<span class="badge warn" title="${esc(`名称缺失，当前使用符号兜底：${fallback}`)}">NAME MISSING</span>`;
+        }
+        return symbolBadge;
+      }
+      if (row?.counterNameMissing || row?.counterNameResolved === false) {
+        const fallback = row?.counterNameFallbackSymbol || row?.counterSymbol || "-";
+        return `<span class="badge warn" title="${esc(`名称缺失，当前使用符号兜底：${fallback}`)}">NAME MISSING</span>`;
+      }
+      return "";
     }
 
     function sectionPaginationButtons(pagination, target) {
@@ -481,12 +550,12 @@
       const parts = [
         group.anchorSymbol,
         ...(group.anchorAddresses || []),
-        ...groupTokens(group, "yc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...groupTokens(group, "zc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...(group.sharedTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
-        ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
-        ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...groupTokens(group, "yc").map(item => [item.symbol, item.name, item.address, item.poolCount].join(" ")),
+        ...groupTokens(group, "zc").map(item => [item.symbol, item.name, item.address, item.poolCount].join(" ")),
+        ...(group.sharedTokens || []).map(item => [item.symbol, item.name, item.address, item.poolCount].join(" ")),
+        ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterName, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterName, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
+        ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterName, row.counterAddress, row.protocol, row.fee, row.feeLabel, row.dynamicFee, row.specialFee].join(" ")),
       ].join(" ").toLowerCase();
       return parts.includes(query);
     }
@@ -614,7 +683,11 @@
       if (refreshInFlight) return;
       setRefreshBusy(true, full ? "全量刷新中，正在重建源文件..." : "增量刷新中，正在补全候选缓存...");
       try {
-        latestPayload = await api(refreshApiPath(full));
+        latestPayload = await postJson(
+          refreshApiPath(full),
+          {full, dryRun: false},
+          {"Idempotency-Key": requestToken("ui-candidate-refresh")}
+        );
         render(latestPayload);
         const refreshMessage = formatRefreshState(latestPayload.refresh_state, latestPayload);
         $("message").textContent = refreshMessage || (full ? "全量刷新完成" : "增量刷新完成");

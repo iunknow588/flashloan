@@ -39,7 +39,7 @@
     let latestStaticCallRows = [];
     const accountDetailBasePath = "/liquidation/account?account=";
     const isAccountScanPage = () => ["/account-scan", "/bot/account-scan"].includes(location.pathname);
-    const fmtTime = v => v ? new Date(v).toLocaleString([], { hour12: false }) : "-";
+    const fmtTime = v => window.formatLocalDisplayTime(v);
     const moneyText = v => Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }) : "-";
     const statusCls = v => ({ healthy: "status-healthy", liquidatable: "status-liquidatable", candidate: "status-candidate", warning: "status-candidate" }[String(v || "").toLowerCase()] || "status-watching");
     const poolTierText = v => ({ core: "核心", high_frequency: "高频", borrow_health: "普通", healthy: "健康", pending: "待扫", unknown: "未知" }[String(v || "").toLowerCase()] || String(v || "-"));
@@ -649,7 +649,7 @@
           core_page: String(borrowPageState.core),
         }));
         renderBorrowPool(await api(`/api/liquidation/borrow-pool?${query}`));
-        if (options.showMessage) $("message").textContent = `风险池显示已刷新：${new Date().toLocaleString([], {hour12:false})}`;
+        if (options.showMessage) $("message").textContent = `风险池显示已刷新：${window.formatLocalDisplayNow()}`;
       } catch (e) {
         $("message").textContent = zhError(e.message);
       } finally {
@@ -812,7 +812,7 @@
           force: "1",
         }));
         renderBorrowPool(await api(`/api/liquidation/borrow-pool/scan?${query}`, { method: "POST", body: "{}" }));
-        $("message").textContent = `风险池健康度已重新链上扫描：${new Date().toLocaleString([], {hour12:false})}`;
+        $("message").textContent = `风险池健康度已重新链上扫描：${window.formatLocalDisplayNow()}`;
       } catch (e) {
         $("message").textContent = zhError(e.message);
       } finally {

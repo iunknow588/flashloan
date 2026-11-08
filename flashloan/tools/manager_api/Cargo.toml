@@ -1,0 +1,28 @@
+[package]
+name = "manager-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axum.workspace = true
+broadcast-manager = { path = "../broadcast_manager" }
+candidate-edge-pool-manager = { path = "../candidate_edge_pool_manager" }
+candidate-exchange-pool-manager = { path = "../candidate_exchange_pool_manager" }
+closed-loop-manager = { path = "../closed_loop_manager" }
+composite-manager = { path = "../composite_manager" }
+chrono.workspace = true
+manager-contracts = { path = "../manager_contracts" }
+manager-db = { path = "../manager_db" }
+pool-manager = { path = "../pool_manager" }
+review-manager = { path = "../review_manager" }
+serde.workspace = true
+serde_json.workspace = true
+token-manager = { path = "../token_manager" }
+tokio.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+rusqlite.workspace = true
+tempfile.workspace = true
+tower.workspace = true

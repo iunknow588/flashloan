@@ -346,7 +346,7 @@ def test_borrow_pool_scan_payload_scans_only_selected_core_accounts(monkeypatch)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_core_scan_monotonic", now - 2)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_high_frequency_scan_monotonic", now - 1)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_borrow_health_scan_monotonic", now - 1)
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(scan, "database_url", lambda: "local_store.sqlite3")
     class FakeLock:
         def __init__(self):
             self.released = False

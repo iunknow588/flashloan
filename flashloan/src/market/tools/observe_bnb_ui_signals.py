@@ -16,6 +16,7 @@ REPO_ROOT = SRC_ROOT.parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.rs_bridge import append_bnb_market_observation
 from dex.intent_trade.chains.bnb import config as bnb
 from dex.intent_trade.chains.bnb.observer import quote_ui_signal_routes
 from dex.intent_trade.chains.bnb.quote import _connect
@@ -25,7 +26,11 @@ from market.binance_market.service import (
     fetch_binance_current_price_rows,
 )
 from market.strategy.arbitrage import ArbitrageConfig
-from market.tools.build_bnb_signal_route_report import write_report as write_route_report
+from market.tools.build_bnb_signal_route_report import write_report_from_database
+
+
+HISTORY_SOURCE = "bnb_ui_signal_shadow_observation"
+HISTORY_TABLE = "bnb_market_observations"
 
 
 def _utc_now() -> str:
@@ -35,12 +40,6 @@ def _utc_now() -> str:
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def _percent(numerator: int, denominator: int) -> str:
@@ -68,7 +67,7 @@ def _report(summary: dict[str, Any]) -> str:
         "",
         "## 产物",
         "",
-        f"- 原始记录：`{summary['rawJsonlPath']}`",
+        f"- 原始记录：SQLite 表 `{summary['rawTable']}`（`source={summary['rawSource']}`）",
         f"- 汇总：`{summary['summaryJsonPath']}`",
         f"- 逐跳复盘：`{summary['routeReportPath']}`",
     ]
@@ -90,11 +89,9 @@ def main() -> int:
     duration = max(1, int(args.duration_seconds))
     interval = max(0.5, float(args.interval_seconds))
     output_dir = args.output_dir
-    raw_path = output_dir / "BNB_UI信号链上影子观察_原始.jsonl"
     summary_path = output_dir / "BNB_UI信号链上影子观察_汇总.json"
     report_path = output_dir / "BNB_UI信号链上影子观察.md"
     route_report_path = output_dir / "BNB交易信号逐跳复盘.md"
-    raw_path.unlink(missing_ok=True)
 
     w3, rpc_url = _connect(args.rpc_url or list(bnb.DEFAULT_RPC_URLS))
     previous_snapshot = None
@@ -150,7 +147,12 @@ def main() -> int:
             },
             "result": result,
         }
-        _append_jsonl(raw_path, record)
+        append_bnb_market_observation(
+            HISTORY_SOURCE,
+            record,
+            network="bnb",
+            chain_id=56,
+        )
         totals["snapshotCount"] += 1
         for key in (
             "uiSignalCount",
@@ -189,7 +191,8 @@ def main() -> int:
         "uiSignalHitRate": _percent(totals["assembledSignalCount"], totals["uiSignalCount"]),
         "quoteSuccessRate": _percent(totals["successfulQuoteCount"], totals["assembledRouteCount"]),
         "profitabilityBeforeCostsRate": _percent(totals["profitableBeforeCostsCount"], totals["successfulQuoteCount"]),
-        "rawJsonlPath": str(raw_path),
+        "rawSource": HISTORY_SOURCE,
+        "rawTable": HISTORY_TABLE,
         "summaryJsonPath": str(summary_path),
         "reportPath": str(report_path),
         "routeReportPath": str(route_report_path),
@@ -197,7 +200,7 @@ def main() -> int:
     }
     _write_json(summary_path, summary)
     report_path.write_text(_report(summary), encoding="utf-8")
-    write_route_report(raw_path, route_report_path)
+    write_report_from_database(route_report_path, source=HISTORY_SOURCE)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 

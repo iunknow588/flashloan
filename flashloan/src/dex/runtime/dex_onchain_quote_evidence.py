@@ -16,6 +16,8 @@ from bot.execution.uniswap_v3 import quote_v3_exact_input_single, snapshot_v3_po
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
 from dex.intent_trade.chains.robinhood_common.rpc_gate import (
+    LEGACY_LIVE_QUOTE_DISABLED_STATUS,
+    RPC_UNAVAILABLE_STATUS,
     v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
 )
 from market.binance_market.dex_surfaces import (
@@ -48,6 +50,7 @@ from dex.runtime.dex_quote_evidence_helpers import (
     _is_pool_not_initialized_error,
     _is_rpc_verification_error,
     _is_robinhood_family,
+    _liquidity_cap_raw,
     _load_v4_quote_adapter,
     _norm_symbol,
     _now_iso,
@@ -126,7 +129,7 @@ def capture_onchain_trigger_context(
         "error": None,
     }
     if _is_robinhood_family(chain_id, normalized_network) and not _rpc_gate_v4_live_quote_enabled(chain_id=chain_id):
-        context["error"] = "live_quote_disabled"
+        context["error"] = RPC_UNAVAILABLE_STATUS
         return context
     if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID or normalized_network == ROBINHOOD_TESTNET_NETWORK:
         from dex.intent_trade.chains.robinhood_testnet.trigger_context import capture_robinhood_testnet_trigger_context
@@ -175,7 +178,8 @@ def _unsupported_evidence(
         "pool_not_initialized",
         "not_enough_liquidity",
         "live_quote_failed",
-        "live_quote_disabled",
+        RPC_UNAVAILABLE_STATUS,
+        LEGACY_LIVE_QUOTE_DISABLED_STATUS,
         "adapter_required",
         "missing_trigger_block",
     }:
@@ -201,7 +205,8 @@ def _unsupported_evidence(
             "not_enough_liquidity",
             "pool_not_initialized",
             "live_quote_failed",
-            "live_quote_disabled",
+            RPC_UNAVAILABLE_STATUS,
+            LEGACY_LIVE_QUOTE_DISABLED_STATUS,
         }
         else "static_reference_pending_live_review"
     )
@@ -229,6 +234,65 @@ def _unsupported_evidence(
             raw_error=reasons[0] if reasons else None,
             details={"reasons": reasons, "status": status},
         ),
+    }
+
+
+_TERMINAL_HOP_FAILURE_STATUSES = {
+    "live_quote_failed",
+    "hop_1_live_quote_failed",
+    "quote_failed",
+    "not_enough_liquidity",
+    "adapter_required",
+    "pool_not_initialized",
+    "rpc_verification_failed",
+    "rpc_verification_timeout",
+    "live_evidence_deferred",
+}
+
+
+def _first_failed_hop_evidence(hop_rows: list[dict] | None) -> dict | None:
+    for hop in hop_rows or []:
+        if not isinstance(hop, dict):
+            continue
+        status = str(hop.get("status") or "").strip().lower()
+        if status not in _TERMINAL_HOP_FAILURE_STATUSES:
+            continue
+        return {
+            "hop": hop.get("hop"),
+            "status": status,
+            "pool": hop.get("pool"),
+            "fromSymbol": _norm_symbol(hop.get("fromSymbol")),
+            "toSymbol": _norm_symbol(hop.get("toSymbol")),
+            "amountInRaw": str(hop.get("amountInRaw") or ""),
+            "amountIn": hop.get("amountIn"),
+            "quoteSource": hop.get("quoteSource"),
+            "liveQuoteError": hop.get("liveQuoteError"),
+        }
+    return None
+
+
+def _preview_vs_quote_discrepancy(hop_rows: list[dict] | None) -> dict | None:
+    first_failed = _first_failed_hop_evidence(hop_rows)
+    if first_failed is None:
+        return None
+    failed_hop = next(
+        (
+            hop
+            for hop in hop_rows or []
+            if isinstance(hop, dict)
+            and str(hop.get("hop") or "").strip().lower()
+            == str(first_failed.get("hop") or "").strip().lower()
+        ),
+        None,
+    )
+    static_quote = failed_hop.get("staticQuote") if isinstance(failed_hop, dict) else None
+    return {
+        "status": "preview_vs_quote_discrepancy",
+        "staticPreviewAvailable": bool(static_quote),
+        "liveStatus": first_failed.get("status"),
+        "firstHop": first_failed,
+        "staticQuote": static_quote if isinstance(static_quote, dict) else None,
+        "message": "static/preview quote and live quote disagree; evidence retained instead of being discarded",
     }
 
 
@@ -448,9 +512,9 @@ def build_route_onchain_evidence(
             network=network,
             route=route,
             observed_at=observed,
-            reasons=["DEX_V4_LIVE_QUOTE_ENABLED=0; V4 live quote RPC is disabled for automatic review."],
+            reasons=["V4 live quote RPC is disabled because the chain link is dynamically offline; automatic review cannot run."],
             trigger_context=trigger,
-            status="live_quote_disabled",
+            status=RPC_UNAVAILABLE_STATUS,
         )
     unsupported = [
         reason
@@ -642,8 +706,19 @@ def build_route_onchain_evidence(
             if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0
             else offchain_initial_probe_amount_raw
         )
-        # 链下初始探测只负责给出起点；链上执行规模探测再围绕绝对利润峰值
-        # 搜索最佳量，不能把离线 sizeAnalysis 的 maxExecutable 当作执行量。
+        # 系统缺省初始量为 1 个借币代币单位；链上规模探测围绕绝对利润峰值
+        # 搜索最佳交易量，可以放大也可以缩小，最小只到 0.001 个借币代币，
+        # 并把离线 sizeAnalysis 的 maxExecutable 仅作为提示而非执行量。
+        minimum_borrow_amount_raw = (
+            _raw_from_human(Decimal("0.001"), input_decimals)
+            if input_decimals is not None and input_decimals > 0
+            else None
+        )
+        maximum_borrow_amount_raw, liquidity_cap_basis = _liquidity_cap_raw(
+            pools,
+            input_symbol,
+            input_decimals,
+        )
         execution_size_probe = _probe_robinhood_testnet_route_execution_size(
             route,
             payload=payload,
@@ -653,6 +728,8 @@ def build_route_onchain_evidence(
             quote_hop_provider=quote_hop_provider,
             requested_amount_raw=probe_amount_raw,
             initial_probe_amount_raw=probe_amount_raw,
+            min_probe_amount_raw=minimum_borrow_amount_raw,
+            max_probe_amount_raw=maximum_borrow_amount_raw,
         )
         try:
             probed_amount_raw = int(
@@ -697,7 +774,7 @@ def build_route_onchain_evidence(
     if reference_quote_only:
         blockers.append("V4 路线使用参考报价适配器；必须先用真实 V4 Quoter/SDK 或链上复核确认报价后再进入链上执行")
     all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and token_continuity_ok and not any(
-        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed", "not_enough_liquidity", "adapter_required", "pool_not_initialized", "rpc_verification_failed", "rpc_verification_timeout", "live_evidence_deferred"}
+        _text(hop.get("status")).lower() in {"live_quote_failed", "hop_1_live_quote_failed", "quote_failed", "not_enough_liquidity", "adapter_required", "pool_not_initialized", "rpc_verification_failed", "rpc_verification_timeout", "live_evidence_deferred"}
         for hop in hop_rows
     ) and not reference_quote_only
     hop_price_impact_rows = [
@@ -878,7 +955,7 @@ def build_route_onchain_evidence(
         evidence_conclusion = "链上报价已验证存在利润，但至少一个单跳价格影响超过 10 bps；不建议按当前金额进入链上执行"
         evidence_action = "on-chain verified but at least one hop price impact exceeds the 10 bps limit; reduce size or do not execute"
     elif best_amount_unconfirmed:
-        evidence_conclusion = "链上报价已验证当前金额，但最佳量未计算成功；复核未通过"
+        evidence_conclusion = "链上报价已验证当前金额，但最佳交易量未计算成功；复核未通过"
         evidence_action = "on-chain best amount unconfirmed; cannot enter transaction preflight"
     elif not all_hops_verified:
         evidence_conclusion = "链上报价失败或未完成，当前无法给出可执行套利结论"
@@ -949,6 +1026,8 @@ def _build_onchain_quote_evidence_payload(c: dict[str, Any]) -> dict[str, Any]:
     trigger = c["trigger"]
     trigger_block_number = c["trigger_block_number"]
     w3 = c["w3"]
+    first_failed_hop = _first_failed_hop_evidence(hop_rows)
+    preview_quote_discrepancy = _preview_vs_quote_discrepancy(hop_rows)
 
     return {
         "evidenceVersion": 1,
@@ -988,6 +1067,8 @@ def _build_onchain_quote_evidence_payload(c: dict[str, Any]) -> dict[str, Any]:
             "blocked": not ready_for_transaction_preflight,
             "reasons": blockers,
         },
+        "firstHopEvidence": first_failed_hop,
+        "previewVsQuoteDiscrepancy": preview_quote_discrepancy,
         "hops": hop_rows,
         "costModel": {
             "notionalUsd": float(notional),
@@ -1226,6 +1307,13 @@ def _quote_route_hops(
             elif _is_not_enough_liquidity_error(exc):
                 hop_status = "not_enough_liquidity"
                 quote_source = "chain_live_quote_liquidity_exceeded"
+            elif hop_number == 1 and (
+                "execution reverted" in str(exc).lower()
+                or "revert" in str(exc).lower()
+                or "call failed" in str(exc).lower()
+            ):
+                hop_status = "hop_1_live_quote_failed"
+                quote_source = "chain_hop_1_live_quote_reverted"
             else:
                 hop_status = "live_quote_failed"
                 quote_source = "chain_live_quote_failed"
@@ -1307,6 +1395,8 @@ def _quote_route_hops(
                 blockers.append(f"V4 pool is not initialized or cannot be quoted at hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))}: {exc}")
             elif hop_status == "not_enough_liquidity":
                 blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} is not executable for requested amount (not profitable / liquidity): {exc}")
+            elif hop_status == "hop_1_live_quote_failed":
+                blockers.append(f"hop 1 {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} live_quote_failed: execution reverted: {exc}")
             else:
                 blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} verification failed: {exc}")
             break

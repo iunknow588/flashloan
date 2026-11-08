@@ -1,0 +1,87 @@
+{
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "generatedAt": "2026-10-20T02:50:46.353499Z",
+  "indexedLiquidity": {
+    "liveConfirmedPoolCount": 2,
+    "poolCount": 2
+  },
+  "network": "robinhood-testnet",
+  "plan": {
+    "basis": "direction_candidate_shortfall",
+    "floor_block": 120947927,
+    "neededDirectionCount": 2,
+    "targets": {
+      "0x0000000000000000000000000000000000000000:0x0045e403e2d1153ad9185b4baa93a5ee5965a156": 5,
+      "0x0000000000000000000000000000000000000000:0x00a3bdf72d0376a8e784cc854724de1a4e673195": 5
+    }
+  },
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "observationOnly": true,
+    "writesSqlite": false
+  },
+  "scan": {
+    "directionCounts": {
+      "0x0000000000000000000000000000000000000000:0x0045e403e2d1153ad9185b4baa93a5ee5965a156": 1,
+      "0x0000000000000000000000000000000000000000:0x00a3bdf72d0376a8e784cc854724de1a4e673195": 1
+    },
+    "directionTargets": {
+      "0x0000000000000000000000000000000000000000:0x0045e403e2d1153ad9185b4baa93a5ee5965a156": 5,
+      "0x0000000000000000000000000000000000000000:0x00a3bdf72d0376a8e784cc854724de1a4e673195": 5
+    },
+    "discoveryMethod": "poolmanager_initialize_log_reverse_directional_backfill",
+    "existingIndexLiveConfirmedCount": 2,
+    "existingIndexPoolCount": 2,
+    "fromBlock": 120947927,
+    "initializeLogCount": 0,
+    "neededDirectionCount": 2,
+    "providerCount": 3,
+    "providerUrls": [
+      "https://rpc.testnet.chain.robinhood.com/rpc",
+      "https://robinhood-sepolia-rpc.publicnode.com",
+      "https://rpc.testnet.chain.robinhood.com"
+    ],
+    "satisfiedDirectionCount": 0,
+    "scanChunkSize": 100000,
+    "scanDirection": "newest_to_oldest",
+    "scannedSegmentCount": 363,
+    "selectedPoolCount": 2,
+    "stoppedReason": "floor_reached_or_range_exhausted",
+    "toBlock": 139120365
+  },
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-evidence-v1",
+  "scope": {
+    "candidateLimit": 5,
+    "directionsRequested": [
+      "0x0000000000000000000000000000000000000000:0x0045e403e2d1153ad9185b4baa93a5ee5965a156",
+      "0x0000000000000000000000000000000000000000:0x00a3bdf72d0376a8e784cc854724de1a4e673195"
+    ],
+    "forwardDirection": "lower_address_to_higher_address",
+    "limitDirections": 0,
+    "reverseDirection": "higher_address_to_lower_address",
+    "searchOrder": "newest_to_oldest",
+    "stopCondition": "five_live_candidates_per_direction_or_pool_creation_floor"
+  },
+  "selectedPools": [
+    {
+      "fee": 3000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 122684050,
+      "poolId": "0xc00db90d3daab94b4c5d7c9887424b4e9100d967833600d13b7b0f609f7bf226",
+      "tickSpacing": 60,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x00a3bdf72d0376a8e784cc854724de1a4e673195"
+    },
+    {
+      "fee": 3000,
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 120947927,
+      "poolId": "0x6336e5b5a991b052117558e57e98f3d41d181db84621ec357d6c1809375be6cf",
+      "tickSpacing": 60,
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x0045e403e2d1153ad9185b4baa93a5ee5965a156"
+    }
+  ]
+}

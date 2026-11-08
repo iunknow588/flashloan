@@ -1,0 +1,112 @@
+{
+  "chainId": 46630,
+  "checkedAt": "2026-10-21T05:32:16.629031Z",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "legalAnchorSymbols": [
+    "ETH",
+    "WETH",
+    "TZ",
+    "USDE",
+    "USDG",
+    "PLTR",
+    "NFLX",
+    "AMZN",
+    "AMD",
+    "TSLA"
+  ],
+  "network": "robinhood-testnet",
+  "ok": true,
+  "protocol": "uniswap_v4",
+  "stages": [
+    {
+      "name": "pool_index",
+      "stats": {
+        "confirmedLiquidityCount": 475,
+        "evidenceSources": [
+          "pool_manager_extsload_live_state_batch"
+        ],
+        "missingLiquiditySnapshotCount": 38720,
+        "negativeEvidenceCount": 0,
+        "noLiquidityCount": 0,
+        "poolCount": 39195,
+        "poolWithUnknownTokenCount": 0,
+        "refreshBlockNumbers": [
+          139594894
+        ],
+        "unknownLiquidityCount": 38720,
+        "unscannedPoolCount": 38720
+      },
+      "violationCount": 0
+    },
+    {
+      "name": "candidate",
+      "stats": {
+        "abnormalPoolCount": 28145,
+        "anchorCount": 8,
+        "anchorSymbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "TSLA",
+          "TZ",
+          "WETH"
+        ],
+        "pairCount": 142
+      },
+      "violationCount": 0
+    },
+    {
+      "name": "observation",
+      "stats": {
+        "abnormalPoolCount": 22,
+        "anchorCount": 7,
+        "directPoolCount": 144,
+        "directionCount": 882
+      },
+      "violationCount": 0
+    },
+    {
+      "name": "closed_loop",
+      "stats": {
+        "anchorSymbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "TSLA",
+          "TZ"
+        ],
+        "confirmedLoopCount": 32,
+        "hopCount": 96,
+        "loopCount": 32,
+        "mirrorDirectionCount": 0
+      },
+      "violationCount": 0
+    },
+    {
+      "name": "overview_quote",
+      "stats": {
+        "anchorSymbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "TSLA",
+          "TZ"
+        ],
+        "routePoolCount": 96,
+        "routeSummaryCount": 32,
+        "snapshotPresent": true
+      },
+      "violationCount": 0
+    }
+  ],
+  "violationCount": 0,
+  "violations": [],
+  "warningCount": 0,
+  "warnings": []
+}

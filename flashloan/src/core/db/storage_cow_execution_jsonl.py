@@ -1,9 +1,21 @@
+"""Legacy cow execution attempts JSONL archive utility.
+
+SQLite is the only online cow-record store.  This module is intentionally not
+re-exported by ``storage_cow_execution`` and keeps the old JSONL semantics only
+for reading/verifying the out-of-repo legacy archive and for archive-tool tests.
+Online callers must use the SQLite-only APIs in ``storage_cow_execution``.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import shutil
 from pathlib import Path
+import threading
+import time
 from typing import Any
+import uuid
 
 from core.evidence_scope import evidence_scope_matches, infer_evidence_scope
 from core.db.cow_execution_mapping import scope_consistency_reasons
@@ -22,6 +34,27 @@ from core.db.storage_cow_candidate_builders import (
 )
 
 DEFAULT_COW_EXECUTION_RETENTION_DAYS = 7
+_JSONL_WRITE_LOCKS: dict[Path, threading.Lock] = {}
+_JSONL_LOCKS_GUARD = threading.Lock()
+_GROUPED_JSONL_CACHE: dict[tuple, tuple[float, dict[str, list[dict[str, Any]]]]] = {}
+_GROUPED_JSONL_CACHE_GUARD = threading.Lock()
+_GROUPED_JSONL_CACHE_TTL_SECONDS = 30.0
+
+
+def _jsonl_write_lock(path: Path) -> threading.Lock:
+    """Return the process-wide serialization lock for a JSONL path."""
+    normalized = path.resolve()
+    with _JSONL_LOCKS_GUARD:
+        lock = _JSONL_WRITE_LOCKS.get(normalized)
+        if lock is None:
+            lock = threading.Lock()
+            _JSONL_WRITE_LOCKS[normalized] = lock
+        return lock
+
+
+def _jsonl_temp_path(path: Path) -> Path:
+    """Return a unique sibling temp path for an atomic JSONL replace."""
+    return path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
 
 
 def _jsonl_signature(row: dict[str, Any]) -> tuple[Any, ...]:
@@ -44,45 +77,48 @@ def append_cow_execution_attempts_jsonl(
 ) -> int:
     if not attempts:
         return 0
-    path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc)
-    created_at = now.isoformat()
-    existing_rows = []
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
+    lock = _jsonl_write_lock(path)
+    with lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
+        created_at = now.isoformat()
+        existing_rows = []
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict) and _category_within_retention(row, now=now):
+                    existing_rows.append(row)
+        market_signatures = {
+            _jsonl_signature(row)
+            for row in existing_rows
+            if _is_market_candidate(row)
+        }
+        additions = []
+        for item in attempts:
+            row = {**item, "created_at": created_at}
+            if scope_consistency_reasons(row):
+                # A contradictory evidence record must never enter the durable log.
                 continue
-            if isinstance(row, dict) and _category_within_retention(row, now=now):
-                existing_rows.append(row)
-    market_signatures = {
-        _jsonl_signature(row)
-        for row in existing_rows
-        if _is_market_candidate(row)
-    }
-    additions = []
-    for item in attempts:
-        row = {**item, "created_at": created_at}
-        if scope_consistency_reasons(row):
-            # A contradictory evidence record must never enter the durable log.
-            continue
-        if dedupe_market_candidates and _is_market_candidate(row):
-            signature = _jsonl_signature(row)
-            if signature in market_signatures:
-                continue
-            market_signatures.add(signature)
-        additions.append(row)
-    rows = [*existing_rows, *additions]
-    # Write to a sibling temp file first, then atomically replace the target.
-    # This keeps a partially prepared JSONL file from truncating the persisted
-    # attempts when Windows rejects the direct write with an OSError.
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        for item in rows:
-            handle.write(_json_text(item) + "\n")
-    temp_path.replace(path)
-    return len(additions)
+            if dedupe_market_candidates and _is_market_candidate(row):
+                signature = _jsonl_signature(row)
+                if signature in market_signatures:
+                    continue
+                market_signatures.add(signature)
+            additions.append(row)
+        rows = [*existing_rows, *additions]
+        # Write to a unique sibling temp file first, then atomically replace
+        # the target. The path-scoped lock serializes writers so one thread
+        # never replaces another thread's just-written rows on Windows, and a
+        # unique temp name avoids sharing a rename target between writers.
+        temp_path = _jsonl_temp_path(path)
+        with temp_path.open("w", encoding="utf-8") as handle:
+            for item in rows:
+                handle.write(_json_text(item) + "\n")
+        temp_path.replace(path)
+        return len(additions)
 
 
 def _jsonl_source_paths(path: Path) -> list[Path]:
@@ -132,44 +168,78 @@ def clear_cow_execution_attempts_jsonl(
     networks: list[str] | None = None,
     chain_ids: list[int] | None = None,
     category: str | None = None,
+    archive_dir: Path | None = None,
+    clear_all: bool = False,
 ) -> dict[str, Any]:
     source_paths = [item for item in _jsonl_source_paths(path) if item.exists()]
-    if not source_paths:
-        return {"cleared": 0, "remaining": 0, "source": "jsonl", "error": None}
-    wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
-    wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
-    wanted_category = str(category or "").strip().lower()
+    if clear_all:
+        # Clear every attempt row regardless of network/chain/category.  This
+        # is used only when the operator wants a fresh observation baseline and
+        # has explicitly chosen to preserve the old log as an archive.
+        wanted = None
+        wanted_chain_ids = None
+        wanted_category = None
+    else:
+        wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
+        wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
+        wanted_category = str(category or "").strip().lower()
+    if archive_dir is not None:
+        archive_dir = archive_dir.resolve()
+        archive_dir.mkdir(parents=True, exist_ok=True)
     cleared = 0
     remaining = 0
+    archived_files = []
+    if not source_paths:
+        return {
+            "cleared": 0,
+            "remaining": 0,
+            "source": "jsonl",
+            "archivedFiles": archived_files,
+            "error": None,
+        }
     for source_path in source_paths:
-        kept_rows = []
-        for line in source_path.read_text(encoding="utf-8").splitlines():
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                kept_rows.append(line)
+        lock = _jsonl_write_lock(source_path)
+        with lock:
+            if clear_all and archive_dir is not None:
+                archive_target = archive_dir / f"{source_path.name}.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.bak"
+                shutil.copy2(source_path, archive_target)
+                archived_files.append(str(archive_target))
+                source_path.unlink()
                 continue
-            if not isinstance(row, dict):
-                kept_rows.append(line)
-                continue
-            network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
-            chain_id = row.get("chain_id")
-            try:
-                row_chain_id = int(chain_id)
-            except (TypeError, ValueError):
-                row_chain_id = None
-            chain_matches = not wanted_chain_ids or (row_chain_id is not None and row_chain_id in wanted_chain_ids)
-            category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
-            if network_matches and chain_matches and category_matches:
-                cleared += 1
-                continue
-            kept_rows.append(_json_text(row))
-        source_path.parent.mkdir(parents=True, exist_ok=True)
-        with source_path.open("w", encoding="utf-8") as handle:
-            for item in kept_rows:
-                handle.write(str(item) + "\n")
-        remaining += len(kept_rows)
-    return {"cleared": cleared, "remaining": remaining, "source": "jsonl", "error": None}
+            kept_rows = []
+            for line in source_path.read_text(encoding="utf-8").splitlines():
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    kept_rows.append(line)
+                    continue
+                if not isinstance(row, dict):
+                    kept_rows.append(line)
+                    continue
+                network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
+                chain_id = row.get("chain_id")
+                try:
+                    row_chain_id = int(chain_id)
+                except (TypeError, ValueError):
+                    row_chain_id = None
+                chain_matches = not wanted_chain_ids or (row_chain_id is not None and row_chain_id in wanted_chain_ids)
+                category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
+                if network_matches and chain_matches and category_matches:
+                    cleared += 1
+                    continue
+                kept_rows.append(_json_text(row))
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            with source_path.open("w", encoding="utf-8") as handle:
+                for item in kept_rows:
+                    handle.write(str(item) + "\n")
+            remaining += len(kept_rows)
+    return {
+        "cleared": cleared,
+        "remaining": remaining,
+        "source": "jsonl",
+        "archivedFiles": archived_files,
+        "error": None,
+    }
 
 
 
@@ -276,6 +346,28 @@ def load_recent_cow_execution_attempts_jsonl_grouped(
             COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
             COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
         )}
+    source_stat_key = tuple(
+        (
+            str(item.resolve()),
+            item.stat().st_mtime_ns,
+            item.stat().st_size,
+        )
+        for item in source_paths
+    )
+    cache_key = (
+        source_stat_key,
+        int(limit),
+        tuple(sorted(str(item).strip().lower() for item in networks or [])),
+        tuple(sorted(int(item) for item in chain_ids or [])),
+        tuple(sorted(str(item).strip().lower() for item in market_ids or [])),
+        int(retention_days),
+    )
+    with _GROUPED_JSONL_CACHE_GUARD:
+        cached = _GROUPED_JSONL_CACHE.get(cache_key)
+    if cached is not None:
+        cached_at, cached_payload = cached
+        if time.monotonic() - cached_at <= _GROUPED_JSONL_CACHE_TTL_SECONDS:
+            return cached_payload
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
     wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
     wanted_market_ids = {str(item).strip().lower() for item in market_ids or [] if str(item).strip()}
@@ -297,6 +389,14 @@ def load_recent_cow_execution_attempts_jsonl_grouped(
     counts_by_category: dict[str, dict[str, int]] = {category: {} for category in categories}
 
     def _category_satisfied(category: str) -> bool:
+        if wanted:
+            return all(
+                counts_by_category[category].get(network, 0) >= global_limit
+                for network in wanted
+            )
+        return len(raw_by_category[category]) >= global_limit
+
+    def _limit_met(category: str) -> bool:
         if wanted:
             return all(
                 counts_by_category[category].get(network, 0) >= global_limit
@@ -336,6 +436,8 @@ def load_recent_cow_execution_attempts_jsonl_grouped(
                     counts_by_category[payload_category].get(network, 0) + 1
                 )
             raw_by_category[payload_category].append(payload)
+            if all(_limit_met(category) for category in categories):
+                break
             if all(_category_satisfied(category) for category in categories):
                 break
         if all(_category_satisfied(category) for category in categories):
@@ -365,6 +467,8 @@ def load_recent_cow_execution_attempts_jsonl_grouped(
             grouped[category] = limited_rows
         else:
             grouped[category] = rows[:global_limit]
+    with _GROUPED_JSONL_CACHE_GUARD:
+        _GROUPED_JSONL_CACHE[cache_key] = (time.monotonic(), grouped)
     return grouped
 
 

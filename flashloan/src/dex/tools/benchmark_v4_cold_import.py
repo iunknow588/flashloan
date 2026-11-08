@@ -100,7 +100,6 @@ def _seed_testnet_anchor_pair(database: str) -> None:
 
 
 def benchmark_cold_import() -> dict:
-    os.environ["DEX_V4_LIVE_QUOTE_ENABLED"] = "0"
     from dex.tools import refresh_robinhood_v4_live as refresh_module
 
     with tempfile.TemporaryDirectory(prefix="v4-cold-import-", ignore_cleanup_errors=True) as tmp:
@@ -178,7 +177,6 @@ def _p95(times: list[float]) -> float:
 
 
 def benchmark_api_p95(*, requests: int, rounds: int) -> dict:
-    os.environ["DEX_V4_LIVE_QUOTE_ENABLED"] = "0"
     from web.control_panel import app
     from market.binance_market import dex_route_test as route_test_module
     from market.binance_market import dex_surface_route_quotes as route_quotes_module

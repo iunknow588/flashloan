@@ -116,7 +116,7 @@
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     };
-    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const fmtTime = value => window.formatLocalDisplayTime(value);
     const stripZeros = text => String(text).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
     const priceDigits = value => {
       const num = Math.abs(Number(value));

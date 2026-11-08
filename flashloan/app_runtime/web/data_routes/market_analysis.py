@@ -13,7 +13,7 @@ from market.binance_market.service import DEFAULT_BINANCE_RAW_SIDE_LIMIT
 from market.binance_market.opportunity_health import opportunity_health_rows, opportunity_health_summary
 from market.strategy.arbitrage import build_pair_strategy_analysis, simulate_four_route_cycles
 from web import control_panel_data_routes as shared
-from web.control_panel_liquidation_base import aave_rpc_urls, database_url_or_none
+from web.control_panel_liquidation_base import aave_rpc_urls, database_url
 from web.control_panel_market import (
     assert_fresh_execution_plan,
     available_candidate_symbols,

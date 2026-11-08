@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from core.db.chain_database_context import chain_database_scope
 from dex.intent_trade.chains.robinhood import v4_pool_index
 from dex.intent_trade.chains.robinhood import v4_quote_adapter
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
@@ -121,12 +122,51 @@ def test_mainnet_v4_quote_context_uses_static_pool_state_when_available(monkeypa
 
     monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state", fail_live_state)
 
-    context = v4_quote_adapter._resolve_v4_quote_context(request)
+    with chain_database_scope(4663, network="robinhood", source="test"):
+        context = v4_quote_adapter._resolve_v4_quote_context(request)
 
     assert context["liveState"]["source"] == "pool_index_static_fallback"
     assert context["rpcUrl"] in {"", None}
     assert context["poolManager"].lower() == "0x8366a39cc670b4001a1121b8f6a443a643e40951"
     assert context["zeroForOne"] is True
+
+
+def test_mainnet_v4_live_state_reads_liquidity_from_pool_state_offset_3():
+    calls: list[bytes] = []
+
+    class FakeExtsload:
+        def __init__(self, slot: bytes):
+            self.slot = slot
+
+        def call(self, **kwargs):
+            calls.append(bytes(self.slot))
+            if len(calls) == 1:
+                return b"\x00" * 31 + b"\x02"
+            return b"\x00" * 31 + b"\x09"
+
+    class FakeFunctions:
+        extsload = FakeExtsload
+
+    class FakeEth:
+        def contract(self, **kwargs):
+            return type("FakeContract", (), {"functions": FakeFunctions()})()
+
+    class FakeW3:
+        eth = FakeEth()
+
+    state = v4_quote_adapter._read_live_pool_state_with_w3(
+        w3=FakeW3(),
+        rpc_url="rpc",
+        pool_manager="0x" + "4" * 40,
+        pool_id="0x" + "1" * 64,
+        network="robinhood",
+        chain_id=4663,
+    )
+
+    assert len(calls) == 2
+    expected_liquidity_slot = (int.from_bytes(calls[0], "big") + 3).to_bytes(32, "big")
+    assert calls[1] == expected_liquidity_slot
+    assert state["liquidity"] == "9"
 
 
 def test_v4_adapter_environment_isolated_by_robinhood_network(monkeypatch):

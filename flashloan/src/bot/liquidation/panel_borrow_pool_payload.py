@@ -25,7 +25,7 @@ def borrow_pool_payload(
     pages = _normalized_pages(panel, page, page_size, risk_page, high_page, core_page)
     if panel._is_bnb_venus_scope(market_id, chain_id):
         return panel.bnb_venus_borrow_pool_payload(**pages)
-    database_url = panel.database_url_or_none()
+    database_url = panel.database_url()
     if not database_url:
         return panel._borrow_pool_blocked_payload(
             configured=False,
@@ -94,7 +94,7 @@ def borrow_pool_scan_payload(
     pages = _normalized_pages(panel, page, page_size, risk_page, high_page, core_page)
     if panel._is_bnb_venus_scope(market_id, chain_id):
         return panel.bnb_venus_borrow_pool_payload(**pages)
-    database_url = panel.database_url_or_none()
+    database_url = panel.database_url()
     if not database_url:
         return panel._borrow_pool_blocked_payload(
             configured=False,

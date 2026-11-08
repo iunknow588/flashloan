@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-11-04T01:23:13+08:00",
+  "milestone": "M1",
+  "task": "D1.1.6",
+  "status": "passed",
+  "scope": {
+    "sourceDatabase": "flashloan/db/local_store_4663.sqlite3",
+    "targetDatabase": "flashloan/db/local_store_4663.sqlite3",
+    "network": "robinhood",
+    "chainId": 4663,
+    "sqliteOpenFlags": "SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX",
+    "mainnetMigrationOrApply": false,
+    "businessWritesPerformed": false,
+    "httpBusinessWritesEnabled": false,
+    "contract": [
+      "proposed primary memberships are admitted only for core, stocks, and test",
+      "extension memberships remain candidate_only and are counted as pending-review equivalent",
+      "extension overlap with a primary library is legal",
+      "core, stocks, and test primary memberships are mutually exclusive",
+      "a partial target token schema fails closed instead of being treated as absent"
+    ]
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "workspaceTestsPassed": 53,
+      "tokenManagerTestsPassed": 36,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo run --quiet --manifest-path flashloan/tools/Cargo.toml --bin token-manager -- audit-library --source-db flashloan/db/local_store_4663.sqlite3 --target-db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+      "exitCode": 0
+    }
+  ],
+  "newAuditTests": [
+    "status summary and diff are deterministic",
+    "primary conflicts are reported while extension overlap is allowed",
+    "target schema absent is a safe empty baseline",
+    "migrated target schema is detected read-only",
+    "migrated target rows are read without duplicating existing rows",
+    "existing status changes and removals are reported"
+  ],
+  "mainnetReadOnlyAudit": {
+    "mode": "read_only_library_admission_diff_audit",
+    "classification": {
+      "uniqueTokens": 4485,
+      "primaryLibraries": {
+        "core": 4,
+        "stocks": 194,
+        "test": 1
+      },
+      "extensionMembers": 78,
+      "extensionOnly": 45,
+      "extensionOverlap": 33
+    },
+    "targetSchema": {
+      "state": "absent",
+      "tokenCore": false,
+      "tokenStocks": false,
+      "tokenExtension": false,
+      "tokenTest": false,
+      "tokenLibraryCatalog": false
+    },
+    "proposedAdmission": {
+      "totalMemberships": 277,
+      "admitted": 199,
+      "candidateOnly": 78,
+      "pendingReviewEquivalent": 78,
+      "byLibrary": {
+        "core": {
+          "admitted": 4
+        },
+        "stocks": {
+          "admitted": 194
+        },
+        "test": {
+          "admitted": 1
+        },
+        "extension": {
+          "candidateOnly": 78
+        }
+      }
+    },
+    "diffAgainstEmptyTarget": {
+      "inserted": 277,
+      "statusUpdated": 0,
+      "removed": 0
+    },
+    "conflicts": {
+      "proposedPrimaryConflicts": 0,
+      "existingPrimaryConflicts": 0,
+      "proposalVsExistingPrimaryConflicts": 0,
+      "extensionOverlapCount": 33
+    },
+    "sourceRejection": {
+      "blockedRecordCount": 1868,
+      "byCode": {
+        "MISSING_DECIMALS": 1854,
+        "PLACEHOLDER_SYMBOL": 14
+      },
+      "liquidityQualifiedBlockedCandidateCount": 439,
+      "extensionInputUnion": {
+        "rawDistinctCounterparts": 2049,
+        "liquidityQualifiedCounterparts": 515,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 76
+      }
+    },
+    "gates": {
+      "targetSchemaComplete": false,
+      "primaryConflictCount": 0,
+      "readyForDryRun": false,
+      "readyForApply": false,
+      "reason": "Mainnet target has no M0 token schema. D1.1.7 must migrate and exercise a temporary or copy database before any maintenance-window apply."
+    }
+  },
+  "concurrencyNote": {
+    "mainnetServiceActive": true,
+    "databaseObservedAsLive": true,
+    "interpretation": "Counts are as-of read-only values while the mainnet service remains active. No file timestamp or WAL observation is used as a write proof."
+  },
+  "sourceHashes": {
+    "flashloan/tools/token_manager/src/audit.rs": "sha256:149285c9ca83a24af4a30419b88c515d0056e12cd062e1f72b31ec1d78c5c606",
+    "flashloan/tools/token_manager/src/main.rs": "sha256:642edd88ae7051ea55c4de6eaf29d28154bfc4c5fba93ac9c573f9e8fe1c5eb3",
+    "flashloan/tools/token_manager/src/model.rs": "sha256:7bec0173d3a3faa3c1aae4cad3c80573ada2bc0cd1f74d0bade23673db718cfd",
+    "flashloan/tools/token_manager/src/lib.rs": "sha256:d3a492ed21573abf3f0421b9084322482f5dfc4ea8ce44e670a02c6bf76f706c"
+  },
+  "nextTask": "D1.1.7",
+  "conclusion": "D1.1.6 passes with deterministic admission diff and primary-conflict audits. The mainnet target schema is absent, so no apply was attempted."
+}

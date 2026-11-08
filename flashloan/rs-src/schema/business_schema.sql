@@ -651,3 +651,23 @@ CREATE TABLE IF NOT EXISTS market_observation_liquidity_snapshots (
     evidence_source TEXT,
     PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, pool_id)
 );
+CREATE TABLE IF NOT EXISTS bnb_market_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    network TEXT NOT NULL DEFAULT 'bnb',
+    chain_id INTEGER NOT NULL DEFAULT 56,
+    run_id TEXT,
+    round_index INTEGER,
+    recorded_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+)
+;
+CREATE TABLE IF NOT EXISTS bnb_market_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL DEFAULT 'binance_rest',
+    symbol TEXT NOT NULL,
+    price_usd TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+)
+;

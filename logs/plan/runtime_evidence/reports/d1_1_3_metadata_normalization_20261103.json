@@ -1,0 +1,102 @@
+{
+  "capturedAt": "2026-11-03T19:04:34+08:00",
+  "milestone": "M1",
+  "task": "D1.1.3",
+  "status": "passed",
+  "scope": {
+    "readOnlySourceAdapters": [
+      "chain_tokens",
+      "robinhood stock registry",
+      "fixed core4 address allowlist",
+      "v4_exchange_pools currency references"
+    ],
+    "normalization": [
+      "address and token_key_id",
+      "symbol and placeholder rejection",
+      "decimals",
+      "token kind and native/WETH/stable flags",
+      "metadata and admission source",
+      "canonical per-token checksum"
+    ],
+    "sqliteOpenFlags": "SQLITE_OPEN_READ_ONLY | SQLITE_OPEN_NO_MUTEX",
+    "mainnetMigrationOrApply": false,
+    "httpBusinessWritesEnabled": false
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --manifest-path flashloan/tools/Cargo.toml --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml --workspace",
+      "exitCode": 0,
+      "testsPassed": 33,
+      "testsFailed": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path flashloan/tools/Cargo.toml -p token-manager --all-targets --no-deps -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo run --quiet --manifest-path flashloan/tools/Cargo.toml --bin token-manager -- audit-metadata --db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+      "exitCode": 0
+    }
+  ],
+  "newUnitTests": [
+    "normalization is deterministic and converts to token write",
+    "native uses zero address and remains distinct from WETH",
+    "accepted and error split is stable",
+    "invalid address, key, decimals, JSON and flags are rejected",
+    "placeholder detection matches existing Python rules",
+    "core4 allowlist is address based and exact",
+    "chain token and pool adapters preserve source locations",
+    "stock registry adapter reads explicit metadata"
+  ],
+  "mainnetReadOnlyAudit": {
+    "sourceCounts": {
+      "chainTokens": 6353,
+      "coreAllowlist": 4,
+      "stockRegistry": 194,
+      "v4PoolCurrencyReferences": 10930
+    },
+    "normalization": {
+      "accepted": 4683,
+      "rejected": 1868,
+      "acceptedBySource": {
+        "chain_tokens": 4485,
+        "core_allowlist": 4,
+        "stock_registry": 194
+      },
+      "errorsByCode": {
+        "PLACEHOLDER_SYMBOL": 1863,
+        "MISSING_DECIMALS": 5
+      }
+    },
+    "countingRule": "Counts are per source row. Accepted source rows are not yet deduplicated into final token libraries.",
+    "sampleErrors": {
+      "PLACEHOLDER_SYMBOL": "chain_tokens:robinhood:4663:0x0008f81eb635bc3f149b2a465541f735e0c6a4e3",
+      "MISSING_DECIMALS": "chain_tokens:robinhood:4663:0x952772cd956e7cc1c832578589fdfc78aa767378"
+    }
+  },
+  "concurrencyNote": {
+    "mainnetServiceActive": true,
+    "serviceProcessIds": [
+      20080,
+      20404
+    ],
+    "databaseAndWalObservedChanging": true,
+    "interpretation": "Main database mtime and WAL activity are concurrent service writes. Read-only proof comes from open flags and absence of migration/apply, not from file timestamp stability."
+  },
+  "sourceHashes": {
+    "flashloan/tools/token_manager/src/metadata.rs": "sha256:5e81483f075e23728cb502797ebcbc7bde3fd9e5715412ba52130eb6fcd22ade",
+    "flashloan/tools/token_manager/src/sources.rs": "sha256:3f8b695624aa4a227f116a73cd38ce62c4be9afd57121e734d6f00bd87303dc7",
+    "flashloan/tools/token_manager/src/main.rs": "sha256:6957f742ac4d17f2beb0a3bd52e1b15a4fe13857d6ca58abcf3742a7aa694426",
+    "flashloan/tools/token_manager/src/lib.rs": "sha256:13463bc72f58e599039497e5be4607e5d17ce59972f003b82af002f65a98bf5d"
+  },
+  "nextTask": "D1.1.4",
+  "conclusion": "D1.1.3 passed with fixture tests and a read-only mainnet metadata audit"
+}

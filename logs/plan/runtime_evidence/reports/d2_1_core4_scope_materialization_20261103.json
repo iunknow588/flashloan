@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "generatedAt": "2026-11-03T21:26:01Z",
+  "milestone": "M2",
+  "task": "D2.1",
+  "status": "temporary_database_and_read_only_preflight_passed_production_apply_pending",
+  "scopeContract": {
+    "scopeKey": "core4",
+    "libraryKeys": [
+      "core"
+    ],
+    "poolTable": "v4_exchange_pools_core4",
+    "filterMode": "edge_any",
+    "anchorSource": "token_core.admission_status=admitted",
+    "endpointResolution": "both token_key_id values must exist in admitted token_library_catalog",
+    "usdDepthRequired": false,
+    "usdTvlRequired": false,
+    "usdgOrUsdeRelationshipRequired": false
+  },
+  "temporaryDatabaseExercise": {
+    "database": "flashloan/tools/target/d2_core4_scope_evidence_20261104.sqlite3",
+    "migrationId": "20261103_001_manager_schema",
+    "migrationChecksum": "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+    "sourcePoolCount": 2,
+    "eligiblePoolCount": 2,
+    "activePoolCount": 1,
+    "isolatedPoolCount": 1,
+    "statusCounts": {
+      "active": 1,
+      "invalid": 1
+    },
+    "dryRunChecksum": "sha256:c63e1909531d9d6e37e1b435d04a190dfd4f644ed3df239ca214c7a4d022f35e",
+    "applyChecksum": "sha256:c63e1909531d9d6e37e1b435d04a190dfd4f644ed3df239ca214c7a4d022f35e",
+    "firstApplyChangedRows": 2,
+    "repeatedApplyChangedRows": 0,
+    "repeatedApplyConsumersNeedRebuild": false,
+    "dryRunChangedRows": 2,
+    "dryRunAndApplyMatch": true
+  },
+  "fixtureCoverage": {
+    "coreAnchorsOnly": true,
+    "edgeAnyPoolIncluded": true,
+    "bothEndpointsAdmitted": true,
+    "activeWithUnadmittedEndpointCount": 0,
+    "dynamicFeeIsolated": true,
+    "specialFeeIsolated": true,
+    "missingLiquidityIsolated": true,
+    "nonZeroHookBlocked": true,
+    "poolIdentityMismatchIsolated": true,
+    "incompletePoolKeySkippedWithReason": true
+  },
+  "managerApi": {
+    "readRoute": "GET /v1/pools/scopes",
+    "rebuildRoute": "POST /v1/pools/scopes/rebuild",
+    "repairRoute": "POST /v1/pools/scopes/repair",
+    "requiredWriteHeaders": [
+      "X-Request-Id",
+      "Idempotency-Key"
+    ],
+    "dryRunMustBeExplicit": true,
+    "dryRunDidNotWriteRows": true,
+    "repeatedApplyWasIdempotent": true
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --workspace --all-targets",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "exitCode": 0,
+      "passed": 82,
+      "failed": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --lib (flashloan/rs-src)",
+      "exitCode": 0,
+      "passed": 88,
+      "failed": 0
+    }
+  ],
+  "mainnetReadOnlyPreflight": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "quickCheck": "ok",
+    "fileSizeBytes": 3315490816,
+    "migrationLedger": "schema_migrations",
+    "targetTablesPresent": false,
+    "migrationApplied": false,
+    "businessWritePerformed": false,
+    "serviceStartedOrStopped": false
+  },
+  "artifacts": [
+    "flashloan/tools/manager_contracts/src/pool.rs",
+    "flashloan/tools/pool_manager/src/scope.rs",
+    "flashloan/tools/pool_manager/src/main.rs",
+    "flashloan/tools/manager_api/src/lib.rs",
+    "flashloan/rs-src/src/pool_index.rs"
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "schemaVersion": "robinhood-testnet-auto-scan-window-v1",
+  "window": {
+    "startUtc": "2026-10-26T21:50:00+00:00",
+    "endUtc": "2026-10-26T22:30:00+00:00",
+    "durationSeconds": 2400
+  },
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "attemptsInWindow": 28,
+  "runtimeSnapshot": null,
+  "runtimeSnapshotRetry": false,
+  "broadcastGates": {
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false
+  },
+  "success": {
+    "uniqueSuccessCount": 6,
+    "successes": [
+      {
+        "txHash": "0x733f8a2d53eb90c14132cd0f3227e12d8666e4669f084b459fa80acd31adb6e8",
+        "createdAt": "2026-10-26T22:03:06.609281300+00:00",
+        "observedAt": "2026-10-26T22:03:06.609281300+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "amount": 0.015625,
+        "finalDeltaAmount": 0.000781120541851303,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 0.000781120541851303,
+        "netProfitAmountBps": 499.91714678483396,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x8896bc6",
+        "blockNumberInt": 143223750,
+        "gasUsed": "0x4a1bf",
+        "gasUsedInt": 303551,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      },
+      {
+        "txHash": "0x773074182a91b0c330b900019df5539ef55a9aa6725128cdee74b7933b232572",
+        "createdAt": "2026-10-26T22:10:06.965090100+00:00",
+        "observedAt": "2026-10-26T22:10:06.965090100+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "amount": 0.001953125,
+        "finalDeltaAmount": 6.478273226946e-06,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 6.478273226946e-06,
+        "netProfitAmountBps": 33.168758921963516,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x8897223",
+        "blockNumberInt": 143225379,
+        "gasUsed": "0x4638d",
+        "gasUsedInt": 287629,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      },
+      {
+        "txHash": "0x8cba74f7abce7e4e96abea40fbf8b37fd5ac8c5a1213688d72c19c56a749a2dd",
+        "createdAt": "2026-10-26T22:10:21.613071800+00:00",
+        "observedAt": "2026-10-26T22:10:21.613071800+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "amount": 0.000244140625,
+        "finalDeltaAmount": 2.81119043988e-07,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 2.81119043988e-07,
+        "netProfitAmountBps": 11.514636041748481,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x8897605",
+        "blockNumberInt": 143226373,
+        "gasUsed": "0x46080",
+        "gasUsedInt": 286848,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      },
+      {
+        "txHash": "0xa07196706737a453bf88b95d489e280b29385406bfbf9b86af8e9aeb42f0f22b",
+        "createdAt": "2026-10-26T22:06:25.544072700+00:00",
+        "observedAt": "2026-10-26T22:06:25.544072700+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "amount": 0.0078125,
+        "finalDeltaAmount": 0.00016526308964543,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 0.00016526308964543,
+        "netProfitAmountBps": 211.5367547461504,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x8896ee7",
+        "blockNumberInt": 143224551,
+        "gasUsed": "0x47562",
+        "gasUsedInt": 292194,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      },
+      {
+        "txHash": "0xccf56dd75850dbd7e59b184a38df2cea47473b2819ab3ea5c19096ade7c42989",
+        "createdAt": "2026-10-26T22:10:08.297504600+00:00",
+        "observedAt": "2026-10-26T22:10:08.297504600+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "amount": 0.0009765625,
+        "finalDeltaAmount": 3.089711173175e-06,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 3.089711173175e-06,
+        "netProfitAmountBps": 31.638642413312,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x88975c6",
+        "blockNumberInt": 143226310,
+        "gasUsed": "0x4632a",
+        "gasUsedInt": 287530,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      },
+      {
+        "txHash": "0xe02f6f138ae0b5ea6f3f08a7ee296fa004e13ff577afdd173da38cc00f0d39eb",
+        "createdAt": "2026-10-26T22:06:37.450126100+00:00",
+        "observedAt": "2026-10-26T22:06:37.450126100+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "amount": 0.00390625,
+        "finalDeltaAmount": 4.7150030370674e-05,
+        "finalSymbol": "ETH",
+        "netProfitAmount": 4.7150030370674e-05,
+        "netProfitAmountBps": 120.70407774892544,
+        "profitSymbol": "ETH",
+        "blockNumber": "0x88971e8",
+        "blockNumberInt": 143225320,
+        "gasUsed": "0x462ea",
+        "gasUsedInt": 287466,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "status": 1
+      }
+    ],
+    "profitBySymbol": [
+      {
+        "symbol": "ETH",
+        "count": 6,
+        "total": "0.001003382765311516"
+      }
+    ],
+    "gasSummary": {
+      "gasUsedMin": 286848,
+      "gasUsedMax": 303551,
+      "gasUsedTotal": 1745218,
+      "effectiveGasPriceMin": 10000000,
+      "effectiveGasPriceMax": 10000000
+    }
+  },
+  "failure": {
+    "failedCount": 0,
+    "blockedCount": 19,
+    "failedSample": [],
+    "blockedSample": [
+      {
+        "createdAt": "2026-10-26T22:27:56.079682100+00:00",
+        "observedAt": "2026-10-26T22:27:56.079682100+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:27:56.079682100+00:00",
+        "observedAt": "2026-10-26T22:27:56.079682100+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:24:21.473715100+00:00",
+        "observedAt": "2026-10-26T22:24:21.473715100+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:24:21.473715100+00:00",
+        "observedAt": "2026-10-26T22:24:21.473715100+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:20:50.061180+00:00",
+        "observedAt": "2026-10-26T22:20:50.061180+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:20:50.061180+00:00",
+        "observedAt": "2026-10-26T22:20:50.061180+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:17:10.106602700+00:00",
+        "observedAt": "2026-10-26T22:17:10.106602700+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:17:10.106602700+00:00",
+        "observedAt": "2026-10-26T22:17:10.106602700+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:13:37.945121700+00:00",
+        "observedAt": "2026-10-26T22:13:37.945121700+00:00",
+        "pair": "ETH -> AMZN -> TSLA -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-26T22:13:37.945121700+00:00",
+        "observedAt": "2026-10-26T22:13:37.945121700+00:00",
+        "pair": "ETH -> TSLA -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      }
+    ]
+  },
+  "funnel": {
+    "reviewedCount": 28,
+    "withExpectedProfitCount": 9,
+    "broadcastCount": 9,
+    "successTxCount": 9,
+    "uniqueSuccessCount": 6,
+    "uniqueSuccessWithExpectedProfitCount": 6,
+    "realizedProfitBySymbol": [
+      {
+        "symbol": "ETH",
+        "count": 6,
+        "total": "0.001003382765311516"
+      }
+    ]
+  },
+  "t21FieldCounts": {
+    "netProductDeltaRaw": 0,
+    "ArbitrageNotProfitable": 0,
+    "netProfitAmountMissingReason": 84
+  },
+  "reviewConsistency": {
+    "reviewConsistentCount": 9,
+    "reviewInconsistentPositiveEstimateCount": 0,
+    "totalReviewedCount": 28
+  },
+  "conclusion": "Observed 40 minutes; 6 unique on-chain success tx with 0 failed and 19 blocked attempts; netProductDeltaRaw=0, ArbitrageNotProfitable=0.",
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  }
+}

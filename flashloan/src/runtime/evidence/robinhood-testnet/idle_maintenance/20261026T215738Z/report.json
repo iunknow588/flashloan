@@ -1,0 +1,57 @@
+{
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "error": "database is locked",
+  "freshness": {
+    "ageSeconds": 2709.929428,
+    "latestSnapshotAt": "2026-10-26T21:12:06Z",
+    "liquidityReadAt": "2026-10-26T21:11:17.841648Z",
+    "observedAt": "2026-10-15T13:03:29.574853Z",
+    "refreshedAt": "2026-10-26T21:12:06Z",
+    "snapshotCount": 5,
+    "stale": true,
+    "ttlSeconds": 900
+  },
+  "generatedAt": "2026-10-26T21:57:15.634281Z",
+  "import": null,
+  "mode": "full_scope_refresh",
+  "network": "robinhood-testnet",
+  "ok": false,
+  "phase": "refresh_failed",
+  "routeAddresses": [
+    "0x0000000000000000000000000000000000000000",
+    "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+    "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+    "0x0000000000000000000000000000000000000000"
+  ],
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 1,
+    "directions": [],
+    "routeAddresses": []
+  },
+  "scopeRebuild": {
+    "ok": true,
+    "phase": "existing_closed_loops",
+    "rebuilt": false,
+    "result": null
+  },
+  "scopeRoute": {
+    "anchorSymbol": "ETH",
+    "basis": "sqlite_closed_loops",
+    "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+    "routeAddresses": [
+      "0x0000000000000000000000000000000000000000",
+      "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "0x0000000000000000000000000000000000000000"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer",
+  "stoppedReason": "live_refresh_failed"
+}

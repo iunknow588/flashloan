@@ -23,17 +23,13 @@ from market.binance_market.dex_best_amount_snapshots import (
 
 ROOT = Path(__file__).resolve().parents[4]
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
-from dex.intent_trade.chains.robinhood_common.stock_token_registry import stock_token_by_symbol
 from core.chain_data_registry import chain_data_by_chain_id
-
-ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = (
-    ROOT
-    / "flashloan"
-    / "src"
-    / "chains"
-    / "robinhood-testnet"
-    / "v4_token_allowlist.json"
+from core.route_symbol_identity import (
+    normalize_route_symbols_from_addresses,
+    official_route_addresses as _official_route_addresses,
+    trusted_symbol_from_address,
 )
+
 ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST = (
     ROOT
     / "test-token_create"
@@ -56,96 +52,7 @@ def _chain_official_v4_manifest_path(chain_id: int | None) -> Path:
 
 
 _OFFICIAL_TEST_ROUTE_SYMBOLS = {"TZ", "TA", "TB"}
-
-_SYMBOL_ADDRESS_CACHE: dict[int, tuple[dict[str, str], set[str]]] = {}
-
-
-def _chain_token_allowlist_path(chain_id: int | None) -> Path | None:
-    row = chain_data_by_chain_id(chain_id) if chain_id is not None else {}
-    if not row:
-        return None
-    data_files = row.get("data_files") if isinstance(row.get("data_files"), dict) else {}
-    relative = str(data_files.get("v4_token_allowlist") or "").strip()
-    if relative:
-        return ROOT / "flashloan" / "src" / relative
-    network = str(row.get("network") or "").strip()
-    if network:
-        candidate = ROOT / "flashloan" / "src" / "chains" / network / "v4_token_allowlist.json"
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _load_chain_symbol_addresses(chain_id: int | None) -> tuple[dict[str, str], set[str]]:
-    """Build symbol->address identity from the chain-owned token allowlist.
-
-    The allowlist is the single source of truth for Robinhood Testnet token
-    identities. There are intentionally no in-code symbol fallbacks here: a
-    missing identity, or a symbol with multiple distinct addresses, must surface
-    as an incomplete-address error instead of sending guessed addresses into
-    on-chain review.
-    """
-    if chain_id in _SYMBOL_ADDRESS_CACHE:
-        return _SYMBOL_ADDRESS_CACHE[chain_id]
-    mapping: dict[str, str] = {}
-    ambiguous: set[str] = set()
-    allowlist_path = _chain_token_allowlist_path(chain_id) or ROBINHOOD_TESTNET_TOKEN_ALLOWLIST
-    try:
-        data = json.loads(allowlist_path.read_text(encoding="utf-8"))
-        for item in (data.get("tokens") or {}).values():
-            if not isinstance(item, dict):
-                continue
-            symbol = str(item.get("symbol") or "").strip().upper()
-            address = str(item.get("address") or "").strip()
-            if symbol and address:
-                existing = mapping.get(symbol)
-                if existing is not None and existing.lower() != address.lower():
-                    ambiguous.add(symbol)
-                    mapping.pop(symbol, None)
-                elif existing is None:
-                    mapping[symbol] = address
-    except Exception:
-        mapping = {}
-        ambiguous = set()
-    chain_id_value = int(chain_id or 0)
-    if chain_id_value in {4663, 46630}:
-        try:
-            network = "robinhood" if chain_id_value == 4663 else "robinhood-testnet"
-            for symbol, item in stock_token_by_symbol(
-                network=network,
-                chain_id=chain_id_value,
-            ).items():
-                address = str(item.get("address") or "").strip()
-                existing = mapping.get(symbol)
-                if existing is not None and existing.lower() != address.lower():
-                    ambiguous.add(symbol)
-                    mapping.pop(symbol, None)
-                elif existing is None and address:
-                    mapping[symbol] = address
-        except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
-            pass
-    _SYMBOL_ADDRESS_CACHE[chain_id] = (mapping, ambiguous)
-    return mapping, ambiguous
-
-
-def _official_route_addresses(
-    route_symbols: list[str],
-    *,
-    chain_id: int | None = None,
-) -> list[str]:
-    if chain_id is None:
-        return []
-    chain_id = int(chain_id)
-    symbol_addresses, ambiguous_symbols = _load_chain_symbol_addresses(chain_id)
-    normalized = [symbol.upper() for symbol in route_symbols]
-    if (
-        not normalized
-        or any(symbol in ambiguous_symbols for symbol in normalized)
-        or any(symbol not in symbol_addresses for symbol in normalized)
-    ):
-        return []
-    return [symbol_addresses[symbol] for symbol in normalized]
-
+_ZERO_HOOKS_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 def _quote_failure_status(error: object) -> str:
     message = str(error or "").lower()
@@ -158,6 +65,20 @@ def _quote_failure_status(error: object) -> str:
     )
     if any(marker in message for marker in markers):
         return "not_enough_liquidity"
+    transient_markers = (
+        "network is busy",
+        "please try again",
+        "too many requests",
+        "rate limit",
+        "rate limited",
+        "429",
+        "service unavailable",
+        "temporarily unavailable",
+        "server busy",
+        "overloaded",
+    )
+    if any(marker in message for marker in transient_markers):
+        return "rpc_verification_timeout"
     if "und_err_connect_timeout" in message or "connecttimeouterror" in message:
         return "rpc_verification_timeout"
     if "winerror 10061" in message or " 10061 " in message or "error code: 1010" in message or "403 forbidden" in message:
@@ -366,20 +287,256 @@ def _step_payload(step: dict[str, Any] | None) -> dict[str, Any] | None:
 def _routes_payload(*, chain_id: int, protocols: list[str]) -> dict[str, Any]:
     from market.binance_market.dex_surfaces import dex_quote_routes_payload
 
-    key = "DEX_V4_LIVE_QUOTE_ENABLED"
-    previous = os.environ.get(key)
-    os.environ[key] = "0"
+    return dex_quote_routes_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=True,
+    )
+
+
+def _normalize_pool_key(pool_key: Any) -> dict[str, Any] | None:
+    """Normalize one V4 PoolKey shape, treating an empty hooks field as null hooks."""
+    if not isinstance(pool_key, dict):
+        return None
+    currency0 = str(pool_key.get("currency0") or pool_key.get("token0") or "").strip()
+    currency1 = str(pool_key.get("currency1") or pool_key.get("token1") or "").strip()
+    fee = pool_key.get("fee")
+    tick_spacing = pool_key.get("tickSpacing") or pool_key.get("tick_spacing")
+    hooks = str(pool_key.get("hooks") or _ZERO_HOOKS_ADDRESS).strip()
     try:
-        return dex_quote_routes_payload(
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=True,
+        fee_int = int(fee)
+        tick_spacing_int = int(tick_spacing)
+    except (TypeError, ValueError):
+        return None
+    if not currency0 or not currency1 or fee_int < 0 or tick_spacing_int < 0:
+        return None
+    return {
+        "currency0": currency0,
+        "currency1": currency1,
+        "fee": fee_int,
+        "tickSpacing": tick_spacing_int,
+        "hooks": hooks,
+    }
+
+
+def _route_pool_keys_from_route(route: dict[str, Any], route_symbols: list[str]) -> list[dict[str, Any]]:
+    """Extract complete V4 PoolKeys from one market-observation route's routePools."""
+    hop_count = max(1, len(route_symbols) - 1)
+    pool_keys: list[dict[str, Any]] = []
+    for pool in (route.get("routePools") or [])[:hop_count]:
+        key = _normalize_pool_key(pool.get("poolKey") if isinstance(pool, dict) else None)
+        if key is not None:
+            pool_keys.append(key)
+    return pool_keys if len(pool_keys) == hop_count else []
+
+
+def _route_pool_candidate_keys(
+    route: dict[str, Any],
+    route_symbols: list[str],
+) -> list[dict[str, Any]]:
+    pool_keys = _route_pool_keys_from_route(route, route_symbols)
+    if pool_keys:
+        return pool_keys
+    groups = _route_pool_key_groups_from_route(route, route_symbols)
+    return groups[0] if groups else []
+
+
+def _route_addresses_from_pool_keys(
+    route: dict[str, Any],
+    route_symbols: list[str],
+    *,
+    chain_id: int | None = None,
+) -> list[str]:
+    """Recover a closed route from real PoolKey addresses, not token symbols.
+
+    A token outside the allowlist may still appear as one side of a real V4
+    pool.  PoolKey currency addresses are on-chain pool identities and are safe
+    for recovery; metadata symbols are never used here.
+    """
+    normalized = [str(symbol or "").strip().upper() for symbol in route_symbols]
+    if len(normalized) != 4 or normalized[0] != normalized[-1]:
+        return []
+    resolved_by_symbol: dict[str, str] = {}
+    for symbol in normalized:
+        if symbol in resolved_by_symbol:
+            continue
+        known = _official_route_addresses([symbol], chain_id=chain_id)
+        if len(known) == 1:
+            resolved_by_symbol[symbol] = str(known[0]).strip().lower()
+    if all(symbol in resolved_by_symbol for symbol in normalized):
+        return [resolved_by_symbol[symbol] for symbol in normalized]
+    pool_keys = _route_pool_candidate_keys(route, normalized)
+    if not pool_keys:
+        return []
+    candidates: dict[int, set[str]] = {index: set() for index in range(len(normalized))}
+    changed = True
+    iterations = 0
+    while (
+        changed
+        and not all(symbol in resolved_by_symbol for symbol in normalized)
+        and iterations < 16
+    ):
+        changed = False
+        iterations += 1
+        for index, key in enumerate(pool_keys):
+            if index + 1 >= len(normalized):
+                break
+            left = str(key.get("currency0") or "").strip().lower()
+            right = str(key.get("currency1") or "").strip().lower()
+            if not left or not right:
+                continue
+            left_symbol_address = resolved_by_symbol.get(normalized[index])
+            right_symbol_address = resolved_by_symbol.get(normalized[index + 1])
+            pool_addresses = {left, right}
+            if left_symbol_address and not right_symbol_address:
+                if left_symbol_address in pool_addresses:
+                    candidate = right if left_symbol_address == left else left
+                    if candidate not in candidates[index + 1]:
+                        candidates[index + 1].add(candidate)
+                        changed = True
+            elif right_symbol_address and not left_symbol_address:
+                if right_symbol_address in pool_addresses:
+                    candidate = left if right_symbol_address == right else right
+                    if candidate not in candidates[index]:
+                        candidates[index].add(candidate)
+                        changed = True
+        for index, symbol in enumerate(normalized):
+            if symbol in resolved_by_symbol:
+                continue
+            if len(candidates[index]) == 1:
+                resolved_by_symbol[symbol] = next(iter(candidates[index]))
+                candidates[index].clear()
+                changed = True
+    if not all(symbol in resolved_by_symbol for symbol in normalized):
+        return []
+    addresses = [resolved_by_symbol[symbol] for symbol in normalized]
+    if addresses[0].lower() != addresses[-1].lower():
+        return []
+    return addresses
+
+
+def _route_pool_key_groups_from_route(
+    route: dict[str, Any],
+    route_symbols: list[str],
+    *,
+    max_combinations: int = 64,
+) -> list[list[dict[str, Any]]]:
+    """Extract candidate PoolKey groups from hopCandidates.
+
+    A market-observation route carries one ``hopCandidates`` entry per hop, and
+    each hop can have several usable pools.  Every hop contributes all usable
+    pools; combinations are bounded so backup pools cannot explode the native
+    review payload.
+    """
+    hop_count = max(1, len(route_symbols) - 1)
+    hop_keys: list[list[dict[str, Any]]] = []
+    for candidate in (route.get("hopCandidates") or [])[:hop_count]:
+        if not isinstance(candidate, dict):
+            return []
+        preferred = str(candidate.get("preferredPoolId") or "").strip().lower()
+        pools = list(candidate.get("pools") or [])
+        ordered_pools = sorted(
+            pools,
+            key=lambda pool: 0
+            if isinstance(pool, dict)
+            and str(pool.get("poolId") or pool.get("pool") or "").strip().lower() == preferred
+            else 1,
         )
-    finally:
-        if previous is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = previous
+        keys: list[dict[str, Any]] = []
+        seen: set[tuple[Any, ...]] = set()
+        for pool in ordered_pools:
+            key = _normalize_pool_key(pool.get("poolKey") if isinstance(pool, dict) else None)
+            if key is None:
+                continue
+            signature = (
+                key["currency0"].lower(),
+                key["currency1"].lower(),
+                key["fee"],
+                key["tickSpacing"],
+                key["hooks"].lower(),
+            )
+            if signature in seen:
+                continue
+            seen.add(signature)
+            keys.append(key)
+            if len(keys) >= 8:
+                break
+        if not keys:
+            return []
+        hop_keys.append(keys)
+    if len(hop_keys) != hop_count:
+        return []
+    groups: list[list[dict[str, Any]]] = [[]]
+    for keys in hop_keys:
+        groups = [group + [key] for group in groups for key in keys]
+        if len(groups) > max_combinations:
+            groups = groups[:max_combinations]
+    return groups
+
+
+def _official_v4_route_pool_key_groups(
+    *,
+    route_symbols: list[str],
+    chain_id: int,
+    protocols: list[str],
+    route_addresses: list[str] | None = None,
+) -> list[list[dict[str, Any]]]:
+    """Return every 3-PoolKey candidate group carried by the route payload.
+
+    Direction and pool are coupled: the same token triangle can have multiple
+    bridge pools, and each direction may be profitable only on a different
+    pool set.  Returning all groups lets the on-chain arb contract select the
+    best directed pool combination instead of an off-chain single winner.
+    """
+    requested_symbols = [str(symbol or "").strip().upper() for symbol in route_symbols]
+    requested_addresses = [str(address or "").strip().lower() for address in (route_addresses or [])]
+    groups: list[list[dict[str, Any]]] = []
+    seen: set[tuple[Any, ...]] = set()
+    try:
+        routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+        for route in routes_payload.get("routes") or []:
+            if not isinstance(route, dict):
+                continue
+            existing_symbols = _route_symbols(route)
+            if existing_symbols and existing_symbols == requested_symbols:
+                matched = True
+            else:
+                existing_addresses = _route_addresses_from_route(route)
+                matched = (
+                    bool(existing_addresses)
+                    and bool(requested_addresses)
+                    and [str(address or "").strip().lower() for address in existing_addresses] == requested_addresses
+                )
+            if not matched:
+                continue
+            route_groups = _route_pool_key_groups_from_route(route, requested_symbols)
+            if not route_groups:
+                pool_keys = _route_pool_keys_from_route(route, requested_symbols)
+                if pool_keys:
+                    route_groups = [pool_keys]
+            if not route_groups:
+                continue
+            for pool_keys in route_groups:
+                signature = tuple(
+                    (
+                        str(key.get("currency0") or "").lower(),
+                        str(key.get("currency1") or "").lower(),
+                        int(key.get("fee") or 0),
+                        int(key.get("tickSpacing") or 0),
+                        str(key.get("hooks") or "").lower(),
+                    )
+                    for key in pool_keys
+                )
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                groups.append(pool_keys)
+    except (KeyError, TypeError, ValueError, AttributeError, OSError):
+        pass
+    if groups:
+        return groups
+    manifest_keys = _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
+    return [manifest_keys] if manifest_keys else []
 
 
 def _official_v4_route_pool_keys(
@@ -389,50 +546,14 @@ def _official_v4_route_pool_keys(
     protocols: list[str],
     route_addresses: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the exact 3 Uniswap V4 PoolKeys used by an official triangle route.
-
-    The quote and route page displays only closed loops that came from the DEX
-    overview market observation with enough pool depth and complete PoolKeys.
-    On-chain review must therefore prefer those same observed bridge PoolKeys
-    instead of guessing global default hooks.  Manifest keys are only a
-    fallback for routes that did not carry complete market-observation pool
-    identities yet.
-    """
-    try:
-        routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
-        route = _match_route(routes_payload.get("routes") or [], route_symbols)
-        if not isinstance(route, dict) and route_addresses:
-            route = _match_route_by_addresses(routes_payload.get("routes") or [], route_addresses)
-        if isinstance(route, dict):
-            hop_count = max(1, len(route_symbols) - 1)
-            pool_keys: list[dict[str, Any]] = []
-            for pool in (route.get("routePools") or [])[:hop_count]:
-                if not isinstance(pool, dict):
-                    continue
-                pool_key = pool.get("poolKey")
-                if not isinstance(pool_key, dict):
-                    continue
-                currency0 = str(pool_key.get("currency0") or pool_key.get("token0") or "").strip()
-                currency1 = str(pool_key.get("currency1") or pool_key.get("token1") or "").strip()
-                fee = pool_key.get("fee")
-                tick_spacing = pool_key.get("tickSpacing")
-                hooks = str(pool_key.get("hooks") or "").strip()
-                if not currency0 or not currency1 or fee is None or tick_spacing is None or not hooks:
-                    continue
-                pool_keys.append(
-                    {
-                        "currency0": currency0,
-                        "currency1": currency1,
-                        "fee": int(fee),
-                        "tickSpacing": int(tick_spacing),
-                        "hooks": hooks,
-                    }
-                )
-            if len(pool_keys) == hop_count:
-                return pool_keys
-    except (KeyError, TypeError, ValueError, AttributeError, OSError):
-        pass
-    return _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
+    """Return the preferred 3 Uniswap V4 PoolKeys for a route group."""
+    groups = _official_v4_route_pool_key_groups(
+        route_symbols=route_symbols,
+        chain_id=chain_id,
+        protocols=protocols,
+        route_addresses=route_addresses,
+    )
+    return groups[0] if groups else []
 
 
 def _official_v4_manifest_route_pool_keys(
@@ -804,6 +925,8 @@ __all__ = [
     "_quote_failure_status",
     "_recommended_route_test_amount",
     "_routes_payload",
+    "_route_addresses_from_pool_keys",
+    "_route_pool_candidate_keys",
     "_route_symbols",
     "_static_call_revert_detail",
     "_step_failure_status",
@@ -812,4 +935,5 @@ __all__ = [
     "best_amount_calculation_from_route",
     "normalize_route_symbols",
     "recommended_route_test_amount",
+    "trusted_symbol_from_address",
 ]

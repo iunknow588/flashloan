@@ -1,0 +1,95 @@
+runtime env: active=46630/robinhood-testnet kv=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_46630.sqlite3 dex_default=46630
+chain runtime active: chain_id=46630 network=robinhood-testnet database=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_46630.sqlite3
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.6:5000
+Press CTRL+C to quit
+V4 maintenance workers running: ['v4_broadcast_execution_worker', 'v4_candidate_yc_zc_worker', 'v4_closed_loop_worker', 'v4_dex_overview_worker', 'v4_market_observation_worker', 'v4_onchain_review_worker', 'v4_pool_liquidity_worker']
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [01/Nov/2026 06:12:14] "GET /api/status HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+native closed-loop group config unavailable for eth|amzn|tsla: [{'routeSymbols': ['ETH', 'TSLA', 'AMZN', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['ETH', 'AMZN', 'TSLA', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for eth|amd|amzn: [{'routeSymbols': ['ETH', 'AMZN', 'AMD', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['ETH', 'AMD', 'AMZN', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for eth|amd|tsla: [{'routeSymbols': ['ETH', 'TSLA', 'AMD', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['ETH', 'AMD', 'TSLA', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['WETH', 'TSLA', 'ETH', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['WETH', 'ETH', 'TSLA', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for eth|tsla|weth: [{'routeSymbols': ['ETH', 'WETH', 'TSLA', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['ETH', 'TSLA', 'WETH', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for eth|nflx|pltr: [{'routeSymbols': ['ETH', 'PLTR', 'NFLX', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['ETH', 'NFLX', 'PLTR', 'ETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for tz|ta|tb: [{'routeSymbols': ['TZ', 'TB', 'TA', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['TZ', 'TA', 'TB', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['WETH', 'TSLA', 'ETH', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['WETH', 'ETH', 'TSLA', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for tz|ta|tb: [{'routeSymbols': ['TZ', 'TB', 'TA', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['TZ', 'TA', 'TB', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['WETH', 'TSLA', 'ETH', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['WETH', 'ETH', 'TSLA', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for tz|ta|tb: [{'routeSymbols': ['TZ', 'TB', 'TA', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['TZ', 'TA', 'TB', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [01/Nov/2026 06:26:27] "GET /api/status HTTP/1.1" 200 -
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['WETH', 'TSLA', 'ETH', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['WETH', 'ETH', 'TSLA', 'WETH'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+native closed-loop group config unavailable for tz|ta|tb: [{'routeSymbols': ['TZ', 'TB', 'TA', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['TZ', 'TA', 'TB', 'TZ'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['UNRESOLVED:0X7943E237', 'TSLA', 'ETH', 'UNRESOLVED:0X7943E237'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['UNRESOLVED:0X7943E237', 'ETH', 'TSLA', 'UNRESOLVED:0X7943E237'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+native closed-loop group config unavailable for weth|eth|tsla: [{'routeSymbols': ['UNRESOLVED:0X7943E237', 'TSLA', 'ETH', 'UNRESOLVED:0X7943E237'], 'reason': 'missing_pool_candidates_or_token_metadata'}, {'routeSymbols': ['UNRESOLVED:0X7943E237', 'ETH', 'TSLA', 'UNRESOLVED:0X7943E237'], 'reason': 'missing_pool_candidates_or_token_metadata'}]
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(

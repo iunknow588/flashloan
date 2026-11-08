@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from market.binance_market.dex_surface_cache import (
+    _cache_final_surface_json,
+    _cache_final_surface_payload,
     _cache_surface_payload,
+    _cached_final_surface_json,
+    _cached_final_surface_payload,
     _clear_dex_surface_cache,
     _cached_surface_payload,
 )
@@ -73,3 +77,98 @@ def test_cache_stores_private_deepcopy_when_initial_payload_is_cached():
     )
     assert cached["routes"][0]["live_onchain_evidence"]["status"] == "live_evidence_deferred"
     assert cached["routes"][0]["routeSymbols"] == ["TZ", "TB", "TA", "TZ"]
+
+
+def test_final_surface_payload_cache_is_scoped_by_variant_and_cleared():
+    _clear_dex_surface_cache()
+    payload = {"mode": "dex_market_observation", "routes": []}
+    _cache_final_surface_payload(
+        "dex_market_observation_page",
+        payload,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+        variant="strategy_a",
+    )
+    assert (
+        _cached_final_surface_payload(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_a",
+        )
+        is payload
+    )
+    assert (
+        _cached_final_surface_payload(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_b",
+        )
+        is None
+    )
+    _clear_dex_surface_cache(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
+    assert (
+        _cached_final_surface_payload(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_a",
+        )
+        is None
+    )
+
+
+def test_final_surface_json_cache_is_scoped_by_variant_and_cleared():
+    _clear_dex_surface_cache()
+    _cache_final_surface_json(
+        "dex_market_observation_page",
+        b'{"mode":"dex_market_observation","routes":[]}',
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+        variant="strategy_a",
+    )
+    assert (
+        _cached_final_surface_json(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_a",
+        )
+        == b'{"mode":"dex_market_observation","routes":[]}'
+    )
+    assert (
+        _cached_final_surface_json(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_b",
+        )
+        is None
+    )
+    _clear_dex_surface_cache(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
+    assert (
+        _cached_final_surface_json(
+            "dex_market_observation_page",
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            variant="strategy_a",
+        )
+        is None
+    )

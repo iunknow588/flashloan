@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_8_ui_submission_clear_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D6.1 manager-authoritative submission read/clear boundaries without legacy fallback",
+  "status": "submission_detail_and_clear_manager_authority_lists_pending",
+  "generatedAt": "2026-11-04T20:09:32Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "Manager is the only production business execution module for migrated submission routes. /api/dex/submissions/detail and /api/dex/submissions/clear no longer read or write legacy SQLite. They call manager_api only, return structured manager errors when manager is unavailable, and fail closed instead of silently reverting to legacy. Existing UI direct business reads are being converted into test oracle/fixture material rather than a runtime fallback.",
+  "implementation": {
+    "managerApiClient": "flashloan/src/core/manager_api_client.py",
+    "managerAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "broadcastManager": "flashloan/tools/broadcast_manager/src/lib.rs",
+    "managerApi": "flashloan/tools/manager_api/src/lib.rs",
+    "detailRoute": "GET /api/dex/submissions/detail?attempt_id=<id>",
+    "clearRoute": "POST /api/dex/submissions/clear",
+    "detailUpstream": "GET /v1/broadcasts?chainId=4663&attemptId=<id>&limit=1",
+    "clearUpstream": "POST /v1/broadcasts/clear",
+    "requiredWriteHeaders": [
+      "X-Request-Id",
+      "Idempotency-Key"
+    ],
+    "requiredClearFields": [
+      "chainId",
+      "dryRun=true|false"
+    ],
+    "legacySqliteReadFallback": false,
+    "legacySqliteWriteFallback": false,
+    "managerUnavailableStatus": 503,
+    "missingAttemptStatus": 404,
+    "pendingAttemptClearRejection": "InvalidRequest: cannot clear broadcast records while pending attempts exist",
+    "dryRunPolicy": "dryRun=true counts and reports without deleting or writing idempotency records",
+    "idempotencyPolicy": "same idempotency key and same digest replays the persisted clear result",
+    "transactionPolicy": "apply runs idempotency lookup, pending check, counts, deletes, state reset and write-request audit in a single IMMEDIATE transaction",
+    "uiJsonContract": "{recordKind: \"submission\", dryRun: false}",
+    "pageClearButton": "flashloan/app_runtime/web/templates/dex_submissions.html"
+  },
+  "architecturePolicy": {
+    "managerIsReplacementModule": false,
+    "managerIsOnlyBusinessExecutionModule": true,
+    "uiHandlesBusinessSqlite": false,
+    "uiHandlesRealtimeRemoteNetworkReads": false,
+    "uiDirectReadsConvertedToTestOracle": "only after the corresponding manager DTO route exists; detail and clear are already converted",
+    "pageUrlChanged": false,
+    "pageTemplateStructureChanged": false,
+    "pageLayoutChanged": false,
+    "dualAuthorityForMigratedScope": false,
+    "productionBroadcastEnabled": false
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check && cargo check -p manager-api",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p broadcast-manager clear_is_dry_run_safe_idempotent_and_rejects_pending_work",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "cargo test -p broadcast-manager status_filter_is_applied_before_offset_and_limit",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "cargo test -p manager-api broadcast_routes_enforce_headers_dry_run_authority_and_terminal_state",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_manager_api_client.py -q",
+      "exitCode": 0,
+      "passed": 34
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q -k \"clear and not page_has\"",
+      "exitCode": 0,
+      "passed": 5
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k migrated_submission_reads",
+      "exitCode": 0,
+      "passed": 1
+    }
+  ],
+  "fixtures": [
+    "broadcast clear apply is dry-run safe",
+    "broadcast clear is idempotent and rejects same key with a different digest",
+    "broadcast clear rejects pending attempts",
+    "broadcast snapshot status filter is applied before offset and limit",
+    "manager API HTTP route enforces X-Request-Id, Idempotency-Key, explicit dryRun and manager authority",
+    "Flask clear route calls the manager adapter and never calls _submission_database_url",
+    "Flask clear route reports manager_unavailable without legacy sqlite fallback",
+    "template clear button posts JSON to /api/dex/submissions/clear with recordKind=submission and dryRun=false",
+    "architecture guard rejects load_cow_execution_attempt_detail, manager_ui_data_source and clear_cow_execution_attempts_sqlite in migrated submission route module"
+  ],
+  "knownBoundary": "D9.8 covers manager-authoritative submission detail/clear and manager-owned terminal broadcast reads. Summary, category, review-success/review-failed and overview routes still contain legacy SQLite projection paths for production data and are the next migration unit. No mainnet manager apply, broadcast, service restart, or destructive data operation was performed."
+}

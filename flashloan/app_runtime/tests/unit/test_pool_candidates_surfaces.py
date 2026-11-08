@@ -134,6 +134,7 @@ def test_dex_provenance_framework_label_helper_shares_static_mapping():
     assert framework_label("cached_snapshot") == "静态框架"
     assert framework_label("candidate_pool_fallback") == "候选框架"
     assert framework_label("computed") == "链上重算"
+    assert framework_label("manager_closed_loop") == "管理模块闭环"
     assert framework_label("custom_source") == "custom_source"
     assert price_evidence_label("static_reference_probe") == "静态探针"
     assert price_evidence_label("live_quoter_required") == "需要链上 Quoter"
@@ -298,7 +299,7 @@ def test_dex_opportunity_scanner_warmup_uses_static_overview_for_robinhood_famil
         def trigger_context_provider(self, *args, **kwargs):
             return {"source": "test"}
 
-    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda: FakeScanner())
+    monkeypatch.setattr(dex_opportunity_scanner, "get_dex_opportunity_scanner", lambda chain_id=None: FakeScanner())
     monkeypatch.setattr(
         dex_opportunity_scanner,
         "dex_overview_payload",
@@ -549,6 +550,53 @@ def test_dex_market_observation_keeps_tz_shared_bridge_pool_directions(monkeypat
         "TZ -> TA -> TB -> TZ",
     }
     assert len(observation["closedLoopRoutes"]) == 2
+
+
+def test_database_first_observation_group_normalization_populates_bridge_groups():
+    group = {
+        "anchorSymbol": "ETH",
+        "observationSequences": [
+            {
+                "anchorSymbol": "ETH",
+                "pathText": "ETH -> PLTR -> NFLX -> ETH",
+                "pool": "0x" + "1" * 64,
+                "bridgePool": {
+                    "pool": "0x" + "2" * 64,
+                    "poolId": "0x" + "2" * 64,
+                },
+                "routePools": [
+                    {"direction": "yc", "pool": "0x" + "3" * 64},
+                    {"direction": "bridge", "pool": "0x" + "2" * 64},
+                    {"direction": "zc", "pool": "0x" + "4" * 64},
+                ],
+            },
+            {
+                "anchorSymbol": "ETH",
+                "pathText": "ETH -> AMZN -> AMD -> ETH",
+                "pool": "0x" + "5" * 64,
+                "bridgePool": {
+                    "pool": "0x" + "6" * 64,
+                    "poolId": "0x" + "6" * 64,
+                },
+                "routePools": [
+                    {"direction": "yc", "pool": "0x" + "7" * 64},
+                    {"direction": "bridge", "pool": "0x" + "6" * 64},
+                    {"direction": "zc", "pool": "0x" + "8" * 64},
+                ],
+            },
+        ],
+        "observationState": {"status": "reachable", "reachable": True},
+    }
+
+    dex_surfaces._normalize_database_first_observation_group(group)
+
+    assert len(group["bridgePoolObservationGroups"]) == 2
+    assert group["bridgePoolObservationGroups"][0]["bridgePool"] == "0x" + "2" * 64
+    assert group["bridgePoolObservationGroups"][0]["directionCount"] == 1
+    assert group["observationReachable"] is True
+    assert group["observationState"]["reachable"] is True
+    assert group["combinationGroups"][0]["observationReachable"] is True
+    assert group["combinationGroups"][0]["bridgePool"]["pool"] == "0x" + "2" * 64
 
 
 def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monkeypatch):

@@ -99,6 +99,12 @@ def main() -> int:
         current_opportunity_snapshot = _read_json(args.snapshot_json) if args.snapshot_json.exists() else None
         route_capture = _read_json(args.route_capture_json) if args.route_capture_json.exists() else None
         v4_pool_liquidity = _read_json(args.liquidity_json) if args.liquidity_json and args.liquidity_json.exists() else None
+        if v4_pool_liquidity is None:
+            from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+                load_robinhood_testnet_v4_pool_liquidity,
+            )
+
+            v4_pool_liquidity = load_robinhood_testnet_v4_pool_liquidity()
         if plan_missing and not args.no_write:
             _write_json(args.plan_json, plan)
         audit = audit_robinhood_chain_test_plan(plan)
@@ -107,6 +113,7 @@ def main() -> int:
             contracts_metadata=contracts_metadata,
             chain_test_plan=plan,
             v4_pool_liquidity=v4_pool_liquidity,
+            sqlite_pool_evidence=None,
             chain_test_audit=audit,
             current_opportunity_snapshot=current_opportunity_snapshot,
             route_capture=route_capture,

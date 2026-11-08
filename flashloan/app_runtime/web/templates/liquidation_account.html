@@ -42,6 +42,7 @@
     .hf-orange { color: #c2410c; }
     .hf-red { color: #b42318; }
   </style>
+  <script src="/static/time_display.js"></script>
 </head>
 <body>
   <header>
@@ -226,7 +227,7 @@
     const price = value => Number.isFinite(Number(value)) ? Number(value).toPrecision(10).replace(/\.?0+$/, "") : "-";
     const cellCls = value => Number.isFinite(Number(value)) ? (Number(value) >= 0 ? "positive" : "negative") : "";
     const hfCls = value => ({green:"hf-green", beige:"hf-beige", yellow:"hf-yellow", orange:"hf-orange", red:"hf-red"}[String(value || "").toLowerCase()] || "hf-red");
-    const snapshotTimeText = value => value ? new Date(value).toLocaleString([], {hour12:false}) : "-";
+    const snapshotTimeText = value => window.formatLocalDisplayTime(value);
     const positionsSourceText = value => value === "database_scan_report"
       ? "Aave 扫描数据"
       : value === "database_health_scan_history"
@@ -495,7 +496,7 @@
         latestAccountAttemptRows = (attempts.attempts || []).map(row => {
           const receipt = row.receipt && row.receipt.status !== undefined ? row.receipt.status : "-";
           const tx = row.tx_hash || "-";
-          return `<tr><td>${row.id}</td><td>${row.mode || "-"}</td><td>${userFacingAuditStatus(row)}</td><td>${row.execution_phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td colspan="2">${userFacingAuditStatus(row)}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
+          return `<tr><td>${row.id}</td><td>${row.mode || "-"}</td><td>${userFacingAuditStatus(row)}</td><td>${row.execution_phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td colspan="2">${userFacingAuditStatus(row)}</td><td>${window.formatLocalDisplayTime(row.created_at)}</td></tr>`;
         });
         renderAccountAuditTable("accountAttemptBody", "accountAttemptPager", "accountAttemptPage", latestAccountAttemptRows, 9);
         const samples = await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?${accountApiQuery(account, {limit: 20})}`, {timeoutMs: 10000});
@@ -506,7 +507,7 @@
           const receipt = p.receipt_status ?? (p.receipt && p.receipt.status) ?? "-";
           const retry = row.retryable === undefined ? "-" : (row.retryable ? "是" : "否");
           const status = userFacingExecutionMessage({...p, error: row.failure_reason, receipt_status: receipt}, "");
-          return `<tr><td>${row.id}</td><td>${row.failure_type || "-"}</td><td>${phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td>${retry}</td><td>${status}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
+          return `<tr><td>${row.id}</td><td>${row.failure_type || "-"}</td><td>${phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td>${retry}</td><td>${status}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${window.formatLocalDisplayTime(row.created_at)}</td></tr>`;
         });
         renderAccountAuditTable("accountSampleBody", "accountSamplePager", "accountSamplePage", latestAccountSampleRows, 10);
       } catch (error) {}

@@ -8,6 +8,14 @@ from typing import Any
 
 
 _DEX_SURFACE_CACHE: dict[tuple[str, int | None, tuple[str, ...], bool], dict[str, Any]] = {}
+_DEX_SURFACE_FINAL_CACHE: dict[
+    tuple[str, int | None, tuple[str, ...], bool, str],
+    dict[str, Any],
+] = {}
+_DEX_SURFACE_FINAL_JSON_CACHE: dict[
+    tuple[str, int | None, tuple[str, ...], bool, str],
+    bytes,
+] = {}
 _DEX_SURFACE_CACHE_LOCK = threading.Lock()
 
 
@@ -31,6 +39,25 @@ def _surface_cache_key(
     use_static_observation: bool = False,
 ) -> tuple[str, int | None, tuple[str, ...], bool]:
     return (surface, chain_id, _protocols_key(protocols), bool(use_static_observation))
+
+
+def _surface_final_cache_key(
+    surface: str,
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool = False,
+    variant: str = "",
+) -> tuple[str, int | None, tuple[str, ...], bool, str]:
+    return (
+        *_surface_cache_key(
+            surface,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        ),
+        str(variant or ""),
+    )
 
 
 def _cache_surface_payload(
@@ -133,6 +160,84 @@ def _cached_framework_surface_payload(
     return None
 
 
+def _cache_final_surface_payload(
+    surface: str,
+    payload: dict[str, Any],
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool = False,
+    variant: str = "",
+) -> None:
+    key = _surface_final_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+        variant=variant,
+    )
+    with _DEX_SURFACE_CACHE_LOCK:
+        _DEX_SURFACE_FINAL_CACHE[key] = payload
+
+
+def _cached_final_surface_payload(
+    surface: str,
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool = False,
+    variant: str = "",
+) -> dict[str, Any] | None:
+    key = _surface_final_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+        variant=variant,
+    )
+    with _DEX_SURFACE_CACHE_LOCK:
+        return _DEX_SURFACE_FINAL_CACHE.get(key)
+
+
+def _cache_final_surface_json(
+    surface: str,
+    body: bytes,
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool = False,
+    variant: str = "",
+) -> None:
+    key = _surface_final_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+        variant=variant,
+    )
+    with _DEX_SURFACE_CACHE_LOCK:
+        _DEX_SURFACE_FINAL_JSON_CACHE[key] = body
+
+
+def _cached_final_surface_json(
+    surface: str,
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool = False,
+    variant: str = "",
+) -> bytes | None:
+    key = _surface_final_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+        variant=variant,
+    )
+    with _DEX_SURFACE_CACHE_LOCK:
+        return _DEX_SURFACE_FINAL_JSON_CACHE.get(key)
+
+
 def _clear_dex_surface_cache(
     *,
     chain_id: int | None = None,
@@ -155,6 +260,30 @@ def _clear_dex_surface_cache(
                 continue
             _DEX_SURFACE_CACHE.pop(key, None)
             removed += 1
+        for key in list(_DEX_SURFACE_FINAL_CACHE):
+            key_surface, key_chain_id, key_protocols, key_static = key[:4]
+            if surface is not None and key_surface != surface:
+                continue
+            if chain_id is not None and key_chain_id != int(chain_id):
+                continue
+            if protocols is not None and key_protocols != protocol_key:
+                continue
+            if use_static_observation is not None and key_static != bool(use_static_observation):
+                continue
+            _DEX_SURFACE_FINAL_CACHE.pop(key, None)
+            removed += 1
+        for key in list(_DEX_SURFACE_FINAL_JSON_CACHE):
+            key_surface, key_chain_id, key_protocols, key_static = key[:4]
+            if surface is not None and key_surface != surface:
+                continue
+            if chain_id is not None and key_chain_id != int(chain_id):
+                continue
+            if protocols is not None and key_protocols != protocol_key:
+                continue
+            if use_static_observation is not None and key_static != bool(use_static_observation):
+                continue
+            _DEX_SURFACE_FINAL_JSON_CACHE.pop(key, None)
+            removed += 1
     return removed
 
 
@@ -162,8 +291,12 @@ __all__ = [
     "_DEX_SURFACE_CACHE",
     "_DEX_SURFACE_CACHE_LOCK",
     "_cache_surface_payload",
+    "_cache_final_surface_payload",
+    "_cache_final_surface_json",
     "_clear_dex_surface_cache",
     "_cached_framework_surface_payload",
+    "_cached_final_surface_payload",
+    "_cached_final_surface_json",
     "_cached_surface_payload",
     "_protocols_key",
     "_surface_cache_key",

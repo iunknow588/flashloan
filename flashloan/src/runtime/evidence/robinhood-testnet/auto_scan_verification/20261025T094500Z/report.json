@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "robinhood-testnet-auto-scan-window-v1",
+  "window": {
+    "startUtc": "2026-10-25T09:13:40+00:00",
+    "endUtc": "2026-10-25T09:45:00+00:00",
+    "durationSeconds": 1880
+  },
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "attemptsInWindow": 224,
+  "runtimeSnapshot": null,
+  "runtimeSnapshotRetry": false,
+  "broadcastGates": {
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false
+  },
+  "success": {
+    "uniqueSuccessCount": 0,
+    "successes": [],
+    "profitBySymbol": [],
+    "gasSummary": {
+      "gasUsedMin": null,
+      "gasUsedMax": null,
+      "gasUsedTotal": null,
+      "effectiveGasPriceMin": null,
+      "effectiveGasPriceMax": null
+    }
+  },
+  "failure": {
+    "failedCount": 0,
+    "blockedCount": 224,
+    "failedSample": [],
+    "blockedSample": [
+      {
+        "createdAt": "2026-10-25T09:43:12.735403800+00:00",
+        "observedAt": "2026-10-25T09:43:12.735403800+00:00",
+        "pair": "AMD -> AMZN -> TSLA -> AMD",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:12.735403800+00:00",
+        "observedAt": "2026-10-25T09:43:12.735403800+00:00",
+        "pair": "AMD -> TSLA -> AMZN -> AMD",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:11.522363500+00:00",
+        "observedAt": "2026-10-25T09:43:11.522363500+00:00",
+        "pair": "ETH -> AMD -> AMZN -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:11.522363500+00:00",
+        "observedAt": "2026-10-25T09:43:11.522363500+00:00",
+        "pair": "ETH -> AMZN -> AMD -> ETH",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.914948800+00:00",
+        "observedAt": "2026-10-25T09:43:10.914948800+00:00",
+        "pair": "TZ -> TA -> TB -> TZ",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.914948800+00:00",
+        "observedAt": "2026-10-25T09:43:10.914948800+00:00",
+        "pair": "TZ -> TB -> TA -> TZ",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.134791900+00:00",
+        "observedAt": "2026-10-25T09:43:10.134791900+00:00",
+        "pair": "AMZN -> AMD -> TSLA -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.134791900+00:00",
+        "observedAt": "2026-10-25T09:43:10.134791900+00:00",
+        "pair": "AMZN -> TSLA -> AMD -> AMZN",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: NoProfitableRoute()",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.030016500+00:00",
+        "observedAt": "2026-10-25T09:43:10.030016500+00:00",
+        "pair": "TSLA -> AMZN -> ETH -> TSLA",
+        "state": "ready_for_transaction_development",
+        "blockers": [
+          "route_unprofitable",
+          "watch",
+          "当前仅公开静态路由框架，不把静态快照当作实时价格",
+          "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+          "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+          "路径来源必须与市场观察页面展示的闭环路径一致。",
+          "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+          "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+        ]
+      },
+      {
+        "createdAt": "2026-10-25T09:43:10.030016500+00:00",
+        "observedAt": "2026-10-25T09:43:10.030016500+00:00",
+        "pair": "TSLA -> ETH -> AMZN -> TSLA",
+        "state": "quote_required",
+        "blockers": [
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+          "chain review failed: previewBestPoolDetailed unavailable",
+          "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+        ]
+      }
+    ]
+  },
+  "funnel": {
+    "reviewedCount": 224,
+    "withExpectedProfitCount": 11,
+    "broadcastCount": 0,
+    "successTxCount": 0,
+    "uniqueSuccessCount": 0,
+    "uniqueSuccessWithExpectedProfitCount": 0,
+    "realizedProfitBySymbol": []
+  },
+  "t21FieldCounts": {
+    "netProductDeltaRaw": 0,
+    "ArbitrageNotProfitable": 0,
+    "netProfitAmountMissingReason": 224
+  },
+  "conclusion": "Observed 31 minutes; 0 unique on-chain success tx with 0 failed and 224 blocked attempts; netProductDeltaRaw=0, ArbitrageNotProfitable=0.",
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  }
+}

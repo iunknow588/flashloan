@@ -1,0 +1,24 @@
+[package]
+name = "closed-loop-manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "closed_loop_manager"
+path = "src/lib.rs"
+
+[dependencies]
+candidate-edge-pool-manager = { path = "../candidate_edge_pool_manager" }
+candidate-exchange-pool-manager = { path = "../candidate_exchange_pool_manager" }
+chrono.workspace = true
+hex.workspace = true
+manager-contracts = { path = "../manager_contracts" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+manager-db = { path = "../manager_db" }
+tempfile.workspace = true

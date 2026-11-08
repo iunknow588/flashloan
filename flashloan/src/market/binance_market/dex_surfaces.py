@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 from core.chain_data_registry import chain_data_by_chain_id
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID,
     ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
@@ -92,6 +93,9 @@ from market.binance_market.dex_surface_observation import (
     _v4_index_bridge_pairs_for_anchor_groups,
     robinhood_testnet_v4_bridge_pairs_for_anchor_groups,
     robinhood_testnet_v4_fund_anchor_pair_observation,
+)
+from market.binance_market.dex_surface_observation_sequences import (
+    _combination_observation_group,
 )
 
 from market.binance_market.dex_surface_graph import (
@@ -900,6 +904,79 @@ def _database_first_market_observation_payload(
     return payload
 
 
+def _database_first_sequence_bridge_pool_id(sequence: dict[str, Any]) -> str:
+    """Return the bridge-pool id for one SQLite closed-loop sequence."""
+    bridge = sequence.get("bridgePool")
+    if isinstance(bridge, dict):
+        bridge_pool_id = _pool_address(bridge)
+        if bridge_pool_id:
+            return bridge_pool_id
+    for step in sequence.get("routePools") or []:
+        if isinstance(step, dict) and str(step.get("direction") or "").lower() == "bridge":
+            bridge_pool_id = _pool_address(step)
+            if bridge_pool_id:
+                return bridge_pool_id
+    return str(sequence.get("pool") or sequence.get("poolId") or "").strip().lower()
+
+
+def _normalize_database_first_observation_group(group: dict[str, Any]) -> None:
+    """Populate the page-ready bridge/combination fields for DB-first groups."""
+    sequences = [
+        sequence
+        for sequence in group.get("observationSequences") or []
+        if isinstance(sequence, dict)
+    ]
+    reachable = bool(sequences)
+    for sequence in sequences:
+        sequence["observationReachable"] = True
+        sequence["observationState"] = "reachable"
+        sequence["observationEmptyReason"] = None
+
+    bridge_rows: dict[str, list[dict[str, Any]]] = {}
+    for sequence in sequences:
+        bridge_pool_id = _database_first_sequence_bridge_pool_id(sequence)
+        if bridge_pool_id:
+            bridge_rows.setdefault(bridge_pool_id, []).append(sequence)
+
+    group["bridgePoolObservationGroups"] = [
+        {
+            "bridgePool": bridge_pool_id,
+            "directionCount": len(rows),
+            "observationSequences": rows,
+            "preview": (rows[0].get("pathText") if rows else "") or bridge_pool_id,
+        }
+        for bridge_pool_id, rows in bridge_rows.items()
+    ]
+    group["combinationGroups"] = [
+        _combination_observation_group(sequence)
+        for sequence in sequences
+    ]
+    group["candidateCombinationCount"] = len(sequences)
+    group["reachableCombinationCount"] = len(sequences)
+    group["noPoolCombinationCount"] = 0
+    group["observationReachable"] = reachable
+    group["observationEmptyReason"] = None if reachable else group.get("observationEmptyReason")
+    group["observationSequencePreview"] = [
+        sequence.get("pathText") or sequence.get("pool") or ""
+        for sequence in sequences
+    ]
+    group["observationCombinationCount"] = len(bridge_rows)
+    group["observationCombinationPreview"] = group["observationSequencePreview"]
+    group["directionCombinationCount"] = len(sequences)
+    group["directionCombinationPreview"] = group["observationSequencePreview"]
+    group["observationState"] = {
+        **(group.get("observationState") or {}),
+        "status": (
+            "reachable"
+            if reachable
+            else group.get("observationState", {}).get("status") or "partial"
+        ),
+        "reachable": reachable,
+        "reason": None if reachable else group.get("observationState", {}).get("reason"),
+        "groupCount": len(bridge_rows),
+    }
+
+
 def _database_path_for_scope(*, chain_id: int | None) -> str:
     from core.db.database_path import absolute_database_path
 
@@ -1241,17 +1318,42 @@ def _database_first_robinhood_observation_payload(
                 if not address:
                     continue
                 token_row = tokens_by_address.get(address)
-                token_symbol = _norm_symbol(
+                raw_symbol = _text(
                     pool.get(f"token{index}Symbol")
                     or (token_row.get("token_symbol") if token_row else "")
                 )
+                token_symbol = _norm_symbol(raw_symbol)
                 if not token_symbol:
                     continue
+                symbol_resolved = bool(raw_symbol) and not is_unresolved_placeholder_symbol(raw_symbol)
+                display_symbol = token_symbol if symbol_resolved else f"UNRESOLVED:{address[:10]}"
+                raw_name = str(token_row.get("token_name") or "").strip() if token_row else ""
+                display_name = raw_name if (raw_name and not is_unresolved_placeholder_symbol(raw_name)) else ""
+                name_resolved = bool(raw_name) and not is_unresolved_placeholder_symbol(raw_name)
+                token_metadata = _json_loads(token_row.get("token_metadata_json") or {}) if token_row else {}
+                if not isinstance(token_metadata, dict):
+                    token_metadata = {}
+                name_missing = bool(
+                    not name_resolved
+                    or token_metadata.get("nameMissing")
+                    or token_metadata.get("nameFallbackSymbol")
+                )
+                name_fallback_symbol = str(
+                    token_metadata.get("nameFallbackSymbol")
+                    or raw_symbol
+                    or ""
+                ).strip() if name_missing else ""
                 bucket = token_buckets.setdefault(
-                    token_symbol,
+                    display_symbol,
                     {
-                        "symbol": token_symbol,
+                        "symbol": display_symbol,
                         "address": address,
+                        "name": display_name,
+                        "symbolResolved": symbol_resolved,
+                        "nameResolved": name_resolved,
+                        "nameMissing": name_missing,
+                        "nameFallbackSymbol": name_fallback_symbol,
+                        "rawSymbol": raw_symbol if not symbol_resolved else "",
                         "poolCount": "0",
                         "pools": [],
                     },
@@ -1391,6 +1493,8 @@ def _database_first_robinhood_observation_payload(
             }
         )
     groups.sort(key=lambda group: str(group.get("anchorSymbol") or ""))
+    for group in groups:
+        _normalize_database_first_observation_group(group)
     closed_loop_anchor_symbols = sorted(routes_by_anchor)
 
     pool_rows: list[dict[str, Any]] = []
@@ -1402,7 +1506,21 @@ def _database_first_robinhood_observation_payload(
         for token in group.get("sharedTokens") or []:
             if not isinstance(token, dict):
                 continue
-            address = _token_address(token.get("address"))
+            address = _token_address(token.get("address")) or _token_address(token.get("counterAddress"))
+            token = {
+                **token,
+                "symbol": token.get("symbol") or token.get("counterSymbol") or "",
+                "name": token.get("name") or token.get("counterName") or "",
+                "nameResolved": token.get("nameResolved")
+                if token.get("nameResolved") is not None
+                else bool(token.get("counterNameResolved")),
+                "nameMissing": token.get("nameMissing")
+                if token.get("nameMissing") is not None
+                else bool(token.get("counterNameMissing")),
+                "nameFallbackSymbol": token.get("nameFallbackSymbol")
+                or token.get("counterNameFallbackSymbol")
+                or "",
+            }
             if address:
                 tokens_by_address.setdefault(address.lower(), token)
     for route in routes:
@@ -1679,7 +1797,12 @@ def _legal_closed_loop_endpoint_symbols(chain_id: int | None) -> set[str]:
         network = _ROBINHOOD_NETWORK
     else:
         return set()
-    return {str(symbol or "").strip().upper() for symbol in all_anchor_symbols(network)}
+    registry_kwargs: dict[str, Any] = {}
+    if network == _ROBINHOOD_NETWORK:
+        from core.db.database_path import absolute_database_path
+
+        registry_kwargs["database_url"] = str(absolute_database_path())
+    return {str(symbol or "").strip().upper() for symbol in all_anchor_symbols(network, **registry_kwargs)}
 
 
 def _quote_routes_payload_for_robinhood_family(

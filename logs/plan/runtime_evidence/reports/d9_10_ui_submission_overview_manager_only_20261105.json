@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_10_ui_submission_overview_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.10 Submission overview and failed/category routes use Manager API without legacy SQLite fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T06:08:38+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "/api/dex/submissions, /api/dex/submissions/failed and /api/dex/submissions/failed/<category> are now manager-owned reads. The Flask adapter calls /v1/reviews for Review Manager status/category counts and /v1/broadcasts for Broadcast Manager attempt rows and diagnostics. Failure UI tags are projected from Broadcast Manager statusReason/evidence/diagnostics into the existing broadcast/submission/code/rpc/execution/quote/blocked/deferred/other buckets. Overview pagination is delegated to /v1/broadcasts for normal pages and to a bounded failed snapshot for category pages. The routes no longer call _submission_database_url, _load_submission_review_groups, count_cow_execution_attempts_sqlite_grouped, legacy submission caches, _submission_review_framework_payload or _closed_loop_runtime_state_summary. Manager unavailable returns 503 manager_read_failed without legacy fallback.",
+  "implementation": {
+    "managerAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "template": "flashloan/app_runtime/web/templates/dex_submissions.html",
+    "static": "flashloan/app_runtime/web/static/dex_submission_records.js",
+    "architectureGuard": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "routes": [
+      "GET /api/dex/submissions",
+      "GET /api/dex/submissions/failed",
+      "GET /api/dex/submissions/failed/<category>"
+    ],
+    "upstream": [
+      "GET /v1/reviews?chainId=4663&offset=0&limit=1",
+      "GET /v1/broadcasts?chainId=4663&offset=0&limit=20",
+      "GET /v1/broadcasts?chainId=4663&status=failed&offset=0&limit=1000"
+    ],
+    "failureCategories": [
+      "broadcast",
+      "submission",
+      "code",
+      "rpc",
+      "execution",
+      "quote",
+      "blocked",
+      "deferred",
+      "other"
+    ],
+    "managerStatus": [
+      "reviewVersion",
+      "reviewChecksum",
+      "broadcastVersion",
+      "broadcastChecksum",
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "attemptCount",
+      "pendingCount",
+      "successCount",
+      "failedCount",
+      "versionsConsistent"
+    ],
+    "legacySqliteReadFallback": false,
+    "legacySubmissionShadow": false,
+    "managerUnavailableStatus": 503,
+    "pageUrlChanged": false,
+    "pageTemplateStructureChanged": false,
+    "dualAuthorityForMigratedScope": false,
+    "productionBroadcastEnabled": false
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p broadcast-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 29
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "passed": 34
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k migrated_submission",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct -q",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_minimal_interfaces_are_consistent -q",
+      "exitCode": 0,
+      "passed": 1
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex_submission_records.js",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "Submission overview manager DTO maps Review Manager status/category counts and Broadcast Manager attempts/diagnostics",
+    "Failure category projection maps rpc/blocked/quote/deferred etc from manager statusReason/evidence/diagnostics",
+    "Overview route uses page/chain/request-id/category arguments and never calls legacy submission loaders",
+    "Manager unavailable returns 503 manager_read_failed without legacy fallback",
+    "Architecture guard verifies overview/failed route bodies contain no legacy SQLite or cached legacy submission symbols",
+    "Functional workflow tests use manager DTO fixtures and no longer depend on /api/dex/submissions legacy SQLite payload"
+  ],
+  "knownBoundary": "D9.10 covers submission overview/failed read DTOs, architecture guards and affected functional tests. Failure category counts are derived from a bounded /v1/broadcasts failed snapshot of up to 1000 rows; when failed attempt count exceeds that snapshot, failureCategorySnapshotLimited=true and exact category totals require a future Broadcast Manager aggregate endpoint. Real mainnet manager DB apply, broadcast execution and production broadcast remain behind M0-M8/P0 gates. The full test_architecture_guards.py file still reports six pre-existing unrelated failures in the current dirty worktree (broad exception audit, split package transitions, nested app_runtime/flashloan output directory, line-limit drift, and UI evidence JSON paths); the new migrated-submission guard passes independently. No service restart, mainnet write, broadcast or destructive data operation was performed."
+}

@@ -39,7 +39,9 @@ fn u256_be(bytes: &[u8], offset: usize) -> Result<u128, String> {
     if offset + 32 > bytes.len() {
         return Err(format!("short ABI data at {offset}"));
     }
-    let value = bytes[offset..offset + 32].iter().fold(0u128, |acc, byte| (acc << 8) | u128::from(*byte));
+    let value = bytes[offset..offset + 32]
+        .iter()
+        .fold(0u128, |acc, byte| (acc << 8) | u128::from(*byte));
     Ok(value)
 }
 
@@ -80,37 +82,30 @@ pub fn initialize_topic() -> String {
     format!("0x{}", hex::encode(digest))
 }
 
-fn pool_key_bytes(key: &V4PoolKey) -> Result<Vec<u8>, String> {
-    let currency0 = canonical_address(&key.currency0);
-    let currency1 = canonical_address(&key.currency1);
-    let hooks = normalize_address(&key.hooks);
-    if currency0 >= currency1 {
-        return Err(format!("currency0 must be smaller than currency1: {currency0} >= {currency1}"));
-    }
-    let mut bytes = Vec::with_capacity(32 + 32 + 32 + 32 + 32);
-    let addr0 = as_bytes(&currency0)?;
-    bytes.extend_from_slice(&[0u8; 12]);
-    bytes.extend_from_slice(&addr0);
-    let addr1 = as_bytes(&currency1)?;
-    bytes.extend_from_slice(&[0u8; 12]);
-    bytes.extend_from_slice(&addr1);
-    bytes.extend_from_slice(&key.fee.to_be_bytes());
-    bytes.extend_from_slice(&[0u8; 28]);
-    bytes.extend_from_slice(&key.tick_spacing.to_be_bytes());
-    let hook_addr = as_bytes(&hooks)?;
-    bytes.extend_from_slice(&[0u8; 12]);
-    bytes.extend_from_slice(&hook_addr);
-    Ok(bytes)
+pub fn pool_id(key: &V4PoolKey) -> Result<String, String> {
+    shared_pool_key(key)?
+        .pool_id()
+        .map_err(|error| error.to_string())
 }
 
-pub fn pool_id(key: &V4PoolKey) -> Result<String, String> {
-    let bytes = pool_key_bytes(key)?;
-    Ok(format!("0x{}", hex::encode(keccak256(&bytes))).to_lowercase())
+fn shared_pool_key(key: &V4PoolKey) -> Result<manager_contracts::V4PoolKey, String> {
+    let fee = u32::try_from(key.fee)
+        .map_err(|_| format!("fee is outside the V4 uint24 range: {}", key.fee))?;
+    Ok(manager_contracts::V4PoolKey {
+        currency0: canonical_address(&key.currency0),
+        currency1: canonical_address(&key.currency1),
+        fee,
+        tick_spacing: key.tick_spacing,
+        hooks: normalize_address(&key.hooks),
+    })
 }
 
 pub fn decode_initialize_log(log: &Log, _pool_manager: &str) -> Result<V4InitializeRow, String> {
     if log.topics.len() < 4 {
-        return Err(format!("Initialize log has {} topics, expected 4", log.topics.len()));
+        return Err(format!(
+            "Initialize log has {} topics, expected 4",
+            log.topics.len()
+        ));
     }
     let currency0 = address_from_topic(&log.topics[2])?;
     let currency1 = address_from_topic(&log.topics[3])?;
@@ -120,7 +115,11 @@ pub fn decode_initialize_log(log: &Log, _pool_manager: &str) -> Result<V4Initial
     let hooks = address_from_abi_word(&bytes, 64)?;
     let sqrt_price_x96 = u256_be(&bytes, 96)?;
     let tick = i256_be(&bytes, 128)? as i32;
-    let hooks = if hooks == ZERO_ADDRESS { ZERO_ADDRESS.to_string() } else { hooks };
+    let hooks = if hooks == ZERO_ADDRESS {
+        ZERO_ADDRESS.to_string()
+    } else {
+        hooks
+    };
     let key = V4PoolKey {
         currency0,
         currency1,
@@ -209,7 +208,6 @@ mod tests {
     #[test]
     fn decode_initialize_log_uses_last_20_bytes_for_address_topics() {
         let log = Log {
-            address: "0xpoolmanager".to_string(),
             topics: vec![
                 initialize_topic(),
                 "0x1234".to_string(),
@@ -220,27 +218,46 @@ mod tests {
                 "0x{}",
                 hex::encode([
                     // fee = 3000
-                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 184,
-                    // tickSpacing = 60
-                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 60,
-                    // hooks = zero address
-                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    // sqrtPriceX96 = 1
-                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-                    // tick = 0
-                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 11, 184, // tickSpacing = 60
+                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 60, // hooks = zero address
+                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, // sqrtPriceX96 = 1
+                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 1, // tick = 0
+                    0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0,
                 ])
             ),
             block_number: 4663,
             transaction_hash: "0x123456".to_string(),
-            log_index: Some(1),
         };
-        let row = decode_initialize_log(&log, "0x8366a39cc670b4001a1121b8f6a443a643e40951").unwrap();
+        let row =
+            decode_initialize_log(&log, "0x8366a39cc670b4001a1121b8f6a443a643e40951").unwrap();
         assert_eq!(row.pool_key.currency0, ZERO_ADDRESS);
-        assert_eq!(row.pool_key.currency1, "0x5fc5360d0400a0fd4f2af552add042d716f1d168");
+        assert_eq!(
+            row.pool_key.currency1,
+            "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        );
         assert_eq!(row.pool_key.fee, 3000);
         assert_eq!(row.pool_key.tick_spacing, 60);
         assert_eq!(row.pool_key.hooks, ZERO_ADDRESS);
         assert!(!row.pool_id.is_empty());
+    }
+
+    #[test]
+    fn shared_pool_id_matches_mainnet_chain_truth_golden_vector() {
+        let key = V4PoolKey {
+            currency0: "0x0000000000000000000000000000000000000000".to_string(),
+            currency1: "0x0040070833df5bcf9644a5c9732a1fe906c27777".to_string(),
+            fee: 10_000,
+            tick_spacing: 200,
+            hooks: "0x0000000000000000000000000000000000000000".to_string(),
+        };
+        assert_eq!(
+            pool_id(&key).unwrap(),
+            "0x0061a6568e820becb465c3e6c8817bba1e8b6a91feeef04756bf6e15263cd252"
+        );
     }
 }

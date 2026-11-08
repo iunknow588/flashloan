@@ -1,0 +1,116 @@
+{
+  "evidenceId": "d9_37_core_page_token_and_route_helper_split_20261106",
+  "task": "D9.37 split page token helpers and make market route identity a core compatibility surface",
+  "recordedAt": "2026-11-06T19:28:01+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmittedToRealWorker": false,
+    "signedTransaction": false,
+    "broadcastSent": false,
+    "historicalEvidenceRewrittenAsPass": false
+  },
+  "implementation": {
+    "newModules": [
+      "flashloan/src/core/db/page_payload_tokens.py"
+    ],
+    "updatedModules": [
+      "flashloan/src/core/db/page_payloads.py",
+      "flashloan/src/market/binance_market/dex_route_helpers.py"
+    ],
+    "changes": [
+      "moved page token/name lookup helpers out of page_payloads.py",
+      "kept original private names importable from page_payloads.py",
+      "replaced the market-local route identity implementation with core route_symbol_identity imports",
+      "kept market helper names as compatibility aliases for existing route-test callers"
+    ],
+    "lineCounts": {
+      "flashloan/src/core/db/page_payloads.py": 913,
+      "flashloan/src/core/db/page_payload_tokens.py": 148,
+      "flashloan/src/market/binance_market/dex_route_helpers.py": 939
+    }
+  },
+  "verification": [
+    {
+      "command": "python -m py_compile src/market/binance_market/dex_route_helpers.py src/core/route_symbol_identity.py src/core/db/page_payload_tokens.py src/core/db/page_payloads.py",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_dex_route_test.py app_runtime/tests/unit/test_route_symbol_identity.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "79 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_pool_candidates.py app_runtime/tests/unit/test_sqlite_only_robinhood_runtime_sources.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "64 passed, 1 skipped"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_stock_token_registry.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 1,
+      "result": "13 passed, 2 failed",
+      "unrelatedCurrentWorktreeFailures": [
+        "test_apply_testnet_stock_token_metadata_overrides_placeholder_symbol",
+        "test_robinhood_observation_anchor_symbols_include_stocks"
+      ],
+      "note": "These assertions concern the current testnet SQLite/static stock-anchor source and are outside the two split files."
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 1,
+      "result": "46 passed, 2 failed",
+      "remainingFailures": [
+        {
+          "test": "test_refactored_helper_modules_stay_under_line_limits",
+          "file": "flashloan/src/dex/runtime/dex_opportunity_scanner_engine.py",
+          "lineCount": 1222,
+          "limit": 1000
+        },
+        {
+          "test": "test_active_source_files_stay_under_1000_lines",
+          "files": [
+            "flashloan/src/core/db/storage_cow_execution.py: 1263",
+            "flashloan/app_runtime/web/data_routes/manager_page_compare.py: 5038",
+            "flashloan/app_runtime/web/static/dex_submission_records.js: 1037"
+          ]
+        }
+      ]
+    }
+  ],
+  "architectureGuardObservation": {
+    "activeSourceOffendersBefore": 5,
+    "activeSourceOffendersAfter": 3,
+    "removedFromLineLimitDebt": [
+      "flashloan/src/core/db/page_payloads.py",
+      "flashloan/src/market/binance_market/dex_route_helpers.py"
+    ],
+    "remainingFailureCategories": [
+      "scanner engine line limit",
+      "three active source line-limit debt items"
+    ]
+  },
+  "documentation": {
+    "updated": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "singleCurrentPlanPreserved": true
+  },
+  "boundaries": [
+    "No page URL, page structure, DTO field, or worker behavior changed.",
+    "No new business authority was introduced.",
+    "No production database was read or written.",
+    "No service was started or stopped.",
+    "No transaction was signed or broadcast.",
+    "Prior evidence files were left unchanged."
+  ]
+}

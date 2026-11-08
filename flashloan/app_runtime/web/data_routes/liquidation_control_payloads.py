@@ -10,7 +10,7 @@ def db_summary_payload(
     *,
     pool_address: str,
     repo_root,
-    database_url_or_none,
+    database_url,
     observation_count,
     database_table_counts,
     safe_latest,
@@ -25,7 +25,7 @@ def db_summary_payload(
     return {
         "rows": observation_count(),
         "db_counts": database_table_counts(),
-        "trade_stats": safe_latest(lambda: read_trade_stats(database_url_or_none())),
+        "trade_stats": safe_latest(lambda: read_trade_stats(database_url())),
         "testnet_trade_stats": safe_latest(lambda: read_testnet_trade_stats(repo_root)),
         "liquidation": {
             "schema": {
@@ -49,7 +49,7 @@ def control_summary_payload(
     *,
     pool_address: str,
 ) -> tuple[dict, int]:
-    database_url = panel_call("database_url_or_none")
+    database_url = panel_call("database_url")
     schema = panel_call("schema_status_payload")
     discovery_progress = panel_call("liquidation_discovery_progress", pool_address) if database_url and pool_address else {}
     registry_window = panel_call("liquidation_account_registry_window") if database_url else {}

@@ -1,0 +1,831 @@
+{
+  "schema": "closed-loop-runtime-sync-audit-v1",
+  "generatedAt": "2026-11-08T04:20:35.015631+00:00",
+  "mode": "read-only",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "keyMode": "directed-symbol",
+  "databaseMetadata": {
+    "path": "flashloan\\db\\local_store_4663.sqlite3",
+    "sha256": "4c34b931d2726d2ee0b009fc51dbe5da07da6656bdf6c685c21c337d33675a62",
+    "sizeBytes": 3315490816,
+    "sqliteVersion": "3.45.3",
+    "dataVersion": 2,
+    "schemaVersion": 14478,
+    "journalMode": "wal",
+    "quickCheck": "ok",
+    "transaction": "single-read-transaction-query-only"
+  },
+  "closedLoops": {
+    "totalRows": 192,
+    "rowsInScope": 192,
+    "outOfScopeRows": 0,
+    "scopes": {
+      "robinhood|4663|uniswap_v4|dex-arbitrage-4663-uniswap-v4": 192
+    },
+    "selectedKey": {
+      "keyedRows": 192,
+      "invalidRows": 0,
+      "duplicates": []
+    },
+    "directedSymbol": {
+      "keyedRows": 192,
+      "invalidRows": 0,
+      "duplicates": []
+    },
+    "yzGroup": {
+      "keyedRows": 192,
+      "invalidRows": 0,
+      "duplicates": [
+        {
+          "key": "aapl|eth|nvda",
+          "count": 2
+        },
+        {
+          "key": "aapl|eth|spcx",
+          "count": 2
+        },
+        {
+          "key": "aapl|eth|spy",
+          "count": 2
+        },
+        {
+          "key": "aapl|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "aapl|nvda|spcx",
+          "count": 2
+        },
+        {
+          "key": "aapl|nvda|spy",
+          "count": 2
+        },
+        {
+          "key": "aapl|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "aapl|spcx|usdg",
+          "count": 2
+        },
+        {
+          "key": "aapl|spy|usdg",
+          "count": 2
+        },
+        {
+          "key": "amd|eth|nvda",
+          "count": 2
+        },
+        {
+          "key": "amd|eth|spy",
+          "count": 2
+        },
+        {
+          "key": "amd|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "amd|nvda|spy",
+          "count": 2
+        },
+        {
+          "key": "amd|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "amd|spy|usdg",
+          "count": 2
+        },
+        {
+          "key": "crcl|eth|googl",
+          "count": 2
+        },
+        {
+          "key": "crcl|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "crcl|googl|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|aapl|nvda",
+          "count": 2
+        },
+        {
+          "key": "eth|aapl|spcx",
+          "count": 2
+        },
+        {
+          "key": "eth|aapl|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|aapl|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|amd|nvda",
+          "count": 2
+        },
+        {
+          "key": "eth|amd|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|amd|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|crcl|googl",
+          "count": 2
+        },
+        {
+          "key": "eth|crcl|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|glxy|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|gme|nvda",
+          "count": 2
+        },
+        {
+          "key": "eth|gme|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|googl|mstr",
+          "count": 2
+        },
+        {
+          "key": "eth|googl|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|googl|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|meta|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|meta|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|mstr|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|mu|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|nvda|spcx",
+          "count": 2
+        },
+        {
+          "key": "eth|nvda|spy",
+          "count": 2
+        },
+        {
+          "key": "eth|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|nvda|weth",
+          "count": 2
+        },
+        {
+          "key": "eth|spcx|tsla",
+          "count": 2
+        },
+        {
+          "key": "eth|spcx|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|spcx|weth",
+          "count": 2
+        },
+        {
+          "key": "eth|spy|tsla",
+          "count": 2
+        },
+        {
+          "key": "eth|spy|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|tsla|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|usde|usdg",
+          "count": 2
+        },
+        {
+          "key": "eth|usdg|uso",
+          "count": 2
+        },
+        {
+          "key": "eth|usdg|weth",
+          "count": 2
+        },
+        {
+          "key": "glxy|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "googl|crcl|eth",
+          "count": 2
+        },
+        {
+          "key": "googl|crcl|usdg",
+          "count": 2
+        },
+        {
+          "key": "googl|eth|mstr",
+          "count": 2
+        },
+        {
+          "key": "googl|eth|spy",
+          "count": 2
+        },
+        {
+          "key": "googl|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "googl|mstr|usdg",
+          "count": 2
+        },
+        {
+          "key": "googl|spy|usdg",
+          "count": 2
+        },
+        {
+          "key": "mu|eth|spy",
+          "count": 2
+        },
+        {
+          "key": "spcx|aapl|eth",
+          "count": 2
+        },
+        {
+          "key": "spcx|aapl|nvda",
+          "count": 2
+        },
+        {
+          "key": "spcx|aapl|usdg",
+          "count": 2
+        },
+        {
+          "key": "spcx|eth|nvda",
+          "count": 2
+        },
+        {
+          "key": "spcx|eth|tsla",
+          "count": 2
+        },
+        {
+          "key": "spcx|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "spcx|eth|weth",
+          "count": 2
+        },
+        {
+          "key": "spcx|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "spcx|nvda|weth",
+          "count": 2
+        },
+        {
+          "key": "spcx|tsla|usdg",
+          "count": 2
+        },
+        {
+          "key": "spcx|usdg|weth",
+          "count": 2
+        },
+        {
+          "key": "spy|aapl|eth",
+          "count": 2
+        },
+        {
+          "key": "spy|aapl|nvda",
+          "count": 2
+        },
+        {
+          "key": "spy|aapl|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|amd|eth",
+          "count": 2
+        },
+        {
+          "key": "spy|amd|nvda",
+          "count": 2
+        },
+        {
+          "key": "spy|amd|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|coin|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|googl",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|meta",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|mu",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|nvda",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|tsla",
+          "count": 2
+        },
+        {
+          "key": "spy|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|googl|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|meta|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "spy|tsla|usdg",
+          "count": 2
+        },
+        {
+          "key": "tz|ta|tb",
+          "count": 2
+        },
+        {
+          "key": "usde|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "uso|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "weth|eth|nvda",
+          "count": 2
+        },
+        {
+          "key": "weth|eth|spcx",
+          "count": 2
+        },
+        {
+          "key": "weth|eth|usdg",
+          "count": 2
+        },
+        {
+          "key": "weth|nvda|spcx",
+          "count": 2
+        },
+        {
+          "key": "weth|nvda|usdg",
+          "count": 2
+        },
+        {
+          "key": "weth|spcx|usdg",
+          "count": 2
+        }
+      ]
+    },
+    "physicalLoopKey": {
+      "keyedRows": 192,
+      "invalidRows": 0,
+      "duplicates": []
+    }
+  },
+  "runtimeStates": {
+    "totalRows": 96,
+    "rowsInScope": 96,
+    "outOfScopeRows": 0,
+    "scopes": {
+      "robinhood|4663|uniswap_v4|dex-arbitrage-4663-uniswap-v4": 96
+    },
+    "stateCounts": {
+      "execution_not_requested": 69,
+      "offchain_estimate": 11,
+      "preflight_failed": 16
+    },
+    "selectedKey": {
+      "keyedRows": 96,
+      "invalidRows": 0,
+      "duplicates": []
+    },
+    "directedSymbol": {
+      "keyedRows": 96,
+      "invalidRows": 0,
+      "duplicates": []
+    },
+    "yzGroup": {
+      "keyedRows": 96,
+      "invalidRows": 0,
+      "duplicates": []
+    },
+    "physicalLoopKey": {
+      "keyedRows": 96,
+      "invalidRows": 0,
+      "duplicates": []
+    }
+  },
+  "coverage": {
+    "directedClosed": 192,
+    "directedRuntime": 96,
+    "exactMatched": 96,
+    "exactMissing": 96,
+    "duplicateDirectedKey": 0,
+    "orphan": 0,
+    "directedSymbolMatched": 96,
+    "directedSymbolMissing": 96,
+    "directedSymbolOrphan": 0,
+    "yzGroupMatched": 96,
+    "yzGroupMissing": 0,
+    "yzGroupOrphan": 0,
+    "physicalLoopKeyMatched": 0,
+    "physicalLoopKeyMissing": 192,
+    "physicalLoopKeyOrphan": 96,
+    "outOfScopeRuntime": 0,
+    "scopeLeak": 0
+  },
+  "selectedCoverage": {
+    "matchedKeys": [
+      "aapl|eth|nvda",
+      "aapl|eth|spcx",
+      "aapl|eth|spy",
+      "aapl|eth|usdg",
+      "aapl|nvda|spcx",
+      "aapl|nvda|spy",
+      "aapl|nvda|usdg",
+      "aapl|spcx|usdg",
+      "aapl|spy|usdg",
+      "amd|eth|nvda",
+      "amd|eth|spy",
+      "amd|eth|usdg",
+      "amd|nvda|spy",
+      "amd|nvda|usdg",
+      "amd|spy|usdg",
+      "crcl|eth|googl",
+      "crcl|eth|usdg",
+      "crcl|googl|usdg",
+      "eth|aapl|nvda",
+      "eth|aapl|spcx",
+      "eth|aapl|spy",
+      "eth|aapl|usdg",
+      "eth|amd|nvda",
+      "eth|amd|spy",
+      "eth|amd|usdg",
+      "eth|crcl|googl",
+      "eth|crcl|usdg",
+      "eth|glxy|usdg",
+      "eth|gme|nvda",
+      "eth|gme|usdg",
+      "eth|googl|mstr",
+      "eth|googl|spy",
+      "eth|googl|usdg",
+      "eth|meta|spy",
+      "eth|meta|usdg",
+      "eth|mstr|usdg",
+      "eth|mu|spy",
+      "eth|nvda|spcx",
+      "eth|nvda|spy",
+      "eth|nvda|usdg",
+      "eth|nvda|weth",
+      "eth|spcx|tsla",
+      "eth|spcx|usdg",
+      "eth|spcx|weth",
+      "eth|spy|tsla",
+      "eth|spy|usdg",
+      "eth|tsla|usdg",
+      "eth|usde|usdg",
+      "eth|usdg|uso",
+      "eth|usdg|weth",
+      "glxy|eth|usdg",
+      "googl|crcl|eth",
+      "googl|crcl|usdg",
+      "googl|eth|mstr",
+      "googl|eth|spy",
+      "googl|eth|usdg",
+      "googl|mstr|usdg",
+      "googl|spy|usdg",
+      "mu|eth|spy",
+      "spcx|aapl|eth",
+      "spcx|aapl|nvda",
+      "spcx|aapl|usdg",
+      "spcx|eth|nvda",
+      "spcx|eth|tsla",
+      "spcx|eth|usdg",
+      "spcx|eth|weth",
+      "spcx|nvda|usdg",
+      "spcx|nvda|weth",
+      "spcx|tsla|usdg",
+      "spcx|usdg|weth",
+      "spy|aapl|eth",
+      "spy|aapl|nvda",
+      "spy|aapl|usdg",
+      "spy|amd|eth",
+      "spy|amd|nvda",
+      "spy|amd|usdg",
+      "spy|coin|usdg",
+      "spy|eth|googl",
+      "spy|eth|meta",
+      "spy|eth|mu",
+      "spy|eth|nvda",
+      "spy|eth|tsla",
+      "spy|eth|usdg",
+      "spy|googl|usdg",
+      "spy|meta|usdg",
+      "spy|nvda|usdg",
+      "spy|tsla|usdg",
+      "tz|ta|tb",
+      "usde|eth|usdg",
+      "uso|eth|usdg",
+      "weth|eth|nvda",
+      "weth|eth|spcx",
+      "weth|eth|usdg",
+      "weth|nvda|spcx",
+      "weth|nvda|usdg",
+      "weth|spcx|usdg"
+    ],
+    "missingKeys": [
+      "aapl|nvda|eth",
+      "aapl|spcx|eth",
+      "aapl|spcx|nvda",
+      "aapl|spy|eth",
+      "aapl|spy|nvda",
+      "aapl|usdg|eth",
+      "aapl|usdg|nvda",
+      "aapl|usdg|spcx",
+      "aapl|usdg|spy",
+      "amd|nvda|eth",
+      "amd|spy|eth",
+      "amd|spy|nvda",
+      "amd|usdg|eth",
+      "amd|usdg|nvda",
+      "amd|usdg|spy",
+      "crcl|googl|eth",
+      "crcl|usdg|eth",
+      "crcl|usdg|googl",
+      "eth|googl|crcl",
+      "eth|mstr|googl",
+      "eth|nvda|aapl",
+      "eth|nvda|amd",
+      "eth|nvda|gme",
+      "eth|spcx|aapl",
+      "eth|spcx|nvda",
+      "eth|spy|aapl",
+      "eth|spy|amd",
+      "eth|spy|googl",
+      "eth|spy|meta",
+      "eth|spy|mu",
+      "eth|spy|nvda",
+      "eth|tsla|spcx",
+      "eth|tsla|spy",
+      "eth|usdg|aapl",
+      "eth|usdg|amd",
+      "eth|usdg|crcl",
+      "eth|usdg|glxy",
+      "eth|usdg|gme",
+      "eth|usdg|googl",
+      "eth|usdg|meta",
+      "eth|usdg|mstr",
+      "eth|usdg|nvda",
+      "eth|usdg|spcx",
+      "eth|usdg|spy",
+      "eth|usdg|tsla",
+      "eth|usdg|usde",
+      "eth|uso|usdg",
+      "eth|weth|nvda",
+      "eth|weth|spcx",
+      "eth|weth|usdg",
+      "glxy|usdg|eth",
+      "googl|eth|crcl",
+      "googl|mstr|eth",
+      "googl|spy|eth",
+      "googl|usdg|crcl",
+      "googl|usdg|eth",
+      "googl|usdg|mstr",
+      "googl|usdg|spy",
+      "mu|spy|eth",
+      "spcx|eth|aapl",
+      "spcx|nvda|aapl",
+      "spcx|nvda|eth",
+      "spcx|tsla|eth",
+      "spcx|usdg|aapl",
+      "spcx|usdg|eth",
+      "spcx|usdg|nvda",
+      "spcx|usdg|tsla",
+      "spcx|weth|eth",
+      "spcx|weth|nvda",
+      "spcx|weth|usdg",
+      "spy|eth|aapl",
+      "spy|eth|amd",
+      "spy|googl|eth",
+      "spy|meta|eth",
+      "spy|mu|eth",
+      "spy|nvda|aapl",
+      "spy|nvda|amd",
+      "spy|nvda|eth",
+      "spy|tsla|eth",
+      "spy|usdg|aapl",
+      "spy|usdg|amd",
+      "spy|usdg|coin",
+      "spy|usdg|eth",
+      "spy|usdg|googl",
+      "spy|usdg|meta",
+      "spy|usdg|nvda",
+      "spy|usdg|tsla",
+      "tz|tb|ta",
+      "usde|usdg|eth",
+      "uso|usdg|eth",
+      "weth|nvda|eth",
+      "weth|spcx|eth",
+      "weth|spcx|nvda",
+      "weth|usdg|eth",
+      "weth|usdg|nvda",
+      "weth|usdg|spcx"
+    ],
+    "orphanKeys": []
+  },
+  "diagnosticCoverage": {
+    "directedSymbol": {
+      "directedClosed": 192,
+      "directedRuntime": 96,
+      "exactMatched": 96,
+      "exactMissing": 96,
+      "duplicateDirectedKey": 0,
+      "orphan": 0
+    },
+    "yzGroup": {
+      "directedClosed": 96,
+      "directedRuntime": 96,
+      "exactMatched": 96,
+      "exactMissing": 0,
+      "duplicateDirectedKey": 96,
+      "orphan": 0
+    },
+    "physicalLoopKey": {
+      "directedClosed": 192,
+      "directedRuntime": 96,
+      "exactMatched": 0,
+      "exactMissing": 192,
+      "duplicateDirectedKey": 0,
+      "orphan": 96
+    }
+  },
+  "outOfScope": [],
+  "findings": [
+    {
+      "code": "DIRECTION_COLLAPSE",
+      "severity": "high",
+      "summary": "Every unordered Y/Z group exists, but directed-symbol coverage is incomplete.",
+      "count": 96
+    },
+    {
+      "code": "EXACT_KEY_MISSING",
+      "severity": "high",
+      "summary": "Closed loops are missing runtime identities in the selected view.",
+      "count": 96,
+      "keys": [
+        "aapl|nvda|eth",
+        "aapl|spcx|eth",
+        "aapl|spcx|nvda",
+        "aapl|spy|eth",
+        "aapl|spy|nvda",
+        "aapl|usdg|eth",
+        "aapl|usdg|nvda",
+        "aapl|usdg|spcx",
+        "aapl|usdg|spy",
+        "amd|nvda|eth",
+        "amd|spy|eth",
+        "amd|spy|nvda",
+        "amd|usdg|eth",
+        "amd|usdg|nvda",
+        "amd|usdg|spy",
+        "crcl|googl|eth",
+        "crcl|usdg|eth",
+        "crcl|usdg|googl",
+        "eth|googl|crcl",
+        "eth|mstr|googl",
+        "eth|nvda|aapl",
+        "eth|nvda|amd",
+        "eth|nvda|gme",
+        "eth|spcx|aapl",
+        "eth|spcx|nvda",
+        "eth|spy|aapl",
+        "eth|spy|amd",
+        "eth|spy|googl",
+        "eth|spy|meta",
+        "eth|spy|mu",
+        "eth|spy|nvda",
+        "eth|tsla|spcx",
+        "eth|tsla|spy",
+        "eth|usdg|aapl",
+        "eth|usdg|amd",
+        "eth|usdg|crcl",
+        "eth|usdg|glxy",
+        "eth|usdg|gme",
+        "eth|usdg|googl",
+        "eth|usdg|meta",
+        "eth|usdg|mstr",
+        "eth|usdg|nvda",
+        "eth|usdg|spcx",
+        "eth|usdg|spy",
+        "eth|usdg|tsla",
+        "eth|usdg|usde",
+        "eth|uso|usdg",
+        "eth|weth|nvda",
+        "eth|weth|spcx",
+        "eth|weth|usdg",
+        "glxy|usdg|eth",
+        "googl|eth|crcl",
+        "googl|mstr|eth",
+        "googl|spy|eth",
+        "googl|usdg|crcl",
+        "googl|usdg|eth",
+        "googl|usdg|mstr",
+        "googl|usdg|spy",
+        "mu|spy|eth",
+        "spcx|eth|aapl",
+        "spcx|nvda|aapl",
+        "spcx|nvda|eth",
+        "spcx|tsla|eth",
+        "spcx|usdg|aapl",
+        "spcx|usdg|eth",
+        "spcx|usdg|nvda",
+        "spcx|usdg|tsla",
+        "spcx|weth|eth",
+        "spcx|weth|nvda",
+        "spcx|weth|usdg",
+        "spy|eth|aapl",
+        "spy|eth|amd",
+        "spy|googl|eth",
+        "spy|meta|eth",
+        "spy|mu|eth",
+        "spy|nvda|aapl",
+        "spy|nvda|amd",
+        "spy|nvda|eth",
+        "spy|tsla|eth",
+        "spy|usdg|aapl",
+        "spy|usdg|amd",
+        "spy|usdg|coin",
+        "spy|usdg|eth",
+        "spy|usdg|googl",
+        "spy|usdg|meta",
+        "spy|usdg|nvda",
+        "spy|usdg|tsla",
+        "tz|tb|ta",
+        "usde|usdg|eth",
+        "uso|usdg|eth",
+        "weth|nvda|eth",
+        "weth|spcx|eth",
+        "weth|spcx|nvda",
+        "weth|usdg|eth",
+        "weth|usdg|nvda",
+        "weth|usdg|spcx"
+      ]
+    }
+  ],
+  "findingCodes": [
+    "DIRECTION_COLLAPSE",
+    "EXACT_KEY_MISSING"
+  ],
+  "exitCode": 2
+}

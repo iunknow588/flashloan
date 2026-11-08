@@ -44,7 +44,18 @@ module.exports = {
     },
   },
   networks: {
-    hardhat: {},
+    hardhat: {
+      chains: {
+        46630: {
+          hardforkHistory: {
+            london: 0,
+            shanghai: 0,
+            cancun: 0,
+            prague: 0,
+          },
+        },
+      },
+    },
     localhost: {
       url: LOCAL_CHAIN.rpcUrl,
       chainId: 31337,

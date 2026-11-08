@@ -6,7 +6,7 @@ from dex.intent_trade.chains.robinhood_common import rpc_gate
 
 
 def test_v4_live_quote_gate_defaults_for_robinhood_chains(monkeypatch):
-    monkeypatch.delenv("DEX_V4_LIVE_QUOTE_ENABLED", raising=False)
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {})
 
     assert rpc_gate.v4_live_quote_enabled(chain_id=4663) is True
     assert rpc_gate.v4_live_quote_enabled(chain_id=46630) is True
@@ -14,18 +14,32 @@ def test_v4_live_quote_gate_defaults_for_robinhood_chains(monkeypatch):
     assert rpc_gate.v4_live_quote_enabled(chain_id=None) is False
 
 
-def test_v4_live_quote_gate_explicit_switch(monkeypatch):
+def test_v4_live_quote_gate_ignores_obsolete_live_quote_switches(monkeypatch):
+    # The quote/routing page always requires live quoting.  Obsolete global and
+    # chain-scoped switches are deliberately not read and must not disable it.
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {})
     monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
-    assert rpc_gate.v4_live_quote_enabled(chain_id=4663) is False
-    assert rpc_gate.v4_live_quote_enabled(chain_id=46630) is False
-
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "on")
+    monkeypatch.setenv("DEX_V4_ROBINHOOD_MAINNET_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setenv("DEX_V4_ROBINHOOD_TESTNET_LIVE_QUOTE_ENABLED", "0")
     assert rpc_gate.v4_live_quote_enabled(chain_id=4663) is True
-    assert rpc_gate.v4_live_quote_enabled(chain_id=1) is True
+    assert rpc_gate.v4_live_quote_enabled(chain_id=46630) is True
+    rpc_gate.require_v4_live_quote(chain_id=4663)
 
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
     with pytest.raises(RuntimeError, match="disabled"):
+        rpc_gate.require_v4_live_quote(chain_id=1)
+
+
+def test_v4_live_quote_gate_rpc_offline_is_dynamic_and_fail_closed(monkeypatch):
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {})
+    rpc_gate.mark_v4_rpc_offline(4663, reason="network_unreachable")
+
+    assert rpc_gate.v4_live_quote_enabled(chain_id=4663) is False
+    assert rpc_gate.v4_live_quote_enabled(chain_id=46630) is True
+    with pytest.raises(RuntimeError, match="network_unreachable"):
         rpc_gate.require_v4_live_quote(chain_id=4663)
+
+    rpc_gate.clear_v4_rpc_offline(4663)
+    assert rpc_gate.v4_live_quote_enabled(chain_id=4663) is True
 
 
 def test_v4_edge_quote_disabled_does_not_connect_live_adapter(monkeypatch):
@@ -40,7 +54,7 @@ def test_v4_edge_quote_disabled_does_not_connect_live_adapter(monkeypatch):
 
     monkeypatch.setattr(route_quotes, "load_v4_sdk_adapter", _fail)
     monkeypatch.setattr(route_quotes, "quote_v4_exact_input_single", _fail)
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {46630: "test_offline"})
 
     token0 = "0x" + "a" * 40
     token1 = "0x" + "b" * 40
@@ -75,6 +89,54 @@ def test_v4_edge_quote_disabled_does_not_connect_live_adapter(monkeypatch):
     assert result["quoteSource"] == "uniswap_v4_sdk_adapter_required"
 
 
+def test_static_closed_loop_route_quote_does_not_connect_live_adapter(monkeypatch):
+    import market.binance_market.dex_surface_route_quotes as route_quotes
+
+    calls: list[str] = []
+
+    def _fail(*args, **kwargs):
+        calls.append("rpc")
+        raise AssertionError("static observation must not call the live V4 adapter")
+
+    monkeypatch.setattr(route_quotes, "load_v4_sdk_adapter", _fail)
+    monkeypatch.setattr(route_quotes, "quote_v4_exact_input_single", _fail)
+
+    token0 = "0x" + "a" * 40
+    token1 = "0x" + "b" * 40
+    pool = {
+        "pool": "0x" + "1" * 64,
+        "dex": "uniswap_v4",
+        "protocol": "uniswap_v4",
+        "fee": "3000",
+        "token0": token0,
+        "token1": token1,
+        "token0Symbol": "TZ",
+        "token1Symbol": "USDE",
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+        "sqrtPriceX96": str(2**96),
+        "balances": {"token0": 1000.0, "token1": 1000.0, "tvlUsd": 2000.0},
+    }
+    route = {
+        "routeSymbols": ["TZ", "USDE", "TZ"],
+        "routeAddresses": [token0, token1, token0],
+        "routeTokenPath": [],
+        "routePools": [pool],
+    }
+    analysis = route_quotes._route_quote_analysis(
+        route,
+        price_map={"TZ": 1.0, "USDE": 1.0},
+        chain_id=46630,
+        use_static_observation=True,
+    )
+
+    assert calls == []
+    assert analysis["complete"] is True
+    assert analysis["livePriceVerified"] is False
+    assert analysis["priceEvidenceMode"] == "reference_only"
+    assert analysis["steps"][0]["executionTrust"] == "sdk_adapter_required"
+
+
 def test_v4_token_metadata_disabled_skips_live_erc20_read(monkeypatch):
     import market.binance_market.dex_surface_v4 as dex_surface_v4
 
@@ -87,7 +149,7 @@ def test_v4_token_metadata_disabled_skips_live_erc20_read(monkeypatch):
     monkeypatch.setattr(dex_surface_v4, "_live_v4_token_decimals", _fail)
     monkeypatch.setattr(dex_surface_v4, "_v4_token_metadata_cache", lambda *args, **kwargs: {})
     monkeypatch.setenv("DEX_V4_LIVE_TOKEN_METADATA_ENABLED", "1")
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {4663: "test_offline"})
 
     pool = {"token0": "0x" + "c" * 40}
     result = dex_surface_v4._v4_pool_token_metadata(pool, 0, chain_id=4663)
@@ -96,7 +158,7 @@ def test_v4_token_metadata_disabled_skips_live_erc20_read(monkeypatch):
     assert result["source"] == "pool_index"
 
 
-def test_capture_onchain_trigger_context_disabled_is_rpc_free(monkeypatch):
+def test_capture_onchain_trigger_context_offline_is_rpc_free(monkeypatch):
     import dex.runtime.dex_onchain_quote_evidence as evidence
 
     calls: list[str] = []
@@ -106,7 +168,7 @@ def test_capture_onchain_trigger_context_disabled_is_rpc_free(monkeypatch):
         raise AssertionError("trigger-context RPC must not run when gate is disabled")
 
     monkeypatch.setattr(evidence, "_connect_robinhood_family", _fail)
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {4663: "test_offline"})
 
     context = evidence.capture_onchain_trigger_context(
         chain_id=4663,
@@ -115,10 +177,10 @@ def test_capture_onchain_trigger_context_disabled_is_rpc_free(monkeypatch):
     )
 
     assert calls == []
-    assert context["error"] == "live_quote_disabled"
+    assert context["error"] == "rpc_unavailable"
 
 
-def test_build_route_onchain_evidence_disabled_marks_live_quote_disabled(monkeypatch):
+def test_build_route_onchain_evidence_offline_marks_rpc_unavailable(monkeypatch):
     import dex.runtime.dex_onchain_quote_evidence as evidence
 
     calls: list[str] = []
@@ -128,7 +190,7 @@ def test_build_route_onchain_evidence_disabled_marks_live_quote_disabled(monkeyp
         raise AssertionError("on-chain evidence RPC must not run when gate is disabled")
 
     monkeypatch.setattr(evidence, "_connect_robinhood_family", _fail)
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {4663: "test_offline"})
     route = {
         "routeSymbols": ["TZ", "USDE", "TZ"],
         "routeAddresses": ["0x1", "0x2", "0x1"],
@@ -143,7 +205,7 @@ def test_build_route_onchain_evidence_disabled_marks_live_quote_disabled(monkeyp
     )
 
     assert calls == []
-    assert result["status"] == "live_quote_disabled"
+    assert result["status"] == "rpc_unavailable"
 
 
 def test_official_v4_preview_disabled_skips_rpc_probe(monkeypatch):
@@ -156,7 +218,7 @@ def test_official_v4_preview_disabled_skips_rpc_probe(monkeypatch):
         raise AssertionError("official V4 preview RPC probe must not run when gate is disabled")
 
     monkeypatch.setattr(route_test, "_probe_robinhood_family_rpc", _fail_probe)
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {4663: "test_offline"})
 
     preview = route_test._official_v4_preview_python(
         route_symbols=["TZ", "USDE", "TZ"],
@@ -174,7 +236,7 @@ def test_official_v4_preview_disabled_skips_rpc_probe(monkeypatch):
     assert calls == []
 
 
-def test_run_official_v4_arb_route_test_disabled_returns_preview_gate_error(monkeypatch):
+def test_run_official_v4_arb_route_test_offline_returns_preview_rpc_error(monkeypatch):
     import market.binance_market.dex_route_test as route_test
 
     calls: list[str] = []
@@ -217,7 +279,11 @@ def test_run_official_v4_arb_route_test_disabled_returns_preview_gate_error(monk
             },
         ],
     )
-    monkeypatch.setenv("DEX_V4_LIVE_QUOTE_ENABLED", "0")
+    # The live-quote gate is shared module state and a background worker may
+    # clear the offline marker mid-test. Pin the reference held by route_test
+    # directly so this test deterministically stays in the offline path.
+    monkeypatch.setattr(route_test, "v4_live_quote_enabled", lambda chain_id=None: False)
+    monkeypatch.setattr(rpc_gate, "_OFFLINE_REASONS", {4663: "test_offline"})
 
     result = route_test.run_official_v4_arb_route_test(
         route_symbols=["TZ", "TB", "TA", "TZ"],
@@ -227,6 +293,6 @@ def test_run_official_v4_arb_route_test_disabled_returns_preview_gate_error(monk
         route_addresses=addresses,
     )
 
-    assert result["error"] == "official_v4_readonly_preview_live_quote_disabled"
-    assert result["quoteStatus"] == "live_quote_disabled"
+    assert result["error"] == "official_v4_readonly_preview_rpc_unavailable"
+    assert result["quoteStatus"] == "rpc_unavailable"
     assert calls == []

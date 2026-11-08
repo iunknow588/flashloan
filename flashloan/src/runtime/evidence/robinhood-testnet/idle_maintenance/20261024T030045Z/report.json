@@ -1,0 +1,165 @@
+{
+  "backfill": null,
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "generatedAt": "2026-10-24T03:00:44.155368Z",
+  "import": null,
+  "mode": "idle_maintenance",
+  "network": "robinhood-testnet",
+  "ok": true,
+  "phase": "directions_satisfied",
+  "plan": {
+    "basis": "route_edges_sqlite_live_candidates",
+    "counts": {
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4": 1,
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8": 1,
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e": 1,
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8": 1,
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e": 1,
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4": 1
+    },
+    "directionTarget": 1,
+    "floorBlock": 117891347,
+    "neededDirectionCount": 0,
+    "observedAt": "2026-10-24T03:00:45.533121Z",
+    "satisfiedDirectionCount": 6,
+    "selectedPools": {
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891427,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:04.696670Z",
+          "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "token1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+        }
+      ],
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891347,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:04.694670Z",
+          "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        }
+      ],
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891427,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:04.696670Z",
+          "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "token1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+        }
+      ],
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891386,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:07.211902Z",
+          "poolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "tickSpacing": 60,
+          "token0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        }
+      ],
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891347,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:04.694670Z",
+          "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        }
+      ],
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4": [
+        {
+          "estimatedTvlUsd": 0.0,
+          "evidenceSource": "pool_manager_extsload_live_state_batch",
+          "fee": 3000,
+          "hasLiquidity": 1,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891386,
+          "liquidity": "347850542644798355206",
+          "liquidityBlockNumber": 139594894,
+          "liquidityIndex": 347.85054264,
+          "liquidityReadAt": "2026-10-20T18:54:07.211902Z",
+          "poolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+          "tickSpacing": 60,
+          "token0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        }
+      ]
+    },
+    "targets": {}
+  },
+  "prune": null,
+  "rebuildAnchors": [],
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-v4-idle-maintenance-evidence-v1",
+  "scope": {
+    "directionTarget": 1,
+    "directions": [
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+    ],
+    "routeAddresses": [
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    ]
+  },
+  "source": "rust_closed_loop_sqlite_maintenance_consumer"
+}

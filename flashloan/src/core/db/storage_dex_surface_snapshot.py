@@ -13,6 +13,9 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from datetime import datetime, timezone
+import os
+import threading
+import time
 from typing import Any
 
 from core.db.database_path import absolute_database_path
@@ -23,6 +26,10 @@ _SNAPSHOT_SURFACE = "dex_overview_compact"
 # Bump when the persisted snapshot schema changes so stale payloads are
 # rebuilt instead of being replayed without the new fields.
 _SNAPSHOT_SCHEMA_VERSION = 2
+_FINGERPRINT_CACHE: dict[tuple[str, str, int, str], tuple[float, str]] = {}
+_FINGERPRINT_CACHE_LOCK = threading.Lock()
+_SNAPSHOT_TABLE_ENSURED: set[str] = set()
+_SNAPSHOT_TABLE_ENSURE_LOCK = threading.Lock()
 
 
 def _stamp() -> str:
@@ -30,6 +37,17 @@ def _stamp() -> str:
 
 
 def _ensure_snapshot_table(database_url: str) -> None:
+    resolved_key = str(absolute_database_path(database_url))
+    if resolved_key in _SNAPSHOT_TABLE_ENSURED:
+        return
+    with _SNAPSHOT_TABLE_ENSURE_LOCK:
+        if resolved_key in _SNAPSHOT_TABLE_ENSURED:
+            return
+        _ensure_snapshot_table_unlocked(database_url)
+        _SNAPSHOT_TABLE_ENSURED.add(resolved_key)
+
+
+def _ensure_snapshot_table_unlocked(database_url: str) -> None:
     execute(
         database_url,
         """
@@ -56,6 +74,12 @@ def _source_fingerprint(
     chain_id: int,
     protocol: str,
 ) -> str:
+    cache_key = (network, int(chain_id), str(protocol or "").lower())
+    ttl = _fingerprint_cache_ttl_seconds()
+    with _FINGERPRINT_CACHE_LOCK:
+        cached = _FINGERPRINT_CACHE.get(cache_key)
+        if cached is not None and time.time() - cached[0] <= ttl:
+            return cached[1]
     parts: list[str] = []
     for table, has_protocol in (
         ("v4_exchange_pools", True),
@@ -90,7 +114,40 @@ def _source_fingerprint(
             parts.append(f"{int(row.get('c') or 0)}:{row.get('u') or ''}")
         except Exception:
             parts.append("0:")
-    return f"{_SNAPSHOT_SCHEMA_VERSION}|" + "|".join(parts)
+    fingerprint = f"{_SNAPSHOT_SCHEMA_VERSION}|" + "|".join(parts)
+    with _FINGERPRINT_CACHE_LOCK:
+        _FINGERPRINT_CACHE[cache_key] = (time.time(), fingerprint)
+    return fingerprint
+
+
+def _fingerprint_cache_ttl_seconds() -> float:
+    raw = os.getenv("DEX_SURFACE_FINGERPRINT_CACHE_TTL_SECONDS", "30")
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return 5.0
+
+
+def clear_dex_surface_snapshot_fingerprint_cache(
+    *,
+    network: str | None = None,
+    chain_id: int | None = None,
+    protocol: str | None = None,
+) -> int:
+    with _FINGERPRINT_CACHE_LOCK:
+        keys = list(_FINGERPRINT_CACHE)
+        removed = 0
+        for key in keys:
+            key_network, key_chain_id, key_protocol = key
+            if network is not None and key_network != network:
+                continue
+            if chain_id is not None and key_chain_id != int(chain_id):
+                continue
+            if protocol is not None and str(protocol or "").lower() != key_protocol:
+                continue
+            _FINGERPRINT_CACHE.pop(key, None)
+            removed += 1
+        return removed
 
 
 def load_dex_overview_snapshot(
@@ -226,6 +283,7 @@ def clear_dex_surface_snapshots(
 
 __all__ = [
     "clear_dex_surface_snapshots",
+    "clear_dex_surface_snapshot_fingerprint_cache",
     "load_dex_overview_snapshot",
     "save_dex_overview_snapshot",
 ]

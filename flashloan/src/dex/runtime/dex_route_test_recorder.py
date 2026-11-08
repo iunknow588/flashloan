@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import core.db.storage_common as storage_common
 from core.chain_data_registry import chain_data_by_chain_id
-from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl
-from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
+from core.db.storage_cow_execution import record_cow_execution_attempts
 
 
 def _token_units(value: object) -> float | None:
@@ -211,14 +211,10 @@ def record_dex_route_test_attempt(
             or recommendation.get("readyForTransactionPreflight")
         )
         broadcast_completed = bool(broadcast and tx_hash)
-        safe_for_submission = bool(
-            broadcast_completed
-            or (
-                ok
-                and quote_status.lower() == "live_verified"
-                and analysis_ready
-            )
-        )
+        # A closed-loop opportunity becomes success only when the chain returns
+        # a transaction hash. Preflight flags, best-amount confirmation and
+        # quote status describe review quality, not execution success.
+        safe_for_submission = bool(broadcast_completed)
         reasons = []
         if detail:
             reasons.append(detail)
@@ -232,6 +228,8 @@ def record_dex_route_test_attempt(
             reason = "链上复核失败：RPC 不可用"
         elif quote_status == "rpc_verification_timeout":
             reason = "链上复核超时：RPC 未在期限内返回"
+        elif quote_status == "rpc_busy":
+            reason = "链上复核延后：RPC 繁忙/限流"
         elif quote_status == "pool_not_initialized":
             reason = "V4 池未初始化"
         elif quote_status in {"live_quote_failed", "live_quote_error"}:
@@ -353,13 +351,13 @@ def record_dex_route_test_attempt(
             "error": error or None,
             "source": "dex_quote_route_test",
         }
-        log_path = cow_execution_attempt_log_path(network=network, chain_id=chain_id)
-        appended = append_cow_execution_attempts_jsonl(
-            log_path,
+        database_url = str(storage_common.database_url())
+        ids = record_cow_execution_attempts(
+            database_url,
             [attempt],
             dedupe_market_candidates=False,
         )
-        return {"recorded": appended, "log_path": str(log_path), "state": state, "ok": True}
+        return {"recorded": len(ids), "database": database_url, "state": state, "ok": True}
     except Exception as exc:  # noqa: BLE001 - the user-facing route test still succeeds.
         return {"recorded": 0, "state": "record_failed", "error": str(exc)[:200], "ok": False}
 

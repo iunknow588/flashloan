@@ -1,6 +1,7 @@
 from core.db.builders import _build_loop_candidates, _candidate_rows
 from core.db import builders
 from core.db.direction_pool_score import (
+    has_confirmed_depth,
     has_confirmed_liquidity,
     select_directional_pool_ids,
 )
@@ -44,6 +45,28 @@ def test_live_onchain_extsload_state_confirms_thin_indexed_pool():
             "evidence_source": "pool_manager_extsload_live_state_batch",
         }
     ) is True
+
+
+def test_candidate_and_yz_depth_gate_ignores_usd_depth_labels():
+    for status in ("thin", "unpriced", "low_usd_depth", ""):
+        assert has_confirmed_depth(
+            {
+                "has_liquidity": True,
+                "liquidity": "1000000000000000000",
+                "liquidity_index": 1.5,
+                "estimated_tvl_usd": 0,
+                "depth_status": status,
+            },
+            min_usd=10**12,
+        ) is True
+    assert has_confirmed_depth(
+        {
+            "has_liquidity": False,
+            "liquidity": "1000000000000000000",
+            "liquidity_index": 1.5,
+            "depth_status": "deep",
+        }
+    ) is False
     assert has_confirmed_liquidity(
         {
             "has_liquidity": False,
@@ -55,14 +78,54 @@ def test_live_onchain_extsload_state_confirms_thin_indexed_pool():
     ) is False
 
 
+def test_explicit_zero_liquidity_wins_over_stale_depth():
+    """A later explicit ``has_liquidity=0`` snapshot must exclude the pool
+    from the candidate surface even when old USD depth is still present.
+    The raw pool row remains stored, so a future positive snapshot restores
+    eligibility without an Initialize rescan."""
+    stale = {
+        "pool_id": "0xdead",
+        "token0": "0xaaa",
+        "token1": "0xbbb",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "hooks": "",
+        "sqrt_price_x96": str(1 << 96),
+        "has_liquidity": 0,
+        "liquidity": "0",
+        "liquidity_index": 5000.0,
+        "estimated_tvl_usd": 5_000_000.0,
+        "balances_json": "{}",
+        "depth_status": "no_liquidity",
+        "depth_band_json": "{}",
+        "evidence_source": "pool_manager_extsload_live_state_batch",
+    }
+    assert has_confirmed_liquidity(stale) is False
+    assert select_directional_pool_ids([stale], "0xaaa", "0xbbb") == []
+
+    fresh = {
+        **stale,
+        "pool_id": "0xalive",
+        "has_liquidity": 1,
+        "liquidity": "1000000000000000000000",
+        "liquidity_index": 1000.0,
+        "depth_status": "deep",
+    }
+    assert has_confirmed_liquidity(fresh) is True
+    assert select_directional_pool_ids([fresh], "0xaaa", "0xbbb") == ["0xalive"]
+
+
 def test_unresolved_placeholder_symbol_rule_is_generic():
     assert is_unresolved_placeholder_symbol("0X60042B65") is True
     assert is_unresolved_placeholder_symbol("0x102154e7") is True
+    assert is_unresolved_placeholder_symbol("0X33E419") is True
+    assert is_unresolved_placeholder_symbol("0x123456") is True
     assert is_unresolved_placeholder_symbol("TA") is False
     assert is_unresolved_placeholder_symbol("TB") is False
     assert is_unresolved_placeholder_symbol("TZ") is False
     assert is_unresolved_placeholder_symbol("ETH") is False
     assert is_unresolved_placeholder_symbol("0X123") is False
+    assert is_unresolved_placeholder_symbol("0X12345") is False
     assert is_unresolved_placeholder_symbol("0X123456789") is False
     assert has_confirmed_liquidity(
         {
@@ -75,10 +138,10 @@ def test_unresolved_placeholder_symbol_rule_is_generic():
     ) is False
 
 
-def test_confirmed_liquidity_marker_wins_over_small_usd_depth():
-    """A tiny USD depth must not short-circuit the liquidity-index fallback.
-    A confirmed pool with a large published liquidity index stays executable
-    even when its derived USD depth is below the USD-only gate."""
+def test_confirmed_liquidity_marker_wins_over_low_usd_depth_evidence():
+    """Low USD depth evidence must not reject a confirmed pool.
+    A confirmed pool with a large published liquidity index stays eligible
+    even when its derived USD depth label is small or missing."""
     assert has_confirmed_liquidity(
         {
             "has_liquidity": True,
@@ -568,6 +631,7 @@ def test_directional_selection_keeps_pool_inclusion_symmetric():
     deep = dict(asymmetric)
     deep["liquidity_index"] = 1000.0
     deep["estimated_tvl_usd"] = 1_000_000
+    deep["depth_status"] = "deep"
     forward = select_directional_pool_ids([deep], anchor, counter)
     reverse = select_directional_pool_ids([deep], counter, anchor)
     assert forward == ["pool-asymmetric"]
@@ -704,6 +768,7 @@ def test_market_observation_storage_keeps_mirror_direction_symmetry(tmp_path):
     deep = dict(pool)
     deep["liquidity_index"] = 1000.0
     deep["estimated_tvl_usd"] = 1_000_000
+    deep["depth_status"] = "deep"
     replace_market_observation_tables(
         db,
         network="robinhood-testnet",
@@ -828,6 +893,41 @@ def test_mainnet_live_state_zero_is_explicit_false(monkeypatch):
     assert candidate["hasLiquidity"] is False
     assert candidate["depthStatus"] == "live_liquidity_zero"
     assert candidate["liquiditySource"] == "pool_manager_extsload_live_state_batch"
+    assert summary["liveNoLiquidityPoolCount"] == 1
+    assert summary["liveStateUnavailablePoolCount"] == 0
+
+
+def test_mainnet_live_state_single_zero_chunk_is_accepted(monkeypatch):
+    pool_id = "0x" + "ed" * 32
+    candidate = {
+        "pool": pool_id,
+        "poolId": pool_id,
+        "fee": 3000,
+        "poolKey": {"fee": 3000},
+        "hooks": "",
+        "hasLiquidity": True,
+    }
+
+    def fake_batch(**kwargs):
+        return {
+            pool_id: {
+                "error": "robinhood mainnet pool manager live liquidity is zero",
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+        }
+
+    monkeypatch.setattr(
+        "dex.intent_trade.chains.robinhood.dex_pool_candidates._batch_read_v4_pool_states",
+        fake_batch,
+    )
+    summary = _decorate_candidates_with_live_state(
+        [candidate],
+        pool_manager="0x" + "66" * 20,
+        rpc_url="https://fake-mainnet.example",
+    )
+    assert candidate["hasLiquidity"] is False
+    assert candidate["depthStatus"] == "live_liquidity_zero"
+    assert candidate["liquidityError"] is None
     assert summary["liveNoLiquidityPoolCount"] == 1
     assert summary["liveStateUnavailablePoolCount"] == 0
 

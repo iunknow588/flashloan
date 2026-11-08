@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "flashloan-plan-runtime-evidence-v1",
+  "taskId": "D9.41",
+  "milestone": "M9",
+  "title": "Status endpoint cache isolation for liquidation scanner regression",
+  "status": "passed",
+  "date": "2026-11-07",
+  "scope": {
+    "modules": [
+      "flashloan/app_runtime/web/control_panel_page_routes.py",
+      "flashloan/app_runtime/tests/functional/test_control_panel_status_api.py"
+    ],
+    "behavior": {
+      "cacheKey": "(chain_id, database_path, _status_cache_bust)",
+      "panelCacheScope": "per cache_key",
+      "defaultRequestsUnchanged": true,
+      "diagnosticQuery": "_status_cache_bust",
+      "reason": "combined status tests reused the shared status_response_cache/status_panel_cache and returned stale liquidation background activity"
+    }
+  },
+  "verification": {
+    "commands": [
+      {
+        "command": "python -m py_compile flashloan/app_runtime/web/control_panel_page_routes.py flashloan/app_runtime/tests/functional/test_control_panel_status_api.py",
+        "exitCode": 0
+      },
+      {
+        "command": "pytest web_assembly status D9.41 architecture guard (web_assembly first order)",
+        "exitCode": 0,
+        "summary": "3 passed"
+      },
+      {
+        "command": "pytest web_assembly status D9.41 architecture guard (status first order)",
+        "exitCode": 0,
+        "summary": "3 passed"
+      },
+      {
+        "command": "pytest test_control_panel_status_api.py test_web_app_assembly_scope_api.py",
+        "exitCode": 0,
+        "summary": "36 passed"
+      }
+    ]
+  },
+  "safety": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "migrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmitted": false,
+    "transactionSigned": false,
+    "transactionBroadcast": false,
+    "historicalEvidenceModified": false
+  }
+}

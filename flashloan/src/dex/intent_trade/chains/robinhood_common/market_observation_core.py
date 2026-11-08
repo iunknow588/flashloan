@@ -13,10 +13,11 @@ from typing import Any, Iterable
 from core.db.database_path import absolute_database_path
 from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
-    has_confirmed_liquidity,
+    has_confirmed_depth,
 )
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from core.rs_bridge import (
     load_dex_candidate_pools,
     load_market_observation,
@@ -152,7 +153,65 @@ def _chain_token_symbol_map(
         _address(row.get("token_address")): _symbol(row.get("token_symbol"))
         for row in rows
         if _address(row.get("token_address"))
+        and not is_unresolved_placeholder_symbol(row.get("token_symbol"))
     }
+
+
+def _chain_token_name_map(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+) -> dict[str, str]:
+    rows = load_chain_tokens(database_url, network=network, chain_id=chain_id)
+    return {
+        _address(row.get("token_address")): _text(row.get("token_name"))
+        for row in rows
+        if _address(row.get("token_address")) and _text(row.get("token_name"))
+    }
+
+
+def _chain_token_name_missing_map(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+) -> dict[str, dict[str, Any]]:
+    rows = load_chain_tokens(database_url, network=network, chain_id=chain_id)
+    missing: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        address = _address(row.get("token_address"))
+        if not address:
+            continue
+        metadata = _json_loads(row.get("token_metadata_json") or {})
+        if isinstance(metadata, dict) and (
+            metadata.get("nameMissing") or metadata.get("nameFallbackSymbol")
+        ):
+            missing[address] = {
+                "nameMissing": True,
+                "nameFallbackSymbol": _text(
+                    metadata.get("nameFallbackSymbol")
+                    or row.get("token_symbol")
+                    or ""
+                ),
+            }
+    return missing
+
+
+def _clean_symbol(value: object, address: str) -> str:
+    symbol = _symbol(value)
+    if is_unresolved_placeholder_symbol(symbol):
+        return f"UNRESOLVED:{_address(address)[:10].upper()}" if _address(address) else "UNRESOLVED"
+    return symbol
+
+
+def _token_display_name(value: object, address: str) -> str:
+    name = _text(value)
+    if not name:
+        return ""
+    if is_unresolved_placeholder_symbol(name):
+        return "UNRESOLVED"
+    return name
 
 
 def _db_pool_to_observation_row(
@@ -160,6 +219,8 @@ def _db_pool_to_observation_row(
     liquidity: dict[str, Any] | None,
     *,
     symbol_map: dict[str, str],
+    name_map: dict[str, str] | None = None,
+    name_missing_map: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     pool_id = _pool_id(pool)
     token0 = _address(pool.get("token0") or pool.get("currency0"))
@@ -170,16 +231,56 @@ def _db_pool_to_observation_row(
     dynamic_fee = _pool_dynamic_fee(pool)
     special_fee = _pool_special_fee(pool)
     usable = _observation_pool_usable(pool)
-    token0_symbol = (
+    raw_token0 = _text(
         symbol_map.get(token0)
-        or _symbol(pool.get("token0_symbol") or pool.get("token0Symbol"))
-        or token0[:8].upper()
+        or pool.get("token0_symbol")
+        or pool.get("token0Symbol")
+        or ""
+    )
+    raw_token1 = _text(
+        symbol_map.get(token1)
+        or pool.get("token1_symbol")
+        or pool.get("token1Symbol")
+        or ""
+    )
+    token0_symbol_resolved = bool(raw_token0) and not is_unresolved_placeholder_symbol(raw_token0)
+    token1_symbol_resolved = bool(raw_token1) and not is_unresolved_placeholder_symbol(raw_token1)
+    token0_symbol = (
+        _clean_symbol(symbol_map.get(token0), token0)
+        or _clean_symbol(pool.get("token0_symbol") or pool.get("token0Symbol"), token0)
+        or (f"UNRESOLVED:{token0[:10].upper()}" if not token0_symbol_resolved else "")
     )
     token1_symbol = (
-        symbol_map.get(token1)
-        or _symbol(pool.get("token1_symbol") or pool.get("token1Symbol"))
-        or token1[:8].upper()
+        _clean_symbol(symbol_map.get(token1), token1)
+        or _clean_symbol(pool.get("token1_symbol") or pool.get("token1Symbol"), token1)
+        or (f"UNRESOLVED:{token1[:10].upper()}" if not token1_symbol_resolved else "")
     )
+    name_map = name_map or {}
+    name_missing_map = name_missing_map or {}
+    raw_token0_name = _text(name_map.get(token0) or pool.get("token0_name") or pool.get("token0Name") or "")
+    raw_token1_name = _text(name_map.get(token1) or pool.get("token1_name") or pool.get("token1Name") or "")
+    token0_name_missing_info = name_missing_map.get(token0)
+    token1_name_missing_info = name_missing_map.get(token1)
+    token0_name_missing = bool(
+        token0_name_missing_info
+        or is_unresolved_placeholder_symbol(raw_token0_name)
+    )
+    token1_name_missing = bool(
+        token1_name_missing_info
+        or is_unresolved_placeholder_symbol(raw_token1_name)
+    )
+    token0_name_resolved = bool(raw_token0_name) and not token0_name_missing
+    token1_name_resolved = bool(raw_token1_name) and not token1_name_missing
+    token0_name_fallback_symbol = (
+        _text(token0_name_missing_info.get("nameFallbackSymbol"))
+        if isinstance(token0_name_missing_info, dict)
+        else ""
+    ) or (raw_token0 if token0_name_missing and token0_symbol_resolved else "")
+    token1_name_fallback_symbol = (
+        _text(token1_name_missing_info.get("nameFallbackSymbol"))
+        if isinstance(token1_name_missing_info, dict)
+        else ""
+    ) or (raw_token1 if token1_name_missing and token1_symbol_resolved else "")
     balances = _json_loads(
         (liquidity or {}).get("balances_json")
         or (liquidity or {}).get("balancesJson")
@@ -246,6 +347,18 @@ def _db_pool_to_observation_row(
         "token1": token1,
         "token0Symbol": token0_symbol,
         "token1Symbol": token1_symbol,
+        "token0Name": _token_display_name(raw_token0_name, token0),
+        "token1Name": _token_display_name(raw_token1_name, token1),
+        "token0SymbolResolved": token0_symbol_resolved,
+        "token1SymbolResolved": token1_symbol_resolved,
+        "token0NameResolved": token0_name_resolved,
+        "token1NameResolved": token1_name_resolved,
+        "token0NameMissing": token0_name_missing,
+        "token1NameMissing": token1_name_missing,
+        "token0NameFallbackSymbol": token0_name_fallback_symbol,
+        "token1NameFallbackSymbol": token1_name_fallback_symbol,
+        "token0SymbolRaw": raw_token0 if not token0_symbol_resolved else "",
+        "token1SymbolRaw": raw_token1 if not token1_symbol_resolved else "",
         "token0Decimals": pool.get("token0_decimals") or pool.get("token0Decimals"),
         "token1Decimals": pool.get("token1_decimals") or pool.get("token1Decimals"),
         "sqrtPriceX96": (
@@ -327,6 +440,16 @@ def load_db_observation_pools(
         network=network,
         chain_id=chain_id,
     )
+    name_map = _chain_token_name_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
+    name_missing_map = _chain_token_name_missing_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
     merged_pools: dict[str, dict[str, Any]] = {}
     total_pairs = 0
     for anchor_symbol in anchor_symbols:
@@ -351,6 +474,8 @@ def load_db_observation_pools(
                 pool,
                 liquidity_by_pool_id.get(pool_key),
                 symbol_map=symbol_map,
+                name_map=name_map,
+                name_missing_map=name_missing_map,
             )
             if row is not None and _observation_pool_usable(row):
                 merged_pools[pool_key] = row
@@ -441,6 +566,16 @@ def load_db_exchange_pools(
         network=network,
         chain_id=chain_id,
     )
+    name_map = _chain_token_name_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
+    name_missing_map = _chain_token_name_missing_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
     rows = (
         _load_exchange_pools_scoped(
             database_url,
@@ -489,6 +624,8 @@ def load_db_exchange_pools(
             pool,
             liquidity_by_pool_id.get(_pool_key(pool)),
             symbol_map=symbol_map,
+            name_map=name_map,
+            name_missing_map=name_missing_map,
         )
         if row is not None:
             pools.append(row)
@@ -639,27 +776,72 @@ def _db_closed_loop_step_row(
     to_symbol: str,
     direction: str,
     symbol_map: dict[str, str] | None = None,
+    name_map: dict[str, str] | None = None,
+    name_missing_map: dict[str, Any] | None = None,
+    base_cache: dict[tuple[str, str], dict[str, Any]] | None = None,
+    cache_scope: str = "",
 ) -> dict[str, Any] | None:
-    base = _db_pool_to_observation_row(
-        pool,
-        None,
-        symbol_map=symbol_map or {},
-    )
+    pool_id = _pool_key(pool)
+    cache_key = (cache_scope, pool_id)
+    if base_cache is not None and cache_key in base_cache:
+        base = base_cache[cache_key]
+    else:
+        base = _db_pool_to_observation_row(
+            pool,
+            None,
+            symbol_map=symbol_map or {},
+            name_map=name_map or {},
+            name_missing_map=name_missing_map or {},
+        )
+        if base_cache is not None and pool_id:
+            base_cache[cache_key] = base
     if base is None:
         return None
-    from_symbol = _symbol(from_symbol) or symbol_map.get(_address(from_address), "") or from_address[:8].upper()
-    to_symbol = _symbol(to_symbol) or symbol_map.get(_address(to_address), "") or to_address[:8].upper()
+    from_base = base["token0Symbol"] if base["token0"] == from_address else base["token1Symbol"]
+    to_base = base["token1Symbol"] if base["token1"] == to_address else base["token0Symbol"]
+    from_display = from_base or _clean_symbol(from_symbol, from_address)
+    to_display = to_base or _clean_symbol(to_symbol, to_address)
+    from_resolved = (
+        base["token0SymbolResolved"]
+        if base["token0"] == from_address
+        else base["token1SymbolResolved"]
+    )
+    to_resolved = (
+        base["token1SymbolResolved"]
+        if base["token1"] == to_address
+        else base["token0SymbolResolved"]
+    )
+    from_name = (
+        base.get("token0Name")
+        if base["token0"] == from_address
+        else base.get("token1Name")
+    )
+    to_name = (
+        base.get("token1Name")
+        if base["token1"] == to_address
+        else base.get("token0Name")
+    )
+    from_name_resolved = (
+        base.get("token0NameResolved")
+        if base["token0"] == from_address
+        else base.get("token1NameResolved")
+    )
+    to_name_resolved = (
+        base.get("token1NameResolved")
+        if base["token1"] == to_address
+        else base.get("token0NameResolved")
+    )
     return {
         "pool": base["pool"],
         "poolId": base["poolId"],
         "direction": direction,
-        "anchorSymbol": from_symbol,
+        "anchorSymbol": from_display,
         "anchorAddress": from_address,
-        "counterSymbol": to_symbol,
+        "counterSymbol": to_display,
         "counterAddress": to_address,
-        "routeSymbols": [from_symbol, to_symbol],
+        "routeSymbols": [from_display, to_display],
         "routeAddresses": [from_address, to_address],
-        "routeText": f"{from_symbol} -> {to_symbol}",
+        "routeText": f"{from_display} -> {to_display}",
         "poolIdentityMode": base["poolIdentityMode"],
         "protocol": base["protocol"],
         "dex": base["dex"],
@@ -677,6 +859,30 @@ def _db_closed_loop_step_row(
         "token1": base["token1"],
         "token0Symbol": base["token0Symbol"] or from_symbol,
         "token1Symbol": base["token1Symbol"] or to_symbol,
+        "token0SymbolResolved": base["token0SymbolResolved"],
+        "token1SymbolResolved": base["token1SymbolResolved"],
+        "token0Name": from_name or "",
+        "token1Name": to_name or "",
+        "token0NameResolved": from_name_resolved,
+        "token1NameResolved": to_name_resolved,
+        "anchorSymbolResolved": from_resolved,
+        "counterSymbolResolved": to_resolved,
+        "anchorName": from_name or "",
+        "counterName": to_name or "",
+        "anchorNameResolved": from_name_resolved,
+        "counterNameResolved": to_name_resolved,
+        "anchorNameMissing": base.get("token0NameMissing")
+        if base["token0"] == from_address
+        else base.get("token1NameMissing"),
+        "counterNameMissing": base.get("token1NameMissing")
+        if base["token1"] == to_address
+        else base.get("token0NameMissing"),
+        "anchorNameFallbackSymbol": base.get("token0NameFallbackSymbol")
+        if base["token0"] == from_address
+        else base.get("token1NameFallbackSymbol"),
+        "counterNameFallbackSymbol": base.get("token1NameFallbackSymbol")
+        if base["token1"] == to_address
+        else base.get("token0NameFallbackSymbol"),
         "source": "v4_closed_loop_db",
         "status": "fixed_fee_no_hook_observable",
         "liquidity": base["liquidity"],
@@ -707,6 +913,16 @@ def db_closed_loop_sequences(
     """Return validated three-hop closed-loop sequences from SQLite."""
     database_url = str(absolute_database_path(database_url))
     symbol_map = _chain_token_symbol_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
+    name_map = _chain_token_name_map(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+    )
+    name_missing_map = _chain_token_name_missing_map(
         database_url,
         network=network,
         chain_id=chain_id,
@@ -767,6 +983,10 @@ def db_closed_loop_sequences(
     candidate_pools_by_anchor: dict[str, list[dict[str, Any]]] = {}
     observation_pools_by_anchor: dict[str, list[dict[str, Any]]] = {}
     observation_liquidity_by_anchor: dict[str, dict[str, dict[str, Any]]] = {}
+    candidate_direction_indexes: dict[str, dict[str, dict[str, Any]]] = {}
+    observation_direction_indexes: dict[str, dict[str, dict[str, Any]]] = {}
+    anchor_pool_by_id_by_anchor: dict[str, dict[str, dict[str, Any]]] = {}
+    step_base_cache: dict[tuple[str, str], dict[str, Any]] = {}
     depth_confirmed_pool_ids: set[str] = set()
     sequences: list[dict[str, Any]] = []
     for loop in loops:
@@ -800,6 +1020,11 @@ def db_closed_loop_sequences(
             candidate_pool_rows = candidate_payload.get("pools") or []
             candidate_pairs_by_anchor[anchor_symbol] = candidate_pair_rows
             candidate_pools_by_anchor[anchor_symbol] = candidate_pool_rows
+            candidate_direction_indexes[anchor_symbol] = {
+                _text(pair.get("direction_key") or pair.get("directionKey")).lower(): pair
+                for pair in candidate_pair_rows
+                if _text(pair.get("direction_key") or pair.get("directionKey")).lower()
+            }
         else:
             candidate_pool_rows = candidate_pools_by_anchor.get(anchor_symbol) or []
         observation_pair_rows = observation_rows_by_anchor.get(anchor_symbol)
@@ -818,6 +1043,11 @@ def db_closed_loop_sequences(
             observation_liquidity_rows = observation_payload.get("liquidity") or []
             observation_rows_by_anchor[anchor_symbol] = observation_pair_rows
             observation_pools_by_anchor[anchor_symbol] = observation_pool_rows
+            observation_direction_indexes[anchor_symbol] = {
+                _text(row.get("direction_key") or row.get("directionKey")).lower(): row
+                for row in observation_pair_rows
+                if _text(row.get("direction_key") or row.get("directionKey")).lower()
+            }
             observation_liquidity_by_anchor[anchor_symbol] = {
                 _pool_key(row): row
                 for row in observation_liquidity_rows
@@ -837,7 +1067,10 @@ def db_closed_loop_sequences(
                     merged.setdefault(key, row)
             return merged
 
-        anchor_pool_by_id = _pool_by_id_for_anchor()
+        anchor_pool_by_id = anchor_pool_by_id_by_anchor.get(anchor_symbol)
+        if anchor_pool_by_id is None:
+            anchor_pool_by_id = _pool_by_id_for_anchor()
+            anchor_pool_by_id_by_anchor[anchor_symbol] = anchor_pool_by_id
 
         def _anchor_candidate_pool(pool_id: str) -> dict[str, Any] | None:
             normalized_id = str(pool_id or "").strip().lower()
@@ -925,54 +1158,52 @@ def db_closed_loop_sequences(
             direction_key = f"{from_address}:{to_address}"
             ids = [stored_pool_id]
             if direction in ("yc", "zc"):
-                for pair in candidate_pair_rows:
-                    if _text(pair.get("direction_key") or pair.get("directionKey")).lower() != direction_key:
-                        continue
-                    if direction == "yc":
-                        primary_id = str(
-                            pair.get("yc_optimal_pool_id")
-                            or pair.get("ycOptimalPoolId")
-                            or ""
-                        ).strip().lower()
-                        backups = _json_array_loads(
-                            pair.get("yc_backup_pool_ids")
-                            or pair.get("ycBackupPoolIds")
-                            or pair.get("yc_backup_pool_ids_json")
-                            or pair.get("ycBackupPoolIdsJson")
-                            or []
-                        )
-                    else:
-                        primary_id = str(
-                            pair.get("zc_optimal_pool_id")
-                            or pair.get("zcOptimalPoolId")
-                            or ""
-                        ).strip().lower()
-                        backups = _json_array_loads(
-                            pair.get("zc_backup_pool_ids")
-                            or pair.get("zcBackupPoolIds")
-                            or pair.get("zc_backup_pool_ids_json")
-                            or pair.get("zcBackupPoolIdsJson")
-                            or []
-                        )
-                    if primary_id:
-                        ids.append(primary_id)
-                    for backup_id in backups:
-                        backup_text = str(backup_id or "").strip().lower()
-                        if backup_text and backup_text not in ids:
-                            ids.append(backup_text)
-                    break
+                pair = candidate_direction_indexes.get(anchor_symbol, {}).get(direction_key)
+                if pair is None:
+                    return ids
+                if direction == "yc":
+                    primary_id = str(
+                        pair.get("yc_optimal_pool_id")
+                        or pair.get("ycOptimalPoolId")
+                        or ""
+                    ).strip().lower()
+                    backups = _json_array_loads(
+                        pair.get("yc_backup_pool_ids")
+                        or pair.get("ycBackupPoolIds")
+                        or pair.get("yc_backup_pool_ids_json")
+                        or pair.get("ycBackupPoolIdsJson")
+                        or []
+                    )
+                else:
+                    primary_id = str(
+                        pair.get("zc_optimal_pool_id")
+                        or pair.get("zcOptimalPoolId")
+                        or ""
+                    ).strip().lower()
+                    backups = _json_array_loads(
+                        pair.get("zc_backup_pool_ids")
+                        or pair.get("zcBackupPoolIds")
+                        or pair.get("zc_backup_pool_ids_json")
+                        or pair.get("zcBackupPoolIdsJson")
+                        or []
+                    )
+                if primary_id:
+                    ids.append(primary_id)
+                for backup_id in backups:
+                    backup_text = str(backup_id or "").strip().lower()
+                    if backup_text and backup_text not in ids:
+                        ids.append(backup_text)
             else:
-                for row in observation_pair_rows:
-                    if _text(row.get("direction_key") or row.get("directionKey")).lower() != direction_key:
-                        continue
-                    optimal_id = str(row.get("optimal_pool_id") or row.get("optimalPoolId") or "").strip().lower()
-                    if optimal_id:
-                        ids.append(optimal_id)
-                    for item in _json_loads(row.get("pool_ids_json") or row.get("poolIds") or []):
-                        item_text = str(item or "").strip().lower()
-                        if item_text and item_text not in ids:
-                            ids.append(item_text)
-                    break
+                row = observation_direction_indexes.get(anchor_symbol, {}).get(direction_key)
+                if row is None:
+                    return ids
+                optimal_id = str(row.get("optimal_pool_id") or row.get("optimalPoolId") or "").strip().lower()
+                if optimal_id:
+                    ids.append(optimal_id)
+                for item in _json_loads(row.get("pool_ids_json") or row.get("poolIds") or []):
+                    item_text = str(item or "").strip().lower()
+                    if item_text and item_text not in ids:
+                        ids.append(item_text)
             return list(dict.fromkeys(item for item in ids if item))
 
         route_rows: list[dict[str, Any]] = []
@@ -993,10 +1224,14 @@ def db_closed_loop_sequences(
             if not from_address or not to_address:
                 continue
             from_symbol = symbol_map.get(from_address) or (
-                "ETH" if from_address == ZERO_ADDRESS.lower() else from_address[:8].upper()
+                "ETH"
+                if from_address == ZERO_ADDRESS.lower()
+                else f"UNRESOLVED:{from_address[:10].upper()}"
             )
             to_symbol = symbol_map.get(to_address) or (
-                "ETH" if to_address == ZERO_ADDRESS.lower() else to_address[:8].upper()
+                "ETH"
+                if to_address == ZERO_ADDRESS.lower()
+                else f"UNRESOLVED:{to_address[:10].upper()}"
             )
             scope_ids = _direction_scope_ids(direction, from_address, to_address, pool_id)
             stored_scope_ids = set(scope_ids)
@@ -1010,7 +1245,7 @@ def db_closed_loop_sequences(
                     continue
                 candidate_key = _pool_key(candidate)
                 if candidate_key not in depth_confirmed_pool_ids:
-                    if not has_confirmed_liquidity(
+                    if not has_confirmed_depth(
                         candidate,
                         min_usd=1000.0,
                         fallback_token_base=1.0,
@@ -1042,6 +1277,10 @@ def db_closed_loop_sequences(
                 to_symbol=to_symbol,
                 direction=direction,
                 symbol_map=symbol_map,
+                name_map=name_map,
+                name_missing_map=name_missing_map,
+                base_cache=step_base_cache,
+                cache_scope=anchor_symbol,
             )
             if route_step is None:
                 continue
@@ -1062,6 +1301,10 @@ def db_closed_loop_sequences(
                     to_symbol=to_symbol,
                     direction=direction,
                     symbol_map=symbol_map,
+                    name_map=name_map,
+                    name_missing_map=name_missing_map,
+                    base_cache=step_base_cache,
+                    cache_scope=anchor_symbol,
                 )
                 if step is None:
                     continue

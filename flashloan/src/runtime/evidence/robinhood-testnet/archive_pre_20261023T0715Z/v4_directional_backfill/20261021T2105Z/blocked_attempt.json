@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-blocked-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "attemptedAt": "2026-10-21T21:05:00Z",
+  "status": "blocked",
+  "blockedReason": "live_reverse_directional_backfill_aborted_after_10min_no_evidence",
+  "probe": {
+    "ok": true,
+    "provider": "alchemy-robinhood-testnet",
+    "blockNumberHex": "0x85cf8eb",
+    "method": "eth_blockNumber",
+    "host": "robinhood-testnet.g.alchemy.com"
+  },
+  "failure": {
+    "tool": "collect_robinhood_v4_backfill_evidence.py",
+    "mode": "live_reverse_directional_backfill_two_directions",
+    "command": "collect_robinhood_v4_backfill_evidence.py --directions 0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93,0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02 --chunk-size 100000 --min-chunk-size 10000 --batch-size 300",
+    "durationSeconds": 588,
+    "outcome": "aborted_by_operator_after_timeout_no_new_evidence_written"
+  },
+  "retryPolicy": "One bounded two-direction collect attempt was aborted after ~10 minutes without new evidence. Not retrying in this window; wait for a stable RPC/log provider window before rerunning.",
+  "currentState": {
+    "sqliteOnlyDirectionShortfallCount": 120,
+    "twoDirectionRemaining": {
+      "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93": 3,
+      "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02": 2
+    },
+    "targetPerDirection": 5,
+    "floorBlock": 91000224,
+    "satisfiedDirectionCount": 0
+  },
+  "safety": {
+    "writesSqlite": false,
+    "buildsTransaction": false,
+    "broadcastsTransaction": false,
+    "observationOnly": true
+  },
+  "nextAction": "Wait for a stable RPC/log provider window or a smaller range scan strategy; keep readiness fail-closed until evidence lands."
+}

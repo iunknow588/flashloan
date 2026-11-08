@@ -144,12 +144,98 @@ of the repository root. Do not create versioned PID files such as
 Evidence and sample loading must pass scope checks for `network`, `chain_id`,
 and, when available, `market_id`. Missing Robinhood Testnet evidence should
 close the gate rather than falling back to Robinhood mainnet or Avalanche data.
-The DEX quote-routes API returns a `scannerState` object: `fresh` when the
-scanner snapshot is current, and `stale_refresh_queued` when a real-time scan
-was requested because the old snapshot was too old. The UI must not present that
-stale snapshot as live evidence. `GET /api/dex/quote-routes?wait=1` synchronously
-waits for one scanner refresh when the snapshot is stale, then returns the new
-snapshot when available or `stale_refresh_queued` after a timeout/failure.
+The DEX quote page consumes the manager-only `/api/dex/quote-routes` projection;
+it does not request opportunity-scanner snapshot/start/scan-now endpoints or
+render Python scanner session state. Manager versions, Review/Broadcast counts,
+data-quality fields and version consistency are the page's business source.
+
+### Manager API Compatibility
+
+The M9 web migration adds a read-only Flask compatibility boundary in front of
+the Rust manager API. Existing page URLs and templates remain unchanged.
+
+- `MANAGER_UI_DATA_SOURCE` defaults to `legacy`. The manager proxy routes fail
+  closed with HTTP 409 in that mode and make no outbound request.
+- Set `MANAGER_UI_DATA_SOURCE=manager` only after the selected manager module
+  has passed its real-copy comparison and production gate.
+- `MANAGER_API_BASE_URL` defaults to `http://127.0.0.1:8091`.
+  `MANAGER_API_TIMEOUT_SECONDS` defaults to `3` and must be between `0.1` and
+  `30`.
+- Read-only proxy endpoints are `/api/manager/capabilities`,
+  `/api/manager/pipeline/status`, `/api/manager/pipeline/runs`, and
+  `/api/manager/pipeline/runs/<run_id>`.
+- Successful manager DTOs use `dataSource=manager`. Existing DEX DTOs that are
+  still backed by the Python path use `dataSource=legacy`. This field is
+  diagnostic and is not rendered by the UI.
+
+The compatibility client does not query manager SQLite tables directly, start
+workers, or implement manager write operations.
+
+The target UI boundary is `UI/Python thin adapter <-> Rust RuntimeCore <-> Rust
+Managers`. `RuntimeCore` must be implemented in Rust and exposed through PyO3;
+Python must not own the authoritative manager cache or coordinate manager
+business ordering. The current Rust surface is `runtime_core_register`,
+`runtime_core_status`, `runtime_core_state`, `runtime_core_manager_snapshot`,
+`runtime_core_manager_view`, `runtime_core_command` and `runtime_core_close`;
+commands require `requestId`, `idempotencyKey` and explicit `dryRun`. Native
+closed-loop pools are owned by the Rust `native_pool_registry_*` APIs, not by
+Python dictionaries.
+
+Migrated page GETs use RuntimeCore manager views rather than the HTTP manager
+API. Supported views are `overview`, `candidate_edge`, `candidate_exchange`,
+`closed_loops`, `reviews` and `broadcasts`. View options are validated in Rust;
+review and broadcast pages retain manager-owned filters and pagination. In a
+Flask request context, a missing RuntimeCore binding fails closed. Direct
+Python unit calls without a Flask app context may use the transport adapter for
+compatibility tests, but that is not a production UI read path. Compare-only
+diagnostics remain on `manager_api`. Explicit page writes use RuntimeCore
+commands when their command surface exists. D9.29 routes submission-record clear
+through `clear_broadcasts`, which calls the Broadcast Manager public write API
+directly and preserves `BROADCAST_MANAGER_AUTHORITY` apply gating. D9.30 routes
+`/api/dex-pools/candidates/refresh` through `rebuild_candidate_edges`, which calls
+the Candidate Edge Pool Manager public write API directly and preserves
+`CANDIDATE_MANAGER_AUTHORITY` gating. D9.31 routes
+`/api/dex/market-observation/refresh` through
+`rebuild_candidate_exchange_pools`, which calls the Candidate Exchange Pool
+Manager public write API directly and preserves
+`CANDIDATE_EXCHANGE_MANAGER_AUTHORITY` gating. Both refresh routes are
+POST-only, require `X-Request-Id`, `Idempotency-Key`, and explicit `dryRun`;
+normal page reads remain GET and fail closed without RuntimeCore. The market
+observation page still owns its display refresh timer, and a page refresh does
+not start, stop, or reschedule review or broadcast workers.
+
+`runtime_core_register` keeps its original six-argument compatibility contract
+and appends `candidate_exchange_authority="legacy"` as an optional seventh
+argument. RuntimeCore registration identity includes the candidate edge,
+candidate exchange, and broadcast authority values, so a conflicting authority
+cannot silently reuse an existing per-chain instance. Token and pool authority
+remain independently enforced by their owning managers.
+
+The Python `ChainRuntimeContext` is now a thin PyO3 adapter. It keeps chain
+identity and page DTO conversion only: it stores no Manager snapshot and no
+native pool cache. `/api/status` reads the adapter status, while page contexts
+refresh the Rust snapshot directly. The Flask manager adapters remain
+transitional parameter, permission, DTO and error conversion around the Rust
+object. Build a distributable extension wheel with
+`maturin build --release --auditwheel repair` so required Windows DLLs are
+included under `flashloan_rs.libs`.
+
+The quote page owns its display refresh timer independently from runtime worker
+lifecycle. Its `refreshInterval` setting is stored in browser localStorage and
+periodically re-reads the manager quote-routes projection. The server default is
+`DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS` (60 seconds, bounded to 10 through
+3600); an explicit browser localStorage value takes precedence. This setting is
+independent from `DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS`, and changing the page
+timer never starts, stops, or reschedules a review/broadcast worker. Worker cards
+and start/stop/refresh controls are not part of the page; Rust
+`review_manager::ReviewSupervisor` and
+`broadcast_manager::BroadcastSupervisor` retain queue and heartbeat ownership.
+
+Quote-page refreshes are read-only: they fetch manager projections and never
+automatically run route estimates, RPC quotes, review submission, or broadcast.
+Those actions remain explicit user-triggered commands until each command surface
+is migrated to its manager API.
+
 Run the registry audit after chain-data or flow-spec edits:
 
 ```powershell
@@ -174,11 +260,18 @@ python flashloan/app_runtime/start_server.py --port 5000
 `start_server.py` 会把 stdout/stderr 写到 `flashloan/src/runtime/logs/server_stdout.log` 和 `server_stderr.log`，避免在仓库根目录或 `app_runtime/` 下散落外部日志文件。
 
 The main entry is the control panel at `http://127.0.0.1:5000/`. The `/healthz` route stays available for liveness checks only.
-Liquidation accounts are stored in the local SQLite KV database (`FLASHLOAN_RUNTIME_DIR/local_store.sqlite3` by default, override with `FLASHLOAN_KV_PATH`). The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
-On first startup, `run.py` imports existing runtime files (`runtime/parameters/*.json`, `runtime/cache/liquidation_accounts.txt`, and the latest state snapshots) into the local KV store. The import is idempotent and recorded under `kv_meta.runtime_files_imported`.
+Liquidation accounts are stored in the local SQLite KV database (the registry default chain resolves to `flashloan/db/local_store_4663.sqlite3`; override with `FLASHLOAN_KV_PATH` or pass an explicit database path). The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
+On first startup, `run.py` imports existing runtime files
+(`FLASHLOAN_RUNTIME_DIR/parameters/*.json`,
+`FLASHLOAN_RUNTIME_DIR/cache/liquidation_accounts.txt`, and the latest
+`FLASHLOAN_RUNTIME_DIR/state/*.json` snapshots) into the local KV store. The
+import is idempotent and recorded under `kv_meta.runtime_files_imported`.
 Environment precedence is process environment first, then the nearest `.env`, then parent-directory `.env` files.
 
 ## Runtime Files
+
+The paths below refer to `FLASHLOAN_RUNTIME_DIR`, which defaults to
+`flashloan/src/runtime` (not `app_runtime/runtime/`):
 
 - `runtime/state/`: latest JSON snapshots such as `latest_arbitrage.json`, `latest_extremes.json`, and `latest_executable_signal.json`.
 - `runtime/logs/`: observer/control-panel/server logs produced by manual runs.

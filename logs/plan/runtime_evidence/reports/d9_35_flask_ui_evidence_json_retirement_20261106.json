@@ -1,0 +1,108 @@
+{
+  "evidenceId": "d9_35_flask_ui_evidence_json_retirement_20261106",
+  "task": "D9.35 retire Flask direct UI evidence JSON reads",
+  "recordedAt": "2026-11-06T16:15:39+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmittedToRealWorker": false,
+    "signedTransaction": false,
+    "broadcastSent": false,
+    "historicalEvidenceRewrittenAsPass": false
+  },
+  "implementation": {
+    "file": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "removed": [
+      "json import",
+      "pathlib.Path import",
+      "_latest_success_actual_evidence",
+      "_attach_success_actual_profit",
+      "actualProfitEvidence file-backed payload attachment"
+    ],
+    "forbiddenSourceTokens": [
+      "latest.json",
+      "runtime/evidence",
+      "expected_vs_actual",
+      "_latest_success_actual_evidence",
+      "_attach_success_actual_profit"
+    ],
+    "activeCallersBeforeRemoval": {
+      "latestEvidenceHelper": 0,
+      "actualProfitOverlayHelper": 0,
+      "frontendConsumersOfActualProfitEvidence": 0
+    },
+    "preservedBehavior": [
+      "submission record URL",
+      "record classification",
+      "pagination",
+      "manager fail-closed error mapping",
+      "review and broadcast manager-only reads"
+    ],
+    "futureProfitPath": "Broadcast Manager structured attempt/receipt DTO via RuntimeCore manager view"
+  },
+  "verification": [
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "workdir": "flashloan",
+      "exitCode": 0
+    },
+    {
+      "command": "rg -n \"actualProfitEvidence|latest.json|runtime/evidence|expected_vs_actual|_latest_success_actual_evidence|_attach_success_actual_profit\" flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 1,
+      "result": "no matches"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "22 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "57 passed"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_web_route_boundaries.py -q --tb=short",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "3 passed"
+    }
+  ],
+  "architectureGuardObservation": {
+    "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q --tb=short",
+    "exitCode": 1,
+    "previousResult": "42 passed, 6 failed",
+    "result": "43 passed, 5 failed",
+    "improvedFailureCount": 1,
+    "remainingFailureCategories": [
+      "broad exception audit baseline",
+      "split package cross-import transition",
+      "nested app_runtime/flashloan directory",
+      "line-limit drift"
+    ]
+  },
+  "documentation": {
+    "updated": [
+      "logs/plan/开发计划_20261103.md",
+      "logs/plan/Rust管理模块实施手册_20261103.md",
+      "logs/plan/token_and_manager_rust_rearchitecture_20261103.md"
+    ],
+    "singleCurrentPlanPreserved": true
+  },
+  "boundaries": [
+    "D9.35 removes only file-backed UI evidence reads from Flask data routes.",
+    "The removed helpers had no active callers in the current worktree.",
+    "No page URL, record category, pagination, or manager fail-closed behavior changed.",
+    "Actual receipt profit remains a future Broadcast Manager DTO responsibility if the UI needs it.",
+    "No production database was read or written.",
+    "No service was started or stopped.",
+    "No transaction was signed or broadcast.",
+    "Prior evidence files were left unchanged."
+  ]
+}

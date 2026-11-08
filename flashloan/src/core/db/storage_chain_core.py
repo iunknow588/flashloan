@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -10,6 +11,10 @@ from typing import Any
 from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
 from core.db.storage_business_io import execute, query, query_one, replace_rows
 from core.db.storage_business_schema import ensure_business_schema
+from core.db.token_authority import (
+    require_legacy_token_write,
+    require_manager_projection,
+)
 from core.local_kv import store_path
 from core.market_profiles import BUILTIN_MARKET_SUMMARIES
 
@@ -31,6 +36,18 @@ def _int(value: object, default: int = 0) -> int:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _json_loads(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 def ensure_global_chain_tables(database_url: str) -> None:
@@ -112,6 +129,29 @@ def seed_chain_tokens(
     chain_id: int = 4663,
     token_rows: list[dict[str, Any]],
 ) -> None:
+    require_legacy_token_write("chain_tokens.seed", database_url)
+    addresses: list[str] = []
+    for token in token_rows:
+        address = _text(token.get("token_address") or token.get("address")).lower()
+        if address and address not in addresses:
+            addresses.append(address)
+    existing_metadata: dict[str, dict[str, Any]] = {}
+    existing_source: dict[str, dict[str, Any]] = {}
+    if addresses:
+        placeholders = ",".join("?" for _ in addresses)
+        for row in query(
+            database_url,
+            f"""
+            SELECT token_address, token_metadata_json, source_json
+            FROM chain_tokens
+            WHERE network = ? AND chain_id = ?
+              AND lower(token_address) IN ({placeholders})
+            """,
+            (network, chain_id, *addresses),
+        ):
+            key = _text(row.get("token_address")).lower()
+            existing_metadata[key] = _json_loads(row.get("token_metadata_json"))
+            existing_source[key] = _json_loads(row.get("source_json"))
     rows = []
     now = _stamp()
     for token in token_rows:
@@ -119,6 +159,23 @@ def seed_chain_tokens(
         symbol = _text(token.get("token_symbol") or token.get("symbol"))
         if not address or not symbol:
             continue
+        metadata = _json_loads(
+            token.get("token_metadata")
+            or token.get("metadata")
+            or token.get("token_metadata_json")
+            or {}
+        )
+        existing_meta = existing_metadata.get(address) or {}
+        if not str(metadata.get("category") or "").strip():
+            for keep_key, keep_value in existing_meta.items():
+                if keep_value in (None, ""):
+                    continue
+                current = metadata.get(keep_key)
+                if current in (None, ""):
+                    metadata[keep_key] = keep_value
+        source = _json_loads(token.get("source") or {})
+        if not source:
+            source = dict(existing_source.get(address) or {})
         rows.append(
             (
                 network,
@@ -132,13 +189,8 @@ def seed_chain_tokens(
                 1 if bool(token.get("is_wrapped_native")) else 0,
                 1 if bool(token.get("is_stable")) else 0,
                 token.get("anchor_symbol"),
-                _json_dumps(
-                    token.get("token_metadata")
-                    or token.get("metadata")
-                    or token.get("token_metadata_json")
-                    or {}
-                ),
-                _json_dumps(token.get("source") or {}),
+                _json_dumps(metadata),
+                _json_dumps(source),
                 now,
                 now,
             )
@@ -168,6 +220,311 @@ def seed_chain_tokens(
             """,
             rows,
         )
+        from core.db.storage_dex_surface_snapshot import (
+            clear_dex_surface_snapshot_fingerprint_cache,
+        )
+
+        clear_dex_surface_snapshot_fingerprint_cache(
+            network=network,
+            chain_id=chain_id,
+        )
+
+
+_PROJECTION_LIBRARY_PRIORITY = {
+    "core": 0,
+    "stocks": 1,
+    "test": 2,
+    "extension": 3,
+}
+
+
+def _projection_checksum(rows: list[dict[str, Any]]) -> str:
+    payload = json.dumps(
+        rows,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def project_chain_tokens_from_manager(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """Publish Token Manager rows as a non-destructive compatibility projection.
+
+    Only ``admitted`` and ``candidate_only`` tokens are projected. Blocked and
+    pending-review rows remain invisible to Python consumers. Existing
+    ``chain_tokens`` rows are never deleted because legacy pool rows may still
+    reference them during the migration window.
+    """
+
+    if not isinstance(dry_run, bool):
+        raise ValueError("dryRun must be an explicit Boolean")
+    require_manager_projection("chain_tokens.project_from_manager", database_url)
+    rows = query(
+        database_url,
+        """
+        SELECT library_key, network, chain_id, token_key_id, v4_currency_key,
+               token_address, token_symbol, token_name, token_decimals,
+               token_kind, is_native, is_wrapped_native, is_stable,
+               admission_status, admission_source, metadata_source,
+               metadata_checksum, source_json, first_seen_at, updated_at,
+               blocked_reason
+        FROM token_library_catalog
+        WHERE network = ? AND chain_id = ?
+        ORDER BY token_key_id, library_key
+        """,
+        (network, chain_id),
+    )
+    state_rows = query(
+        database_url,
+        """
+        SELECT library_key, library_version, metadata_checksum
+        FROM token_library_state
+        WHERE network = ? AND chain_id = ?
+        """,
+        (network, chain_id),
+    )
+    library_state = {str(row["library_key"]): row for row in state_rows}
+    excluded_counts: dict[str, int] = {}
+    excluded_addresses: set[str] = set()
+    selected: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        status = _text(row.get("admission_status"))
+        if status not in {"admitted", "candidate_only"}:
+            excluded_counts[status or "unknown"] = (
+                excluded_counts.get(status or "unknown", 0) + 1
+            )
+            excluded_address = _text(row.get("token_address")).lower()
+            if excluded_address:
+                excluded_addresses.add(excluded_address)
+            continue
+        token_key_id = _text(row.get("token_key_id"))
+        current = selected.get(token_key_id)
+        current_priority = (
+            _PROJECTION_LIBRARY_PRIORITY.get(
+                _text(current.get("library_key")),
+                len(_PROJECTION_LIBRARY_PRIORITY),
+            )
+            if current
+            else len(_PROJECTION_LIBRARY_PRIORITY)
+        )
+        priority = _PROJECTION_LIBRARY_PRIORITY.get(
+            _text(row.get("library_key")),
+            len(_PROJECTION_LIBRARY_PRIORITY),
+        )
+        if current is None or priority < current_priority:
+            selected[token_key_id] = row
+
+    addresses = sorted(_text(row.get("token_address")).lower() for row in selected.values())
+    existing_rows: dict[str, dict[str, Any]] = {}
+    if addresses:
+        placeholders = ",".join("?" for _ in addresses)
+        for row in query(
+            database_url,
+            f"""
+            SELECT token_address, token_symbol, token_name, token_decimals,
+                   token_kind, is_native, is_wrapped_native, is_stable,
+                   anchor_symbol, token_metadata_json, source_json,
+                   first_seen_at, updated_at
+            FROM chain_tokens
+            WHERE network = ? AND chain_id = ?
+              AND lower(token_address) IN ({placeholders})
+            """,
+            (network, chain_id, *addresses),
+        ):
+            existing_rows[_text(row.get("token_address")).lower()] = row
+
+    excluded_legacy_rows: list[str] = []
+    if excluded_addresses:
+        excluded = sorted(excluded_addresses)
+        placeholders = ",".join("?" for _ in excluded)
+        excluded_legacy_rows = [
+            _text(row.get("token_address")).lower()
+            for row in query(
+                database_url,
+                f"""
+                SELECT token_address
+                FROM chain_tokens
+                WHERE network = ? AND chain_id = ?
+                  AND lower(token_address) IN ({placeholders})
+                ORDER BY token_address
+                """,
+                (network, chain_id, *excluded),
+            )
+        ]
+    if not dry_run and excluded_legacy_rows:
+        raise RuntimeError(
+            "TOKEN_PROJECTION_EXCLUDED_ROWS_PRESENT: "
+            "blocked/pending manager tokens still exist in the legacy "
+            f"chain_tokens projection: {', '.join(excluded_legacy_rows[:20])}"
+        )
+
+    now = _stamp()
+    projected_rows: list[tuple[Any, ...]] = []
+    canonical_rows: list[dict[str, Any]] = []
+    changed_rows = 0
+    for token_key_id in sorted(selected):
+        manager_row = selected[token_key_id]
+        address = _text(manager_row.get("token_address")).lower()
+        existing = existing_rows.get(address) or {}
+        symbol = _text(manager_row.get("token_symbol"))
+        token_name = _text(manager_row.get("token_name")) or symbol
+        library_key = _text(manager_row.get("library_key"))
+        state = library_state.get(library_key) or {}
+        manager_source = _json_loads(manager_row.get("source_json"))
+        source = _json_loads(existing.get("source_json"))
+        source.update(manager_source)
+        source["managerProjection"] = {
+            "libraryKey": library_key,
+            "libraryVersion": state.get("library_version"),
+            "libraryChecksum": state.get("metadata_checksum"),
+            "tokenKeyId": token_key_id,
+            "v4CurrencyKey": _text(manager_row.get("v4_currency_key")),
+            "admissionStatus": _text(manager_row.get("admission_status")),
+            "admissionSource": _text(manager_row.get("admission_source")),
+            "metadataSource": _text(manager_row.get("metadata_source")),
+            "metadataChecksum": _text(manager_row.get("metadata_checksum")),
+        }
+        metadata = _json_loads(existing.get("token_metadata_json"))
+        metadata.update(
+            {
+                "symbol": symbol,
+                "name": token_name,
+                "decimals": _int(manager_row.get("token_decimals")),
+                "source": _text(manager_row.get("metadata_source")),
+            }
+        )
+        if library_key == "stocks":
+            metadata["category"] = "robinhood_stock"
+        metadata["managerProjection"] = source["managerProjection"]
+        first_seen_at = (
+            _text(existing.get("first_seen_at"))
+            or _text(manager_row.get("first_seen_at"))
+            or now
+        )
+        updated_at = _text(manager_row.get("updated_at")) or now
+        values = {
+            "network": network,
+            "chain_id": chain_id,
+            "token_address": address,
+            "token_symbol": symbol,
+            "token_name": token_name,
+            "token_decimals": _int(manager_row.get("token_decimals")),
+            "token_kind": _text(manager_row.get("token_kind")) or "erc20",
+            "is_native": 1 if bool(manager_row.get("is_native")) else 0,
+            "is_wrapped_native": (
+                1 if bool(manager_row.get("is_wrapped_native")) else 0
+            ),
+            "is_stable": 1 if bool(manager_row.get("is_stable")) else 0,
+            "anchor_symbol": existing.get("anchor_symbol"),
+            "token_metadata_json": _json_dumps(metadata),
+            "source_json": _json_dumps(source),
+            "first_seen_at": first_seen_at,
+            "updated_at": updated_at,
+        }
+        canonical_rows.append(values)
+        if existing:
+            comparable = (
+                "token_symbol",
+                "token_name",
+                "token_decimals",
+                "token_kind",
+                "is_native",
+                "is_wrapped_native",
+                "is_stable",
+                "token_metadata_json",
+                "source_json",
+                "updated_at",
+            )
+            if any(existing.get(key) != values[key] for key in comparable):
+                changed_rows += 1
+        else:
+            changed_rows += 1
+        projected_rows.append(
+            (
+                values["network"],
+                values["chain_id"],
+                values["token_address"],
+                values["token_symbol"],
+                values["token_name"],
+                values["token_decimals"],
+                values["token_kind"],
+                values["is_native"],
+                values["is_wrapped_native"],
+                values["is_stable"],
+                values["anchor_symbol"],
+                values["token_metadata_json"],
+                values["source_json"],
+                values["first_seen_at"],
+                values["updated_at"],
+            )
+        )
+
+    checksum = _projection_checksum(canonical_rows)
+    if not dry_run and projected_rows:
+        replace_rows(
+            database_url,
+            """
+            INSERT INTO chain_tokens (
+                network, chain_id, token_address, token_symbol, token_name,
+                token_decimals, token_kind, is_native, is_wrapped_native,
+                is_stable, anchor_symbol, token_metadata_json, source_json,
+                first_seen_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(network, chain_id, token_address) DO UPDATE SET
+                token_symbol = excluded.token_symbol,
+                token_name = excluded.token_name,
+                token_decimals = excluded.token_decimals,
+                token_kind = excluded.token_kind,
+                is_native = excluded.is_native,
+                is_wrapped_native = excluded.is_wrapped_native,
+                is_stable = excluded.is_stable,
+                token_metadata_json = excluded.token_metadata_json,
+                source_json = excluded.source_json,
+                updated_at = excluded.updated_at
+            """,
+            projected_rows,
+        )
+        from core.db.storage_dex_surface_snapshot import (
+            clear_dex_surface_snapshot_fingerprint_cache,
+        )
+
+        clear_dex_surface_snapshot_fingerprint_cache(
+            network=network,
+            chain_id=chain_id,
+        )
+    return {
+        "authorityMode": "manager",
+        "dryRun": dry_run,
+        "network": network,
+        "chainId": chain_id,
+        "sourceRows": len(rows),
+        "projectedRows": len(projected_rows),
+        "changedRows": changed_rows,
+        "extensionRowsDeduplicated": len(
+            [
+                row
+                for row in rows
+                if _text(row.get("library_key")) == "extension"
+                and _text(row.get("token_key_id")) in selected
+                and _text(
+                    (selected[_text(row.get("token_key_id"))] or {}).get("library_key")
+                )
+                != "extension"
+            ]
+        ),
+        "excludedStatusCounts": dict(sorted(excluded_counts.items())),
+        "legacyRowsForExcludedStatus": len(excluded_legacy_rows),
+        "readyForProjection": not excluded_legacy_rows,
+        "checksum": checksum,
+        "nonDestructive": True,
+    }
 
 
 def load_chain_tokens(
@@ -474,6 +831,7 @@ __all__ = [
     "load_chain_markets",
     "load_chain_tokens",
     "load_initialization",
+    "project_chain_tokens_from_manager",
     "seed_chain_contracts",
     "seed_chain_info",
     "seed_chain_markets_from_builtin",

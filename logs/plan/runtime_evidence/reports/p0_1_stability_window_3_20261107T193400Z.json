@@ -1,0 +1,4307 @@
+{
+  "schema": "robinhood-api-status-measurement-v1",
+  "taskId": "P0-1",
+  "generatedAt": "2026-11-07T19:37:33.671129+00:00",
+  "mode": "http-and-process-read-only",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4",
+    "primary": true
+  },
+  "authorities": {
+    "broadcastAuthority": "legacy",
+    "candidateAuthority": "legacy",
+    "candidateExchangeAuthority": "legacy",
+    "dataSource": "rust_runtime_core"
+  },
+  "server": {
+    "baseUrl": "http://127.0.0.1:5000",
+    "scheme": "http",
+    "host": "127.0.0.1",
+    "port": 5000,
+    "portOwner": {
+      "status": "resolved",
+      "port": [
+        5000
+      ],
+      "localAddresses": [
+        "0.0.0.0"
+      ],
+      "pid": 9168,
+      "name": "python.exe",
+      "commandLine": "C:\\ProgramData\\Miniconda3\\python.exe E:\\2026OPC����\\flashLoan\\flashloan\\app_runtime\\run.py --port 5000"
+    },
+    "processIdentity": {
+      "status": "resolved",
+      "pid": 9168,
+      "name": "python.exe",
+      "commandLine": "C:\\ProgramData\\Miniconda3\\python.exe E:\\2026OPC����\\flashLoan\\flashloan\\app_runtime\\run.py --port 5000",
+      "expectedMarker": "flashloan/app_runtime/run.py",
+      "matchesExpectedMarker": true
+    }
+  },
+  "configuration": {
+    "statusSamples": 40,
+    "concurrency": 4,
+    "timeoutSeconds": 10.0,
+    "warmupSeconds": 0.0,
+    "resourceDurationSeconds": 1800.0,
+    "resourceIntervalSeconds": 10.0,
+    "requiredResourceSeconds": 1800.0,
+    "includeSubmissionDryRun": true,
+    "maxRssGrowthMb": 64.0,
+    "maxThreadGrowth": 2
+  },
+  "endpoints": {
+    "health": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/healthz",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "status": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/api/status",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "submissionRead": {
+      "method": "GET",
+      "url": "http://127.0.0.1:5000/api/dex/submissions?network=robinhood&chain_id=4663&protocol=uniswap_v4&market_id=dex-arbitrage-4663-uniswap-v4",
+      "expectedStatuses": [
+        200
+      ]
+    },
+    "submissionDryRun": {
+      "method": "POST",
+      "path": "/api/dex/submissions/clear",
+      "body": {
+        "record_kind": "submission",
+        "dryRun": true
+      },
+      "expectedStatuses": [
+        200
+      ]
+    }
+  },
+  "samples": {
+    "health": [
+      {
+        "startedAt": "2026-11-07T19:37:33.673141+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/healthz",
+        "status": 200,
+        "elapsedMs": 1582.571,
+        "bodyBytes": 16,
+        "bodySha256": "6489d6d7a33c5d40e18fc61eeb6c34c341279ee61816394dde5189aa4ad8fae5",
+        "contentType": "application/json",
+        "requestId": "e935bf2e3ba549e8b7a8c01dea57d18a",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "status"
+          ],
+          "status": "ok"
+        },
+        "sequence": 0
+      }
+    ],
+    "statusWarmup": [
+      {
+        "startedAt": "2026-11-07T19:37:36.580666+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 128.712,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "4cef5dd51bbf4509b50f7981d0c5d008",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 0
+      }
+    ],
+    "statusConcurrent": [
+      {
+        "startedAt": "2026-11-07T19:37:36.714930+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 162.984,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "17cdc363638b4f8db71a576f3d7686ff",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 0
+      },
+      {
+        "startedAt": "2026-11-07T19:37:36.715928+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 260.303,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "0739e71ae7284581be572cc37d97fdcf",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 1
+      },
+      {
+        "startedAt": "2026-11-07T19:37:36.716598+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 454.073,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "dbe47b9567da461a849d1c5da0d51ac4",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 2
+      },
+      {
+        "startedAt": "2026-11-07T19:37:36.717610+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 355.724,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "08a8085ed0a640cb88368bf753ae26e8",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 3
+      },
+      {
+        "startedAt": "2026-11-07T19:37:36.887568+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 421.23,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "28794cc1a8934cf6b9cbc8a76419d360",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 4
+      },
+      {
+        "startedAt": "2026-11-07T19:37:36.981005+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 610.896,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "fc75bb6d9f934ab89867c004bf479efd",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 5
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.078361+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 329.547,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "e22324c1e795496395117fb51f85dbca",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 6
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.174749+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 420.624,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "7ed81cc8f12f42e48a2614913f053de1",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 7
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.313057+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 415.7,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "8993f59f250f4c7387cc0856bf6418ab",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 8
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.412080+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 449.465,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "44604c2baab14c759b2783e6c9de7127",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 9
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.598797+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 665.366,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "aa999d4297cd411abacf8d631278cfb0",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 10
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.599796+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 437.582,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "ae463319adf54b9ea7e31eeb07868915",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 11
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.733430+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 693.888,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "877f97758dd542c1b655f27c484d0de0",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 12
+      },
+      {
+        "startedAt": "2026-11-07T19:37:37.867429+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 685.593,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "ccc7d7079e344a00b51f63010b7a5458",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 13
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.042825+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 620.728,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "06679dbf187841a3aa6946df1b1bf9d1",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 14
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.270690+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 495.495,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "76450bad7d954789879b4d775d358932",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 15
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.431378+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 464.031,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "9defe85a80b1486e83bb4f154e91b234",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 16
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.558521+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 448.64,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "0e76434924fa4527b08e11ecbbfa80df",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 17
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.670148+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 560.078,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "4ade8da8164a47b8991bd1efa979cbe2",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 18
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.770384+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 355.038,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "15621ee90e734cd29321c76f269c1b4f",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 19
+      },
+      {
+        "startedAt": "2026-11-07T19:37:38.899857+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 505.413,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "a130d639ab2241e59182ab88c46c4e40",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 20
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.011978+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 504.545,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "b4e199cd942e42b7a2d1d3fef7dcec89",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 21
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.130600+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 492.389,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "56a75a215c09461b9b1b0a63e78ac6f6",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 22
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.236319+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 489.02,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "91b6103fdc914e28a0686710728ba9bd",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 23
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.410346+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 411.847,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "871b74d1babd404798e120c4c5a56662",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 24
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.519859+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 416.232,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "d6a732e3cc724cbba606bf2568ad33a5",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 25
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.627653+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 413.881,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "ba6fc603cd59410d9233cb876f56cd97",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 26
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.729262+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 425.936,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "e467372d2cda442c9326a7323d334450",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 27
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.827458+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 438.976,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "0a015cda68f449b4951a718e110d4c79",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 28
+      },
+      {
+        "startedAt": "2026-11-07T19:37:39.941093+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 435.416,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "26eaa17aab26438797e92e2aa0ce5cd9",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 29
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.046741+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 444.922,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "be509a3eaca64fa6b20b793b963e71ff",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 30
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.160482+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 436.46,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "db2ba36e32e543e1b5b77891ff9cc379",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 31
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.272427+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 419.852,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "380f10de1a804e08b524b9bd26635d7b",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 32
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.381550+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 426.369,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "cb5c6904693f4de6a01cdcde6dc6d69a",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 33
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.496108+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 426.609,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "67b6eada7b0e40799de9554d525cf655",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 34
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.601572+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 431.786,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "df9fdf12ed224059aac62acd9006ef08",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 35
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.696194+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 432.326,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "0d87bbec0ca5415f8a3a424f91328c15",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 36
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.812337+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 417.232,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "e11181a7795d41bb8e7cf0b65fd9a269",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 37
+      },
+      {
+        "startedAt": "2026-11-07T19:37:40.928450+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 408.591,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "016465c385e840588671b9a0319b9257",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 38
+      },
+      {
+        "startedAt": "2026-11-07T19:37:41.037109+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/status",
+        "status": 200,
+        "elapsedMs": 407.589,
+        "bodyBytes": 240229,
+        "bodySha256": "7a06144308f98b2eff9a4d75394cfb9196a150f48ac99f6cadef97e786aae3cc",
+        "contentType": "application/json",
+        "requestId": "0aa77267830c499e90d35d235782cb0b",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "aave_reserve_cache",
+            "arbitrage_simulation",
+            "background_activity",
+            "binance_extremes",
+            "borrow_target_universe",
+            "chain_runtime",
+            "control_status",
+            "dex_opportunity_scanner",
+            "executable_signal",
+            "observer_progress",
+            "opportunity_health_summary",
+            "page_context",
+            "pid",
+            "running",
+            "sampling_profile",
+            "start_error",
+            "starting",
+            "status_build_timings",
+            "status_cache",
+            "strategy_config",
+            "symbols",
+            "system_info",
+            "system_monitor"
+          ],
+          "running": false,
+          "starting": false,
+          "pid": null,
+          "chain_runtime": {
+            "network": "robinhood",
+            "dataSource": "rust_runtime_core"
+          },
+          "control_status": {
+            "state": "idle",
+            "stage": "",
+            "message": "",
+            "percent": 0
+          }
+        },
+        "sequence": 39
+      }
+    ],
+    "submissionRead": [
+      {
+        "startedAt": "2026-11-07T19:37:35.256363+00:00",
+        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/dex/submissions?network=robinhood&chain_id=4663&protocol=uniswap_v4&market_id=dex-arbitrage-4663-uniswap-v4",
+        "status": 200,
+        "elapsedMs": 1323.561,
+        "bodyBytes": 2836,
+        "bodySha256": "48a4d5a561c2659b4690b64ab3a5b636ab4468a716bd8104b95310d977049c42",
+        "contentType": "application/json",
+        "requestId": "c2752799ee0e4d88b3584e7b4cdce833",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "attempts",
+            "categoryCounts",
+            "chain_selection",
+            "comparisonReadyForFieldSwitch",
+            "comparisonReason",
+            "dataSource",
+            "dex_strategy",
+            "error_category",
+            "failureCategorySnapshotCount",
+            "failureCategorySnapshotLimit",
+            "failureCategorySnapshotLimited",
+            "groups",
+            "loopStateSummary",
+            "managerEnvelopeVersion",
+            "managerSnapshotCount",
+            "managerStatus",
+            "mode",
+            "ok",
+            "pagination",
+            "recordKind",
+            "routeFramework",
+            "source",
+            "summary"
+          ],
+          "ok": true,
+          "mode": "dex_submission_review",
+          "dataSource": "manager"
+        },
+        "sequence": 0
+      }
+    ],
+    "submissionDryRun": [
+      {
+        "startedAt": "2026-11-07T19:37:41.451824+00:00",
+        "method": "POST",
+        "url": "http://127.0.0.1:5000/api/dex/submissions/clear?record_kind=submission&network=robinhood&chain_id=4663&protocol=uniswap_v4&market_id=dex-arbitrage-4663-uniswap-v4",
+        "status": 200,
+        "elapsedMs": 1673.083,
+        "bodyBytes": 1348,
+        "bodySha256": "716cb384a0818ccdc13f1c8685152ccc3df5dc71c970933216eab9b359aa955b",
+        "contentType": "application/json",
+        "requestId": "p0-1-20261107T193741Z",
+        "error": null,
+        "parseError": null,
+        "payload": {
+          "keys": [
+            "chain_selection",
+            "cleared",
+            "clearedDiagnostics",
+            "dataSource",
+            "dex_strategy",
+            "dryRun",
+            "idempotentReplay",
+            "managerResult",
+            "mode",
+            "ok",
+            "record_kind",
+            "remaining",
+            "remainingDiagnostics",
+            "results"
+          ],
+          "ok": true,
+          "mode": "dex_submission_clear",
+          "dataSource": "manager"
+        },
+        "sequence": 0
+      }
+    ]
+  },
+  "summaries": {
+    "health": {
+      "sampleCount": 1,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [
+        200
+      ],
+      "successCount": 1,
+      "failureCount": 0,
+      "errorRate": 0.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1582.571,
+        "p50": 1582.571,
+        "p95": 1582.571,
+        "max": 1582.571,
+        "mean": 1582.571
+      },
+      "bodyBytes": {
+        "min": 16,
+        "p50": 16.0,
+        "p95": 16.0,
+        "max": 16
+      }
+    },
+    "status": {
+      "sampleCount": 41,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [
+        200
+      ],
+      "successCount": 41,
+      "failureCount": 0,
+      "errorRate": 0.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 128.712,
+        "p50": 432.326,
+        "p95": 665.366,
+        "max": 693.888,
+        "mean": 444.417
+      },
+      "bodyBytes": {
+        "min": 240229,
+        "p50": 240229.0,
+        "p95": 240229.0,
+        "max": 240229
+      }
+    },
+    "statusConcurrent": {
+      "sampleCount": 40,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [
+        200
+      ],
+      "successCount": 40,
+      "failureCount": 0,
+      "errorRate": 0.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 162.984,
+        "p50": 433.871,
+        "p95": 666.377,
+        "max": 693.888,
+        "mean": 452.309
+      },
+      "bodyBytes": {
+        "min": 240229,
+        "p50": 240229.0,
+        "p95": 240229.0,
+        "max": 240229
+      }
+    },
+    "submissionRead": {
+      "sampleCount": 1,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [
+        200
+      ],
+      "successCount": 1,
+      "failureCount": 0,
+      "errorRate": 0.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1323.561,
+        "p50": 1323.561,
+        "p95": 1323.561,
+        "max": 1323.561,
+        "mean": 1323.561
+      },
+      "bodyBytes": {
+        "min": 2836,
+        "p50": 2836.0,
+        "p95": 2836.0,
+        "max": 2836
+      }
+    },
+    "submissionDryRun": {
+      "sampleCount": 1,
+      "expectedStatuses": [
+        200
+      ],
+      "statusCodes": [
+        200
+      ],
+      "successCount": 1,
+      "failureCount": 0,
+      "errorRate": 0.0,
+      "unexpected5xxCount": 0,
+      "latencyMs": {
+        "min": 1673.083,
+        "p50": 1673.083,
+        "p95": 1673.083,
+        "max": 1673.083,
+        "mean": 1673.083
+      },
+      "bodyBytes": {
+        "min": 1348,
+        "p50": 1348.0,
+        "p95": 1348.0,
+        "max": 1348
+      }
+    }
+  },
+  "resourceObservation": {
+    "startedAt": "2026-11-07T19:37:46.980087+00:00",
+    "endedAt": "2026-11-07T20:07:47.653091+00:00",
+    "requestedDurationSeconds": 1800.0,
+    "observedDurationSeconds": 1800.672,
+    "intervalSeconds": 10.0,
+    "samples": [
+      {
+        "sampledAt": "2026-11-07T19:37:46.980087+00:00",
+        "pid": 9168,
+        "rssBytes": 536670208,
+        "rssMb": 511.809,
+        "threadCount": 39,
+        "handleCount": 568,
+        "cpuSeconds": 4654.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:37:57.704989+00:00",
+        "pid": 9168,
+        "rssBytes": 536649728,
+        "rssMb": 511.789,
+        "threadCount": 38,
+        "handleCount": 564,
+        "cpuSeconds": 4669.875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:38:08.565364+00:00",
+        "pid": 9168,
+        "rssBytes": 536649728,
+        "rssMb": 511.789,
+        "threadCount": 38,
+        "handleCount": 565,
+        "cpuSeconds": 4685.046875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:38:19.373311+00:00",
+        "pid": 9168,
+        "rssBytes": 536657920,
+        "rssMb": 511.797,
+        "threadCount": 38,
+        "handleCount": 572,
+        "cpuSeconds": 4700.421875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:38:30.133078+00:00",
+        "pid": 9168,
+        "rssBytes": 538222592,
+        "rssMb": 513.289,
+        "threadCount": 38,
+        "handleCount": 623,
+        "cpuSeconds": 4716.796875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:38:40.915728+00:00",
+        "pid": 9168,
+        "rssBytes": 542392320,
+        "rssMb": 517.266,
+        "threadCount": 38,
+        "handleCount": 563,
+        "cpuSeconds": 4731.796875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:38:51.555600+00:00",
+        "pid": 9168,
+        "rssBytes": 466800640,
+        "rssMb": 445.176,
+        "threadCount": 38,
+        "handleCount": 561,
+        "cpuSeconds": 4742.140625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:02.202678+00:00",
+        "pid": 9168,
+        "rssBytes": 467689472,
+        "rssMb": 446.023,
+        "threadCount": 36,
+        "handleCount": 547,
+        "cpuSeconds": 4752.859375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:12.912114+00:00",
+        "pid": 9168,
+        "rssBytes": 467689472,
+        "rssMb": 446.023,
+        "threadCount": 36,
+        "handleCount": 541,
+        "cpuSeconds": 4763.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:23.795575+00:00",
+        "pid": 9168,
+        "rssBytes": 468086784,
+        "rssMb": 446.402,
+        "threadCount": 37,
+        "handleCount": 556,
+        "cpuSeconds": 4774.59375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:34.496047+00:00",
+        "pid": 9168,
+        "rssBytes": 471355392,
+        "rssMb": 449.52,
+        "threadCount": 36,
+        "handleCount": 551,
+        "cpuSeconds": 4784.796875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:45.211219+00:00",
+        "pid": 9168,
+        "rssBytes": 471379968,
+        "rssMb": 449.543,
+        "threadCount": 36,
+        "handleCount": 543,
+        "cpuSeconds": 4795.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:39:55.910214+00:00",
+        "pid": 9168,
+        "rssBytes": 471375872,
+        "rssMb": 449.539,
+        "threadCount": 35,
+        "handleCount": 539,
+        "cpuSeconds": 4806.265625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:40:06.594328+00:00",
+        "pid": 9168,
+        "rssBytes": 471429120,
+        "rssMb": 449.59,
+        "threadCount": 37,
+        "handleCount": 547,
+        "cpuSeconds": 4817.015625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:40:17.330091+00:00",
+        "pid": 9168,
+        "rssBytes": 473903104,
+        "rssMb": 451.949,
+        "threadCount": 37,
+        "handleCount": 560,
+        "cpuSeconds": 4827.78125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:40:28.147468+00:00",
+        "pid": 9168,
+        "rssBytes": 473858048,
+        "rssMb": 451.906,
+        "threadCount": 37,
+        "handleCount": 574,
+        "cpuSeconds": 4838.625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:40:38.943685+00:00",
+        "pid": 9168,
+        "rssBytes": 473890816,
+        "rssMb": 451.938,
+        "threadCount": 39,
+        "handleCount": 569,
+        "cpuSeconds": 4849.640625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:40:49.630409+00:00",
+        "pid": 9168,
+        "rssBytes": 473964544,
+        "rssMb": 452.008,
+        "threadCount": 39,
+        "handleCount": 572,
+        "cpuSeconds": 4860.875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:00.328229+00:00",
+        "pid": 9168,
+        "rssBytes": 474095616,
+        "rssMb": 452.133,
+        "threadCount": 39,
+        "handleCount": 596,
+        "cpuSeconds": 4872.015625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:11.021635+00:00",
+        "pid": 9168,
+        "rssBytes": 474001408,
+        "rssMb": 452.043,
+        "threadCount": 36,
+        "handleCount": 549,
+        "cpuSeconds": 4882.796875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:21.705579+00:00",
+        "pid": 9168,
+        "rssBytes": 474025984,
+        "rssMb": 452.066,
+        "threadCount": 37,
+        "handleCount": 565,
+        "cpuSeconds": 4893.40625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:32.426740+00:00",
+        "pid": 9168,
+        "rssBytes": 475172864,
+        "rssMb": 453.16,
+        "threadCount": 37,
+        "handleCount": 546,
+        "cpuSeconds": 4903.84375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:43.160337+00:00",
+        "pid": 9168,
+        "rssBytes": 475435008,
+        "rssMb": 453.41,
+        "threadCount": 37,
+        "handleCount": 554,
+        "cpuSeconds": 4916.984375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:41:54.015971+00:00",
+        "pid": 9168,
+        "rssBytes": 483000320,
+        "rssMb": 460.625,
+        "threadCount": 37,
+        "handleCount": 555,
+        "cpuSeconds": 4933.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:04.746315+00:00",
+        "pid": 9168,
+        "rssBytes": 661889024,
+        "rssMb": 631.227,
+        "threadCount": 37,
+        "handleCount": 544,
+        "cpuSeconds": 4948.078125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:15.696440+00:00",
+        "pid": 9168,
+        "rssBytes": 661979136,
+        "rssMb": 631.312,
+        "threadCount": 37,
+        "handleCount": 554,
+        "cpuSeconds": 4963.34375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:26.466217+00:00",
+        "pid": 9168,
+        "rssBytes": 668033024,
+        "rssMb": 637.086,
+        "threadCount": 37,
+        "handleCount": 539,
+        "cpuSeconds": 4978.6875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:37.205914+00:00",
+        "pid": 9168,
+        "rssBytes": 666771456,
+        "rssMb": 635.883,
+        "threadCount": 36,
+        "handleCount": 542,
+        "cpuSeconds": 4993.296875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:47.915733+00:00",
+        "pid": 9168,
+        "rssBytes": 666783744,
+        "rssMb": 635.895,
+        "threadCount": 35,
+        "handleCount": 587,
+        "cpuSeconds": 5009.921875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:42:58.581685+00:00",
+        "pid": 9168,
+        "rssBytes": 666763264,
+        "rssMb": 635.875,
+        "threadCount": 35,
+        "handleCount": 567,
+        "cpuSeconds": 5026.828125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:43:09.257825+00:00",
+        "pid": 9168,
+        "rssBytes": 666734592,
+        "rssMb": 635.848,
+        "threadCount": 35,
+        "handleCount": 542,
+        "cpuSeconds": 5043.28125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:43:19.982472+00:00",
+        "pid": 9168,
+        "rssBytes": 666411008,
+        "rssMb": 635.539,
+        "threadCount": 37,
+        "handleCount": 561,
+        "cpuSeconds": 5054.828125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:43:30.687458+00:00",
+        "pid": 9168,
+        "rssBytes": 475185152,
+        "rssMb": 453.172,
+        "threadCount": 37,
+        "handleCount": 566,
+        "cpuSeconds": 5066.28125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:43:41.355728+00:00",
+        "pid": 9168,
+        "rssBytes": 518483968,
+        "rssMb": 494.465,
+        "threadCount": 37,
+        "handleCount": 569,
+        "cpuSeconds": 5076.8125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:43:52.072027+00:00",
+        "pid": 9168,
+        "rssBytes": 511352832,
+        "rssMb": 487.664,
+        "threadCount": 38,
+        "handleCount": 573,
+        "cpuSeconds": 5088.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:02.724348+00:00",
+        "pid": 9168,
+        "rssBytes": 515809280,
+        "rssMb": 491.914,
+        "threadCount": 38,
+        "handleCount": 609,
+        "cpuSeconds": 5099.65625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:13.429380+00:00",
+        "pid": 9168,
+        "rssBytes": 534179840,
+        "rssMb": 509.434,
+        "threadCount": 38,
+        "handleCount": 567,
+        "cpuSeconds": 5110.609375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:24.158681+00:00",
+        "pid": 9168,
+        "rssBytes": 531886080,
+        "rssMb": 507.246,
+        "threadCount": 38,
+        "handleCount": 615,
+        "cpuSeconds": 5118.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:35.305141+00:00",
+        "pid": 9168,
+        "rssBytes": 531120128,
+        "rssMb": 506.516,
+        "threadCount": 37,
+        "handleCount": 595,
+        "cpuSeconds": 5120.84375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:45.932687+00:00",
+        "pid": 9168,
+        "rssBytes": 531120128,
+        "rssMb": 506.516,
+        "threadCount": 37,
+        "handleCount": 600,
+        "cpuSeconds": 5121.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:44:56.608366+00:00",
+        "pid": 9168,
+        "rssBytes": 531038208,
+        "rssMb": 506.438,
+        "threadCount": 37,
+        "handleCount": 617,
+        "cpuSeconds": 5125.875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:45:07.252345+00:00",
+        "pid": 9168,
+        "rssBytes": 531259392,
+        "rssMb": 506.648,
+        "threadCount": 37,
+        "handleCount": 612,
+        "cpuSeconds": 5126.859375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:45:18.010146+00:00",
+        "pid": 9168,
+        "rssBytes": 531890176,
+        "rssMb": 507.25,
+        "threadCount": 37,
+        "handleCount": 612,
+        "cpuSeconds": 5130.453125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:45:28.896230+00:00",
+        "pid": 9168,
+        "rssBytes": 535961600,
+        "rssMb": 511.133,
+        "threadCount": 37,
+        "handleCount": 625,
+        "cpuSeconds": 5134.703125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:45:39.558045+00:00",
+        "pid": 9168,
+        "rssBytes": 536027136,
+        "rssMb": 511.195,
+        "threadCount": 36,
+        "handleCount": 590,
+        "cpuSeconds": 5135.375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:45:50.175606+00:00",
+        "pid": 9168,
+        "rssBytes": 536293376,
+        "rssMb": 511.449,
+        "threadCount": 35,
+        "handleCount": 592,
+        "cpuSeconds": 5136.171875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:00.831272+00:00",
+        "pid": 9168,
+        "rssBytes": 536313856,
+        "rssMb": 511.469,
+        "threadCount": 35,
+        "handleCount": 589,
+        "cpuSeconds": 5137.15625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:11.485926+00:00",
+        "pid": 9168,
+        "rssBytes": 536313856,
+        "rssMb": 511.469,
+        "threadCount": 35,
+        "handleCount": 595,
+        "cpuSeconds": 5137.796875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:22.140462+00:00",
+        "pid": 9168,
+        "rssBytes": 536313856,
+        "rssMb": 511.469,
+        "threadCount": 35,
+        "handleCount": 597,
+        "cpuSeconds": 5138.5625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:32.786522+00:00",
+        "pid": 9168,
+        "rssBytes": 536326144,
+        "rssMb": 511.48,
+        "threadCount": 35,
+        "handleCount": 583,
+        "cpuSeconds": 5139.453125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:43.459684+00:00",
+        "pid": 9168,
+        "rssBytes": 536248320,
+        "rssMb": 511.406,
+        "threadCount": 37,
+        "handleCount": 581,
+        "cpuSeconds": 5140.25,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:46:54.204006+00:00",
+        "pid": 9168,
+        "rssBytes": 536436736,
+        "rssMb": 511.586,
+        "threadCount": 37,
+        "handleCount": 601,
+        "cpuSeconds": 5144,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:04.810025+00:00",
+        "pid": 9168,
+        "rssBytes": 536571904,
+        "rssMb": 511.715,
+        "threadCount": 37,
+        "handleCount": 616,
+        "cpuSeconds": 5148.03125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:15.477950+00:00",
+        "pid": 9168,
+        "rssBytes": 537341952,
+        "rssMb": 512.449,
+        "threadCount": 37,
+        "handleCount": 616,
+        "cpuSeconds": 5149.546875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:26.258784+00:00",
+        "pid": 9168,
+        "rssBytes": 539758592,
+        "rssMb": 514.754,
+        "threadCount": 37,
+        "handleCount": 653,
+        "cpuSeconds": 5158.71875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:36.997416+00:00",
+        "pid": 9168,
+        "rssBytes": 545751040,
+        "rssMb": 520.469,
+        "threadCount": 39,
+        "handleCount": 551,
+        "cpuSeconds": 5172.203125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:47.852072+00:00",
+        "pid": 9168,
+        "rssBytes": 549638144,
+        "rssMb": 524.176,
+        "threadCount": 39,
+        "handleCount": 574,
+        "cpuSeconds": 5186.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:47:58.533986+00:00",
+        "pid": 9168,
+        "rssBytes": 669044736,
+        "rssMb": 638.051,
+        "threadCount": 37,
+        "handleCount": 547,
+        "cpuSeconds": 5200.1875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:48:09.337845+00:00",
+        "pid": 9168,
+        "rssBytes": 669085696,
+        "rssMb": 638.09,
+        "threadCount": 37,
+        "handleCount": 548,
+        "cpuSeconds": 5213.90625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:48:20.086351+00:00",
+        "pid": 9168,
+        "rssBytes": 677785600,
+        "rssMb": 646.387,
+        "threadCount": 37,
+        "handleCount": 538,
+        "cpuSeconds": 5226.25,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:48:30.753410+00:00",
+        "pid": 9168,
+        "rssBytes": 675786752,
+        "rssMb": 644.48,
+        "threadCount": 37,
+        "handleCount": 580,
+        "cpuSeconds": 5239.625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:48:41.396866+00:00",
+        "pid": 9168,
+        "rssBytes": 675807232,
+        "rssMb": 644.5,
+        "threadCount": 37,
+        "handleCount": 559,
+        "cpuSeconds": 5247.90625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:48:52.138262+00:00",
+        "pid": 9168,
+        "rssBytes": 675811328,
+        "rssMb": 644.504,
+        "threadCount": 37,
+        "handleCount": 540,
+        "cpuSeconds": 5260.375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:02.839241+00:00",
+        "pid": 9168,
+        "rssBytes": 675778560,
+        "rssMb": 644.473,
+        "threadCount": 36,
+        "handleCount": 536,
+        "cpuSeconds": 5275.578125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:13.610670+00:00",
+        "pid": 9168,
+        "rssBytes": 675794944,
+        "rssMb": 644.488,
+        "threadCount": 35,
+        "handleCount": 552,
+        "cpuSeconds": 5291.15625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:24.648671+00:00",
+        "pid": 9168,
+        "rssBytes": 675799040,
+        "rssMb": 644.492,
+        "threadCount": 35,
+        "handleCount": 552,
+        "cpuSeconds": 5306.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:35.339468+00:00",
+        "pid": 9168,
+        "rssBytes": 675790848,
+        "rssMb": 644.484,
+        "threadCount": 35,
+        "handleCount": 564,
+        "cpuSeconds": 5321.53125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:46.044501+00:00",
+        "pid": 9168,
+        "rssBytes": 675852288,
+        "rssMb": 644.543,
+        "threadCount": 37,
+        "handleCount": 569,
+        "cpuSeconds": 5336.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:49:56.895853+00:00",
+        "pid": 9168,
+        "rssBytes": 675840000,
+        "rssMb": 644.531,
+        "threadCount": 37,
+        "handleCount": 569,
+        "cpuSeconds": 5351.453125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:50:07.602351+00:00",
+        "pid": 9168,
+        "rssBytes": 675844096,
+        "rssMb": 644.535,
+        "threadCount": 37,
+        "handleCount": 553,
+        "cpuSeconds": 5366.859375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:50:18.508097+00:00",
+        "pid": 9168,
+        "rssBytes": 675852288,
+        "rssMb": 644.543,
+        "threadCount": 37,
+        "handleCount": 559,
+        "cpuSeconds": 5382.609375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:50:29.313627+00:00",
+        "pid": 9168,
+        "rssBytes": 675860480,
+        "rssMb": 644.551,
+        "threadCount": 37,
+        "handleCount": 550,
+        "cpuSeconds": 5398.125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:50:40.102341+00:00",
+        "pid": 9168,
+        "rssBytes": 675905536,
+        "rssMb": 644.594,
+        "threadCount": 38,
+        "handleCount": 553,
+        "cpuSeconds": 5414,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:50:50.805512+00:00",
+        "pid": 9168,
+        "rssBytes": 676196352,
+        "rssMb": 644.871,
+        "threadCount": 38,
+        "handleCount": 610,
+        "cpuSeconds": 5431.4375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:01.638810+00:00",
+        "pid": 9168,
+        "rssBytes": 472264704,
+        "rssMb": 450.387,
+        "threadCount": 39,
+        "handleCount": 563,
+        "cpuSeconds": 5444.453125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:12.491032+00:00",
+        "pid": 9168,
+        "rssBytes": 472408064,
+        "rssMb": 450.523,
+        "threadCount": 37,
+        "handleCount": 546,
+        "cpuSeconds": 5455.34375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:23.190600+00:00",
+        "pid": 9168,
+        "rssBytes": 472485888,
+        "rssMb": 450.598,
+        "threadCount": 37,
+        "handleCount": 546,
+        "cpuSeconds": 5466.125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:33.901903+00:00",
+        "pid": 9168,
+        "rssBytes": 475512832,
+        "rssMb": 453.484,
+        "threadCount": 37,
+        "handleCount": 561,
+        "cpuSeconds": 5477,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:44.605843+00:00",
+        "pid": 9168,
+        "rssBytes": 475762688,
+        "rssMb": 453.723,
+        "threadCount": 37,
+        "handleCount": 558,
+        "cpuSeconds": 5487.515625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:51:55.277589+00:00",
+        "pid": 9168,
+        "rssBytes": 475828224,
+        "rssMb": 453.785,
+        "threadCount": 37,
+        "handleCount": 552,
+        "cpuSeconds": 5498.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:06.036410+00:00",
+        "pid": 9168,
+        "rssBytes": 476672000,
+        "rssMb": 454.59,
+        "threadCount": 37,
+        "handleCount": 552,
+        "cpuSeconds": 5509.328125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:16.712897+00:00",
+        "pid": 9168,
+        "rssBytes": 476635136,
+        "rssMb": 454.555,
+        "threadCount": 36,
+        "handleCount": 551,
+        "cpuSeconds": 5520.015625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:27.415622+00:00",
+        "pid": 9168,
+        "rssBytes": 476635136,
+        "rssMb": 454.555,
+        "threadCount": 36,
+        "handleCount": 540,
+        "cpuSeconds": 5530.8125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:38.105317+00:00",
+        "pid": 9168,
+        "rssBytes": 476618752,
+        "rssMb": 454.539,
+        "threadCount": 35,
+        "handleCount": 540,
+        "cpuSeconds": 5541.578125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:48.828630+00:00",
+        "pid": 9168,
+        "rssBytes": 476618752,
+        "rssMb": 454.539,
+        "threadCount": 35,
+        "handleCount": 532,
+        "cpuSeconds": 5552.390625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:52:59.496837+00:00",
+        "pid": 9168,
+        "rssBytes": 477728768,
+        "rssMb": 455.598,
+        "threadCount": 37,
+        "handleCount": 543,
+        "cpuSeconds": 5563,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:53:10.176161+00:00",
+        "pid": 9168,
+        "rssBytes": 477712384,
+        "rssMb": 455.582,
+        "threadCount": 36,
+        "handleCount": 556,
+        "cpuSeconds": 5573.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:53:21.033437+00:00",
+        "pid": 9168,
+        "rssBytes": 468152320,
+        "rssMb": 446.465,
+        "threadCount": 37,
+        "handleCount": 563,
+        "cpuSeconds": 5584.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:53:31.771912+00:00",
+        "pid": 9168,
+        "rssBytes": 469794816,
+        "rssMb": 448.031,
+        "threadCount": 37,
+        "handleCount": 555,
+        "cpuSeconds": 5595.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:53:42.492712+00:00",
+        "pid": 9168,
+        "rssBytes": 480702464,
+        "rssMb": 458.434,
+        "threadCount": 37,
+        "handleCount": 558,
+        "cpuSeconds": 5606.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:53:53.691368+00:00",
+        "pid": 9168,
+        "rssBytes": 502591488,
+        "rssMb": 479.309,
+        "threadCount": 39,
+        "handleCount": 563,
+        "cpuSeconds": 5617.9375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:04.446656+00:00",
+        "pid": 9168,
+        "rssBytes": 517537792,
+        "rssMb": 493.562,
+        "threadCount": 39,
+        "handleCount": 581,
+        "cpuSeconds": 5630.140625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:15.273710+00:00",
+        "pid": 9168,
+        "rssBytes": 519503872,
+        "rssMb": 495.438,
+        "threadCount": 39,
+        "handleCount": 586,
+        "cpuSeconds": 5645.765625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:25.963697+00:00",
+        "pid": 9168,
+        "rssBytes": 527704064,
+        "rssMb": 503.258,
+        "threadCount": 39,
+        "handleCount": 569,
+        "cpuSeconds": 5657.203125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:36.652931+00:00",
+        "pid": 9168,
+        "rssBytes": 547151872,
+        "rssMb": 521.805,
+        "threadCount": 39,
+        "handleCount": 573,
+        "cpuSeconds": 5668.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:47.335151+00:00",
+        "pid": 9168,
+        "rssBytes": 547094528,
+        "rssMb": 521.75,
+        "threadCount": 39,
+        "handleCount": 570,
+        "cpuSeconds": 5679.65625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:54:58.145974+00:00",
+        "pid": 9168,
+        "rssBytes": 547291136,
+        "rssMb": 521.938,
+        "threadCount": 39,
+        "handleCount": 574,
+        "cpuSeconds": 5690.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:55:08.912443+00:00",
+        "pid": 9168,
+        "rssBytes": 547377152,
+        "rssMb": 522.02,
+        "threadCount": 39,
+        "handleCount": 578,
+        "cpuSeconds": 5702.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:55:19.597493+00:00",
+        "pid": 9168,
+        "rssBytes": 547319808,
+        "rssMb": 521.965,
+        "threadCount": 39,
+        "handleCount": 577,
+        "cpuSeconds": 5713.890625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:55:30.395488+00:00",
+        "pid": 9168,
+        "rssBytes": 571015168,
+        "rssMb": 544.562,
+        "threadCount": 39,
+        "handleCount": 564,
+        "cpuSeconds": 5724.890625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:55:41.224899+00:00",
+        "pid": 9168,
+        "rssBytes": 547241984,
+        "rssMb": 521.891,
+        "threadCount": 36,
+        "handleCount": 543,
+        "cpuSeconds": 5736.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:55:51.962887+00:00",
+        "pid": 9168,
+        "rssBytes": 547803136,
+        "rssMb": 522.426,
+        "threadCount": 35,
+        "handleCount": 647,
+        "cpuSeconds": 5747.265625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:02.635721+00:00",
+        "pid": 9168,
+        "rssBytes": 465309696,
+        "rssMb": 443.754,
+        "threadCount": 37,
+        "handleCount": 589,
+        "cpuSeconds": 5755.546875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:13.292308+00:00",
+        "pid": 9168,
+        "rssBytes": 501121024,
+        "rssMb": 477.906,
+        "threadCount": 36,
+        "handleCount": 574,
+        "cpuSeconds": 5758.578125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:23.950007+00:00",
+        "pid": 9168,
+        "rssBytes": 501170176,
+        "rssMb": 477.953,
+        "threadCount": 36,
+        "handleCount": 578,
+        "cpuSeconds": 5759.484375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:34.614095+00:00",
+        "pid": 9168,
+        "rssBytes": 502493184,
+        "rssMb": 479.215,
+        "threadCount": 36,
+        "handleCount": 587,
+        "cpuSeconds": 5760.359375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:45.315457+00:00",
+        "pid": 9168,
+        "rssBytes": 502599680,
+        "rssMb": 479.316,
+        "threadCount": 37,
+        "handleCount": 594,
+        "cpuSeconds": 5761.109375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:56:55.997618+00:00",
+        "pid": 9168,
+        "rssBytes": 535261184,
+        "rssMb": 510.465,
+        "threadCount": 37,
+        "handleCount": 599,
+        "cpuSeconds": 5764.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:57:06.753516+00:00",
+        "pid": 9168,
+        "rssBytes": 512516096,
+        "rssMb": 488.773,
+        "threadCount": 37,
+        "handleCount": 605,
+        "cpuSeconds": 5766.09375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:57:17.391079+00:00",
+        "pid": 9168,
+        "rssBytes": 518422528,
+        "rssMb": 494.406,
+        "threadCount": 38,
+        "handleCount": 626,
+        "cpuSeconds": 5770.171875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:57:28.106515+00:00",
+        "pid": 9168,
+        "rssBytes": 519471104,
+        "rssMb": 495.406,
+        "threadCount": 38,
+        "handleCount": 598,
+        "cpuSeconds": 5775.65625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:57:38.765768+00:00",
+        "pid": 9168,
+        "rssBytes": 519897088,
+        "rssMb": 495.812,
+        "threadCount": 38,
+        "handleCount": 605,
+        "cpuSeconds": 5782.15625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:57:49.409024+00:00",
+        "pid": 9168,
+        "rssBytes": 520916992,
+        "rssMb": 496.785,
+        "threadCount": 38,
+        "handleCount": 603,
+        "cpuSeconds": 5787.34375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:00.129798+00:00",
+        "pid": 9168,
+        "rssBytes": 521043968,
+        "rssMb": 496.906,
+        "threadCount": 38,
+        "handleCount": 600,
+        "cpuSeconds": 5788.28125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:10.740925+00:00",
+        "pid": 9168,
+        "rssBytes": 523141120,
+        "rssMb": 498.906,
+        "threadCount": 38,
+        "handleCount": 600,
+        "cpuSeconds": 5791.15625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:21.505944+00:00",
+        "pid": 9168,
+        "rssBytes": 521170944,
+        "rssMb": 497.027,
+        "threadCount": 38,
+        "handleCount": 614,
+        "cpuSeconds": 5792.703125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:32.123889+00:00",
+        "pid": 9168,
+        "rssBytes": 521424896,
+        "rssMb": 497.27,
+        "threadCount": 38,
+        "handleCount": 638,
+        "cpuSeconds": 5798.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:42.791764+00:00",
+        "pid": 9168,
+        "rssBytes": 455344128,
+        "rssMb": 434.25,
+        "threadCount": 38,
+        "handleCount": 588,
+        "cpuSeconds": 5805.171875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:58:53.489149+00:00",
+        "pid": 9168,
+        "rssBytes": 457461760,
+        "rssMb": 436.27,
+        "threadCount": 38,
+        "handleCount": 559,
+        "cpuSeconds": 5808.84375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:04.148041+00:00",
+        "pid": 9168,
+        "rssBytes": 452001792,
+        "rssMb": 431.062,
+        "threadCount": 37,
+        "handleCount": 553,
+        "cpuSeconds": 5820.875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:15.007817+00:00",
+        "pid": 9168,
+        "rssBytes": 457375744,
+        "rssMb": 436.188,
+        "threadCount": 37,
+        "handleCount": 550,
+        "cpuSeconds": 5834.515625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:25.716327+00:00",
+        "pid": 9168,
+        "rssBytes": 663408640,
+        "rssMb": 632.676,
+        "threadCount": 36,
+        "handleCount": 583,
+        "cpuSeconds": 5847.265625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:36.493030+00:00",
+        "pid": 9168,
+        "rssBytes": 663023616,
+        "rssMb": 632.309,
+        "threadCount": 35,
+        "handleCount": 567,
+        "cpuSeconds": 5862.234375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:47.210031+00:00",
+        "pid": 9168,
+        "rssBytes": 663199744,
+        "rssMb": 632.477,
+        "threadCount": 35,
+        "handleCount": 542,
+        "cpuSeconds": 5876.703125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T19:59:57.961759+00:00",
+        "pid": 9168,
+        "rssBytes": 673697792,
+        "rssMb": 642.488,
+        "threadCount": 37,
+        "handleCount": 558,
+        "cpuSeconds": 5892.140625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:00:08.735129+00:00",
+        "pid": 9168,
+        "rssBytes": 673718272,
+        "rssMb": 642.508,
+        "threadCount": 37,
+        "handleCount": 547,
+        "cpuSeconds": 5907.5625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:00:19.558717+00:00",
+        "pid": 9168,
+        "rssBytes": 673701888,
+        "rssMb": 642.492,
+        "threadCount": 37,
+        "handleCount": 556,
+        "cpuSeconds": 5922.828125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:00:30.224189+00:00",
+        "pid": 9168,
+        "rssBytes": 673943552,
+        "rssMb": 642.723,
+        "threadCount": 38,
+        "handleCount": 572,
+        "cpuSeconds": 5937.78125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:00:40.905638+00:00",
+        "pid": 9168,
+        "rssBytes": 673972224,
+        "rssMb": 642.75,
+        "threadCount": 38,
+        "handleCount": 552,
+        "cpuSeconds": 5953.140625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:00:51.573364+00:00",
+        "pid": 9168,
+        "rssBytes": 673980416,
+        "rssMb": 642.758,
+        "threadCount": 38,
+        "handleCount": 565,
+        "cpuSeconds": 5968.5,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:02.261713+00:00",
+        "pid": 9168,
+        "rssBytes": 673980416,
+        "rssMb": 642.758,
+        "threadCount": 38,
+        "handleCount": 573,
+        "cpuSeconds": 5984.59375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:13.096216+00:00",
+        "pid": 9168,
+        "rssBytes": 674017280,
+        "rssMb": 642.793,
+        "threadCount": 38,
+        "handleCount": 551,
+        "cpuSeconds": 5999.828125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:23.956224+00:00",
+        "pid": 9168,
+        "rssBytes": 674070528,
+        "rssMb": 642.844,
+        "threadCount": 38,
+        "handleCount": 569,
+        "cpuSeconds": 6015.140625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:34.688798+00:00",
+        "pid": 9168,
+        "rssBytes": 674078720,
+        "rssMb": 642.852,
+        "threadCount": 38,
+        "handleCount": 581,
+        "cpuSeconds": 6030.046875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:45.377791+00:00",
+        "pid": 9168,
+        "rssBytes": 674082816,
+        "rssMb": 642.855,
+        "threadCount": 38,
+        "handleCount": 572,
+        "cpuSeconds": 6045.296875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:01:56.256083+00:00",
+        "pid": 9168,
+        "rssBytes": 674091008,
+        "rssMb": 642.863,
+        "threadCount": 38,
+        "handleCount": 573,
+        "cpuSeconds": 6060.3125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:02:06.971752+00:00",
+        "pid": 9168,
+        "rssBytes": 674082816,
+        "rssMb": 642.855,
+        "threadCount": 38,
+        "handleCount": 570,
+        "cpuSeconds": 6075.640625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:02:17.828052+00:00",
+        "pid": 9168,
+        "rssBytes": 674844672,
+        "rssMb": 643.582,
+        "threadCount": 38,
+        "handleCount": 600,
+        "cpuSeconds": 6092.671875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:02:28.781246+00:00",
+        "pid": 9168,
+        "rssBytes": 675147776,
+        "rssMb": 643.871,
+        "threadCount": 36,
+        "handleCount": 540,
+        "cpuSeconds": 6105.96875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:02:39.625382+00:00",
+        "pid": 9168,
+        "rssBytes": 675172352,
+        "rssMb": 643.895,
+        "threadCount": 35,
+        "handleCount": 548,
+        "cpuSeconds": 6116.765625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:02:50.322164+00:00",
+        "pid": 9168,
+        "rssBytes": 675172352,
+        "rssMb": 643.895,
+        "threadCount": 35,
+        "handleCount": 566,
+        "cpuSeconds": 6127.46875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:00.996856+00:00",
+        "pid": 9168,
+        "rssBytes": 675176448,
+        "rssMb": 643.898,
+        "threadCount": 35,
+        "handleCount": 554,
+        "cpuSeconds": 6138.09375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:11.659861+00:00",
+        "pid": 9168,
+        "rssBytes": 675176448,
+        "rssMb": 643.898,
+        "threadCount": 35,
+        "handleCount": 548,
+        "cpuSeconds": 6148.65625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:22.445363+00:00",
+        "pid": 9168,
+        "rssBytes": 675229696,
+        "rssMb": 643.949,
+        "threadCount": 37,
+        "handleCount": 555,
+        "cpuSeconds": 6159.609375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:33.216699+00:00",
+        "pid": 9168,
+        "rssBytes": 675229696,
+        "rssMb": 643.949,
+        "threadCount": 37,
+        "handleCount": 550,
+        "cpuSeconds": 6170.59375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:44.054169+00:00",
+        "pid": 9168,
+        "rssBytes": 675229696,
+        "rssMb": 643.949,
+        "threadCount": 37,
+        "handleCount": 552,
+        "cpuSeconds": 6181.53125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:03:54.752622+00:00",
+        "pid": 9168,
+        "rssBytes": 675229696,
+        "rssMb": 643.949,
+        "threadCount": 37,
+        "handleCount": 547,
+        "cpuSeconds": 6192.515625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:05.453690+00:00",
+        "pid": 9168,
+        "rssBytes": 675319808,
+        "rssMb": 644.035,
+        "threadCount": 38,
+        "handleCount": 568,
+        "cpuSeconds": 6204,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:16.179676+00:00",
+        "pid": 9168,
+        "rssBytes": 675323904,
+        "rssMb": 644.039,
+        "threadCount": 38,
+        "handleCount": 562,
+        "cpuSeconds": 6214.703125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:27.095472+00:00",
+        "pid": 9168,
+        "rssBytes": 675323904,
+        "rssMb": 644.039,
+        "threadCount": 38,
+        "handleCount": 567,
+        "cpuSeconds": 6225.515625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:37.931295+00:00",
+        "pid": 9168,
+        "rssBytes": 675323904,
+        "rssMb": 644.039,
+        "threadCount": 38,
+        "handleCount": 560,
+        "cpuSeconds": 6236.25,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:48.704568+00:00",
+        "pid": 9168,
+        "rssBytes": 675315712,
+        "rssMb": 644.031,
+        "threadCount": 38,
+        "handleCount": 558,
+        "cpuSeconds": 6247.203125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:04:59.421256+00:00",
+        "pid": 9168,
+        "rssBytes": 498626560,
+        "rssMb": 475.527,
+        "threadCount": 38,
+        "handleCount": 602,
+        "cpuSeconds": 6257.859375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:05:10.125494+00:00",
+        "pid": 9168,
+        "rssBytes": 501723136,
+        "rssMb": 478.48,
+        "threadCount": 38,
+        "handleCount": 564,
+        "cpuSeconds": 6269.046875,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:05:20.863291+00:00",
+        "pid": 9168,
+        "rssBytes": 521953280,
+        "rssMb": 497.773,
+        "threadCount": 38,
+        "handleCount": 600,
+        "cpuSeconds": 6276.59375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:05:31.515891+00:00",
+        "pid": 9168,
+        "rssBytes": 524509184,
+        "rssMb": 500.211,
+        "threadCount": 38,
+        "handleCount": 566,
+        "cpuSeconds": 6286.078125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:05:42.362863+00:00",
+        "pid": 9168,
+        "rssBytes": 524611584,
+        "rssMb": 500.309,
+        "threadCount": 36,
+        "handleCount": 541,
+        "cpuSeconds": 6295.453125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:05:53.171046+00:00",
+        "pid": 9168,
+        "rssBytes": 543174656,
+        "rssMb": 518.012,
+        "threadCount": 35,
+        "handleCount": 551,
+        "cpuSeconds": 6305.5625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:04.002042+00:00",
+        "pid": 9168,
+        "rssBytes": 543408128,
+        "rssMb": 518.234,
+        "threadCount": 35,
+        "handleCount": 547,
+        "cpuSeconds": 6316.75,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:14.692549+00:00",
+        "pid": 9168,
+        "rssBytes": 543346688,
+        "rssMb": 518.176,
+        "threadCount": 35,
+        "handleCount": 559,
+        "cpuSeconds": 6327.984375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:25.364474+00:00",
+        "pid": 9168,
+        "rssBytes": 543354880,
+        "rssMb": 518.184,
+        "threadCount": 35,
+        "handleCount": 541,
+        "cpuSeconds": 6339.359375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:36.056014+00:00",
+        "pid": 9168,
+        "rssBytes": 543449088,
+        "rssMb": 518.273,
+        "threadCount": 37,
+        "handleCount": 546,
+        "cpuSeconds": 6351.203125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:46.788807+00:00",
+        "pid": 9168,
+        "rssBytes": 543457280,
+        "rssMb": 518.281,
+        "threadCount": 37,
+        "handleCount": 564,
+        "cpuSeconds": 6362.015625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:06:57.516117+00:00",
+        "pid": 9168,
+        "rssBytes": 542658560,
+        "rssMb": 517.52,
+        "threadCount": 37,
+        "handleCount": 550,
+        "cpuSeconds": 6373.5,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:07:08.189047+00:00",
+        "pid": 9168,
+        "rssBytes": 543526912,
+        "rssMb": 518.348,
+        "threadCount": 37,
+        "handleCount": 628,
+        "cpuSeconds": 6384.09375,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:07:18.980207+00:00",
+        "pid": 9168,
+        "rssBytes": 549257216,
+        "rssMb": 523.812,
+        "threadCount": 39,
+        "handleCount": 607,
+        "cpuSeconds": 6390.65625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:07:29.670920+00:00",
+        "pid": 9168,
+        "rssBytes": 548859904,
+        "rssMb": 523.434,
+        "threadCount": 39,
+        "handleCount": 623,
+        "cpuSeconds": 6395.515625,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:07:40.342365+00:00",
+        "pid": 9168,
+        "rssBytes": 548675584,
+        "rssMb": 523.258,
+        "threadCount": 39,
+        "handleCount": 601,
+        "cpuSeconds": 6402.03125,
+        "responding": true
+      },
+      {
+        "sampledAt": "2026-11-07T20:07:46.984520+00:00",
+        "pid": 9168,
+        "rssBytes": 550195200,
+        "rssMb": 524.707,
+        "threadCount": 39,
+        "handleCount": 607,
+        "cpuSeconds": 6404.46875,
+        "responding": true
+      }
+    ],
+    "sampleCount": 169,
+    "validSampleCount": 169,
+    "errorCount": 0,
+    "summary": {
+      "rssMb": {
+        "min": 431.062,
+        "p50": 511.789,
+        "max": 646.387,
+        "firstQuartileMedian": 494.465,
+        "lastQuartileMedian": 642.758,
+        "deltaMb": 148.293,
+        "slopeMbPerSample": 0.450139
+      },
+      "threads": {
+        "min": 35,
+        "p50": 37.0,
+        "max": 39,
+        "firstQuartileMedian": 37,
+        "lastQuartileMedian": 38,
+        "delta": 1
+      }
+    }
+  },
+  "gates": {
+    "healthAndCoreApis": {
+      "passed": true,
+      "health": true,
+      "healthContract": true,
+      "status": true,
+      "statusContract": true,
+      "submissionRead": true,
+      "submissionReadContract": true,
+      "submissionDryRun": true
+    },
+    "statusConcurrentLatency": {
+      "passed": true,
+      "concurrency": 4,
+      "sampleCount": 40,
+      "p95Ms": 666.377,
+      "thresholdMs": 2000.0,
+      "errorRate": 0.0
+    },
+    "resourceStability": {
+      "passed": false,
+      "applicable": true,
+      "durationPassed": true,
+      "growthPassed": false,
+      "requiredDurationSeconds": 1800.0,
+      "observedDurationSeconds": 1800.672,
+      "rssDeltaMb": 148.293,
+      "maxRssGrowthMb": 64.0,
+      "threadDelta": 1,
+      "maxThreadGrowth": 2
+    },
+    "allPassed": false
+  },
+  "blockers": [
+    "resource_growth_gate_failed"
+  ],
+  "warnings": [],
+  "conclusion": "failed"
+}

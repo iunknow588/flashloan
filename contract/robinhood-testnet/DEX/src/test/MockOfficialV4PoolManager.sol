@@ -47,6 +47,7 @@ contract MockOfficialV4PoolManager {
     mapping(address caller => mapping(address currency => uint256 debt)) public currencyDebt;
     mapping(address caller => address currency) public syncedCurrency;
     mapping(address caller => uint256 balanceAtSync) public syncedBalance;
+    mapping(bytes32 => bytes32) public poolSlotPrices;
 
     function createPoolFromKey(PoolKey calldata key) external returns (bytes32 poolKey) {
         (address token0, address token1) = _sortTokens(key.currency0, key.currency1);
@@ -72,6 +73,7 @@ contract MockOfficialV4PoolManager {
         uint256 reserve1 = key.currency0 == token0 ? amount1 : amount0;
         reserve.amount0 += reserve0;
         reserve.amount1 += reserve1;
+        _storeSqrtPrice(key, reserve0, reserve1);
         if (!_transferIn(token0, msg.sender, reserve0)) revert TransferFailed();
         if (!_transferIn(token1, msg.sender, reserve1)) revert TransferFailed();
     }
@@ -87,8 +89,13 @@ contract MockOfficialV4PoolManager {
         uint256 amount1 = tokenA == token0 ? amountB : amountA;
         reserve.amount0 += amount0;
         reserve.amount1 += amount1;
+        _storeSqrtPrice(key, amount0, amount1);
         if (!_transferIn(token0, msg.sender, amount0)) revert TransferFailed();
         if (!_transferIn(token1, msg.sender, amount1)) revert TransferFailed();
+    }
+
+    function extsload(bytes32 slot) external view returns (bytes32 value) {
+        value = poolSlotPrices[slot];
     }
 
     function unlock(bytes calldata data) external returns (bytes memory result) {
@@ -187,6 +194,39 @@ contract MockOfficialV4PoolManager {
         address token1
     ) private pure returns (bytes32 poolKey) {
         poolKey = keccak256(abi.encodePacked(token0, token1, key.fee, key.tickSpacing, key.hooks));
+    }
+
+    function _storeSqrtPrice(
+        PoolKey memory key,
+        uint256 reserve0,
+        uint256 reserve1
+    ) private {
+        bytes32 stateSlot = _stateSlot(key);
+        poolSlotPrices[stateSlot] = bytes32(uint256(uint160(_sqrtPriceX96(reserve0, reserve1))));
+    }
+
+    function _stateSlot(PoolKey memory key) private pure returns (bytes32) {
+        bytes32 poolId = keccak256(abi.encode(key));
+        return keccak256(abi.encodePacked(poolId, uint256(6)));
+    }
+
+    function _sqrtPriceX96(
+        uint256 reserve0,
+        uint256 reserve1
+    ) private pure returns (uint256) {
+        if (reserve0 == 0 || reserve1 == 0) return 0;
+        uint256 priceFixed = (reserve1 * (1 << 96)) / reserve0;
+        return _sqrt(priceFixed) * (1 << 48);
+    }
+
+    function _sqrt(uint256 y) private pure returns (uint256 z) {
+        if (y == 0) return 0;
+        z = y;
+        uint256 x = y / 2 + 1;
+        while (x < z) {
+            z = x;
+            x = (y / x + x) / 2;
+        }
     }
 
     function _transferIn(address token, address from, uint256 amount) private returns (bool ok) {

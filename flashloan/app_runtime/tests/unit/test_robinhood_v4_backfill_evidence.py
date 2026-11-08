@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+
+from core.db.direction_pool_score import MAX_DIRECTION_CANDIDATE_POOLS
 from core.db.storage_business_io import executemany
 from core.db.storage_business_schema import ensure_business_schema
 import dex.tools.collect_robinhood_v4_backfill_evidence as evidence_tool
@@ -120,19 +123,115 @@ def test_confirm_indexed_candidates_counts_only_live_liquidity(monkeypatch, tmp_
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
         rpc_url="https://rpc.testnet.example",
         pool_manager="0x8366a39CC670B4001A1121B8F6A443A643e40951",
-        direction_targets={forward: 5, reverse: 5},
+        direction_targets={forward: 1, reverse: 1},
         batch_size=2,
     )
 
     assert result["indexedPoolCount"] == 3
     assert result["confirmedPoolCount"] == 2
-    assert result["counts"] == {forward: 2, reverse: 2}
-    assert result["remaining"] == {forward: 5, reverse: 5}
+    assert result["counts"] == {forward: 1, reverse: 1}
+    assert result["remaining"] == {}
     assert {str(pool["poolId"]) for pool in result["selectedPools"][forward]} == {
         liquid_a,
-        liquid_b,
     }
     assert seen_factory["kwargs"]["batch_size"] == 2
+
+
+def test_single_live_candidate_satisfies_both_directions(monkeypatch, tmp_path):
+    """One physical liquid pool is enough for both sides of the same edge."""
+    zero = "0x" + "00" * 20
+    one = "0x" + "11" * 20
+    forward = f"{zero}:{one}"
+    reverse = f"{one}:{zero}"
+    only_pool = "0x" + "aa" * 32
+    database = str((tmp_path / "one-pool.sqlite3").resolve())
+    ensure_business_schema(database)
+    now = "2026-10-17T00:00:00Z"
+    executemany(
+        database,
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_identity_mode,
+            pool_manager, pool_key_json, token0, token1, fee, fee_label,
+            dynamic_fee, special_fee, tick_spacing, hooks, address_pair,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                ROBINHOOD_TESTNET_NETWORK,
+                ROBINHOOD_TESTNET_CHAIN_ID,
+                "uniswap_v4",
+                only_pool,
+                "v4_pool_id",
+                "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                '{"initializeBlockNumber": 200}',
+                zero,
+                one,
+                3000,
+                3000,
+                0,
+                0,
+                60,
+                "0x" + "00" * 20,
+                f"{zero}:{one}",
+                now,
+                now,
+            )
+        ],
+    )
+    executemany(
+        database,
+        """
+        INSERT INTO v4_exchange_pool_liquidity_snapshots (
+            network, chain_id, protocol, pool_id, has_liquidity, liquidity,
+            estimated_tvl_usd, depth_status, observed_at, refreshed_at,
+            evidence_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                ROBINHOOD_TESTNET_NETWORK,
+                ROBINHOOD_TESTNET_CHAIN_ID,
+                "uniswap_v4",
+                only_pool,
+                1,
+                "1000000000000000000",
+                100.0,
+                "liquid",
+                now,
+                now,
+                "pool_manager_extsload_live_state_batch",
+            )
+        ],
+    )
+
+    monkeypatch.setattr(
+        evidence_tool,
+        "_direction_plan",
+        lambda **kwargs: {
+            "targets": {forward: 1, reverse: 1},
+            "floor_block": 200,
+            "neededDirectionCount": 2,
+            "basis": "direction_candidate_shortfall",
+        },
+    )
+    monkeypatch.setattr(
+        evidence_tool,
+        "absolute_database_path",
+        lambda _database: database,
+    )
+
+    report = evidence_tool.collect_report_from_sqlite(
+        database="",
+        directions=(forward, reverse),
+    )
+
+    scan = report["scan"]
+    assert scan["directionCounts"] == {forward: 1, reverse: 1}
+    assert scan["satisfiedDirectionCount"] == 2
+    assert scan["selectedPoolCount"] == 1
+    assert scan["stoppedReason"] == "sqlite_liquidity_snapshot_satisfied"
 
 
 def test_collect_report_skips_reverse_scan_when_index_satisfied(monkeypatch, tmp_path):
@@ -513,3 +612,43 @@ def test_collect_report_from_sqlite_distinguishes_missing_snapshot(monkeypatch, 
     assert scan["sqliteMissingSnapshotPoolCount"] == 1
     assert scan["sqlitePoolCount"] == report["indexedLiquidity"]["poolCount"]
     assert scan["sqliteSnapshotCount"] == report["indexedLiquidity"]["snapshotCount"]
+
+
+def test_backfill_evidence_default_direction_target_is_max(monkeypatch):
+    captured: dict = {}
+
+    def fake_plan(**kwargs):
+        captured["direction_target"] = kwargs.get("direction_target")
+        return {
+            "targets": {},
+            "floor_block": 0,
+            "neededDirectionCount": 0,
+            "basis": "all_directions_satisfied",
+        }
+
+    monkeypatch.setattr(evidence_tool, "_direction_plan", fake_plan)
+    result = evidence_tool.collect_report_from_sqlite(database="")
+
+    assert captured["direction_target"] == MAX_DIRECTION_CANDIDATE_POOLS
+    assert result["reason"] == "no_direction_shortfall"
+
+
+def test_backfill_evidence_cli_default_direction_target_is_max(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collect_robinhood_v4_backfill_evidence.py",
+            "--sqlite-only",
+            "--print-only",
+        ],
+    )
+    monkeypatch.setattr(
+        evidence_tool,
+        "collect_report_from_sqlite",
+        lambda **kwargs: captured.update(kwargs) or {"ok": True},
+    )
+
+    assert evidence_tool.main() == 0
+    assert captured["direction_target"] == MAX_DIRECTION_CANDIDATE_POOLS

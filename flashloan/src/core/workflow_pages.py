@@ -45,6 +45,8 @@ _LIQUIDATION_PATHS = {
 _DEX_PATHS = {
     "/dex", "/dex/market-observation", "/dex/candidates", "/dex/quotes",
     "/dex/submissions", "/dex/robinhood-shadow", "/binance-market", "/dex-arbitrage",
+    "/dex/submissions/review-success", "/dex/submissions/review-failed",
+    "/dex/submissions/execution-success", "/dex/submissions/execution-failed",
     "/dex-pools", "/candidate-pools", "/robinhood-dex", "/robinhood-dex/candidates",
     "/market-observation",
 }

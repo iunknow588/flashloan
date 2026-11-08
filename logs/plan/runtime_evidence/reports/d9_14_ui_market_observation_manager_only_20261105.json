@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_14_ui_market_observation_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.14 Market observation page uses the Manager API as the only business read and fails closed without legacy fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T14:36:00+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The market observation GET route is manager-owned. CandidateExchangeSnapshot now includes bounded token metadata for anchors, YZ endpoints and intermediate-pool tokens, and Flask maps the manager snapshot to the existing page DTO without legacy bootstrap, observation payload, static metadata or cache. The page no longer emits closedLoopSequences or closedLoopRoutes; those arrays are empty and closed-loop consumption remains owned by the M5 closed-loop page. When the manager response is unavailable, malformed, or scoped to another chain, Flask returns 503 manager_read_failed with dataSource=manager and no legacy fallback.",
+  "implementation": {
+    "candidateExchangeManager": "flashloan/tools/candidate_exchange_pool_manager/src/lib.rs",
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "flaskRoute": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "pythonTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+    "architectureGuards": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "functionalTests": "flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py",
+    "workflowTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "CandidateExchangeSnapshot gains a bounded tokens array read from token_library_catalog for only the current observation scope endpoints and intermediate-pool tokens",
+    "/api/dex/market-observation GET calls market_observation_manager_page_payload unconditionally and no longer invokes legacy bootstrap, observation payload, static metadata, cache or manager shadow",
+    "Flask maps yzPairs, pools, abnormal rows, liquidity snapshots and tokens into the existing candidateObservationGroups, bridgePoolObservationGroups, associated pairs/pools/tokens and pagination DTO",
+    "Market observation no longer claims closed-loop output; closedLoopSequences and closedLoopRoutes are empty arrays on the manager-only DTO",
+    "summary.usdDepthRequired=false; YZ and candidate pool admission does not require USD depth or USD TVL",
+    "Manager response errors, missing arrays, invalid token metadata and chain scope mismatch return 503 manager_read_failed with dataSource=manager; no legacy fallback",
+    "POST /api/dex/market-observation/refresh remains a legacy maintenance entry until M4 production builder/apply authority is switched; the GET read path is already manager-owned",
+    "Architecture and workflow tests lock the market observation GET authority boundary and manager DTO contract"
+  ],
+  "verification": [
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/manager_page_compare.py app_runtime/web/data_routes/dex_surface_routes_config.py app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_architecture_guards.py app_runtime/tests/functional/test_api_handler_payload_contract.py app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p candidate-exchange-pool-manager -p manager-api",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p candidate-exchange-pool-manager -p manager-api",
+      "exitCode": 0,
+      "passed": 27
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py -q",
+      "exitCode": 0,
+      "passed": 47
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q -k \"migrated_dex_closed_loop_groups_route_is_manager_only or migrated_dex_market_observation_route_is_manager_only\"",
+      "exitCode": 0,
+      "passed": 2,
+      "deselected": 42,
+      "note": "D9.14 regression includes the market-observation guard in this combined run"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "exitCode": 0,
+      "passed": 14
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 28
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "exitCode": 0,
+      "passed": 18
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "note": "One existing LF/CRLF warning in .vscode/settings.json from the dirty worktree"
+    }
+  ],
+  "fixtures": [
+    "Rust candidate-exchange snapshot returns bounded token metadata from the current observation scope",
+    "Market observation manager DTO maps yzPairs, pools, abnormal rows and token metadata into existing page groups",
+    "Market observation manager DTO accepts empty arrays and rejects malformed token rows, wrong chain scope and manager errors",
+    "Market observation GET route calls only market_observation_manager_page_payload and returns 503 manager_read_failed on manager failure",
+    "Market observation GET route never invokes legacy observation, static metadata, cache or shadow opt-in",
+    "closedLoopSequences and closedLoopRoutes remain empty on the manager-only observation DTO",
+    "Web assembly workflow keeps market observation page + API reachable and the manager-only DTO stable"
+  ],
+  "dbWrites": 0,
+  "mainnetApply": false,
+  "serviceRestart": false,
+  "realBroadcast": false,
+  "knownBoundary": "D9.14 covers code, tests, manager-only market observation GET and fail-closed behavior. It does not apply production manager data, start or stop the service, write the mainnet database, enable real broadcast, or claim M4 production authority. POST /api/dex/market-observation/refresh remains a legacy maintenance entry until M4 builder/apply and real mainnet copy gates are met. No historical evidence was modified."
+}

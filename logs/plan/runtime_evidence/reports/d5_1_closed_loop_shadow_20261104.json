@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d5_1_closed_loop_shadow_20261104",
+  "generatedAt": "2026-11-04T01:32:32Z",
+  "milestone": "M5",
+  "task": "D5.1 Closed-loop Manager shadow materialization and compare-only",
+  "status": "shadow_complete_not_production",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/tools",
+  "implementation": {
+    "crate": "closed_loop_manager",
+    "migrationId": "20261104_003_closed_loop_schema",
+    "migrationChecksum": "sha256:7d90df9d428228b2125a819ab69ef883a54e1a6e89fe1fc462f026a8d4904325",
+    "schemaChecksum": "sha256:207d02545ccfd57865b5feb02c8413d8c844da43e02056fd1387ed055ae6213f",
+    "tables": [
+      "manager_v4_closed_loop_library_state",
+      "manager_v4_closed_loops",
+      "manager_v4_closed_loop_hops",
+      "manager_v4_closed_loop_optimizations",
+      "manager_v4_closed_loop_runtime_state",
+      "manager_v4_closed_loop_skipped_tokens"
+    ],
+    "singleUpstreamSnapshot": {
+      "candidateEdgeVersionAndChecksum": true,
+      "observationVersionAndChecksum": true,
+      "poolScopeChecksum": true,
+      "tokenLibraryVersionsAndChecksums": true,
+      "crossVersionWriteRejected": true
+    },
+    "topology": {
+      "loopKey": "anchor:y:z",
+      "path": "anchor -> y -> z -> anchor",
+      "hops": [
+        "yc",
+        "y-z",
+        "zc"
+      ],
+      "routeKeyId": true,
+      "explicitTokenKeyIds": true,
+      "backupPoolIds": true,
+      "optimizationCandidates": true,
+      "runtimeStatus": "ready_for_review",
+      "usdDepthRequired": false,
+      "stableTokenRelationshipRequired": false,
+      "pnlGenerated": false,
+      "broadcastRequestGenerated": false
+    },
+    "api": {
+      "routes": [
+        "GET /v1/closed-loops",
+        "GET /v1/closed-loops/compare",
+        "POST /v1/closed-loops/rebuild"
+      ],
+      "authorityEnvironment": "CLOSED_LOOP_MANAGER_AUTHORITY",
+      "defaultAuthority": "legacy",
+      "requiredWriteHeaders": [
+        "X-Request-Id",
+        "Idempotency-Key"
+      ],
+      "explicitDryRunRequired": true,
+      "legacyCompareOnly": true
+    }
+  },
+  "fixtureVerification": {
+    "path": "USDG -> AMZN -> TA -> USDG",
+    "middleHop": "AMZN <-> TA",
+    "provesNoUsdDepthRelationshipRequired": true,
+    "loopCount": 1,
+    "hopCount": 3,
+    "optimizationCount": 2,
+    "dryRunWritesBusinessRows": false,
+    "dryRunMatchesApplyChecksum": true,
+    "repeatApplyChecksumStable": true,
+    "idempotentReplay": true,
+    "staleObservationRejected": true,
+    "legacyCompareReadyForCutoverWhenExact": true
+  },
+  "temporaryDatabase": {
+    "path": "plan/runtime_evidence/reports/.m5_migration_temp.sqlite3",
+    "removedAfterVerification": true,
+    "firstMigrationAppliedNow": true,
+    "secondMigrationAppliedNow": false,
+    "sha256AfterFirstMigration": "AF3677D92582B1651BC2082E8C631DB521702EA983D78D734727C346FFB7743E",
+    "sha256AfterSecondMigration": "AF3677D92582B1651BC2082E8C631DB521702EA983D78D734727C346FFB7743E",
+    "byteStableAcrossConsecutiveNoopMigration": true
+  },
+  "mainnetReadOnlyPreflight": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "fileSizeBytes": 3315490816,
+    "quickCheck": "ok",
+    "migrationLedger": "schema_migrations",
+    "readyForMigration": true,
+    "managerTargetTableCount": 30,
+    "presentManagerTargetTableCount": 0,
+    "incompatibleTargetTableCount": 0,
+    "walBytesObserved": 149968032,
+    "shmBytesObserved": 294912,
+    "productionMigrationApplied": false,
+    "businessRowsWritten": false,
+    "serviceStartedOrStopped": false,
+    "databaseFileSha256": null,
+    "databaseFileSha256Reason": "running service and active WAL make a whole-file hash unstable; no stop request or lock bypass was performed"
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --workspace",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --workspace",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0,
+      "unitAndIntegrationTestsPassed": 106
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "workingDirectory": "flashloan/tools",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test --lib",
+      "workingDirectory": "flashloan/rs-src",
+      "exitCode": 0,
+      "testsPassed": 88
+    },
+    {
+      "command": "manager-db preflight --db flashloan/db/local_store_4663.sqlite3",
+      "workingDirectory": "flashloan",
+      "exitCode": 0,
+      "readOnly": true
+    }
+  ],
+  "failures": [],
+  "repairs": [],
+  "boundaries": {
+    "productionM5Authority": "legacy",
+    "managerAuthorityCutoverCompleted": false,
+    "legacyClosedLoopTablesWritten": false,
+    "candidateTablesWrittenByM5": false,
+    "reviewTablesWrittenByM5": false,
+    "broadcastTablesWrittenByM5": false,
+    "nextExecutableMilestone": "M6 Review Manager"
+  }
+}

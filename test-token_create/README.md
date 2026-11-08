@@ -238,6 +238,10 @@ npm run testnet:v4-official-composer:live
 
 `preflight` 会优先复用 manifest 中已部署的 `officialV4.composer`；如果尚未部署，需要先执行 `live` 或手动允许 `ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_COMPOSER_BROADCAST=true` 完成部署。`live` 会对合约1调用 `runBest.staticCall`，通过后再广播一笔测试网闭环交易，并把 `lastComposerLiveTest` 写入 manifest。
 
+composer 脚本默认同时构造 `A -> B -> C -> A` 与 `A -> C -> B -> A` 两个独立池组；
+传 `--both 0` 只保留正向。传 `--pool-keys-json` 时按跳参数只适用于正向路线，
+此时脚本只构造正向池组，避免把显式参数错误套到反向跳。
+
 周期执行入口：
 
 ```powershell
@@ -247,16 +251,20 @@ python ../../../test-token_create/scripts/tool/periodic_official_v4_composer.py 
 
 `--once` 表示只跑一轮；不加 `--broadcast` 时只做 `runBest.staticCall`，不会广播链上交易。
 
-当前已在 Robinhood Testnet 跑通一次合约1 -> 合约2 的闭环：
+历史上已在 Robinhood Testnet 跑通过一次合约1 -> 合约2 的闭环；当前权威 composer
+已重部署并指向带 `previewBestPool` 的新 arb：
 
 ```text
-composer        : 0xff426b28c373dd5f1FCA870FF7Ce7276A15FE563
-executor        : 0xBa54dADE2cC483Bfe1277E2CD8D5762757a59A0c
+composer        : 0x3a9636AfD016C01d18e81AF8B4F52F7b01562956
+executor        : 0x9b4FEB127297a4f827522D57c2a9B3D01229d0C0
 poolManager     : 0x8366a39CC670B4001A1121B8F6A443A643e40951
 route           : TZ -> TB -> TA -> TZ
 staticProfit    : 0.002200341007504074 TZ
-txHash          : 0x94d35113a101c9bbac435eb148b61074fd7306d5195226aea8c3f0a1eb961ea3
+历史 txHash     : 0x94d35113a101c9bbac435eb148b61074fd7306d5195226aea8c3f0a1eb961ea3
 ```
+
+旧 composer `0x8e42A1649670bd3f337720DDBD9e0184987534bD` 的 executor 指向旧 arb
+`0xd46327b50f3a16253fF16f7f657deDe7Ab19b808`，与新 arb 不兼容，仅保留为历史记录。
 
 合约1新增 `runBestDetailed`，返回实际选中的三个池 `selectedKeys`、方向 `selectedDirections`、逐跳输出和 `routeIndex`，可直接用于交易后复盘。
 

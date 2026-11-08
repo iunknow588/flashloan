@@ -1,0 +1,3 @@
+wrote logs\plan\runtime_evidence\reports\p0_1_summary_status_window_1_20261107T224751Z.json
+health=OK status=OK submission=OK p95=938.358ms allPassed=False
+blockers: resource_growth_gate_failed

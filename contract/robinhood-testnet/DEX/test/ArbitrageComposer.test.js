@@ -666,6 +666,138 @@ describe("ArbitrageComposer", function () {
     expect(result[3]).to.be.gt(0n);
     expect(result[4]).to.equal(1n);
   });
+  it("previewBestPool selects a profitable route from per-hop candidate pools", async function () {
+    const { tz, ta, tb, poolManager } = await deployBridgePairsFixture();
+    const tzAddress = await tz.getAddress();
+    const taAddress = await ta.getAddress();
+    const tbAddress = await tb.getAddress();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const entryKey = makeBridgePoolKey(tzAddress, tbAddress);
+    const bridgeKey = makeBridgePoolKey(tbAddress, taAddress);
+    const exitKey = makeBridgePoolKey(tzAddress, taAddress);
+    const amountIn = toToken(1_000);
+
+    const poolResult = await arb.previewBestPool.staticCall(
+      tzAddress,
+      [entryKey],
+      [true],
+      [bridgeKey],
+      [true],
+      [exitKey],
+      [false]
+    );
+    expect(poolResult.entryIndex).to.equal(0n);
+    expect(poolResult.bridgeIndex).to.equal(0n);
+    expect(poolResult.exitIndex).to.equal(0n);
+    expect(poolResult.netProduct).to.be.gt(10n ** 18n);
+
+    const amountResult = await arb.previewArbitrageBestAmount.staticCall(
+      tzAddress,
+      [[entryKey, bridgeKey, exitKey]],
+      [[true, true, false]],
+      amountIn,
+      1n,
+      true
+    );
+    expect(amountResult.selectedAmount).to.be.gt(0n);
+    expect(amountResult.selectedProfit).to.be.gt(0n);
+
+    const broadcastResult = await arb.runArbitrageBestPoolsWithSelectedAmount.staticCall(
+      tzAddress,
+      [entryKey],
+      [true],
+      [bridgeKey],
+      [true],
+      [exitKey],
+      [false],
+      amountResult.selectedAmount,
+      1n
+    );
+    expect(broadcastResult.profit).to.be.gt(0n);
+    expect(broadcastResult.outTz).to.be.gt(amountResult.selectedAmount);
+    await arb.runArbitrageBestPoolsWithSelectedAmount(
+      tzAddress,
+      [entryKey],
+      [true],
+      [bridgeKey],
+      [true],
+      [exitKey],
+      [false],
+      amountResult.selectedAmount,
+      1n
+    );
+    // The executed route keeps the realized profit on the arb contract; only
+    // the flash-loan debt is settled back to the pool manager.
+    expect(await tz.balanceOf(await arb.getAddress())).to.be.gt(0n);
+  });
+
+  it("previewBestPool picks the best bridge pool from multiple candidates", async function () {
+    const { tz, ta, tb, poolManager } = await deployBridgePairsFixture();
+    const tzAddress = await tz.getAddress();
+    const taAddress = await ta.getAddress();
+    const tbAddress = await tb.getAddress();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const entryKey = makeBridgePoolKey(tzAddress, tbAddress);
+    const bridgeKey1 = makeBridgePoolKey(tbAddress, taAddress, 3000);
+    const bridgeKey2 = makeBridgePoolKey(tbAddress, taAddress, 500);
+    const exitKey = makeBridgePoolKey(tzAddress, taAddress);
+    await poolManager.createPoolFromKey(bridgeKey2);
+    await poolManager.addLiquidityFromKey(bridgeKey2, toToken(500_000), toToken(1_000_000));
+
+    const poolResult = await arb.previewBestPool.staticCall(
+      tzAddress,
+      [entryKey],
+      [true],
+      [bridgeKey1, bridgeKey2],
+      [true, true],
+      [exitKey],
+      [false]
+    );
+    expect(poolResult.entryIndex).to.equal(0n);
+    expect(poolResult.bridgeIndex).to.equal(1n);
+    expect(poolResult.exitIndex).to.equal(0n);
+    expect(poolResult.netProduct).to.be.gt(10n ** 18n);
+
+    const broadcastResult = await arb.runArbitrageBestPoolsWithSelectedAmount.staticCall(
+      tzAddress,
+      [entryKey],
+      [true],
+      [bridgeKey1, bridgeKey2],
+      [true, true],
+      [exitKey],
+      [false],
+      toToken(1_000),
+      1n
+    );
+    expect(broadcastResult.entryIndex).to.equal(0n);
+    expect(broadcastResult.bridgeIndex).to.equal(1n);
+    expect(broadcastResult.exitIndex).to.equal(0n);
+    expect(broadcastResult.profit).to.be.gt(0n);
+  });
+
+  it("previewBestPool rejects mismatched per-hop candidate arrays", async function () {
+    const { poolManager } = await deployOnchainFixture();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const key = makeBridgePoolKey(
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222"
+    );
+
+    await expect(
+      arb.previewBestPool(
+        "0x1111111111111111111111111111111111111111",
+        [key],
+        [],
+        [key],
+        [true],
+        [key],
+        [false]
+      )
+    ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
+  });
   it("reverts through runArbitrageBestFromInitialAmount when route keysets mismatch", async function () {
     const { poolManager } = await deployOnchainFixture();
     const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");

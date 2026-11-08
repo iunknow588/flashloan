@@ -188,7 +188,7 @@ def test_build_observer_env_prefers_detailed_liquidation_account_assets(monkeypa
     from web import control_panel
 
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(

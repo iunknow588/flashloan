@@ -1,0 +1,111 @@
+{
+  "evidenceId": "d9_24_review_broadcast_file_reassembly_20261106",
+  "task": "D9.24",
+  "status": "rejected_superseded",
+  "validForAcceptance": false,
+  "supersededBy": "d9_25_rust_manager_runtime_ownership_20261106",
+  "rejectionReason": "Moving Python manager runtime ownership into dex/managers was rejected because all production manager runtimes must be Rust. The Python manager files were restored under dex/runtime and remain test/legacy-only.",
+  "recordedAt": "2026-11-06T02:48:49.3731761+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewSubmitted": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false
+  },
+  "completedBatch": [
+    {
+      "source": "dex/runtime/dex_closed_loop_review_queue.py",
+      "authority": "dex/managers/review_manager/queue.py",
+      "compatibilityShim": true,
+      "behaviorPreserved": [
+        "queue priority",
+        "deduplication",
+        "stale audit",
+        "stall and requeue",
+        "fixed refresh pipeline"
+      ]
+    },
+    {
+      "source": "dex/runtime/closed_loop_supervisor.py::ReviewSupervisor",
+      "authority": "dex/managers/review_manager/supervisor.py",
+      "compatibilityShim": true,
+      "behaviorPreserved": [
+        "one review main thread",
+        "bounded review workers",
+        "backpressure",
+        "heartbeat",
+        "stall recovery"
+      ]
+    },
+    {
+      "source": "dex/runtime/closed_loop_supervisor.py::BroadcastSupervisor",
+      "authority": "dex/managers/broadcast_manager/supervisor.py",
+      "compatibilityShim": true,
+      "behaviorPreserved": [
+        "one broadcast main thread",
+        "execution queue observation",
+        "heartbeat",
+        "stall recovery",
+        "no transaction creation"
+      ]
+    }
+  ],
+  "authorityUniqueness": {
+    "ReviewSupervisor": "dex/managers/review_manager/supervisor.py",
+    "ClosedLoopReviewQueue": "dex/managers/review_manager/queue.py",
+    "FixedRefreshPipeline": "dex/managers/review_manager/queue.py",
+    "BroadcastSupervisor": "dex/managers/broadcast_manager/supervisor.py",
+    "legacyRuntimePathsContainImplementation": false
+  },
+  "productionImportsMigrated": [
+    "dex/runtime/dex_opportunity_scanner_engine.py",
+    "web/data_routes/dex_surface_routes_ops.py"
+  ],
+  "commands": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_dex_closed_loop_review_queue.py flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py -q",
+      "exitCode": 0,
+      "result": "63 passed"
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py flashloan/app_runtime/tests/functional/test_navigation_flow.py flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "result": "57 passed"
+    },
+    {
+      "command": "python -m py_compile DEX manager runtime and migrated import files",
+      "exitCode": 0,
+      "result": "Python compilation valid"
+    },
+    {
+      "command": "rg class ReviewSupervisor|BroadcastSupervisor|ClosedLoopReviewQueue|FixedRefreshPipeline flashloan/src/dex",
+      "exitCode": 0,
+      "result": "One authority definition per migrated class"
+    },
+    {
+      "command": "git diff --check -- scoped D9.24 files",
+      "exitCode": 0,
+      "result": "No whitespace errors"
+    }
+  ],
+  "fileHashesSha256": {
+    "flashloan/src/dex/managers/runtime_common.py": "8F78EBAA359EEB01167E12E102DD77598BEA58EA39A0A107CDD602DB2D886E27",
+    "flashloan/src/dex/managers/review_manager/queue.py": "B5553E0B35D276C833492B188C353EAC76A4E6370059408FBA2828CFABC186B1",
+    "flashloan/src/dex/managers/review_manager/supervisor.py": "97B2058C55F7EF8966ABFAFCA8696F6BB37D9B048E5536FCCC8AD5370EE7D33B",
+    "flashloan/src/dex/managers/broadcast_manager/supervisor.py": "C37DEE333FB63B42CAD92B92FD3A25AD6716B2A621515ADD62BBF61E6C1F82EF",
+    "flashloan/src/dex/runtime/dex_closed_loop_review_queue.py": "D3573634196A58C5B0FC3E57D08D6523458A90423E25B1F5A4C5D314832E7F5A",
+    "flashloan/src/dex/runtime/closed_loop_supervisor.py": "E19A24CAB697260FA85AFC02F7E790CD6900179CE3383D80844921E982BC84DC",
+    "flashloan/src/dex/runtime/dex_opportunity_scanner_engine.py": "1E146CEDC246FF3A8EE7723680FCBE511B7E7ABD9A05C5561172621E7FE7E52A",
+    "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py": "A863B5D0F956B7F3BD05F70175F4CDE180EFB46E714C53663635DFA4C98C5FD3",
+    "flashloan/app_runtime/tests/unit/test_dex_closed_loop_review_queue.py": "FC68993C9C512F209E766825514BECD840BC5EFDF61A480434E0E1E4F8664979",
+    "flashloan/app_runtime/tests/unit/test_closed_loop_supervisor.py": "8DFBC6E5CE3B1354D96FE387151FB8EB072736AA6790854628E3CCDB4D0626A5"
+  },
+  "nextBatch": [
+    "Review engine and on-chain evidence adapter files",
+    "Broadcast native bridge, execution queue and worker implementation",
+    "Runtime command/status DTOs after file ownership is stable"
+  ]
+}

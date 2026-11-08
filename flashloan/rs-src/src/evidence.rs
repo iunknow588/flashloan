@@ -16,11 +16,7 @@ fn norm(value: &Option<String>) -> String {
 }
 
 fn norm_value(value: &Value) -> String {
-    value
-        .as_str()
-        .unwrap_or("")
-        .trim()
-        .to_lowercase()
+    value.as_str().unwrap_or("").trim().to_lowercase()
 }
 
 fn text_or_empty(value: &Value) -> String {
@@ -71,10 +67,7 @@ fn bool_value(value: &Value) -> bool {
     match value {
         Value::Bool(item) => *item,
         Value::Number(item) => item.as_f64().map(|item| item != 0.0).unwrap_or(false),
-        Value::String(raw) => matches!(
-            raw.trim().to_lowercase().as_str(),
-            "1" | "true" | "yes"
-        ),
+        Value::String(raw) => matches!(raw.trim().to_lowercase().as_str(), "1" | "true" | "yes"),
         _ => false,
     }
 }
@@ -91,10 +84,7 @@ fn tri_value(value: &Value) -> Option<Value> {
             },
         )),
         Value::String(raw) => Some(Value::from(
-            if matches!(
-                raw.trim().to_lowercase().as_str(),
-                "1" | "true" | "yes"
-            ) {
+            if matches!(raw.trim().to_lowercase().as_str(), "1" | "true" | "yes") {
                 1
             } else {
                 0
@@ -118,8 +108,7 @@ fn execute_many(
     rows: &[Vec<Value>],
 ) -> Result<(), String> {
     for row in rows {
-        let params: Vec<rusqlite::types::Value> =
-            row.iter().map(to_sql_value).collect();
+        let params: Vec<rusqlite::types::Value> = row.iter().map(to_sql_value).collect();
         transaction
             .execute(sql, params_from_iter(params.iter()))
             .map_err(|error| format!("SQLite evidence write failed: {error}"))?;
@@ -149,15 +138,6 @@ fn sql_params(values: &[Value]) -> Vec<rusqlite::types::Value> {
     values.iter().map(to_sql_value).collect()
 }
 
-fn field<'a>(row: &'a Value, keys: &[&str]) -> &'a Value {
-    for key in keys {
-        if let Some(value) = row.get(*key) {
-            return value;
-        }
-    }
-    &JSON_NULL
-}
-
 fn upsert_chain_tokens(
     transaction: &Transaction<'_>,
     network: &str,
@@ -167,7 +147,11 @@ fn upsert_chain_tokens(
     let now = utc_now();
     let mut params = Vec::new();
     for row in rows {
-        let address = norm_value(&row.get("token_address").or_else(|| row.get("address")).unwrap_or(&JSON_NULL));
+        let address = norm_value(
+            &row.get("token_address")
+                .or_else(|| row.get("address"))
+                .unwrap_or(&JSON_NULL),
+        );
         let symbol = text_or_empty(
             &row.get("token_symbol")
                 .or_else(|| row.get("symbol"))
@@ -178,6 +162,23 @@ fn upsert_chain_tokens(
         if address.is_empty() || symbol.is_empty() {
             continue;
         }
+        let existing = transaction
+            .query_row(
+                "SELECT token_metadata_json, source_json
+                 FROM chain_tokens
+                 WHERE network = ? AND chain_id = ?
+                   AND lower(token_address) = ?",
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(address.clone()),
+                    ])
+                    .iter(),
+                ),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .ok();
         let metadata = row
             .get("token_metadata")
             .or_else(|| row.get("metadata"))
@@ -189,13 +190,52 @@ fn upsert_chain_tokens(
             .or_else(|| row.get("source_json"))
             .cloned()
             .unwrap_or_else(|| Value::Object(Default::default()));
+        let mut merged_metadata = json_object_value(&metadata);
+        let mut merged_source = json_object_value(&source);
+        if let Some((raw_existing_metadata, raw_existing_source)) = existing {
+            let existing_metadata = json_object_value(&Value::String(raw_existing_metadata));
+            let incoming_category = merged_metadata
+                .get("category")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .unwrap_or("");
+            if incoming_category.is_empty() {
+                if let (Some(meta_object), Some(existing_map)) = (
+                    merged_metadata.as_object_mut(),
+                    existing_metadata.as_object(),
+                ) {
+                    for (keep_key, value) in existing_map {
+                        let should_keep = meta_object
+                            .get(keep_key)
+                            .map(|current| {
+                                current.is_null()
+                                    || current.as_str().map(str::trim).unwrap_or("").is_empty()
+                            })
+                            .unwrap_or(true);
+                        let existing_text = value.as_str().unwrap_or("");
+                        if should_keep && !value.is_null() && !existing_text.trim().is_empty() {
+                            meta_object.insert(keep_key.clone(), value.clone());
+                        }
+                    }
+                }
+            }
+            if merged_source
+                .as_object()
+                .map(|value| value.is_empty())
+                .unwrap_or(true)
+            {
+                merged_source = json_object_value(&Value::String(raw_existing_source));
+            }
+        }
         params.push(vec![
             Value::from(network.to_string()),
             Value::from(chain_id),
             Value::from(address),
             Value::from(symbol),
             value_or(
-                row.get("token_name").or_else(|| row.get("name")).unwrap_or(&JSON_NULL),
+                row.get("token_name")
+                    .or_else(|| row.get("name"))
+                    .unwrap_or(&JSON_NULL),
                 &Value::Null,
             ),
             as_i64(
@@ -212,26 +252,30 @@ fn upsert_chain_tokens(
                 )
                 .to_lowercase(),
             ),
-            Value::from(if bool_value(row.get("is_native").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
-            Value::from(if bool_value(row.get("is_wrapped_native").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
-            Value::from(if bool_value(row.get("is_stable").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
-            row.get("anchor_symbol")
-                .cloned()
-                .unwrap_or(Value::Null),
-            Value::from(json_dumps(&json_object_value(&metadata))),
-            Value::from(json_dumps(&json_object_value(&source))),
+            Value::from(
+                if bool_value(row.get("is_native").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            Value::from(
+                if bool_value(row.get("is_wrapped_native").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            Value::from(
+                if bool_value(row.get("is_stable").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            row.get("anchor_symbol").cloned().unwrap_or(Value::Null),
+            Value::from(json_dumps(&merged_metadata)),
+            Value::from(json_dumps(&merged_source)),
             Value::from(now.clone()),
             Value::from(now.clone()),
         ]);
@@ -301,12 +345,8 @@ fn upsert_chain_markets(
                 .unwrap_or(Value::Null),
             Value::from(network.to_string()),
             Value::from(chain_id),
-            Value::from(text_or_empty(
-                row.get("feature").unwrap_or(&JSON_NULL),
-            )),
-            Value::from(text_or_empty(
-                row.get("protocol").unwrap_or(&JSON_NULL),
-            )),
+            Value::from(text_or_empty(row.get("feature").unwrap_or(&JSON_NULL))),
+            Value::from(text_or_empty(row.get("protocol").unwrap_or(&JSON_NULL))),
             row.get("protocol_id")
                 .or_else(|| row.get("protocolId"))
                 .cloned()
@@ -323,28 +363,34 @@ fn upsert_chain_markets(
                 .or_else(|| row.get("nativeSymbol"))
                 .cloned()
                 .unwrap_or(Value::Null),
-            Value::from(if bool_value(row.get("observation_only").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
-            Value::from(if bool_value(
-                row.get("protocol_supported").unwrap_or(&Value::from(1)),
-            ) {
-                1
-            } else {
-                0
-            }),
-            Value::from(if bool_value(row.get("chain_default").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
-            Value::from(if bool_value(row.get("market_default").unwrap_or(&Value::from(0))) {
-                1
-            } else {
-                0
-            }),
+            Value::from(
+                if bool_value(row.get("observation_only").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            Value::from(
+                if bool_value(row.get("protocol_supported").unwrap_or(&Value::from(1))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            Value::from(
+                if bool_value(row.get("chain_default").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
+            Value::from(
+                if bool_value(row.get("market_default").unwrap_or(&Value::from(0))) {
+                    1
+                } else {
+                    0
+                },
+            ),
             Value::from(json_dumps(&json_array_value(&prefixes))),
             row.get("migration_type")
                 .or_else(|| row.get("migrationType"))
@@ -420,11 +466,11 @@ fn upsert_v4_exchange_pools(
         }
         let address_pair = format!("{token0}:{token1}");
         let fee = as_i64(row.get("fee").unwrap_or(&JSON_NULL));
-        let dynamic_fee = fee.map(|value| value & DYNAMIC_FEE_FLAG != 0).unwrap_or(false);
-        let special_fee = fee.is_none()
-            || fee == Some(0)
-            || dynamic_fee
-            || fee.unwrap_or(0) > MAX_FIXED_FEE;
+        let dynamic_fee = fee
+            .map(|value| value & DYNAMIC_FEE_FLAG != 0)
+            .unwrap_or(false);
+        let special_fee =
+            fee.is_none() || fee == Some(0) || dynamic_fee || fee.unwrap_or(0) > MAX_FIXED_FEE;
         let fee_label = if dynamic_fee {
             Value::from("dynamic".to_string())
         } else if special_fee {
@@ -535,10 +581,7 @@ fn upsert_v4_liquidity_snapshots(
             .or_else(|| row.get("recentSwapActive"))
             .cloned()
             .unwrap_or(Value::Null);
-        let liquidity_value = row
-            .get("liquidity")
-            .cloned()
-            .unwrap_or(Value::Null);
+        let liquidity_value = row.get("liquidity").cloned().unwrap_or(Value::Null);
         let liquidity_index = as_f64(
             row.get("liquidity_index")
                 .or_else(|| row.get("liquidityIndex"))
@@ -546,7 +589,9 @@ fn upsert_v4_liquidity_snapshots(
         )
         .or_else(|| {
             if !liquidity_value.is_null() {
-                liquidity_value.as_str().and_then(|raw| raw.parse::<f64>().ok())
+                liquidity_value
+                    .as_str()
+                    .and_then(|raw| raw.parse::<f64>().ok())
             } else {
                 None
             }
@@ -676,6 +721,11 @@ fn upsert_v4_liquidity_snapshots(
                 ELSE excluded.has_liquidity
             END,
             liquidity = CASE
+                WHEN excluded.has_liquidity = 0 AND (
+                    (excluded.evidence_source IS NOT NULL AND excluded.evidence_source <> '')
+                    OR excluded.liquidity_block_number IS NOT NULL
+                )
+                THEN ''
                 WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
                 THEN v4_exchange_pool_liquidity_snapshots.liquidity
                 WHEN (
@@ -779,31 +829,39 @@ fn clear_v4_exchange_evidence(
     protocol: &str,
 ) -> Result<(), String> {
     for table in [
+        "v4_closed_loop_optimizations",
+        "v4_closed_loop_hops",
+        "v4_closed_loops",
         "v4_exchange_pool_liquidity_snapshots",
         "v4_exchange_pools",
     ] {
-        let sql = format!(
-            "DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?"
-        );
+        let sql =
+            format!("DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?");
         transaction
             .execute(
                 &sql,
-                params_from_iter(sql_params(&[
-                    Value::from(network.to_string()),
-                    Value::from(chain_id),
-                    Value::from(protocol.to_string()),
-                ]).iter()),
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                    ])
+                    .iter(),
+                ),
             )
             .map_err(|error| format!("{table} clear failed: {error}"))?;
     }
     transaction
         .execute(
             "DELETE FROM dex_surface_snapshots WHERE network = ? AND chain_id = ? AND protocol = ?",
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
         )
         .map_err(|error| format!("dex_surface_snapshots clear failed: {error}"))?;
     Ok(())
@@ -831,7 +889,8 @@ pub(crate) fn import_v4_evidence_payloads(
     }
     upsert_chain_tokens(&transaction, network, chain_id, token_rows)?;
     upsert_chain_markets(&transaction, network, chain_id, market_rows)?;
-    let pool_count = upsert_v4_exchange_pools(&transaction, network, chain_id, protocol, pool_rows)?;
+    let pool_count =
+        upsert_v4_exchange_pools(&transaction, network, chain_id, protocol, pool_rows)?;
     let liquidity_count =
         upsert_v4_liquidity_snapshots(&transaction, network, chain_id, protocol, liquidity_rows)?;
     let index_liquidity_count = upsert_v4_liquidity_snapshots(
@@ -882,11 +941,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
     let before_liquidity: i64 = connection
         .query_row(
             count_sql,
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
             |row| row.get(0),
         )
         .map_err(|error| format!("liquidity count failed: {error}"))?;
@@ -894,11 +956,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
         .query_row(
             "SELECT COUNT(*) FROM v4_exchange_pools
              WHERE network = ? AND chain_id = ? AND protocol = ?",
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
             |row| row.get(0),
         )
         .map_err(|error| format!("pool count failed: {error}"))?;
@@ -915,18 +980,20 @@ pub(crate) fn prune_v4_non_executable_evidence(
             .map_err(|error| format!("zero liquidity select failed: {error}"))?;
         let rows = statement
             .query_map(
-                params_from_iter(sql_params(&[
-                    Value::from(network.to_string()),
-                    Value::from(chain_id),
-                    Value::from(protocol.to_string()),
-                ]).iter()),
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                    ])
+                    .iter(),
+                ),
                 |row| row.get::<_, Option<String>>(0),
             )
             .map_err(|error| format!("zero liquidity query failed: {error}"))?;
         for row in rows {
-            let pool_id = norm(
-                &row.map_err(|error| format!("zero liquidity row failed: {error}"))?,
-            );
+            let pool_id =
+                norm(&row.map_err(|error| format!("zero liquidity row failed: {error}"))?);
             if !pool_id.is_empty() {
                 removable_pool_ids.insert(pool_id);
             }
@@ -936,11 +1003,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
         .execute(
             "DELETE FROM v4_exchange_pool_liquidity_snapshots
              WHERE network = ? AND chain_id = ? AND protocol = ? AND has_liquidity = 0",
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
         )
         .map_err(|error| format!("zero liquidity delete failed: {error}"))?;
     let mut deleted_unknown = 0;
@@ -953,18 +1023,20 @@ pub(crate) fn prune_v4_non_executable_evidence(
             .map_err(|error| format!("unknown liquidity select failed: {error}"))?;
         let rows = statement
             .query_map(
-                params_from_iter(sql_params(&[
-                    Value::from(network.to_string()),
-                    Value::from(chain_id),
-                    Value::from(protocol.to_string()),
-                ]).iter()),
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                    ])
+                    .iter(),
+                ),
                 |row| row.get::<_, Option<String>>(0),
             )
             .map_err(|error| format!("unknown liquidity query failed: {error}"))?;
         for row in rows {
-            let pool_id = norm(
-                &row.map_err(|error| format!("unknown liquidity row failed: {error}"))?,
-            );
+            let pool_id =
+                norm(&row.map_err(|error| format!("unknown liquidity row failed: {error}"))?);
             if !pool_id.is_empty() {
                 removable_pool_ids.insert(pool_id);
             }
@@ -978,19 +1050,20 @@ pub(crate) fn prune_v4_non_executable_evidence(
                 .map_err(|error| format!("snapshot select failed: {error}"))?;
             let rows = statement
                 .query_map(
-                    params_from_iter(sql_params(&[
-                        Value::from(network.to_string()),
-                        Value::from(chain_id),
-                        Value::from(protocol.to_string()),
-                    ]).iter()),
+                    params_from_iter(
+                        sql_params(&[
+                            Value::from(network.to_string()),
+                            Value::from(chain_id),
+                            Value::from(protocol.to_string()),
+                        ])
+                        .iter(),
+                    ),
                     |row| row.get::<_, Option<String>>(0),
                 )
                 .map_err(|error| format!("snapshot query failed: {error}"))?;
             let mut ids = BTreeSet::new();
             for row in rows {
-                let pool_id = norm(
-                    &row.map_err(|error| format!("snapshot row failed: {error}"))?,
-                );
+                let pool_id = norm(&row.map_err(|error| format!("snapshot row failed: {error}"))?);
                 if !pool_id.is_empty() {
                     ids.insert(pool_id);
                 }
@@ -1005,18 +1078,19 @@ pub(crate) fn prune_v4_non_executable_evidence(
             .map_err(|error| format!("pool select failed: {error}"))?;
         let rows = statement
             .query_map(
-                params_from_iter(sql_params(&[
-                    Value::from(network.to_string()),
-                    Value::from(chain_id),
-                    Value::from(protocol.to_string()),
-                ]).iter()),
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                    ])
+                    .iter(),
+                ),
                 |row| row.get::<_, Option<String>>(0),
             )
             .map_err(|error| format!("pool query failed: {error}"))?;
         for row in rows {
-            let pool_id = norm(
-                &row.map_err(|error| format!("pool row failed: {error}"))?,
-            );
+            let pool_id = norm(&row.map_err(|error| format!("pool row failed: {error}"))?);
             if !pool_id.is_empty() && !snapshot_pool_ids.contains(&pool_id) {
                 removable_pool_ids.insert(pool_id);
             }
@@ -1025,11 +1099,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
             .execute(
                 "DELETE FROM v4_exchange_pool_liquidity_snapshots
                  WHERE network = ? AND chain_id = ? AND protocol = ? AND has_liquidity IS NULL",
-                params_from_iter(sql_params(&[
-                    Value::from(network.to_string()),
-                    Value::from(chain_id),
-                    Value::from(protocol.to_string()),
-                ]).iter()),
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                    ])
+                    .iter(),
+                ),
             )
             .map_err(|error| format!("unknown liquidity delete failed: {error}"))?;
     }
@@ -1055,11 +1132,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
     let after_liquidity: i64 = transaction
         .query_row(
             count_sql,
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
             |row| row.get(0),
         )
         .map_err(|error| format!("after liquidity count failed: {error}"))?;
@@ -1067,11 +1147,14 @@ pub(crate) fn prune_v4_non_executable_evidence(
         .query_row(
             "SELECT COUNT(*) FROM v4_exchange_pools
              WHERE network = ? AND chain_id = ? AND protocol = ?",
-            params_from_iter(sql_params(&[
-                Value::from(network.to_string()),
-                Value::from(chain_id),
-                Value::from(protocol.to_string()),
-            ]).iter()),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
             |row| row.get(0),
         )
         .map_err(|error| format!("after pool count failed: {error}"))?;
@@ -1092,6 +1175,7 @@ pub(crate) fn prune_v4_non_executable_evidence(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
 
     #[test]
     fn tri_converts_common_evidence_values() {
@@ -1099,5 +1183,162 @@ mod tests {
         assert_eq!(tri_value(&Value::from("1")), Some(Value::from(1)));
         assert_eq!(tri_value(&Value::from("no")), Some(Value::from(0)));
         assert_eq!(tri_value(&Value::Null), None);
+    }
+
+    #[test]
+    fn clear_v4_exchange_evidence_delete_order_removes_pool_children_first() {
+        let mut connection = Connection::open_in_memory().expect("open in-memory");
+        connection
+            .execute_batch(
+                r#"
+                CREATE TABLE chain_tokens (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    token_address TEXT NOT NULL,
+                    token_symbol TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, token_address)
+                );
+                CREATE TABLE dex_surface_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol)
+                );
+                CREATE TABLE v4_closed_loops (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    market_id TEXT NOT NULL,
+                    loop_key TEXT NOT NULL,
+                    anchor_address TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, market_id, loop_key),
+                    FOREIGN KEY (network, chain_id, anchor_address)
+                        REFERENCES chain_tokens (network, chain_id, token_address)
+                );
+                CREATE TABLE v4_exchange_pools (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    token0 TEXT NOT NULL,
+                    token1 TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id),
+                    FOREIGN KEY (network, chain_id, token0)
+                        REFERENCES chain_tokens (network, chain_id, token_address),
+                    FOREIGN KEY (network, chain_id, token1)
+                        REFERENCES chain_tokens (network, chain_id, token_address)
+                );
+                CREATE TABLE v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id),
+                    FOREIGN KEY (network, chain_id, protocol, pool_id)
+                        REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
+                );
+                CREATE TABLE v4_closed_loop_hops (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    market_id TEXT NOT NULL,
+                    loop_key TEXT NOT NULL,
+                    hop_index INTEGER NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    base_pool_id TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, market_id, loop_key, hop_index),
+                    FOREIGN KEY (network, chain_id, protocol, market_id, loop_key)
+                        REFERENCES v4_closed_loops (network, chain_id, protocol, market_id, loop_key),
+                    FOREIGN KEY (network, chain_id, protocol, pool_id)
+                        REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id),
+                    FOREIGN KEY (network, chain_id, protocol, base_pool_id)
+                        REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
+                );
+                CREATE TABLE v4_closed_loop_optimizations (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    market_id TEXT NOT NULL,
+                    loop_key TEXT NOT NULL,
+                    hop_index INTEGER NOT NULL,
+                    optimization_id TEXT NOT NULL,
+                    optimized_pool_id TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, market_id, loop_key, hop_index, optimization_id),
+                    FOREIGN KEY (network, chain_id, protocol, market_id, loop_key, hop_index)
+                        REFERENCES v4_closed_loop_hops (
+                            network, chain_id, protocol, market_id, loop_key, hop_index
+                        ),
+                    FOREIGN KEY (network, chain_id, protocol, optimized_pool_id)
+                        REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
+                );
+                "#,
+            )
+            .expect("build schema");
+        connection
+            .execute(
+                "INSERT INTO chain_tokens (network, chain_id, token_address, token_symbol) VALUES ('n', 1, '0x1', 'A')",
+                [],
+            )
+            .expect("insert token0");
+        connection
+            .execute(
+                "INSERT INTO chain_tokens (network, chain_id, token_address, token_symbol) VALUES ('n', 1, '0x2', 'B')",
+                [],
+            )
+            .expect("insert token1");
+        for pool_id in ["0x0", "0x1"] {
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pools VALUES ('n', 1, 'p', ?, '0x1', '0x2')",
+                    [pool_id],
+                )
+                .expect("insert pool");
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES ('n', 1, 'p', ?)",
+                    [pool_id],
+                )
+                .expect("insert snapshot");
+        }
+        connection
+            .execute(
+                "INSERT INTO v4_closed_loops (network, chain_id, protocol, market_id, loop_key, anchor_address) VALUES ('n', 1, 'p', 'm', '0xloop', '0x1')",
+                [],
+            )
+            .expect("insert loop");
+        connection
+            .execute(
+                "INSERT INTO v4_closed_loop_hops (network, chain_id, protocol, market_id, loop_key, hop_index, pool_id, base_pool_id) VALUES ('n', 1, 'p', 'm', '0xloop', 0, '0x0', '0x1')",
+                [],
+            )
+            .expect("insert hop");
+        connection
+            .execute(
+                "INSERT INTO v4_closed_loop_optimizations (network, chain_id, protocol, market_id, loop_key, hop_index, optimization_id, optimized_pool_id) VALUES ('n', 1, 'p', 'm', '0xloop', 0, 'opt', '0x1')",
+                [],
+            )
+            .expect("insert optimization");
+
+        let transaction = connection.transaction().expect("begin transaction");
+        clear_v4_exchange_evidence(&transaction, "n", 1, "p")
+            .expect("clear did not follow FK order");
+        transaction.commit().expect("commit clear");
+
+        let pool_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pools WHERE network = 'n' AND chain_id = 1 AND protocol = 'p'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count pools");
+        let loop_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_closed_loops WHERE network = 'n' AND chain_id = 1 AND protocol = 'p'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count loops");
+        assert_eq!(pool_count, 0);
+        assert_eq!(loop_count, 0);
     }
 }

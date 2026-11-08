@@ -7,6 +7,7 @@ from runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from runtime.dex_quote_evidence_helpers import _token_decimals
 from runtime.dex_quote_evidence_helpers import _robinhood_network_for_chain_id
 from runtime.dex_quote_evidence_helpers import _offchain_initial_probe_amount_raw
+from runtime.dex_quote_evidence_helpers import _liquidity_cap_raw
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from core.error_registry import ErrorCode
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
@@ -57,7 +58,7 @@ def test_token_decimals_accepts_native_zero_address_without_rpc():
     assert _token_decimals(w3=None, address="0x0000000000000000000000000000000000000000", symbol="ETH", cache={}) == 18
 
 
-def test_offchain_initial_probe_uses_1000u_price_anchor():
+def test_offchain_initial_probe_defaults_to_one_unit_even_with_price():
     route = {
         "routeSymbols": ["WETH", "USDG", "FOO", "WETH"],
         "quoteAnalysis": {
@@ -72,11 +73,11 @@ def test_offchain_initial_probe_uses_1000u_price_anchor():
     )
     assert amount_raw == 10**18
     assert basis == "borrow_token"
-    assert "stablecoin_usd_1000u_anchor" in reasons
-    assert "stablecoin_usd_1000u_anchor" in reason
+    assert "one_borrow_token_unit_default" in reasons
+    assert "one_borrow_token_unit_default" in reason
 
 
-def test_offchain_initial_probe_falls_back_to_one_basic_unit_without_price():
+def test_offchain_initial_probe_defaults_to_one_unit_without_price():
     route = {
         "routeSymbols": ["FOO", "BAR", "BAZ", "FOO"],
         "quoteAnalysis": {
@@ -91,8 +92,8 @@ def test_offchain_initial_probe_falls_back_to_one_basic_unit_without_price():
     )
     assert amount_raw == 10**6
     assert basis == "borrow_token"
-    assert "one_basic_unit_fallback" in reasons
-    assert "one_basic_unit_fallback" in reason
+    assert "one_borrow_token_unit_default" in reasons
+    assert "one_borrow_token_unit_default" in reason
 
 
 def test_offchain_initial_probe_prefers_existing_probe_fields():
@@ -159,66 +160,38 @@ def test_offchain_initial_probe_does_not_infer_stable_usd_price_from_reference_n
     )
     assert amount_raw == 10**18
     assert basis == "borrow_token"
-    assert "one_basic_unit_fallback" in reasons
-    assert "one_basic_unit_fallback" in reason
+    assert "one_borrow_token_unit_default" in reasons
+    assert "one_borrow_token_unit_default" in reason
 
 
-def test_offchain_initial_probe_caps_by_pool_borrow_liquidity():
-    route = {
-        "routeSymbols": ["USDG", "FOO", "USDG"],
-        "quoteInputs": {
-            "routePools": [
-                {
-                    "pool": "0x" + "1" * 40,
-                    "token0Symbol": "USDG",
-                    "token1Symbol": "FOO",
-                    "token0Amount": "100",
-                }
-            ]
-        },
-        "quoteAnalysis": {
-            "inputSymbol": "USDG",
-            "steps": [],
-        },
-    }
-    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
-        route,
-        input_decimals=6,
-        price_map={"USDG": 1.0},
+def test_liquidity_cap_defaults_to_half_of_borrow_side_depth():
+    cap_raw, reason = _liquidity_cap_raw(
+        {"0x" + "1" * 40: {
+            "pool": "0x" + "1" * 40,
+            "token0Symbol": "USDG",
+            "token1Symbol": "FOO",
+            "token0Amount": "100",
+        }},
+        "USDG",
+        6,
     )
-    assert amount_raw == 2 * 10**6
-    assert basis == "borrow_token"
-    assert "liquidity_cap_pool_reserve_2pct" in reasons
-    assert reason == "liquidity_cap_pool_reserve_2pct"
+    assert cap_raw == 50 * 10**6
+    assert reason == "liquidity_cap_pool_reserve_50pct"
 
 
-def test_offchain_initial_probe_never_caps_below_one_basic_unit():
-    route = {
-        "routeSymbols": ["USDG", "FOO", "USDG"],
-        "quoteInputs": {
-            "routePools": [
-                {
-                    "pool": "0x" + "1" * 40,
-                    "token0Symbol": "USDG",
-                    "token1Symbol": "FOO",
-                    "token0Amount": "5",
-                }
-            ]
-        },
-        "quoteAnalysis": {
-            "inputSymbol": "USDG",
-            "steps": [],
-        },
-    }
-    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
-        route,
-        input_decimals=6,
-        price_map={"USDG": 1.0},
+def test_liquidity_cap_keeps_one_raw_unit_minimum():
+    cap_raw, reason = _liquidity_cap_raw(
+        {"0x" + "1" * 40: {
+            "pool": "0x" + "1" * 40,
+            "token0Symbol": "USDG",
+            "token1Symbol": "FOO",
+            "token0Amount": "5",
+        }},
+        "USDG",
+        6,
     )
-    assert amount_raw == 10**6
-    assert basis == "borrow_token"
-    assert "liquidity_cap_pool_reserve_2pct" in reasons
-    assert reason == "liquidity_cap_pool_reserve_2pct"
+    assert cap_raw == 2500000
+    assert reason == "liquidity_cap_pool_reserve_50pct"
 
 
 def test_robinhood_network_for_chain_id_prefers_testnet_chain_metadata():
@@ -1476,6 +1449,53 @@ def test_route_execution_probe_halves_low_slippage_unprofitable_amount(monkeypat
     assert attempted == [100, 50, 25, 12, 6, 3, 1]
 
 
+def test_route_execution_probe_respects_zero_point_one_percent_minimum(monkeypatch):
+    attempted = []
+    one_unit_raw = 10**18
+    minimum_raw = one_unit_raw // 1000
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        amount_raw = int(kwargs["borrow_input_amount_override_raw"])
+        attempted.append(amount_raw)
+        return {
+            "status": "route_unprofitable",
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": False,
+                "allHopsWithinPriceImpactLimit": True,
+            },
+            "costModel": {"netProfitAmount": "-1"},
+        }
+
+    monkeypatch.setattr(
+        dex_onchain_quote_evidence,
+        "build_route_onchain_evidence",
+        fake_build_route_onchain_evidence,
+    )
+    probe = dex_onchain_quote_evidence._probe_robinhood_testnet_route_execution_size(
+        {},
+        payload={},
+        chain_id=46630,
+        observed_at="2026-09-02T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        quote_hop_provider=None,
+        requested_amount_raw=one_unit_raw,
+        initial_probe_amount_raw=one_unit_raw,
+        min_probe_amount_raw=minimum_raw,
+        max_attempts=24,
+    )
+
+    assert probe["status"] == "route_execution_size_probe_unexecutable"
+    assert probe["searchStatus"] == "not_profitable_after_costs"
+    assert probe["minProbeAmountRaw"] == str(minimum_raw)
+    assert probe["minProbeAmountHuman"] == "0.001 borrow token unit"
+    assert attempted[0] == one_unit_raw
+    assert all(amount_raw >= minimum_raw for amount_raw in attempted)
+    assert attempted[-1] >= minimum_raw
+
+
 def test_route_execution_probe_finds_smaller_profitable_amount_after_large_unprofitable_probe(monkeypatch):
     attempted = []
 
@@ -1513,6 +1533,47 @@ def test_route_execution_probe_finds_smaller_profitable_amount_after_large_unpro
     assert probe["firstFailureAmountRaw"] == "51"
     assert attempted[0] == 100
     assert attempted[1] == 50
+
+
+def test_route_execution_probe_respects_pool_depth_maximum(monkeypatch):
+    attempted = []
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        amount_raw = int(kwargs["borrow_input_amount_override_raw"])
+        attempted.append(amount_raw)
+        return {
+            "status": "route_unprofitable",
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": False,
+                "allHopsWithinPriceImpactLimit": True,
+            },
+            "costModel": {"netProfitAmount": "-1"},
+        }
+
+    monkeypatch.setattr(
+        dex_onchain_quote_evidence,
+        "build_route_onchain_evidence",
+        fake_build_route_onchain_evidence,
+    )
+    probe = dex_onchain_quote_evidence._probe_robinhood_testnet_route_execution_size(
+        {},
+        payload={},
+        chain_id=46630,
+        observed_at="2026-09-02T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        quote_hop_provider=None,
+        requested_amount_raw=100,
+        initial_probe_amount_raw=100,
+        min_probe_amount_raw=1,
+        max_probe_amount_raw=50,
+    )
+
+    assert probe["maxProbeAmountRaw"] == "50"
+    assert attempted[0] == 50
+    assert all(amount_raw <= 50 for amount_raw in attempted)
 
 
 def test_hop_price_impact_uses_spot_price_and_token_decimals_are_not_compared_as_amounts():

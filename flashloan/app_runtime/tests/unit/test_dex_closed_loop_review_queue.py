@@ -105,3 +105,92 @@ def test_fixed_pipeline_start_uses_configured_group_workers(monkeypatch):
     assert len(pipeline._threads) >= 2
     assert all(thread.daemon for thread in pipeline._threads)
     pipeline.stop()
+
+
+def test_review_queue_metrics_track_claim_complete_error_skip():
+    queue = ClosedLoopReviewQueue()
+    queue.submit_group(group_key="a")
+    queue.submit_group(group_key="b")
+    queue.submit_group(group_key="c", priority=USER_PRIORITY)
+    queue.submit_group(group_key="d", priority=USER_PRIORITY)
+
+    first = queue.pop_next()
+    second = queue.pop_next()
+    assert first is not None and second is not None
+    queue.mark_completed(first, {"ok": True})
+    queue.mark_error(second, RuntimeError("boom"))
+    assert queue.metrics()["claimed"] == 2
+    assert queue.metrics()["completed"] == 1
+    assert queue.metrics()["failed"] == 1
+
+    skipped = queue.pop_next()
+    assert skipped is not None
+    queue.mark_skipped(skipped, reason="scope_isolated")
+    assert skipped.state == "skipped"
+    assert queue.metrics()["skipped"] == 1
+    queue.record_backpressure()
+    assert queue.metrics()["backpressure"] == 1
+
+    summary = queue.summary()
+    assert summary["claimed"] == 3
+    assert summary["completed"] == 1
+    assert summary["failed"] == 1
+    assert summary["skipped"] == 1
+    assert summary["backpressure"] == 1
+    assert summary["total"] == 4
+
+
+def test_review_queue_heartbeat_updates_running_task():
+    queue = ClosedLoopReviewQueue()
+    task = queue.submit_group(group_key="a")
+    popped = queue.pop_next()
+    assert popped is task
+    assert task.last_heartbeat_at is None
+    queue.touch_heartbeat(task)
+    assert task.last_heartbeat_at is not None
+    queue.mark_completed(task, {"ok": True})
+    assert queue.metrics()["completed"] == 1
+
+
+def test_review_queue_stale_audit_flags_queued_and_running():
+    queue = ClosedLoopReviewQueue()
+    running = queue.submit_group(group_key="arb")
+    queued = queue.submit_group(group_key="aza")
+    popped = queue.pop_next()
+    assert popped is running
+    queued.updated_at = time.time() - 500
+    running.last_heartbeat_at = time.time() - 500
+
+    audit = queue.stale_audit(
+        queued_age_seconds=10,
+        running_age_seconds=10,
+    )
+    assert audit["staleQueuedCount"] == 1
+    assert audit["staleRunningCount"] == 1
+    assert audit["staleQueued"][0]["group_key"] == "aza"
+    assert audit["staleRunning"][0]["group_key"] == "arb"
+
+
+def test_review_queue_mark_stalled_and_requeue_preserves_audit_counts():
+    queue = ClosedLoopReviewQueue()
+    task = queue.submit_group(group_key="a")
+    task.updated_at = time.time() - 500
+
+    audit = queue.stale_audit(queued_age_seconds=10)
+    assert audit["staleQueuedCount"] == 1
+
+    queue.mark_stalled(task, reason="review_stall_queued_too_long")
+    assert task.state == "stalled"
+    assert task.stall_count == 1
+    assert task.error == "review_stall_queued_too_long"
+    assert queue.summary()["stalled"] == 1
+    assert queue.summary()["stalled_total"] == 1
+
+    queue.requeue(task)
+    assert task.state == "queued"
+    assert task.error is None
+    assert task.stall_count == 1
+    assert queue.metrics()["requeued"] == 1
+    assert queue.summary()["queued"] == 1
+    requeued_audit = queue.stale_audit(queued_age_seconds=10)
+    assert requeued_audit["staleQueuedCount"] == 0

@@ -8,6 +8,79 @@ from market.binance_market.dex_quote_route_common import (
 from market.binance_market.dex_surface_analysis import build_route_size_analysis
 from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 from market.binance_market.dex_quote_surface import build_quote_request_payload, build_quote_routes_payload_from_overview
+from market.binance_market.dex_quote_surface_helpers import _best_per_anchor_direction_paths
+
+
+def test_best_per_anchor_direction_keeps_independent_reverse_pools():
+    forward = {
+        "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+        "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+        "poolPathKey": "p1|p2|p3",
+        "executionPools": [{"pool": "p1"}, {"pool": "p2"}, {"pool": "p3"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+    reverse = {
+        "routeSymbols": ["ETH", "BBB", "AAA", "ETH"],
+        "routeAddresses": ["0xA", "0xC", "0xB", "0xA"],
+        "poolPathKey": "p4|p5|p6",
+        "executionPools": [{"pool": "p4"}, {"pool": "p5"}, {"pool": "p6"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+
+    paths = _best_per_anchor_direction_paths([forward, reverse])
+
+    assert len(paths) == 2
+    assert {tuple(path["routeSymbols"]) for path in paths} == {
+        ("ETH", "AAA", "BBB", "ETH"),
+        ("ETH", "BBB", "AAA", "ETH"),
+    }
+
+
+def test_best_per_anchor_direction_keeps_same_pool_reverse_direction():
+    forward = {
+        "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+        "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+        "poolPathKey": "p1|p2|p3",
+        "executionPools": [{"pool": "p1"}, {"pool": "p2"}, {"pool": "p3"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+    reverse_copy = {
+        "routeSymbols": ["ETH", "BBB", "AAA", "ETH"],
+        "routeAddresses": ["0xA", "0xC", "0xB", "0xA"],
+        "poolPathKey": "p3|p2|p1",
+        "executionPools": [{"pool": "p3"}, {"pool": "p2"}, {"pool": "p1"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+
+    paths = _best_per_anchor_direction_paths([forward, reverse_copy])
+
+    assert len(paths) == 2
+    assert {tuple(path["routeSymbols"]) for path in paths} == {
+        ("ETH", "AAA", "BBB", "ETH"),
+        ("ETH", "BBB", "AAA", "ETH"),
+    }
+
+
+def test_best_per_anchor_direction_collapses_exact_duplicate():
+    forward = {
+        "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+        "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+        "poolPathKey": "p1|p2|p3",
+        "executionPools": [{"pool": "p1"}, {"pool": "p2"}, {"pool": "p3"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+    duplicate = {
+        "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+        "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+        "poolPathKey": "p1|p2|p3",
+        "executionPools": [{"pool": "p1"}, {"pool": "p2"}, {"pool": "p3"}],
+        "overviewRoute": {"anchorBorrowSymbol": "ETH"},
+    }
+
+    paths = _best_per_anchor_direction_paths([forward, duplicate])
+
+    assert len(paths) == 1
+    assert paths[0]["routeSymbols"] == ["ETH", "AAA", "BBB", "ETH"]
 
 
 def test_quote_route_common_templates_cover_amm_v4_uniswapx():
@@ -812,7 +885,7 @@ def test_quote_routes_payload_anchor_skips_unscoped_cache(monkeypatch):
     assert first["summary"]["anchorFilter"] is None
 
 
-def test_quote_routes_best_per_anchor_direction_keeps_highest_static_profit():
+def test_quote_routes_best_per_anchor_direction_keeps_both_directions():
     overview = {
         "arbitragePaths": [
             {
@@ -854,13 +927,14 @@ def test_quote_routes_best_per_anchor_direction_keeps_highest_static_profit():
     )
 
     assert payload["summary"]["unfilteredRouteCount"] == 2
-    assert payload["summary"]["routeCount"] == 1
-    assert [route["symbolPair"] for route in payload["routes"]] == [
-        "ETH -> BBB -> AAA -> ETH"
-    ]
+    assert payload["summary"]["routeCount"] == 2
+    assert {route["symbolPair"] for route in payload["routes"]} == {
+        "ETH -> AAA -> BBB -> ETH",
+        "ETH -> BBB -> AAA -> ETH",
+    }
 
 
-def test_quote_routes_best_per_anchor_direction_keeps_one_route_per_anchor():
+def test_quote_routes_best_per_anchor_direction_keeps_both_directions_per_anchor():
     overview = {
         "arbitragePaths": [
             {
@@ -920,14 +994,16 @@ def test_quote_routes_best_per_anchor_direction_keeps_one_route_per_anchor():
     )
 
     assert payload["summary"]["unfilteredRouteCount"] == 4
-    assert payload["summary"]["routeCount"] == 2
+    assert payload["summary"]["routeCount"] == 4
     assert {route["symbolPair"] for route in payload["routes"]} == {
         "ETH -> BBB -> AAA -> ETH",
+        "ETH -> AAA -> BBB -> ETH",
         "USDC -> BBB -> AAA -> USDC",
+        "USDC -> AAA -> BBB -> USDC",
     }
 
 
-def test_robinhood_quote_routes_fix_one_direction_per_anchor(monkeypatch):
+def test_robinhood_quote_routes_keep_both_directions_per_anchor(monkeypatch):
     from market.binance_market import dex_surfaces
 
     old_cache = dict(dex_surfaces._DEX_SURFACE_CACHE)
@@ -978,7 +1054,8 @@ def test_robinhood_quote_routes_fix_one_direction_per_anchor(monkeypatch):
         dex_surfaces._DEX_SURFACE_CACHE.update(old_cache)
 
     assert payload["summary"]["unfilteredRouteCount"] == 2
-    assert payload["summary"]["routeCount"] == 1
-    assert [route["symbolPair"] for route in payload["routes"]] == [
-        "ETH -> BBB -> AAA -> ETH"
-    ]
+    assert payload["summary"]["routeCount"] == 2
+    assert {route["symbolPair"] for route in payload["routes"]} == {
+        "ETH -> AAA -> BBB -> ETH",
+        "ETH -> BBB -> AAA -> ETH",
+    }

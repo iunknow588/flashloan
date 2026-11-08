@@ -199,7 +199,7 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == CANONICAL_ROBINHOOD_DEX_V4_LEGACY
     assert summaries[CANONICAL_ROBINHOOD_DEX]["protocol"] == "uniswap_v4"
     assert summaries[CANONICAL_ROBINHOOD_DEX_V3]["legacy_market_id"] == CANONICAL_ROBINHOOD_DEX_V3_LEGACY
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["observation_only"] is True
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["observation_only"] is False
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["feature"] == "dex_arbitrage"
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["network"] == "robinhood-testnet"
@@ -217,14 +217,14 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[CANONICAL_POLYGON_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[CANONICAL_AVALANCHE_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[CANONICAL_AVALANCHE_DEX]["is_default"] is False
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["is_default"] is False
-    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is True
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["is_default"] is True
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is False
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["legacy_market_id"] == "hyperliquid-dex-shadow"
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["migration_type"] == "dex_native_protocol_placeholder"
 
 
-def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
+def test_robinhood_dex_market_is_native_and_feature_scoped(monkeypatch):
     _clear_market_env(monkeypatch)
     monkeypatch.setenv("ROBINHOOD_ALCHEMY_RPC_URL", "https://robinhood-alchemy.example")
 
@@ -240,7 +240,7 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
     assert market.multicall3_address == "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
     assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
     assert market.protocol_supported is True
-    assert market.observation_only is True
+    assert market.observation_only is False
 
 
 def test_robinhood_liquidation_market_prefers_morpho_flash_source(monkeypatch):

@@ -1,14 +1,31 @@
-﻿{
-  "broadcastEnabled": false,
+{
+  "schemaVersion": "contract-package-v1",
+  "broadcastEnabled": true,
   "chainId": 46630,
   "module": "DEX",
   "projectRoot": "contract/robinhood-testnet/DEX",
   "sourceContract": "RobinhoodPausedFlashLoanExecutor",
+  "executorContract": "RobinhoodPausedFlashLoanExecutor",
   "deploymentAddress": "0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB",
   "deploymentGate": "paused_until_robinhood_flashloan_v4_repayment_and_fork_staticcall_pass",
-  "executorContract": "RobinhoodPausedFlashLoanExecutor",
   "mode": "testnet_deploy_readback_only",
   "network": "robinhood-testnet",
+  "chainKey": "chain:46630",
+  "marketId": "robinhood-testnet-dex-paused",
+  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood-testnet/chain.json",
+  "readyForPausedDeploy": true,
+  "routePreflightStatus": "not_ready",
+  "deploymentStatus": "deployed_paused_readback_verified",
+  "lastPreflightEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260911T220543929Z-59336_robinhoodTestnet-robinhood-testnet-preflight/report.json",
+  "requiredAdapters": [
+    "flashSource",
+    "v4UniversalRouter",
+    "v4PoolManager",
+    "permit2"
+  ],
+  "optionalAdapters": [
+    "v3SwapRouter"
+  ],
   "defaultDexChainSelector": false,
   "developmentPlan": "contract/robinhood-testnet/DEX/docs/en/ARBITRAGE_CONTRACT_DEV_PLAN.md",
   "developmentChecklist": "contract/robinhood-testnet/DEX/docs/en/DEVELOPMENT_CHECKLIST.md",
@@ -22,6 +39,7 @@
   "envExample": "contract/robinhood-testnet/DEX/config/.env.testnet.example",
   "defaultPermit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "flashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "defaultFlashSourceKind": 4,
   "defaultV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
@@ -29,6 +47,18 @@
   "defaultPositionManager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
   "defaultWrappedNative": "0x7943e237c7F95DA44E0301572D358911207852Fa",
   "defaultMulticall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8",
+  "v3SwapRouter": "",
+  "v3Router": "",
+  "officialV4": {
+    "arb": "0x1A8Cc533EaBA93Ec7f68Ac6c428cDa948D7bB8DE",
+    "composer": "0x3a9636AfD016C01d18e81AF8B4F52F7b01562956"
+  },
+  "wrappedNative": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+  "multicall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8",
+  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "v4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+  "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
   "lastReadinessEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260911T220543929Z-59336_robinhoodTestnet-robinhood-testnet-preflight/report.json",
   "lastOffchainNormalEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260911T220355899Z-63644_hardhat-robinhood-v4-flash-offchain-normal/report.json",
   "lastExecutorOffchainNormalEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260911T220356365Z-20296_hardhat-robinhood-executor-v4-flash-offchain-normal/report.json",
@@ -190,17 +220,17 @@
   "morphoBlueTestnetStatus": "not_publicly_verified_on_chain_46630",
   "testedWith": "npm run test:robinhood && npm run ready:robinhood:testnet && npm run readback:robinhood:testnet",
   "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-paused-flashloan-robinhoodTestnet.json",
-  "lastReadbackEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260829T112029944Z-1592_robinhoodTestnet-robinhood-paused-readback/report.json",
+  "lastReadbackEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20261021T164109039Z-21460_robinhoodTestnet-robinhood-paused-readback/report.json",
   "readbackCodeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4",
-  "localArtifactCodeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4",
-  "matchesLocalArtifact": true,
-  "readyForLatestPausedExecutor": true,
+  "localArtifactCodeHash": "0x0845d4ff18b677f70a0d3cfc121915fbfbf65c3caa2b3022a03335c2bb0152da",
+  "matchesLocalArtifact": false,
+  "readyForLatestPausedExecutor": false,
   "stageFreezeMilestone": "paused_executor_v4_accounting_freeze",
   "stageFreezeApproved": true,
   "readyForStageFreeze": true,
   "deploymentDeferredUntilStageFreeze": true,
   "liveTesting": {
-    "normalProbeBroadcastEnabled": false,
+    "normalProbeBroadcastEnabled": true,
     "pausedExecutorDeployBroadcastEnabled": false,
     "profitableRouteLiveTestComplete": true,
     "mode": "testnet_profitable_route_live_test_complete",
@@ -208,18 +238,16 @@
     "deployEnvStillRequired": "ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true"
   },
   "liveTestingReadiness": {
-    "readyForLiveTest": false,
+    "readyForLiveTest": true,
     "broadcastEnabled": true,
     "normalTestnetProbeReady": true,
     "normalTestnetProbeMeasurementReady": true,
     "normalProbeLiveTestComplete": true,
     "profitableRouteLiveTestComplete": true,
     "chainTestReady": true,
-    "blockingReasons": [
-    ],
+    "blockingReasons": [],
     "currentLiveProfitableRouteCount": 1,
-    "nextRequiredActions": [
-    ]
+    "nextRequiredActions": []
   },
   "normal_testnet_probe_address": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
   "normal_testnet_probe_deployment_file": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json"

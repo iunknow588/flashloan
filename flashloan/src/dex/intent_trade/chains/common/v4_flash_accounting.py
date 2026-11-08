@@ -7,7 +7,9 @@ from dex.intent_trade.chains.common.dex_candidate_tables import _stable_symbol
 
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-DEFAULT_MIN_CANDIDATE_POOL_COUNT = 5
+# A single associated pool is enough for a flash-accounting candidate; 5 is
+# only a recommendation-list ceiling elsewhere and is not a completion gate.
+DEFAULT_MIN_CANDIDATE_POOL_COUNT = 1
 DEFAULT_MIN_POOLMANAGER_BALANCE_UNITS = 1.0
 
 

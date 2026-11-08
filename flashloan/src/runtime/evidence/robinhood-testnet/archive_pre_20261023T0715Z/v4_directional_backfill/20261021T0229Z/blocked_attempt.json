@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "robinhood-testnet-v4-directional-backfill-blocked-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "attemptedAt": "2026-10-21T02:29:00Z",
+  "status": "blocked",
+  "blockedReason": "rpc_http_429",
+  "probe": {
+    "ok": true,
+    "rpcUrl": "https://rpc.testnet.chain.robinhood.com/rpc",
+    "blockNumber": 139789621,
+    "method": "eth_chainId+eth_blockNumber batch"
+  },
+  "failure": {
+    "tool": "collect_robinhood_v4_backfill_evidence.py",
+    "mode": "live_confirm_indexed_direction_candidates",
+    "error": "robinhood testnet v4 V4 pool state batch eth_call failed; HTTP Error 429: Too Many Requests"
+  },
+  "retryPolicy": "waited ~20s after the first probe and retried once; still returned HTTP 429. Not retrying further in this window.",
+  "safety": {
+    "writesSqlite": false,
+    "broadcastsTransaction": false
+  },
+  "nextAction": "Wait for a stable RPC window, then rerun collect_robinhood_v4_backfill_evidence.py without --sqlite-only, then refresh_robinhood_v4_live.py --network robinhood-testnet --chain-id 46630 --candidate-backfill."
+}

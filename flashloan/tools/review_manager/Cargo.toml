@@ -1,0 +1,23 @@
+[package]
+name = "review-manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "review_manager"
+path = "src/lib.rs"
+
+[dependencies]
+chrono.workspace = true
+closed-loop-manager = { path = "../closed_loop_manager" }
+hex.workspace = true
+manager-contracts = { path = "../manager_contracts" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+manager-db = { path = "../manager_db" }
+tempfile.workspace = true

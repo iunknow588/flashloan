@@ -1,0 +1,300 @@
+﻿{
+  "mainnetMigrationOrApply": false,
+  "simulation": {
+    "admissionMemberships": {
+      "core": {
+        "admitted": 4
+      },
+      "extension": {
+        "candidate_only": 78
+      },
+      "stocks": {
+        "admitted": 194
+      },
+      "test": {
+        "admitted": 1
+      }
+    },
+    "chainId": 4663,
+    "finalEventCount": 277,
+    "finalLibraryStateCount": 4,
+    "finalRowCounts": {
+      "core": 4,
+      "extension": 78,
+      "stocks": 194,
+      "test": 1
+    },
+    "gates": {
+      "allDryRunResultsMatchFirstApply": true,
+      "allLibraryChecksumsStable": true,
+      "allRepeatedAppliesAreIdempotent": true,
+      "dryRunsPersistedNoRows": true,
+      "migrationChecksumStable": true,
+      "pendingOrBlockedDownstreamVisibleCount": 0,
+      "primaryLibraryDuplicateCount": 0,
+      "quickCheckPassed": true,
+      "secondMigrationWasNoop": true,
+      "tempDatabaseOnly": true
+    },
+    "libraries": [
+      {
+        "checksumStable": true,
+        "dryRun": {
+          "chainId": 4663,
+          "events": 4,
+          "inserted": 4,
+          "library": "core",
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "dryRunEqualsFirstApply": true,
+        "dryRunPersistedNoRows": true,
+        "eventsAfterDryRun": 0,
+        "eventsAfterFirstApply": 4,
+        "eventsAfterRepeatedApply": 4,
+        "eventsBeforeDryRun": 0,
+        "firstApply": {
+          "chainId": 4663,
+          "events": 4,
+          "inserted": 4,
+          "library": "core",
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "library": "core",
+        "proposedWrites": 4,
+        "repeatedApply": {
+          "chainId": 4663,
+          "events": 0,
+          "inserted": 0,
+          "library": "core",
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 4,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 1
+        },
+        "repeatedApplyWasIdempotent": true,
+        "rowsAfterDryRun": 0,
+        "rowsAfterFirstApply": 4,
+        "rowsAfterRepeatedApply": 4,
+        "rowsBeforeDryRun": 0
+      },
+      {
+        "checksumStable": true,
+        "dryRun": {
+          "chainId": 4663,
+          "events": 194,
+          "inserted": 194,
+          "library": "stocks",
+          "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "dryRunEqualsFirstApply": true,
+        "dryRunPersistedNoRows": true,
+        "eventsAfterDryRun": 0,
+        "eventsAfterFirstApply": 198,
+        "eventsAfterRepeatedApply": 198,
+        "eventsBeforeDryRun": 0,
+        "firstApply": {
+          "chainId": 4663,
+          "events": 194,
+          "inserted": 194,
+          "library": "stocks",
+          "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "library": "stocks",
+        "proposedWrites": 194,
+        "repeatedApply": {
+          "chainId": 4663,
+          "events": 0,
+          "inserted": 0,
+          "library": "stocks",
+          "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 194,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 1
+        },
+        "repeatedApplyWasIdempotent": true,
+        "rowsAfterDryRun": 0,
+        "rowsAfterFirstApply": 194,
+        "rowsAfterRepeatedApply": 194,
+        "rowsBeforeDryRun": 0
+      },
+      {
+        "checksumStable": true,
+        "dryRun": {
+          "chainId": 4663,
+          "events": 1,
+          "inserted": 1,
+          "library": "test",
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "dryRunEqualsFirstApply": true,
+        "dryRunPersistedNoRows": true,
+        "eventsAfterDryRun": 0,
+        "eventsAfterFirstApply": 199,
+        "eventsAfterRepeatedApply": 199,
+        "eventsBeforeDryRun": 0,
+        "firstApply": {
+          "chainId": 4663,
+          "events": 1,
+          "inserted": 1,
+          "library": "test",
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "library": "test",
+        "proposedWrites": 1,
+        "repeatedApply": {
+          "chainId": 4663,
+          "events": 0,
+          "inserted": 0,
+          "library": "test",
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 1,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 1
+        },
+        "repeatedApplyWasIdempotent": true,
+        "rowsAfterDryRun": 0,
+        "rowsAfterFirstApply": 1,
+        "rowsAfterRepeatedApply": 1,
+        "rowsBeforeDryRun": 0
+      },
+      {
+        "checksumStable": true,
+        "dryRun": {
+          "chainId": 4663,
+          "events": 78,
+          "inserted": 78,
+          "library": "extension",
+          "metadataChecksum": "sha256:ebb0602ddc8702ecc8b08e99d633358605f346eee74654175fb636a9f40c8a17",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "dryRunEqualsFirstApply": true,
+        "dryRunPersistedNoRows": true,
+        "eventsAfterDryRun": 0,
+        "eventsAfterFirstApply": 277,
+        "eventsAfterRepeatedApply": 277,
+        "eventsBeforeDryRun": 0,
+        "firstApply": {
+          "chainId": 4663,
+          "events": 78,
+          "inserted": 78,
+          "library": "extension",
+          "metadataChecksum": "sha256:ebb0602ddc8702ecc8b08e99d633358605f346eee74654175fb636a9f40c8a17",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 0,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 0
+        },
+        "library": "extension",
+        "proposedWrites": 78,
+        "repeatedApply": {
+          "chainId": 4663,
+          "events": 0,
+          "inserted": 0,
+          "library": "extension",
+          "metadataChecksum": "sha256:ebb0602ddc8702ecc8b08e99d633358605f346eee74654175fb636a9f40c8a17",
+          "network": "robinhood",
+          "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+          "unchanged": 78,
+          "updated": 0,
+          "versionAfter": 1,
+          "versionBefore": 1
+        },
+        "repeatedApplyWasIdempotent": true,
+        "rowsAfterDryRun": 0,
+        "rowsAfterFirstApply": 78,
+        "rowsAfterRepeatedApply": 78,
+        "rowsBeforeDryRun": 0
+      }
+    ],
+    "migration": {
+      "checksumStable": true,
+      "first": {
+        "appliedAt": "2026-11-03T18:23:20.972Z",
+        "appliedNow": true,
+        "checksum": "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+        "migrationId": "20261103_001_manager_schema",
+        "migrationTable": "schema_migrations"
+      },
+      "firstAppliedNow": true,
+      "second": {
+        "appliedAt": "2026-11-03T18:23:20.972Z",
+        "appliedNow": false,
+        "checksum": "sha256:1aea76088fb540ff98bb617cdb759692ee575b8fb29f3ccd12b3b4571047c0c5",
+        "migrationId": "20261103_001_manager_schema",
+        "migrationTable": "schema_migrations"
+      },
+      "secondWasNoop": true
+    },
+    "milestone": "M1",
+    "mode": "temporary_database_bootstrap_dry_run_apply",
+    "network": "robinhood",
+    "passed": true,
+    "proposedMemberships": 277,
+    "quickCheck": "ok",
+    "sourceCheckpoint": "sha256:eb4e32bcde57ae9b1ed7c169697e5cb619430a10789b697cd914d5bdc2d0b08d",
+    "task": "D1.1.7",
+    "temporaryDatabase": "[temporary database disposed]",
+    "temporaryDatabaseDisposed": true
+  },
+  "source": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "normalizedAcceptedTokens": 4683,
+    "normalizedRejectedRecords": 1868,
+    "readOnly": true,
+    "registry": "flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+    "v4PoolLiquidityEvidence": 5459,
+    "v4PoolReferences": 10956
+  }
+}

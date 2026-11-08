@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "robinhood-testnet-zero-liquidity-vs-candidates-v1",
+  "generatedAt": "2026-10-29T06:20:42.853945Z",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "protocol": "uniswap_v4",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+  "explicitZeroLiquidityPoolCount": 3,
+  "explicitZeroLiquidityPoolsSample": [
+    {
+      "pool_id": "0x0375ce49984db4f3db235fafc630e2adee22a37cc9743ac8870394f9102a089b",
+      "has_liquidity": 0,
+      "liquidity": "",
+      "liquidity_index": 0.0,
+      "depth_status": "no_liquidity",
+      "liquidity_read_at": null,
+      "liquidity_block_number": null,
+      "evidence_source": "pool_manager_extsload_live_state_batch"
+    },
+    {
+      "pool_id": "0x1666995a28ba77276964ed67bda1b49e5efe7a2874a81761d4438cab7be9ec08",
+      "has_liquidity": 0,
+      "liquidity": "",
+      "liquidity_index": 0.0,
+      "depth_status": "no_liquidity",
+      "liquidity_read_at": null,
+      "liquidity_block_number": null,
+      "evidence_source": "pool_manager_extsload_live_state_batch"
+    },
+    {
+      "pool_id": "0x5fc6b8c0653ba5385d29bdf02943a9b09303cef2895558925921b90f5ef871e1",
+      "has_liquidity": 0,
+      "liquidity": "",
+      "liquidity_index": 0.0,
+      "depth_status": "no_liquidity",
+      "liquidity_read_at": null,
+      "liquidity_block_number": null,
+      "evidence_source": "pool_manager_extsload_live_state_batch"
+    }
+  ],
+  "explicitZeroLiquidityPoolsTruncated": false,
+  "scanState": {
+    "ok": true,
+    "explicitZeroLiquidityPoolCount": 0,
+    "refreshedAt": "2026-10-26T22:47:48.209651900Z",
+    "scannedPoolCount": 3,
+    "poolCount": 39196,
+    "confirmedLiquidityPoolCount": 3
+  },
+  "scanStateMatchesExplicitPools": false,
+  "cleanupEvidence": {
+    "cleanupEvidenceCount": 0,
+    "failedCount": 0,
+    "recent": [],
+    "latest": null
+  },
+  "cleanupEvidenceResiduals": {
+    "latestCleanupPoolIdCount": 0,
+    "residualReferences": null
+  },
+  "residualReferences": {
+    "dex_candidate_pools": 0,
+    "dex_candidate_pool_recommendations": 0,
+    "v4_closed_loop_hops": 0,
+    "v4_closed_loop_optimizations": 0,
+    "v4_closed_loops": 0,
+    "v4_closed_loops_by_hop_refs": 0,
+    "v4_closed_loops_by_pool_ids_json": 0
+  },
+  "residualReferenceTotal": 0,
+  "conclusion": "All explicit zero-liquidity pools have no residual candidate/loop references; raw pools are retained for liquidity recovery.",
+  "safety": {
+    "writesSqlite": false,
+    "buildsTransaction": false,
+    "broadcastsTransaction": false,
+    "mainnetBroadcastEnabled": false
+  }
+}

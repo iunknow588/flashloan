@@ -12,7 +12,7 @@ from core.db.storage import (
 )
 from core.config_schema import parse_env_int
 from core.sensitive_data import redact_sensitive_text
-from web.control_panel_liquidation_base import database_url_or_none
+from web.control_panel_liquidation_base import database_url
 from bot.liquidation.pause_guard import (
     clear_pause_guard,
     load_pause_guard_state,
@@ -56,15 +56,15 @@ def record_liquidation_execution_attempt_safely(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> int | None:
-    database_url = database_url_or_none()
+    resolved_database_url = database_url()
     safe_error = _safe_error_message(error)
     _record_pause_guard_if_configured(state, blocked_reasons, safe_error)
-    if not database_url:
+    if not resolved_database_url:
         return None
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         attempt_id = db_record_liquidation_execution_attempt(
-            database_url,
+            resolved_database_url,
             account=account,
             mode=mode,
             state=state,
@@ -80,7 +80,7 @@ def record_liquidation_execution_attempt_safely(
         )
         if error or blocked_reasons or state in {"submission_blocked", "submission_failed", "static_call_failed", "confirmed_failed"}:
             db_record_liquidation_failure_sample(
-                database_url,
+                resolved_database_url,
                 account=account,
                 block_number=_payload_block_number(preflight, quote),
                 collateral_asset=_request_value(request_payload, "collateralAsset"),
@@ -112,22 +112,22 @@ def recent_liquidation_execution_attempts(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"configured": False, "attempts": [], "stats": empty_execution_attempt_stats()}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         return {
             "configured": True,
             "attempts": _decorate_execution_attempts(
                 db_load_recent_liquidation_execution_attempts(
-                    database_url,
+                    resolved_database_url,
                     limit=limit,
                     market_id=market_id,
                     chain_id=chain_id,
                 )
             ),
-            "stats": db_liquidation_execution_attempt_stats(database_url, market_id=market_id, chain_id=chain_id),
+            "stats": db_liquidation_execution_attempt_stats(resolved_database_url, market_id=market_id, chain_id=chain_id),
         }
     except Exception as exc:
         return {"configured": True, "error": _safe_error_message(exc), "attempts": [], "stats": empty_execution_attempt_stats()}
@@ -139,15 +139,15 @@ def recent_liquidation_failure_samples(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"configured": False, "samples": []}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         return {
             "configured": True,
             "samples": db_load_recent_liquidation_failure_samples(
-                database_url,
+                resolved_database_url,
                 limit=limit,
                 market_id=market_id,
                 chain_id=chain_id,
@@ -164,17 +164,17 @@ def liquidation_execution_attempts_for_account(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"configured": False, "attempts": []}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         return {
             "configured": True,
             "account": account,
             "attempts": _decorate_execution_attempts(
                 db_load_liquidation_execution_attempts_for_account(
-                    database_url,
+                    resolved_database_url,
                     account,
                     limit=limit,
                     market_id=market_id,
@@ -193,16 +193,16 @@ def liquidation_failure_samples_for_account(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"configured": False, "samples": []}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         return {
             "configured": True,
             "account": account,
             "samples": db_load_liquidation_failure_samples_for_account(
-                database_url,
+                resolved_database_url,
                 account,
                 limit=limit,
                 market_id=market_id,
@@ -214,21 +214,21 @@ def liquidation_failure_samples_for_account(
 
 
 def liquidation_pause_guard_status() -> dict:
-    database_url = database_url_or_none()
-    state = load_pause_guard_state(LIQUIDATION_PAUSE_GUARD_PATH, database_url=database_url)
+    resolved_database_url = database_url()
+    state = load_pause_guard_state(LIQUIDATION_PAUSE_GUARD_PATH, database_url=resolved_database_url)
     return {
-        "configured": bool(database_url),
-        "database_configured": bool(database_url),
+        "configured": bool(resolved_database_url),
+        "database_configured": bool(resolved_database_url),
         **state,
     }
 
 
 def clear_liquidation_pause_guard_status() -> dict:
-    database_url = database_url_or_none()
+    resolved_database_url = database_url()
     return {
-        "configured": bool(database_url),
-        "database_configured": bool(database_url),
-        **clear_pause_guard(LIQUIDATION_PAUSE_GUARD_PATH, database_url=database_url),
+        "configured": bool(resolved_database_url),
+        "database_configured": bool(resolved_database_url),
+        **clear_pause_guard(LIQUIDATION_PAUSE_GUARD_PATH, database_url=resolved_database_url),
     }
 
 
@@ -326,7 +326,7 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
         return
     if state == "submission_blocked" and not failure_retryable(state, blocked_reasons, error):
         return
-    database_url = database_url_or_none()
+    resolved_database_url = database_url()
     try:
         import os
 
@@ -339,7 +339,7 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
             error=error,
             enabled=enabled,
             threshold=threshold,
-            database_url=database_url,
+            database_url=resolved_database_url,
         )
     except Exception:
         logger.warning("failed to record liquidation pause guard event", exc_info=True)

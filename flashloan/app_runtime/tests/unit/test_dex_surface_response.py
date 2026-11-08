@@ -75,16 +75,26 @@ def test_attach_dex_strategy_adds_route_mode_inside_request_context():
         payload = response.attach_dex_strategy({"ok": True})
 
     assert payload["mode"] == "dex_overview"
+    assert payload["dataSource"] == "legacy"
     assert "dex_strategy" in payload
 
 
-def test_unscoped_dex_quote_routes_resolves_feature_default_chain():
+def test_attach_dex_strategy_preserves_existing_domain_data_source():
+    app = Flask(__name__)
+    domain_source = {"source": "database"}
+    with app.test_request_context("/api/dex/market-observation"):
+        payload = response.attach_dex_strategy({"ok": True, "dataSource": domain_source})
+
+    assert payload["dataSource"] == domain_source
+
+
+def test_unscoped_dex_quote_routes_resolves_robinhood_mainnet_default_chain():
     app = Flask(__name__)
     with app.test_request_context("/api/dex/quote-routes"):
         chain_selection, chain_id = response.selected_chain_id_from_request()
 
-    assert chain_id == 46630
-    assert (chain_selection or {}).get("market_id") == "dex-arbitrage-46630-uniswap-v4"
+    assert chain_id == 4663
+    assert (chain_selection or {}).get("market_id") == "dex-arbitrage-4663-uniswap-v4"
 
 
 def test_unscoped_dex_quote_routes_derives_default_protocol():

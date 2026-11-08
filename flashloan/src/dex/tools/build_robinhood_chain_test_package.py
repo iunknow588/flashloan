@@ -19,7 +19,26 @@ from dex.intent_trade.chains.robinhood.chain_test_policy import (
     normalize_robinhood_chain_test_network,
 )
 from core.evidence_scope import evidence_scope_mismatch_reasons
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts_source
+
+
+_BLOCKED_ATTEMPT_STATES = frozenset(
+    {
+        "broadcast_failed",
+        "execution_failed",
+        "execution_success",
+        "live_quote_failed",
+        "not_live_verified",
+        "route_unprofitable",
+        "rpc_verification_failed",
+        "watch",
+    }
+)
+
+
+def _attempt_state_blocked(row: dict) -> bool:
+    state = str(row.get("state") or "").strip().lower()
+    return state in _BLOCKED_ATTEMPT_STATES
 
 
 def _default_output_dir(network: str) -> Path:
@@ -38,6 +57,13 @@ def _expected_chain_id(network: str) -> int:
     if network == ROBINHOOD_NETWORK:
         return ROBINHOOD_CHAIN_ID
     raise ValueError(f"unsupported Robinhood chain-test network: {network}")
+
+
+def _default_log_path(network: str) -> Path:
+    """Select the database that belongs to the requested chain-test scope."""
+    if network == ROBINHOOD_TESTNET_NETWORK:
+        return SRC_ROOT.parent / "db" / "local_store_46630.sqlite3"
+    return SRC_ROOT.parent / "db" / "local_store.sqlite3"
 
 
 def _assert_scoped_path(path: Path, *, network: str, kind: str) -> None:
@@ -82,6 +108,8 @@ def _attempt_score(row: dict) -> tuple[int, str]:
 
 
 def _attempt_is_live_ready(row: dict) -> bool:
+    if _attempt_state_blocked(row):
+        return False
     evidence = row.get("quote", {}).get("live_onchain_evidence") if isinstance(row.get("quote"), dict) else {}
     precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
     status = str(evidence.get("status") or precheck.get("status") or row.get("state") or "").strip().lower()
@@ -126,6 +154,8 @@ def _select_attempt(rows: list[dict], pair: str | None, *, trigger_block: int | 
         if not wanted or row_pair == wanted or route_pair == wanted:
             if trigger_block is not None and _block_number(row) != trigger_block:
                 continue
+            if _attempt_state_blocked(row):
+                continue
             candidates.append(row)
             if _attempt_is_live_ready(row):
                 live_ready_candidates.append(row)
@@ -141,18 +171,29 @@ def _select_attempt(rows: list[dict], pair: str | None, *, trigger_block: int | 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a Robinhood chain-test package from a verified attempt row.")
     parser.add_argument("--attempt-json", type=Path, help="One attempt row as JSON.")
-    parser.add_argument("--log-path", type=Path, default=SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts")
+    parser.add_argument(
+        "--log-path",
+        type=Path,
+        default=None,
+        help="SQLite store path for attempts.",
+    )
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--pair", default="USDG -> WETH -> VLAD -> WETH -> USDG")
     parser.add_argument("--trigger-block", type=int, default=None)
     parser.add_argument("--network", default=ROBINHOOD_NETWORK)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--contract-dir", type=Path, default=None)
+    parser.add_argument(
+        "--no-preserve-fork-evidence",
+        action="store_true",
+        help="Rebuild without carrying over existing fork/static-call evidence.",
+    )
     args = parser.parse_args()
     network = normalize_robinhood_chain_test_network(args.network)
     if network not in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}:
         raise ValueError(f"unsupported Robinhood chain-test network: {args.network}")
     chain_id = _expected_chain_id(network)
+    log_path = args.log_path or _default_log_path(network)
     output_dir = args.output_dir or _default_output_dir(network)
     contract_dir = args.contract_dir or _default_contract_dir(network)
     _assert_scoped_path(output_dir, network=network, kind="output")
@@ -161,15 +202,20 @@ def main() -> int:
     if args.attempt_json:
         attempt = _read_json(args.attempt_json)
     else:
-        rows = load_recent_cow_execution_attempts_jsonl(
-            args.log_path,
+        rows = load_recent_cow_execution_attempts_source(
+            log_path,
             limit=args.limit,
             networks=[network],
             chain_ids=[chain_id],
         )
         attempt = _select_attempt(rows, args.pair, trigger_block=args.trigger_block)
     _assert_attempt_scope(attempt, network=network, chain_id=chain_id)
-    plan = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
+    plan = write_robinhood_chain_test_package(
+        output_dir,
+        attempt,
+        contract_dir=contract_dir,
+        preserve_fork_evidence=not args.no_preserve_fork_evidence,
+    )
     print(
         json.dumps(
             {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from core.db.chain_database_context import chain_database_scope
 from dex.intent_trade.chains.robinhood.market_observation import fund_anchor_pair_observation
 
 
@@ -39,7 +40,8 @@ def test_mainnet_v4_pool_liquidity_does_not_import_or_reference_testnet():
 
 
 def test_mainnet_observation_hooks_refuse_other_chain_scopes():
-    mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
+    with chain_database_scope(4663, network="robinhood", source="test"):
+        mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
     assert mainnet["enabled"] is True
     assert mainnet["status"] == "robinhood_mainnet_v4_eth_anchor_observation"
     assert "candidateEthPairTokenCount" in mainnet
@@ -86,7 +88,8 @@ def test_mainnet_closed_loops_use_fixed_fee_pools_without_hooks():
     market-observation page can still display hook pools as YC/ZC candidates,
     but the first-priority DEX overview handoff must not use them.
     """
-    mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
+    with chain_database_scope(4663, network="robinhood", source="test"):
+        mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
     sequences = mainnet.get("closedLoopSequences") or mainnet.get("observationSequences") or []
     assert sequences
     for sequence in sequences:
@@ -110,12 +113,12 @@ def test_mainnet_observation_does_not_prefilter_yc_zc_by_symbol_or_stablecoin():
     assert 'text not in {"TA", "TB", "TZ"}' not in source
 
 
-def test_mainnet_chain_json_declares_shadow_and_pool_liquidity_evidence():
+def test_mainnet_chain_json_declares_execution_and_pool_liquidity_evidence():
     path = SRC_ROOT / "chains" / "robinhood" / "chain.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     dex_arb = payload["features"]["dex_arbitrage"]
     assert dex_arb["protocol_supported"] is True
-    assert dex_arb["observation_only"] is True
+    assert dex_arb["observation_only"] is False
     assert "v4_pool_liquidity" in payload["data_files"]
 
 
@@ -129,7 +132,7 @@ def test_mainnet_flows_declare_v4_pool_liquidity_data_key():
 
 def test_dex_quotes_template_no_longer_uses_repeat_small_arbitrage_warning():
     text = dex_quotes_ui_text()
-    assert "不要重复执行相同最佳量" not in text
+    assert "不要重复执行相同最佳交易量" not in text
     assert "重复执行小量套利易误判" not in text
     assert "不要重复执行" not in text
     assert "广播测试" not in text
@@ -139,7 +142,7 @@ def test_dex_quotes_template_no_longer_uses_repeat_small_arbitrage_warning():
     assert "链下估算待开始" not in text
     assert "待链下估算" not in text
     assert "最佳交易量" in text
-    assert "初始测试量" in text
+    assert "初始测试交易量" in text
     assert "链上复核金额" not in text
     assert "preflight_failed" in text
     assert "链上复核失败" in text
@@ -172,9 +175,9 @@ def test_dex_quotes_broadcast_always_reviews_before_execution():
     text = dex_quotes_ui_text()
     assert "const hasHistoricalReview" in text
     assert "const initialAmountLabel" in text
-    assert "历史复核金额" in text
-    assert "初始测试金额" in text
-    assert "作为初始量，重新链上复核当前最佳量后再提交链上交易" in text
+    assert "历史复核交易量" in text
+    assert "初始测试交易量" in text
+    assert "作为初始交易量，重新完成链上复核并确定最佳交易量后再提交交易" in text
     assert "amountIsBest: false," in text
     assert "executionReuseAmount" not in text
 
@@ -184,28 +187,26 @@ def test_dex_quotes_contains_route_ui_state_machine_helpers():
     assert "const ROUTE_UI_STATE" in text
     assert "const ROUTE_UI_TRANSITIONS" in text
     assert "const setRouteUiState" in text
-    assert "const canAutoEstimate" in text
-    assert "const canAutoRefresh" in text
     assert "const shouldPreserveRouteState" in text
     assert "const uiStageFromUiState" in text
     assert "const uiStateFromStage" in text
     assert "__uiState" in text
 
 
-def test_dex_quotes_auto_review_uses_can_auto_estimate_instead_of_stage_array():
+def test_dex_quotes_manager_refresh_does_not_auto_trigger_route_work():
     text = dex_quotes_ui_text()
-    assert "if (!canAutoEstimate(initialRoute) || shouldPreserveRouteState(initialRoute)) continue;" in text
-    assert "includes(String(initialRoute.__reviewStage || \"\"))" not in text
-    assert "route.__uiState" in text
-    assert "setRouteUiState(route, ROUTE_UI_STATE.OFFCHAIN_PENDING" in text
-    assert "setRouteUiState(route, ROUTE_UI_STATE.OFFCHAIN_ESTIMATE" in text
+    assert "scheduleReviewActiveRoute" not in text
+    assert "autoReviewActiveRoute" not in text
+    assert 'runRouteTest(route, null, "estimate"' not in text
+    assert "renderManagerRoutes(managerPayload)" in text
+    assert "await submissionsPromise" in text
 
 
-def test_dex_quotes_route_state_machine_controls_scanner_refresh():
+def test_dex_quotes_route_state_machine_controls_manager_refresh():
     text = dex_quotes_ui_text()
     assert "if (shouldPreserveRouteState(route))" in text
     assert "routeHasCompletedOffchainReview" in text
-    assert "scheduleReviewActiveRoute()" in text
+    assert "renderManagerRoutes(managerPayload)" in text
     assert "route.reviewMode = nextState" in text
 
 
@@ -236,11 +237,11 @@ def test_dex_quotes_initial_probe_prefers_requested_execution_amount():
     assert "const bestAmount = useBestForAction ? routeBestAmountPick(route, evidence, analysis) : null;" in text
     assert "const bestAmountMissing = useBestForAction && (bestAmount === null || bestAmount === undefined || bestAmount === \"\");" in text
     assert "const testAmount = bestAmount ?? probeAmount ?? autoRouteAmount(route);" in text
-    assert "最佳量未计算" in text
+    assert "最佳交易量未计算" in text
     assert "bestAmountValue === null || bestAmountValue === undefined || bestAmountValue === \"\" ? \"未计算\"" in text
     assert "? \"未计算\"" in text
     assert "bestAmountCopy === null || bestAmountCopy === undefined || bestAmountCopy === \"\"" in text
-    assert "步骤金额提示=复制步骤首跳金额" in text
+    assert "交易量提示=复制步骤首跳交易量" in text
 
 
 def test_dex_quotes_preserves_pending_live_review_and_unique_execution():
@@ -326,10 +327,13 @@ def test_dex_quotes_static_reference_never_masquerades_as_preflight_complete():
     assert "const evidenceNeedsLiveReview = evidence => {" in text
     assert "const routeNeedsLiveReview = route => {" in text
     assert "if (routeNeedsLiveReview(route)) return false;" in text
-    assert "if (staticReview && reviewStage === \"estimate\") return \"当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳量，不建议直接链上执行。\";" in text
+    assert "if (staticReview && reviewStage === \"estimate\") return \"当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳交易量，不建议直接链上执行。\";" in text
     assert "const staticReview = routeNeedsLiveReview(route) || statusLower === \"static_reference_pending_live_review\"" in text
     assert "const staticReview = routeNeedsLiveReview(route) || evidenceStatusLower === \"static_reference_pending_live_review\"" in text
-    assert "待链上复核后执行" in text
+    assert 'data-route-broadcast="${index}"' in text
+    assert "手动唤醒等待中的广播任务；不重新报价、不重算 PnL" in text
+    assert "仅等待中的广播任务可手动唤醒" in text
+    assert "待链上复核后执行" not in text
     assert "静态参考，待链上逐 hop 复核" in text
 
 
@@ -342,12 +346,15 @@ def test_dex_quotes_terminal_status_never_masquerades_as_preflight_complete():
     assert "statusLower === \"route_unprofitable\"" in text
 
 
-def test_dex_quotes_structured_route_test_400_preserves_terminal_status():
-    text = dex_quotes_ui_text()
+def test_dex_quotes_legacy_route_test_is_diagnostic_only():
+    text = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
     assert "async function postJson(path, payload, allowStructuredFailedResponse = false)" in text
     assert "const structuredFailedResponse = Boolean(" in text
     assert "data?.quoteStatus || data?.evidenceStatus || data?.executionTrust" in text
-    assert 'postJson("/api/dex/quote-route/test", {' in text
+    assert "Diagnostic fixture retained for legacy regression comparisons only." in text
+    assert text.count('postJson("/api/dex/quote-route/test", {') == 1
+    assert "return runRouteTest(" not in text
+    assert "runRouteTest(latestRoutes" not in text
     assert "}, true);" in text
 
 
@@ -377,8 +384,8 @@ def test_dex_quotes_translates_evidence_timeout_blocker_to_chinese():
 def test_dex_quotes_missing_best_amount_never_masquerades_as_preflight_passed():
     text = dex_quotes_ui_text()
     assert "preflightResultPassed" in text
-    assert "链上复核未通过：最佳量未计算成功" in text
-    assert "最佳量未计算成功，不能进入链上执行" in text
+    assert "链上复核未通过：最佳交易量未计算成功" in text
+    assert "最佳交易量未计算成功，不能进入链上执行" in text
     assert "const resolvedStage = stage === \"preflight\" && mergedBestAmountUnconfirmed" in text
     assert "hasConfirmedBestAmount(route)" in text
     assert "const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true" in text
@@ -414,3 +421,118 @@ def test_dex_quotes_template_loads_split_route_state_files():
         "quotes_app.js",
     ):
         assert f'<script src="/static/dex_quotes/{name}"></script>' in template
+
+
+def test_dex_quotes_ui_uses_manager_quote_routes_not_static_snapshot():
+    text = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+
+    assert "/api/dex/quote-routes/static" not in text
+    assert 'fetchJsonWithTimeout("/api/dex/quote-routes", 25000)' in text
+    assert "managerRoutesLoaded" in text
+    assert "renderManagerRoutes" in text
+
+
+def test_dex_quotes_page_uses_manager_projection_without_scanner_endpoints():
+    app = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+    template = (APP_RUNTIME_ROOT / "web" / "templates" / "dex_quotes.html").read_text(encoding="utf-8")
+
+    for endpoint in (
+        "/api/dex/opportunity-scanner/start",
+        "/api/dex/opportunity-scanner/snapshot",
+        "/api/dex/opportunity-scanner/scan-now",
+        "/api/dex/opportunity-scanner/auto-execute",
+        "/api/dex/opportunity-scanner/stats/reset",
+    ):
+        assert endpoint not in app
+        assert endpoint not in template
+
+    assert "refreshManagerProjection" in app
+    assert 'fetchJsonWithTimeout("/api/dex/quote-routes", 25000)' in app
+    assert 'id="resetStatsBtn"' not in template
+    assert 'id="autoExecuteToggle"' not in template
+
+
+def test_dex_quotes_page_owns_refresh_but_not_worker_lifecycle():
+    app = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+    render = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_render.js").read_text(encoding="utf-8")
+    template = (APP_RUNTIME_ROOT / "web" / "templates" / "dex_quotes.html").read_text(encoding="utf-8")
+    text = "\n".join((app, render, template))
+
+    for retired in (
+        "data-closed-loop-start",
+        "data-closed-loop-stop",
+        "data-closed-loop-refresh",
+        "latestRustWorkers",
+        "refreshClosedLoopGroup",
+        "toggleClosedLoopGroup",
+        "rustWorkerStatusText",
+        "rustWorkerNextText",
+        "rustWorkerMetaHtml",
+        'fetchJsonWithTimeout("/api/dex/closed-loop-groups"',
+    ):
+        assert retired not in text
+
+    assert "refreshInterval" in app
+    assert "scheduleRefresh()" in app
+    assert "setInterval(refreshSnapshot, seconds * 1000)" in app
+    assert 'fetchJsonWithTimeout("/api/dex/quote-routes", 25000)' in app
+    assert "managerRoutesLoaded" in app
+    assert "renderManagerRoutes(managerPayload)" in app
+
+
+def test_dex_quotes_removes_stale_auto_estimate_ui():
+    app = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+    render = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_render.js").read_text(encoding="utf-8")
+    state = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "route_state_machine.js").read_text(encoding="utf-8")
+    template = (APP_RUNTIME_ROOT / "web" / "templates" / "dex_quotes.html").read_text(encoding="utf-8")
+
+    assert "链下估算自动完成" not in render
+    assert "后续自动复核" not in app
+    assert "const canAutoEstimate" not in state
+    assert "const canAutoRefresh" not in state
+    assert "setupAutoExecuteToggle" not in app
+    assert 'id="resetStatsBtn"' not in template
+    assert 'id="autoExecuteToggle"' not in template
+    assert 'data-route-static-call="${index}"' in render
+    assert 'data-route-broadcast="${index}"' in render
+
+
+def test_dex_quotes_live_quote_disabled_is_page_unavailable_not_review_failure():
+    text = dex_quotes_ui_text()
+    preflight = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "route_preflight.js").read_text(encoding="utf-8")
+    render = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_render.js").read_text(encoding="utf-8")
+    app = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+
+    # 摘要、建议与复制消息都必须统一表达“实时报价已禁用，页面不可用”，
+    # 不能渲染成“链上复核失败”或第三种“复核未执行”状态。
+    assert "实时报价已禁用，报价与路由页面不可用" in preflight
+    assert "建议：实时报价已禁用，报价与路由页面不可用；请查看 DEX 总览的静态数据" in preflight
+    assert "实时报价已禁用，报价与路由页面不可用" in render
+    assert "请查看 DEX 总览的静态数据" in render
+    assert "实时报价已禁用，报价与路由页面不可用" in app
+
+    # disabled 是页面不可用而非“链上复核失败”，fail-closed 状态值保持不变。
+    assert ("live_quote_disabled" in preflight
+            or "official_v4_readonly_preview_live_quote_disabled" in preflight
+            or "rpc_unavailable" in preflight
+            or "official_v4_readonly_preview_rpc_unavailable" in preflight)
+    assert ('"live_quote_disabled"' in render
+            or "live_quote_disabled" in app
+            or "rpc_unavailable" in render
+            or "rpc_unavailable" in app)
+    assert "链上复核失败：实时报价" not in render
+    assert "链上复核失败：实时报价" not in preflight
+    assert "实时报价未启用/复核未执行" not in text
+
+
+def test_dex_quotes_route_pages_compare_onchain_selected_profit_with_reference():
+    render = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_render.js").read_text(encoding="utf-8")
+    app = (APP_RUNTIME_ROOT / "web" / "static" / "dex_quotes" / "quotes_app.js").read_text(encoding="utf-8")
+
+    assert "链上复核值" in render
+    assert "参考执行估算" in render
+    assert "原生合约预览（链上复核）" in render
+    assert "SQLite 参考（非 eth_call）" in render
+    assert "链上复核值" in app
+    assert "参考执行估算" in app
+    assert "无链上 signed 净值" in app

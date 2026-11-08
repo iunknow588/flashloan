@@ -328,14 +328,28 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
     dynamic_fee = bool(raw_fee_int & 8388608)
     special_fee = dynamic_fee or raw_fee_int > 100_000
     hooks = str(row.get("hooks") or "").strip().lower()
+    usable_for_observation = (
+        not special_fee
+        and 0 < raw_fee_int <= 3000
+        and hooks in ("", "0x0000000000000000000000000000000000000000")
+    )
     quality = str(row.get("quality") or "").strip().lower()
     if not quality:
-        if status in {"observable", "recommended", "active"}:
+        if usable_for_observation and status in {"observable", "recommended", "active"}:
             quality = "pass"
-        elif not special_fee and 0 < raw_fee_int <= 3000 and hooks in ("", "0x0000000000000000000000000000000000000000"):
+        elif usable_for_observation:
             quality = "pass"
         else:
-            quality = status or "rejected"
+            quality = "rejected"
+    reject_reasons = list(row.get("rejectReasons") or row.get("reject_reasons") or [])
+    if dynamic_fee and "dynamic_fee" not in reject_reasons:
+        reject_reasons.append("dynamic_fee")
+    elif special_fee and "special_fee" not in reject_reasons:
+        reject_reasons.append("special_fee")
+    if raw_fee_int <= 0 and "missing_fee" not in reject_reasons:
+        reject_reasons.append("missing_fee")
+    if hooks not in ("", "0x0000000000000000000000000000000000000000") and "non_zero_hook" not in reject_reasons:
+        reject_reasons.append("non_zero_hook")
     liquidity_index = _string_number(row.get("liquidityIndex") or row.get("liquidity") or 0)
     result = {
         "pool": _pool_address(row),
@@ -345,13 +359,9 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         "dynamicFee": dynamic_fee,
         "specialFee": special_fee,
         "feeLabel": ("dynamic" if dynamic_fee else "special") if special_fee else raw_fee_text,
-        "usableForObservation": (
-            not special_fee
-            and 0 < raw_fee_int <= 3000
-            and hooks in ("", "0x0000000000000000000000000000000000000000")
-        ),
+        "usableForObservation": usable_for_observation,
         "quality": quality,
-        "rejectReasons": row.get("rejectReasons") or row.get("reject_reasons") or [],
+        "rejectReasons": reject_reasons,
         "token0": row.get("token0") or row.get("baseToken"),
         "token1": row.get("token1") or row.get("quoteToken"),
         "token0Symbol": row.get("token0Symbol") or row.get("baseTokenSymbol"),
@@ -797,6 +807,60 @@ def dex_pool_candidates_payload(
                         use_static_observation=False,
                         ttl_seconds=0,
                     )
+                    return _attach_execution_context(filtered, int(chain_id))
+                if (
+                    network == "robinhood-testnet"
+                    and int(chain_id) == 46630
+                    and (not protocol_filter or "uniswap_v4" in protocol_filter)
+                ):
+                    # Testnet V4 uses the same DB-first candidate surface as
+                    # mainnet.  Keep the rendered payload in the process-wide
+                    # surface cache so the SQLite read/rebuild is not repeated
+                    # for every page view; the refresh paths are the explicit
+                    # invalidation point.
+                    if not refresh and not force_full:
+                        cached = _cached_surface_payload(
+                            "dex_pool_candidates",
+                            chain_id=int(chain_id),
+                            protocols=protocols,
+                            use_static_observation=False,
+                        )
+                        if cached is not None:
+                            filtered = _filter_payload_protocols(cached, protocol_filter)
+                            return _attach_execution_context(filtered, int(chain_id))
+                    _clear_dex_surface_cache(
+                        surface="dex_pool_candidates",
+                        chain_id=int(chain_id),
+                        protocols=protocols,
+                        use_static_observation=False,
+                    )
+                    try:
+                        chain_payload = dispatch_chain_flow(
+                            chain_id=int(chain_id),
+                            flow_name="dex_pool_candidates",
+                            protocol="",
+                        )
+                    except ChainFlowDispatchError as exc:
+                        if exc.code != "chain_flow_missing":
+                            raise
+                        chain_payload = {
+                            "mode": "dex_pool_candidates",
+                            **source_metadata("builtin_fallback", fallback_reason="dex_pool_candidates_chain_flow_missing"),
+                            "poolStaticTable": {"path": None, "exists": False, "chainId": int(chain_id), "network": network},
+                            "filters": {},
+                            "summary": {"pairTableCount": "0", "pairsWithStrictQualityPools": "0", "pairsWithPreferredPools": "0"},
+                            "pairs": [],
+                        }
+                    filtered = _filter_payload_protocols(chain_payload, protocol_filter)
+                    if _payload_has_candidate_data(filtered):
+                        _cache_surface_payload(
+                            "dex_pool_candidates",
+                            filtered,
+                            chain_id=int(chain_id),
+                            protocols=protocols,
+                            use_static_observation=False,
+                            ttl_seconds=0,
+                        )
                     return _attach_execution_context(filtered, int(chain_id))
                 try:
                     payload = dispatch_chain_flow(

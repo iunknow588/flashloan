@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_20_ui_refresh_cadence_independent_20261106",
+  "milestone": "M9",
+  "task": "Give the quote page an independent UI refresh cadence without coupling it to scanner, review, or broadcast worker intervals",
+  "status": "completed",
+  "generatedAt": "2026-11-06T02:01:32+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The quote page refresh cadence is now configured by DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS and injected into the page. The browser preference remains highest priority, followed by the server default, followed by a 60-second frontend fallback. The timer only re-reads /api/dex/quote-routes and is independent from worker scan, review, and broadcast cadence.",
+  "implementation": {
+    "pageRouteHelpers": "flashloan/app_runtime/web/page_routes_helpers.py",
+    "quotePage": "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js",
+    "envExample": "flashloan/app_runtime/.env.example",
+    "assemblyTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly.py",
+    "uiTests": "flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py",
+    "managerAdapterTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py",
+    "appRuntimeReadme": "flashloan/app_runtime/README.md",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "Added DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS with a 60-second default and 10..3600 second bounds",
+    "Injected data-dex-quotes-ui-refresh-interval-seconds into quote page body markup only when rendering the quotes surface",
+    "Changed quotes_app.js to read the server-provided UI cadence while preserving an explicit localStorage preference",
+    "Kept the 60-second frontend fallback for direct static rendering or missing page metadata",
+    "Verified invalid values and infinity fall back to 60 seconds, while low and high values clamp to 10 and 3600 seconds",
+    "Documented that DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS remains worker-owned and is not read by the quote page refresh code",
+    "Documented that changing the page refresh interval never starts, stops, resumes, or reschedules scanner, review, or broadcast workers"
+  ],
+  "verification": [
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly.py app_runtime/tests/functional/test_navigation_flow.py app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 57
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_mainnet_observation_isolation.py app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q",
+      "exitCode": 0,
+      "passed": 46
+    },
+    {
+      "command": "node --check app_runtime/web/static/dex_quotes/quotes_app.js",
+      "exitCode": 0
+    },
+    {
+      "command": "python -m py_compile app_runtime/web/page_routes_helpers.py app_runtime/tests/functional/test_web_app_assembly.py app_runtime/tests/unit/test_mainnet_observation_isolation.py",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check -- flashloan/app_runtime/.env.example flashloan/app_runtime/README.md flashloan/app_runtime/web/page_routes_helpers.py flashloan/app_runtime/web/static/dex_quotes/quotes_app.js flashloan/app_runtime/tests/functional/test_web_app_assembly.py flashloan/tools/manager_api/README.md",
+      "exitCode": 0,
+      "note": "Only LF/CRLF warnings from pre-existing tracked worktree files"
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q",
+      "exitCode": 1,
+      "passed": 40,
+      "failed": 6,
+      "note": "Same pre-existing dirty-worktree architecture baselines as prior D9 evidence; no D9.20-specific refresh cadence or UI ownership guard failed."
+    }
+  ],
+  "fixtures": [
+    "GET /dex/quotes emits data-dex-quotes-ui-refresh-interval-seconds=75 when DEX_QUOTES_UI_REFRESH_INTERVAL_SECONDS=75",
+    "Invalid and infinite values emit the 60-second default",
+    "Values below 10 emit 10 and values above 3600 emit 3600",
+    "quotes_app.js reads document.body.dataset.dexQuotesUiRefreshIntervalSeconds and keeps localStorage precedence through refreshIntervalKey",
+    "quotes_app.js does not read DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS",
+    "quotes_app.js still schedules refreshSnapshot() against the manager-only /api/dex/quote-routes projection"
+  ],
+  "unrelatedFailuresObserved": [
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q",
+      "passed": 40,
+      "failed": 6,
+      "items": [
+        "test_no_silent_broad_exceptions_are_added",
+        "test_split_packages_exist_without_cross_imports",
+        "test_app_runtime_moved_packages_are_shim_only",
+        "test_refactored_helper_modules_stay_under_line_limits",
+        "test_active_source_files_stay_under_1000_lines",
+        "test_robinhood_page_read_paths_do_not_read_ui_evidence_json"
+      ],
+      "assessment": "These are the same pre-existing dirty-worktree guard failures recorded in earlier evidence. D9.20 only changed quote-page refresh configuration, the rendering helper, tests, and documentation."
+    }
+  ],
+  "dbWrites": 0,
+  "mainnetApply": false,
+  "serviceRestart": false,
+  "realBroadcast": false,
+  "knownBoundary": "D9.20 only separates the UI refresh default from worker cadence. It does not change manager retry cadence, scanner intervals, review worker leases, broadcast timing, browser refresh behavior after the user explicitly saves a localStorage value, or any production database. It also does not migrate per-route manual-review to a manager command API. No historical evidence was modified."
+}

@@ -1,0 +1,219 @@
+{
+  "chain_id": 46630,
+  "created_at": "2026-09-12T10:22:00Z",
+  "network": "robinhood-testnet",
+  "observed_at": "2026-09-12T10:22:00Z",
+  "pair": "TZ -> TB -> TA -> TZ",
+  "pair_rank": 1,
+  "path": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
+  "precheck": {
+    "network": "robinhood-testnet",
+    "onchain_evidence": {
+      "chainId": 46630,
+      "network": "robinhood-testnet",
+      "readyForTransactionPreflight": true,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "status": "live_verified",
+      "trustedForExecution": false
+    },
+    "ready_for_transaction_preflight": true,
+    "reasons": [],
+    "requires_live_quoter": false,
+    "status": "live_verified"
+  },
+  "quote": {
+    "candidate_pools": [
+      {
+        "fee": 3000,
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "protocol": "uniswap_v4",
+        "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "token1Decimals": 18,
+        "token1Symbol": "TB"
+      },
+      {
+        "fee": 3000,
+        "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "poolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "protocol": "uniswap_v4",
+        "token0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "token0Decimals": 18,
+        "token0Symbol": "TB",
+        "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "token1Decimals": 18,
+        "token1Symbol": "TA"
+      },
+      {
+        "fee": 3000,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "token0": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "token0Decimals": 18,
+        "token0Symbol": "TA",
+        "token1": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "token1Decimals": 18,
+        "token1Symbol": "TZ"
+      }
+    ],
+    "hops": [
+      {
+        "amountIn": "0.0001",
+        "amountInRaw": 100000000000000,
+        "amountOut": "0.000996998428340939",
+        "amountOutRaw": 996998428340939,
+        "fee": 3000,
+        "fromSymbol": "TZ",
+        "hop": 1,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TB",
+        "tokenIn": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "tokenOut": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      },
+      {
+        "amountIn": "0.000996998428340939",
+        "amountInRaw": 996998428340939,
+        "amountOut": "0.000099400587080588",
+        "amountOutRaw": 99400587080588,
+        "fee": 3000,
+        "fromSymbol": "TB",
+        "hop": 2,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TA",
+        "tokenIn": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "tokenOut": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      },
+      {
+        "amountIn": "0.000099400587080588",
+        "amountInRaw": 99400587080588,
+        "amountOut": "0.000991022300317058",
+        "amountOutRaw": 991022300317058,
+        "fee": 3000,
+        "fromSymbol": "TA",
+        "hop": 3,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TZ",
+        "tokenIn": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "tokenOut": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      }
+    ],
+    "inputAmount": 0.0001,
+    "inputSymbol": "TZ",
+    "input_amount": 0.0001,
+    "input_symbol": "TZ",
+    "live_onchain_evidence": {
+      "blockNumber": 118022639,
+      "blockers": [],
+      "chainId": 46630,
+      "costModel": {
+        "borrowInputAmount": 0.0001,
+        "borrowInputSymbol": "TZ",
+        "finalOutputAmount": 0.000991022300317058,
+        "finalOutputSymbol": "TZ",
+        "finalOutputUsd": null,
+        "flashLoanFeeAmount": 5e-08,
+        "flashLoanFeeBps": 5.0,
+        "gasReserveUsd": 1.0,
+        "grossProfitAmount": 0.000891022300317058,
+        "grossProfitUsd": null,
+        "minProfitUsd": 6.0,
+        "netProfitAmount": 0.000890972300317058,
+        "netProfitAmountBps": 8909.72300317058,
+        "netProfitAmountSymbol": "TZ",
+        "netProfitUsd": null,
+        "notionalUsd": 0.0001,
+        "offchainMinProfitUsd": 6.0,
+        "offchainNetProfitUsd": null,
+        "profitBasis": "borrow_token",
+        "submissionMinProfitUsd": 5e-08,
+        "submissionNetProfitAmount": 0.000890972300317058,
+        "submissionNetProfitUsd": null,
+        "tokenGasExcluded": true
+      },
+      "evidenceVersion": 1,
+      "executionTrust": "live_quoter_verified_readonly",
+      "network": "robinhood-testnet",
+      "observedAt": "2026-09-12T10:22:00Z",
+      "quoteBlockSource": "latest_fallback_missing_trigger",
+      "readyForTransactionPreflight": true,
+      "requestedBorrowInputAmountRaw": 100000000000000,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "selectedBorrowInputAmountRaw": 100000000000000,
+      "status": "live_verified",
+      "triggerBlockNumber": 118022639,
+      "trustedForExecution": false,
+      "validation": {
+        "allHopsQuoted": true,
+        "allHopsWithinPriceImpactLimit": true,
+        "finalOutputSymbol": "TZ",
+        "maxHopPriceImpactBps": 0.3152689441537622,
+        "meetsMinProfitThreshold": true,
+        "meetsOffchainProfitThreshold": true,
+        "meetsSubmissionProfitThreshold": true,
+        "netPositiveAfterCosts": true,
+        "profitableAfterCosts": true,
+        "routeClosed": true,
+        "tokenContinuity": true,
+        "tokenContinuityIssues": []
+      }
+    },
+    "network": "robinhood-testnet",
+    "pair": "TZ -> TB -> TA -> TZ"
+  },
+  "route_path": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
+  "route_symbols": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
+  "state": "live_verified"
+}

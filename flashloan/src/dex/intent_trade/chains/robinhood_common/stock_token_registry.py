@@ -132,19 +132,31 @@ def load_stock_token_registry(
 ) -> dict[str, Any]:
     """Return the stock registry payload with lower-case symbol keys.
 
-    ``database_url`` makes SQLite ``chain_tokens`` the only source.  Without
-    it, the explicit JSON registry path is used for build/seed workflows.
+    ``database_url`` makes SQLite ``chain_tokens`` the runtime source.
+    Mainnet uses SQLite exclusively; testnet falls back to the chain-owned
+    static JSON registry when the supplied SQLite has no matching stock rows.
+    Without ``database_url``, the explicit JSON registry path is used for
+    build/seed workflows.
     """
     if database_url is not None:
         resolved_network, resolved_chain_id = _resolved_network_chain(
             network=network,
             chain_id=chain_id,
         )
-        return _registry_payload_from_database(
+        payload = _registry_payload_from_database(
             database_url,
             network=resolved_network,
             chain_id=resolved_chain_id,
         )
+        if (
+            resolved_network == TESTNET_NETWORK
+            and not (payload.get("tokens") or {})
+        ):
+            return load_stock_token_registry(
+                network=resolved_network,
+                chain_id=resolved_chain_id,
+            )
+        return payload
     registry_path = (
         Path(path)
         if path is not None

@@ -48,7 +48,7 @@ from core.db.storage import (
     prune_liquidation_accounts as db_prune_liquidation_accounts,
     record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     configured_database_url as storage_configured_database_url,
-    database_url_or_none as storage_database_url_or_none,
+    database_url as storage_database_url,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
 from web.control_panel_liquidation_config import (
@@ -59,7 +59,7 @@ from web.control_panel_liquidation_config import (
     aave_pool_address,
     aave_rpc_urls,
     configured_database_url,
-    database_url_or_none,
+    database_url,
     dex_router_address,
     env_bool,
     liquidation_account_scan_start_days,
@@ -161,12 +161,12 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
 
     accounts: list[str] = []
     source = "none"
-    database_url = database_url_or_none()
-    if database_url:
+    resolved_database_url = database_url()
+    if resolved_database_url:
         try:
-            ensure_database_schema(database_url)
-            db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
-            accounts = db_load_liquidation_accounts(database_url)
+            ensure_database_schema(resolved_database_url)
+            db_prune_liquidation_accounts(resolved_database_url, retained_days=liquidation_retention_days())
+            accounts = db_load_liquidation_accounts(resolved_database_url)
             source = "database"
         except Exception:
             logger.warning("failed to load liquidation accounts from database", exc_info=True)
@@ -184,14 +184,14 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
 
 
 def liquidation_account_registry_window(market_id: str | None = None, chain_id: int | None = None) -> dict:
-    database_url = database_url_or_none()
-    if not database_url:
+    resolved_database_url = database_url()
+    if not resolved_database_url:
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         try:
             return db_liquidation_account_registry_stats(
-                database_url,
+                resolved_database_url,
                 retained_days=liquidation_retention_days(),
                 market_id=market_id,
                 chain_id=chain_id,
@@ -200,7 +200,7 @@ def liquidation_account_registry_window(market_id: str | None = None, chain_id: 
             if market_id is not None or chain_id is not None:
                 raise
             return db_liquidation_account_registry_stats(
-                database_url,
+                resolved_database_url,
                 retained_days=liquidation_retention_days(),
             )
     except Exception:
@@ -211,12 +211,12 @@ def liquidation_account_registry_window(market_id: str | None = None, chain_id: 
 def schema_status_payload() -> dict:
     # Resolve from storage at the boundary so facade context injection cannot
     # leak a stale request/test resolver into schema inspection.
-    database_url = storage_database_url_or_none()
-    if not database_url:
+    storage_url = storage_database_url()
+    if not storage_url:
         return {"configured": False, "up_to_date": False, "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS), "applied_migrations": []}
     try:
-        ensure_database_schema(database_url)
-        migrations = load_schema_migrations(database_url)
+        ensure_database_schema(storage_url)
+        migrations = load_schema_migrations(storage_url)
         applied_ids = {str(row.get("migration_id")) for row in migrations}
         missing = [migration_id for migration_id in EXPECTED_SCHEMA_MIGRATION_IDS if migration_id not in applied_ids]
         return {
@@ -236,8 +236,8 @@ def liquidation_discovery_progress(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
-    database_url = database_url_or_none()
-    if not database_url or not pool_address:
+    resolved_database_url = database_url()
+    if not resolved_database_url or not pool_address:
         return {
             "latest_recent_scan_end_at": None,
             "earliest_backfill_scan_start_at": None,
@@ -248,9 +248,9 @@ def liquidation_discovery_progress(
             "scanned_block_count": 0,
         }
     try:
-        ensure_database_schema(database_url)
+        ensure_database_schema(resolved_database_url)
         return db_liquidation_discovery_scan_progress(
-            database_url,
+            resolved_database_url,
             pool_address,
             market_id=market_id,
             chain_id=chain_id,

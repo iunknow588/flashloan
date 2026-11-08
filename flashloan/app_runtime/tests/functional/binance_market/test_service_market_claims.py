@@ -27,11 +27,13 @@ from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
     COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
     _category_within_retention,
-    append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
     build_cow_market_claim_candidate_attempts,
     build_cow_market_claim_pairs,
     build_cow_market_candidate_attempts,
+)
+from core.db.storage_cow_execution_jsonl import (
+    append_cow_execution_attempts_jsonl,
     load_recent_cow_execution_attempts_jsonl,
 )
 

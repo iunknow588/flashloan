@@ -159,6 +159,11 @@ def _jsonrpc_call(
         method="POST",
     )
     try:
+        from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+            throttle_rpc_call,
+        )
+
+        throttle_rpc_call(url)
         with urllib_request.urlopen(req, timeout=max(1.0, float(timeout_seconds))) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
@@ -372,13 +377,20 @@ def _fetch_logs_sharded_reverse(
                 message = str(exc)
                 failures.append(f"{_redact_url(url)} {start}-{cursor}: {message[:180]}")
                 failed_for_segment.add(url)
+                limit_error = _is_rpc_limit_error(message)
                 if _is_rpc_permanent_error(message):
                     unhealthy_providers.add(url)
-                elif _is_rpc_limit_error(message):
+                elif limit_error:
                     unhealthy_providers.add(url)
                 elif _is_rpc_retryable_error(message):
                     unhealthy_providers.add(url)
-                if not _is_rpc_limit_error(message):
+                if limit_error and step > min_step:
+                    step = max(min_step, step // 2)
+                    start = max(end_block, cursor - step + 1)
+                    failed_for_segment.clear()
+                    unhealthy_providers.clear()
+                    provider_index = 0
+                elif not limit_error:
                     provider_index += 1
         if segment_logs is None:
             raise RuntimeError(

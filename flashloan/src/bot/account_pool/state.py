@@ -56,7 +56,7 @@ def evaluate_account_pool_state(
 
 
 def account_pool_state_payload(panel: Any, *, force: bool = False) -> dict[str, Any]:
-    database_configured = bool(panel.database_url_or_none())
+    database_configured = bool(panel.database_url())
     try:
         accounts, source = panel.load_liquidation_account_registry(force=force)
     except Exception as exc:

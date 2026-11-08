@@ -1,0 +1,4332 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedConfirmedNoProfitCount": 9,
+      "blockedCount": 310,
+      "blockedMissingEvidenceBreakdown": {
+        "no_profitable_route": 9,
+        "quoter_unavailable": 38
+      },
+      "blockedNotVerifiedCount": 0,
+      "blockedQuoteFailedCount": 38,
+      "blockedQuoteInsufficientLiquidityCount": 0,
+      "blockedRpcTransportErrorCount": 0,
+      "blockedSamplesWithExpectedPnl": [
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0502358722849113384 (0xb279427a8626e7); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:14.445316700+00:00",
+          "createdAtLocal": "2026-11-02T15:39:14+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.05023587228491134",
+          "observedAt": "2026-11-02T07:39:14.445316700+00:00",
+          "observedAtLocal": "2026-11-02T15:39:14+08:00",
+          "pair": "SPY -> NVDA -> WETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.050971075995104434 (-0xb515ec6e81f4ae); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:14.445316700+00:00",
+          "createdAtLocal": "2026-11-02T15:39:14+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.050971075995104434",
+          "observedAt": "2026-11-02T07:39:14.445316700+00:00",
+          "observedAtLocal": "2026-11-02T15:39:14+08:00",
+          "pair": "SPY -> WETH -> NVDA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-1 (-0xde0b6b3a7640000); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:09.484803800+00:00",
+          "createdAtLocal": "2026-11-02T15:39:09+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-1.0",
+          "observedAt": "2026-11-02T07:39:09.484803800+00:00",
+          "observedAtLocal": "2026-11-02T15:39:09+08:00",
+          "pair": "SPY -> COIN -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.140291373288928933 (-0x1f26a42bdf0369c); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:09.484803800+00:00",
+          "createdAtLocal": "2026-11-02T15:39:09+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.14029137328892893",
+          "observedAt": "2026-11-02T07:39:09.484803800+00:00",
+          "observedAtLocal": "2026-11-02T15:39:09+08:00",
+          "pair": "SPY -> USDG -> COIN -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.326682505460447026 (0x4889c02044df73c); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:08.650825300+00:00",
+          "createdAtLocal": "2026-11-02T15:39:08+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.326682505460447",
+          "observedAt": "2026-11-02T07:39:08.650825300+00:00",
+          "observedAtLocal": "2026-11-02T15:39:08+08:00",
+          "pair": "SPY -> USDG -> WETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.20562988521022274 (-0x2da8b4a8728e0a7); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:08.650825300+00:00",
+          "createdAtLocal": "2026-11-02T15:39:08+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.20562988521022274",
+          "observedAt": "2026-11-02T07:39:08.650825300+00:00",
+          "observedAtLocal": "2026-11-02T15:39:08+08:00",
+          "pair": "SPY -> WETH -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0461319202843913576 (0xa3e4bcb15b97be); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:06.102719900+00:00",
+          "createdAtLocal": "2026-11-02T15:39:06+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.04613192028439136",
+          "observedAt": "2026-11-02T07:39:06.102719900+00:00",
+          "observedAtLocal": "2026-11-02T15:39:06+08:00",
+          "pair": "SPY -> SPCX -> WETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.0543778018683394593 (-0xc130529c076903); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:06.102719900+00:00",
+          "createdAtLocal": "2026-11-02T15:39:06+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.05437780186833946",
+          "observedAt": "2026-11-02T07:39:06.102719900+00:00",
+          "observedAtLocal": "2026-11-02T15:39:06+08:00",
+          "pair": "SPY -> WETH -> SPCX -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0157876796962059217 (0x3816cfa01eb861); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:01.663133200+00:00",
+          "createdAtLocal": "2026-11-02T15:39:01+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.9790359593434506",
+          "observedAt": "2026-11-02T07:39:01.663133200+00:00",
+          "observedAtLocal": "2026-11-02T15:39:01+08:00",
+          "pair": "SPY -> NVDA -> SPCX -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.0216822991925814217 (-0x4d07efad499d2d); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:01.663133200+00:00",
+          "createdAtLocal": "2026-11-02T15:39:01+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.9798962450724782",
+          "observedAt": "2026-11-02T07:39:01.663133200+00:00",
+          "observedAtLocal": "2026-11-02T15:39:01+08:00",
+          "pair": "SPY -> SPCX -> NVDA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.017063225359218219 (0x3c9ee9be42362a); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:00.419722900+00:00",
+          "createdAtLocal": "2026-11-02T15:39:00+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.9771713716280493",
+          "observedAt": "2026-11-02T07:39:00.419722900+00:00",
+          "observedAtLocal": "2026-11-02T15:39:00+08:00",
+          "pair": "SPY -> ETH -> SPCX -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review reference estimate is available; native preview numeric values were unavailable",
+            "route_unprofitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:39:00.419722900+00:00",
+          "createdAtLocal": "2026-11-02T15:39:00+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.9687319750071287",
+          "observedAt": "2026-11-02T07:39:00.419722900+00:00",
+          "observedAtLocal": "2026-11-02T15:39:00+08:00",
+          "pair": "SPY -> SPCX -> ETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:54.948726900+00:00",
+          "createdAtLocal": "2026-11-02T15:38:54+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-1.0004955522776047",
+          "observedAt": "2026-11-02T07:38:54.948726900+00:00",
+          "observedAtLocal": "2026-11-02T15:38:54+08:00",
+          "pair": "SPY -> NVDA -> TSLA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.152364402136219879 (-0x21d4e9dd1be80dc); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:54.948726900+00:00",
+          "createdAtLocal": "2026-11-02T15:38:54+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-1.0004956538193885",
+          "observedAt": "2026-11-02T07:38:54.948726900+00:00",
+          "observedAtLocal": "2026-11-02T15:38:54+08:00",
+          "pair": "SPY -> TSLA -> NVDA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.280764852590551173 (0x3e57a25581320ac); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:38.021511200+00:00",
+          "createdAtLocal": "2026-11-02T15:38:38+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.8655110694596257",
+          "observedAt": "2026-11-02T07:38:38.021511200+00:00",
+          "observedAtLocal": "2026-11-02T15:38:38+08:00",
+          "pair": "SPY -> SPCX -> TSLA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-0.00864087501676535051 (-0x1eb2d47dec3fa7); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:38.021511200+00:00",
+          "createdAtLocal": "2026-11-02T15:38:38+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-0.9856456633294034",
+          "observedAt": "2026-11-02T07:38:38.021511200+00:00",
+          "observedAtLocal": "2026-11-02T15:38:38+08:00",
+          "pair": "SPY -> TSLA -> SPCX -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.00976472456495050024 (0x22b0f71b05fde4); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:30.558279300+00:00",
+          "createdAtLocal": "2026-11-02T15:38:30+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.0097647245649505",
+          "observedAt": "2026-11-02T07:38:30.558279300+00:00",
+          "observedAtLocal": "2026-11-02T15:38:30+08:00",
+          "pair": "SPY -> AAPL -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0685088646566704429 (0xf364730dd37ef4); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:38:30.558279300+00:00",
+          "createdAtLocal": "2026-11-02T15:38:30+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.06850886465667044",
+          "observedAt": "2026-11-02T07:38:30.558279300+00:00",
+          "observedAtLocal": "2026-11-02T15:38:30+08:00",
+          "pair": "SPY -> USDG -> AAPL -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.206452736280558213 (0x2dd77ab78e8fa70); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:48.222553+00:00",
+          "createdAtLocal": "2026-11-02T15:37:48+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.2064527362805582",
+          "observedAt": "2026-11-02T07:37:48.222553+00:00",
+          "observedAtLocal": "2026-11-02T15:37:48+08:00",
+          "pair": "SPY -> META -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0831299193384102825 (0x1275638a05f7131); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:48.222553+00:00",
+          "createdAtLocal": "2026-11-02T15:37:48+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.08312991933841028",
+          "observedAt": "2026-11-02T07:37:48.222553+00:00",
+          "observedAtLocal": "2026-11-02T15:37:48+08:00",
+          "pair": "SPY -> USDG -> META -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.147762012504911527 (0x20cf4c47aa6ee9b); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:46.796488900+00:00",
+          "createdAtLocal": "2026-11-02T15:37:46+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.14776201250491153",
+          "observedAt": "2026-11-02T07:37:46.796488900+00:00",
+          "observedAtLocal": "2026-11-02T15:37:46+08:00",
+          "pair": "SPY -> NVDA -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.011523728454122948 (0x28f0c51cfefdc4); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:46.796488900+00:00",
+          "createdAtLocal": "2026-11-02T15:37:46+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.011523728454122948",
+          "observedAt": "2026-11-02T07:37:46.796488900+00:00",
+          "observedAtLocal": "2026-11-02T15:37:46+08:00",
+          "pair": "SPY -> USDG -> NVDA -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0977550376770898455 (0x15b4bb057bf742f); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:28.555719300+00:00",
+          "createdAtLocal": "2026-11-02T15:37:28+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.09775503767708985",
+          "observedAt": "2026-11-02T07:37:28.555719300+00:00",
+          "observedAtLocal": "2026-11-02T15:37:28+08:00",
+          "pair": "SPY -> SPCX -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.111596067490498621 (0x18c7808391a0845); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:28.555719300+00:00",
+          "createdAtLocal": "2026-11-02T15:37:28+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.11159606749049862",
+          "observedAt": "2026-11-02T07:37:28.555719300+00:00",
+          "observedAtLocal": "2026-11-02T15:37:28+08:00",
+          "pair": "SPY -> USDG -> SPCX -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=-1 (-0xde0b6b3a7640000); netProduct below 1e18 confirms the route is not profitable"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:24.990667+00:00",
+          "createdAtLocal": "2026-11-02T15:37:24+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "-1.0",
+          "observedAt": "2026-11-02T07:37:24.990667+00:00",
+          "observedAtLocal": "2026-11-02T15:37:24+08:00",
+          "pair": "SPY -> CRCL -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.286398297858853512 (0x3f97dbc08274a90); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:12.299141500+00:00",
+          "createdAtLocal": "2026-11-02T15:37:12+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.2863982978588535",
+          "observedAt": "2026-11-02T07:37:12.299141500+00:00",
+          "observedAtLocal": "2026-11-02T15:37:12+08:00",
+          "pair": "SPY -> AMD -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0759038746504004519 (0x10daa2bfd9ce6c6); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:12.299141500+00:00",
+          "createdAtLocal": "2026-11-02T15:37:12+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.07590387465040045",
+          "observedAt": "2026-11-02T07:37:12.299141500+00:00",
+          "observedAtLocal": "2026-11-02T15:37:12+08:00",
+          "pair": "SPY -> USDG -> AMD -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0499286900032624506 (0xb161e107bebbed); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:11.522602600+00:00",
+          "createdAtLocal": "2026-11-02T15:37:11+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.04992869000326245",
+          "observedAt": "2026-11-02T07:37:11.522602600+00:00",
+          "observedAtLocal": "2026-11-02T15:37:11+08:00",
+          "pair": "SPY -> ETH -> WETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0442605057005684907 (0x9d3eb207dc8da7); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:37:11.522602600+00:00",
+          "createdAtLocal": "2026-11-02T15:37:11+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.04426050570056849",
+          "observedAt": "2026-11-02T07:37:11.522602600+00:00",
+          "observedAtLocal": "2026-11-02T15:37:11+08:00",
+          "pair": "SPY -> WETH -> ETH -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified",
+            "contract detailed preview concrete value: netProductDelta=0.0237354537530568427 (0x545344f9889e4c); NoProfitableRoute() and the positive rate delta is not execution-confirmed; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:36:52.815784+00:00",
+          "createdAtLocal": "2026-11-02T15:36:52+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "0.023735453753056843",
+          "observedAt": "2026-11-02T07:36:52.815784+00:00",
+          "observedAtLocal": "2026-11-02T15:36:52+08:00",
+          "pair": "SPY -> GOOGL -> USDG -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        }
+      ],
+      "blockedWithExpectedPnlCount": 263,
+      "blockedWithMissingPnlCount": 47
+    },
+    "failed": {
+      "expectedPnlBySymbol": [],
+      "failedClosedLoops": [],
+      "failedCount": 0
+    },
+    "funnel": {
+      "broadcastCount": 2,
+      "realizedProfitBySymbol": [
+        {
+          "count": 2,
+          "symbol": "SPY",
+          "total": "2.52635744440E-7"
+        }
+      ],
+      "reviewedCount": 313,
+      "successTxCount": 2,
+      "uniqueSuccessCount": 2,
+      "uniqueSuccessWithExpectedProfitCount": 2,
+      "withExpectedProfitCount": 266,
+      "withoutExpectedProfitCount": 47
+    },
+    "groupPnlByClosedLoopGroup": [
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPCX|ETH|WETH|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.027563281061548622",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> ETH -> WETH -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.027563281061548622",
+            "total": "-0.027563281061548622"
+          },
+          {
+            "direction": "SPCX|WETH|ETH|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.7012548788960599",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> WETH -> ETH -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.7012548788960599",
+            "total": "-0.7012548788960599"
+          }
+        ],
+        "groupKey": "SPCX|ETH|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPCX",
+          "ETH",
+          "WETH",
+          "SPCX"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPCX|ETH|WETH|SPCX",
+            "sum": "-0.027563281061548622",
+            "symbol": "SPCX"
+          },
+          {
+            "direction": "SPCX|WETH|ETH|SPCX",
+            "sum": "-0.7012548788960599",
+            "symbol": "SPCX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPCX|NVDA|WETH|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.8388346132025365",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> NVDA -> WETH -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.8388346132025365",
+            "total": "-0.8388346132025365"
+          },
+          {
+            "direction": "SPCX|WETH|NVDA|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.8299801636156755",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> WETH -> NVDA -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.8299801636156755",
+            "total": "-0.8299801636156755"
+          }
+        ],
+        "groupKey": "SPCX|NVDA|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPCX",
+          "NVDA",
+          "WETH",
+          "SPCX"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPCX|NVDA|WETH|SPCX",
+            "sum": "-0.8388346132025365",
+            "symbol": "SPCX"
+          },
+          {
+            "direction": "SPCX|WETH|NVDA|SPCX",
+            "sum": "-0.8299801636156755",
+            "symbol": "SPCX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPCX|SPY|WETH|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-2.0001714103548002",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> SPY -> WETH -> SPCX",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-2.0001714103548002",
+            "total": "-2.0001714103548002"
+          },
+          {
+            "direction": "SPCX|WETH|SPY|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-2.0001707181447226",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> WETH -> SPY -> SPCX",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-2.0001707181447226",
+            "total": "-2.0001707181447226"
+          }
+        ],
+        "groupKey": "SPCX|SPY|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPCX",
+          "SPY",
+          "WETH",
+          "SPCX"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPCX|SPY|WETH|SPCX",
+            "sum": "-2.0001714103548002",
+            "symbol": "SPCX"
+          },
+          {
+            "direction": "SPCX|WETH|SPY|SPCX",
+            "sum": "-2.0001707181447226",
+            "symbol": "SPCX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPCX|TSLA|USDG|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.7019423337901463",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> TSLA -> USDG -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.7019423337901463",
+            "total": "-0.7019423337901463"
+          },
+          {
+            "direction": "SPCX|USDG|TSLA|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.9624470889134433",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> USDG -> TSLA -> SPCX",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9624470889134433",
+            "total": "-0.9624470889134433"
+          }
+        ],
+        "groupKey": "SPCX|TSLA|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPCX",
+          "TSLA",
+          "USDG",
+          "SPCX"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPCX|TSLA|USDG|SPCX",
+            "sum": "-0.7019423337901463",
+            "symbol": "SPCX"
+          },
+          {
+            "direction": "SPCX|USDG|TSLA|SPCX",
+            "sum": "-0.9624470889134433",
+            "symbol": "SPCX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPCX|USDG|WETH|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-1.8768546086335464",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> USDG -> WETH -> SPCX",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.8768546086335464",
+            "total": "-1.8768546086335464"
+          },
+          {
+            "direction": "SPCX|WETH|USDG|SPCX",
+            "expectedProfitSymbol": "SPCX",
+            "expectedSignedProfit": "-0.34239404439253430",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPCX -> WETH -> USDG -> SPCX",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-0.34239404439253430",
+            "total": "-0.34239404439253430"
+          }
+        ],
+        "groupKey": "SPCX|USDG|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPCX",
+          "USDG",
+          "WETH",
+          "SPCX"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPCX|USDG|WETH|SPCX",
+            "sum": "-1.8768546086335464",
+            "symbol": "SPCX"
+          },
+          {
+            "direction": "SPCX|WETH|USDG|SPCX",
+            "sum": "-0.34239404439253430",
+            "symbol": "SPCX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AAPL|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.9960578288360256",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AAPL -> ETH -> SPY",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9960578288360256",
+            "total": "-0.9960578288360256"
+          },
+          {
+            "direction": "SPY|ETH|AAPL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.9948946019849589",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> AAPL -> SPY",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9948946019849589",
+            "total": "-0.9948946019849589"
+          }
+        ],
+        "groupKey": "SPY|AAPL|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AAPL",
+          "ETH",
+          "SPY"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AAPL|ETH|SPY",
+            "sum": "-0.9960578288360256",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|ETH|AAPL|SPY",
+            "sum": "-0.9948946019849589",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AAPL|GOOGL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.047583779909123992",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AAPL -> GOOGL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-0.047583779909123992",
+            "total": "-0.047583779909123992"
+          },
+          {
+            "direction": "SPY|GOOGL|AAPL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "0.03239712100012582",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> GOOGL -> AAPL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "0.03239712100012582",
+            "total": "0.03239712100012582"
+          }
+        ],
+        "groupKey": "SPY|AAPL|GOOGL",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "SPY|GOOGL|AAPL|SPY",
+            "sum": "0.03239712100012582",
+            "symbol": "SPY"
+          }
+        ],
+        "routeSymbols": [
+          "SPY",
+          "AAPL",
+          "GOOGL",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AAPL|GOOGL|SPY",
+            "sum": "-0.047583779909123992",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AAPL|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9505530127887252",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AAPL -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9505530127887252",
+            "total": "-1.9505530127887252"
+          },
+          {
+            "direction": "SPY|NVDA|AAPL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.035293997897327363",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> AAPL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-0.035293997897327363",
+            "total": "-0.035293997897327363"
+          }
+        ],
+        "groupKey": "SPY|AAPL|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AAPL",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AAPL|NVDA|SPY",
+            "sum": "-1.9505530127887252",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|AAPL|SPY",
+            "sum": "-0.035293997897327363",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AAPL|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9165912894166666",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AAPL -> SPCX -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9165912894166666",
+            "total": "-1.9165912894166666"
+          },
+          {
+            "direction": "SPY|SPCX|AAPL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.26866598114063414",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> AAPL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.26866598114063414",
+            "total": "-1.26866598114063414"
+          }
+        ],
+        "groupKey": "SPY|AAPL|SPCX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AAPL",
+          "SPCX",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AAPL|SPCX|SPY",
+            "sum": "-1.9165912894166666",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|SPCX|AAPL|SPY",
+            "sum": "-1.26866598114063414",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AAPL|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.8941628750704829",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AAPL -> USDG -> SPY",
+            "rowCount": 3,
+            "signedRowCount": 3,
+            "sum": "-1.8941628750704829",
+            "total": "-1.8941628750704829"
+          },
+          {
+            "direction": "SPY|USDG|AAPL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.93242168048391356",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> AAPL -> SPY",
+            "rowCount": 3,
+            "signedRowCount": 3,
+            "sum": "-1.93242168048391356",
+            "total": "-1.93242168048391356"
+          }
+        ],
+        "groupKey": "SPY|AAPL|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AAPL",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 6,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AAPL|USDG|SPY",
+            "sum": "-1.8941628750704829",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|AAPL|SPY",
+            "sum": "-1.93242168048391356",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AMD|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-3.9949311359949396",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AMD -> ETH -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-3.9949311359949396",
+            "total": "-3.9949311359949396"
+          },
+          {
+            "direction": "SPY|ETH|AMD|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "5.05261092135E-7",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> AMD -> SPY",
+            "rowCount": 3,
+            "signedRowCount": 3,
+            "sum": "5.05261092135E-7",
+            "total": "5.05261092135E-7"
+          }
+        ],
+        "groupKey": "SPY|AMD|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "SPY|ETH|AMD|SPY",
+            "sum": "5.05261092135E-7",
+            "symbol": "SPY"
+          }
+        ],
+        "routeSymbols": [
+          "SPY",
+          "AMD",
+          "ETH",
+          "SPY"
+        ],
+        "rowCount": 7,
+        "signedRowCount": 7,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AMD|ETH|SPY",
+            "sum": "-3.9949311359949396",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AMD|META|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "0.53744236423925328",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AMD -> META -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "0.53744236423925328",
+            "total": "0.53744236423925328"
+          },
+          {
+            "direction": "SPY|META|AMD|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.42948038851170034",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> META -> AMD -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-0.42948038851170034",
+            "total": "-0.42948038851170034"
+          }
+        ],
+        "groupKey": "SPY|AMD|META",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "SPY|AMD|META|SPY",
+            "sum": "0.53744236423925328",
+            "symbol": "SPY"
+          }
+        ],
+        "routeSymbols": [
+          "SPY",
+          "AMD",
+          "META",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|META|AMD|SPY",
+            "sum": "-0.42948038851170034",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AMD|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9998437457234374",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AMD -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9998437457234374",
+            "total": "-1.9998437457234374"
+          },
+          {
+            "direction": "SPY|NVDA|AMD|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.8998437560479310",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> AMD -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.8998437560479310",
+            "total": "-1.8998437560479310"
+          }
+        ],
+        "groupKey": "SPY|AMD|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AMD",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AMD|NVDA|SPY",
+            "sum": "-1.9998437457234374",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|AMD|SPY",
+            "sum": "-1.8998437560479310",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|AMD|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.4225318267405884",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> AMD -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.4225318267405884",
+            "total": "-1.4225318267405884"
+          },
+          {
+            "direction": "SPY|USDG|AMD|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.84666761661483024",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> AMD -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.84666761661483024",
+            "total": "-1.84666761661483024"
+          }
+        ],
+        "groupKey": "SPY|AMD|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "AMD",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|AMD|USDG|SPY",
+            "sum": "-1.4225318267405884",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|AMD|SPY",
+            "sum": "-1.84666761661483024",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|COIN|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9903502794455034",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> COIN -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9903502794455034",
+            "total": "-1.9903502794455034"
+          },
+          {
+            "direction": "SPY|ETH|COIN|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9920826335038874",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> COIN -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9920826335038874",
+            "total": "-1.9920826335038874"
+          }
+        ],
+        "groupKey": "SPY|COIN|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "COIN",
+          "ETH",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|COIN|ETH|SPY",
+            "sum": "-1.9903502794455034",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|ETH|COIN|SPY",
+            "sum": "-1.9920826335038874",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|COIN|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-5.0",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> COIN -> USDG -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 5,
+            "sum": "-5.0",
+            "total": "-5.0"
+          },
+          {
+            "direction": "SPY|USDG|COIN|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.41946130535810894",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> COIN -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 5,
+            "sum": "-2.41946130535810894",
+            "total": "-2.41946130535810894"
+          }
+        ],
+        "groupKey": "SPY|COIN|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "COIN",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 10,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|COIN|USDG|SPY",
+            "sum": "-5.0",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|COIN|SPY",
+            "sum": "-2.41946130535810894",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|CRCL|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.901914749670648",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> CRCL -> ETH -> SPY",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.901914749670648",
+            "total": "-0.901914749670648"
+          },
+          {
+            "direction": "SPY|ETH|CRCL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.9767794000124952",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> CRCL -> SPY",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9767794000124952",
+            "total": "-0.9767794000124952"
+          }
+        ],
+        "groupKey": "SPY|CRCL|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "CRCL",
+          "ETH",
+          "SPY"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|CRCL|ETH|SPY",
+            "sum": "-0.901914749670648",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|ETH|CRCL|SPY",
+            "sum": "-0.9767794000124952",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|CRCL|GOOGL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "0.13709215633369076",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> CRCL -> GOOGL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "0.13709215633369076",
+            "total": "0.13709215633369076"
+          },
+          {
+            "direction": "SPY|GOOGL|CRCL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-0.15066320384083076",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> GOOGL -> CRCL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-0.15066320384083076",
+            "total": "-0.15066320384083076"
+          }
+        ],
+        "groupKey": "SPY|CRCL|GOOGL",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "SPY|CRCL|GOOGL|SPY",
+            "sum": "0.13709215633369076",
+            "symbol": "SPY"
+          }
+        ],
+        "routeSymbols": [
+          "SPY",
+          "CRCL",
+          "GOOGL",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|GOOGL|CRCL|SPY",
+            "sum": "-0.15066320384083076",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|CRCL|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9687432310387730",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> CRCL -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9687432310387730",
+            "total": "-1.9687432310387730"
+          },
+          {
+            "direction": "SPY|NVDA|CRCL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9712024020791710",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> CRCL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9712024020791710",
+            "total": "-1.9712024020791710"
+          }
+        ],
+        "groupKey": "SPY|CRCL|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "CRCL",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|CRCL|NVDA|SPY",
+            "sum": "-1.9687432310387730",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|CRCL|SPY",
+            "sum": "-1.9712024020791710",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|CRCL|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-4.0",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> CRCL -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-4.0",
+            "total": "-4.0"
+          },
+          {
+            "direction": "SPY|USDG|CRCL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.92327852883096341",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> CRCL -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 3,
+            "sum": "-1.92327852883096341",
+            "total": "-1.92327852883096341"
+          }
+        ],
+        "groupKey": "SPY|CRCL|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "CRCL",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 7,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|CRCL|USDG|SPY",
+            "sum": "-4.0",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|CRCL|SPY",
+            "sum": "-1.92327852883096341",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|GOOGL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9907123737799848",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> GOOGL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9907123737799848",
+            "total": "-1.9907123737799848"
+          },
+          {
+            "direction": "SPY|GOOGL|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9922360771625590",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> GOOGL -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9922360771625590",
+            "total": "-1.9922360771625590"
+          }
+        ],
+        "groupKey": "SPY|ETH|GOOGL",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "GOOGL",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|GOOGL|SPY",
+            "sum": "-1.9907123737799848",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|GOOGL|ETH|SPY",
+            "sum": "-1.9922360771625590",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|META|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9906577805098030",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> META -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9906577805098030",
+            "total": "-1.9906577805098030"
+          },
+          {
+            "direction": "SPY|META|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9915108022070586",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> META -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9915108022070586",
+            "total": "-1.9915108022070586"
+          }
+        ],
+        "groupKey": "SPY|ETH|META",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "META",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|META|SPY",
+            "sum": "-1.9906577805098030",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|META|ETH|SPY",
+            "sum": "-1.9915108022070586",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|MU|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9449013086315270",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> MU -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9449013086315270",
+            "total": "-1.9449013086315270"
+          },
+          {
+            "direction": "SPY|MU|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.8682344793813530",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> MU -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.8682344793813530",
+            "total": "-1.8682344793813530"
+          }
+        ],
+        "groupKey": "SPY|ETH|MU",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "MU",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|MU|SPY",
+            "sum": "-1.9449013086315270",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|MU|ETH|SPY",
+            "sum": "-1.8682344793813530",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9642555207364376",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9642555207364376",
+            "total": "-1.9642555207364376"
+          },
+          {
+            "direction": "SPY|NVDA|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9989669885285872",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9989669885285872",
+            "total": "-1.9989669885285872"
+          }
+        ],
+        "groupKey": "SPY|ETH|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|NVDA|SPY",
+            "sum": "-1.9642555207364376",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|ETH|SPY",
+            "sum": "-1.9989669885285872",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.9315141148841479",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> SPCX -> SPY",
+            "rowCount": 3,
+            "signedRowCount": 3,
+            "sum": "-2.9315141148841479",
+            "total": "-2.9315141148841479"
+          },
+          {
+            "direction": "SPY|SPCX|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.9061959250213861",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> ETH -> SPY",
+            "rowCount": 3,
+            "signedRowCount": 3,
+            "sum": "-2.9061959250213861",
+            "total": "-2.9061959250213861"
+          }
+        ],
+        "groupKey": "SPY|ETH|SPCX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "SPCX",
+          "SPY"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 6,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|SPCX|SPY",
+            "sum": "-2.9315141148841479",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|SPCX|ETH|SPY",
+            "sum": "-2.9061959250213861",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|TSLA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9941074038256744",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> TSLA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9941074038256744",
+            "total": "-1.9941074038256744"
+          },
+          {
+            "direction": "SPY|TSLA|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9876384890452962",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> TSLA -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9876384890452962",
+            "total": "-1.9876384890452962"
+          }
+        ],
+        "groupKey": "SPY|ETH|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "TSLA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|TSLA|SPY",
+            "sum": "-1.9941074038256744",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|TSLA|ETH|SPY",
+            "sum": "-1.9876384890452962",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9679141805489244",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516 -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9679141805489244",
+            "total": "-1.9679141805489244"
+          },
+          {
+            "direction": "SPY|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.9118011046719562",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516 -> ETH -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.9118011046719562",
+            "total": "-1.9118011046719562"
+          }
+        ],
+        "groupKey": "SPY|ETH|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516",
+          "ETH",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|SPY",
+            "sum": "-1.9679141805489244",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|ETH|SPY",
+            "sum": "-1.9118011046719562",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|USDG|SPY",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 5
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 5,
+            "pnlSourcePath": null,
+            "routePath": "SPY -> ETH -> USDG -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "SPY|USDG|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.0009130080737032",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> ETH -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 2,
+            "sum": "-2.0009130080737032",
+            "total": "-2.0009130080737032"
+          }
+        ],
+        "groupKey": "SPY|ETH|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 5
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 5,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 10,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|USDG|ETH|SPY",
+            "sum": "-2.0009130080737032",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|ETH|WETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.95091179055541495",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> ETH -> WETH -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 3,
+            "sum": "-1.95091179055541495",
+            "total": "-1.95091179055541495"
+          },
+          {
+            "direction": "SPY|WETH|ETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.91231197254350274",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> WETH -> ETH -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.91231197254350274",
+            "total": "-1.91231197254350274"
+          }
+        ],
+        "groupKey": "SPY|ETH|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "ETH",
+          "WETH",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 7,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|ETH|WETH|SPY",
+            "sum": "-1.95091179055541495",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|WETH|ETH|SPY",
+            "sum": "-1.91231197254350274",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|GOOGL|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.991854863249946",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> GOOGL -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-1.991854863249946",
+            "total": "-1.991854863249946"
+          },
+          {
+            "direction": "SPY|NVDA|GOOGL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.000999518708368",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> GOOGL -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-2.000999518708368",
+            "total": "-2.000999518708368"
+          }
+        ],
+        "groupKey": "SPY|GOOGL|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "GOOGL",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|GOOGL|NVDA|SPY",
+            "sum": "-1.991854863249946",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|GOOGL|SPY",
+            "sum": "-2.000999518708368",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|GOOGL|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.906494760400782800",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> GOOGL -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.906494760400782800",
+            "total": "-1.906494760400782800"
+          },
+          {
+            "direction": "SPY|USDG|GOOGL|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.018867569641154695",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> GOOGL -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-2.018867569641154695",
+            "total": "-2.018867569641154695"
+          }
+        ],
+        "groupKey": "SPY|GOOGL|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "GOOGL",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|GOOGL|USDG|SPY",
+            "sum": "-1.906494760400782800",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|GOOGL|SPY",
+            "sum": "-2.018867569641154695",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|META|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.0009973158440304",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> META -> NVDA -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-2.0009973158440304",
+            "total": "-2.0009973158440304"
+          },
+          {
+            "direction": "SPY|NVDA|META|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.0009880146650354",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> META -> SPY",
+            "rowCount": 2,
+            "signedRowCount": 2,
+            "sum": "-2.0009880146650354",
+            "total": "-2.0009880146650354"
+          }
+        ],
+        "groupKey": "SPY|META|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "META",
+          "NVDA",
+          "SPY"
+        ],
+        "rowCount": 4,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|META|NVDA|SPY",
+            "sum": "-2.0009973158440304",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|NVDA|META|SPY",
+            "sum": "-2.0009880146650354",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|META|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "0.82552971400326895",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> META -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "0.82552971400326895",
+            "total": "0.82552971400326895"
+          },
+          {
+            "direction": "SPY|USDG|META|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.83466377918976144",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> META -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.83466377918976144",
+            "total": "-1.83466377918976144"
+          }
+        ],
+        "groupKey": "SPY|META|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "SPY|META|USDG|SPY",
+            "sum": "0.82552971400326895",
+            "symbol": "SPY"
+          }
+        ],
+        "routeSymbols": [
+          "SPY",
+          "META",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|USDG|META|SPY",
+            "sum": "-1.83466377918976144",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|MU|USDG|SPY",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 6
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 6,
+            "pnlSourcePath": null,
+            "routePath": "SPY -> MU -> USDG -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "SPY|USDG|MU|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.0009339007163236",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> MU -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 2,
+            "sum": "-2.0009339007163236",
+            "total": "-2.0009339007163236"
+          }
+        ],
+        "groupKey": "SPY|MU|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 6
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 6,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "MU",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 12,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|USDG|MU|SPY",
+            "sum": "-2.0009339007163236",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|NVDA|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-3.9161438373738024",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> SPCX -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-3.9161438373738024",
+            "total": "-3.9161438373738024"
+          },
+          {
+            "direction": "SPY|SPCX|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-3.9195849802899128",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> NVDA -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-3.9195849802899128",
+            "total": "-3.9195849802899128"
+          }
+        ],
+        "groupKey": "SPY|NVDA|SPCX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "NVDA",
+          "SPCX",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|NVDA|SPCX|SPY",
+            "sum": "-3.9161438373738024",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|SPCX|NVDA|SPY",
+            "sum": "-3.9195849802899128",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|NVDA|TSLA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-4.0019822091104188",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> TSLA -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-4.0019822091104188",
+            "total": "-4.0019822091104188"
+          },
+          {
+            "direction": "SPY|TSLA|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-4.0019826152775540",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> TSLA -> NVDA -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-4.0019826152775540",
+            "total": "-4.0019826152775540"
+          }
+        ],
+        "groupKey": "SPY|NVDA|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "NVDA",
+          "TSLA",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|NVDA|TSLA|SPY",
+            "sum": "-4.0019822091104188",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|TSLA|NVDA|SPY",
+            "sum": "-4.0019826152775540",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|NVDA|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.60450576932089464",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.60450576932089464",
+            "total": "-1.60450576932089464"
+          },
+          {
+            "direction": "SPY|USDG|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.977482949127050072",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> NVDA -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.977482949127050072",
+            "total": "-1.977482949127050072"
+          }
+        ],
+        "groupKey": "SPY|NVDA|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "NVDA",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|NVDA|USDG|SPY",
+            "sum": "-1.60450576932089464",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|NVDA|SPY",
+            "sum": "-1.977482949127050072",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|NVDA|WETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.80130867747399292",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> NVDA -> WETH -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 6,
+            "sum": "-1.80130867747399292",
+            "total": "-1.80130867747399292"
+          },
+          {
+            "direction": "SPY|WETH|NVDA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.203385594339915688",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> WETH -> NVDA -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 6,
+            "sum": "-2.203385594339915688",
+            "total": "-2.203385594339915688"
+          }
+        ],
+        "groupKey": "SPY|NVDA|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "NVDA",
+          "WETH",
+          "SPY"
+        ],
+        "rowCount": 12,
+        "signedRowCount": 12,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|NVDA|WETH|SPY",
+            "sum": "-1.80130867747399292",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|WETH|NVDA|SPY",
+            "sum": "-2.203385594339915688",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|SPCX|TSLA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-3.4620442778385028",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> TSLA -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-3.4620442778385028",
+            "total": "-3.4620442778385028"
+          },
+          {
+            "direction": "SPY|TSLA|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-3.9425826533176136",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> TSLA -> SPCX -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-3.9425826533176136",
+            "total": "-3.9425826533176136"
+          }
+        ],
+        "groupKey": "SPY|SPCX|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "SPCX",
+          "TSLA",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|SPCX|TSLA|SPY",
+            "sum": "-3.4620442778385028",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|TSLA|SPCX|SPY",
+            "sum": "-3.9425826533176136",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|SPCX|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.78422069836301950",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.78422069836301950",
+            "total": "-1.78422069836301950"
+          },
+          {
+            "direction": "SPY|USDG|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.77774789209383836",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> SPCX -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 4,
+            "sum": "-1.77774789209383836",
+            "total": "-1.77774789209383836"
+          }
+        ],
+        "groupKey": "SPY|SPCX|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "SPCX",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 8,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|SPCX|USDG|SPY",
+            "sum": "-1.78422069836301950",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|SPCX|SPY",
+            "sum": "-1.77774789209383836",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|SPCX|WETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.821735501429279372",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> SPCX -> WETH -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 6,
+            "sum": "-1.821735501429279372",
+            "total": "-1.821735501429279372"
+          },
+          {
+            "direction": "SPY|WETH|SPCX|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.21343728479110200",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> WETH -> SPCX -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 6,
+            "sum": "-2.21343728479110200",
+            "total": "-2.21343728479110200"
+          }
+        ],
+        "groupKey": "SPY|SPCX|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "SPCX",
+          "WETH",
+          "SPY"
+        ],
+        "rowCount": 12,
+        "signedRowCount": 12,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|SPCX|WETH|SPY",
+            "sum": "-1.821735501429279372",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|WETH|SPCX|SPY",
+            "sum": "-2.21343728479110200",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|TSLA|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-4.9504261746821216",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> TSLA -> USDG -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 5,
+            "sum": "-4.9504261746821216",
+            "total": "-4.9504261746821216"
+          },
+          {
+            "direction": "SPY|USDG|TSLA|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.57542320044651568",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> TSLA -> SPY",
+            "rowCount": 5,
+            "signedRowCount": 5,
+            "sum": "-1.57542320044651568",
+            "total": "-1.57542320044651568"
+          }
+        ],
+        "groupKey": "SPY|TSLA|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "TSLA",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 10,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|TSLA|USDG|SPY",
+            "sum": "-4.9504261746821216",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|USDG|TSLA|SPY",
+            "sum": "-1.57542320044651568",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|USDG|SPY",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 4
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 4,
+            "pnlSourcePath": null,
+            "routePath": "SPY -> UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516 -> USDG -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "SPY|USDG|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.0009346253828654",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516 -> SPY",
+            "rowCount": 4,
+            "signedRowCount": 2,
+            "sum": "-2.0009346253828654",
+            "total": "-2.0009346253828654"
+          }
+        ],
+        "groupKey": "SPY|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 4
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 4,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516",
+          "USDG",
+          "SPY"
+        ],
+        "rowCount": 8,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|USDG|UNRESOLVED:0X1D11F0496982706C5E14A514D4E79F2E6BDE4516|SPY",
+            "sum": "-2.0009346253828654",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "SPY|USDG|WETH|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-1.0209032828540582",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> USDG -> WETH -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 5,
+            "sum": "-1.0209032828540582",
+            "total": "-1.0209032828540582"
+          },
+          {
+            "direction": "SPY|WETH|USDG|SPY",
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "-2.82335647050429996",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "SPY -> WETH -> USDG -> SPY",
+            "rowCount": 6,
+            "signedRowCount": 6,
+            "sum": "-2.82335647050429996",
+            "total": "-2.82335647050429996"
+          }
+        ],
+        "groupKey": "SPY|USDG|WETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "SPY",
+          "USDG",
+          "WETH",
+          "SPY"
+        ],
+        "rowCount": 12,
+        "signedRowCount": 11,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "SPY|USDG|WETH|SPY",
+            "sum": "-1.0209032828540582",
+            "symbol": "SPY"
+          },
+          {
+            "direction": "SPY|WETH|USDG|SPY",
+            "sum": "-2.82335647050429996",
+            "symbol": "SPY"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "USDE|ETH|USDG|USDE",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 1
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 1,
+            "pnlSourcePath": null,
+            "routePath": "USDE -> ETH -> USDG -> USDE",
+            "rowCount": 1,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "USDE|USDG|ETH|USDE",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 1
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 1,
+            "pnlSourcePath": null,
+            "routePath": "USDE -> USDG -> ETH -> USDE",
+            "rowCount": 1,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          }
+        ],
+        "groupKey": "USDE|ETH|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 2
+        },
+        "missingPnlDirectionCount": 2,
+        "missingPnlRowCount": 2,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "USDE",
+          "ETH",
+          "USDG",
+          "USDE"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 0,
+        "unprofitableDirectionCount": 0,
+        "unprofitableDirections": []
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "USO|ETH|USDG|USO",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 5
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 5,
+            "pnlSourcePath": null,
+            "routePath": "USO -> ETH -> USDG -> USO",
+            "rowCount": 5,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "USO|USDG|ETH|USO",
+            "expectedProfitSymbol": "USO",
+            "expectedSignedProfit": "-1.2908001680526726",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "USO -> USDG -> ETH -> USO",
+            "rowCount": 5,
+            "signedRowCount": 2,
+            "sum": "-1.2908001680526726",
+            "total": "-1.2908001680526726"
+          }
+        ],
+        "groupKey": "USO|ETH|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 5
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 5,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "USO",
+          "ETH",
+          "USDG",
+          "USO"
+        ],
+        "rowCount": 10,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "USO|USDG|ETH|USO",
+            "sum": "-1.2908001680526726",
+            "symbol": "USO"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|ETH|NVDA|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-0.9369829218540191",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> ETH -> NVDA -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9369829218540191",
+            "total": "-0.9369829218540191"
+          },
+          {
+            "direction": "WETH|NVDA|ETH|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.0001873471660836",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> NVDA -> ETH -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-1.0001873471660836",
+            "total": "-1.0001873471660836"
+          }
+        ],
+        "groupKey": "WETH|ETH|NVDA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "ETH",
+          "NVDA",
+          "WETH"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|ETH|NVDA|WETH",
+            "sum": "-0.9369829218540191",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|NVDA|ETH|WETH",
+            "sum": "-1.0001873471660836",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|ETH|SPCX|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-0.9753962696824413",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> ETH -> SPCX -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9753962696824413",
+            "total": "-0.9753962696824413"
+          },
+          {
+            "direction": "WETH|SPCX|ETH|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-0.9908151276656634",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPCX -> ETH -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9908151276656634",
+            "total": "-0.9908151276656634"
+          }
+        ],
+        "groupKey": "WETH|ETH|SPCX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "ETH",
+          "SPCX",
+          "WETH"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|ETH|SPCX|WETH",
+            "sum": "-0.9753962696824413",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|SPCX|ETH|WETH",
+            "sum": "-0.9908151276656634",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|ETH|USDG|WETH",
+            "expectedProfitSymbol": null,
+            "expectedSignedProfit": null,
+            "missingEvidenceBreakdown": {
+              "quoter_unavailable": 3
+            },
+            "missingReason": "attempt record has no signed borrow-token profit value; zero is not used as a placeholder",
+            "missingRowCount": 3,
+            "pnlSourcePath": null,
+            "routePath": "WETH -> ETH -> USDG -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 0,
+            "sum": null,
+            "total": null
+          },
+          {
+            "direction": "WETH|USDG|ETH|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.8920798669349266",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> USDG -> ETH -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-1.8920798669349266",
+            "total": "-1.8920798669349266"
+          }
+        ],
+        "groupKey": "WETH|ETH|USDG",
+        "hasMissingPnl": true,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {
+          "quoter_unavailable": 3
+        },
+        "missingPnlDirectionCount": 1,
+        "missingPnlRowCount": 3,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "ETH",
+          "USDG",
+          "WETH"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|USDG|ETH|WETH",
+            "sum": "-1.8920798669349266",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|NVDA|SPCX|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-0.9882358192783026",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> NVDA -> SPCX -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9882358192783026",
+            "total": "-0.9882358192783026"
+          },
+          {
+            "direction": "WETH|SPCX|NVDA|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-0.9887433427374788",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPCX -> NVDA -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-0.9887433427374788",
+            "total": "-0.9887433427374788"
+          }
+        ],
+        "groupKey": "WETH|NVDA|SPCX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "NVDA",
+          "SPCX",
+          "WETH"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|NVDA|SPCX|WETH",
+            "sum": "-0.9882358192783026",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|SPCX|NVDA|WETH",
+            "sum": "-0.9887433427374788",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|NVDA|SPY|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.000474687953751",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> NVDA -> SPY -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-1.000474687953751",
+            "total": "-1.000474687953751"
+          },
+          {
+            "direction": "WETH|SPY|NVDA|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.0004747192764067",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPY -> NVDA -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-1.0004747192764067",
+            "total": "-1.0004747192764067"
+          }
+        ],
+        "groupKey": "WETH|NVDA|SPY",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "NVDA",
+          "SPY",
+          "WETH"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|NVDA|SPY|WETH",
+            "sum": "-1.000474687953751",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|SPY|NVDA|WETH",
+            "sum": "-1.0004747192764067",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|NVDA|USDG|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.4876391944692076",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> NVDA -> USDG -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-1.4876391944692076",
+            "total": "-1.4876391944692076"
+          },
+          {
+            "direction": "WETH|USDG|NVDA|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.229315857390250",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> USDG -> NVDA -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-1.229315857390250",
+            "total": "-1.229315857390250"
+          }
+        ],
+        "groupKey": "WETH|NVDA|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "NVDA",
+          "USDG",
+          "WETH"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|NVDA|USDG|WETH",
+            "sum": "-1.4876391944692076",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|USDG|NVDA|WETH",
+            "sum": "-1.229315857390250",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|SPCX|SPY|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.000474650007978",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPCX -> SPY -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-1.000474650007978",
+            "total": "-1.000474650007978"
+          },
+          {
+            "direction": "WETH|SPY|SPCX|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.0004747555302942",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPY -> SPCX -> WETH",
+            "rowCount": 1,
+            "signedRowCount": 1,
+            "sum": "-1.0004747555302942",
+            "total": "-1.0004747555302942"
+          }
+        ],
+        "groupKey": "WETH|SPCX|SPY",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "SPCX",
+          "SPY",
+          "WETH"
+        ],
+        "rowCount": 2,
+        "signedRowCount": 2,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|SPCX|SPY|WETH",
+            "sum": "-1.000474650007978",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|SPY|SPCX|WETH",
+            "sum": "-1.0004747555302942",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|SPCX|USDG|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.9930563914436026",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPCX -> USDG -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-1.9930563914436026",
+            "total": "-1.9930563914436026"
+          },
+          {
+            "direction": "WETH|USDG|SPCX|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-1.5423551166990322",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> USDG -> SPCX -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-1.5423551166990322",
+            "total": "-1.5423551166990322"
+          }
+        ],
+        "groupKey": "WETH|SPCX|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "SPCX",
+          "USDG",
+          "WETH"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|SPCX|USDG|WETH",
+            "sum": "-1.9930563914436026",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|USDG|SPCX|WETH",
+            "sum": "-1.5423551166990322",
+            "symbol": "WETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "WETH|SPY|USDG|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-2.0009836231255492",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> SPY -> USDG -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-2.0009836231255492",
+            "total": "-2.0009836231255492"
+          },
+          {
+            "direction": "WETH|USDG|SPY|WETH",
+            "expectedProfitSymbol": "WETH",
+            "expectedSignedProfit": "-2.000949300067216",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "WETH -> USDG -> SPY -> WETH",
+            "rowCount": 3,
+            "signedRowCount": 2,
+            "sum": "-2.000949300067216",
+            "total": "-2.000949300067216"
+          }
+        ],
+        "groupKey": "WETH|SPY|USDG",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "WETH",
+          "SPY",
+          "USDG",
+          "WETH"
+        ],
+        "rowCount": 6,
+        "signedRowCount": 4,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "WETH|SPY|USDG|WETH",
+            "sum": "-2.0009836231255492",
+            "symbol": "WETH"
+          },
+          {
+            "direction": "WETH|USDG|SPY|WETH",
+            "sum": "-2.000949300067216",
+            "symbol": "WETH"
+          }
+        ]
+      }
+    ],
+    "ready": {
+      "readyCount": 1,
+      "readySamples": [
+        {
+          "blockers": [],
+          "broadcast": null,
+          "createdAt": "2026-11-02T07:14:38.527543700+00:00",
+          "createdAtLocal": "2026-11-02T15:14:38+08:00",
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "2.52625347695E-7",
+          "observedAt": "2026-11-02T07:14:38.527543700+00:00",
+          "observedAtLocal": "2026-11-02T15:14:38+08:00",
+          "pair": "SPY -> ETH -> AMD -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        }
+      ]
+    },
+    "reviewConsistency": {
+      "reviewConsistentCount": 3,
+      "reviewInconsistentPositiveEstimateCount": 46,
+      "totalReviewedCount": 313
+    },
+    "success": {
+      "gasAssessment": {
+        "belowGasCostCount": 2,
+        "evaluableEthCount": 2,
+        "items": [
+          {
+            "assessment": "below_gas_cost",
+            "effectiveGasPriceInt": 20020000,
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "2.52625347695E-7",
+            "gasCostEth": "0.00000676099424",
+            "gasCostUsd": "0.0154508325267296",
+            "gasUsedInt": 337712,
+            "netAfterGasEth": "-0.000006676966346146965877415995344",
+            "netAfterGasUsd": "-0.01525880442118619965000000000",
+            "pair": "SPY -> ETH -> AMD -> SPY",
+            "tokenPerEth": "0.3326186173308420375532208166",
+            "usdReference": {
+              "eth": {
+                "fresh": true,
+                "priceUsd": "2285.29",
+                "referenceLagSeconds": 2889,
+                "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH"
+              },
+              "profitSymbol": {
+                "fresh": true,
+                "priceUsd": "760.13",
+                "referenceLagSeconds": 2889,
+                "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+                "snapshotSymbol": "SPYBUSDT",
+                "symbol": "SPY"
+              }
+            }
+          },
+          {
+            "assessment": "below_gas_cost",
+            "effectiveGasPriceInt": 20384000,
+            "expectedProfitSymbol": "SPY",
+            "expectedSignedProfit": "1.0396745E-11",
+            "gasCostEth": "0.000006552864864",
+            "gasCostUsd": "0.01497519654505056",
+            "gasUsedInt": 321471,
+            "netAfterGasEth": "-0.000006552861405849053358654700279",
+            "netAfterGasUsd": "-0.01497518864217278315000000000",
+            "pair": "SPY -> ETH -> AMD -> SPY",
+            "tokenPerEth": "0.3326186173308420375532208166",
+            "usdReference": {
+              "eth": {
+                "fresh": true,
+                "priceUsd": "2285.29",
+                "referenceLagSeconds": 3353,
+                "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+                "snapshotSymbol": "ETHUSDT",
+                "symbol": "ETH"
+              },
+              "profitSymbol": {
+                "fresh": true,
+                "priceUsd": "760.13",
+                "referenceLagSeconds": 3353,
+                "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+                "snapshotSymbol": "SPYBUSDT",
+                "symbol": "SPY"
+              }
+            }
+          }
+        ],
+        "missingGasCount": 0,
+        "needsTokenPriceQuoteCount": 0,
+        "netPositiveAfterGasCount": 0
+      },
+      "precisionAssessment": {
+        "assessmentCounts": {
+          "micro_profit_below_1_bps": 1
+        },
+        "items": [
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "SPY",
+            "finalOutputAmount": 6.1287781597695e-05,
+            "finalOutputSymbol": "SPY",
+            "livePriceVerified": true,
+            "netProfitAmount": "2.52625347695E-7",
+            "netProfitBps": "41.390136966348805",
+            "netProfitUsd": "0.00019202810554340035",
+            "routeTokenAddresses": [
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+              "0x0000000000000000000000000000000000000000",
+              "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d90",
+            "selectionReason": null,
+            "symbol": "SPY",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": true,
+            "usdReference": {
+              "fresh": true,
+              "priceUsd": "760.13",
+              "referenceLagSeconds": 2889,
+              "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+              "snapshotSymbol": "SPYBUSDT",
+              "symbol": "SPY"
+            },
+            "usdReferenceSource": "binance_market_snapshot"
+          },
+          {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "micro_profit_below_1_bps"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "SPY",
+            "finalOutputAmount": 4.76847554948e-07,
+            "finalOutputSymbol": "SPY",
+            "livePriceVerified": true,
+            "netProfitAmount": "1.0396745E-11",
+            "netProfitBps": "0.21803554570245715",
+            "netProfitUsd": "7.90287777685E-9",
+            "routeTokenAddresses": [
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+              "0x0000000000000000000000000000000000000000",
+              "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+            ],
+            "selectedBorrowInputAmountRaw": "0x6f05b59d3b",
+            "selectionReason": null,
+            "symbol": "SPY",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": true,
+            "usdReference": {
+              "fresh": true,
+              "priceUsd": "760.13",
+              "referenceLagSeconds": 3353,
+              "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+              "snapshotSymbol": "SPYBUSDT",
+              "symbol": "SPY"
+            },
+            "usdReferenceSource": "binance_market_snapshot"
+          }
+        ],
+        "rowCount": 2,
+        "usdNetProfitAvailableCount": 2
+      },
+      "profitBySymbol": [
+        {
+          "count": 2,
+          "symbol": "SPY",
+          "total": "2.52635744440E-7"
+        }
+      ],
+      "successes": [
+        {
+          "blockNumber": "0x6337433",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-11-02T07:14:48.759087800+00:00",
+          "createdAtLocal": "2026-11-02T15:14:48+08:00",
+          "effectiveGasPrice": "0x1317b20",
+          "effectiveGasPriceInt": 20020000,
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "2.52625347695E-7",
+          "gasUsed": "0x52730",
+          "gasUsedInt": 337712,
+          "observedAt": "2026-11-02T07:14:48.759087800+00:00",
+          "observedAtLocal": "2026-11-02T15:14:48+08:00",
+          "pair": "SPY -> ETH -> AMD -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "SPY",
+            "finalOutputAmount": 6.1287781597695e-05,
+            "finalOutputSymbol": "SPY",
+            "livePriceVerified": true,
+            "netProfitAmount": "2.52625347695E-7",
+            "netProfitBps": "41.390136966348805",
+            "netProfitUsd": "0.00019202810554340035",
+            "routeTokenAddresses": [
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+              "0x0000000000000000000000000000000000000000",
+              "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+            ],
+            "selectedBorrowInputAmountRaw": "0x3782dace9d90",
+            "selectionReason": null,
+            "symbol": "SPY",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": true,
+            "usdReference": {
+              "fresh": true,
+              "priceUsd": "760.13",
+              "referenceLagSeconds": 2889,
+              "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+              "snapshotSymbol": "SPYBUSDT",
+              "symbol": "SPY"
+            },
+            "usdReferenceSource": "binance_market_snapshot"
+          },
+          "state": "execution_success"
+        },
+        {
+          "blockNumber": "0x63385a7",
+          "blockers": [],
+          "broadcast": true,
+          "createdAt": "2026-11-02T07:22:32.824800400+00:00",
+          "createdAtLocal": "2026-11-02T15:22:32+08:00",
+          "effectiveGasPrice": "0x1370900",
+          "effectiveGasPriceInt": 20384000,
+          "expectedProfitSymbol": "SPY",
+          "expectedSignedProfit": "1.0396745E-11",
+          "gasUsed": "0x4e7bf",
+          "gasUsedInt": 321471,
+          "observedAt": "2026-11-02T07:22:32.824800400+00:00",
+          "observedAtLocal": "2026-11-02T15:22:32+08:00",
+          "pair": "SPY -> ETH -> AMD -> SPY",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "precision": {
+            "amountOptimized": null,
+            "amountSelectionConfirmed": true,
+            "amountSelectionMethod": "native_closed_loop_rust_ladder",
+            "assessment": [
+              "micro_profit_below_1_bps"
+            ],
+            "borrowInputAmount": 1.0,
+            "borrowInputSymbol": "SPY",
+            "finalOutputAmount": 4.76847554948e-07,
+            "finalOutputSymbol": "SPY",
+            "livePriceVerified": true,
+            "netProfitAmount": "1.0396745E-11",
+            "netProfitBps": "0.21803554570245715",
+            "netProfitUsd": "7.90287777685E-9",
+            "routeTokenAddresses": [
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+              "0x0000000000000000000000000000000000000000",
+              "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+              "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+            ],
+            "selectedBorrowInputAmountRaw": "0x6f05b59d3b",
+            "selectionReason": null,
+            "symbol": "SPY",
+            "tokenDecimalsSource": "sqlite_chain_tokens",
+            "tokenDecimalsTrusted": true,
+            "trustedUsdReference": true,
+            "usdReference": {
+              "fresh": true,
+              "priceUsd": "760.13",
+              "referenceLagSeconds": 3353,
+              "snapshotObservedAt": "2026-11-02T06:26:39.365+00:00",
+              "snapshotSymbol": "SPYBUSDT",
+              "symbol": "SPY"
+            },
+            "usdReferenceSource": "binance_market_snapshot"
+          },
+          "state": "execution_success"
+        }
+      ],
+      "uniqueSuccessCount": 2
+    },
+    "t21FieldCounts": {
+      "ArbitrageNotProfitable": 0,
+      "netProductDeltaRaw": 0,
+      "netProfitAmountMissingReason": 939
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "chainId": 4663,
+  "chainTokenMetadata": {
+    "available": true,
+    "rowCount": 6353,
+    "source": "sqlite_chain_tokens",
+    "trustedDecimalsCount": 4485,
+    "unavailableReason": null
+  },
+  "conclusion": "2 unique on-chain success broadcasts with signed profit by symbol: 2.52635744440E-7 SPY across 2 tx; 0 failed broadcasts with expected P&L by symbol: no expected numeric value; 310 blocked/quote rows present, of which 263 carry an expected numeric P&L.",
+  "generatedAt": "2026-11-02T07:52:28Z",
+  "generatedAtLocal": "2026-11-02T15:52:28+08:00",
+  "network": "robinhood",
+  "range": {
+    "endLocal": "2026-11-02T15:40:00+08:00",
+    "endUtc": "2026-11-02T07:40:00Z",
+    "firstObservedAt": "2026-11-02T07:00:20.376108600+00:00",
+    "firstObservedAtLocal": "2026-11-02T15:00:20+08:00",
+    "lastObservedAt": "2026-11-02T07:39:14.445316700+00:00",
+    "lastObservedAtLocal": "2026-11-02T15:39:14+08:00",
+    "startLocal": "2026-11-02T15:00:00+08:00",
+    "startUtc": "2026-11-02T07:00:00Z"
+  },
+  "rowCount": 313,
+  "safety": {
+    "mainnetBroadcastEnabled": true,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-mainnet-closed-loop-pnl-v1",
+  "source": "flashloan\\db\\local_store_4663.sqlite3",
+  "usdReference": {
+    "available": true,
+    "maxAgeSeconds": 21600,
+    "maxReferenceLagSeconds": 86400,
+    "observedAt": "2026-11-02T06:26:39.365+00:00",
+    "priceCount": 712,
+    "source": "binance_market_snapshot",
+    "unavailableReason": null
+  }
+}

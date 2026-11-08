@@ -6,8 +6,6 @@ pub const V4_SPECIAL_FEE_THRESHOLD: u64 = 100_000;
 
 #[derive(Clone, Debug)]
 pub struct ChainDataSourceConfig {
-    pub network: String,
-    pub chain_id: u64,
     pub hyperrpc_url: String,
     pub hypersync_url: String,
     pub envio_api_token: String,
@@ -15,16 +13,17 @@ pub struct ChainDataSourceConfig {
 }
 
 impl ChainDataSourceConfig {
-    pub fn from_env(
-        network: &str,
-        chain_id: u64,
-        pool_manager: &str,
-    ) -> Result<Self, String> {
+    #[allow(unused_variables)]
+    pub fn from_env(network: &str, chain_id: u64, pool_manager: &str) -> Result<Self, String> {
         let hyperrpc_url = env::var("ROBINHOOD_HyperRPC_URL")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
-            .or_else(|| env::var("HYPERRPC_URL").ok().map(|value| value.trim().to_string()))
+            .or_else(|| {
+                env::var("HYPERRPC_URL")
+                    .ok()
+                    .map(|value| value.trim().to_string())
+            })
             .ok_or_else(|| {
                 "ROBINHOOD_HyperRPC_URL is not configured; load flashloan/app_runtime/.env first"
                     .to_string()
@@ -40,8 +39,6 @@ impl ChainDataSourceConfig {
             .filter(|value| !value.is_empty())
             .unwrap_or_default();
         Ok(Self {
-            network: network.to_string(),
-            chain_id,
             hyperrpc_url,
             hypersync_url,
             envio_api_token,
@@ -81,9 +78,11 @@ pub fn address_from_topic(topic: &str) -> Result<String, String> {
 pub fn parse_u64_hexish(value: &str) -> Result<u64, String> {
     let text = value.trim();
     if let Some(hex_value) = text.strip_prefix("0x") {
-        u64::from_str_radix(hex_value, 16).map_err(|error| format!("invalid hex u64 {text}: {error}"))
+        u64::from_str_radix(hex_value, 16)
+            .map_err(|error| format!("invalid hex u64 {text}: {error}"))
     } else {
-        text.parse::<u64>().map_err(|error| format!("invalid u64 {text}: {error}"))
+        text.parse::<u64>()
+            .map_err(|error| format!("invalid u64 {text}: {error}"))
     }
 }
 
@@ -93,13 +92,19 @@ mod tests {
 
     #[test]
     fn zero_address_is_canonical() {
-        assert_eq!(canonical_address("0x0000000000000000000000000000000000000000"), ZERO_ADDRESS);
+        assert_eq!(
+            canonical_address("0x0000000000000000000000000000000000000000"),
+            ZERO_ADDRESS
+        );
     }
 
     #[test]
     fn topic_uses_last_twenty_bytes() {
         assert_eq!(
-            address_from_topic("0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168").unwrap(),
+            address_from_topic(
+                "0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168"
+            )
+            .unwrap(),
             "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
         );
     }

@@ -7,11 +7,13 @@ from web.chain_selection_routes import register_chain_selection_routes
 from web.chain_selection import resolve_request_chain_selection, validate_explicit_request_scope
 from core.api_scope_policy import api_requires_scope
 from core.api_scope_policy import validate_named_response_contract
+from core.db.chain_database_context import chain_database_scope
 from core.workflow import HARD_WORKFLOW_BLOCKS, WorkflowContextError, resolve_workflow_context
 from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
 from web.control_panel_liquidation_context import install_liquidation_context
 from web.control_panel_liquidation_routes import register_liquidation_routes
+from web.manager_compat_routes import register_manager_compat_routes
 from web.control_panel_page_routes import register_page_routes
 from web import control_panel_data_routes as shared_data_routes
 from market.binance_market import dex_surfaces as market_dex_surfaces
@@ -21,13 +23,27 @@ from core.dex_surface_provider import bind_provider
 
 
 def _panel_database_url(panel) -> str | None:
-    getter = getattr(panel, "database_url_or_none", None)
+    getter = getattr(panel, "database_url", None)
     if not callable(getter):
         return None
     try:
         return getter()
     except Exception:
         return None
+
+
+def _install_chain_runtime(chain_id: int, network: str | None = None) -> bool:
+    """Bind one Flask request to the chain runtime big object."""
+    from core.runtime.chain_runtime import chain_runtime_registry
+
+    runtime = chain_runtime_registry().register_chain(
+        int(chain_id),
+        network=network,
+        make_active=True,
+    )
+    g.chain_runtime = runtime
+    g.page_context = runtime.page_context()
+    return True
 
 
 def install_chain_selection_context(app: Flask, panel) -> None:
@@ -73,6 +89,25 @@ def install_chain_selection_context(app: Flask, panel) -> None:
                     }
                 ), 400
 
+        raw_chain_id = request.args.get("chain_id", "").strip()
+        if raw_chain_id:
+            try:
+                chain_scope = chain_database_scope(int(raw_chain_id), source="web-request")
+                chain_scope.__enter__()
+                g.chain_database_scope = chain_scope
+                try:
+                    _install_chain_runtime(int(raw_chain_id))
+                except (ImportError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    g.chain_runtime_error = str(exc)[:200]
+            except (TypeError, ValueError):
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": f"invalid chain_id: {raw_chain_id}",
+                        "code": "invalid_chain_id",
+                    }
+                ), 400
+
         if not request.path.startswith("/api/") or not api_requires_scope(request.path):
             return None
         try:
@@ -82,11 +117,29 @@ def install_chain_selection_context(app: Flask, panel) -> None:
                 database_url=_panel_database_url(panel),
                 feature=None,
             )
+            selection = g.chain_selection
+            if getattr(selection, "chain_id", None) is not None:
+                try:
+                    _install_chain_runtime(
+                        int(selection.chain_id),
+                        network=getattr(selection, "network", None),
+                    )
+                except (ImportError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    g.chain_runtime_error = str(exc)[:200]
         except ChainSelectionError as exc:
             return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc), "code": "validation"}), 400
         return None
+
+    @app.teardown_request
+    def teardown_chain_database_context(_exception):
+        chain_scope = getattr(g, "chain_database_scope", None)
+        if chain_scope is not None:
+            try:
+                chain_scope.__exit__(None, None, None)
+            except Exception as exc:
+                app.logger.warning("chain scope teardown failed: %s", exc)
 
     @app.after_request
     def expose_chain_selection_context(response):
@@ -98,6 +151,11 @@ def install_chain_selection_context(app: Flask, panel) -> None:
                     "/api/dex/market-observation": "dex_market_observation",
                     "/api/dex/quote-routes": "dex_quote_routes",
                     "/api/dex/submissions": "dex_submission_review",
+                    "/api/dex/submissions/review": "dex_submission_review_records",
+                    "/api/dex/submissions/review-success": "dex_submission_review_success_records",
+                    "/api/dex/submissions/review-failed": "dex_submission_review_failed_records",
+                    "/api/dex/submissions/execution-success": "dex_submission_execution_success_records",
+                    "/api/dex/submissions/execution-failed": "dex_submission_execution_failed_records",
                     "/api/dex-pools/candidates": "dex_pool_candidates",
                     "/api/dex-pools/candidates/refresh": "dex_pool_candidates",
                 }
@@ -158,6 +216,7 @@ def register_control_panel_routes(app: Flask, panel) -> None:
     bind_provider(shared_data_routes.ROUTE_CONTEXT, market_dex_surfaces)
     register_page_routes(app, panel)
     register_workflow_context_route(app)
+    register_manager_compat_routes(app)
     register_chain_selection_routes(app, panel)
     register_liquidation_routes(app, panel)
     register_data_routes(app, panel)
@@ -168,5 +227,3 @@ def create_control_panel_app(panel) -> Flask:
     app = Flask(getattr(panel, "__name__", __name__))
     register_control_panel_routes(app, panel)
     return app
-
-

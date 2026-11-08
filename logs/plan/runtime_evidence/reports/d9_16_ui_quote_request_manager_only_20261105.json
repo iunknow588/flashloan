@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_16_ui_quote_request_manager_only_20261105",
+  "milestone": "M9",
+  "task": "D9.16 quote-request page uses Composite Manager /v1/overview as its only business read and fails closed without legacy fallback",
+  "status": "completed",
+  "generatedAt": "2026-11-05T23:57:19+08:00",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan",
+  "decision": "The quote-request GET is manager-owned. Flask now selects one manager overview arbitragePath by pair and maps route symbols, addresses, PoolKey/pool IDs, QuoteInputs, Review signed PnL, versions and data quality into the existing quote request DTO as quoteMode=manager_overview_projection. The route no longer invokes legacy bootstrap, legacy surface payload, legacy quote-route payload or observation overview. Missing manager paths return HTTP 404 manager_request_not_found; manager unavailability, malformed overview hierarchy or invalid chain scope return HTTP 503 manager_read_failed. Both error shapes keep dataSource=manager and managerDetail with no legacy fallback.",
+  "implementation": {
+    "flaskAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "flaskRoute": "flashloan/app_runtime/web/data_routes/dex_surface_routes_quotes.py",
+    "pythonTests": "flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py",
+    "architectureGuards": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+    "workflowTests": "flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py",
+    "payloadContract": "flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py",
+    "managerApiReadme": "flashloan/tools/manager_api/README.md",
+    "plan": "logs/plan/开发计划_20261103.md",
+    "implementationHandbook": "logs/plan/Rust管理模块实施手册_20261103.md"
+  },
+  "changes": [
+    "Added quote_request_manager_page_payload as a pure manager overview to quote-request DTO adapter",
+    "The adapter matches a manager path by pair, maps route symbols/addresses, routeTokenPath, pool IDs, candidatePools/routePools, quote status, quote verification, QuoteInputs and Review signed PnL into the existing quote request DTO",
+    "The quote request is projected as quoteMode=manager_overview_projection and never re-runs AMM/UniswapX spec generation or live quote execution",
+    "/api/dex/quote-request now calls quote_request_manager_page_payload unconditionally and returns 404 manager_request_not_found for missing manager paths and 503 manager_read_failed for manager errors",
+    "The quote-request GET no longer calls legacy bootstrap, surface payload, quote-route payload or observation overview",
+    "Updated functional assembly, workflow, payload-contract and architecture tests to lock the manager-only quote-request boundary",
+    "Updated the current development plan, implementation handbook and manager API README with D9.16 behavior and evidence"
+  ],
+  "verification": [
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q",
+      "exitCode": 0,
+      "passed": 9
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare.py app_runtime/tests/unit/test_manager_page_compare_quote_routes.py -q",
+      "exitCode": 0,
+      "passed": 56
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_manager_page_compare_quote_routes.py app_runtime/tests/unit/test_architecture_guards.py::test_migrated_dex_quote_request_is_manager_only -q",
+      "exitCode": 0,
+      "passed": 10
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly.py -q",
+      "exitCode": 0,
+      "passed": 25
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "exitCode": 0,
+      "passed": 28
+    },
+    {
+      "command": "python -m pytest app_runtime/tests/functional/test_api_handler_payload_contract.py -q -v --maxfail=1",
+      "exitCode": 0,
+      "passed": 14,
+      "note": "Took about 142 seconds in this environment, all handler contract tests passed"
+    },
+    {
+      "command": "python -m py_compile app_runtime/web/data_routes/manager_page_compare.py app_runtime/web/data_routes/dex_surface_routes_quotes.py app_runtime/tests/unit/test_manager_page_compare_quote_routes.py app_runtime/tests/unit/test_architecture_guards.py app_runtime/tests/functional/test_web_app_assembly_workflows.py app_runtime/tests/functional/test_api_handler_payload_contract.py",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check --workspace",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo test -p manager-api -p composite-manager",
+      "exitCode": 0,
+      "passed": 33
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "note": "Only LF/CRLF warnings from the pre-existing tracked dirty worktree"
+    }
+  ],
+  "fixtures": [
+    "Manager path selection maps USDG closed loop to the quote request DTO with routeKey, PoolKey/pool IDs and signed PnL",
+    "Manager QuoteInputs are projected as venue=requested venue, quoteMode=manager_overview_projection and managerOverview=true",
+    "quoteVerification.trustedForExecution follows manager Review signed PnL and live_verified evidence only",
+    "Missing manager paths return structured candidate_pair_not_found and HTTP 404 manager_request_not_found",
+    "Manager unavailable and malformed overview responses fail closed without defaults",
+    "Quote-request GET calls only quote_request_manager_page_payload and never legacy bootstrap, surface payload, quote-route payload or observation loader",
+    "Assembly, workflow and payload-contract tests keep /api/dex/quote-request reachable with manager-only DTOs"
+  ],
+  "unrelatedFailuresObserved": [
+    {
+      "command": "python -m pytest app_runtime/tests/unit/test_architecture_guards.py -q",
+      "passed": 40,
+      "failed": 6,
+      "items": [
+        "test_no_silent_broad_exceptions_are_added",
+        "test_split_packages_exist_without_cross_imports",
+        "test_app_runtime_moved_packages_are_shim_only",
+        "test_refactored_helper_modules_stay_under_line_limits",
+        "test_active_source_files_stay_under_1000_lines",
+        "test_robinhood_page_read_paths_do_not_read_ui_evidence_json"
+      ],
+      "assessment": "The quote-request manager-only guard passed. These full-suite failures are the same pre-existing dirty-worktree guard baselines outside this D9.16 slice and were not changed here."
+    }
+  ],
+  "dbWrites": 0,
+  "mainnetApply": false,
+  "serviceRestart": false,
+  "realBroadcast": false,
+  "knownBoundary": "D9.16 covers code, tests, docs and manager-only quote-request GET behavior. It does not apply production manager data, start or stop the service, write the mainnet database, enable real broadcast, or claim that all remaining UI pages have retired legacy business reads. /api/dex/quote-routes/static and other non-page maintenance/data paths remain unmigrated and require separate authority-cutover tasks. No historical evidence was modified."
+}

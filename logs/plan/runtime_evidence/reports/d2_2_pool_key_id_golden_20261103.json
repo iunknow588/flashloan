@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "generatedAt": "2026-11-03T21:26:01Z",
+  "milestone": "M2",
+  "task": "D2.2",
+  "status": "standard_abi_encoding_locked_and_mainnet_read_only_audit_passed",
+  "encodingContract": {
+    "types": [
+      "address",
+      "address",
+      "uint24",
+      "int24",
+      "address"
+    ],
+    "method": "keccak256(abi.encode(V4PoolKey))",
+    "sharedImplementation": "manager_contracts::V4PoolKey::pool_id",
+    "transactionalRustConsumer": "flashloan/rs-src/src/pool_index.rs",
+    "duplicateBusinessEncodingAllowed": false
+  },
+  "goldenVector": {
+    "currency0": "0x0000000000000000000000000000000000000000",
+    "currency1": "0x0040070833df5bcf9644a5c9732a1fe906c27777",
+    "fee": 10000,
+    "tickSpacing": 200,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "poolId": "0x0061a6568e820becb465c3e6c8817bba1e8b6a91feeef04756bf6e15263cd252",
+    "source": "Robinhood mainnet initialized V4 pool evidence"
+  },
+  "mainnetReadOnlyAudit": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "network": "robinhood",
+    "chainId": 4663,
+    "totalRows": 5479,
+    "parsedRows": 5477,
+    "validAbiRows": 5477,
+    "abiMatches": 5477,
+    "abiMismatches": 0,
+    "matchRate": 1.0,
+    "legacyEncodingMatches": 0,
+    "incompleteRows": 2,
+    "incompletePoolIds": [
+      "0x3753abd2c57d147be0d88d71f04d9f70760c6f3d80c7160568cd4263bffe31fc",
+      "0xa6dc74a81e1ce78907abff75c476779e0db85f60e08ebff191eff9eda6a7ed0a"
+    ],
+    "incompleteReason": "tick_spacing_missing_cannot_form_pool_key",
+    "readOnly": true,
+    "businessWritePerformed": false
+  },
+  "legacyEncodingFinding": {
+    "description": "The previous local Rust encoder placed fee and tick_spacing bytes at the beginning of their ABI words instead of the low-order bytes.",
+    "mainnetChainTruthMatches": 0,
+    "disposition": "Removed from the business path; new-old equality with the incorrect output is explicitly not a compatibility gate.",
+    "replacementGuard": "manager_contracts golden vector plus rs-src consumer test"
+  },
+  "safeHandling": {
+    "activePoolIdMismatchAllowed": false,
+    "identityMismatchStatus": "identity_mismatch",
+    "incompleteRawPoolStatus": "skipped_with_reason",
+    "fabricatedPoolKeyAllowed": false
+  }
+}

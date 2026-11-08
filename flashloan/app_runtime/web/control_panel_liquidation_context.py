@@ -47,7 +47,7 @@ CONTEXT_NAMES = [
     "aave_rpc_urls",
     "aave_pool_address",
     "build_user_liquidation_report",
-    "database_url_or_none",
+    "database_url",
     "db_liquidation_account_registry_stats",
     "db_liquidation_discovery_scan_progress",
     "db_load_liquidation_borrow_health_scan_batches",

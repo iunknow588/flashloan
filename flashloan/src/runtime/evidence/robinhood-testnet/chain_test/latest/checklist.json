@@ -1,6 +1,6 @@
 [
   {
-    "detail": "锁定 TZ -> TB -> TA -> TZ / 触发区块 118022639",
+    "detail": "锁定 ETH -> NFLX -> PLTR -> ETH / 触发区块 None",
     "done": true,
     "id": "freeze_snapshot",
     "status": "done",
@@ -31,14 +31,14 @@
     "detail": "只读 Quoter 已复核后仍需本地仿真",
     "done": false,
     "id": "fork_staticcall",
-    "status": "pending",
+    "status": "blocked",
     "title": "执行 fork/static-call 仿真"
   },
   {
     "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
     "done": false,
     "id": "broadcast_gate",
-    "status": "blocked",
+    "status": "pending",
     "title": "保持广播闸门关闭"
   },
   {

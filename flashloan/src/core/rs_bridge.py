@@ -31,6 +31,7 @@ from core.db.storage_dex_candidate import load_dex_candidate_pools as _py_load_d
 from core.db.storage_market_observation import load_market_observation as _py_load_market_observation
 from core.db.storage_v4_closed_loop import load_v4_closed_loop as _py_load_v4_closed_loop
 from core.local_kv import store_path
+from core.rust_extension import load_rust_extension, rust_extension_load_error
 
 
 _RUST_MODULE = None
@@ -50,6 +51,21 @@ def _database_path(database_url: str | None = None) -> str:
     return str(absolute_database_path(None))
 
 
+def _bnb_database_path(database_url: str | None = None) -> str:
+    """BNB market data lives in its own shared database."""
+
+    if database_url:
+        return str(Path(database_url).expanduser().resolve())
+    from core.db.bnb_database import (
+        bnb_shared_database_enabled,
+        bnb_shared_database_path,
+    )
+
+    if bnb_shared_database_enabled():
+        return str(bnb_shared_database_path().resolve())
+    return _database_path(None)
+
+
 def rust_available() -> bool:
     _load_rust()
     return _RUST_MODULE is not None
@@ -59,13 +75,13 @@ def _load_rust() -> None:
     global _RUST_MODULE, _RUST_LOAD_ERROR
     if _RUST_MODULE is not None or _RUST_LOAD_ERROR is not None:
         return
-    try:
-        import flashloan_rs  # type: ignore
-
-        _RUST_MODULE = flashloan_rs
-        _RUST_LOAD_ERROR = None
-    except Exception as exc:  # pragma: no cover - depends on local build
-        _RUST_LOAD_ERROR = f"{type(exc).__name__}: {exc}"
+    module = load_rust_extension()
+    _RUST_MODULE = module
+    _RUST_LOAD_ERROR = (
+        None
+        if module is not None
+        else rust_extension_load_error() or "flashloan_rs unavailable"
+    )
 
 
 def rust_load_error() -> str | None:
@@ -156,7 +172,7 @@ def update_v4_scan_state(
     confirmed_liquidity_pool_count: int | None = None,
     explicit_zero_liquidity_pool_count: int | None = None,
     unscanned_pool_count: int | None = None,
-    direction_candidate_limit: int = 5,
+    direction_candidate_limit: int = 1,
     scan_mode: str = "incremental",
 ) -> dict[str, Any]:
     _load_rust()
@@ -1012,6 +1028,159 @@ def get_v4_pending_nonce(
     return payload
 
 
+def read_v4_pool_states(
+    *,
+    rpc_url: str,
+    pool_manager: str,
+    pool_ids: list[str],
+    timeout: float = 20.0,
+) -> dict[str, dict[str, Any]]:
+    """Read V4 PoolManager slot0/liquidity through the Rust JSON-RPC batch reader."""
+
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            "flashloan_rs unavailable; V4 pool state network reads are Rust-owned: "
+            f"{rust_load_error()}"
+        )
+    try:
+        payload = _RUST_MODULE.read_v4_pool_states(
+            str(rpc_url or ""),
+            str(pool_manager or ""),
+            json.dumps([str(pool_id) for pool_id in pool_ids]),
+            int(max(5, min(120, float(timeout or 20)))),
+        )
+    except Exception as exc:
+        raise RuntimeError(f"flashloan_rs read_v4_pool_states failed; {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs read_v4_pool_states returned a non-dict payload")
+    states = payload.get("states")
+    if not isinstance(states, dict):
+        raise RuntimeError("flashloan_rs read_v4_pool_states returned no states dict")
+    return {
+        str(pool_id): state
+        for pool_id, state in states.items()
+        if isinstance(state, dict)
+    }
+
+
+def append_bnb_market_observation(
+    source: str,
+    payload: dict[str, Any],
+    *,
+    network: str = "bnb",
+    chain_id: int = 56,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Append one BNB market observation through the Rust-owned SQLite writer."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; BNB observation storage is Rust-owned: {rust_load_error()}"
+        )
+    result = _RUST_MODULE.append_bnb_market_observation(
+        source,
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        _bnb_database_path(database_url),
+        network,
+        int(chain_id),
+    )
+    if not isinstance(result, dict):
+        raise RuntimeError("flashloan_rs append_bnb_market_observation returned a non-dict payload")
+    return result
+
+
+def load_bnb_market_observations(
+    *,
+    source: str | None = None,
+    limit: int = 200,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Load recent BNB market observations through Rust-owned SQLite reads."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; BNB observation reads are Rust-owned: {rust_load_error()}"
+        )
+    result = _RUST_MODULE.load_bnb_market_observations(
+        _bnb_database_path(database_url),
+        source,
+        int(limit),
+    )
+    if not isinstance(result, dict):
+        raise RuntimeError("flashloan_rs load_bnb_market_observations returned a non-dict payload")
+    return result
+
+
+def append_bnb_market_snapshot(
+    symbol: str,
+    price_usd: str,
+    observed_at: str,
+    payload: dict[str, Any],
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Append one Binance BNB ticker snapshot through the Rust-owned writer."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; BNB snapshot storage is Rust-owned: {rust_load_error()}"
+        )
+    result = _RUST_MODULE.append_bnb_market_snapshot(
+        str(symbol),
+        str(price_usd),
+        str(observed_at),
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        _bnb_database_path(database_url),
+    )
+    if not isinstance(result, dict):
+        raise RuntimeError("flashloan_rs append_bnb_market_snapshot returned a non-dict payload")
+    return result
+
+
+def load_bnb_market_snapshots(
+    *,
+    symbol: str | None = None,
+    limit: int = 100,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Load recent Binance BNB ticker snapshots through Rust-owned SQLite reads."""
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; BNB snapshot reads are Rust-owned: {rust_load_error()}"
+        )
+    result = _RUST_MODULE.load_bnb_market_snapshots(
+        _bnb_database_path(database_url),
+        symbol,
+        int(limit),
+    )
+    if not isinstance(result, dict):
+        raise RuntimeError("flashloan_rs load_bnb_market_snapshots returned a non-dict payload")
+    return result
+
+
+def collect_bnb_market_snapshot(
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Fetch the current BNBUSDT price and store it through Rust.
+
+    The collected BNB market data is intentionally not consumed by the current
+    strategy/execution pipeline; it is kept for future compatibility only and
+    will be wired in by a later fix.
+    """
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            f"flashloan_rs unavailable; BNB snapshot collection is Rust-owned: {rust_load_error()}"
+        )
+    result = _RUST_MODULE.collect_bnb_market_snapshot(_bnb_database_path(database_url))
+    if not isinstance(result, dict):
+        raise RuntimeError("flashloan_rs collect_bnb_market_snapshot returned a non-dict payload")
+    return result
+
+
 def page_payload_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"ok": True, "rows": rows, "source": "sqlite_db"}
 
@@ -1031,9 +1200,15 @@ __all__ = [
     "load_v4_pool_liquidity",
     "load_v4_pool_liquidity_refreshed_at",
     "load_v4_pool_liquidity_rows_for_view",
+    "append_bnb_market_observation",
+    "append_bnb_market_snapshot",
+    "collect_bnb_market_snapshot",
+    "load_bnb_market_observations",
+    "load_bnb_market_snapshots",
     "load_v4_receipt",
     "page_payload_from_rows",
     "quote_v4_exact_input_single",
+    "read_v4_pool_states",
     "resolve_private_key_hex",
     "rust_available",
     "current_schema_version",

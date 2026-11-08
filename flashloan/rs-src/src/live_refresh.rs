@@ -2,17 +2,13 @@ use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 
 const V4_LIVE_REFRESH_DOMAIN: &str = "v4_live_refresh";
-const V4_LIVE_REFRESH_PROTOCOL: &str = "uniswap_v4";
 
 fn utc_now() -> String {
     chrono::Utc::now().to_rfc3339().replace("+00:00", "Z")
 }
 
 fn completeness_int(value: &Value, key: &str, default: i64) -> i64 {
-    value
-        .get(key)
-        .and_then(Value::as_i64)
-        .unwrap_or(default)
+    value.get(key).and_then(Value::as_i64).unwrap_or(default)
 }
 
 fn completeness_string(value: &Value, key: &str, default: &str) -> String {
@@ -38,19 +34,19 @@ fn load_initialization_row(
         )
         .map_err(|error| format!("could not query V4 scan state: {error}"))?;
     let mut rows = statement
-        .query_map(
-            params![network, chain_id, protocol, domain],
-            |row| {
-                Ok(json!({
-                    "status": row.get::<_, String>(0)?,
-                    "completeness_json": row.get::<_, Option<String>>(1)?,
-                    "error_json": row.get::<_, Option<String>>(2)?,
-                    "refreshed_at": row.get::<_, Option<String>>(3)?,
-                }))
-            },
-        )
+        .query_map(params![network, chain_id, protocol, domain], |row| {
+            Ok(json!({
+                "status": row.get::<_, String>(0)?,
+                "completeness_json": row.get::<_, Option<String>>(1)?,
+                "error_json": row.get::<_, Option<String>>(2)?,
+                "refreshed_at": row.get::<_, Option<String>>(3)?,
+            }))
+        })
         .map_err(|error| format!("could not query V4 scan state: {error}"))?;
-    let row = rows.next().transpose().map_err(|error| format!("could not read V4 scan state: {error}"))?;
+    let row = rows
+        .next()
+        .transpose()
+        .map_err(|error| format!("could not read V4 scan state: {error}"))?;
     Ok(row)
 }
 
@@ -100,7 +96,7 @@ pub fn load_v4_scan_state(
             0,
         ),
         "unscanned_pool_count": completeness_int(&completeness, "unscanned_pool_count", 0),
-        "direction_candidate_limit": completeness_int(&completeness, "direction_candidate_limit", 5),
+        "direction_candidate_limit": completeness_int(&completeness, "direction_candidate_limit", 1),
         "scan_mode": completeness_string(&completeness, "scan_mode", "full"),
         "refreshed_at": refreshed_at,
     }))
@@ -227,26 +223,23 @@ pub fn merge_v4_pool_index(
         )
         .map_err(|error| format!("could not query SQLite pools for merge: {error}"))?;
     let existing_rows = existing
-        .query_map(
-            params![network, chain_id, protocol],
-            |row| {
-                let pool_key: Option<String> = row.get(2)?;
-                let pool_key_value = pool_key
-                    .and_then(|raw| serde_json::from_str(&raw).ok())
-                    .unwrap_or(Value::Null);
-                Ok(json!({
-                    "poolId": row.get::<_, String>(0)?,
-                    "pool_id": row.get::<_, String>(0)?,
-                    "poolManager": row.get::<_, Option<String>>(1)?,
-                    "poolKey": pool_key_value,
-                    "token0": row.get::<_, Option<String>>(3)?,
-                    "token1": row.get::<_, Option<String>>(4)?,
-                    "fee": row.get::<_, Option<i64>>(5)?,
-                    "tickSpacing": row.get::<_, Option<i64>>(6)?,
-                    "hooks": row.get::<_, Option<String>>(7)?,
-                }))
-            },
-        )
+        .query_map(params![network, chain_id, protocol], |row| {
+            let pool_key: Option<String> = row.get(2)?;
+            let pool_key_value = pool_key
+                .and_then(|raw| serde_json::from_str(&raw).ok())
+                .unwrap_or(Value::Null);
+            Ok(json!({
+                "poolId": row.get::<_, String>(0)?,
+                "pool_id": row.get::<_, String>(0)?,
+                "poolManager": row.get::<_, Option<String>>(1)?,
+                "poolKey": pool_key_value,
+                "token0": row.get::<_, Option<String>>(3)?,
+                "token1": row.get::<_, Option<String>>(4)?,
+                "fee": row.get::<_, Option<i64>>(5)?,
+                "tickSpacing": row.get::<_, Option<i64>>(6)?,
+                "hooks": row.get::<_, Option<String>>(7)?,
+            }))
+        })
         .map_err(|error| format!("could not query SQLite pools for merge: {error}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("could not query SQLite pools for merge: {error}"))?;
@@ -334,7 +327,7 @@ mod tests {
             &connection,
             "robinhood",
             4663,
-            V4_LIVE_REFRESH_PROTOCOL,
+            "uniswap_v4",
             Some(1200),
             Some(1000),
             Some(1200),
@@ -348,8 +341,7 @@ mod tests {
             "incremental",
         )
         .unwrap();
-        let state = load_v4_scan_state(&connection, "robinhood", 4663, V4_LIVE_REFRESH_PROTOCOL)
-            .unwrap();
+        let state = load_v4_scan_state(&connection, "robinhood", 4663, "uniswap_v4").unwrap();
         assert_eq!(state["last_scanned_block"], 1200);
         assert_eq!(state["confirmed_liquidity_pool_count"], 30);
         assert_eq!(state["scan_mode"], "incremental");

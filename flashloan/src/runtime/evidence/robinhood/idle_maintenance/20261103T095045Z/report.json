@@ -1,0 +1,43 @@
+{
+  "chainId": 4663,
+  "cleaned": {
+    "dex_candidate_pool_recommendations": 0,
+    "dex_candidate_pools": 0,
+    "v4_closed_loop_hops": 0,
+    "v4_closed_loop_optimizations": 0,
+    "v4_closed_loops": 0,
+    "v4_exchange_pool_liquidity_snapshots": 0,
+    "v4_exchange_pools": 0
+  },
+  "cleanedPoolCount": 11,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "generatedAt": "2026-11-03T09:50:45.871706Z",
+  "mode": "zero_liquidity_pool_cleanup",
+  "network": "robinhood",
+  "ok": true,
+  "phase": "completed",
+  "poolIds": [
+    "0x001fbb58773d762978b1ac95d95d00d7c5330806e9a10ad3253f00e3f6371308",
+    "0x001fcc4d8cc447b69774ddbdd60d2bcb439afb560d76c9e3fe6231ff5cd18523",
+    "0x0041fbbac004b429ee0cd1e9c59c7ea68bf9deb04acb8b76da61844f0c6dd83c",
+    "0x00bbf4a17381fec6b2110309c07770bf074b1a8f7c3874ac9e1ded660ce46a11",
+    "0x00bf347ea0039d92d9b3988118513fe0cabcb964cf53c334877ca51d3f3388e5",
+    "0x248f1e3e80ea1c56d740f416bf56533a6af8dcc4b76d320a49936fc8267e6b6e",
+    "0x28ce2023a5a209f730d21b4f94e2a8b74b4012c16fabf484365758394253b7d1",
+    "0x2af0eecdad375b74f1d77a29b220a47ca8d45f32180acf8b93df911494e2ba5d",
+    "0x36234ef1d896ae6fc77612485565c714fa55a994c4075da3697e06016fb658c8",
+    "0x38a5c6865388511c5d38d43da16cc86ad68b1ee4a66e8f940e7e5bd0ab562bd4",
+    "0x4244f1231767cdceaa8d94ef46e4a57bb1df130ef94d5ac4a9968f45d46f40f9"
+  ],
+  "retained": {
+    "v4_exchange_pool_liquidity_snapshots": "retained_for_liquidity_recovery; raw pool rows and snapshots are never deleted by dynamic-scan cleanup",
+    "v4_exchange_pools": 11
+  },
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "writesSqlite": true
+  },
+  "schemaVersion": "robinhood-testnet-v4-zero-liquidity-cleanup-evidence-v1"
+}

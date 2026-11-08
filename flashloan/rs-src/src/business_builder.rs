@@ -1,5 +1,5 @@
-﻿use rusqlite::{params_from_iter, Connection, Row, Transaction};
 use rusqlite::types::Value;
+use rusqlite::{params_from_iter, Connection, Row, Transaction};
 use serde_json::{json, Value as JsonValue};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -8,7 +8,6 @@ const MAX_FIXED_FEE: i64 = 100_000;
 const MAX_USABLE_CANDIDATE_FIXED_FEE: i64 = 3000;
 const MAX_DIRECTION_CANDIDATE_POOLS: usize = 5;
 const MAX_OBSERVATION_POOLS_PER_DIRECTION: usize = 3;
-const MIN_OBSERVATION_POOL_DEPTH_USD: f64 = 1000.0;
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
 
 #[derive(Clone)]
@@ -20,9 +19,6 @@ struct PoolRow {
     token0: Option<String>,
     token1: Option<String>,
     fee: Option<i64>,
-    fee_label: Option<String>,
-    dynamic_fee: Option<i64>,
-    special_fee: Option<i64>,
     tick_spacing: Option<i64>,
     hooks: Option<String>,
     address_pair: Option<String>,
@@ -87,12 +83,10 @@ fn as_text(value: Option<String>) -> Value {
     value.map(Value::Text).unwrap_or(Value::Null)
 }
 
-fn as_text_or_empty(value: Option<String>) -> Value {
-    Value::Text(value.unwrap_or_default())
-}
-
 fn as_tri(value: Option<i64>) -> Value {
-    value.map(|item| Value::from(item != 0)).unwrap_or(Value::Null)
+    value
+        .map(|item| Value::from(item != 0))
+        .unwrap_or(Value::Null)
 }
 
 fn v_bool(value: bool) -> Value {
@@ -109,11 +103,7 @@ fn is_unresolved_placeholder_symbol(symbol: &str) -> bool {
 
 fn is_fixed_fee(fee: Option<i64>, max_fixed_fee: i64) -> bool {
     match fee {
-        Some(value) => {
-            value > 0
-                && value <= max_fixed_fee
-                && value & DYNAMIC_FEE_FLAG == 0
-        }
+        Some(value) => value > 0 && value <= max_fixed_fee && value & DYNAMIC_FEE_FLAG == 0,
         None => false,
     }
 }
@@ -127,8 +117,7 @@ fn has_depth(pool: &PoolRow) -> bool {
     if let Some(has_liquidity) = pool.has_liquidity {
         return has_liquidity != 0 || pool.liquidity_index.unwrap_or(0.0) > 0.0;
     }
-    pool.liquidity_index.unwrap_or(0.0) > 0.0
-        || pool.estimated_tvl_usd.unwrap_or(0.0) > 0.0
+    pool.liquidity_index.unwrap_or(0.0) > 0.0 || pool.estimated_tvl_usd.unwrap_or(0.0) > 0.0
 }
 
 fn pool_depth(pool: &PoolRow) -> f64 {
@@ -155,9 +144,13 @@ fn balances_tvl(balances_json: &Option<String>) -> f64 {
 fn has_confirmed_liquidity(pool: &PoolRow) -> bool {
     let evidence_source = norm(&pool.evidence_source);
     let has_liquidity = pool.has_liquidity;
-    if evidence_source == "pool_manager_extsload_live_state_batch"
-        && has_liquidity == Some(1)
-    {
+    // Explicit zero-liquidity evidence always wins over stale depth.  The
+    // raw pool row is retained so a later positive snapshot makes the pool
+    // eligible again; it is only excluded from the candidate surface.
+    if has_liquidity == Some(0) {
+        return false;
+    }
+    if evidence_source == "pool_manager_extsload_live_state_batch" && has_liquidity == Some(1) {
         let raw_liquidity = pool
             .liquidity
             .as_deref()
@@ -218,18 +211,15 @@ fn fee_factor(fee: Option<i64>) -> f64 {
 fn score_pool_by_direction(pool: &PoolRow, token_in: &str, token_out: &str) -> f64 {
     let token0 = norm(&pool.token0);
     let token1 = norm(&pool.token1);
-    if token_in.is_empty()
-        || token_out.is_empty()
-        || {
-            let mut expected = BTreeSet::new();
-            expected.insert(token_in.to_string());
-            expected.insert(token_out.to_string());
-            let mut actual = BTreeSet::new();
-            actual.insert(token0.clone());
-            actual.insert(token1.clone());
-            expected != actual
-        }
-    {
+    if token_in.is_empty() || token_out.is_empty() || {
+        let mut expected = BTreeSet::new();
+        expected.insert(token_in.to_string());
+        expected.insert(token_out.to_string());
+        let mut actual = BTreeSet::new();
+        actual.insert(token0.clone());
+        actual.insert(token1.clone());
+        expected != actual
+    } {
         return 0.0;
     }
     let sqrt_price = parse_sqrt_price(&pool.sqrt_price_x96);
@@ -288,11 +278,7 @@ fn sort_key_score(pool: &PoolRow, token_in: &str, token_out: &str) -> (i64, i64,
     (-score_rank, pool.fee.unwrap_or(0), pool_id_from_row(pool))
 }
 
-fn select_recommendations(
-    pools: &[PoolRow],
-    token_in: &str,
-    token_out: &str,
-) -> Vec<PoolRow> {
+fn select_recommendations(pools: &[PoolRow], token_in: &str, token_out: &str) -> Vec<PoolRow> {
     let mut confirmed: Vec<&PoolRow> = pools
         .iter()
         .filter(|pool| has_confirmed_liquidity(pool))
@@ -376,8 +362,8 @@ fn query_scope_pools(
 ) -> Result<Vec<PoolRow>, String> {
     let mut sql = String::from(
         "SELECT p.pool_id, p.pool_identity_mode, p.pool_manager, p.pool_key_json,
-                p.token0, p.token1, p.fee, p.fee_label, p.dynamic_fee,
-                p.special_fee, p.tick_spacing, p.hooks,
+                p.token0, p.token1, p.fee,
+                p.tick_spacing, p.hooks,
                 l.has_liquidity, l.liquidity, l.liquidity_index,
                 l.estimated_tvl_usd, l.balances_json, l.depth_status,
                 l.depth_band_json, l.depth_score_usd, l.sqrt_price_x96,
@@ -433,28 +419,25 @@ fn map_pool_row(row: &Row<'_>) -> rusqlite::Result<PoolRow> {
         token0: row.get(4)?,
         token1: row.get(5)?,
         fee: row.get(6)?,
-        fee_label: row.get(7)?,
-        dynamic_fee: row.get(8)?,
-        special_fee: row.get(9)?,
-        tick_spacing: row.get(10)?,
-        hooks: row.get(11)?,
-        has_liquidity: row.get(12)?,
-        liquidity: row.get(13)?,
-        liquidity_index: row.get(14)?,
-        estimated_tvl_usd: row.get(15)?,
-        balances_json: row.get(16)?,
-        depth_status: row.get(17)?,
-        depth_band_json: row.get(18)?,
-        depth_score_usd: row.get(19)?,
-        sqrt_price_x96: row.get(20)?,
-        price: row.get(21)?,
-        tick: row.get(22)?,
-        liquidity_read_at: row.get(23)?,
-        liquidity_block_number: row.get(24)?,
-        recent_swap_active: row.get(25)?,
-        observed_at: row.get(26)?,
-        refreshed_at: row.get(27)?,
-        evidence_source: row.get(28)?,
+        tick_spacing: row.get(7)?,
+        hooks: row.get(8)?,
+        has_liquidity: row.get(9)?,
+        liquidity: row.get(10)?,
+        liquidity_index: row.get(11)?,
+        estimated_tvl_usd: row.get(12)?,
+        balances_json: row.get(13)?,
+        depth_status: row.get(14)?,
+        depth_band_json: row.get(15)?,
+        depth_score_usd: row.get(16)?,
+        sqrt_price_x96: row.get(17)?,
+        price: row.get(18)?,
+        tick: row.get(19)?,
+        liquidity_read_at: row.get(20)?,
+        liquidity_block_number: row.get(21)?,
+        recent_swap_active: row.get(22)?,
+        observed_at: row.get(23)?,
+        refreshed_at: row.get(24)?,
+        evidence_source: row.get(25)?,
         address_pair: None,
     })
 }
@@ -494,10 +477,8 @@ fn pools_for_token_pair(
 
 fn fee_label_value(fee: Option<i64>) -> Value {
     let dynamic_fee = matches!(fee, Some(value) if value & DYNAMIC_FEE_FLAG != 0);
-    let special_fee = fee.is_none()
-        || fee == Some(0)
-        || dynamic_fee
-        || fee.unwrap_or(0) > MAX_FIXED_FEE;
+    let special_fee =
+        fee.is_none() || fee == Some(0) || dynamic_fee || fee.unwrap_or(0) > MAX_FIXED_FEE;
     if dynamic_fee {
         Value::Text("dynamic".to_string())
     } else if special_fee {
@@ -701,9 +682,7 @@ fn candidate_write_rows(
                 Value::from(direction_key),
                 Value::from(pools.len() as i64),
                 Value::from(fixed.len() as i64),
-                Value::from(
-                    pools.iter().filter(|pool| has_depth(pool)).count() as i64,
-                ),
+                Value::from(pools.iter().filter(|pool| has_depth(pool)).count() as i64),
                 Value::from(yc_id),
                 Value::from(zc_id),
                 Value::Text(json_dumps(&JsonValue::Object(Default::default()))),
@@ -762,8 +741,20 @@ fn candidate_write_rows(
             }
         }
         for (hop, direction_key, in_token, out_token, rec_pools) in [
-            ("first", forward_key, anchor.clone(), counter.clone(), &forward_recommendations),
-            ("third", reverse_key, counter.clone(), anchor.clone(), &reverse_recommendations),
+            (
+                "first",
+                forward_key,
+                anchor.clone(),
+                counter.clone(),
+                &forward_recommendations,
+            ),
+            (
+                "third",
+                reverse_key,
+                counter.clone(),
+                anchor.clone(),
+                &reverse_recommendations,
+            ),
         ] {
             for (rank, rec_pool) in rec_pools.iter().enumerate() {
                 let rec_pool_id = pool_id_from_row(rec_pool);
@@ -773,7 +764,11 @@ fn candidate_write_rows(
                     Value::from(protocol.to_string()),
                     Value::from(anchor_scope.to_string()),
                     Value::from(anchor_symbol.to_string()),
-                    Value::from(if hop == "first" { counter.clone() } else { anchor.clone() }),
+                    Value::from(if hop == "first" {
+                        counter.clone()
+                    } else {
+                        anchor.clone()
+                    }),
                     Value::from(direction_key.clone()),
                     Value::from(hop.to_string()),
                     Value::from((rank + 1) as i64),
@@ -1259,10 +1254,7 @@ fn observation_pair_rows(
             Value::from(protocol.to_string()),
             Value::from(anchor_scope.to_string()),
             Value::from(anchor_symbol.to_string()),
-            Value::from(format!(
-                "{}:{}",
-                direction.token_x, direction.token_y
-            )),
+            Value::from(format!("{}:{}", direction.token_x, direction.token_y)),
             Value::from(direction.token_x.clone()),
             Value::from(direction.token_y.clone()),
             Value::from(format!("{}:{}", direction.token_x, direction.token_y)),
@@ -1330,7 +1322,7 @@ fn observation_pool_write_row(
             pool.fee.is_none()
                 || pool.fee == Some(0)
                 || matches!(pool.fee, Some(value) if value & DYNAMIC_FEE_FLAG != 0)
-                || pool.fee.unwrap_or(0) > MAX_FIXED_FEE
+                || pool.fee.unwrap_or(0) > MAX_FIXED_FEE,
         ),
         as_int(pool.tick_spacing),
         Value::Text(norm(&pool.hooks)),
@@ -1368,16 +1360,8 @@ fn observation_liquidity_write_row(
         as_text(pool.liquidity_read_at.clone()),
         as_int(pool.liquidity_block_number),
         as_tri(pool.recent_swap_active),
-        Value::from(
-            pool.observed_at
-                .clone()
-                .unwrap_or_else(|| now.to_string()),
-        ),
-        Value::from(
-            pool.refreshed_at
-                .clone()
-                .unwrap_or_else(|| now.to_string()),
-        ),
+        Value::from(pool.observed_at.clone().unwrap_or_else(|| now.to_string())),
+        Value::from(pool.refreshed_at.clone().unwrap_or_else(|| now.to_string())),
         Value::from(norm(&pool.evidence_source)),
     ]
 }
@@ -1542,7 +1526,9 @@ pub(crate) fn build_candidate_anchor(
 ) -> Result<JsonValue, String> {
     let anchor = norm_str(anchor_address);
     if anchor.is_empty() {
-        return Err(format!("anchor symbol {anchor_symbol} has no chain token address"));
+        return Err(format!(
+            "anchor symbol {anchor_symbol} has no chain token address"
+        ));
     }
     let pools = query_scope_pools(
         connection,
@@ -1554,16 +1540,14 @@ pub(crate) fn build_candidate_anchor(
     let normal_pools: Vec<PoolRow> = pools
         .iter()
         .filter(|pool| {
-            is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE)
-                && has_no_hook(&pool.hooks)
+            is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE) && has_no_hook(&pool.hooks)
         })
         .cloned()
         .collect();
     let abnormal_pools: Vec<PoolRow> = pools
         .iter()
         .filter(|pool| {
-            !(is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE)
-                && has_no_hook(&pool.hooks))
+            !(is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE) && has_no_hook(&pool.hooks))
         })
         .cloned()
         .collect();
@@ -1653,13 +1637,7 @@ pub(crate) fn build_candidate_anchor(
         let transaction = connection
             .transaction()
             .map_err(|error| format!("candidate transaction failed: {error}"))?;
-        delete_candidate_anchor(
-            &transaction,
-            network,
-            chain_id,
-            protocol,
-            anchor_symbol,
-        )?;
+        delete_candidate_anchor(&transaction, network, chain_id, protocol, anchor_symbol)?;
         replace_candidate_tables(
             &transaction,
             &token_rows,
@@ -1712,10 +1690,7 @@ pub(crate) fn build_market_observation_anchor(
 ) -> Result<JsonValue, String> {
     let resolved_tokens = match token_addresses {
         Some(values) => {
-            let mut tokens = values
-                .iter()
-                .map(|item| norm_str(item))
-                .collect::<Vec<_>>();
+            let mut tokens = values.iter().map(|item| norm_str(item)).collect::<Vec<_>>();
             tokens.sort();
             tokens.dedup();
             tokens
@@ -1741,8 +1716,8 @@ pub(crate) fn build_market_observation_anchor(
                 .map_err(|error| format!("candidate anchor tokens query failed: {error}"))?;
             let mut tokens = Vec::new();
             for row in rows {
-                let address = row
-                    .map_err(|error| format!("candidate anchor tokens row failed: {error}"))?;
+                let address =
+                    row.map_err(|error| format!("candidate anchor tokens row failed: {error}"))?;
                 let normalized = norm(&address);
                 if !normalized.is_empty() {
                     tokens.push(normalized);
@@ -1755,13 +1730,7 @@ pub(crate) fn build_market_observation_anchor(
         let transaction = connection
             .transaction()
             .map_err(|error| format!("observation delete transaction failed: {error}"))?;
-        delete_market_observation_anchor(
-            &transaction,
-            network,
-            chain_id,
-            protocol,
-            anchor_symbol,
-        )?;
+        delete_market_observation_anchor(&transaction, network, chain_id, protocol, anchor_symbol)?;
         transaction
             .commit()
             .map_err(|error| format!("observation delete commit failed: {error}"))?;
@@ -1793,8 +1762,8 @@ pub(crate) fn build_market_observation_anchor(
         if !token_set.contains(&token0) || !token_set.contains(&token1) {
             continue;
         }
-        let is_normal = is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE)
-            && has_no_hook(&pool.hooks);
+        let is_normal =
+            is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE) && has_no_hook(&pool.hooks);
         let edge = format!("{token0}:{token1}");
         if is_normal {
             normal_by_edge.entry(edge).or_default().push(pool);
@@ -1835,8 +1804,7 @@ pub(crate) fn build_market_observation_anchor(
                     pool_rows.push(pool);
                 }
             }
-            let abnormal_matched =
-                pools_for_token_pair(&abnormal_by_edge, token_x, token_y);
+            let abnormal_matched = pools_for_token_pair(&abnormal_by_edge, token_x, token_y);
             if !abnormal_matched.is_empty() {
                 abnormal_directions.push(ObservationDirection {
                     token_x: token_x.clone(),
@@ -1859,13 +1827,7 @@ pub(crate) fn build_market_observation_anchor(
         let transaction = connection
             .transaction()
             .map_err(|error| format!("observation transaction failed: {error}"))?;
-        delete_market_observation_anchor(
-            &transaction,
-            network,
-            chain_id,
-            protocol,
-            anchor_symbol,
-        )?;
+        delete_market_observation_anchor(&transaction, network, chain_id, protocol, anchor_symbol)?;
         replace_market_observation_tables(
             &transaction,
             network,
@@ -1977,10 +1939,7 @@ fn loop_rows(
     let mut hops = Vec::new();
     let mut seen_loop_keys = BTreeSet::new();
     for y_address in token_addresses {
-        let y_symbol = token_symbols
-            .get(y_address)
-            .cloned()
-            .unwrap_or_default();
+        let y_symbol = token_symbols.get(y_address).cloned().unwrap_or_default();
         if y_address == &anchor
             || y_symbol.is_empty()
             || is_unresolved_placeholder_symbol(&y_symbol)
@@ -1988,10 +1947,7 @@ fn loop_rows(
             continue;
         }
         for z_address in token_addresses {
-            let z_symbol = token_symbols
-                .get(z_address)
-                .cloned()
-                .unwrap_or_default();
+            let z_symbol = token_symbols.get(z_address).cloned().unwrap_or_default();
             if z_address == &anchor
                 || z_address == y_address
                 || z_symbol.is_empty()
@@ -2020,8 +1976,7 @@ fn loop_rows(
             }
             for first in first_options.iter().take(1) {
                 for third in third_options.iter().take(1) {
-                    let loop_key_short =
-                        format!("{anchor}:{y_address}:{z_address}");
+                    let loop_key_short = format!("{anchor}:{y_address}:{z_address}");
                     if !seen_loop_keys.insert(loop_key_short.clone()) {
                         continue;
                     }
@@ -2344,9 +2299,8 @@ pub(crate) fn build_closed_loops_anchor(
             )
             .map_err(|error| format!("observation pairs query failed: {error}"))?;
         for row in rows {
-            observation_pairs.push(
-                row.map_err(|error| format!("observation pairs row failed: {error}"))?,
-            );
+            observation_pairs
+                .push(row.map_err(|error| format!("observation pairs row failed: {error}"))?);
         }
     }
     let mut observation_pool_ids = BTreeSet::new();
@@ -2370,9 +2324,8 @@ pub(crate) fn build_closed_loops_anchor(
             )
             .map_err(|error| format!("observation pools query failed: {error}"))?;
         for row in rows {
-            let pool_id = norm(
-                &row.map_err(|error| format!("observation pools row failed: {error}"))?,
-            );
+            let pool_id =
+                norm(&row.map_err(|error| format!("observation pools row failed: {error}"))?);
             if !pool_id.is_empty() {
                 observation_pool_ids.insert(pool_id);
             }
@@ -2399,9 +2352,8 @@ pub(crate) fn build_closed_loops_anchor(
             )
             .map_err(|error| format!("candidate tokens query failed: {error}"))?;
         for row in rows {
-            let address = norm(
-                &row.map_err(|error| format!("candidate tokens row failed: {error}"))?,
-            );
+            let address =
+                norm(&row.map_err(|error| format!("candidate tokens row failed: {error}"))?);
             if !address.is_empty() {
                 token_addresses.push(address);
             }
@@ -2457,11 +2409,7 @@ pub(crate) fn build_closed_loops_anchor(
             market_id,
             anchor_symbol,
         )?;
-        replace_v4_closed_loop_tables(
-            &transaction,
-            &loops,
-            &hops,
-        )?;
+        replace_v4_closed_loop_tables(&transaction, &loops, &hops)?;
         transaction
             .commit()
             .map_err(|error| format!("closed loop transaction commit failed: {error}"))?;
@@ -2502,9 +2450,8 @@ fn delete_all_business_rows(
         "v4_closed_loops",
     ];
     for table in tables {
-        let sql = format!(
-            "DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?"
-        );
+        let sql =
+            format!("DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?");
         connection
             .execute(
                 &sql,
@@ -2546,9 +2493,7 @@ fn load_candidate_token_addresses(
         .map_err(|error| format!("candidate tokens query failed: {error}"))?;
     let mut addresses = Vec::new();
     for row in rows {
-        let address = norm(
-            &row.map_err(|error| format!("candidate tokens row failed: {error}"))?,
-        );
+        let address = norm(&row.map_err(|error| format!("candidate tokens row failed: {error}"))?);
         if !address.is_empty() {
             addresses.push(address);
         }
@@ -2570,10 +2515,7 @@ pub(crate) fn build_all_anchor_data(
     delete_all_business_rows(connection, network, chain_id, protocol)?;
     let universe = match token_universe {
         Some(values) => {
-            let mut tokens = values
-                .iter()
-                .map(|item| norm_str(item))
-                .collect::<Vec<_>>();
+            let mut tokens = values.iter().map(|item| norm_str(item)).collect::<Vec<_>>();
             tokens.sort();
             tokens.dedup();
             Some(tokens)
@@ -2657,7 +2599,10 @@ mod tests {
         assert!(is_fixed_fee(Some(3000), MAX_USABLE_CANDIDATE_FIXED_FEE));
         assert!(is_fixed_fee(Some(100), MAX_USABLE_CANDIDATE_FIXED_FEE));
         assert!(!is_fixed_fee(Some(3001), MAX_USABLE_CANDIDATE_FIXED_FEE));
-        assert!(!is_fixed_fee(Some(8_388_608 | 3000), MAX_USABLE_CANDIDATE_FIXED_FEE));
+        assert!(!is_fixed_fee(
+            Some(8_388_608 | 3000),
+            MAX_USABLE_CANDIDATE_FIXED_FEE
+        ));
         assert!(!is_fixed_fee(None, MAX_USABLE_CANDIDATE_FIXED_FEE));
     }
 }

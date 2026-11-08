@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from core.config_schema import parse_env_float
-from core.db.storage_common import database_url_or_none as storage_database_url_or_none
+from core.db.storage_common import database_url as storage_database_url
 from core.parameter_config import (
     LEGACY_STRATEGY_CONFIG_PATHS,
     STRATEGY_CONFIG_PATH,
@@ -24,8 +24,8 @@ STRATEGY_DEFAULTS = strategy_defaults()
 MIN_SAMPLING_SECONDS = 0.2
 
 
-def _database_url_or_none() -> str | None:
-    return storage_database_url_or_none()
+def _database_url() -> str | None:
+    return storage_database_url()
 
 
 def unified_sampling_profile(config: dict) -> dict:
@@ -71,7 +71,7 @@ def write_strategy_config(config_path: Path, payload: dict) -> dict:
 
 
 def read_strategy_config_parameters(config_path: Path) -> dict:
-    database_url = _database_url_or_none()
+    database_url = _database_url()
     legacy_paths = LEGACY_STRATEGY_CONFIG_PATHS if config_path == STRATEGY_CONFIG_PATH else ()
     file_values = read_json_parameter(config_path, legacy_paths=legacy_paths) or {}
     if database_url:
@@ -96,7 +96,7 @@ def read_strategy_config_parameters(config_path: Path) -> dict:
 
 
 def save_strategy_config_parameters(values: dict) -> bool:
-    database_url = _database_url_or_none()
+    database_url = _database_url()
     if not database_url:
         return False
     try:

@@ -3,7 +3,11 @@
 import re
 from typing import Any
 
-from core.error_registry import contract_dex_error_codes, resolve_error_definition
+from core.error_registry import (
+    contract_dex_error_codes,
+    resolve_disposition,
+    resolve_error_definition,
+)
 
 
 REVERT_PATTERNS: list[tuple[str, str]] = [
@@ -101,8 +105,8 @@ REVERT_ERROR_KEYS: dict[str, str] = {
     "rate_not_set": "BOT.LIQUIDATION.QUOTE_FAILED",
     "execution_reverted": "BOT.EXECUTION.SUBMISSION_REVERTED",
     "out_of_gas": "BOT.EXECUTION.SUBMISSION_REVERTED",
-    "nonce_too_low": "BOT.EXECUTION.SUBMISSION_REVERTED",
-    "replacement_tx_underpriced": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "nonce_too_low": "DEX.RPC.NONCE_TOO_LOW",
+    "replacement_tx_underpriced": "DEX.RPC.REPLACEMENT_UNDERPRICED",
 }
 
 
@@ -120,6 +124,7 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
             "category": "unknown",
             "module": "BOT.revert_parser",
             "code": int(resolve_error_definition("BOT.INTERNAL").code),
+            "disposition": resolve_disposition("unknown"),
             "message": "未知错误",
             "label": "未知错误",
             "raw": "",
@@ -141,6 +146,7 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
                     "code": code,
                     "flow": definition.flow,
                     "node_id": definition.node_id,
+                    "disposition": resolve_disposition(error_key),
                     "message": label,
                     "label": label,
                     "raw": text[:500],
@@ -158,6 +164,7 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
                 "error_key": error_key,
                 "module": module,
                 "code": int(definition.code),
+                "disposition": resolve_disposition(category),
                 "message": label,
                 "label": label,
                 "raw": text[:500],
@@ -170,6 +177,7 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
         "error_key": error_key,
         "module": "BOT.revert_parser",
         "code": int(resolve_error_definition(error_key).code),
+        "disposition": resolve_disposition("unknown"),
         "message": f"未分类错误: {text[:100]}",
         "label": f"未分类错误: {text[:100]}",
         "raw": text[:500],
@@ -196,6 +204,7 @@ def build_failure_record(
         "error_key": parsed.get("error_key") or "BOT.INTERNAL",
         "module": parsed.get("module") or "BOT.revert_parser",
         "code": parsed.get("code"),
+        "disposition": parsed.get("disposition") or resolve_disposition("unknown"),
         "message": parsed.get("message") or parsed.get("label") or parsed.get("raw", ""),
         "payload": payload,
         "source": "static_call_preflight",

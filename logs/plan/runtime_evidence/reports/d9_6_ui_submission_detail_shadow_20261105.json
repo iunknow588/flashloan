@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_6_ui_submission_detail_shadow_20261105",
+  "milestone": "M9",
+  "task": "D6.1 opt-in read-only submission detail/filter review/broadcast shadow",
+  "status": "partial_submission_detail_shadow_complete_pages_pending",
+  "generatedAt": "2026-11-04T17:56:04Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing submission detail/filter pages keep their URLs, legacy attempt rows, category filters, pagination, and legacy data source. An explicit manager_compare=true request attaches the same read-only review/broadcast manager shadow used by the submission overview page; it does not replace any legacy row logic or call write endpoints.",
+  "implementation": {
+    "shadowHelper": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+    "shadowAttachHelper": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py:_attach_submission_manager_shadow",
+    "flaskRoutes": [
+      "GET /api/dex/submissions/failed?manager_compare=true",
+      "GET /api/dex/submissions/failed/<category>?manager_compare=true",
+      "GET /api/dex/submissions/success?manager_compare=true",
+      "GET /api/dex/submissions/review?manager_compare=true",
+      "GET /api/dex/submissions/review/<category>?manager_compare=true",
+      "GET /api/dex/submissions/review-success?manager_compare=true",
+      "GET /api/dex/submissions/review-failed?manager_compare=true",
+      "GET /api/dex/submissions/execution-success?manager_compare=true",
+      "GET /api/dex/submissions/execution-failed?manager_compare=true"
+    ],
+    "upstreamRoutes": [
+      "GET /v1/reviews?chainId=4663&limit=1000",
+      "GET /v1/broadcasts?chainId=4663&limit=1000"
+    ],
+    "snapshotLimit": 1000,
+    "defaultDataSource": "legacy",
+    "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+    "reviewShadowFields": [
+      "reviewVersion",
+      "reviewChecksum",
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "candidateEdgeVersion",
+      "candidateEdgeChecksum",
+      "observationVersion",
+      "observationChecksum",
+      "poolScopeChecksum",
+      "statusCounts",
+      "snapshotCounts"
+    ],
+    "broadcastShadowFields": [
+      "broadcastVersion",
+      "broadcastChecksum",
+      "reviewVersion",
+      "reviewChecksum",
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "statusCounts",
+      "snapshotCounts"
+    ],
+    "partialFailurePolicy": "Every detail/filter route reuses the submission shadow helper. Review and broadcast reads remain independent; one side failing yields ok=false, partial=true, and retains the successful side plus a structured upstream error.",
+    "cachePolicy": "The failed/success/review route families skip legacy submission cache reads and writes when manager_compare=true. The dedicated review-success/review-failed/execution-success/execution-failed record routes do not use the legacy submission cache and attach the shadow only on explicit opt-in.",
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false,
+    "legacyPageFieldsUnaffected": true,
+    "managerShadowRequiresExplicitOptIn": true,
+    "cachedPageSkippedOnlyWhenShadowRequested": true,
+    "comparisonReadyForFieldSwitch": false,
+    "productionAuthorityChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 56
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "all nine submission detail/filter routes attach managerShadow only when manager_compare=true",
+    "ordinary detail/filter requests keep legacy rows, category counts, source, and no managerShadow field",
+    "cache-backed failed/success/review route families skip legacy cache reads and writes under manager_compare=true",
+    "dedicated review-success/review-failed/execution-success/execution-failed routes remain cache-free and attach shadow only on opt-in",
+    "shadow reuse returns review/broadcast versions, checksums, status counts, and snapshot counts",
+    "one-side review/broadcast failure remains partial=true with the successful side retained",
+    "all shadow reads contain chainId and do not call review/broadcast write endpoints"
+  ],
+  "knownBoundary": "Submission detail/filter shadow is a read-only diagnostic. The legacy attempt detail endpoint /api/dex/submissions/detail still reads SQLite directly because manager_api has no attempt-detail read endpoint yet; it is called out as the next API gap rather than faked. No row-level review/broadcast compare endpoint exists, comparisonReadyForFieldSwitch remains false, and no production database migration, service restart, manager write, or broadcast was performed."
+}

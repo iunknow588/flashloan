@@ -1,0 +1,1709 @@
+{
+  "analysis": {
+    "blocked": {
+      "blockedConfirmedNoProfitCount": 414,
+      "blockedCount": 1358,
+      "blockedMissingEvidenceBreakdown": {
+        "no_profitable_route": 414,
+        "quoter_unavailable": 766
+      },
+      "blockedNotVerifiedCount": 0,
+      "blockedQuoteFailedCount": 766,
+      "blockedQuoteInsufficientLiquidityCount": 0,
+      "blockedRpcTransportErrorCount": 0,
+      "blockedSamplesWithExpectedPnl": [
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:12.608617100+00:00",
+          "createdAtLocal": "2026-10-26T04:04:12+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "-0.4761045065021173",
+          "observedAt": "2026-10-25T20:04:12.608617100+00:00",
+          "observedAtLocal": "2026-10-26T04:04:12+08:00",
+          "pair": "AMZN -> ETH -> TSLA -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:12.608617100+00:00",
+          "createdAtLocal": "2026-10-26T04:04:12+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "-0.9995507964162555",
+          "observedAt": "2026-10-25T20:04:12.608617100+00:00",
+          "observedAtLocal": "2026-10-26T04:04:12+08:00",
+          "pair": "AMZN -> TSLA -> ETH -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:06.962124400+00:00",
+          "createdAtLocal": "2026-10-26T04:04:06+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-1.000393506134013",
+          "observedAt": "2026-10-25T20:04:06.962124400+00:00",
+          "observedAtLocal": "2026-10-26T04:04:06+08:00",
+          "pair": "ETH -> AMZN -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:06.962124400+00:00",
+          "createdAtLocal": "2026-10-26T04:04:06+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-0.9604175661280326",
+          "observedAt": "2026-10-25T20:04:06.962124400+00:00",
+          "observedAtLocal": "2026-10-26T04:04:06+08:00",
+          "pair": "ETH -> TSLA -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:01.395748300+00:00",
+          "createdAtLocal": "2026-10-26T04:04:01+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "0.10114783780472386",
+          "observedAt": "2026-10-25T20:04:01.395748300+00:00",
+          "observedAtLocal": "2026-10-26T04:04:01+08:00",
+          "pair": "TSLA -> AMZN -> ETH -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:04:01.395748300+00:00",
+          "createdAtLocal": "2026-10-26T04:04:01+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-0.9990526095274418",
+          "observedAt": "2026-10-25T20:04:01.395748300+00:00",
+          "observedAtLocal": "2026-10-26T04:04:01+08:00",
+          "pair": "TSLA -> ETH -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:04.184132400+00:00",
+          "createdAtLocal": "2026-10-26T04:01:04+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.47352549965652785",
+          "observedAt": "2026-10-25T20:01:04.184132400+00:00",
+          "observedAtLocal": "2026-10-26T04:01:04+08:00",
+          "pair": "AMD -> AMZN -> TSLA -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:04.184132400+00:00",
+          "createdAtLocal": "2026-10-26T04:01:04+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "-0.6975311939600832",
+          "observedAt": "2026-10-25T20:01:04.184132400+00:00",
+          "observedAtLocal": "2026-10-26T04:01:04+08:00",
+          "pair": "AMD -> TSLA -> AMZN -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:03.666675800+00:00",
+          "createdAtLocal": "2026-10-26T04:01:03+08:00",
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "-0.9643169295805148",
+          "observedAt": "2026-10-25T20:01:03.666675800+00:00",
+          "observedAtLocal": "2026-10-26T04:01:03+08:00",
+          "pair": "TZ -> TA -> TB -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:03.666675800+00:00",
+          "createdAtLocal": "2026-10-26T04:01:03+08:00",
+          "expectedProfitSymbol": "TZ",
+          "expectedSignedProfit": "25.558828827951086",
+          "observedAt": "2026-10-25T20:01:03.666675800+00:00",
+          "observedAtLocal": "2026-10-26T04:01:03+08:00",
+          "pair": "TZ -> TB -> TA -> TZ",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:02.016040400+00:00",
+          "createdAtLocal": "2026-10-26T04:01:02+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "-0.6986250974031725",
+          "observedAt": "2026-10-25T20:01:02.016040400+00:00",
+          "observedAtLocal": "2026-10-26T04:01:02+08:00",
+          "pair": "AMZN -> AMD -> TSLA -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:02.016040400+00:00",
+          "createdAtLocal": "2026-10-26T04:01:02+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "0.45976196093094107",
+          "observedAt": "2026-10-25T20:01:02.016040400+00:00",
+          "observedAtLocal": "2026-10-26T04:01:02+08:00",
+          "pair": "AMZN -> TSLA -> AMD -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:00.407531800+00:00",
+          "createdAtLocal": "2026-10-26T04:01:00+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-1.0004999912411245",
+          "observedAt": "2026-10-25T20:01:00.407531800+00:00",
+          "observedAtLocal": "2026-10-26T04:01:00+08:00",
+          "pair": "ETH -> NFLX -> PLTR -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:01:00.407531800+00:00",
+          "createdAtLocal": "2026-10-26T04:01:00+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-1.0004945230708175",
+          "observedAt": "2026-10-25T20:01:00.407531800+00:00",
+          "observedAtLocal": "2026-10-26T04:01:00+08:00",
+          "pair": "ETH -> PLTR -> NFLX -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:59.720679400+00:00",
+          "createdAtLocal": "2026-10-26T04:00:59+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "0.040917858296080245",
+          "observedAt": "2026-10-25T20:00:59.720679400+00:00",
+          "observedAtLocal": "2026-10-26T04:00:59+08:00",
+          "pair": "TSLA -> AMD -> AMZN -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:59.720679400+00:00",
+          "createdAtLocal": "2026-10-26T04:00:59+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-0.7520308861909878",
+          "observedAt": "2026-10-25T20:00:59.720679400+00:00",
+          "observedAtLocal": "2026-10-26T04:00:59+08:00",
+          "pair": "TSLA -> AMZN -> AMD -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:58.027061500+00:00",
+          "createdAtLocal": "2026-10-26T04:00:58+08:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "-0.9990762786957463",
+          "observedAt": "2026-10-25T20:00:58.027061500+00:00",
+          "observedAtLocal": "2026-10-26T04:00:58+08:00",
+          "pair": "NFLX -> PLTR -> ETH -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:58.027061500+00:00",
+          "createdAtLocal": "2026-10-26T04:00:58+08:00",
+          "expectedProfitSymbol": "NFLX",
+          "expectedSignedProfit": "7.698259963169153",
+          "observedAt": "2026-10-25T20:00:58.027061500+00:00",
+          "observedAtLocal": "2026-10-26T04:00:58+08:00",
+          "pair": "NFLX -> ETH -> PLTR -> NFLX",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:54.880394200+00:00",
+          "createdAtLocal": "2026-10-26T04:00:54+08:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "-0.9990603310052092",
+          "observedAt": "2026-10-25T20:00:54.880394200+00:00",
+          "observedAtLocal": "2026-10-26T04:00:54+08:00",
+          "pair": "PLTR -> ETH -> NFLX -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:54.880394200+00:00",
+          "createdAtLocal": "2026-10-26T04:00:54+08:00",
+          "expectedProfitSymbol": "PLTR",
+          "expectedSignedProfit": "8.804340988638868",
+          "observedAt": "2026-10-25T20:00:54.880394200+00:00",
+          "observedAtLocal": "2026-10-26T04:00:54+08:00",
+          "pair": "PLTR -> NFLX -> ETH -> PLTR",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:52.891607+00:00",
+          "createdAtLocal": "2026-10-26T04:00:52+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-0.005250548809278277",
+          "observedAt": "2026-10-25T20:00:52.891607+00:00",
+          "observedAtLocal": "2026-10-26T04:00:52+08:00",
+          "pair": "TSLA -> AMD -> ETH -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:52.891607+00:00",
+          "createdAtLocal": "2026-10-26T04:00:52+08:00",
+          "expectedProfitSymbol": "TSLA",
+          "expectedSignedProfit": "-0.999966293923499",
+          "observedAt": "2026-10-25T20:00:52.891607+00:00",
+          "observedAtLocal": "2026-10-26T04:00:52+08:00",
+          "pair": "TSLA -> ETH -> AMD -> TSLA",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:50.049084500+00:00",
+          "createdAtLocal": "2026-10-26T04:00:50+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.9743236156059916",
+          "observedAt": "2026-10-25T20:00:50.049084500+00:00",
+          "observedAtLocal": "2026-10-26T04:00:50+08:00",
+          "pair": "AMD -> ETH -> TSLA -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:50.049084500+00:00",
+          "createdAtLocal": "2026-10-26T04:00:50+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "-0.9997906860966309",
+          "observedAt": "2026-10-25T20:00:50.049084500+00:00",
+          "observedAtLocal": "2026-10-26T04:00:50+08:00",
+          "pair": "AMD -> TSLA -> ETH -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:46.600148100+00:00",
+          "createdAtLocal": "2026-10-26T04:00:46+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-1.0004982672555773",
+          "observedAt": "2026-10-25T20:00:46.600148100+00:00",
+          "observedAtLocal": "2026-10-26T04:00:46+08:00",
+          "pair": "ETH -> AMD -> TSLA -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: NoProfitableRoute()",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:46.600148100+00:00",
+          "createdAtLocal": "2026-10-26T04:00:46+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "-0.9988729193364391",
+          "observedAt": "2026-10-25T20:00:46.600148100+00:00",
+          "observedAtLocal": "2026-10-26T04:00:46+08:00",
+          "pair": "ETH -> TSLA -> AMD -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:46.017147300+00:00",
+          "createdAtLocal": "2026-10-26T04:00:46+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "-0.9793313498080748",
+          "observedAt": "2026-10-25T20:00:46.017147300+00:00",
+          "observedAtLocal": "2026-10-26T04:00:46+08:00",
+          "pair": "AMD -> AMZN -> ETH -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:46.017147300+00:00",
+          "createdAtLocal": "2026-10-26T04:00:46+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "-0.9792640607775907",
+          "observedAt": "2026-10-25T20:00:46.017147300+00:00",
+          "observedAtLocal": "2026-10-26T04:00:46+08:00",
+          "pair": "AMD -> ETH -> AMZN -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:44.390488800+00:00",
+          "createdAtLocal": "2026-10-26T04:00:44+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "-0.9794394405624001",
+          "observedAt": "2026-10-25T20:00:44.390488800+00:00",
+          "observedAtLocal": "2026-10-26T04:00:44+08:00",
+          "pair": "AMZN -> AMD -> ETH -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        },
+        {
+          "blockers": [
+            "chain review failed: previewBestPoolDetailed unavailable",
+            "closed loop currently has no positive pool-token profit; automatic execution is not justified"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T20:00:44.390488800+00:00",
+          "createdAtLocal": "2026-10-26T04:00:44+08:00",
+          "expectedProfitSymbol": "AMZN",
+          "expectedSignedProfit": "-0.9796292373119441",
+          "observedAt": "2026-10-25T20:00:44.390488800+00:00",
+          "observedAtLocal": "2026-10-26T04:00:44+08:00",
+          "pair": "AMZN -> ETH -> AMD -> AMZN",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "quote_required"
+        }
+      ],
+      "blockedWithExpectedPnlCount": 178,
+      "blockedWithMissingPnlCount": 1180
+    },
+    "failed": {
+      "expectedPnlBySymbol": [],
+      "failedClosedLoops": [],
+      "failedCount": 0
+    },
+    "funnel": {
+      "broadcastCount": 0,
+      "realizedProfitBySymbol": [],
+      "reviewedCount": 1367,
+      "successTxCount": 0,
+      "uniqueSuccessCount": 0,
+      "uniqueSuccessWithExpectedProfitCount": 0,
+      "withExpectedProfitCount": 187,
+      "withoutExpectedProfitCount": 1180
+    },
+    "groupPnlByClosedLoopGroup": [
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|AMZN|ETH|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "-5.87598350837641182",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> AMZN -> ETH -> AMD",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-5.87598350837641182",
+            "total": "-5.87598350837641182"
+          },
+          {
+            "direction": "AMD|ETH|AMZN|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "-5.8755843646655442",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> ETH -> AMZN -> AMD",
+            "rowCount": 46,
+            "signedRowCount": 6,
+            "sum": "-5.8755843646655442",
+            "total": "-5.8755843646655442"
+          }
+        ],
+        "groupKey": "AMD|AMZN|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "AMD"
+        ],
+        "rowCount": 92,
+        "signedRowCount": 13,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "AMD|AMZN|ETH|AMD",
+            "sum": "-5.87598350837641182",
+            "symbol": "AMD"
+          },
+          {
+            "direction": "AMD|ETH|AMZN|AMD",
+            "sum": "-5.8755843646655442",
+            "symbol": "AMD"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|AMZN|TSLA|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "2.36762749828263925",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> AMZN -> TSLA -> AMD",
+            "rowCount": 38,
+            "signedRowCount": 5,
+            "sum": "2.36762749828263925",
+            "total": "2.36762749828263925"
+          },
+          {
+            "direction": "AMD|TSLA|AMZN|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "-3.4876559698004160",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> TSLA -> AMZN -> AMD",
+            "rowCount": 38,
+            "signedRowCount": 5,
+            "sum": "-3.4876559698004160",
+            "total": "-3.4876559698004160"
+          }
+        ],
+        "groupKey": "AMD|AMZN|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "AMD|AMZN|TSLA|AMD",
+            "sum": "2.36762749828263925",
+            "symbol": "AMD"
+          }
+        ],
+        "routeSymbols": [
+          "AMD",
+          "AMZN",
+          "TSLA",
+          "AMD"
+        ],
+        "rowCount": 76,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "AMD|TSLA|AMZN|AMD",
+            "sum": "-3.4876559698004160",
+            "symbol": "AMD"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMD|ETH|TSLA|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "4.8716180780299580",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> ETH -> TSLA -> AMD",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "4.8716180780299580",
+            "total": "4.8716180780299580"
+          },
+          {
+            "direction": "AMD|TSLA|ETH|AMD",
+            "expectedProfitSymbol": "AMD",
+            "expectedSignedProfit": "-4.9989534304831545",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMD -> TSLA -> ETH -> AMD",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "-4.9989534304831545",
+            "total": "-4.9989534304831545"
+          }
+        ],
+        "groupKey": "AMD|ETH|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "AMD|ETH|TSLA|AMD",
+            "sum": "4.8716180780299580",
+            "symbol": "AMD"
+          }
+        ],
+        "routeSymbols": [
+          "AMD",
+          "ETH",
+          "TSLA",
+          "AMD"
+        ],
+        "rowCount": 80,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "AMD|TSLA|ETH|AMD",
+            "sum": "-4.9989534304831545",
+            "symbol": "AMD"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|AMD|ETH|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "-5.8766366433744006",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> AMD -> ETH -> AMZN",
+            "rowCount": 45,
+            "signedRowCount": 6,
+            "sum": "-5.8766366433744006",
+            "total": "-5.8766366433744006"
+          },
+          {
+            "direction": "AMZN|ETH|AMD|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "-5.8777754238716646",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> ETH -> AMD -> AMZN",
+            "rowCount": 45,
+            "signedRowCount": 6,
+            "sum": "-5.8777754238716646",
+            "total": "-5.8777754238716646"
+          }
+        ],
+        "groupKey": "AMZN|AMD|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "AMD",
+          "ETH",
+          "AMZN"
+        ],
+        "rowCount": 90,
+        "signedRowCount": 12,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "AMZN|AMD|ETH|AMZN",
+            "sum": "-5.8766366433744006",
+            "symbol": "AMZN"
+          },
+          {
+            "direction": "AMZN|ETH|AMD|AMZN",
+            "sum": "-5.8777754238716646",
+            "symbol": "AMZN"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|AMD|TSLA|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "-3.4931254870158625",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> AMD -> TSLA -> AMZN",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "-3.4931254870158625",
+            "total": "-3.4931254870158625"
+          },
+          {
+            "direction": "AMZN|TSLA|AMD|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "2.29880980465470535",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> TSLA -> AMD -> AMZN",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "2.29880980465470535",
+            "total": "2.29880980465470535"
+          }
+        ],
+        "groupKey": "AMZN|AMD|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "AMZN|TSLA|AMD|AMZN",
+            "sum": "2.29880980465470535",
+            "symbol": "AMZN"
+          }
+        ],
+        "routeSymbols": [
+          "AMZN",
+          "AMD",
+          "TSLA",
+          "AMZN"
+        ],
+        "rowCount": 80,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "AMZN|AMD|TSLA|AMZN",
+            "sum": "-3.4931254870158625",
+            "symbol": "AMZN"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "AMZN|ETH|TSLA|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "-3.3327315455148211",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> ETH -> TSLA -> AMZN",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-3.3327315455148211",
+            "total": "-3.3327315455148211"
+          },
+          {
+            "direction": "AMZN|TSLA|ETH|AMZN",
+            "expectedProfitSymbol": "AMZN",
+            "expectedSignedProfit": "-6.9968555749137885",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "AMZN -> TSLA -> ETH -> AMZN",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-6.9968555749137885",
+            "total": "-6.9968555749137885"
+          }
+        ],
+        "groupKey": "AMZN|ETH|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "AMZN",
+          "ETH",
+          "TSLA",
+          "AMZN"
+        ],
+        "rowCount": 92,
+        "signedRowCount": 14,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "AMZN|ETH|TSLA|AMZN",
+            "sum": "-3.3327315455148211",
+            "symbol": "AMZN"
+          },
+          {
+            "direction": "AMZN|TSLA|ETH|AMZN",
+            "sum": "-6.9968555749137885",
+            "symbol": "AMZN"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMD|AMZN|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-4.994356659456274010",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> AMD -> AMZN -> ETH",
+            "rowCount": 48,
+            "signedRowCount": 9,
+            "sum": "-4.994356659456274010",
+            "total": "-4.994356659456274010"
+          },
+          {
+            "direction": "ETH|AMZN|AMD|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-6.992017890598175704",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> AMZN -> AMD -> ETH",
+            "rowCount": 48,
+            "signedRowCount": 10,
+            "sum": "-6.992017890598175704",
+            "total": "-6.992017890598175704"
+          }
+        ],
+        "groupKey": "ETH|AMD|AMZN",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMD",
+          "AMZN",
+          "ETH"
+        ],
+        "rowCount": 96,
+        "signedRowCount": 19,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "ETH|AMD|AMZN|ETH",
+            "sum": "-4.994356659456274010",
+            "symbol": "ETH"
+          },
+          {
+            "direction": "ETH|AMZN|AMD|ETH",
+            "sum": "-6.992017890598175704",
+            "symbol": "ETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMD|TSLA|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-5.0024913362778865",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> AMD -> TSLA -> ETH",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "-5.0024913362778865",
+            "total": "-5.0024913362778865"
+          },
+          {
+            "direction": "ETH|TSLA|AMD|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-4.9943645966821955",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> TSLA -> AMD -> ETH",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "-4.9943645966821955",
+            "total": "-4.9943645966821955"
+          }
+        ],
+        "groupKey": "ETH|AMD|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMD",
+          "TSLA",
+          "ETH"
+        ],
+        "rowCount": 80,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "ETH|AMD|TSLA|ETH",
+            "sum": "-5.0024913362778865",
+            "symbol": "ETH"
+          },
+          {
+            "direction": "ETH|TSLA|AMD|ETH",
+            "sum": "-4.9943645966821955",
+            "symbol": "ETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|AMZN|TSLA|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-7.002754542938091",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> AMZN -> TSLA -> ETH",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-7.002754542938091",
+            "total": "-7.002754542938091"
+          },
+          {
+            "direction": "ETH|TSLA|AMZN|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-6.7229229628962282",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> TSLA -> AMZN -> ETH",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-6.7229229628962282",
+            "total": "-6.7229229628962282"
+          }
+        ],
+        "groupKey": "ETH|AMZN|TSLA",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "AMZN",
+          "TSLA",
+          "ETH"
+        ],
+        "rowCount": 92,
+        "signedRowCount": 14,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "ETH|AMZN|TSLA|ETH",
+            "sum": "-7.002754542938091",
+            "symbol": "ETH"
+          },
+          {
+            "direction": "ETH|TSLA|AMZN|ETH",
+            "sum": "-6.7229229628962282",
+            "symbol": "ETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "ETH|NFLX|PLTR|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-5.0024999562056225",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> NFLX -> PLTR -> ETH",
+            "rowCount": 42,
+            "signedRowCount": 5,
+            "sum": "-5.0024999562056225",
+            "total": "-5.0024999562056225"
+          },
+          {
+            "direction": "ETH|PLTR|NFLX|ETH",
+            "expectedProfitSymbol": "ETH",
+            "expectedSignedProfit": "-5.0024726153540875",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "ETH -> PLTR -> NFLX -> ETH",
+            "rowCount": 42,
+            "signedRowCount": 5,
+            "sum": "-5.0024726153540875",
+            "total": "-5.0024726153540875"
+          }
+        ],
+        "groupKey": "ETH|NFLX|PLTR",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "ETH"
+        ],
+        "rowCount": 84,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "ETH|NFLX|PLTR|ETH",
+            "sum": "-5.0024999562056225",
+            "symbol": "ETH"
+          },
+          {
+            "direction": "ETH|PLTR|NFLX|ETH",
+            "sum": "-5.0024726153540875",
+            "symbol": "ETH"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "NFLX|ETH|PLTR|NFLX",
+            "expectedProfitSymbol": "NFLX",
+            "expectedSignedProfit": "38.491299815845765",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "NFLX -> ETH -> PLTR -> NFLX",
+            "rowCount": 43,
+            "signedRowCount": 5,
+            "sum": "38.491299815845765",
+            "total": "38.491299815845765"
+          },
+          {
+            "direction": "NFLX|PLTR|ETH|NFLX",
+            "expectedProfitSymbol": "NFLX",
+            "expectedSignedProfit": "-4.9953813934787315",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "NFLX -> PLTR -> ETH -> NFLX",
+            "rowCount": 43,
+            "signedRowCount": 5,
+            "sum": "-4.9953813934787315",
+            "total": "-4.9953813934787315"
+          }
+        ],
+        "groupKey": "NFLX|ETH|PLTR",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "NFLX|ETH|PLTR|NFLX",
+            "sum": "38.491299815845765",
+            "symbol": "NFLX"
+          }
+        ],
+        "routeSymbols": [
+          "NFLX",
+          "PLTR",
+          "ETH",
+          "NFLX"
+        ],
+        "rowCount": 86,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "NFLX|PLTR|ETH|NFLX",
+            "sum": "-4.9953813934787315",
+            "symbol": "NFLX"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "PLTR|ETH|NFLX|PLTR",
+            "expectedProfitSymbol": "PLTR",
+            "expectedSignedProfit": "-4.9953016550260460",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "PLTR -> ETH -> NFLX -> PLTR",
+            "rowCount": 42,
+            "signedRowCount": 5,
+            "sum": "-4.9953016550260460",
+            "total": "-4.9953016550260460"
+          },
+          {
+            "direction": "PLTR|NFLX|ETH|PLTR",
+            "expectedProfitSymbol": "PLTR",
+            "expectedSignedProfit": "44.021704943194340",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "PLTR -> NFLX -> ETH -> PLTR",
+            "rowCount": 42,
+            "signedRowCount": 5,
+            "sum": "44.021704943194340",
+            "total": "44.021704943194340"
+          }
+        ],
+        "groupKey": "PLTR|ETH|NFLX",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "PLTR|NFLX|ETH|PLTR",
+            "sum": "44.021704943194340",
+            "symbol": "PLTR"
+          }
+        ],
+        "routeSymbols": [
+          "PLTR",
+          "ETH",
+          "NFLX",
+          "PLTR"
+        ],
+        "rowCount": 84,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "PLTR|ETH|NFLX|PLTR",
+            "sum": "-4.9953016550260460",
+            "symbol": "PLTR"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMD|AMZN|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "0.204589291480401225",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> AMD -> AMZN -> TSLA",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "0.204589291480401225",
+            "total": "0.204589291480401225"
+          },
+          {
+            "direction": "TSLA|AMZN|AMD|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "-3.7601544309549390",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> AMZN -> AMD -> TSLA",
+            "rowCount": 40,
+            "signedRowCount": 5,
+            "sum": "-3.7601544309549390",
+            "total": "-3.7601544309549390"
+          }
+        ],
+        "groupKey": "TSLA|AMD|AMZN",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "TSLA|AMD|AMZN|TSLA",
+            "sum": "0.204589291480401225",
+            "symbol": "TSLA"
+          }
+        ],
+        "routeSymbols": [
+          "TSLA",
+          "AMD",
+          "AMZN",
+          "TSLA"
+        ],
+        "rowCount": 80,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "TSLA|AMZN|AMD|TSLA",
+            "sum": "-3.7601544309549390",
+            "symbol": "TSLA"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMD|ETH|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "-0.026252744046391385",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> AMD -> ETH -> TSLA",
+            "rowCount": 39,
+            "signedRowCount": 5,
+            "sum": "-0.026252744046391385",
+            "total": "-0.026252744046391385"
+          },
+          {
+            "direction": "TSLA|ETH|AMD|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "-4.999831469617495",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> ETH -> AMD -> TSLA",
+            "rowCount": 39,
+            "signedRowCount": 5,
+            "sum": "-4.999831469617495",
+            "total": "-4.999831469617495"
+          }
+        ],
+        "groupKey": "TSLA|AMD|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": false,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 0,
+        "profitableDirections": [],
+        "routeSymbols": [
+          "TSLA",
+          "AMD",
+          "ETH",
+          "TSLA"
+        ],
+        "rowCount": 78,
+        "signedRowCount": 10,
+        "unprofitableDirectionCount": 2,
+        "unprofitableDirections": [
+          {
+            "direction": "TSLA|AMD|ETH|TSLA",
+            "sum": "-0.026252744046391385",
+            "symbol": "TSLA"
+          },
+          {
+            "direction": "TSLA|ETH|AMD|TSLA",
+            "sum": "-4.999831469617495",
+            "symbol": "TSLA"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TSLA|AMZN|ETH|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "0.70803486463306702",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> AMZN -> ETH -> TSLA",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "0.70803486463306702",
+            "total": "0.70803486463306702"
+          },
+          {
+            "direction": "TSLA|ETH|AMZN|TSLA",
+            "expectedProfitSymbol": "TSLA",
+            "expectedSignedProfit": "-6.9933682666920926",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TSLA -> ETH -> AMZN -> TSLA",
+            "rowCount": 46,
+            "signedRowCount": 7,
+            "sum": "-6.9933682666920926",
+            "total": "-6.9933682666920926"
+          }
+        ],
+        "groupKey": "TSLA|AMZN|ETH",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "TSLA|AMZN|ETH|TSLA",
+            "sum": "0.70803486463306702",
+            "symbol": "TSLA"
+          }
+        ],
+        "routeSymbols": [
+          "TSLA",
+          "AMZN",
+          "ETH",
+          "TSLA"
+        ],
+        "rowCount": 92,
+        "signedRowCount": 14,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "TSLA|ETH|AMZN|TSLA",
+            "sum": "-6.9933682666920926",
+            "symbol": "TSLA"
+          }
+        ]
+      },
+      {
+        "directionCount": 2,
+        "directions": [
+          {
+            "direction": "TZ|TA|TB|TZ",
+            "expectedProfitSymbol": "TZ",
+            "expectedSignedProfit": "-4.842675209541442188",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TZ -> TA -> TB -> TZ",
+            "rowCount": 43,
+            "signedRowCount": 6,
+            "sum": "-4.842675209541442188",
+            "total": "-4.842675209541442188"
+          },
+          {
+            "direction": "TZ|TB|TA|TZ",
+            "expectedProfitSymbol": "TZ",
+            "expectedSignedProfit": "127.794144139755430",
+            "missingEvidenceBreakdown": {},
+            "missingReason": null,
+            "missingRowCount": 0,
+            "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+            "routePath": "TZ -> TB -> TA -> TZ",
+            "rowCount": 42,
+            "signedRowCount": 5,
+            "sum": "127.794144139755430",
+            "total": "127.794144139755430"
+          }
+        ],
+        "groupKey": "TZ|TA|TB",
+        "hasMissingPnl": false,
+        "hasPositivePnl": true,
+        "missingEvidenceBreakdown": {},
+        "missingPnlDirectionCount": 0,
+        "missingPnlRowCount": 0,
+        "profitableDirectionCount": 1,
+        "profitableDirections": [
+          {
+            "direction": "TZ|TB|TA|TZ",
+            "sum": "127.794144139755430",
+            "symbol": "TZ"
+          }
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TA",
+          "TB",
+          "TZ"
+        ],
+        "rowCount": 85,
+        "signedRowCount": 11,
+        "unprofitableDirectionCount": 1,
+        "unprofitableDirections": [
+          {
+            "direction": "TZ|TA|TB|TZ",
+            "sum": "-4.842675209541442188",
+            "symbol": "TZ"
+          }
+        ]
+      }
+    ],
+    "ready": {
+      "readyCount": 4,
+      "readySamples": [
+        {
+          "blockers": [
+            "live_verified",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T19:42:41.805190900+00:00",
+          "createdAtLocal": "2026-10-26T03:42:41+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "0.000008190026304547",
+          "observedAt": "2026-10-25T19:42:41.805190900+00:00",
+          "observedAtLocal": "2026-10-26T03:42:41+08:00",
+          "pair": "ETH -> AMD -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "route_unprofitable",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T15:39:23.201082100+00:00",
+          "createdAtLocal": "2026-10-25T23:39:23+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "2.42710079698E-7",
+          "observedAt": "2026-10-25T15:39:23.201082100+00:00",
+          "observedAtLocal": "2026-10-25T23:39:23+08:00",
+          "pair": "ETH -> AMD -> AMZN -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "live_verified",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T14:55:23.226800700+00:00",
+          "createdAtLocal": "2026-10-25T22:55:23+08:00",
+          "expectedProfitSymbol": "ETH",
+          "expectedSignedProfit": "3.68002032E-10",
+          "observedAt": "2026-10-25T14:55:23.226800700+00:00",
+          "observedAtLocal": "2026-10-25T22:55:23+08:00",
+          "pair": "ETH -> AMZN -> AMD -> ETH",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        },
+        {
+          "blockers": [
+            "route_unprofitable",
+            "watch",
+            "当前仅公开静态路由框架，不把静态快照当作实时价格",
+            "需要链上实时 Quoter 或 eth_call 结果后才能进入自动交易",
+            "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+            "路径来源必须与市场观察页面展示的闭环路径一致。",
+            "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+            "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+          ],
+          "broadcast": null,
+          "createdAt": "2026-10-25T14:46:07.097652300+00:00",
+          "createdAtLocal": "2026-10-25T22:46:07+08:00",
+          "expectedProfitSymbol": "AMD",
+          "expectedSignedProfit": "0.00000459047203698",
+          "observedAt": "2026-10-25T14:46:07.097652300+00:00",
+          "observedAtLocal": "2026-10-25T22:46:07+08:00",
+          "pair": "AMD -> AMZN -> ETH -> AMD",
+          "pnlMissingReason": null,
+          "pnlSourcePath": "quote.live_onchain_evidence.costModel.netProfitAmount",
+          "state": "ready_for_transaction_development"
+        }
+      ]
+    },
+    "success": {
+      "gasAssessment": {
+        "belowGasCostCount": 0,
+        "evaluableEthCount": 0,
+        "items": [],
+        "missingGasCount": 0,
+        "needsTokenPriceQuoteCount": 0,
+        "netPositiveAfterGasCount": 0
+      },
+      "precisionAssessment": {
+        "assessmentCounts": {},
+        "items": [],
+        "rowCount": 0,
+        "usdNetProfitAvailableCount": 0
+      },
+      "profitBySymbol": [],
+      "successes": [],
+      "uniqueSuccessCount": 0
+    },
+    "t21FieldCounts": {
+      "ArbitrageNotProfitable": 0,
+      "netProductDeltaRaw": 0,
+      "netProfitAmountMissingReason": 1366
+    }
+  },
+  "broadcastGates": {
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": false,
+    "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST": true
+  },
+  "chainTokenMetadata": {
+    "available": true,
+    "rowCount": 39675,
+    "source": "sqlite_chain_tokens",
+    "trustedDecimalsCount": 58,
+    "unavailableReason": null
+  },
+  "conclusion": "0 unique on-chain success broadcasts with signed profit by symbol: no signed profit value; 0 failed broadcasts with expected P&L by symbol: no expected numeric value; 1358 blocked/quote rows present, of which 178 carry an expected numeric P&L.",
+  "generatedAt": "2026-10-25T20:13:18Z",
+  "generatedAtLocal": "2026-10-26T04:13:18+08:00",
+  "range": {
+    "endLocal": "2026-10-26T04:04:18+08:00",
+    "endUtc": "2026-10-25T20:04:18Z",
+    "firstObservedAt": "2026-10-25T11:50:12.303813300+00:00",
+    "firstObservedAtLocal": "2026-10-25T19:50:12+08:00",
+    "lastObservedAt": "2026-10-25T20:04:12.608617100+00:00",
+    "lastObservedAtLocal": "2026-10-26T04:04:12+08:00",
+    "startLocal": "2026-10-25T19:50:00+08:00",
+    "startUtc": "2026-10-25T11:50:00Z"
+  },
+  "rowCount": 1367,
+  "safety": {
+    "mainnetBroadcastEnabled": false,
+    "testnetBroadcastEnabled": true,
+    "writesSqlite": false
+  },
+  "schemaVersion": "robinhood-testnet-closed-loop-pnl-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\local_store.sqlite3",
+  "usdReference": {
+    "available": true,
+    "maxAgeSeconds": 21600,
+    "maxReferenceLagSeconds": 86400,
+    "observedAt": "2026-10-24T01:04:34.346+00:00",
+    "priceCount": 707,
+    "source": "binance_market_snapshot",
+    "unavailableReason": null
+  }
+}

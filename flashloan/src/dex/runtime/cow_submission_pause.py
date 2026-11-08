@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.db.storage_common import (
-    database_url_or_none as storage_database_url_or_none,
+    database_url as storage_database_url,
 )
 from core.parameter_config import (
     COW_SUBMISSION_PAUSE_GUARD_PATH,
@@ -37,8 +37,8 @@ def cow_pause_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _database_url_or_none(database_url: str | None = None) -> str | None:
-    return storage_database_url_or_none(database_url)
+def _database_url(database_url: str | None = None) -> str | None:
+    return storage_database_url(database_url)
 
 
 def _normalized_state(raw: dict[str, Any] | None, *, source: str) -> dict[str, Any]:
@@ -106,7 +106,7 @@ def load_cow_submission_pause_guard(
     *,
     database_url: str | None = None,
 ) -> dict[str, Any]:
-    resolved_database_url = _database_url_or_none(database_url)
+    resolved_database_url = _database_url(database_url)
     if resolved_database_url:
         try:
             state = _load_cow_submission_pause_guard_db(resolved_database_url)
@@ -133,7 +133,7 @@ def save_cow_submission_pause_guard(
 ) -> dict[str, Any]:
     payload = dict(_DEFAULT_STATE)
     payload.update(state)
-    resolved_database_url = _database_url_or_none(database_url)
+    resolved_database_url = _database_url(database_url)
     if resolved_database_url:
         try:
             return _save_cow_submission_pause_guard_db(resolved_database_url, payload)
@@ -151,7 +151,7 @@ def cow_submission_pause_guard_status(
     *,
     database_url: str | None = None,
 ) -> dict[str, Any]:
-    resolved_database_url = _database_url_or_none(database_url)
+    resolved_database_url = _database_url(database_url)
     return {
         "configured": bool(resolved_database_url),
         "database_configured": bool(resolved_database_url),
@@ -181,7 +181,7 @@ def disable_cow_submission_for_startup(
         existing.get("source") in {"database", "database_migrated_from_file", "file"}
         and existing.get("pause_reason") != "startup_transaction_switch_off"
     ):
-        return {"configured": bool(_database_url_or_none(database_url)), **existing}
+        return {"configured": bool(_database_url(database_url)), **existing}
     return set_cow_submission_pause_guard(
         paused=False,
         reason=None,
@@ -213,8 +213,8 @@ def set_cow_submission_pause_guard(
     else:
         state["last_resumed_at"] = now
     return {
-        "configured": bool(_database_url_or_none(database_url)),
-        "database_configured": bool(_database_url_or_none(database_url)),
+        "configured": bool(_database_url(database_url)),
+        "database_configured": bool(_database_url(database_url)),
         **save_cow_submission_pause_guard(state, path, database_url=database_url),
     }
 

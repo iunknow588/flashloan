@@ -116,7 +116,7 @@ function estimateRouteTestSummary(result) {
 }
 
 function estimateRouteTestAdvice(result) {
-  if (result?.txHash) return "建议：链下估算完成；当前金额仅作为链上复核初始量，最佳量由链上复核确认。";
+  if (result?.txHash) return "建议：链下估算完成；当前交易量仅作为链上复核初始交易量，最终最佳交易量由链上复核确认。";
   if (result?.ok === false) return `建议：链下估算未完成；原因：${result?.detail || result?.error || "后台未返回结果"}，请稍后重试或检查路线/池状态。`;
-  return "建议：链下估算完成；当前金额仅作为链上合约初始量，最佳量需由链上复核确认。";
+  return "建议：链下估算完成；当前交易量仅作为链上合约初始交易量，最终最佳交易量需由链上复核确认。";
 }

@@ -518,15 +518,30 @@ def _route_anchor_symbol(route: dict[str, Any]) -> str:
 
 def _sequence_pair_row(step: dict[str, Any]) -> dict[str, Any]:
     route_symbols = [symbol for symbol in step.get("routeSymbols") or [] if symbol]
+    route_addresses = [address for address in step.get("routeAddresses") or [] if address]
     return {
         "symbolPair": step.get("pairSymbol") or " -> ".join(route_symbols),
         "tradeSymbols": route_symbols,
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
         "poolCount": 1 if _pool_address(step) else 0,
         "classification": step.get("classification") or {},
         "pool": _pool_address(step),
         "protocol": step.get("protocol") or step.get("dex") or "",
         "fee": step.get("fee"),
         "pools": [step] if _pool_address(step) else [],
+        "anchorSymbol": step.get("anchorSymbol") or "",
+        "counterSymbol": step.get("counterSymbol") or "",
+        "anchorSymbolResolved": bool(step.get("anchorSymbolResolved")),
+        "counterSymbolResolved": bool(step.get("counterSymbolResolved")),
+        "anchorName": step.get("anchorName") or "",
+        "counterName": step.get("counterName") or "",
+        "anchorNameResolved": bool(step.get("anchorNameResolved")),
+        "counterNameResolved": bool(step.get("counterNameResolved")),
+        "anchorNameMissing": bool(step.get("anchorNameMissing")),
+        "counterNameMissing": bool(step.get("counterNameMissing")),
+        "anchorNameFallbackSymbol": step.get("anchorNameFallbackSymbol") or "",
+        "counterNameFallbackSymbol": step.get("counterNameFallbackSymbol") or "",
     }
 
 

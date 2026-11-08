@@ -1,0 +1,422 @@
+﻿{
+  "fileSizeBytes": 3315490816,
+  "migrationLedger": "schema_migrations",
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\manager_migration_dry_run_20261107T130341Z.sqlite3",
+  "quickCheck": "ok",
+  "readyForMigration": true,
+  "targetTableCompatibility": [
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_core",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_stocks",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_extension",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_test",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "token_admission_events",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_write_requests",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "pool_scope_config",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "v4_exchange_pools_core4",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_anchor_tokens",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_pool_pairs",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_pools",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_pool_recommendations",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_abnormal_anchor_tokens",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_abnormal_pool_pairs",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_dex_candidate_abnormal_pools",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "v4_exchange_pools_candidate_exchange",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_yz_pairs",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_intermediate_pools",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_abnormal_yz_pairs",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_abnormal_intermediate_pools",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_market_observation_liquidity_snapshots",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loop_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loops",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loop_hops",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loop_optimizations",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loop_runtime_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_closed_loop_skipped_tokens",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_review_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_reviews",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_review_diagnostics",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_v4_review_broadcast_requests",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_broadcast_library_state",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_cow_execution_attempts",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_broadcast_attempt_diagnostics",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_pipeline_runs",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_pipeline_steps",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_pipeline_events",
+      "present": false
+    },
+    {
+      "compatible": true,
+      "missingColumns": [],
+      "name": "manager_events",
+      "present": false
+    }
+  ],
+  "targetTables": [
+    {
+      "name": "token_core",
+      "present": false
+    },
+    {
+      "name": "token_stocks",
+      "present": false
+    },
+    {
+      "name": "token_extension",
+      "present": false
+    },
+    {
+      "name": "token_test",
+      "present": false
+    },
+    {
+      "name": "token_library_state",
+      "present": false
+    },
+    {
+      "name": "token_admission_events",
+      "present": false
+    },
+    {
+      "name": "manager_write_requests",
+      "present": false
+    },
+    {
+      "name": "pool_scope_config",
+      "present": false
+    },
+    {
+      "name": "v4_exchange_pools_core4",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_library_state",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_anchor_tokens",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_pool_pairs",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_pools",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_pool_recommendations",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_abnormal_anchor_tokens",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_abnormal_pool_pairs",
+      "present": false
+    },
+    {
+      "name": "manager_dex_candidate_abnormal_pools",
+      "present": false
+    },
+    {
+      "name": "v4_exchange_pools_candidate_exchange",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_library_state",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_yz_pairs",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_intermediate_pools",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_abnormal_yz_pairs",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_abnormal_intermediate_pools",
+      "present": false
+    },
+    {
+      "name": "manager_market_observation_liquidity_snapshots",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loop_library_state",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loops",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loop_hops",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loop_optimizations",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loop_runtime_state",
+      "present": false
+    },
+    {
+      "name": "manager_v4_closed_loop_skipped_tokens",
+      "present": false
+    },
+    {
+      "name": "manager_review_library_state",
+      "present": false
+    },
+    {
+      "name": "manager_v4_reviews",
+      "present": false
+    },
+    {
+      "name": "manager_v4_review_diagnostics",
+      "present": false
+    },
+    {
+      "name": "manager_v4_review_broadcast_requests",
+      "present": false
+    },
+    {
+      "name": "manager_broadcast_library_state",
+      "present": false
+    },
+    {
+      "name": "manager_cow_execution_attempts",
+      "present": false
+    },
+    {
+      "name": "manager_broadcast_attempt_diagnostics",
+      "present": false
+    },
+    {
+      "name": "manager_pipeline_runs",
+      "present": false
+    },
+    {
+      "name": "manager_pipeline_steps",
+      "present": false
+    },
+    {
+      "name": "manager_pipeline_events",
+      "present": false
+    },
+    {
+      "name": "manager_events",
+      "present": false
+    }
+  ],
+  "viewPresent": false
+}

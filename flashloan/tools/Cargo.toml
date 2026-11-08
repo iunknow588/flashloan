@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+    "manager_contracts",
+    "manager_db",
+    "manager_api",
+    "token_manager",
+    "pool_manager",
+    "candidate_edge_pool_manager",
+    "candidate_exchange_pool_manager",
+    "closed_loop_manager",
+    "review_manager",
+    "broadcast_manager",
+    "composite_manager",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+axum = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "std"] }
+hex = "0.4"
+http-body-util = "0.1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+tiny-keccak = { version = "2", features = ["keccak"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }

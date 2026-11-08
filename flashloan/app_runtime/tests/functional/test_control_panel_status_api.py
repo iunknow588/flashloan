@@ -8,7 +8,7 @@ def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_p
 
     report_path = tmp_path / "daily.json"
     monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(liquidation_data, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
     monkeypatch.setattr(liquidation_data, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)
 
@@ -28,7 +28,7 @@ def test_liquidation_daily_report_redacts_build_errors(monkeypatch, tmp_path):
     private_key = "0x" + "1" * 64
     report_path = tmp_path / "daily.json"
     monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(control_panel, "database_url", lambda: database_url)
     monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
 
     def fail_report(_database_url):
@@ -103,7 +103,7 @@ def test_liquidation_accounts_api_persists_to_database(monkeypatch):
     from web import control_panel
 
     captured = {}
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(
@@ -128,7 +128,7 @@ def test_clear_database_api_rejects_when_background_scan_is_running(monkeypatch)
 
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
@@ -167,7 +167,9 @@ def test_status_reports_liquidation_background_scan(monkeypatch):
 
     assert control_panel.LIQUIDATION_SCAN_LOCK.acquire(blocking=False)
     try:
-        response = app.test_client().get("/api/status")
+        response = app.test_client().get(
+            "/api/status?_status_cache_bust=liquidation-health-scan-test"
+        )
         data = response.get_json()
     finally:
         control_panel.LIQUIDATION_SCAN_LOCK.release()
@@ -191,7 +193,7 @@ def test_clear_database_api_truncates_without_schema_init(monkeypatch, tmp_path)
     kv_path = str(tmp_path / "clear.sqlite3")
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", False)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: kv_path)
+    monkeypatch.setattr(control_panel, "database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "configured_database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
@@ -217,7 +219,7 @@ def test_clear_database_api_resets_stale_scan_running_flag(monkeypatch, tmp_path
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "stage", "borrowers")
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: kv_path)
+    monkeypatch.setattr(control_panel, "database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "configured_database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)

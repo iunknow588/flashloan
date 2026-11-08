@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.db.storage_common import (
-    database_url_or_none as storage_database_url_or_none,
+    database_url as storage_database_url,
 )
 from core.parameter_config import (
     LIQUIDATION_PAUSE_GUARD_PATH,
@@ -41,8 +41,8 @@ def pause_guard_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _database_url_or_none(database_url: str | None = None) -> str | None:
-    return storage_database_url_or_none(database_url)
+def _database_url(database_url: str | None = None) -> str | None:
+    return storage_database_url(database_url)
 
 
 def _normalized_state(raw: dict[str, Any] | None, *, source: str) -> dict[str, Any]:
@@ -93,7 +93,7 @@ def load_pause_guard_state(
     *,
     database_url: str | None = None,
 ) -> dict[str, Any]:
-    resolved_database_url = _database_url_or_none(database_url)
+    resolved_database_url = _database_url(database_url)
     if resolved_database_url:
         try:
             state = _load_pause_guard_db(resolved_database_url)
@@ -120,7 +120,7 @@ def save_pause_guard_state(
 ) -> dict[str, Any]:
     payload = dict(_DEFAULT_STATE)
     payload.update(state)
-    resolved_database_url = _database_url_or_none(database_url)
+    resolved_database_url = _database_url(database_url)
     if resolved_database_url:
         try:
             return _save_pause_guard_db(resolved_database_url, payload)

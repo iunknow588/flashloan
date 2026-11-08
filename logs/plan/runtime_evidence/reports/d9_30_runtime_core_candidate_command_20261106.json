@@ -1,0 +1,249 @@
+{
+  "evidenceId": "d9_30_runtime_core_candidate_command_20261106",
+  "task": "D9.30",
+  "recordedAt": "2026-11-06T07:18:14.8367268+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "signerUsed": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "commands": [
+        "refresh_snapshot",
+        "rebuild_candidate_edges",
+        "clear_broadcasts"
+      ],
+      "candidateOperation": "candidate_edge.rebuild",
+      "candidateDelegatesTo": "candidate_edge_pool_manager::materialize_candidate_edges_write",
+      "directCandidateBusinessTableAccess": false,
+      "requestIdRequired": true,
+      "idempotencyKeyRequired": true,
+      "explicitDryRunRequired": true,
+      "structuredCommandErrors": true,
+      "applyAuthority": "CANDIDATE_MANAGER_AUTHORITY=manager",
+      "defaultAuthority": "legacy",
+      "registrationIdentityChecksCandidateAndBroadcastAuthority": true
+    },
+    "pyo3": {
+      "file": "flashloan/rs-src/src/lib.rs",
+      "registrationCompatibilityArgument": "candidate_authority",
+      "registrationArgumentOrder": [
+        "chain_id",
+        "network",
+        "database_path",
+        "protocol",
+        "broadcast_authority",
+        "candidate_authority"
+      ],
+      "statusField": "candidateAuthority",
+      "commandErrorEnvelope": [
+        "ok",
+        "code",
+        "detail",
+        "upstreamStatus",
+        "requestId",
+        "idempotencyKey",
+        "dryRun",
+        "dataSource"
+      ]
+    },
+    "pythonRuntimeAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "method": "ChainRuntimeContext.execute_command",
+      "candidateAuthorityEnvironmentVariable": "CANDIDATE_MANAGER_AUTHORITY",
+      "resultCache": false,
+      "businessLogic": false
+    },
+    "flaskAdapter": {
+      "file": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "function": "candidate_edge_refresh_manager_payload",
+      "requestContextCall": "RuntimeCore rebuild_candidate_edges",
+      "route": "/api/dex-pools/candidates/refresh",
+      "routeMethods": [
+        "POST"
+      ],
+      "requestHeadersRequired": [
+        "X-Request-Id",
+        "Idempotency-Key"
+      ],
+      "explicitDryRunRequired": true,
+      "browserRequestIdGenerated": true,
+      "dryRunRefreshesSourceFiles": false,
+      "managerApiHttpFallback": false,
+      "legacySqliteFallback": false,
+      "legacyCandidateBuilderFallback": false,
+      "postApplyReadPath": "Candidate Manager read-only snapshot"
+    },
+    "pageCompatibility": {
+      "template": "flashloan/app_runtime/web/templates/dex_pool_candidates.html",
+      "urlUnchanged": true,
+      "layoutUnchanged": true,
+      "pageRefreshTimerUnchanged": true,
+      "ordinaryReadsRemainGet": true,
+      "explicitWriteUsesPost": true
+    },
+    "workerOwnership": {
+      "candidateWorkerBoundary": "Rust candidate_edge_pool_manager",
+      "pageRefreshStartsOrStopsWorkers": false
+    }
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Formatting clean."
+    },
+    {
+      "command": "cargo check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "PyO3 extension compiles without warnings."
+    },
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "93 passed; 0 failed."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "141 passed across all Rust Manager workspace crates and integration tests."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_page_compare_quote_routes.py flashloan/app_runtime/tests/unit/test_chain_runtime.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "120 passed in 54.44s."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "14 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly.py -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "26 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "28 passed."
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 1,
+      "result": "41 passed, 6 failed; all six failures are pre-existing D9.30-untouched architecture findings."
+    },
+    {
+      "command": "python -m maturin build --release --auditwheel repair --out target/runtime_core_wheel_20261106_v6_candidate_command",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Wheel built without compiler warnings; zlib.dll copied under flashloan_rs.libs."
+    },
+    {
+      "command": "fresh venv install and rebuild_candidate_edges smoke",
+      "workdir": "flashloan/rs-src/target",
+      "exitCode": 0,
+      "result": "Dry-run, apply, same-key replay and legacy-authority rejection all matched the expected contract."
+    },
+    {
+      "command": "manager-db migrate --db d9_30_runtime_core_candidate_command_final_clean.sqlite3",
+      "workdir": "flashloan",
+      "exitCode": 0,
+      "result": "Second run appliedNow=false; all seven migration checksums remained stable."
+    }
+  ],
+  "artifacts": {
+    "wheelRepaired": "flashloan/rs-src/target/runtime_core_wheel_20261106_v6_candidate_command/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelBytes": 4837219,
+    "wheelSha256": "EB2487001C312231EDA8AF7DF46066ABDA3EBCD566E6DBBA9D19AB33E35CFCFD",
+    "wheelSmokeVenv": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v6_candidate_command_final",
+    "wheelSmokePython": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v6_candidate_command_final/Scripts/python.exe",
+    "wheelSmokePythonBytes": 270096,
+    "wheelSmokePythonSha256": "236FC1728EFEC7FCDCD35000CD3DF6C21C015120FED69EA2681E9CFB0D53719F",
+    "wheelImportVersion": "0.1.0",
+    "wheelRuntimeCoreCommandImportable": true,
+    "smokeScript": "flashloan/rs-src/target/d9_30_runtime_core_candidate_command_smoke.py",
+    "smokeScriptBytes": 10127,
+    "smokeScriptSha256": "93D34B4D6C53EFD635DA79CBA28A1A8DC84276660EFFB943A2E946CC5F94818B",
+    "temporaryDatabase": "flashloan/rs-src/target/d9_30_runtime_core_candidate_command_final_clean.sqlite3",
+    "temporaryDatabaseBytes": 593920,
+    "temporaryDatabaseSha256BeforeFixture": "3C67DE1FDFDCBF17C6DA36E93C32C1E4E279F4CFE4EA64038C5A215C007FDCC3",
+    "temporaryDatabaseSha256AfterFixture": "799253696E481B3C0FCAE69E6C89A7C4E5B7887260B4424B34E54B82B8411B66",
+    "temporaryDatabaseSha256AfterSmoke": "6B82D7EB823058C712A31E8DC123D1E8F318CFD90533B718114E0EB80EE23631",
+    "temporaryDatabaseSha256BeforeSecondMigration": "6B82D7EB823058C712A31E8DC123D1E8F318CFD90533B718114E0EB80EE23631",
+    "temporaryDatabaseSha256AfterSecondMigration": "6B82D7EB823058C712A31E8DC123D1E8F318CFD90533B718114E0EB80EE23631"
+  },
+  "schema": {
+    "migrationCount": 7,
+    "latestMigrationId": "20261104_006_composite_schema",
+    "aggregateChecksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+    "schemaChecksum": "sha256:643b8abec703dc4e2541794f01078cc098a55b9440e4c3d119b1a5909edcfee7",
+    "migrationTable": "schema_migrations",
+    "secondApplyWasNoop": true
+  },
+  "temporaryDatabase": {
+    "purpose": "RuntimeCore candidate rebuild command contract smoke only",
+    "quickCheck": "ok",
+    "fixtureLibraryCount": 4,
+    "fixtureScopeKey": "core4",
+    "fixtureAdmittedAnchorTokens": 1,
+    "fixtureSourcePools": 0,
+    "managerWriteRequestsBeforeApply": 0,
+    "managerWriteRequestsAfterApplyAndReplay": 1,
+    "candidateLibraryStatesAfterApply": 1,
+    "candidateAnchorTokensAfterApply": 0,
+    "candidateVersion": 1,
+    "candidateMaterializedChecksum": "sha256:b199726318b4486f405e1f586dd879ab2132d8e2f68182c6b4d86134337bcb37",
+    "dryRunAndApplyChecksumMatch": true,
+    "sameKeyReplayReturnsFirstResult": true,
+    "seedRowsRepresentProductionData": false
+  },
+  "acceptance": {
+    "candidateRefreshRouteUsesRuntimeCore": true,
+    "candidateBuilderBypassRemoved": true,
+    "managerApiFallbackRemoved": true,
+    "legacySqliteFallbackRemoved": true,
+    "refreshRouteRequiresExplicitWriteHeaders": true,
+    "browserRefreshGeneratesRequestIdAndIdempotencyKey": true,
+    "dryRunWritesNoCandidateStateOrIdempotency": true,
+    "applyCreatesSingleCandidateLibraryState": true,
+    "sameIdempotencyKeyReplayDoesNotIncreaseWrites": true,
+    "legacyCandidateAuthorityRejectsApply": true,
+    "structuredRuntimeCommandErrorContext": true,
+    "repairedWheelImportable": true,
+    "unicodeAbsolutePathSmoke": true,
+    "migrationChecksumStable": true
+  },
+  "architectureGuardFailures": [
+    "web/data_routes/dex_surface_routes_ops.py still reads latest.json",
+    "five silent broad exception handlers remain",
+    "core/db/cow_execution_review.py cross-package import remains",
+    "nested app_runtime/flashloan directory remains",
+    "dex/runtime/dex_opportunity_scanner_engine.py exceeds 1000 lines",
+    "five active source files exceed 1000 lines"
+  ],
+  "residualWork": [
+    "Other explicit page commands still require individual RuntimeCore command migrations.",
+    "M3 production authority cutover, production database apply and service cutover were intentionally not performed.",
+    "Producer refresh intervals are currently used by the page timer; an independent page interval remains a later UI configuration task.",
+    "Six pre-existing architecture guard failures remain outside D9.30."
+  ]
+}

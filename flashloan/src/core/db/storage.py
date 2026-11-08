@@ -3,7 +3,7 @@
     SCHEMA_MIGRATIONS,
     configured_database_url,
     db_connection,
-    database_url_or_none,
+    database_url,
     utc_from_ms,
 )
 from core.db.storage_control_parameters import (
@@ -84,7 +84,7 @@ __all__ = [
     "append_observations",
     "configured_database_url",
     "db_connection",
-    "database_url_or_none",
+    "database_url",
     "ensure_chain_market_registry_schema",
     "ensure_control_panel_parameters_table",
     "ensure_database_schema",

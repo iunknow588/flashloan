@@ -11,7 +11,7 @@ def test_debt_pool_state_emits_market_alert_once(monkeypatch, tmp_path):
     PAGE_STATE_STORE._states.clear()
     observed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     monkeypatch.setattr(market_volatility_event_store, "MARKET_VOLATILITY_EVENT_STORE_PATH", tmp_path / "market_events.jsonl")
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: (["0x1"], "database"))
     monkeypatch.setattr(
         control_panel,

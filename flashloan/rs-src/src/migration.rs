@@ -142,9 +142,7 @@ fn ensure_column(
     }
     connection
         .execute(
-            &format!(
-                "ALTER TABLE {table} ADD COLUMN {column} {definition}"
-            ),
+            &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
             [],
         )
         .map_err(|error| format!("could not add {table}.{column}: {error}"))?;
@@ -152,13 +150,19 @@ fn ensure_column(
 }
 
 fn rebuild_pair_table(connection: &Connection, table: &str) -> Result<(), String> {
-    if primary_key_columns(connection, table)?.iter().any(|name| name == "direction_key") {
+    if primary_key_columns(connection, table)?
+        .iter()
+        .any(|name| name == "direction_key")
+    {
         return Ok(());
     }
     let temp = format!("{table}_directional_v1");
     execute(
         connection,
-        &format!("DROP TABLE IF EXISTS {temp};\n{}", PAIR_TEMP_DDL.replace("{table}", &temp)),
+        &format!(
+            "DROP TABLE IF EXISTS {temp};\n{}",
+            PAIR_TEMP_DDL.replace("{table}", &temp)
+        ),
     )?;
     execute(
         connection,
@@ -181,18 +185,27 @@ fn rebuild_pair_table(connection: &Connection, table: &str) -> Result<(), String
             FROM {table};"
         ),
     )?;
-    execute(connection, &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"))?;
+    execute(
+        connection,
+        &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"),
+    )?;
     Ok(())
 }
 
 fn rebuild_pool_table(connection: &Connection, table: &str) -> Result<(), String> {
-    if primary_key_columns(connection, table)?.iter().any(|name| name == "direction_key") {
+    if primary_key_columns(connection, table)?
+        .iter()
+        .any(|name| name == "direction_key")
+    {
         return Ok(());
     }
     let temp = format!("{table}_directional_v1");
     execute(
         connection,
-        &format!("DROP TABLE IF EXISTS {temp};\n{}", POOL_TEMP_DDL.replace("{table}", &temp)),
+        &format!(
+            "DROP TABLE IF EXISTS {temp};\n{}",
+            POOL_TEMP_DDL.replace("{table}", &temp)
+        ),
     )?;
     execute(
         connection,
@@ -223,19 +236,28 @@ fn rebuild_pool_table(connection: &Connection, table: &str) -> Result<(), String
             FROM {table};"
         ),
     )?;
-    execute(connection, &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"))?;
+    execute(
+        connection,
+        &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"),
+    )?;
     Ok(())
 }
 
 fn rebuild_recommendation_table(connection: &Connection) -> Result<(), String> {
     let table = "dex_candidate_pool_recommendations";
-    if primary_key_columns(connection, table)?.iter().any(|name| name == "direction_key") {
+    if primary_key_columns(connection, table)?
+        .iter()
+        .any(|name| name == "direction_key")
+    {
         return Ok(());
     }
     let temp = format!("{table}_directional_v1");
     execute(
         connection,
-        &format!("DROP TABLE IF EXISTS {temp};\n{}", RECOMMENDATION_TEMP_DDL.replace("{table}", &temp)),
+        &format!(
+            "DROP TABLE IF EXISTS {temp};\n{}",
+            RECOMMENDATION_TEMP_DDL.replace("{table}", &temp)
+        ),
     )?;
     execute(
         connection,
@@ -252,7 +274,10 @@ fn rebuild_recommendation_table(connection: &Connection) -> Result<(), String> {
             FROM {table};"
         ),
     )?;
-    execute(connection, &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"))?;
+    execute(
+        connection,
+        &format!("DROP TABLE {table};\nALTER TABLE {temp} RENAME TO {table};"),
+    )?;
     Ok(())
 }
 
@@ -305,18 +330,35 @@ fn backfill_observation_rows(connection: &Connection, table: &str) -> Result<usi
                AND anchor_scope = ? AND anchor_symbol = ? AND direction_key = ?"
         ))
         .map_err(|error| format!("could not prepare observation update for {table}: {error}"))?;
-    for (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key, token_x, token_y, address_pair, pool_ids_json, optimal_pool_id) in rows {
+    for (
+        network,
+        chain_id,
+        protocol,
+        anchor_scope,
+        anchor_symbol,
+        direction_key,
+        token_x,
+        token_y,
+        address_pair,
+        pool_ids_json,
+        optimal_pool_id,
+    ) in rows
+    {
         let direction_pair = format!("{}:{}", token_x.to_lowercase(), token_y.to_lowercase());
         let raw_pool_ids_json = pool_ids_json.clone().unwrap_or_else(|| "[]".to_string());
-        let parsed: Value = serde_json::from_str(&raw_pool_ids_json)
-            .unwrap_or(Value::Array(vec![]));
+        let parsed: Value =
+            serde_json::from_str(&raw_pool_ids_json).unwrap_or(Value::Array(vec![]));
         let pool_ids = match parsed {
             Value::Array(values) => values.into_iter().take(1).collect::<Vec<_>>(),
             _ => vec![],
         };
-        let encoded_pool_ids = serde_json::to_string(&pool_ids).map_err(|error| error.to_string())?;
+        let encoded_pool_ids =
+            serde_json::to_string(&pool_ids).map_err(|error| error.to_string())?;
         let raw_optimal_pool_id = optimal_pool_id.as_deref().unwrap_or("").to_string();
-        let optimal = match optimal_pool_id.as_deref().filter(|value| !value.trim().is_empty()) {
+        let optimal = match optimal_pool_id
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
             Some(value) => value.to_string(),
             None => pool_ids
                 .first()
@@ -351,35 +393,98 @@ fn backfill_observation_rows(connection: &Connection, table: &str) -> Result<usi
 }
 
 pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String> {
-    execute(connection, "PRAGMA foreign_keys=OFF; PRAGMA busy_timeout=5000;")?;
+    execute(
+        connection,
+        "PRAGMA foreign_keys=OFF; PRAGMA busy_timeout=5000;",
+    )?;
 
     for (table, column, definition) in [
-        ("dex_candidate_anchor_tokens", "yc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
-        ("dex_candidate_anchor_tokens", "zc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
-        ("dex_candidate_abnormal_anchor_tokens", "yc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
-        ("dex_candidate_abnormal_anchor_tokens", "zc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
+        (
+            "dex_candidate_anchor_tokens",
+            "yc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "dex_candidate_anchor_tokens",
+            "zc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "dex_candidate_abnormal_anchor_tokens",
+            "yc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "dex_candidate_abnormal_anchor_tokens",
+            "zc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
         ("dex_candidate_pool_pairs", "direction_key", "TEXT"),
-        ("dex_candidate_pool_pairs", "yc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
-        ("dex_candidate_pool_pairs", "zc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
+        (
+            "dex_candidate_pool_pairs",
+            "yc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "dex_candidate_pool_pairs",
+            "zc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
         ("dex_candidate_abnormal_pool_pairs", "direction_key", "TEXT"),
-        ("dex_candidate_abnormal_pool_pairs", "yc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
-        ("dex_candidate_abnormal_pool_pairs", "zc_backup_pool_ids_json", "TEXT NOT NULL DEFAULT '[]'"),
+        (
+            "dex_candidate_abnormal_pool_pairs",
+            "yc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "dex_candidate_abnormal_pool_pairs",
+            "zc_backup_pool_ids_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        ),
         ("dex_candidate_pools", "direction_key", "TEXT"),
         ("dex_candidate_pools", "direction_address_pair", "TEXT"),
-        ("dex_candidate_pool_recommendations", "direction_key", "TEXT"),
+        (
+            "dex_candidate_pool_recommendations",
+            "direction_key",
+            "TEXT",
+        ),
         ("dex_candidate_abnormal_pools", "direction_key", "TEXT"),
-        ("dex_candidate_abnormal_pools", "direction_address_pair", "TEXT"),
+        (
+            "dex_candidate_abnormal_pools",
+            "direction_address_pair",
+            "TEXT",
+        ),
         ("market_observation_yz_pairs", "optimal_pool_id", "TEXT"),
-        ("market_observation_abnormal_yz_pairs", "optimal_pool_id", "TEXT"),
-        ("v4_exchange_pool_liquidity_snapshots", "evidence_source", "TEXT"),
-        ("market_observation_liquidity_snapshots", "evidence_source", "TEXT"),
+        (
+            "market_observation_abnormal_yz_pairs",
+            "optimal_pool_id",
+            "TEXT",
+        ),
+        (
+            "v4_exchange_pool_liquidity_snapshots",
+            "evidence_source",
+            "TEXT",
+        ),
+        (
+            "market_observation_liquidity_snapshots",
+            "evidence_source",
+            "TEXT",
+        ),
     ] {
         ensure_column(connection, table, column, definition)?;
     }
 
     for (table, yc_column, zc_column) in [
-        ("dex_candidate_pool_pairs", "yc_optimal_pool_id", "zc_optimal_pool_id"),
-        ("dex_candidate_abnormal_pool_pairs", "yc_optimal_pool_id", "zc_optimal_pool_id"),
+        (
+            "dex_candidate_pool_pairs",
+            "yc_optimal_pool_id",
+            "zc_optimal_pool_id",
+        ),
+        (
+            "dex_candidate_abnormal_pool_pairs",
+            "yc_optimal_pool_id",
+            "zc_optimal_pool_id",
+        ),
     ] {
         let forward = format!(
             "SELECT
@@ -500,7 +605,10 @@ pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String
          );",
     )?;
 
-    for table in ["dex_candidate_pool_pairs", "dex_candidate_abnormal_pool_pairs"] {
+    for table in [
+        "dex_candidate_pool_pairs",
+        "dex_candidate_abnormal_pool_pairs",
+    ] {
         execute(
             connection,
             &format!(
@@ -624,6 +732,7 @@ pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String
         backfill_observation_rows(connection, "market_observation_abnormal_yz_pairs")?;
 
     let mut integrity_errors: Vec<String> = vec![];
+    let mut legacy_observation_groups: Vec<Value> = vec![];
     {
         let mut groups = connection
             .prepare(
@@ -660,9 +769,20 @@ pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String
                 .map_err(|error| format!("could not count anchor tokens for integrity: {error}"))?;
             let expected = token_count * (token_count - 1);
             if direction_count != expected {
-                integrity_errors.push(format!(
-                    "{anchor_symbol}: expected {expected} directions, found {direction_count}"
-                ));
+                if token_count == 0 {
+                    legacy_observation_groups.push(json!({
+                        "network": network,
+                        "chain_id": chain_id,
+                        "protocol": protocol,
+                        "anchor_scope": anchor_scope,
+                        "anchor_symbol": anchor_symbol,
+                        "directionCount": direction_count,
+                    }));
+                } else {
+                    integrity_errors.push(format!(
+                        "{anchor_symbol}: expected {expected} directions, found {direction_count}"
+                    ));
+                }
             }
         }
     }
@@ -678,5 +798,6 @@ pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String
         "migrated": "directional_pairs_v1",
         "observationUpdates": observation_updates,
         "abnormalObservationUpdates": abnormal_observation_updates,
+        "legacyObservationGroups": legacy_observation_groups,
     }))
 }

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "manager_runtime_evidence_v1",
+  "evidenceId": "d9_2_ui_closed_loop_shadow_20261105",
+  "milestone": "M9",
+  "task": "D6.1 opt-in read-only closed-loop page shadow comparison",
+  "status": "partial_closed_loop_shadow_complete_pages_pending",
+  "generatedAt": "2026-11-05T00:09:23Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "workspace": "flashloan/app_runtime",
+  "decision": "The existing closed-loop groups page keeps its URL, layout, business fields, and legacy data source. An explicit manager_compare=true request attaches a read-only manager shadow containing versions, checksums, full status counts, bounded snapshot counts, and sampled loop/hop comparison summaries.",
+  "implementation": {
+    "shadowHelper": "flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+    "routeFile": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+    "flaskRoute": "GET /api/dex/closed-loop-groups?manager_compare=true",
+    "upstreamRoutes": [
+      "GET /v1/closed-loops?chainId=4663&limit=1000",
+      "GET /v1/closed-loops/compare?chainId=4663&sampleLimit=200&legacyMarketId=dex-arbitrage-4663-uniswap-v4"
+    ],
+    "snapshotLimit": 1000,
+    "rowComparisonSampleLimit": 200,
+    "defaultDataSource": "legacy",
+    "enabledBy": "MANAGER_UI_DATA_SOURCE=manager plus manager_compare=true request opt-in",
+    "shadowFields": [
+      "closedLoopVersion",
+      "closedLoopChecksum",
+      "candidateEdgeVersion",
+      "candidateEdgeChecksum",
+      "observationVersion",
+      "observationChecksum",
+      "poolScopeChecksum",
+      "consumersNeedRebuild",
+      "managerStatusCounts",
+      "managerSnapshotCounts",
+      "rowComparison"
+    ],
+    "readOnly": true,
+    "directManagerTableAccess": false,
+    "workerThreadsStarted": false,
+    "writeRoutesAdded": false
+  },
+  "architecturePolicy": {
+    "pageUrlChanged": false,
+    "pageTemplateChanged": false,
+    "pageLayoutChanged": false,
+    "legacyPageFieldsUnaffected": true,
+    "managerShadowRequiresExplicitOptIn": true,
+    "comparisonReadyForFieldSwitch": false,
+    "productionAuthorityChanged": false
+  },
+  "verification": [
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_manager_page_compare.py flashloan/app_runtime/tests/unit/test_manager_api_client.py flashloan/app_runtime/tests/unit/test_manager_compat_routes.py flashloan/app_runtime/tests/unit/test_dex_surface_response.py flashloan/app_runtime/tests/unit/test_api_scope_policy.py -q",
+      "exitCode": 0,
+      "passed": 45
+    },
+    {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_web_route_registration_smoke flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_control_panel_routes_are_assembled_by_app_factory -q",
+      "exitCode": 0,
+      "passed": 2
+    },
+    {
+      "command": "python -m py_compile flashloan/src/core/manager_api_client.py flashloan/app_runtime/web/manager_compat_routes.py flashloan/app_runtime/web/control_panel_app.py flashloan/app_runtime/web/data_routes/dex_surface_response.py flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py flashloan/app_runtime/web/data_routes/manager_page_compare.py",
+      "exitCode": 0
+    }
+  ],
+  "fixtures": [
+    "closed-loop shadow is disabled without network access while MANAGER_UI_DATA_SOURCE=legacy",
+    "closed-loop shadow reads bounded snapshot rows and full manager status counts separately",
+    "closed-loop shadow propagates chainId, limit, sampleLimit, legacyMarketId, and request id",
+    "closed-loop comparison reports loop and hop differences without changing legacy groups or routes",
+    "closed-loop page attaches managerShadow only when manager_compare=true",
+    "successful opt-in keeps dataSource=legacy and leaves the existing route response compatible"
+  ],
+  "knownBoundary": "Only candidate and closed-loop page diagnostics have opt-in manager shadows. Market observation, review, submission/broadcast, and overview pages still use legacy-only paths. Closed-loop shadow is not a production cutover and does not satisfy M5 production dual-read. No production database migration, service restart, manager write, or broadcast was performed."
+}

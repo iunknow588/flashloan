@@ -80,13 +80,13 @@ def _page_definition(path: str) -> tuple[str, str, str, str, str] | None:
         "/binance-market": "quotes",
         "/dex-arbitrage": "quotes",
         "/dex/submissions": "submissions",
-        "/dex/submissions/success": "submissions",
-        "/dex/submissions/failed": "submissions_failed",
+        "/dex/submissions/review-success": "submissions_review_success",
+        "/dex/submissions/review-failed": "submissions_review_failed",
+        "/dex/submissions/execution-success": "submissions_execution_success",
+        "/dex/submissions/execution-failed": "submissions_execution_failed",
     }
     if pathname in dex_surfaces:
         return "dex_arbitrage", "dex_arbitrage", "dex_arbitrage", "dex", dex_surfaces[pathname]
-    if pathname.startswith("/dex/submissions/failed/"):
-        return "dex_arbitrage", "dex_arbitrage", "dex_arbitrage", "dex", "submissions_failed"
     if pathname in {
         "/dex/robinhood-shadow",
         "/robinhood-dex",

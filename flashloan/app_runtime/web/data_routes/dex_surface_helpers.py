@@ -4,13 +4,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import logging
 import json
-import os
 from pathlib import Path
 import time
 from typing import Any
 
-from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
-from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
 from dex.runtime.dex_opportunity_helpers import (
     _merge_onchain_evidence_into_route as _merge_onchain_evidence_into_route,
 )
@@ -338,137 +335,6 @@ def _scanner_snapshot_is_stale(scanner_payload: dict, *, max_age_seconds: float 
     return age_seconds > max_age_seconds
 
 
-def _recent_attempt_max_age_seconds() -> float:
-    raw = os.getenv("DEX_RECENT_ATTEMPT_MAX_AGE_SECONDS", "600")
-    try:
-        return max(0.0, float(raw))
-    except (TypeError, ValueError):
-        return 600.0
-
-
-def _attempt_timestamp(attempt: dict) -> float | None:
-    raw = str(attempt.get("created_at") or attempt.get("observed_at") or "").strip()
-    if not raw:
-        return None
-    try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.timestamp()
-
-
-def _attempt_route_evidence(attempt: dict) -> dict:
-    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
-    candidates = (
-        quote.get("live_onchain_evidence"),
-        attempt.get("live_onchain_evidence"),
-        attempt.get("evidence"),
-    )
-    for candidate in candidates:
-        if isinstance(candidate, dict) and candidate:
-            return candidate
-    return {}
-
-
-def _merge_recent_attempt_evidence_into_routes(
-    routes: list[dict],
-    *,
-    chain_id: int,
-    recent_attempt_limit: int = 500,
-    max_age_seconds: float | None = None,
-) -> list[dict]:
-    """Fold recent JSONL quote-route tests into the quote-routes page."""
-    if not routes or chain_id is None:
-        return routes
-    try:
-        log_path = cow_execution_attempt_log_path(chain_id=int(chain_id))
-        attempts = load_recent_cow_execution_attempts_jsonl(
-            log_path,
-            limit=max(1, int(recent_attempt_limit)),
-            chain_ids=[int(chain_id)],
-        )
-    except Exception as exc:
-        logger.warning("failed to load recent cow execution attempts for quote-routes page: %s", exc)
-        return routes
-    latest_evidence_by_route = {}
-    max_age = _recent_attempt_max_age_seconds() if max_age_seconds is None else float(max_age_seconds)
-    now = time.time()
-    for attempt in attempts:
-        if not isinstance(attempt, dict):
-            continue
-        attempt_ts = _attempt_timestamp(attempt)
-        if attempt_ts is None or now - attempt_ts > max_age:
-            continue
-        quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
-        raw_path = attempt.get("route_path") or quote.get("path") or attempt.get("path") or []
-        evidence = _attempt_route_evidence(attempt)
-        if not isinstance(evidence, dict) or not evidence.get("status"):
-            continue
-        route_addresses = (
-            evidence.get("routeAddresses")
-            or evidence.get("route_addresses")
-            or quote.get("routeAddresses")
-            or quote.get("route_addresses")
-            or attempt.get("route_addresses")
-            or attempt.get("routeAddresses")
-            or []
-        )
-        route_symbols = raw_path or evidence.get("routeSymbols") or evidence.get("route_symbols") or []
-        route_key = _route_dedup_key(
-            {
-                "routeAddresses": route_addresses,
-                "routeSymbols": route_symbols,
-            }
-        )
-        if not route_key:
-            continue
-        symbol_key = "symbol|" + _route_symbol_key(route_symbols)
-        latest_evidence_by_route.setdefault(route_key, evidence)
-        if symbol_key and symbol_key != route_key:
-            # Older on-chain previews may not carry addresses in the persisted
-            # evidence. Keep a symbol-only key as a fallback so the quote-routes
-            # page can still merge route_unprofitable/live_verified rows.
-            latest_evidence_by_route.setdefault(symbol_key, evidence)
-    for route in routes:
-        if not isinstance(route, dict):
-            continue
-        route_key = _route_dedup_key(route)
-        evidence = latest_evidence_by_route.get(route_key)
-        if not isinstance(evidence, dict) or not evidence:
-            symbol_key = "symbol|" + _route_symbol_key(route)
-            evidence = latest_evidence_by_route.get(symbol_key)
-        if not isinstance(evidence, dict) or not evidence:
-            continue
-        existing_evidence = route.get("live_onchain_evidence")
-        existing_status = (
-            str(existing_evidence.get("status") or "")
-            if isinstance(existing_evidence, dict)
-            else ""
-        ).strip().lower()
-        attempt_status = str(evidence.get("status") or "").strip().lower()
-        if not attempt_status:
-            continue
-        terminal_replace_statuses = {
-            "live_verified",
-            "not_enough_liquidity",
-            "pool_not_initialized",
-            "pool_insufficient_for_profitable_execution",
-            "route_unprofitable",
-            "slippage_limit_exceeded",
-        }
-        if existing_status == attempt_status and existing_status in terminal_replace_statuses:
-            continue
-        if existing_status in {"requires_live_quoter", "not_live_verified", "", "rpc_verification_failed", "rpc_verification_timeout"}:
-            _merge_onchain_evidence_into_route(route, evidence)
-        elif existing_status == "static_reference_pending_live_review" and attempt_status in terminal_replace_statuses:
-            _merge_onchain_evidence_into_route(route, evidence)
-        elif existing_status in terminal_replace_statuses and attempt_status in terminal_replace_statuses:
-            _merge_onchain_evidence_into_route(route, evidence)
-    return routes
-
-
 def evict_stale_evidence_from_routes(routes: list[dict]) -> list[dict]:
     """Remove old on-chain evidence before a realtime refresh can replace it.
 
@@ -763,17 +629,9 @@ def _live_quote_deferred_route(
 
 @contextmanager
 def _reference_only_live_quote_context(*, disable_live: bool):
-    key = "DEX_V4_LIVE_QUOTE_ENABLED"
-    previous = os.environ.get(key)
-    if disable_live:
-        os.environ[key] = "0"
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = previous
+    """Compatibility wrapper for static/reference-only payload assembly."""
+    del disable_live
+    yield
 
 
 __all__ = [
@@ -784,7 +642,6 @@ __all__ = [
     "_merge_manifest_live_evidence_into_routes",
     "_live_quote_deferred_route",
     "_merge_live_route_estimate",
-    "_merge_recent_attempt_evidence_into_routes",
     "_reference_only_live_quote_context",
     "_route_dedup_key",
     "_route_symbol_key",

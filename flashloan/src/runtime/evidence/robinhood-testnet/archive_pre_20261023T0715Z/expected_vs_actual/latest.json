@@ -1,0 +1,251 @@
+{
+  "conclusion": "3 unique success receipts decodable, 4 missing receipt/swap evidence; 0 show expected-vs-actual net profit difference, 0 realized negative.",
+  "items": [
+    {
+      "actualNetProfit": "0.000001735324986965",
+      "actualNetProfitRaw": "1735324986965",
+      "actualProfitSymbol": "ETH",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "0.000001735324986965",
+      "expectedProfitSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "inputHuman": "0.00006103515625",
+          "inputRaw": "61035156250000",
+          "inputSymbol": "ETH",
+          "outputHuman": "0.000834081801420511",
+          "outputRaw": "834081801420511",
+          "outputSymbol": "AMD",
+          "poolId": "0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.000834081801420511",
+          "inputRaw": "834081801420511",
+          "inputSymbol": "AMD",
+          "outputHuman": "0.000822087927830212",
+          "outputRaw": "822087927830212",
+          "outputSymbol": "AMZN",
+          "poolId": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.000822087927830212",
+          "inputRaw": "822087927830212",
+          "inputSymbol": "AMZN",
+          "outputHuman": "0.000062770481236965",
+          "outputRaw": "62770481236965",
+          "outputSymbol": "ETH",
+          "poolId": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "ETH -> AMD -> AMZN -> ETH",
+      "receipt": {
+        "blockNumber": "0x85d4ca3",
+        "blockNumberInt": 140332195,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "gasUsed": "0x462c5",
+        "gasUsedInt": 287429,
+        "status": 1,
+        "txHash": "0x51a3fd27e7f434dbb5bf7a25ef1e5c8fc0a0db6a1d05cfcbe2855224d344ee9d"
+      },
+      "routeSymbols": [
+        "ETH",
+        "AMD",
+        "AMZN",
+        "ETH"
+      ],
+      "txHash": "0x51a3fd27e7f434dbb5bf7a25ef1e5c8fc0a0db6a1d05cfcbe2855224d344ee9d"
+    },
+    {
+      "actualNetProfit": null,
+      "decodable": false,
+      "missingReason": "receipt_has_no_pool_manager_swap_logs",
+      "pair": "ETH -> AMZN -> TSLA -> ETH",
+      "routeSymbols": [
+        "ETH",
+        "AMZN",
+        "TSLA",
+        "ETH"
+      ],
+      "txHash": "0x4e422b968d3ffaec8657d3d15f264f940ce9e9bf8a49b8a6f31e72012dfcd41c"
+    },
+    {
+      "actualNetProfit": "2.2051269484E-7",
+      "actualNetProfitRaw": "220512694840",
+      "actualProfitSymbol": "TSLA",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "2.2051269484E-7",
+      "expectedProfitSymbol": "TSLA",
+      "hops": [
+        {
+          "decodable": true,
+          "inputHuman": "0.001953125",
+          "inputRaw": "1953125000000000",
+          "inputSymbol": "TSLA",
+          "outputHuman": "0.000115207263117316",
+          "outputRaw": "115207263117316",
+          "outputSymbol": "ETH",
+          "poolId": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.000115207263117316",
+          "inputRaw": "115207263117316",
+          "inputSymbol": "ETH",
+          "outputHuman": "0.001508540770064221",
+          "outputRaw": "1508540770064221",
+          "outputSymbol": "AMZN",
+          "poolId": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.001508540770064221",
+          "inputRaw": "1508540770064221",
+          "inputSymbol": "AMZN",
+          "outputHuman": "0.00195334551269484",
+          "outputRaw": "1953345512694840",
+          "outputSymbol": "TSLA",
+          "poolId": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b"
+        }
+      ],
+      "netProfitDifference": "0E-17",
+      "pair": "TSLA -> ETH -> AMZN -> TSLA",
+      "receipt": {
+        "blockNumber": "0x8584993",
+        "blockNumberInt": 140003731,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "gasUsed": "0x4b143",
+        "gasUsedInt": 307523,
+        "status": 1,
+        "txHash": "0x52713bb427f9b984f230af9cf27f27dd59438d4f7a6fea30ed9af877a85687d3"
+      },
+      "routeSymbols": [
+        "TSLA",
+        "ETH",
+        "AMZN",
+        "TSLA"
+      ],
+      "txHash": "0x52713bb427f9b984f230af9cf27f27dd59438d4f7a6fea30ed9af877a85687d3"
+    },
+    {
+      "actualNetProfit": "0.000001560643188613",
+      "actualNetProfitRaw": "1560643188613",
+      "actualProfitSymbol": "TSLA",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "0.000001560643188613",
+      "expectedProfitSymbol": "TSLA",
+      "hops": [
+        {
+          "decodable": true,
+          "inputHuman": "0.001953125",
+          "inputRaw": "1953125000000000",
+          "inputSymbol": "TSLA",
+          "outputHuman": "0.000115623564289559",
+          "outputRaw": "115623564289559",
+          "outputSymbol": "ETH",
+          "poolId": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.000115623564289559",
+          "inputRaw": "115623564289559",
+          "inputSymbol": "ETH",
+          "outputHuman": "0.001513988145270759",
+          "outputRaw": "1513988145270759",
+          "outputSymbol": "AMZN",
+          "poolId": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66"
+        },
+        {
+          "decodable": true,
+          "inputHuman": "0.001513988145270759",
+          "inputRaw": "1513988145270759",
+          "inputSymbol": "AMZN",
+          "outputHuman": "0.001954685643188613",
+          "outputRaw": "1954685643188613",
+          "outputSymbol": "TSLA",
+          "poolId": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "TSLA -> ETH -> AMZN -> TSLA",
+      "receipt": {
+        "blockNumber": "0x85d4c65",
+        "blockNumberInt": 140332133,
+        "effectiveGasPrice": "0x989680",
+        "effectiveGasPriceInt": 10000000,
+        "gasUsed": "0x4c6a1",
+        "gasUsedInt": 312993,
+        "status": 1,
+        "txHash": "0x0dd6c8bc612a0bb14d5ecdd9036daa2c9b544b80c29c42d14f9eab5501be78a6"
+      },
+      "routeSymbols": [
+        "TSLA",
+        "ETH",
+        "AMZN",
+        "TSLA"
+      ],
+      "txHash": "0x0dd6c8bc612a0bb14d5ecdd9036daa2c9b544b80c29c42d14f9eab5501be78a6"
+    },
+    {
+      "actualNetProfit": null,
+      "decodable": false,
+      "missingReason": "receipt_has_no_pool_manager_swap_logs",
+      "pair": "TZ -> TB -> TA -> TZ",
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "txHash": "0xaf803388979c1985dcb7f89197949092e222d49d105e19d9f5e46b9fda6845d0"
+    },
+    {
+      "actualNetProfit": null,
+      "decodable": false,
+      "missingReason": "receipt_has_no_pool_manager_swap_logs",
+      "pair": "TZ -> TB -> TA -> TZ",
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "txHash": "0x7be0c28fa5273df73deef7f45867fa2165929a770a0641574a10003d912e1aa2"
+    },
+    {
+      "actualNetProfit": null,
+      "decodable": false,
+      "missingReason": "receipt_has_no_pool_manager_swap_logs",
+      "pair": "TZ -> TB -> TA -> TZ",
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "txHash": "0xd91646862d87897e167210bb90ce63312d2f2f82d5e2d4b183bba86f30847fdc"
+    }
+  ],
+  "range": {
+    "endUtc": null,
+    "startUtc": null
+  },
+  "schemaVersion": "robinhood-testnet-expected-vs-actual-v1",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\logs\\cow_execution_attempts\\robinhood-testnet\\46630\\attempts.jsonl",
+  "summary": {
+    "decodableCount": 3,
+    "negativeRealizedCount": 0,
+    "nonZeroDifferenceCount": 0,
+    "undecodableCount": 4,
+    "zeroDifferenceCount": 3
+  },
+  "uniqueSuccessCount": 7
+}

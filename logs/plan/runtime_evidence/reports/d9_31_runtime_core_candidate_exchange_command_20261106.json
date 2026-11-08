@@ -1,0 +1,216 @@
+{
+  "evidenceId": "d9_31_runtime_core_candidate_exchange_command_20261106",
+  "task": "D9.31",
+  "recordedAt": "2026-11-06T08:01:26.6617965+08:00",
+  "worktreeBaselineDirty": true,
+  "scope": {
+    "productionDatabaseRead": false,
+    "productionDatabaseWrite": false,
+    "productionMigrationApplied": false,
+    "serviceStartedOrStopped": false,
+    "reviewCommandSubmitted": false,
+    "signerUsed": false,
+    "broadcastSent": false,
+    "businessAlgorithmChanged": false,
+    "historicalEvidenceDeletedOrRewrittenAsPass": false
+  },
+  "implementation": {
+    "runtimeCore": {
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "command": "rebuild_candidate_exchange_pools",
+      "operation": "candidate-exchange.rebuild",
+      "delegatesTo": "candidate_exchange_pool_manager::materialize_candidate_exchanges_write",
+      "directCandidateExchangeBusinessTableAccess": false,
+      "requestIdRequired": true,
+      "idempotencyKeyRequired": true,
+      "explicitDryRunRequired": true,
+      "applyAuthority": "CANDIDATE_EXCHANGE_MANAGER_AUTHORITY=manager",
+      "defaultAuthority": "legacy",
+      "authorityDeniedCode": "CANDIDATE_EXCHANGE_AUTHORITY_WRITE_DENIED",
+      "registrationIdentityChecksCandidateEdgeCandidateExchangeAndBroadcastAuthority": true
+    },
+    "pyo3": {
+      "file": "flashloan/rs-src/src/lib.rs",
+      "registrationCompatibilityArgument": "candidate_exchange_authority",
+      "registrationArgumentOrder": [
+        "chain_id",
+        "network",
+        "database_path",
+        "protocol",
+        "broadcast_authority",
+        "candidate_authority",
+        "candidate_exchange_authority"
+      ],
+      "sixArgumentCallDefaultsCandidateExchangeAuthorityToLegacy": true,
+      "statusField": "candidateExchangeAuthority",
+      "identityConflictCode": "RUNTIME_CORE_IDENTITY_CONFLICT"
+    },
+    "pythonRuntimeAdapter": {
+      "file": "flashloan/src/core/runtime/chain_runtime.py",
+      "method": "ChainRuntimeContext.execute_command",
+      "candidateExchangeAuthorityEnvironmentVariable": "CANDIDATE_EXCHANGE_MANAGER_AUTHORITY",
+      "passesCandidateExchangeAuthorityOnRegistration": true,
+      "resultCache": false,
+      "businessLogic": false
+    },
+    "flaskAdapter": {
+      "route": "/api/dex/market-observation/refresh",
+      "routeMethods": [
+        "POST"
+      ],
+      "handler": "flashloan/app_runtime/web/data_routes/dex_surface_routes_config.py",
+      "managerAdapter": "flashloan/app_runtime/web/data_routes/manager_page_compare.py::candidate_exchange_refresh_manager_payload",
+      "requestHeadersRequired": [
+        "X-Request-Id",
+        "Idempotency-Key"
+      ],
+      "explicitDryRunRequired": true,
+      "managerApiHttpFallback": false,
+      "legacySqliteFallback": false,
+      "legacyObservationBuilderFallback": false,
+      "legacyCacheFallback": false,
+      "postCommandReadPath": "Candidate Exchange Manager read-only snapshot"
+    },
+    "pageCompatibility": {
+      "template": "flashloan/app_runtime/web/templates/market_observation.html",
+      "urlUnchanged": true,
+      "layoutUnchanged": true,
+      "refreshControlsUnchanged": true,
+      "pageRefreshTimerOwnedByUi": true,
+      "browserSendsJsonBody": true,
+      "browserSendsWriteHeaders": true,
+      "explicitDryRunSent": true,
+      "startsOrStopsReviewOrBroadcastWorkers": false
+    },
+    "admissionPolicy": {
+      "candidatePoolRequiresUsdDepth": false,
+      "yzPoolRequiresUsdDepth": false,
+      "requiresUsdTvl": false,
+      "requiresUsdgOrUsdeRelationship": false
+    }
+  },
+  "commands": [
+    {
+      "command": "cargo fmt --check",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Formatting clean."
+    },
+    {
+      "command": "cargo test",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "96 passed; 0 failed. Includes six-argument PyO3 registration compatibility and candidate-exchange authority identity conflict tests."
+    },
+    {
+      "command": "cargo test --manifest-path flashloan/tools/Cargo.toml",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "141 passed across Rust Manager workspace crates and integration tests."
+    },
+    {
+      "command": "python -m pytest affected manager, RuntimeCore, page, API scope, DEX record and market-observation isolation suites -q",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 1,
+      "result": "172 passed, 6 failed; all six failures are pre-existing D9.31-untouched architecture findings."
+    },
+    {
+      "command": "maturin build --release --auditwheel repair --out target/runtime_core_wheel_20261106_v7_candidate_exchange_command",
+      "workdir": "flashloan/rs-src",
+      "exitCode": 0,
+      "result": "Repaired wheel built successfully."
+    },
+    {
+      "command": "fresh venv install and candidate-exchange command smoke",
+      "workdir": "flashloan/rs-src/target",
+      "exitCode": 0,
+      "result": "Wheel import, existing six-argument registration compatibility, dry-run, apply, same-key replay and legacy-authority rejection matched the expected contract."
+    },
+    {
+      "command": "cargo run --manifest-path flashloan/tools/Cargo.toml -p manager-db -- migrate --db <temporary-database>",
+      "workdir": "E:/2026OPC大赛/flashLoan",
+      "exitCode": 0,
+      "result": "Second migration returned appliedNow=false; migration checksums and database SHA256 remained unchanged."
+    }
+  ],
+  "artifacts": {
+    "wheelRepaired": "flashloan/rs-src/target/runtime_core_wheel_20261106_v7_candidate_exchange_command/flashloan_rs-0.1.0-cp312-cp312-win_amd64.whl",
+    "wheelBytes": 4968462,
+    "wheelSha256": "790CBCB81FF7A99983958650894FFE839FF1A139B67FAAD04E1600C94C6EF212",
+    "wheelSmokeVenv": "flashloan/rs-src/target/runtime_core_pyinstall_20261106_v7_candidate_exchange_command_final",
+    "smokeScript": "flashloan/rs-src/target/d9_31_runtime_core_candidate_exchange_command_smoke.py",
+    "smokeScriptBytes": 12725,
+    "smokeScriptSha256": "18FFC5CED8EF5365D6F2CBFD0D08350D0A0F3DA9A9C0DC7D1088FC6DD0013A38",
+    "temporaryDatabase": "flashloan/rs-src/target/d9_31_runtime_core_candidate_exchange_command_final_clean.sqlite3",
+    "temporaryDatabaseBytes": 593920,
+    "temporaryDatabaseSha256BeforeSecondMigration": "1D1750EDDE2035102DA4E5C01366D0FE9A989A4D0E2EB75B280DBFDD9BDA96B4",
+    "temporaryDatabaseSha256AfterSecondMigration": "1D1750EDDE2035102DA4E5C01366D0FE9A989A4D0E2EB75B280DBFDD9BDA96B4"
+  },
+  "schema": {
+    "migrationCount": 7,
+    "latestMigrationId": "20261104_006_composite_schema",
+    "aggregateChecksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+    "schemaChecksum": "sha256:643b8abec703dc4e2541794f01078cc098a55b9440e4c3d119b1a5909edcfee7",
+    "migrationTable": "schema_migrations",
+    "secondApplyWasNoop": true
+  },
+  "temporaryDatabase": {
+    "purpose": "RuntimeCore candidate exchange rebuild command contract and UI adapter smoke only",
+    "quickCheck": "ok",
+    "tableCount": 42,
+    "tokenCoreRows": 1,
+    "tokenStocksRows": 1,
+    "tokenExtensionRows": 0,
+    "tokenTestRows": 0,
+    "tokenLibraryStateRows": 4,
+    "managerCandidateLibraryStateRows": 1,
+    "managerCandidateAnchorTokenRows": 2,
+    "managerObservationLibraryStateRows": 1,
+    "managerObservationYzPairRows": 2,
+    "managerObservationIntermediatePoolRows": 0,
+    "managerObservationAbnormalYzPairRows": 0,
+    "managerObservationAbnormalIntermediatePoolRows": 0,
+    "managerObservationLiquiditySnapshotRows": 0,
+    "managerWriteRequests": 1,
+    "observationVersion": 1,
+    "observationChecksum": "sha256:8311d31903b37264c0119e67931961f304029ee7b93212c27fac455bdc2c5c67",
+    "seedRowsRepresentProductionData": false,
+    "emptyYzDirectionsRepresentProductionData": false
+  },
+  "acceptance": {
+    "marketObservationRefreshRouteUsesRuntimeCore": true,
+    "candidateExchangeManagerIsSoleWriteImplementation": true,
+    "legacyBuilderBypassRemoved": true,
+    "managerApiFallbackRemoved": true,
+    "legacySqliteFallbackRemoved": true,
+    "refreshRouteRequiresExplicitWriteHeaders": true,
+    "browserRefreshSendsJsonHeadersAndExplicitDryRun": true,
+    "dryRunWritesNoBusinessStateOrIdempotency": true,
+    "applyCreatesOneObservationLibraryState": true,
+    "sameIdempotencyKeyReplayReturnsFirstResultAndChecksum": true,
+    "legacyCandidateExchangeAuthorityRejectsApply": true,
+    "authorityMismatchCannotReuseRuntimeCoreInstance": true,
+    "existingSixArgumentPyo3RegistrationRemainsCompatible": true,
+    "pageUrlAndLayoutRemainUnchanged": true,
+    "pageRefreshTimerRemainsUiOwned": true,
+    "usdDepthGateRemainsRemoved": true,
+    "repairedWheelImportable": true,
+    "migrationChecksumStable": true,
+    "temporaryDatabaseHashStableAcrossSecondMigration": true
+  },
+  "architectureGuardFailures": [
+    "web/data_routes/dex_surface_routes_ops.py still contains five silent broad exception handlers and reads latest.json",
+    "core/db/cow_execution_review.py still contains a cross-package import",
+    "nested app_runtime/flashloan directory remains",
+    "dex/runtime/dex_opportunity_scanner_engine.py exceeds its 1000-line limit at 1222 lines",
+    "five active source files exceed 1000 lines",
+    "robinhood page read-path evidence JSON guard still finds dex_surface_routes_ops.py"
+  ],
+  "residualWork": [
+    "Mainnet CANDIDATE_EXCHANGE_MANAGER_AUTHORITY remains legacy; production M4 was not applied or switched.",
+    "Real-mainnet-copy M1 through M4 bootstrap, version/checksum double-read attribution and maintenance-window apply remain required.",
+    "Production database was not read or written during D9.31 final verification.",
+    "Six pre-existing architecture guard failures remain outside D9.31.",
+    "Other explicit page commands still require individual RuntimeCore command migrations."
+  ]
+}

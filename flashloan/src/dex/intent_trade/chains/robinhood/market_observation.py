@@ -40,9 +40,11 @@ V4_DYNAMIC_FEE_FLAG = 8388608
 V4_SPECIAL_FEE_THRESHOLD = 100_000
 MAINNET_STABLE_ANCHOR_SYMBOLS = ("USDG", "USDE")
 MAINNET_CONFIGURED_ANCHOR_SYMBOLS = tuple(
-    all_anchor_symbols(
-        ROBINHOOD_NETWORK,
-        database_url=str(absolute_database_path()),
+    dict.fromkeys(
+        all_anchor_symbols(
+            ROBINHOOD_NETWORK,
+            database_url=str(absolute_database_path()),
+        )
     )
 )
 

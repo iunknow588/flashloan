@@ -28,9 +28,11 @@ function readArg(name, fallback) {
 }
 
 function readBoolArg(name, fallback) {
-  const value = readArg(name, "");
-  if (value) return value === "true" || value === "1" || value === "yes";
-  return fallback;
+  const idx = process.argv.indexOf(`--${name}`);
+  if (idx < 0) return fallback;
+  const value = process.argv[idx + 1];
+  if (value === undefined || value.startsWith("--")) return true;
+  return value === "true" || value === "1" || value === "yes" || value === "on";
 }
 
 async function main() {

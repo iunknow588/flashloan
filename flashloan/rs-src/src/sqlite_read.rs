@@ -19,8 +19,12 @@ fn row_to_value(row: &Row<'_>) -> rusqlite::Result<Value> {
         let value = match row.get_ref(index)? {
             rusqlite::types::ValueRef::Null => Value::Null,
             rusqlite::types::ValueRef::Integer(value) => Value::from(value),
-            rusqlite::types::ValueRef::Real(value) => serde_json::Number::from_f64(value).map(Value::Number).unwrap_or(Value::Null),
-            rusqlite::types::ValueRef::Text(value) => Value::String(String::from_utf8_lossy(value).into_owned()),
+            rusqlite::types::ValueRef::Real(value) => serde_json::Number::from_f64(value)
+                .map(Value::Number)
+                .unwrap_or(Value::Null),
+            rusqlite::types::ValueRef::Text(value) => {
+                Value::String(String::from_utf8_lossy(value).into_owned())
+            }
             rusqlite::types::ValueRef::Blob(value) => {
                 Value::String(format!("0x{}", hex::encode(value)))
             }
@@ -30,7 +34,11 @@ fn row_to_value(row: &Row<'_>) -> rusqlite::Result<Value> {
     Ok(Value::Object(map))
 }
 
-fn rows(connection: &Connection, sql: &str, params: &[&dyn rusqlite::ToSql]) -> Result<Vec<Value>, String> {
+fn rows(
+    connection: &Connection,
+    sql: &str,
+    params: &[&dyn rusqlite::ToSql],
+) -> Result<Vec<Value>, String> {
     let mut statement = connection
         .prepare(sql)
         .map_err(|error| format!("SQLite prepare failed: {error}"))?;
@@ -55,7 +63,65 @@ pub fn load_v4_exchange_pools(
          FROM v4_exchange_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
+    )
+}
+
+pub fn load_v4_exchange_pool_registry_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT pool_id, token0, token1 \
+         FROM v4_exchange_pools \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         ORDER BY pool_id",
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
+    )
+}
+
+#[cfg(test)]
+pub fn load_chain_tokens(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT network, chain_id, token_address, token_symbol, token_name, \
+         token_decimals, token_kind, is_native, is_wrapped_native, \
+         is_stable, anchor_symbol, token_metadata_json, source_json, \
+         first_seen_at, updated_at \
+         FROM chain_tokens \
+         WHERE network = ?1 AND chain_id = ?2 \
+         ORDER BY token_address",
+        &[&network.to_string(), &(chain_id as i64)],
+    )
+}
+
+pub fn load_chain_token_registry_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT token_address \
+         FROM chain_tokens \
+         WHERE network = ?1 AND chain_id = ?2 \
+         ORDER BY token_address",
+        &[&network.to_string(), &(chain_id as i64)],
     )
 }
 
@@ -72,7 +138,11 @@ pub fn load_v4_exchange_pool_rows_for_view(
          FROM v4_exchange_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
     )
 }
 
@@ -107,7 +177,11 @@ pub fn load_v4_exchange_pool_manager(
          FROM v4_exchange_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id LIMIT 1",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
     )?;
     Ok(results.into_iter().next())
 }
@@ -128,7 +202,31 @@ pub fn load_v4_pool_liquidity(
          FROM v4_exchange_pool_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
+    )
+}
+
+pub fn load_v4_pool_liquidity_registry_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+    protocol: &str,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT pool_id, has_liquidity \
+         FROM v4_exchange_pool_liquidity_snapshots \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
+         ORDER BY pool_id",
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
     )
 }
 
@@ -147,26 +245,12 @@ pub fn load_v4_pool_liquidity_rows_for_view(
          FROM v4_exchange_pool_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+        ],
     )
-}
-
-pub fn load_v4_exchange_pool_liquidity_for_pool(
-    connection: &Connection,
-    network: &str,
-    chain_id: u64,
-    protocol: &str,
-    pool_id: &str,
-) -> Result<Option<Value>, String> {
-    let results = rows(
-        connection,
-        "SELECT * FROM v4_exchange_pool_liquidity_snapshots \
-         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND pool_id = ?4 \
-         LIMIT 1",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &pool_id.to_lowercase()],
-    )?;
-    let first = results.into_iter().next();
-    Ok(first)
 }
 
 pub fn load_dex_candidate_pools(
@@ -185,7 +269,12 @@ pub fn load_dex_candidate_pools(
          FROM dex_candidate_anchor_tokens \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY token_address",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let pairs = rows(
         connection,
@@ -197,7 +286,12 @@ pub fn load_dex_candidate_pools(
          FROM dex_candidate_pool_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY counter_address",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let pools = rows(
         connection,
@@ -230,7 +324,12 @@ pub fn load_dex_candidate_pools(
          FROM dex_candidate_abnormal_anchor_tokens \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY token_address",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let abnormal_pairs = rows(
         connection,
@@ -241,7 +340,12 @@ pub fn load_dex_candidate_pools(
          FROM dex_candidate_abnormal_pool_pairs \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY counter_address",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let abnormal_pools = rows(
         connection,
@@ -293,7 +397,12 @@ pub fn load_market_observation(
          FROM market_observation_intermediate_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let liquidity = rows(
         connection,
@@ -305,7 +414,12 @@ pub fn load_market_observation(
          FROM market_observation_liquidity_snapshots \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     let abnormal_pairs = rows(
         connection,
@@ -325,7 +439,12 @@ pub fn load_market_observation(
          FROM market_observation_abnormal_intermediate_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND anchor_symbol = ?4 \
          ORDER BY pool_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &anchor_symbol.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &anchor_symbol.to_string(),
+        ],
     )?;
     Ok(serde_json::json!({
         "pairs": pairs,
@@ -352,7 +471,12 @@ pub fn load_v4_closed_loop(
          FROM v4_closed_loops \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND market_id = ?4 \
          ORDER BY loop_key",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &market_id.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &market_id.to_string(),
+        ],
     )?;
     let hops = rows(
         connection,
@@ -362,7 +486,12 @@ pub fn load_v4_closed_loop(
          FROM v4_closed_loop_hops \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND market_id = ?4 \
          ORDER BY loop_key, hop_index",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &market_id.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &market_id.to_string(),
+        ],
     )?;
     let optimizations = rows(
         connection,
@@ -372,7 +501,12 @@ pub fn load_v4_closed_loop(
          FROM v4_closed_loop_optimizations \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND market_id = ?4 \
          ORDER BY loop_key, hop_index, optimization_id",
-        &[&network.to_string(), &(chain_id as i64), &protocol.to_string(), &market_id.to_string()],
+        &[
+            &network.to_string(),
+            &(chain_id as i64),
+            &protocol.to_string(),
+            &market_id.to_string(),
+        ],
     )?;
     Ok(serde_json::json!({
         "loops": loops,
@@ -450,9 +584,49 @@ mod tests {
                     evidence_source TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
+                CREATE TABLE chain_tokens (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    token_address TEXT NOT NULL,
+                    token_symbol TEXT NOT NULL,
+                    token_name TEXT,
+                    token_decimals INTEGER,
+                    token_kind TEXT NOT NULL DEFAULT 'erc20',
+                    is_native INTEGER NOT NULL DEFAULT 0,
+                    is_wrapped_native INTEGER NOT NULL DEFAULT 0,
+                    is_stable INTEGER NOT NULL DEFAULT 0,
+                    anchor_symbol TEXT,
+                    token_metadata_json TEXT,
+                    source_json TEXT,
+                    first_seen_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, token_address)
+                );
                 ",
             )
             .expect("create test tables");
+        connection
+            .execute(
+                "INSERT INTO chain_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    "robinhood",
+                    4663_i64,
+                    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "TEST",
+                    "Test Token",
+                    6_i64,
+                    "erc20",
+                    0_i64,
+                    0_i64,
+                    0_i64,
+                    "TST",
+                    "{}",
+                    "{}",
+                    "2026-10-09T00:00:00.000Z",
+                    "2026-10-09T00:00:00.000Z"
+                ],
+            )
+            .expect("insert chain token");
         connection
             .execute(
                 "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -475,16 +649,25 @@ mod tests {
     fn sqlite_read_only_loads_exchange_pools() {
         let (_dir, path) = temporary_database();
         let connection = open_readonly(&path).expect("read-only open");
-        let pools = load_v4_exchange_pools(&connection, "robinhood", 4663, "uniswap_v4").expect("load pools");
+        let pools = load_v4_exchange_pools(&connection, "robinhood", 4663, "uniswap_v4")
+            .expect("load pools");
         assert_eq!(pools.len(), 1);
         assert_eq!(
             pools[0]["pool_id"].as_str().unwrap(),
             "0x1111111111111111111111111111111111111111111111111111111111111111"
         );
         assert_eq!(pools[0]["fee"].as_i64().unwrap(), 3000);
-        let liquidity = load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4").expect("load liquidity");
+        let liquidity = load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4")
+            .expect("load liquidity");
         assert_eq!(liquidity.len(), 1);
         assert_eq!(liquidity[0]["has_liquidity"].as_i64().unwrap(), 1);
+        let tokens = load_chain_tokens(&connection, "robinhood", 4663).expect("load chain tokens");
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(
+            tokens[0]["token_address"].as_str().unwrap(),
+            "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        );
+        assert_eq!(tokens[0]["token_decimals"].as_i64().unwrap(), 6);
     }
 
     #[test]
@@ -542,8 +725,8 @@ mod tests {
         drop(connection);
 
         let connection = open_readonly(&path_text).expect("open read-only");
-        let liquidity =
-            load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4").expect("load liquidity");
+        let liquidity = load_v4_pool_liquidity(&connection, "robinhood", 4663, "uniswap_v4")
+            .expect("load liquidity");
         assert_eq!(liquidity.len(), 1);
         assert!(liquidity[0]["has_liquidity"].is_null());
         assert!(liquidity[0]["recent_swap_active"].is_null());
