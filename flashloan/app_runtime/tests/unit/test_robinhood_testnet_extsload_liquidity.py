@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
 from core.db.import_existing_json import import_existing_json
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
@@ -108,6 +109,84 @@ def test_apply_extsload_liquidity_marks_real_depth_and_preserves_unknown_errors(
     assert activity["liquidityMarkedPoolCount"] == 1
     assert activity["liquidityErrorCount"] == 1
     assert activity["liquidityPoolIds"] == [liquid_id]
+
+
+def test_batch_live_pool_states_fails_over_on_429(monkeypatch):
+    pool_id = "0x" + "aa" * 32
+    slot0_value = 2**96
+    liquidity_value = 10**18
+    response_body = json.dumps(
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": "0x" + slot0_value.to_bytes(32, "big").hex()},
+            {"jsonrpc": "2.0", "id": 2, "result": "0x" + liquidity_value.to_bytes(32, "big").hex()},
+        ]
+    ).encode("utf-8")
+    attempted_urls: list[str] = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return response_body
+
+    def fake_urlopen(req, timeout):
+        attempted_urls.append(req.full_url)
+        if req.full_url == "https://primary.example":
+            raise RuntimeError("HTTP Error 429: Too Many Requests")
+        return _Response()
+
+    from dex.intent_trade.chains.robinhood_common import rpc_rate_limit
+    monkeypatch.setattr(rpc_rate_limit, "throttle_rpc_call", lambda url: None)
+    monkeypatch.setattr(v4_quote_adapter.urllib_request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("DEX_TESTNET_V4_BATCH_RETRY_ATTEMPTS", "1")
+
+    states = v4_quote_adapter._batch_read_live_pool_states(
+        rpc_url="https://primary.example",
+        rpc_urls=("https://fallback.example",),
+        pool_manager=ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+        pool_ids=[pool_id],
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+
+    assert attempted_urls == ["https://primary.example", "https://fallback.example"]
+    assert states[pool_id]["liquidity"] == str(liquidity_value)
+    assert states[pool_id]["rpcUrl"] == "https://fallback.example"
+
+
+def test_apply_extsload_liquidity_caps_testnet_batch_size(monkeypatch):
+    pools = [_pool(f"0x{index:064x}") for index in range(1, 24)]
+    batch_lengths: list[int] = []
+
+    def fake_batch(**kwargs):
+        pool_ids = kwargs["pool_ids"]
+        batch_lengths.append(len(pool_ids))
+        return {
+            pool_id: {
+                "error": "robinhood testnet pool manager live liquidity is zero",
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+            for pool_id in pool_ids
+        }
+
+    monkeypatch.setenv("DEX_TESTNET_V4_LIQUIDITY_BATCH_SIZE", "10")
+    monkeypatch.setattr(testnet_liquidity, "_batch_read_live_pool_states", fake_batch)
+    activity = testnet_liquidity._apply_extsload_liquidity(
+        pools,
+        w3=object(),
+        rpc_url="https://fake.example",
+        pool_manager=ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+        batch_size=100,
+    )
+
+    assert batch_lengths == [10, 10, 3]
+    assert activity["requestedBatchSize"] == 100
+    assert activity["effectiveBatchSize"] == 10
+    assert activity["liquidityErrorCount"] == 0
 
 
 def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(tmp_path):

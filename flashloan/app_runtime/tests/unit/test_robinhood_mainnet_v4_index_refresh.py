@@ -16,6 +16,7 @@ from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
     _fetch_logs_sharded,
     _fetch_logs_sharded_reverse,
 )
+from dex.intent_trade.chains.robinhood_testnet import v4_pool_index as testnet_v4_pool_index
 from dex.tools.refresh_robinhood_v4_live import _direction_backfill_plan
 from dex.tools.refresh_robinhood_mainnet_v4_evidence import _normalize_database_arg
 
@@ -169,6 +170,103 @@ def test_fetch_logs_sharded_reverse_halves_chunk_on_range_limit(monkeypatch):
     assert calls[0] == (500, 999)
     assert any(0 <= to - frm <= 100 for frm, to in calls)
     assert calls[-1][0] == 0
+
+
+def test_fetch_logs_sharded_honors_explicit_rpc_max_range(monkeypatch):
+    calls: list[tuple[int, int]] = []
+
+    def fake_get_logs(
+        url,
+        *,
+        pool_manager,
+        topic,
+        from_block,
+        to_block,
+        timeout_seconds,
+        user_agent,
+    ):
+        calls.append((int(from_block), int(to_block)))
+        if int(to_block) - int(from_block) + 1 > 50_000:
+            raise RuntimeError("eth_getLogs exceed maximum block range: 50000")
+        return []
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    logs = _fetch_logs_sharded(
+        providers=["https://std.example"],
+        pool_manager="0x" + "00" * 20,
+        topic=V4_INITIALIZE_TOPIC,
+        from_block=0,
+        to_block=149_999,
+        initial_chunk_size=5_000_000,
+        min_chunk_size=1_000,
+        timeout_seconds=1,
+        user_agent="test",
+        attempts_per_segment=2,
+    )
+
+    assert logs == []
+    assert calls == [(0, 149_999), (0, 49_999), (50_000, 99_999), (100_000, 149_999)]
+
+
+def test_fetch_logs_sharded_reverse_honors_explicit_rpc_max_range(monkeypatch):
+    calls: list[tuple[int, int]] = []
+
+    def fake_get_logs(
+        url,
+        *,
+        pool_manager,
+        topic,
+        from_block,
+        to_block,
+        timeout_seconds,
+        user_agent,
+        extra_topics=None,
+    ):
+        calls.append((int(from_block), int(to_block)))
+        if int(to_block) - int(from_block) + 1 > 50_000:
+            raise RuntimeError("eth_getLogs exceed maximum block range: 50000")
+        return []
+
+    monkeypatch.setattr(core, "_get_logs_jsonrpc", fake_get_logs)
+    logs = _fetch_logs_sharded_reverse(
+        providers=["https://std.example"],
+        pool_manager="0x" + "00" * 20,
+        topic=V4_INITIALIZE_TOPIC,
+        from_block=0,
+        to_block=149_999,
+        initial_chunk_size=5_000_000,
+        min_chunk_size=1_000,
+        timeout_seconds=1,
+        user_agent="test",
+        attempts_per_segment=2,
+    )
+
+    assert logs == []
+    assert calls == [(0, 149_999), (100_000, 149_999), (50_000, 99_999), (0, 49_999)]
+
+
+def test_testnet_pool_index_passes_all_configured_rpc_providers(monkeypatch):
+    providers = (
+        "https://primary.example",
+        "https://fallback-one.example",
+        "https://fallback-two.example",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_build_core(**kwargs):
+        captured.update(kwargs)
+        return {"pools": []}
+
+    monkeypatch.setattr(testnet_v4_pool_index, "_rpc_urls_from_env_or_default", lambda: providers)
+    monkeypatch.setattr(testnet_v4_pool_index, "_build_core", fake_build_core)
+
+    testnet_v4_pool_index.build_v4_pool_index_from_initialize_logs(
+        from_block=0,
+        to_block=100,
+    )
+
+    assert captured["rpc_url"] == providers[0]
+    assert captured["rpc_urls"] == providers
 
 
 def test_reverse_backfill_forwards_token_topic_filter(monkeypatch):

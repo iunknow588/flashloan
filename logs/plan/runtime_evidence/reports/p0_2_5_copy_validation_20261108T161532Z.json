@@ -1,0 +1,28 @@
+{
+  "schema": "closed-loop-runtime-identity-isolation-v1",
+  "generatedAt": "2026-11-08T16:17:57.757653+00:00",
+  "task": "P0-2.5",
+  "evidenceLevel": "isolated_copy_db_and_read_only_observation",
+  "conclusion": "failed",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "sourceStore": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\back\\p0_2_4_snapshot_20261108T130233Z\\local_store_4663.sqlite3"
+  },
+  "workingStore": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\back\\p0_2_5_copy_20261108T161532Z\\local_store_4663.sqlite3"
+  },
+  "observationOutput": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\diagnostics\\p0_2_5_copy_validation\\20261108T161532Z.jsonl",
+  "error": "copy DB checksum did not change after rehearsal",
+  "productionBoundary": {
+    "productionStorePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "productionStoreAccessed": false,
+    "productionStoreWritten": false,
+    "productionServiceRestarted": false
+  },
+  "exitCode": 2
+}

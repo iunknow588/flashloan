@@ -49,6 +49,7 @@ def prepare_v4_evidence_rows(
         index,
         anchor_symbols=tuple(config["anchor_symbols"]),
         stable_symbols=set(config["stable_symbols"]),
+        anchor_addresses=config["anchor_addresses"],
         apply_stock_metadata=wanted_network in {"robinhood", "robinhood-testnet"},
         stock_network=wanted_network,
         stock_chain_id=wanted_chain_id,
@@ -94,6 +95,13 @@ def import_v4_evidence_rows(
     replace: bool = False,
 ) -> dict[str, Any]:
     """Import in-memory V4 evidence; Rust owns the SQLite write when installed."""
+    from core.db.storage_chain_core import seed_chain_info_from_registry
+
+    seed_chain_info_from_registry(
+        database,
+        network=network,
+        chain_id=chain_id,
+    )
     if rust_available():
         rows = prepare_v4_evidence_rows(
             network=network,

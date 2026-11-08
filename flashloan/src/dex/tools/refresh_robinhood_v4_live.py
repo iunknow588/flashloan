@@ -1314,6 +1314,49 @@ def refresh_v4_live(
         errors.append(f"v4_pool_index: {exc}")
         steps.append({"step": "v4_pool_index", "ok": False, "error": str(exc)})
 
+    index_checkpoint_result: dict = {}
+    if (
+        not errors
+        and not skip_index
+        and not skip_liquidity
+        and not verify_only
+        and bool(index_payload.get("pools"))
+    ):
+        try:
+            checkpoint_payload = index_payload
+            checkpoint_pool_ids = _pool_ids_arg(import_pool_ids)
+            if checkpoint_pool_ids:
+                checkpoint_payload = _filter_index_payload_to_pool_ids(
+                    checkpoint_payload,
+                    checkpoint_pool_ids,
+                )
+            index_checkpoint_result = import_v4_evidence_rows(
+                database=str(database),
+                network=network,
+                chain_id=chain_id,
+                index_payload=checkpoint_payload,
+                liquidity_payload=None,
+                replace=replace_evidence,
+            )
+            steps.append(
+                {
+                    "step": "v4_pool_index_checkpoint",
+                    "ok": True,
+                    "v4PoolCount": index_checkpoint_result.get("v4PoolCount"),
+                    "tokenCount": index_checkpoint_result.get("tokenCount"),
+                    "purpose": "recover_from_later_liquidity_or_build_failure",
+                }
+            )
+        except Exception as exc:
+            errors.append(f"v4_pool_index_checkpoint: {exc}")
+            steps.append(
+                {
+                    "step": "v4_pool_index_checkpoint",
+                    "ok": False,
+                    "error": str(exc),
+                }
+            )
+
     liquidity_activity: dict = {}
     if not errors and not skip_liquidity:
         selected_pool_ids = _pool_ids_arg(pool_ids)

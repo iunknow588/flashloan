@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import sys
 import time
 from typing import Any, Iterable
@@ -111,6 +112,36 @@ def _is_rpc_retryable_error(message: str) -> bool:
         "retry",
     )
     return any(marker in lowered for marker in markers)
+
+
+def _rpc_max_block_range(message: str) -> int | None:
+    """Extract an RPC's explicit eth_getLogs block-range ceiling."""
+
+    text = str(message or "")
+    patterns = (
+        r"(?:maximum|max)\s+(?:allowed\s+)?block\s+range\s*(?::|=|is|of)?\s*([0-9][0-9,_]*)",
+        r"block\s+range\s+(?:limit\s*)?(?::|=|is|of)\s*([0-9][0-9,_]*)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        try:
+            value = int(match.group(1).replace(",", "").replace("_", ""))
+        except ValueError:
+            continue
+        if value > 0:
+            return value
+    return None
+
+
+def _next_chunk_size_after_limit(message: str, step: int, min_step: int) -> int:
+    """Prefer an RPC-declared range over blind binary shrinking."""
+
+    limit = _rpc_max_block_range(message)
+    if limit is not None:
+        return max(1, min(int(step), limit))
+    return max(max(1, int(min_step)), int(step) // 2)
 
 
 def _normalized_provider_urls(
@@ -278,11 +309,11 @@ def _fetch_logs_sharded(
                 limit_error = _is_rpc_limit_error(message)
                 if _is_rpc_permanent_error(message):
                     unhealthy_providers.add(url)
-                if _is_rpc_limit_error(message) and step > min_step:
-                    step = max(min_step, step // 2)
+                if _is_rpc_limit_error(message):
+                    step = _next_chunk_size_after_limit(message, step, min_step)
                     end = min(end_block, cursor + step - 1)
                 elif segment_attempts >= attempts_per_segment and step > min_step:
-                    step = max(min_step, step // 2)
+                    step = _next_chunk_size_after_limit(message, step, min_step)
                     end = min(end_block, cursor + step - 1)
                 if not limit_error:
                     provider_index += 1
@@ -384,8 +415,8 @@ def _fetch_logs_sharded_reverse(
                     unhealthy_providers.add(url)
                 elif _is_rpc_retryable_error(message):
                     unhealthy_providers.add(url)
-                if limit_error and step > min_step:
-                    step = max(min_step, step // 2)
+                if limit_error:
+                    step = _next_chunk_size_after_limit(message, step, min_step)
                     start = max(end_block, cursor - step + 1)
                     failed_for_segment.clear()
                     unhealthy_providers.clear()

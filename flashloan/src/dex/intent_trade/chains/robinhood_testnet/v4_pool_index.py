@@ -24,6 +24,7 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     ROBINHOOD_TESTNET_NETWORK,
     ROBINHOOD_TESTNET_V4_POOL_MANAGER,
     _rpc_url_from_env_or_default,
+    _rpc_urls_from_env_or_default,
 )
 
 
@@ -44,11 +45,13 @@ def build_v4_pool_index_from_initialize_logs(
     mark_recent_swaps: bool = True,
     recent_swap_lookback_blocks: int = 20_000,
 ) -> dict[str, Any]:
+    rpc_urls = _rpc_urls_from_env_or_default()
     return _build_core(
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
         pool_manager=pool_manager or ROBINHOOD_TESTNET_V4_POOL_MANAGER,
-        rpc_url=rpc_url or _rpc_url_from_env_or_default(),
+        rpc_url=rpc_url or (rpc_urls[0] if rpc_urls else ""),
+        rpc_urls=rpc_urls,
         schema_version="robinhood-testnet-v4-pool-index-v1",
         include_currency_metadata=True,
         from_block=from_block,
@@ -76,11 +79,13 @@ def build_v4_directional_pool_backfill(
     exclude_pool_ids: list[str] | tuple[str, ...] | None = None,
 ) -> dict:
     """Scan testnet Initialize logs newest-to-oldest until directions are full."""
+    rpc_urls = _rpc_urls_from_env_or_default()
     return _backfill_core(
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
         pool_manager=pool_manager or ROBINHOOD_TESTNET_V4_POOL_MANAGER,
-        rpc_url=rpc_url or _rpc_url_from_env_or_default(),
+        rpc_url=rpc_url or (rpc_urls[0] if rpc_urls else ""),
+        rpc_urls=rpc_urls,
         schema_version="robinhood-testnet-v4-pool-index-v1",
         direction_targets=direction_targets,
         direction_floor_block=direction_floor_block,
@@ -96,13 +101,15 @@ def write_v4_pool_index_from_initialize_logs(
     output_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    rpc_urls = _rpc_urls_from_env_or_default()
     return _write_core(
         output_path=output_path,
         default_output_path=default_v4_pool_index_path(),
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
         pool_manager=kwargs.pop("pool_manager", None) or ROBINHOOD_TESTNET_V4_POOL_MANAGER,
-        rpc_url=kwargs.pop("rpc_url", None) or _rpc_url_from_env_or_default(),
+        rpc_url=kwargs.pop("rpc_url", None) or (rpc_urls[0] if rpc_urls else ""),
+        rpc_urls=kwargs.pop("rpc_urls", None) or rpc_urls,
         schema_version="robinhood-testnet-v4-pool-index-v1",
         include_currency_metadata=True,
         rpc_user_agent="flashloan-robinhood-testnet-v4/1.0",

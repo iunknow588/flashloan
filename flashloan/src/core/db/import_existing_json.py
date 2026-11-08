@@ -115,20 +115,35 @@ def _token_rows_from_v4_index(
     *,
     anchor_symbols: tuple[str, ...],
     stable_symbols: set[str],
+    anchor_addresses: dict[str, str] | None = None,
     apply_stock_metadata: bool = True,
     stock_network: str | None = None,
     stock_chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
+    symbol_by_address = {
+        str(address).strip().lower(): _symbol(symbol)
+        for symbol, address in (anchor_addresses or {}).items()
+        if str(address or "").strip()
+    }
     for raw in index.get("poolKeys") or index.get("pools") or []:
         if not isinstance(raw, dict):
             continue
         pool = raw.get("poolKey") if isinstance(raw.get("poolKey"), dict) else raw
         for side in (0, 1):
             address = _text(pool.get(f"token{side}") or pool.get(f"currency{side}"))
-            symbol = _symbol(pool.get(f"token{side}Symbol"))
+            symbol = _symbol(
+                pool.get(f"token{side}Symbol")
+                or pool.get(f"currency{side}Symbol")
+                or symbol_by_address.get(address)
+            )
             decimals = pool.get(f"token{side}Decimals")
-            if not address or not symbol:
+            if not address:
+                continue
+            if not symbol:
+                suffix = _text(address)[-6:]
+                symbol = f"0X{suffix.upper()}" if suffix else "UNKNOWN"
+            if not symbol:
                 continue
             key = address
             existing = rows.get(key)
@@ -468,6 +483,7 @@ def import_existing_json(
         index,
         anchor_symbols=anchor_symbols,
         stable_symbols=stable_symbols,
+        anchor_addresses=anchor_addresses,
         apply_stock_metadata=(
             wanted_network in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}
             and wanted_chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}

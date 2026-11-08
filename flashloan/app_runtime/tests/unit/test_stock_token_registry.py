@@ -6,10 +6,8 @@ import json
 import sqlite3
 
 from core.db import builders
-from core.db.chain_database_context import chain_database_path
 from core.db.import_existing_json import _token_rows_from_v4_index
 from core.db import page_payloads
-from core.db.database_path import absolute_database_path
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_schema import ensure_database_schema
 from dex.tools.build_robinhood_stock_token_registry import build_registry
@@ -76,8 +74,10 @@ def test_build_registry_rejects_duplicate_symbol_address():
     assert any("duplicate-address" in error for error in payload["errors"])
 
 
-def test_generated_mainnet_metadata_covers_every_official_stock_token():
-    database = str(chain_database_path(4663, "robinhood").resolve())
+def test_generated_mainnet_metadata_covers_every_official_stock_token(tmp_path):
+    database = str((tmp_path / "mainnet_stock_token.sqlite3").resolve())
+    ensure_database_schema(database)
+    builders._seed_chain_token_symbols(database, network="robinhood", chain_id=4663)
     registry = load_stock_token_registry(database_url=database)
     tokens = registry.get("tokens") or {}
     assert int(registry.get("token_count") or 0) >= 194
@@ -134,7 +134,9 @@ def test_apply_stock_token_metadata_overrides_placeholder_symbol():
     assert rows[0]["token_metadata"]["category"] == "robinhood_stock"
 
 
-def test_apply_testnet_stock_token_metadata_overrides_placeholder_symbol():
+def test_apply_testnet_stock_token_metadata_overrides_placeholder_symbol(tmp_path):
+    database = str((tmp_path / "testnet_stock_token.sqlite3").resolve())
+    ensure_database_schema(database)
     rows = [
         {
             "token_address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
@@ -146,7 +148,7 @@ def test_apply_testnet_stock_token_metadata_overrides_placeholder_symbol():
         rows,
         network="robinhood-testnet",
         chain_id=46630,
-        database_url=str(absolute_database_path()),
+        database_url=database,
     )
     assert rows[0]["token_symbol"] == "TSLA"
     assert rows[0]["token_decimals"] == 18

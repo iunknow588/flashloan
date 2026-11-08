@@ -1,0 +1,1241 @@
+{
+  "schema": "closed-loop-runtime-identity-isolation-v1",
+  "generatedAt": "2026-11-08T16:41:54.345149+00:00",
+  "task": "P0-2.5",
+  "evidenceLevel": "isolated_copy_db_and_read_only_observation",
+  "conclusion": "passed",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "marketId": "dex-arbitrage-4663-uniswap-v4"
+  },
+  "authority": "legacy_python_closed_loop_runtime_identity",
+  "expectedClosedLoops": 192,
+  "sourceStore": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\back\\p0_2_4_snapshot_20261108T130233Z\\local_store_4663.sqlite3",
+    "sha256": "aff2aa735262ec83b6102b8b1347140d9781b9f89ea0cbf9d5ab71aac0b987d9",
+    "unchanged": true
+  },
+  "workingStore": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\back\\p0_2_5_copy_20261108T163525Z\\local_store_4663.sqlite3",
+    "copiedSha256": "aff2aa735262ec83b6102b8b1347140d9781b9f89ea0cbf9d5ab71aac0b987d9",
+    "finalSha256": "d0d966b64b11b270dbf8e4f7d622a4eff538b70ac1ac60cde219c6bc62756aef",
+    "quickCheck": "ok",
+    "walCheckpoint": {
+      "busy": 0,
+      "logFrames": 0,
+      "checkpointedFrames": 0
+    },
+    "checksumChanged": true,
+    "changeReason": "legacy runtime rows archived and 192 physical runtime rows inserted"
+  },
+  "migrationReport": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\closed_loop_runtime_identity_migration_20261108T131053Z.json",
+    "sha256": "b2a8e10b8e37ecf727c838c113a9c30d1a3f6a3a9d81ae7cc56bf8d187c53d75",
+    "sourceReportChecksum": "f9b65f508faeaaa291c7c1fce129fed842cdf2146ebdb9ed3159f2da6fd31bd7"
+  },
+  "before": {
+    "closedLoops": 192,
+    "closedRowsChecksum": "28dc7affeaf068dbbdc7f034ac4daa3759f7421ff0e129ca1b2fb34d6dd148fa",
+    "runtime": {
+      "total": 96,
+      "physicalDirectionKeys": 0,
+      "legacySymbolOrOtherKeys": 96,
+      "states": {
+        "execution_not_requested": 69,
+        "offchain_estimate": 11,
+        "preflight_failed": 16
+      },
+      "rowChecksum": "87be526d03660402023b5af1decfc23a5e835c8f366d5460a36cf295ca7851a6"
+    }
+  },
+  "after": {
+    "closedLoops": 192,
+    "closedRowsChecksum": "28dc7affeaf068dbbdc7f034ac4daa3759f7421ff0e129ca1b2fb34d6dd148fa",
+    "runtime": {
+      "total": 192,
+      "physicalDirectionKeys": 192,
+      "legacySymbolOrOtherKeys": 0,
+      "states": {
+        "offchain_pending": 192
+      },
+      "rowChecksum": "c2fa7fb152a1ce98bcaee84d33b1c6bcb7c5429c03d33b52b18c629109ef3264"
+    }
+  },
+  "guardChecks": {
+    "legacyUnresolvedPrune": {
+      "ok": true,
+      "deleted": 0,
+      "deletedCount": 0,
+      "matchedClosedLoopCount": 0,
+      "records": [],
+      "disposition": "legacy_unresolved_runtime_state_pruned",
+      "generatedAt": "2026-11-08T16:41:05Z"
+    },
+    "legacyIdentityPrune": {
+      "ok": true,
+      "deleted": 0,
+      "deletedCount": 0,
+      "remaining": 96,
+      "orphanCount": 0,
+      "matchedClosedLoopCount": 0,
+      "preservedExecutionStateCount": 0,
+      "legacySymbolIdentityPreservedCount": 96,
+      "legacyAddressIdentityPreservedCount": 0,
+      "protectedTestResidueCount": 0,
+      "records": [],
+      "preservedRecords": [
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|eth|nvda",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:11Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|eth|spcx",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:11Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|eth|spy",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:13Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|eth|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:14Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|nvda|spcx",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:21Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|nvda|spy",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:23Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|nvda|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:25Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|spcx|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:27Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "aapl|spy|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:28Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|eth|nvda",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:32Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|eth|spy",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:33Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|eth|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:34Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|nvda|spy",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:40Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|nvda|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:41Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "amd|spy|usdg",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:41Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "crcl|eth|googl",
+          "state": "preflight_failed",
+          "updated_at": "2026-11-05T04:13:42Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "crcl|eth|usdg",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:43Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "crcl|googl|usdg",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:31Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|aapl|nvda",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:07Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|aapl|spcx",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:23:38Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|aapl|spy",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:23:14Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|aapl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:33:52Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|amd|nvda",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:01Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|amd|spy",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:23:00Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|amd|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:33:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|crcl|googl",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:25Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|crcl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:33:55Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|glxy|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:33:57Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|gme|nvda",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:23:50Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|gme|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:33:58Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|googl|mstr",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:24:13Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|googl|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:00Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|googl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:01Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|meta|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:02Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|meta|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:04Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|mstr|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:06Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|mu|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:08Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|nvda|spcx",
+          "state": "offchain_estimate",
+          "updated_at": "2026-11-07T14:23:31Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|nvda|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:11Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|nvda|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:12Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|nvda|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:14Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|spcx|tsla",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:22Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|spcx|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:24Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|spcx|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:24Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|spy|tsla",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:25Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|spy|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:26Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|tsla|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:32Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|usde|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:33Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|usdg|uso",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:34Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "eth|usdg|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:35Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "glxy|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:36Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|crcl|eth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:36Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|crcl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:37Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|eth|mstr",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:38Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|eth|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:38Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:39Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|mstr|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:40Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "googl|spy|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:40Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "mu|eth|spy",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:41Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|aapl|eth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:41Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|aapl|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:42Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|aapl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:43Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|eth|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:43Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|eth|tsla",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:44Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:45Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|eth|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:45Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|nvda|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:46Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|nvda|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:47Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|tsla|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:47Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spcx|usdg|weth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:48Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|aapl|eth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:49Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|aapl|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:30Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|aapl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:30Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|amd|eth",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:51Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|amd|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:31Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|amd|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|coin|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|googl",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|meta",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T14:34:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|mu",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:32Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:36Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|tsla",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-07T15:18:36Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:54Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|googl|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:55Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|meta|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:56Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|nvda|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:56Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "spy|tsla|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:57Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "tz|ta|tb",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:57Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "usde|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:58Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "uso|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:59Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|eth|nvda",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:20:59Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|eth|spcx",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:21:00Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|eth|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:21:00Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|nvda|spcx",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:21:02Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|nvda|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:21:02Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        },
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-4663-uniswap-v4",
+          "loop_key": "weth|spcx|usdg",
+          "state": "execution_not_requested",
+          "updated_at": "2026-11-08T02:21:03Z",
+          "disposition": "legacy_symbol_identity_pending_migration"
+        }
+      ],
+      "disposition": "orphan_runtime_state_pruned",
+      "generatedAt": "2026-11-08T16:41:06Z"
+    },
+    "testnetResiduePreserve": {
+      "ok": true,
+      "deleted": 0,
+      "deletedCount": 0,
+      "residueDetected": 1,
+      "residualPruned": 0,
+      "preservedCount": 1,
+      "records": [
+        {
+          "network": "robinhood-testnet",
+          "chain_id": 46630,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-46630-uniswap-v4",
+          "loop_key": "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+          "old_state": "execution_success",
+          "old_updated_at": "2026-11-08T07:38:20Z",
+          "disposition": "test_residue_runtime_state_detected_preserved"
+        }
+      ],
+      "disposition": "test_residue_runtime_state_detected_preserved",
+      "applyRequested": false,
+      "approvalId": null,
+      "snapshotSha256": null,
+      "generatedAt": "2026-11-08T16:41:06Z"
+    },
+    "testnetOrphanPreserve": {
+      "ok": true,
+      "deleted": 0,
+      "deletedCount": 0,
+      "remaining": 1,
+      "orphanCount": 0,
+      "matchedClosedLoopCount": 0,
+      "preservedExecutionStateCount": 0,
+      "legacySymbolIdentityPreservedCount": 0,
+      "legacyAddressIdentityPreservedCount": 0,
+      "protectedTestResidueCount": 1,
+      "records": [],
+      "preservedRecords": [
+        {
+          "network": "robinhood-testnet",
+          "chain_id": 46630,
+          "protocol": "uniswap_v4",
+          "market_id": "dex-arbitrage-46630-uniswap-v4",
+          "loop_key": "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+          "state": "execution_success",
+          "updated_at": "2026-11-08T07:38:20Z",
+          "disposition": "protected_test_residue_preserved"
+        }
+      ],
+      "disposition": "orphan_runtime_state_pruned",
+      "generatedAt": "2026-11-08T16:41:06Z"
+    },
+    "approvalGateEnforced": true,
+    "testnetBefore": {
+      "total": 1,
+      "physicalDirectionKeys": 1,
+      "legacySymbolOrOtherKeys": 0,
+      "states": {
+        "execution_success": 1
+      },
+      "rowChecksum": "0feb6a78e93838392282fd7f36be3b63b9a3cfd0e817b3affde55c93b28999a7"
+    },
+    "testnetAfter": {
+      "total": 1,
+      "physicalDirectionKeys": 1,
+      "legacySymbolOrOtherKeys": 0,
+      "states": {
+        "execution_success": 1
+      },
+      "rowChecksum": "0feb6a78e93838392282fd7f36be3b63b9a3cfd0e817b3affde55c93b28999a7"
+    }
+  },
+  "rehearsal": {
+    "archiveBatchId": "p0-2-5:87050d83eb39ba68",
+    "archivedRows": 96,
+    "deletedLegacyRows": 96,
+    "insertedPhysicalRows": 192
+  },
+  "postMigrationMaintenance": {
+    "canonicalize": {
+      "ok": true,
+      "examined": 192,
+      "updated": 0,
+      "conflicts": 0,
+      "records": [],
+      "conflictRecords": [],
+      "disposition": "runtime_market_ids_canonicalized",
+      "generatedAt": "2026-11-08T16:41:07Z"
+    },
+    "orphanPrune": {
+      "ok": true,
+      "deleted": 0,
+      "deletedCount": 0,
+      "remaining": 192,
+      "orphanCount": 0,
+      "matchedClosedLoopCount": 192,
+      "preservedExecutionStateCount": 0,
+      "legacySymbolIdentityPreservedCount": 0,
+      "legacyAddressIdentityPreservedCount": 0,
+      "protectedTestResidueCount": 0,
+      "records": [],
+      "preservedRecords": [],
+      "disposition": "orphan_runtime_state_pruned",
+      "generatedAt": "2026-11-08T16:41:07Z"
+    },
+    "backfill": {
+      "ok": true,
+      "created": 0,
+      "existing": 192,
+      "runtimeStateCount": 192,
+      "runtimeGroupCount": 192,
+      "duplicateDirectedKey": 0,
+      "records": [],
+      "disposition": "directed_runtime_state_backfilled",
+      "generatedAt": "2026-11-08T16:41:09Z"
+    }
+  },
+  "archive": {
+    "table": "v4_closed_loop_runtime_state_archive",
+    "rows": 96,
+    "states": {
+      "execution_not_requested": 69,
+      "offchain_estimate": 11,
+      "preflight_failed": 16
+    }
+  },
+  "testnetPreservation": {
+    "scope": {
+      "network": "robinhood-testnet",
+      "chainId": 46630,
+      "protocol": "uniswap_v4",
+      "marketId": "dex-arbitrage-46630-uniswap-v4"
+    },
+    "rowChecksumBefore": "0feb6a78e93838392282fd7f36be3b63b9a3cfd0e817b3affde55c93b28999a7",
+    "rowChecksumAfterMigration": "0feb6a78e93838392282fd7f36be3b63b9a3cfd0e817b3affde55c93b28999a7",
+    "unchanged": true
+  },
+  "observation": {
+    "command": [
+      "C:\\ProgramData\\Miniconda3\\python.exe",
+      "E:\\2026OPC大赛\\flashLoan\\scripts\\observe_dex_closed_loops.py",
+      "--database",
+      "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\back\\p0_2_5_copy_20261108T163525Z\\local_store_4663.sqlite3",
+      "--network",
+      "robinhood",
+      "--chain-id",
+      "4663",
+      "--protocol",
+      "uniswap_v4",
+      "--market-id",
+      "dex-arbitrage-4663-uniswap-v4",
+      "--out",
+      "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\diagnostics\\p0_2_5_copy_validation\\20261108T163525Z.jsonl",
+      "--duration-seconds",
+      "3",
+      "--interval-seconds",
+      "1"
+    ],
+    "exitCode": 0,
+    "stdoutTail": "ocol\": null, \"marketId\": \"\", \"count\": 43}, {\"table\": \"cow_execution_reviews\", \"network\": \"\", \"chainId\": 0, \"protocol\": null, \"marketId\": \"\", \"count\": 1}, {\"table\": \"cow_execution_reviews\", \"network\": \"bnb\", \"chainId\": 56, \"protocol\": null, \"marketId\": \"\", \"count\": 1}, {\"table\": \"cow_execution_reviews\", \"network\": \"robinhood\", \"chainId\": 4663, \"protocol\": null, \"marketId\": \"\", \"count\": 15275}, {\"table\": \"v4_closed_loop_runtime_state\", \"network\": \"robinhood-testnet\", \"chainId\": 46630, \"protocol\": \"uniswap_v4\", \"marketId\": \"dex-arbitrage-46630-uniswap-v4\", \"count\": 1}]}, \"sampleIndex\": 0, \"startedAt\": \"2026-11-08T16:41:09.506886+00:00\", \"elapsedSeconds\": 0.5}\n{\"schema\": \"closed-loop-runtime-watch-v2\", \"utc\": \"2026-11-08T16:41:14.495770+00:00\", \"scope\": {\"network\": \"robinhood\", \"chainId\": 4663, \"protocol\": \"uniswap_v4\", \"marketId\": \"dex-arbitrage-4663-uniswap-v4\"}, \"scopeApplied\": true, \"attemptsTotal\": 0, \"reviewsTotal\": 1, \"attemptsMaxAt\": null, \"reviewsMaxAt\": \"2026-11-02T19:11:20.405580+00:00\", \"runtimeStates\": {\"offchain_pending\": 192}, \"preflightFailedLastErrors\": {}, \"stalePreflightRunning\": 0, \"missingBroadcast\": 0, \"outOfScope\": {\"total\": 15321, \"rows\": [{\"table\": \"cow_execution_attempts\", \"network\": \"robinhood\", \"chainId\": 4663, \"protocol\": null, \"marketId\": \"\", \"count\": 43}, {\"table\": \"cow_execution_reviews\", \"network\": \"\", \"chainId\": 0, \"protocol\": null, \"marketId\": \"\", \"count\": 1}, {\"table\": \"cow_execution_reviews\", \"network\": \"bnb\", \"chainId\": 56, \"protocol\": null, \"marketId\": \"\", \"count\": 1}, {\"table\": \"cow_execution_reviews\", \"network\": \"robinhood\", \"chainId\": 4663, \"protocol\": null, \"marketId\": \"\", \"count\": 15275}, {\"table\": \"v4_closed_loop_runtime_state\", \"network\": \"robinhood-testnet\", \"chainId\": 46630, \"protocol\": \"uniswap_v4\", \"marketId\": \"dex-arbitrage-46630-uniswap-v4\", \"count\": 1}]}, \"sampleIndex\": 3, \"startedAt\": \"2026-11-08T16:41:09.506886+00:00\", \"completedAt\": \"2026-11-08T16:41:14.495770+00:00\", \"elapsedSeconds\": 5.0, \"windowComplete\": true}\n",
+    "stderrTail": "",
+    "sampleCount": 4,
+    "firstSampleAt": "2026-11-08T16:41:09.995492+00:00",
+    "lastSampleAt": "2026-11-08T16:41:14.495770+00:00",
+    "runtimeStates": {
+      "offchain_pending": 192
+    },
+    "outOfScopeTotal": 15321,
+    "windowComplete": true
+  },
+  "assertions": {
+    "legacySymbolRowsArchivedNotDeleted": true,
+    "directionRowCountExact": true,
+    "allDirectionStatesOffchainPending": true,
+    "closedLoopRowsUnchanged": true,
+    "testnetResidueProtectedByDefault": true,
+    "explicitCleanupApprovalGateEnforced": true,
+    "observationScopeEnforced": true
+  },
+  "productionBoundary": {
+    "productionStorePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "productionStoreAccessed": false,
+    "productionStoreWritten": false,
+    "productionServiceRestarted": false,
+    "productionWorkerExecuted": false,
+    "note": "This is isolated copy DB evidence, not production apply."
+  },
+  "exitCode": 0
+}

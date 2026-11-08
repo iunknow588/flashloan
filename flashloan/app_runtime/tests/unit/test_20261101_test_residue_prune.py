@@ -124,3 +124,55 @@ def test_prune_test_residue_only_removes_aaa_bbb_ccc_orphan(tmp_path) -> None:
     assert sm.load_loop_state(path, **residue) is None
     assert sm.load_loop_state(path, **other_orphan) is not None
     assert sm.load_loop_state(path, **preserved_orphan) is not None
+
+
+def test_prune_test_residue_detects_confirmed_physical_orphan(tmp_path) -> None:
+    path = str(tmp_path / "physical_test_residue_prune.sqlite3")
+    residue = _args(
+        "0x1111111111111111111111111111111111111111:"
+        "0x2222222222222222222222222222222222222222:"
+        "0x3333333333333333333333333333333333333333"
+    )
+    sm.upsert_loop_state(
+        path,
+        state=sm.STATE_EXECUTION_SUCCESS,
+        generation=1,
+        **residue,
+    )
+    sm.execute(
+        path,
+        f"""
+        CREATE TABLE {sm.V4_CLOSED_LOOPS_TABLE} (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            market_id TEXT NOT NULL,
+            loop_key TEXT NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, market_id, loop_key)
+        )
+        """,
+    )
+    scope = {
+        "network": str(residue["network"]),
+        "chain_id": int(residue["chain_id"]),
+        "protocol": str(residue["protocol"]),
+        "market_id": str(residue["market_id"]),
+    }
+
+    detected = sm.prune_test_residue_runtime_state(path, **scope)
+
+    assert detected["residueDetected"] == 1
+    assert detected["residualPruned"] == 0
+    assert detected["records"][0]["loop_key"] == residue["loop_key"]
+    assert sm.load_loop_state(path, **residue) is not None
+
+    pruned = sm.prune_test_residue_runtime_state(
+        path,
+        **scope,
+        apply_cleanup=True,
+        approval_id="OPS-TEST-20261108-PHYSICAL",
+        snapshot_sha256="b" * 64,
+    )
+
+    assert pruned["residualPruned"] == 1
+    assert sm.load_loop_state(path, **residue) is None

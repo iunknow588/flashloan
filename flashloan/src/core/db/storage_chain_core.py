@@ -764,6 +764,32 @@ def seed_chain_info(database_url: str, *, network: str, chain_id: int, payload: 
     )
 
 
+def seed_chain_info_from_registry(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int | None = None,
+) -> None:
+    """Seed chain_info from the local chain registry before evidence imports."""
+
+    row = chain_data_by_network(network) or {}
+    if not isinstance(row, dict) or not row:
+        raise ValueError(f"chain_data_by_network({network}) returned no chain data")
+    resolved_chain_id = _int(row.get("chain_id") or row.get("chainId"))
+    if resolved_chain_id <= 0:
+        raise ValueError(f"chain_data_by_network({network}) missing chain_id")
+    if chain_id is not None and int(chain_id) != resolved_chain_id:
+        raise ValueError(
+            f"chain_info registry chain_id={resolved_chain_id} does not match requested {chain_id}"
+        )
+    seed_chain_info(
+        database_url,
+        network=str(row.get("network") or network).lower(),
+        chain_id=resolved_chain_id,
+        payload=row,
+    )
+
+
 def upsert_initialization(
     database_url: str,
     *,
@@ -834,6 +860,7 @@ __all__ = [
     "project_chain_tokens_from_manager",
     "seed_chain_contracts",
     "seed_chain_info",
+    "seed_chain_info_from_registry",
     "seed_chain_markets_from_builtin",
     "seed_chain_registry",
     "seed_chain_registry_meta",

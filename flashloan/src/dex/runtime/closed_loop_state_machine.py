@@ -116,7 +116,16 @@ V4_CLOSED_LOOP_ERROR_ISOLATION_TABLE = "v4_closed_loop_error_isolation"
 
 V4_CLOSED_LOOPS_TABLE = "v4_closed_loops"
 
-PROTECTED_TEST_RESIDUE_LOOP_KEYS = frozenset({"aaa|bbb|ccc"})
+PROTECTED_TEST_RESIDUE_LOOP_KEYS = frozenset(
+    {
+        "aaa|bbb|ccc",
+        (
+            "0x1111111111111111111111111111111111111111:"
+            "0x2222222222222222222222222222222222222222:"
+            "0x3333333333333333333333333333333333333333"
+        ),
+    }
+)
 
 V4_CLOSED_LOOP_RUNTIME_STATE_DDL = f"""
 CREATE TABLE IF NOT EXISTS {V4_CLOSED_LOOP_RUNTIME_STATE_TABLE} (
@@ -1736,8 +1745,12 @@ def prune_test_residue_runtime_state(
         }
 
     table = V4_CLOSED_LOOP_RUNTIME_STATE_TABLE
-    filters = [f"lower({table}.loop_key) = ?"]
-    params: list[Any] = ["aaa|bbb|ccc"]
+    residue_keys = tuple(sorted(PROTECTED_TEST_RESIDUE_LOOP_KEYS))
+    filters = [
+        f"lower({table}.loop_key) IN "
+        f"({', '.join('?' for _ in residue_keys)})"
+    ]
+    params: list[Any] = list(residue_keys)
     if network is not None:
         filters.append(f"{table}.network = ?")
         params.append(str(network).strip().lower())

@@ -819,8 +819,14 @@ def _apply_extsload_liquidity(
     errors: list[str] = []
     confirmed_ids: list[str] = []
     marked = 0
-    for start in range(0, len(selected), max(1, int(batch_size))):
-        batch = selected[start : start + max(1, int(batch_size))]
+    requested_batch_size = max(1, int(batch_size))
+    configured_batch_limit = max(
+        1,
+        int(os.getenv("DEX_TESTNET_V4_LIQUIDITY_BATCH_SIZE", "25") or 25),
+    )
+    effective_batch_size = min(requested_batch_size, configured_batch_limit)
+    for start in range(0, len(selected), effective_batch_size):
+        batch = selected[start : start + effective_batch_size]
         batch_ids = [str(pool.get("poolId") or "") for pool in batch]
         states = _batch_read_live_pool_states(
             w3=w3,
@@ -881,6 +887,8 @@ def _apply_extsload_liquidity(
         "liquidityMarkerActive": True,
         "liquidityMarkedPoolCount": marked,
         "scannedPoolCount": len(selected),
+        "requestedBatchSize": requested_batch_size,
+        "effectiveBatchSize": effective_batch_size,
         "liquidityErrorCount": len(errors),
         "liquidityErrors": errors[:20],
         "liquidityScanAt": _stamp(),

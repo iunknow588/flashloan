@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal, getcontext
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 import json
 import os
 import threading
@@ -261,6 +261,7 @@ def _batch_read_live_pool_states(
     block_number: int | None = None,
     network: str | None = None,
     chain_id: int | None = None,
+    rpc_urls: Iterable[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Read multiple V4 pool states in one JSON-RPC batch request.
 
@@ -297,38 +298,53 @@ def _batch_read_live_pool_states(
                     "params": [{"to": normalized_manager, "data": "0x" + call_data.hex()}, "latest"],
                 }
             )
+    from dex.intent_trade.chains.robinhood_common.v4_quote_rpc_retry import (
+        ordered_rpc_urls,
+    )
+
+    configured_urls = tuple(rpc_urls) if rpc_urls is not None else robinhood.testnet_rpc_urls_from_env()
+    candidate_urls = ordered_rpc_urls(rpc_url, configured_urls)
     decoded_response = None
     last_error: Exception | None = None
+    successful_rpc_url = ""
+    attempted_urls: list[str] = []
     timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "10") or 10)
-    for attempt in range(1, 3):
-        try:
-            body = json.dumps(payload).encode("utf-8")
-            req = urllib_request.Request(
-                rpc_url,
-                data=body,
-                headers={
-                    "content-type": "application/json",
-                    "user-agent": "flashloan-robinhood-testnet-v4-batch/1.0",
-                },
-                method="POST",
-            )
-            from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
-                throttle_rpc_call,
-            )
+    attempts_per_provider = max(1, int(os.getenv("DEX_TESTNET_V4_BATCH_RETRY_ATTEMPTS", "3") or 3))
+    for candidate_url in candidate_urls:
+        attempted_urls.append(candidate_url)
+        for attempt in range(1, attempts_per_provider + 1):
+            try:
+                body = json.dumps(payload).encode("utf-8")
+                req = urllib_request.Request(
+                    candidate_url,
+                    data=body,
+                    headers={
+                        "content-type": "application/json",
+                        "user-agent": "flashloan-robinhood-testnet-v4-batch/1.0",
+                    },
+                    method="POST",
+                )
+                from dex.intent_trade.chains.robinhood_common.rpc_rate_limit import (
+                    throttle_rpc_call,
+                )
 
-            throttle_rpc_call(rpc_url)
-            with urllib_request.urlopen(req, timeout=timeout) as response:
-                decoded_response = json.loads(response.read().decode("utf-8"))
-                break
-        except Exception as exc:
-            last_error = exc
-            if attempt >= 2:
-                raise RuntimeError(
-                    f"{_chain_label(network, chain_id)} V4 pool state batch eth_call failed; {last_error}"
-                ) from last_error
-            time.sleep(0.4 * attempt)
+                throttle_rpc_call(candidate_url)
+                with urllib_request.urlopen(req, timeout=timeout) as response:
+                    decoded_response = json.loads(response.read().decode("utf-8"))
+                    successful_rpc_url = candidate_url
+                    break
+            except Exception as exc:
+                last_error = exc
+                if attempt < attempts_per_provider:
+                    time.sleep(min(2.0, 0.35 * attempt))
+        if decoded_response is not None:
+            break
     if decoded_response is None:
-        return results
+        raise RuntimeError(
+            f"{_chain_label(network, chain_id)} V4 pool state batch eth_call failed "
+            f"after providers={len(attempted_urls)} attemptsPerProvider={attempts_per_provider}; "
+            f"last: {last_error}; attemptedUrls={attempted_urls}"
+        )
     rows = decoded_response if isinstance(decoded_response, list) else [decoded_response]
     values: dict[tuple[str, str], bytes] = {}
     errors: dict[tuple[str, str], str] = {}
@@ -396,7 +412,7 @@ def _batch_read_live_pool_states(
             "protocolFee": int(protocol_fee),
             "lpFee": int(lp_fee),
             "liquidity": str(liquidity),
-            "rpcUrl": rpc_url,
+            "rpcUrl": successful_rpc_url,
             "blockNumber": int(block_number) if block_number is not None else None,
         }
     return results

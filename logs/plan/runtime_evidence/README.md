@@ -150,3 +150,51 @@
   新保护逻辑与 `scripts/observe_dex_closed_loops.py` 强制 scope 的验证由
   `test_20261101_test_residue_prune.py`、`test_v4_maintenance_workers.py` 和
   `test_observe_dex_closed_loops.py` 覆盖。
+
+## 2026-11-09 增量报告索引
+
+- `reports/mainnet_4663_restore_audit_20261108T214733Z.json`：主网资料库恢复
+  后的只读审计，绑定恢复快照 SHA256
+  `aff2aa735262ec83b6102b8b1347140d9781b9f89ea0cbf9d5ab71aac0b987d9`；
+  退出码 `2` 表示方向级运行态仍待迁移，不是通过报告。
+- `reports/mainnet_4663_current_audit_20261108T222953Z.json`：主网当前只读
+  审计，绑定当前文件 SHA256
+  `6ad458357e1d46e287615b289baa189d70e74f702b1d6e889ac7e91d1deafc11`。
+  WAL/checkpoint 导致文件 SHA 与恢复快照不同，但逻辑审计一致。
+- `reports/oops1_cleanup_refusal_manifest.json` 与
+  `reports/oops1_cleanup_refusal_20261109T000000Z.json`：OPS-1 清理工具
+  修正证据。显式清单 dry-run 对正式链库 `local_store_4663.sqlite3`、
+  `local_store_4663.sqlite3-wal` 和测试网 `local_store_46630.sqlite3` 均
+  返回 refuse，退出码 `2`；没有执行删除。
+- `reports/mainnet_4663_restored_p0_2_4_dryrun_20261108T220739Z.json`、
+  `reports/mainnet_4663_restored_p0_2_4_dryrun_v2_20261108T222647Z.json`：
+  P0-2.4 早期 dry-run 失败证据，存在 `SOURCE_REPORT_DATABASE_CHECKSUM_MISMATCH`，
+  不得当作通过。
+- `reports/mainnet_4663_restored_p0_2_4_dryrun_v3_20261108T223042Z.json`：
+  P0-2.4 当前通过报告。绑定
+  `reports/mainnet_4663_current_audit_20261108T222953Z.json`；
+  `closedLoops=192`、`proposedDirectionMappings=192`、`proposedRuntimeStates=192`、
+  `archivePlans=96`、`rekeyPlans=96`、`reverseInsertPlans=96`、
+  `sourceExactDirectedMatches=96`、`unresolvedDirections=0`、
+  `duplicateDirectedKey=0`、`unresolvedAddress=0`、`crossScopeConflict=0`；
+  唯一 finding 为 `OUT_OF_SCOPE_ROWS_EXCLUDED`。
+- `reports/mainnet_4663_p0_2_5_source_audit_20261108T224112Z.json`：
+  P0-2.5 source snapshot 的只读审计，绑定快照 SHA256
+  `3b9c84eb66df11a78a59e961d75cad2ddfbd041b229faf4173d25bde7bf56bf7`；
+  退出码 `2` 是方向级运行态待迁移基线。
+- `reports/mainnet_4663_restored_p0_2_4_dryrun_v4_20261108T224159Z.json`：
+  绑定 P0-2.5 source snapshot 的最新 P0-2.4 dry-run，所有必需计数通过，
+  唯一 finding 为 `OUT_OF_SCOPE_ROWS_EXCLUDED`。
+- `reports/p0_2_5_copy_validation_20261108T154352Z.json`、
+  `reports/p0_2_5_copy_validation_20261108T161532Z.json`：
+  P0-2.5 早期失败证据，保留不覆盖。
+- `reports/p0_2_5_copy_validation_20261108T162812Z.json` 是零字节空文件；
+  按 `reports/` 规则属于无效产物，后续清理时记录文件名和原因。
+- `reports/p0_2_5_copy_validation_20261108T163525Z.json`：P0-2.5 早期通过的
+  copy DB 隔离验证，基于旧 P0-2.4 报告；结论 `passed`、`exitCode=0`。
+  后续在最新 P0-2.4 dry-run 上重跑，旧报告保留为历史证据。
+- `reports/p0_2_5_copy_validation_20261108T224336Z.json` 与
+  `diagnostics/p0_2_5_copy_validation_20261108T224336Z/observe.jsonl`：
+  P0-2.5 最新通过证据。运行态 `96 -> 192` 方向级 `offchain_pending`，
+  旧 96 条符号组状态归档、Testnet 残留 checksum 不变、观察窗口完整且
+  生产库未访问。

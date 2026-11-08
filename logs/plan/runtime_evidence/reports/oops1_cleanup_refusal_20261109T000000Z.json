@@ -1,0 +1,48 @@
+{
+  "apply": false,
+  "approvalId": "OPS-1-DRYRUN-20261109",
+  "deletedCount": 0,
+  "errorCount": 0,
+  "errors": [],
+  "formalDatabaseCount": 9,
+  "formalDatabases": [
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_1.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_137.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_31337.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_43113.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_43114.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_bnb.sqlite3"
+  ],
+  "generatedAt": "2026-11-08T22:26:09.404811Z",
+  "items": [
+    {
+      "index": 0,
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+      "reason": "registered chain database or sidecar",
+      "status": "refused"
+    },
+    {
+      "index": 1,
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+      "reason": "registered chain database or sidecar",
+      "status": "refused"
+    },
+    {
+      "index": 2,
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+      "reason": "registered chain database or sidecar",
+      "status": "refused"
+    }
+  ],
+  "manifestPath": "logs\\plan\\runtime_evidence\\reports\\oops1_cleanup_refusal_manifest.json",
+  "refused": [
+    "registered chain database: E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "registered chain database: E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+    "registered chain database: E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3"
+  ],
+  "refusedCount": 3,
+  "schema": "flashloan-runtime-artifact-cleanup-v1"
+}

@@ -146,8 +146,12 @@ def _multicall3_address() -> str:
 
 
 def _rpc_url_from_env_or_default() -> str:
-    urls = testnet_rpc_urls_from_env()
+    urls = _rpc_urls_from_env_or_default()
     return urls[0] if urls else ""
+
+
+def _rpc_urls_from_env_or_default() -> tuple[str, ...]:
+    return testnet_rpc_urls_from_env()
 
 
 def _web3(rpc_url: str) -> Web3:

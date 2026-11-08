@@ -20,6 +20,7 @@ from core.db.import_existing_json import (
 )
 from core.db.storage_chain_core import (
     seed_chain_markets_from_builtin,
+    seed_chain_info_from_registry,
     seed_chain_tokens,
     upsert_initialization,
 )
@@ -73,9 +74,15 @@ def import_v4_evidence_payloads(
         index,
         anchor_symbols=anchor_symbols,
         stable_symbols=stable_symbols,
+        anchor_addresses=anchor_addresses,
         apply_stock_metadata=wanted_network in {"robinhood", "robinhood-testnet"},
         stock_network=wanted_network,
         stock_chain_id=wanted_chain_id,
+    )
+    seed_chain_info_from_registry(
+        database_url,
+        network=wanted_network,
+        chain_id=wanted_chain_id,
     )
     seed_chain_tokens(
         database_url,

@@ -1,0 +1,21 @@
+{
+  "schema": "flashloan-runtime-artifact-cleanup-v1",
+  "approvalId": "OPS-1-DRYRUN-20261109",
+  "items": [
+    {
+      "path": "flashloan/db/local_store_4663.sqlite3",
+      "reason": "OPS-1 refusal contract: registered mainnet chain database",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "flashloan/db/local_store_4663.sqlite3-wal",
+      "reason": "OPS-1 refusal contract: registered mainnet WAL sidecar",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "flashloan/db/local_store_46630.sqlite3",
+      "reason": "OPS-1 refusal contract: registered testnet chain database",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

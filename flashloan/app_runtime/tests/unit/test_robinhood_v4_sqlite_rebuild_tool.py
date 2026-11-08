@@ -955,6 +955,72 @@ def test_refresh_v4_live_skip_index_forces_incremental_evidence_preserve(
     assert liquidity[0]["has_liquidity"] == 1
 
 
+def test_refresh_v4_live_checkpoints_index_before_liquidity_failure(tmp_path, monkeypatch):
+    from dex.tools import refresh_robinhood_v4_live as live_tool
+
+    database = str(tmp_path / "checkpoint.sqlite3")
+    pool_id = "0x" + "ab" * 32
+    pool_manager = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    index_payload = {
+        "schemaVersion": "robinhood-testnet-v4-pool-index-v1",
+        "network": ROBINHOOD_TESTNET_NETWORK,
+        "chainId": ROBINHOOD_TESTNET_CHAIN_ID,
+        "poolManager": pool_manager,
+        "generatedBlockNumber": 123,
+        "initializeLogCount": 1,
+        "pools": [
+            {
+                "poolId": pool_id,
+                "poolManager": pool_manager,
+                "token0": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+                "token1": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "status": "initialized_pool",
+            }
+        ],
+    }
+
+    monkeypatch.setattr(
+        live_tool,
+        "_load_index_payload",
+        lambda **kwargs: {"payload": index_payload, "source": "test_onchain_initialize_logs"},
+    )
+    monkeypatch.setattr(
+        live_tool,
+        "_apply_live_liquidity",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("HTTP Error 429: Too Many Requests")),
+    )
+
+    report = live_tool.refresh_v4_live(
+        database=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        skip_build=True,
+        replace_evidence=True,
+        clear_cache=False,
+    )
+
+    assert report["ok"] is False
+    assert any(
+        step.get("step") == "v4_pool_index_checkpoint" and step.get("ok")
+        for step in report["steps"]
+    ), json.dumps(report, indent=2, default=str)
+    from core.db.storage_business_io import query
+
+    pools = query(
+        database,
+        """
+        SELECT pool_id
+        FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
+    assert [row["pool_id"] for row in pools] == [pool_id]
+
+
 def test_refresh_v4_live_cold_import_disabled_is_rpc_free(tmp_path, monkeypatch):
     from dex.tools import refresh_robinhood_v4_live as live_tool
 
