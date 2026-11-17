@@ -17,6 +17,10 @@ def _pool(pool_id: str, price: float, fee: int = 3000) -> dict:
         "estimated_tvl_usd": 10_000.0,
         "liquidity": 10_000,
         "sqrt_price_x96": int((price ** 0.5) * (1 << 96)),
+        # The Rust kernel admitted this pool.
+        "kernel_admitted": True,
+        "kernel_admission_reason": "admitted",
+        "kernel_depth_band": "deep",
     }
 
 
@@ -42,6 +46,9 @@ def test_directional_order_requires_depth_for_membership():
     shallow = _pool("p1", 100.0)
     shallow["liquidity_index"] = 0
     shallow["estimated_tvl_usd"] = 0
+    # The kernel rejected the shallow pool.
+    shallow["kernel_admitted"] = False
+    shallow["kernel_admission_reason"] = "binding_capacity_below_floor"
     deep = [_pool("p2", 100.0), _pool("p3", 101.0)]
 
     assert select_directional_pool_ids([shallow, *deep], "0xa", "0xb") == ["p2", "p3"]

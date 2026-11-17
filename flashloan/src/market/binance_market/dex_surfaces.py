@@ -181,6 +181,18 @@ from market.binance_market.dex_surface_framework import (
 from web3 import Web3
 
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
+
+# The flash-loan fee the chain actually charges.
+#
+# The production route borrows straight from the Uniswap V4 PoolManager,
+# which charges no flash-loan fee: the contract asks for `amount + minProfit`
+# back, and `minProfit` is a one-wei profit guard rather than a fee. This is
+# a chain fact and it is kept apart from the submission margin below.
+CHAIN_FLASH_LOAN_FEE_BPS = 0.0
+
+# The off-chain preflight's own margin on top of the chain's arithmetic. It
+# covers gas, preview-to-inclusion slippage and state drift; it is never a
+# fee the chain charges and must not be reported as one.
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
 DEFAULT_AMM_FEE_BPS = 30.0
@@ -234,14 +246,37 @@ ERC20_DECIMALS_ABI = [
 
 
 def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int | None = None) -> dict[str, Any]:
-    """Compatibility entrypoint that keeps old dex_surfaces monkeypatches working."""
+    """Compatibility entrypoint that keeps old dex_surfaces monkeypatches working.
+
+    The helpers are resolved from their defining module on every call.  A
+    module level ``from ... import ...`` binds the function object once, so a
+    later patch of ``dex_surface_v4._live_v4_token_decimals`` would not reach
+    this module and the patch would silently have no effect.
+    """
+    from market.binance_market import dex_surface_v4
+
+    # A patch may target either module.  The local binding wins when it
+    # differs from the defining module's, otherwise the defining module's
+    # current attribute is used.
+    def _resolved(local: Any, remote: Any) -> Any:
+        return local if local is not remote else remote
+
+    live_decimals = _resolved(
+        _live_v4_token_decimals,
+        dex_surface_v4._live_v4_token_decimals,
+    )
+    metadata_cache = _resolved(
+        _v4_token_metadata_cache,
+        dex_surface_v4._v4_token_metadata_cache,
+    )
+
     return _framework_v4_pool_token_metadata(
         pool,
         index,
         chain_id=chain_id,
-        token_metadata_cache=_v4_token_metadata_cache,
+        token_metadata_cache=metadata_cache,
         live_token_metadata_enabled=_v4_live_token_metadata_enabled,
-        live_v4_token_decimals=_live_v4_token_decimals,
+        live_v4_token_decimals=live_decimals,
         pool_manager_address=_pool_manager_address,
     )
 

@@ -1,0 +1,521 @@
+{
+  "mode": "check",
+  "generatedAt": "2026-11-11T10:12:03Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "observationStartedAt": "2026-11-10T19:57:50Z",
+  "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+  "successCriteria": {
+    "continuousFreshReviews": true,
+    "broadcastOnlyFromFreshProfitableReview": true,
+    "terminalTransactionRecords": true,
+    "expectedAndGasAdjustedPnlAvailable": true
+  },
+  "layers": {
+    "tokens": {
+      "valid": true,
+      "source": {
+        "total": 6353,
+        "missing_decimals": 1735,
+        "missing_symbol": 0
+      },
+      "libraries": {
+        "core": {
+          "total": 4,
+          "admitted": 4,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "stocks": {
+          "total": 194,
+          "admitted": 194,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "test": {
+          "total": 1,
+          "admitted": 1,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        }
+      },
+      "admittedTotal": 199,
+      "libraryMissingFields": 0,
+      "officialFundingAddresses": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "TZ": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      },
+      "fundingAddressMismatches": [],
+      "counterfeitFundingAdmissions": [],
+      "stockProvenanceInvalid": []
+    },
+    "pools": {
+      "valid": false,
+      "scope": {
+        "enabled": 1,
+        "materialized_checksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+        "last_rebuilt_at": "2026-11-11T01:56:05.794713300+00:00"
+      },
+      "candidate": {
+        "eligible_pool_count": 114,
+        "candidate_token_count": 24,
+        "abnormal_pool_count": 2196,
+        "materialized_checksum": "sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687",
+        "generated_at": "2026-11-11T01:56:33.814611700+00:00"
+      },
+      "observation": {
+        "pool_count": 130,
+        "direction_count": 634,
+        "empty_direction_count": 528,
+        "abnormal_pool_count": 2002,
+        "materialized_checksum": "sha256:94c9b481ca928025ca0f40d28b51dc685347a24bf5e51c1bab4f953f370ba68d",
+        "generated_at": "2026-11-09T14:53:14.581619900+00:00"
+      },
+      "exchange": {
+        "total": 4741,
+        "missing_currencies": 0,
+        "filtered_fee": 2177
+      },
+      "depth": {
+        "valid": true,
+        "code": null,
+        "depthBasis": "estimated_tvl_usd_legacy",
+        "capacitySchemaPresent": false,
+        "minCapacityRaw": 100.0,
+        "minTvlUsd": 100000.0,
+        "maxTvlUsd": 1000000000.0,
+        "candidatePoolCount": 16,
+        "uniquePoolCount": 16,
+        "candidatePoolRows": 47,
+        "badReadingCount": 0,
+        "snapshotBadReadings": {
+          "available": true,
+          "reason": null,
+          "rowCount": 4669,
+          "nullReadingCount": 3194,
+          "badReadingCount": 1287,
+          "maxTvlUsd": 1.7586799563335515e+43,
+          "maxTvlUsdLimit": 1000000000.0
+        },
+        "capacityPoolCount": 16,
+        "adequateDepthPoolCount": 16,
+        "insufficientDepthPoolCount": 0,
+        "minCapacityRawObserved": null,
+        "maxCapacityRawObserved": null,
+        "thinPoolCount": 0,
+        "unpricedPoolCount": 0,
+        "reason": "candidate pools whose on-chain capacity is below the minimum depth band can only produce dust-sized best trade amounts whose profit never covers gas",
+        "byDepthStatus": [
+          {
+            "depthStatus": "deep",
+            "poolCount": 6,
+            "adequatePoolCount": 6,
+            "capacityPoolCount": 6,
+            "badReadingCount": 0,
+            "minTvlUsd": 1850470.5873978185,
+            "maxTvlUsd": 719342039.814781,
+            "avgTvlUsd": 123972380.80406372,
+            "minCapacityRaw": null,
+            "maxCapacityRaw": null
+          },
+          {
+            "depthStatus": "liquid",
+            "poolCount": 10,
+            "adequatePoolCount": 10,
+            "capacityPoolCount": 10,
+            "badReadingCount": 0,
+            "minTvlUsd": 102428.29539217969,
+            "maxTvlUsd": 897589.286346843,
+            "avgTvlUsd": 348650.51129228686,
+            "minCapacityRaw": null,
+            "maxCapacityRaw": null
+          }
+        ]
+      },
+      "depthSnapshot": {
+        "available": true,
+        "latestReadAt": "2026-11-09T03:08:30.458976Z",
+        "oldestReadAt": "2026-10-16T00:56:56.848618Z",
+        "rowCount": 4669,
+        "capacityRowCount": 0,
+        "ageSeconds": 198192.680586,
+        "stale": true,
+        "maxAgeSeconds": 900
+      },
+      "pathCapacity": {
+        "available": false,
+        "reason": "capacity_schema_missing",
+        "detail": "run `pool-manager ensure-depth-schema --apply` first"
+      },
+      "bestAmount": {
+        "code": null,
+        "valid": true,
+        "confirmedCount": 0,
+        "belowGasCount": 0,
+        "tooSmallCount": 0,
+        "insufficientCount": 0,
+        "gasEstimateEth": 6.2e-06,
+        "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+        "bySymbol": {},
+        "belowGasSamples": [],
+        "tooSmallSamples": []
+      },
+      "scopeDrift": {
+        "code": "pool_scope_drift",
+        "valid": false,
+        "expectedChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+        "layerChecksums": {
+          "pool_scope_config": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "manager_dex_candidate_library_state": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "manager_v4_closed_loop_library_state": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1",
+          "manager_market_observation_library_state": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1"
+        },
+        "driftedLayers": [
+          "manager_market_observation_library_state",
+          "manager_v4_closed_loop_library_state"
+        ],
+        "candidatePoolCount": 93,
+        "closedLoopHopCount": 318,
+        "missingPoolHopCount": 38,
+        "missingPoolHopRatio": 0.11949685534591195,
+        "affectedLoopCount": 38,
+        "affectedLoopKeys": [
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0xec262a75e413fafd0df80480274532c79d42da09",
+          "0x0000000000000000000000000000000000000000:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x0000000000000000000000000000000000000000:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+        ],
+        "scopeRebuiltAt": "2026-11-11T01:56:05.794713300+00:00",
+        "candidateGeneratedAt": "2026-11-11T01:56:33.814611700+00:00",
+        "closedLoopGeneratedAt": "2026-11-09T15:00:28.621587600+00:00",
+        "observationGeneratedAt": "2026-11-09T14:53:14.581619900+00:00",
+        "reason": "candidate and closed-loop layers were materialized from different pool scopes; closed loops keep naming pools the current candidate set dropped"
+      }
+    },
+    "closedLoops": {
+      "valid": true,
+      "library": {
+        "loop_count": 106,
+        "hop_count": 318,
+        "consumers_need_rebuild": 0,
+        "materialized_checksum": "sha256:dae667ab912d00e26286e75264aea4499f741867deaafa5588f224f6d744d34f",
+        "generated_at": "2026-11-09T15:00:28.621587600+00:00"
+      },
+      "runtime": [
+        {
+          "state": "execution_not_requested",
+          "count": 58
+        },
+        {
+          "state": "offchain_pending",
+          "count": 10
+        },
+        {
+          "state": "offchain_estimate",
+          "count": 10
+        },
+        {
+          "state": "preflight_failed",
+          "count": 6
+        },
+        {
+          "state": "execution_failed",
+          "count": 4
+        }
+      ]
+    },
+    "reviews": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "reviews": 0
+      },
+      "legacy": {
+        "windowHours": 24,
+        "stats": {
+          "total": 1356,
+          "withValue": 1286,
+          "missingValue": 70,
+          "positive": 0,
+          "positiveAmount": 101,
+          "positiveEstimateOnly": 76,
+          "estimatedProfitOnlyCount": 76,
+          "confirmedSum": 0.0,
+          "nonPositive": 1185,
+          "sum": -167.7598806758911,
+          "minimum": -0.999984627621383,
+          "maximum": 0.1990836190672352,
+          "byCurrency": {
+            "SPY": -88.43037465530372,
+            "TZ": -1.5205807041472048,
+            "ETH": -2.777453892658926,
+            "WETH": -66.86875899513664,
+            "USDG": -4.889376450347817,
+            "USDE": -3.273335978296602
+          }
+        },
+        "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+        "currentLoopMatched": 546,
+        "staleOrUnmatched": 810,
+        "currentDistinctLoops": 58,
+        "matchedMissingPnl": 70,
+        "unmatchedMissingPnl": 0,
+        "bestAmountMissing": 1356,
+        "bestAmountMissingCurrentLoop": 546,
+        "bestAmountLadderIncomplete": 1113,
+        "bestAmountLadderIncompleteCurrentLoop": 468,
+        "bestAmountConfirmed": 0
+      },
+      "bestAmount": {
+        "code": "best_amount_missing",
+        "missing": 1356,
+        "missingCurrentLoop": 546,
+        "ladderIncomplete": 1113,
+        "ladderIncompleteCurrentLoop": 468,
+        "total": 1356,
+        "confirmed": 0,
+        "retryable": false,
+        "failClosed": true,
+        "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+        "reasons": [
+          {
+            "reason": "route_unprofitable: best amount unresolved",
+            "count": 1261
+          },
+          {
+            "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+            "count": 70
+          },
+          {
+            "reason": "best_amount_ladder_incomplete: best trade amount ladder never expanded: 1 probe record(s) observed, at least 2 required",
+            "count": 25
+          }
+        ],
+        "samples": [
+          {
+            "reviewId": 63971,
+            "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "currentLoop": true,
+            "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+            "status": "review_failed",
+            "reviewFailureKind": "quote_unavailable",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "USDG",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63967,
+            "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "SPY",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63968,
+            "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "TZ",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63963,
+            "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "SPY",
+            "ladderIncomplete": false,
+            "probeCount": 11
+          },
+          {
+            "reviewId": 63957,
+            "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "currentLoop": true,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "ETH",
+            "ladderIncomplete": false,
+            "probeCount": 11
+          },
+          {
+            "reviewId": 63969,
+            "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "TZ",
+            "ladderIncomplete": false,
+            "probeCount": 11
+          },
+          {
+            "reviewId": 63974,
+            "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+            "currentLoop": true,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "WETH",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63959,
+            "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "SPY",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63976,
+            "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "currentLoop": true,
+            "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+            "status": "review_failed",
+            "reviewFailureKind": "quote_unavailable",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "WETH",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 63960,
+            "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+            "currentLoop": false,
+            "reason": "route_unprofitable: best amount unresolved",
+            "status": "route_unprofitable",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 1.0,
+            "requestedSymbol": "SPY",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          }
+        ]
+      },
+      "missingReasons": [
+        {
+          "reason": "native result has no concrete borrow-token P&L; a zero value would indicate a code/data resolution failure and is never accepted as a conclusion; preview unavailable: previewBestPool unavailable | exe",
+          "count": 70
+        }
+      ],
+      "missingClassifications": [
+        {
+          "code": "other",
+          "retryable": false,
+          "currentLoop": true,
+          "count": 70,
+          "sampleReviewIds": [
+            63971,
+            63976,
+            63954,
+            63935,
+            63903
+          ]
+        }
+      ]
+    },
+    "broadcast": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "attempts": 0
+      },
+      "legacy": {
+        "total": 0,
+        "categories": {},
+        "latestAttemptAt": null,
+        "recent": []
+      },
+      "profitAnalysis": {
+        "expectedByCurrency": {},
+        "gasCostEthTotal": 0.0,
+        "gasCostObservedAttempts": 0,
+        "expectedEthOrWethNetAfterGas": 0.0,
+        "expectedEthOrWethNetObservedAttempts": 0,
+        "realizedByCurrency": {},
+        "realizedNetAfterGasByCurrency": {},
+        "realizedPnlObservedAttempts": 0,
+        "realizedPnlMissingAttempts": 0,
+        "realizedPnlMissingReasons": {},
+        "realizedPnlAvailable": false,
+        "source": "contract_preview_plus_confirmed_receipt_gas"
+      },
+      "outcomes": {
+        "success": 0,
+        "failed": 0,
+        "pending": 0,
+        "other": 0
+      },
+      "historicalPositiveReviewsInWindow": 0,
+      "automaticBroadcastCandidates": 0,
+      "automaticBroadcastPolicy": "fresh_positive_review_only"
+    }
+  },
+  "blockers": [
+    "pools",
+    "reviews",
+    "broadcast"
+  ],
+  "transactionProduction": {
+    "state": "pool_scope_drift",
+    "healthy": false,
+    "reason": "candidate_and_closed_loop_scopes_disagree",
+    "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+    "reviewAgeSeconds": 33376.318695,
+    "reviewFreshnessThresholdSeconds": 600,
+    "executablePositiveReviews": 0,
+    "transactionRecords": 0,
+    "latestAttemptAt": null,
+    "bestAmountMissing": 1356,
+    "poolScopeDrift": true,
+    "poolScopeDriftedLayers": [
+      "manager_market_observation_library_state",
+      "manager_v4_closed_loop_library_state"
+    ],
+    "poolScopeMissingHopCount": 38,
+    "poolScopeAffectedLoopCount": 38
+  },
+  "safeToAutoBroadcast": false
+}

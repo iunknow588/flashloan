@@ -1,0 +1,86 @@
+{
+  "authority": "read_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "review_manager parity evidence completeness gate + standalone parity CLI",
+  "databaseObservation": {
+    "lastWriteTime": "2026-11-15T00:20:47+08:00",
+    "lengthBytes": 3507453952,
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "writtenByReplay": false
+  },
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "gateContract": {
+    "gatePassed": "routeCount > 0 && comparableCount == routeCount && deviationCount == 0",
+    "reasons": [
+      "no_routes",
+      "no_comparable_routes",
+      "incomplete_comparable_evidence",
+      "parity_deviation_detected"
+    ]
+  },
+  "generatedAt": "2026-11-15T05:28:30+08:00",
+  "mainnetReadOnlyResult": {
+    "accepted": true,
+    "amountMismatchCount": 0,
+    "comparableCount": 0,
+    "dataSource": "rust_runtime_core",
+    "deviationCount": 0,
+    "evidenceAvailable": false,
+    "evidenceComplete": false,
+    "executableMismatchCount": 0,
+    "gatePassed": false,
+    "gateReason": "no_routes",
+    "matchCount": 0,
+    "notComparableCount": 0,
+    "routeCount": 0,
+    "selection": "newestPerEvaluableRoute",
+    "version": "rust_runtime_core_v1"
+  },
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedReleaseBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "reviewRecordsRestored": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "remainingGate": "Generate non-persistent live parity inputs from token/pool catalog facts and the current real-time review; do not restore long-term review records.",
+  "rollbackAvailable": true,
+  "rollbackPoint": "revert ReplayReport evidence completeness fields, fail-closed gate decision, RuntimeCore event projection, and standalone CLI registration",
+  "rpcRequestCount": 0,
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "review_manager parity tests",
+      "result": "52 passed / 0 failed",
+      "target": "flashloan/tools/review_manager"
+    },
+    {
+      "name": "tools offline workspace",
+      "result": "exit code 0",
+      "target": "flashloan/tools"
+    },
+    {
+      "name": "flashloan-rs offline suite",
+      "result": "122 passed / 0 failed",
+      "target": "flashloan/rs-src"
+    },
+    {
+      "name": "ARCH-2b parity harness unit tests",
+      "result": "13 passed / 0 failed",
+      "target": "flashloan/app_runtime/tests/unit/test_arch2b_offchain_parity_replay.py"
+    },
+    {
+      "name": "mainnet parity with isolated debug extension",
+      "result": "gatePassed=false, gateReason=no_routes",
+      "target": "flashloan/db/local_store_4663.sqlite3"
+    }
+  ],
+  "title": "P0-8 live parity empty evidence fail-closed"
+}

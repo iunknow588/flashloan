@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, RwLoc
 
 use broadcast_manager::{
     clear_broadcast_records_write, read_broadcast_snapshot_page, read_broadcast_status,
-    BroadcastClearRequest, BroadcastError, BroadcastStatus,
+    BroadcastClearRequest, BroadcastError, BroadcastRecordStore, BroadcastStatus,
 };
 use candidate_edge_pool_manager::{
     materialize_candidate_edges_write, read_candidate_snapshot, read_candidate_status,
@@ -24,9 +24,11 @@ use composite_manager::{
     ReviewRef, TokenLibraryRef, UpstreamSnapshot,
 };
 use manager_contracts::TokenAuthorityMode;
-use pool_manager::{read_scope_status, ScopeStatus};
+use pool_manager::{read_scope_status, resolve_pool_ids_by_key, PoolKeyIdentity, ScopeStatus};
 use review_manager::{
-    read_review_page, read_review_status, ReviewOutcomeFilter, ReviewReadQuery, ReviewStatus,
+    clear_review_records_write, evaluate_route_parity, read_review_page, read_review_status,
+    replay_recorded_routes, ParityRequest, ReviewClearRequest, ReviewOutcomeFilter,
+    ReviewReadQuery, ReviewRecordStore, ReviewStatus,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -36,6 +38,11 @@ use token_manager::{read_library_state, LibraryKey, TokenLibraryState, TokenQuer
 const RUNTIME_CORE_SCHEMA: &str = "rust_runtime_core_v1";
 const DATA_SOURCE: &str = "rust_runtime_core";
 const SCOPE_KEY: &str = "core4";
+/// The canonical Uniswap V4 quoter used by the Robinhood chain.
+///
+/// The value mirrors `flashloan/chains/robinhood/chain.json`. It is only
+/// a default: a caller may point the shadow comparison at another quoter.
+const DEFAULT_V4_QUOTER_ADDRESS: &str = "0x8dc178efb8111bb0973dd9d722ebeff267c98f94";
 const EVENT_LIMIT: usize = 64;
 const TOKEN_LIBRARIES: [LibraryKey; 4] = [
     LibraryKey::Core,
@@ -329,6 +336,153 @@ struct RuntimeCoreState {
     events: VecDeque<RuntimeCoreEvent>,
 }
 
+/// The options of the `review_parity_replay` command.
+///
+/// The replay always reads. The options only narrow **which** database and
+/// **how much** of it are read; they never grant authority and never enable
+/// a write.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewParityReplayOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    database_path: Option<String>,
+    limit: Option<usize>,
+    tolerance: Option<f64>,
+    /// Which recorded routes the replay covers.
+    ///
+    /// `newestPerRoute` is the default: a parity check measures the route as
+    /// it stands, so the current attempt of each route is the one that
+    /// carries the evidence. `allAttempts` replays the whole recorded
+    /// history, which repeats the same route many times against older pool
+    /// states.
+    selection: Option<String>,
+}
+
+/// The options of the `review_parity_compare` command.
+///
+/// The request is shaped by the Python compatibility layer and answered by
+/// Review Manager. Python never performs the comparison itself.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewParityCompareOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    route_addresses: Vec<String>,
+    pool_ids: Vec<String>,
+    amount_raw: Option<String>,
+    flash_fee_bps: Option<i64>,
+    onchain_profit_raw: Option<String>,
+    onchain_executable: Option<bool>,
+    chain_live_amount_out_raw: Option<String>,
+    chain_live_required_repay_raw: Option<String>,
+    tolerance: Option<f64>,
+}
+
+/// The options of the `review_parity_replay_payload` command.
+///
+/// The command is a **read-only** comparison of one live review payload. The
+/// payload is carried in memory and is never persisted by the command.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewParityReplayPayloadOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    flash_fee_bps: Option<i64>,
+    tolerance: Option<f64>,
+    payload: Option<Value>,
+}
+
+/// The options of the `pool_roles_manage` command.
+///
+/// Pool Manager owns the pool roles. The runtime core only names the
+/// command, forwards the options and returns the report.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PoolRolesManageOptions {
+    pub network: Option<String>,
+    pub chain_id: Option<i64>,
+    pub protocol: Option<String>,
+    /// `materialize` refreshes the role assignment, `cleanup` prunes the
+    /// backups, `status` only reports.
+    pub action: Option<String>,
+    /// The startup gate of the cleanup. It is off by default.
+    pub cleanup_enabled: Option<bool>,
+    pub retention_days: Option<i64>,
+    pub cleanup_interval_days: Option<i64>,
+    pub min_pools: Option<i64>,
+    pub min_trade_observations: Option<i64>,
+    pub apply: Option<bool>,
+}
+
+/// The options of the `review_shadow_compare` command.
+///
+/// The shadow comparison is ARCH-4 stage A: the local memory pool and the
+/// chain-side `eth_call` are run side by side and compared. The command is
+/// **read-only** and never changes a decision: the chain result stays
+/// authoritative, and the memory result never blocks an execution.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewShadowCompareOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    chain_id: Option<i64>,
+    hops: Vec<ShadowHopRequest>,
+    rpc_urls: Vec<String>,
+    quoter_address: Option<String>,
+    call_from: Option<String>,
+    timeout_seconds: Option<u64>,
+    tolerance: Option<f64>,
+    affected_path: Option<String>,
+    requests_per_second: Option<f64>,
+    /// The arbiter version the memory side prices with.
+    ///
+    /// Version 1 (`single_tick`) constrains every hop to one tick range.
+    /// The name travels with the request so the report says which arithmetic
+    /// produced it; an unknown name is refused by Review Manager rather
+    /// than silently replaced by a default.
+    arbiter_version: Option<String>,
+}
+
+/// One hop of a shadow comparison, as the compatibility layer sends it.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ShadowHopRequest {
+    pool_id: Option<String>,
+    token0: Option<String>,
+    token1: Option<String>,
+    fee: Option<u32>,
+    tick_spacing: Option<i64>,
+    hooks: Option<String>,
+    zero_for_one: Option<bool>,
+    amount_in_raw: Option<String>,
+    #[serde(default)]
+    hook_data: Option<String>,
+}
+
+/// The options of the `pool_resolve_keys` command.
+///
+/// Pool Keys are resolved by Pool Manager because Pool Manager owns the pool
+/// table. Python never queries it.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PoolResolveKeysOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    pool_keys: Vec<PoolKeyRequest>,
+}
+
+/// One PoolKey, as the compatibility layer sends it.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PoolKeyRequest {
+    currency0: Option<String>,
+    currency1: Option<String>,
+    fee: Option<i64>,
+    tick_spacing: Option<i64>,
+    hooks: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ManagerViewOptions {
@@ -612,12 +766,34 @@ impl RuntimeCore {
         self.refresh_with_context(None, None)
     }
 
+    /// Runs a command without an options document.
+    ///
+    /// This is the convenience form for commands that take no input. The
+    /// options-carrying form is [`Self::execute_command_with_options`].
+    #[allow(dead_code)]
     pub fn execute_command(
         &self,
         command: &str,
         request_id: &str,
         idempotency_key: &str,
         dry_run: bool,
+    ) -> Result<Value, RuntimeCoreError> {
+        self.execute_command_with_options(command, request_id, idempotency_key, dry_run, None)
+    }
+
+    /// Runs a command, carrying an optional options document.
+    ///
+    /// The options document is the only channel through which the Python
+    /// compatibility layer can describe *what* a read-only measurement should
+    /// look at. It never carries authority and never enables a write: the
+    /// write commands ignore it entirely.
+    pub fn execute_command_with_options(
+        &self,
+        command: &str,
+        request_id: &str,
+        idempotency_key: &str,
+        dry_run: bool,
+        options_json: Option<&str>,
     ) -> Result<Value, RuntimeCoreError> {
         validate_command_identity(request_id, idempotency_key)?;
         match command.trim().to_ascii_lowercase().as_str() {
@@ -804,14 +980,664 @@ impl RuntimeCore {
                 );
                 Ok(result)
             }
-            "clear_broadcasts" => {
+            "review_parity_compare" => {
                 self.ensure_open()?;
-                if !dry_run && !self.broadcast_authority.manager_apply_enabled() {
-                    return Err(RuntimeCoreError::AuthorityDenied {
-                        command: "clear_broadcasts",
-                        authority: self.broadcast_authority,
+                // A **read-only** comparison between what the chain reported
+                // and what the off-chain simulator derives from the local
+                // pool state. The comparison itself is Review Manager's work:
+                // the recorded reviews are Review Manager's own table and the
+                // pool state is read through Pool Manager's published API.
+                let options = parse_review_parity_compare_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let amount_raw = options
+                    .amount_raw
+                    .as_deref()
+                    .and_then(|text| parse_signed_raw_option(Some(text)))
+                    .unwrap_or_default();
+                let mut request = ParityRequest::new(
+                    options.route_addresses.clone(),
+                    options.pool_ids.clone(),
+                    amount_raw,
+                    options
+                        .flash_fee_bps
+                        .unwrap_or(review_manager::DEFAULT_FLASH_FEE_BPS),
+                );
+                request.onchain_profit_raw = options
+                    .onchain_profit_raw
+                    .as_deref()
+                    .and_then(|text| parse_signed_raw_option(Some(text)));
+                request.chain_live_amount_out_raw = options
+                    .chain_live_amount_out_raw
+                    .as_deref()
+                    .and_then(|text| parse_signed_raw_option(Some(text)));
+                request.chain_live_required_repay_raw = options
+                    .chain_live_required_repay_raw
+                    .as_deref()
+                    .and_then(|text| parse_signed_raw_option(Some(text)));
+                if let Some(tolerance) = options.tolerance {
+                    request.tolerance = tolerance;
+                }
+                let verdict = evaluate_route_parity(
+                    &self.identity.database_path,
+                    &network,
+                    self.identity.chain_id,
+                    &protocol,
+                    &request,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "review_manager",
+                    message: error.to_string(),
+                })?;
+                let mut payload = serde_json::to_value(&verdict)
+                    .map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+                if let Some(object) = payload.as_object_mut() {
+                    // The chain's executability is part of the verdict, but
+                    // Review Manager compares *amounts*. The executability of
+                    // the chain side is carried through as an input so the
+                    // compatibility layer can report it unchanged.
+                    object.insert(
+                        "onchainExecutable".to_owned(),
+                        match options.onchain_executable {
+                            Some(value) => Value::Bool(value),
+                            None => Value::Null,
+                        },
+                    );
+                }
+                let mut result = json!({
+                    "accepted": true,
+                    "command": "review_parity_compare",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "data": payload,
+                });
+                if let Some(object) = result.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "review_parity_compare",
+                            "dryRun": dry_run,
+                            "state": result
+                                .get("data")
+                                .and_then(|data| data.get("state"))
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "review_parity_replay_payload" => {
+                self.ensure_open()?;
+                // This is a read-only measurement of one **live** review
+                // payload. The payload is supplied in memory, is never
+                // written to the database, and the comparison itself stays
+                // inside Review Manager.
+                let options = parse_review_parity_replay_payload_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let payload = options.payload.clone().ok_or_else(|| {
+                    RuntimeCoreError::InvalidCommand(
+                        "review_parity_replay_payload requires payload".to_owned(),
+                    )
+                })?;
+                let tolerance = options
+                    .tolerance
+                    .unwrap_or(review_manager::DEFAULT_PROFIT_RELATIVE_TOLERANCE);
+                let request = review_manager::parity_request_from_review_payload(
+                    &payload,
+                    options
+                        .flash_fee_bps
+                        .unwrap_or(review_manager::DEFAULT_FLASH_FEE_BPS),
+                    tolerance,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "review_manager",
+                    message: error.to_string(),
+                })?;
+                let verdict = review_manager::evaluate_route_parity_with_review_time_state(
+                    &self.identity.database_path,
+                    &network,
+                    self.identity.chain_id,
+                    &protocol,
+                    &request,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "review_manager",
+                    message: error.to_string(),
+                })?;
+                let mut result = serde_json::to_value(verdict)
+                    .map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+                if let Some(object) = result.as_object_mut() {
+                    object.insert("reviewTimeStateUsed".to_owned(), Value::Bool(true));
+                    object.insert(
+                        "reviewTimePoolCount".to_owned(),
+                        Value::Number(request.review_time_pool_states.len().into()),
+                    );
+                }
+                let mut payload = json!({
+                    "accepted": true,
+                    "command": "review_parity_replay_payload",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "persisted": false,
+                    "data": result,
+                });
+                if let Some(object) = payload.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "review_parity_replay_payload",
+                            "dryRun": dry_run,
+                            "persisted": false,
+                            "state": payload
+                                .get("data")
+                                .and_then(|data| data.get("state"))
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                        }),
+                    ),
+                );
+                Ok(payload)
+            }
+            "review_shadow_compare" => {
+                self.ensure_open()?;
+                // ARCH-4 stage A: the local memory pool and the chain-side
+                // `eth_call` are compared side by side. The comparison is
+                // **read-only** and never changes a decision:
+                //
+                // * the chain result stays authoritative;
+                // * the memory result never blocks an execution;
+                // * a chain call that timed out, answered malformed, or saw
+                //   the chain move underneath it is reported as `untrusted`,
+                //   and that is the **only** thing that may block.
+                //
+                // The whole computation lives in Review Manager. The runtime
+                // core only names the command and returns the report.
+                let options = parse_review_shadow_compare_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let chain_id = options.chain_id.unwrap_or(self.identity.chain_id);
+                let mut hops = Vec::with_capacity(options.hops.len());
+                for hop in &options.hops {
+                    hops.push(review_manager::ShadowHopRequest {
+                        pool_id: hop.pool_id.clone().unwrap_or_default(),
+                        token0: hop.token0.clone().unwrap_or_default(),
+                        token1: hop.token1.clone().unwrap_or_default(),
+                        fee: hop.fee.unwrap_or_default(),
+                        tick_spacing: hop.tick_spacing.unwrap_or_default(),
+                        hooks: hop.hooks.clone().unwrap_or_default(),
+                        zero_for_one: hop.zero_for_one.unwrap_or(false),
+                        amount_in_raw: hop.amount_in_raw.clone().unwrap_or_default(),
+                        hook_data: hop.hook_data.clone(),
                     });
                 }
+                let request = review_manager::ShadowRequest {
+                    network: network.clone(),
+                    chain_id,
+                    protocol: protocol.clone(),
+                    hops,
+                    rpc_urls: options.rpc_urls.clone(),
+                    quoter_address: options
+                        .quoter_address
+                        .clone()
+                        .unwrap_or_else(|| DEFAULT_V4_QUOTER_ADDRESS.to_string()),
+                    call_from: options.call_from.clone(),
+                    timeout_seconds: options.timeout_seconds,
+                    tolerance: options.tolerance,
+                    affected_path: options.affected_path.clone(),
+                    requests_per_second: options.requests_per_second,
+                    arbiter_version: options.arbiter_version.clone(),
+                };
+                let report =
+                    review_manager::run_shadow_comparison(&self.identity.database_path, &request);
+                let payload = serde_json::to_value(&report)
+                    .map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+                let mut result = json!({
+                    "accepted": true,
+                    "command": "review_shadow_compare",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "data": payload,
+                });
+                if let Some(object) = result.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "review_shadow_compare",
+                            "dryRun": dry_run,
+                            "comparisonCount": report.comparison_count,
+                            "executableMismatchCount": report.executable_mismatch_count,
+                            "unexplainedCount": report.unexplained_count,
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "pool_roles_manage" => {
+                self.ensure_open()?;
+                // Pool Manager owns the pool roles:
+                //
+                // * the candidate pools are the best priced pools of a
+                //   direction and are refreshed dynamically;
+                // * the recommendation pool is the single best priced pool
+                //   of a direction and is refreshed dynamically as well;
+                // * the backup pools are the remaining pools and are pruned
+                //   when they did not trade inside the retention window.
+                //
+                // The cleanup carries a startup gate: while the runtime still
+                // carries little data, nothing is deleted at all.
+                let options = parse_pool_roles_manage_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let chain_id = options.chain_id.unwrap_or(self.identity.chain_id);
+                let action = options
+                    .action
+                    .clone()
+                    .unwrap_or_else(|| "status".to_string());
+                let apply = options.apply.unwrap_or(false) && !dry_run;
+                let database_path = self.identity.database_path.clone();
+                let payload = pool_manager::run_pool_role_maintenance(
+                    database_path.to_string_lossy().as_ref(),
+                    &network,
+                    chain_id,
+                    &protocol,
+                    &action,
+                    pool_manager::PoolRoleOptions {
+                        retention_days: options
+                            .retention_days
+                            .unwrap_or(pool_manager::BACKUP_RETENTION_DAYS),
+                        cleanup_interval_days: options
+                            .cleanup_interval_days
+                            .unwrap_or(pool_manager::CLEANUP_INTERVAL_DAYS),
+                        cleanup_enabled: options.cleanup_enabled.unwrap_or(false),
+                        min_pools: options.min_pools.unwrap_or(500),
+                        min_trade_observations: options.min_trade_observations.unwrap_or(100),
+                        apply,
+                        ..pool_manager::PoolRoleOptions::default()
+                    },
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "pool_manager",
+                    message: error.to_string(),
+                })?;
+                let mut result = json!({
+                    "accepted": true,
+                    "command": "pool_roles_manage",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "data": payload,
+                });
+                if let Some(object) = result.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "pool_roles_manage",
+                            "dryRun": dry_run,
+                            "action": action,
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "pool_measurement_population" => {
+                self.ensure_open()?;
+                // The measurement population is resolved by Pool Manager,
+                // because Pool Manager owns the admission rules. In
+                // particular a **dynamic-fee pool is never part of the
+                // population**: its effective rate is decided by a hook at
+                // swap time, so the off-chain arithmetic can never reproduce
+                // the rate the chain charges.
+                //
+                // The Python layer reaches this only through the in-memory
+                // RuntimeCore, so it never opens the database and never
+                // queries a manager-owned table.
+                let options = parse_pool_measurement_population_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let chain_id = options.chain_id.unwrap_or(self.identity.chain_id);
+                let limit = options.limit.unwrap_or(60).max(1) as usize;
+                let database_path = self.identity.database_path.clone();
+                let pool_ids = pool_manager::tick_swap::resolve_measurement_pool_ids(
+                    database_path.to_string_lossy().as_ref(),
+                    &network,
+                    chain_id,
+                    limit,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "pool_manager",
+                    message: error.to_string(),
+                })?;
+                let mut result = json!({
+                    "accepted": true,
+                    "command": "pool_measurement_population",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "data": json!({
+                        "poolIds": pool_ids,
+                        "poolCount": pool_ids.len(),
+                        "excludesDynamicFeePools": true,
+                    }),
+                });
+                if let Some(object) = result.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "pool_measurement_population",
+                            "dryRun": dry_run,
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "pool_resolve_keys" => {
+                self.ensure_open()?;
+                // Pool Manager owns the pool table, so Pool Manager resolves
+                // the PoolKeys. The compatibility layer only carries them.
+                let options = parse_pool_resolve_keys_options(options_json)?;
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let mut identities: Vec<PoolKeyIdentity> =
+                    Vec::with_capacity(options.pool_keys.len());
+                for key in &options.pool_keys {
+                    let Some(identity) = PoolKeyIdentity::new(
+                        key.currency0.clone().unwrap_or_default(),
+                        key.currency1.clone().unwrap_or_default(),
+                        key.fee.unwrap_or_default(),
+                        key.tick_spacing.unwrap_or_default(),
+                        key.hooks.as_deref(),
+                    ) else {
+                        // A key that does not describe a pool resolves to no
+                        // pool. It is not an error: an unknown pool simply
+                        // cannot be simulated.
+                        identities.push(PoolKeyIdentity {
+                            currency0: String::new(),
+                            currency1: String::new(),
+                            fee: 0,
+                            tick_spacing: 0,
+                            hooks: String::new(),
+                        });
+                        continue;
+                    };
+                    identities.push(identity);
+                }
+                let pool_ids = resolve_pool_ids_by_key(
+                    &self.identity.database_path,
+                    &network,
+                    self.identity.chain_id,
+                    &protocol,
+                    &identities,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "pool_manager",
+                    message: error.to_string(),
+                })?;
+                let mut result = json!({
+                    "accepted": true,
+                    "command": "pool_resolve_keys",
+                    "version": RUNTIME_CORE_SCHEMA,
+                    "requestId": request_id.trim(),
+                    "idempotencyKey": idempotency_key.trim(),
+                    "dryRun": dry_run,
+                    "dataSource": DATA_SOURCE,
+                    "network": network,
+                    "protocol": protocol,
+                    "data": {
+                        "poolIds": pool_ids,
+                    },
+                });
+                if let Some(object) = result.as_object_mut() {
+                    object.insert(
+                        "generation".to_owned(),
+                        Value::Number(read_state(&self.state).generation.into()),
+                    );
+                }
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "pool_resolve_keys",
+                            "dryRun": dry_run,
+                            "resolvedCount": pool_ids
+                                .iter()
+                                .filter(|pool_id| !pool_id.is_empty())
+                                .count(),
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "review_parity_replay" => {
+                self.ensure_open()?;
+                // The parity replay is a **read-only** measurement: it replays
+                // the recorded reviews against the local pool state and
+                // compares the result with what the chain reported. It never
+                // writes, so it needs no authority and it is safe to run
+                // against a replica of the production database.
+                //
+                // The whole computation lives in Review Manager. The runtime
+                // core only names the command and returns the report.
+                let options = parse_review_parity_replay_options(options_json)?;
+                let database_path = options
+                    .database_path
+                    .clone()
+                    .unwrap_or_else(|| self.identity.database_path.to_string_lossy().into_owned());
+                let network = options
+                    .network
+                    .clone()
+                    .unwrap_or_else(|| self.identity.network.clone());
+                let protocol = options
+                    .protocol
+                    .clone()
+                    .unwrap_or_else(|| review_manager::default_protocol().to_owned());
+                let tolerance = options
+                    .tolerance
+                    .unwrap_or(review_manager::DEFAULT_PROFIT_RELATIVE_TOLERANCE);
+                let selection = match options
+                    .selection
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or("newestPerEvaluableRoute")
+                {
+                    "newestPerEvaluableRoute" | "newest_per_evaluable_route" => {
+                        review_manager::ReplaySelection::NewestPerEvaluableRoute
+                    }
+                    "newestPerRoute" | "newest_per_route" => {
+                        review_manager::ReplaySelection::NewestPerRoute
+                    }
+                    "allAttempts" | "all_attempts" => review_manager::ReplaySelection::AllAttempts,
+                    other => {
+                        return Err(RuntimeCoreError::InvalidCommand(format!(
+                            "review_parity_replay selection must be newestPerEvaluableRoute, newestPerRoute or allAttempts, got {other}"
+                        )));
+                    }
+                };
+                let report = review_manager::replay_recorded_routes_with(
+                    &database_path,
+                    &network,
+                    self.identity.chain_id,
+                    &protocol,
+                    options.limit,
+                    tolerance,
+                    selection,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "review_manager",
+                    message: error.to_string(),
+                })?;
+                let mut result = serde_json::to_value(report)
+                    .map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+                let object = result.as_object_mut().ok_or_else(|| {
+                    RuntimeCoreError::Serialization(
+                        "review parity report must serialize as an object".to_owned(),
+                    )
+                })?;
+                object.insert("accepted".to_owned(), Value::Bool(true));
+                object.insert(
+                    "command".to_owned(),
+                    Value::String("review_parity_replay".to_owned()),
+                );
+                object.insert(
+                    "version".to_owned(),
+                    Value::String(RUNTIME_CORE_SCHEMA.to_owned()),
+                );
+                object.insert(
+                    "requestId".to_owned(),
+                    Value::String(request_id.trim().to_owned()),
+                );
+                object.insert(
+                    "idempotencyKey".to_owned(),
+                    Value::String(idempotency_key.trim().to_owned()),
+                );
+                object.insert(
+                    "dataSource".to_owned(),
+                    Value::String(DATA_SOURCE.to_owned()),
+                );
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "review_parity_replay",
+                            "dryRun": dry_run,
+                            "routeCount": result.get("routeCount").cloned().unwrap_or(Value::Null),
+                            "comparableCount": result.get("comparableCount").cloned().unwrap_or(Value::Null),
+                            "deviationCount": result.get("deviationCount").cloned().unwrap_or(Value::Null),
+                            "evidenceAvailable": result.get("evidenceAvailable").cloned().unwrap_or(Value::Null),
+                            "evidenceComplete": result.get("evidenceComplete").cloned().unwrap_or(Value::Null),
+                            "gatePassed": result.get("gatePassed").cloned().unwrap_or(Value::Null),
+                            "gateReason": result.get("gateReason").cloned().unwrap_or(Value::Null),
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
+            "clear_broadcasts" => {
+                self.ensure_open()?;
+                let record_store = if self.broadcast_authority.manager_apply_enabled() {
+                    BroadcastRecordStore::Manager
+                } else {
+                    BroadcastRecordStore::Legacy
+                };
                 let outcome = clear_broadcast_records_write(
                     &self.identity.database_path,
                     BroadcastClearRequest {
@@ -821,6 +1647,7 @@ impl RuntimeCore {
                         request_id: request_id.trim().to_owned(),
                         idempotency_key: idempotency_key.trim().to_owned(),
                         apply: !dry_run,
+                        record_store,
                     },
                 )
                 .map_err(map_broadcast_command_error)?;
@@ -877,6 +1704,82 @@ impl RuntimeCore {
                 );
                 Ok(result)
             }
+            "clear_reviews" => {
+                self.ensure_open()?;
+                // Review records are **regenerable runtime observations**, not
+                // long-lived facts. The token and pool catalogs stay untouched;
+                // only the per-chain review rows are dropped.
+                let record_store = if self.broadcast_authority.manager_apply_enabled() {
+                    ReviewRecordStore::Manager
+                } else {
+                    ReviewRecordStore::Legacy
+                };
+                let outcome = clear_review_records_write(
+                    &self.identity.database_path,
+                    ReviewClearRequest {
+                        network: self.identity.network.clone(),
+                        chain_id: self.identity.chain_id,
+                        operation: "review.clear".to_owned(),
+                        request_id: request_id.trim().to_owned(),
+                        idempotency_key: idempotency_key.trim().to_owned(),
+                        apply: !dry_run,
+                        record_store,
+                    },
+                )
+                .map_err(map_review_command_error)?;
+                let idempotent_replay = outcome.idempotent_replay;
+                let mut result = serde_json::to_value(outcome)
+                    .map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+                let object = result.as_object_mut().ok_or_else(|| {
+                    RuntimeCoreError::Serialization(
+                        "review clear outcome must serialize as an object".to_owned(),
+                    )
+                })?;
+                object.insert("accepted".to_owned(), Value::Bool(true));
+                object.insert(
+                    "command".to_owned(),
+                    Value::String("clear_reviews".to_owned()),
+                );
+                object.insert(
+                    "version".to_owned(),
+                    Value::String(RUNTIME_CORE_SCHEMA.to_owned()),
+                );
+                object.insert(
+                    "requestId".to_owned(),
+                    Value::String(request_id.trim().to_owned()),
+                );
+                object.insert(
+                    "idempotencyKey".to_owned(),
+                    Value::String(idempotency_key.trim().to_owned()),
+                );
+                object.insert(
+                    "dataSource".to_owned(),
+                    Value::String(DATA_SOURCE.to_owned()),
+                );
+                let mut state = write_state(&self.state);
+                push_event(
+                    &mut state.events,
+                    new_event(
+                        "runtime_command_completed",
+                        Some(request_id.trim().to_owned()),
+                        Some(idempotency_key.trim().to_owned()),
+                        json!({
+                            "command": "clear_reviews",
+                            "dryRun": dry_run,
+                            "idempotentReplay": idempotent_replay,
+                            "clearedReviews": result
+                                .get("clearedReviews")
+                                .cloned()
+                                .unwrap_or_else(|| json!(0)),
+                            "remainingReviews": result
+                                .get("remainingReviews")
+                                .cloned()
+                                .unwrap_or_else(|| json!(0)),
+                        }),
+                    ),
+                );
+                Ok(result)
+            }
             other => Err(RuntimeCoreError::InvalidCommand(format!(
                 "unsupported command {other}"
             ))),
@@ -902,10 +1805,11 @@ impl RuntimeCore {
                 | "candidate_exchange"
                 | "closed_loops"
                 | "reviews"
+                | "review_parity"
                 | "broadcasts"
         ) {
             return Err(RuntimeCoreError::InvalidManagerView(format!(
-                "unsupported view {view}; supported views: overview, candidate_edge, candidate_exchange, closed_loops, reviews, broadcasts"
+                "unsupported view {view}; supported views: overview, candidate_edge, candidate_exchange, closed_loops, reviews, review_parity, broadcasts"
             )));
         }
         if limit == 0 || limit > 1_000 {
@@ -918,6 +1822,7 @@ impl RuntimeCore {
             "overview" => &[][..],
             "candidate_edge" | "candidate_exchange" | "closed_loops" => &["anchorTokenKeyId"][..],
             "reviews" => &["loopKey", "category", "status", "outcome", "offset"][..],
+            "review_parity" => &["offset"][..],
             "broadcasts" => &["attemptId", "status", "offset"][..],
             _ => unreachable!(),
         };
@@ -1014,6 +1919,30 @@ impl RuntimeCore {
                         message: error.to_string(),
                     })?,
                 )
+            }
+            "review_parity" => {
+                let offset = options.offset.unwrap_or(0);
+                if offset.saturating_add(limit) > 1_000 {
+                    return Err(RuntimeCoreError::InvalidManagerView(
+                        "offset plus limit must not exceed 1000".to_owned(),
+                    ));
+                }
+                // The whole parity comparison lives in Review Manager: the
+                // recorded reviews are its own table and the pool state comes
+                // from Pool Manager through Pool Manager's published API.
+                let report = replay_recorded_routes(
+                    &self.identity.database_path,
+                    &self.identity.network,
+                    self.identity.chain_id,
+                    review_manager::default_protocol(),
+                    Some(limit),
+                    review_manager::DEFAULT_PROFIT_RELATIVE_TOLERANCE,
+                )
+                .map_err(|error| RuntimeCoreError::ManagerRead {
+                    manager: "review_manager",
+                    message: error.to_string(),
+                })?;
+                serde_json::to_value(report)
             }
             "broadcasts" => {
                 let offset = options.offset.unwrap_or(0);
@@ -1618,6 +2547,174 @@ fn parse_manager_view_options(
     }
 }
 
+fn parse_review_parity_replay_options(
+    options_json: Option<&str>,
+) -> Result<ReviewParityReplayOptions, RuntimeCoreError> {
+    match options_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(ReviewParityReplayOptions::default()),
+        Some(value) => serde_json::from_str(value).map_err(|error| {
+            RuntimeCoreError::InvalidCommand(format!(
+                "review_parity_replay options must be a JSON object: {error}"
+            ))
+        }),
+    }
+}
+
+fn parse_review_parity_compare_options(
+    options_json: Option<&str>,
+) -> Result<ReviewParityCompareOptions, RuntimeCoreError> {
+    match options_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(ReviewParityCompareOptions::default()),
+        Some(value) => serde_json::from_str(value).map_err(|error| {
+            RuntimeCoreError::InvalidCommand(format!(
+                "review_parity_compare options must be a JSON object: {error}"
+            ))
+        }),
+    }
+}
+
+fn parse_review_parity_replay_payload_options(
+    options_json: Option<&str>,
+) -> Result<ReviewParityReplayPayloadOptions, RuntimeCoreError> {
+    match options_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(ReviewParityReplayPayloadOptions::default()),
+        Some(value) => serde_json::from_str(value).map_err(|error| {
+            RuntimeCoreError::InvalidCommand(format!(
+                "review_parity_replay_payload options must be a JSON object: {error}"
+            ))
+        }),
+    }
+}
+
+/// The options of the `pool_measurement_population` command.
+#[derive(Debug, Default)]
+struct PoolMeasurementPopulationOptions {
+    network: Option<String>,
+    protocol: Option<String>,
+    chain_id: Option<i64>,
+    limit: Option<u64>,
+}
+
+fn parse_pool_measurement_population_options(
+    options_json: Option<&str>,
+) -> Result<PoolMeasurementPopulationOptions, RuntimeCoreError> {
+    let Some(text) = options_json else {
+        return Ok(PoolMeasurementPopulationOptions::default());
+    };
+    let value: Value = serde_json::from_str(text).map_err(|error| {
+        RuntimeCoreError::Serialization(format!(
+            "pool_measurement_population options must be a JSON object: {error}"
+        ))
+    })?;
+    let object = value.as_object().ok_or_else(|| {
+        RuntimeCoreError::Serialization(
+            "pool_measurement_population options must be a JSON object".to_owned(),
+        )
+    })?;
+    Ok(PoolMeasurementPopulationOptions {
+        network: object
+            .get("network")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        protocol: object
+            .get("protocol")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        chain_id: object.get("chainId").and_then(Value::as_i64),
+        limit: object.get("limit").and_then(Value::as_u64),
+    })
+}
+
+fn parse_pool_roles_manage_options(
+    options_json: Option<&str>,
+) -> Result<PoolRolesManageOptions, RuntimeCoreError> {
+    let Some(text) = options_json else {
+        return Ok(PoolRolesManageOptions::default());
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(PoolRolesManageOptions::default());
+    }
+    serde_json::from_str(trimmed).map_err(|error| {
+        RuntimeCoreError::InvalidCommand(format!(
+            "pool_roles_manage options must be a JSON object: {error}"
+        ))
+    })
+}
+
+fn parse_review_shadow_compare_options(
+    options_json: Option<&str>,
+) -> Result<ReviewShadowCompareOptions, RuntimeCoreError> {
+    match options_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(ReviewShadowCompareOptions::default()),
+        Some(value) => serde_json::from_str(value).map_err(|error| {
+            RuntimeCoreError::InvalidCommand(format!(
+                "review_shadow_compare options must be a JSON object: {error}"
+            ))
+        }),
+    }
+}
+
+fn parse_pool_resolve_keys_options(
+    options_json: Option<&str>,
+) -> Result<PoolResolveKeysOptions, RuntimeCoreError> {
+    match options_json
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(PoolResolveKeysOptions::default()),
+        Some(value) => serde_json::from_str(value).map_err(|error| {
+            RuntimeCoreError::InvalidCommand(format!(
+                "pool_resolve_keys options must be a JSON object: {error}"
+            ))
+        }),
+    }
+}
+
+/// Parses a raw token amount that may arrive as a decimal string or as a
+/// `0x`-prefixed hexadecimal string.
+///
+/// The compatibility layer sends amounts as strings because a raw token
+/// amount does not always fit a JavaScript number. A **negative** amount is
+/// meaningful: the chain reports a losing route as a negative profit, and the
+/// sign sits in front of the radix prefix (`-0x...`), so the sign has to be
+/// read before the radix is stripped.
+fn parse_signed_raw_option(value: Option<&str>) -> Option<i128> {
+    let text = value?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (negative, digits) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest.trim()),
+        None => (false, text),
+    };
+    let magnitude = if let Some(hex) = digits
+        .strip_prefix("0x")
+        .or_else(|| digits.strip_prefix("0X"))
+    {
+        i128::from_str_radix(hex, 16).ok()?
+    } else {
+        digits.parse::<i128>().ok()?
+    };
+    if negative {
+        Some(-magnitude)
+    } else {
+        Some(magnitude)
+    }
+}
+
 fn validate_manager_view_options(
     options: &ManagerViewOptions,
     view: &str,
@@ -1706,6 +2803,34 @@ fn map_candidate_exchange_command_error(error: CandidateExchangeError) -> Runtim
     RuntimeCoreError::ManagerCommand {
         manager: "candidate_exchange_pool_manager",
         command: "rebuild_candidate_exchange_pools",
+        code,
+        http_status,
+        message: error.to_string(),
+    }
+}
+
+fn map_review_command_error(error: review_manager::ReviewError) -> RuntimeCoreError {
+    let (code, http_status) = match &error {
+        review_manager::ReviewError::InvalidRequest(_)
+        | review_manager::ReviewError::DuplicateEvidence(_)
+        | review_manager::ReviewError::DuplicateDiagnostic { .. } => ("INVALID_REQUEST", 400),
+        review_manager::ReviewError::IdempotencyKeyReused { .. } => ("IDEMPOTENCY_KEY_REUSED", 409),
+        review_manager::ReviewError::ExpectedUpstreamMismatch { .. } => {
+            ("UPSTREAM_VERSION_CHANGED", 409)
+        }
+        review_manager::ReviewError::MissingClosedLoopState
+        | review_manager::ReviewError::ClosedLoopSnapshotTruncated { .. } => {
+            ("TOKEN_NOT_ADMITTED", 409)
+        }
+        review_manager::ReviewError::Sqlite(_) | review_manager::ReviewError::ClosedLoopRead(_) => {
+            ("UPSTREAM_UNAVAILABLE", 503)
+        }
+        review_manager::ReviewError::Json(_) => ("INTERNAL_ERROR", 500),
+        review_manager::ReviewError::UnknownClosedLoop(_) => ("REVIEW_ROUTE_NOT_FOUND", 404),
+    };
+    RuntimeCoreError::ManagerCommand {
+        manager: "review_manager",
+        command: "clear_reviews",
         code,
         http_status,
         message: error.to_string(),
@@ -2138,7 +3263,12 @@ mod tests {
         assert_eq!(dry["chainId"], 4663);
         assert_eq!(dry["dryRun"], true);
         assert_eq!(dry["idempotentReplay"], false);
-        assert_eq!(dry["anchorTokenCount"], 1);
+        // The anchor count describes the anchor groups that were actually
+        // materialized. The fixture has one admitted core token but no
+        // pool for it, so no anchor group is realized and the count is
+        // zero. A count taken from the catalog instead would claim an
+        // anchor group that no reader can find in the anchor rows.
+        assert_eq!(dry["anchorTokenCount"], 0);
 
         let connection = Connection::open(&path).expect("database");
         let writes: i64 = connection
@@ -2384,10 +3514,23 @@ mod tests {
     }
 
     #[test]
-    fn clear_broadcasts_command_apply_requires_broadcast_manager_authority() {
+    fn clear_broadcasts_command_uses_legacy_store_under_legacy_authority() {
         let _guard = TEST_LOCK.lock().unwrap();
         let (_directory, path) = database();
-        insert_broadcast_attempt(&path, "attempt-terminal", "success");
+        let connection = Connection::open(&path).expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE cow_execution_attempts (
+                id INTEGER PRIMARY KEY,
+                network TEXT NOT NULL,
+                chain_id INTEGER NOT NULL,
+                category TEXT NOT NULL
+            );
+            INSERT INTO cow_execution_attempts(network,chain_id,category)
+            VALUES ('robinhood',4663,'execution_success');",
+            )
+            .expect("legacy attempts");
+        drop(connection);
         let core =
             RuntimeCore::register(4663, "robinhood", path.clone(), "uniswap_v4").expect("core");
 
@@ -2395,25 +3538,101 @@ mod tests {
             .execute_command("clear_broadcasts", "clear-dry", "clear-dry-key", true)
             .expect("dry run remains available");
         assert_eq!(dry["clearedAttempts"], 1);
-        let error = core
+        assert_eq!(dry["recordStore"], "legacy");
+        let applied = core
             .execute_command("clear_broadcasts", "clear-apply", "clear-apply-key", false)
-            .expect_err("legacy authority must reject apply");
-        assert!(matches!(
-            error,
-            RuntimeCoreError::AuthorityDenied {
-                command: "clear_broadcasts",
-                authority: manager_contracts::TokenAuthorityMode::Legacy,
-            }
-        ));
+            .expect("legacy authority clears the authoritative legacy table");
+        assert_eq!(applied["clearedAttempts"], 1);
+        assert_eq!(applied["remainingAttempts"], 0);
         let connection = Connection::open(path).expect("database");
         let attempts: i64 = connection
+            .query_row("SELECT COUNT(*) FROM cow_execution_attempts", [], |row| {
+                row.get(0)
+            })
+            .expect("attempt count");
+        assert_eq!(attempts, 0);
+        RuntimeCore::close(4663).expect("close");
+    }
+
+    #[test]
+    fn clear_reviews_command_uses_legacy_store_and_preserves_catalogs() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE cow_execution_reviews (
+                id INTEGER PRIMARY KEY,
+                network TEXT NOT NULL,
+                chain_id INTEGER NOT NULL,
+                loop_key TEXT NOT NULL
+            );
+            CREATE TABLE chain_tokens (
+                id INTEGER PRIMARY KEY,
+                network TEXT NOT NULL,
+                chain_id INTEGER NOT NULL,
+                address TEXT NOT NULL
+            );
+            CREATE TABLE v4_exchange_pools (
+                id INTEGER PRIMARY KEY,
+                network TEXT NOT NULL,
+                chain_id INTEGER NOT NULL,
+                pool_key TEXT NOT NULL
+            );
+            INSERT INTO cow_execution_reviews(network,chain_id,loop_key)
+            VALUES ('robinhood',4663,'loop-a'), ('robinhood',4663,'loop-b'),
+                   ('other',1,'loop-c');
+            INSERT INTO chain_tokens(network,chain_id,address)
+            VALUES ('robinhood',4663,'0xtoken');
+            INSERT INTO v4_exchange_pools(network,chain_id,pool_key)
+            VALUES ('robinhood',4663,'0xpool');",
+            )
+            .expect("legacy fixtures");
+        drop(connection);
+        let core =
+            RuntimeCore::register(4663, "robinhood", path.clone(), "uniswap_v4").expect("core");
+
+        let dry = core
+            .execute_command("clear_reviews", "review-dry", "review-dry-key", true)
+            .expect("dry run remains available");
+        assert_eq!(dry["clearedReviews"], 2);
+        assert_eq!(dry["remainingReviews"], 2);
+        assert_eq!(dry["recordStore"], "legacy");
+        assert_eq!(dry["dryRun"], true);
+
+        let applied = core
+            .execute_command("clear_reviews", "review-apply", "review-apply-key", false)
+            .expect("legacy authority clears the authoritative legacy table");
+        assert_eq!(applied["clearedReviews"], 2);
+        assert_eq!(applied["remainingReviews"], 0);
+
+        let connection = Connection::open(path).expect("database");
+        let reviews: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM manager_cow_execution_attempts",
+                "SELECT COUNT(*) FROM cow_execution_reviews WHERE network = 'robinhood' AND chain_id = 4663",
                 [],
                 |row| row.get(0),
             )
-            .expect("attempt count");
-        assert_eq!(attempts, 1);
+            .expect("review count");
+        assert_eq!(reviews, 0);
+        let other_scope: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM cow_execution_reviews WHERE network <> 'robinhood'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("other scope count");
+        assert_eq!(other_scope, 1);
+        let tokens: i64 = connection
+            .query_row("SELECT COUNT(*) FROM chain_tokens", [], |row| row.get(0))
+            .expect("token count");
+        assert_eq!(tokens, 1);
+        let pools: i64 = connection
+            .query_row("SELECT COUNT(*) FROM v4_exchange_pools", [], |row| {
+                row.get(0)
+            })
+            .expect("pool count");
+        assert_eq!(pools, 1);
         RuntimeCore::close(4663).expect("close");
     }
 
@@ -2513,6 +3732,148 @@ mod tests {
             .query_row("PRAGMA quick_check", [], |row| row.get(0))
             .expect("quick check");
         assert_eq!(quick_check, "ok");
+        let write_requests: i64 = connection
+            .query_row("SELECT COUNT(*) FROM manager_write_requests", [], |row| {
+                row.get(0)
+            })
+            .expect("write request count");
+        assert_eq!(write_requests, 0);
+        RuntimeCore::close(4663).expect("close");
+    }
+
+    /// Builds one live review payload that carries the pool state the review
+    /// quoted.
+    ///
+    /// The payload is the *only* input the non-persistent parity replay
+    /// accepts, so the fixture has to be shaped exactly like the payload the
+    /// live review path produces.
+    fn live_review_payload() -> serde_json::Value {
+        serde_json::json!({
+            "routeAddresses": [
+                "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "poolPathKey": "pool-a|pool-b",
+            "selectedAmountRaw": "1000000",
+            "selectedProfitRaw": "25",
+            "quote": {
+                "candidate_pools": [
+                    {
+                        "poolId": "pool-a",
+                        "token0": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "token1": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                        "sqrtPriceX96": "79228162514264337593543950336",
+                        "liquidity": "1000000000000000000000000"
+                    },
+                    {
+                        "poolId": "pool-b",
+                        "token0": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "token1": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": "0x0000000000000000000000000000000000000000",
+                        "sqrtPriceX96": "79228162514264337593543950336",
+                        "liquidity": "1000000000000000000000000"
+                    }
+                ]
+            }
+        })
+    }
+
+    #[test]
+    fn review_parity_replay_payload_is_read_only_and_uses_the_review_time_state() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let (_directory, path) = database();
+        let core =
+            RuntimeCore::register(4663, "robinhood", path.clone(), "uniswap_v4").expect("core");
+
+        let payload = live_review_payload();
+        let options = serde_json::json!({
+            "payload": payload,
+            "flashFeeBps": 0,
+            "tolerance": 1e-9,
+        });
+        let result = core
+            .execute_command_with_options(
+                "review_parity_replay_payload",
+                "parity-payload-1",
+                "parity-payload-1-key",
+                true,
+                Some(&options.to_string()),
+            )
+            .expect("live parity payload replay");
+
+        assert_eq!(result["accepted"], true);
+        assert_eq!(result["command"], "review_parity_replay_payload");
+        assert_eq!(result["persisted"], false);
+        assert_eq!(result["dryRun"], true);
+        assert_eq!(result["data"]["reviewTimeStateUsed"], true);
+        assert_eq!(result["data"]["reviewTimePoolCount"], 2);
+        // The review-time state is authoritative, so the route stays
+        // comparable even though the database holds no pool snapshot and no
+        // review row at all.
+        assert_ne!(result["data"]["state"], "not_comparable");
+        assert_eq!(result["data"]["profitOnchainRaw"], 25);
+
+        // The command is read-only: it wrote no review row and no manager
+        // write request.
+        let connection = Connection::open(&path).expect("database");
+        let quick_check: String = connection
+            .query_row("PRAGMA quick_check", [], |row| row.get(0))
+            .expect("quick check");
+        assert_eq!(quick_check, "ok");
+        let write_requests: i64 = connection
+            .query_row("SELECT COUNT(*) FROM manager_write_requests", [], |row| {
+                row.get(0)
+            })
+            .expect("write request count");
+        assert_eq!(write_requests, 0);
+        RuntimeCore::close(4663).expect("close");
+    }
+
+    #[test]
+    fn review_parity_replay_payload_refuses_a_missing_payload_or_review_time_state() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let (_directory, path) = database();
+        let core =
+            RuntimeCore::register(4663, "robinhood", path.clone(), "uniswap_v4").expect("core");
+
+        // A missing payload is refused outright.
+        let missing = core
+            .execute_command_with_options(
+                "review_parity_replay_payload",
+                "parity-payload-missing",
+                "parity-payload-missing-key",
+                true,
+                Some("{}"),
+            )
+            .expect_err("missing payload must fail closed");
+        assert!(matches!(&missing, RuntimeCoreError::InvalidCommand(_)));
+        assert!(missing.to_string().contains("requires payload"));
+
+        // A payload without the pool state the review quoted is refused too:
+        // replaying it against a later snapshot would compare two different
+        // markets and could never reproduce the recorded answer.
+        let mut payload = live_review_payload();
+        payload["quote"]["candidate_pools"] = serde_json::json!([]);
+        let options = serde_json::json!({ "payload": payload });
+        let no_state = core
+            .execute_command_with_options(
+                "review_parity_replay_payload",
+                "parity-payload-no-state",
+                "parity-payload-no-state-key",
+                true,
+                Some(&options.to_string()),
+            )
+            .expect_err("missing review-time state must fail closed");
+        assert!(matches!(&no_state, RuntimeCoreError::ManagerRead { .. }));
+        assert!(no_state.to_string().contains("review-time pool state"));
+
+        let connection = Connection::open(&path).expect("database");
         let write_requests: i64 = connection
             .query_row("SELECT COUNT(*) FROM manager_write_requests", [], |row| {
                 row.get(0)

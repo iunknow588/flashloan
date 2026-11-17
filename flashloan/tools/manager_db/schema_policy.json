@@ -1,0 +1,97 @@
+{
+  "allowlist": [
+    {
+      "column": "single_tick_capacity_anchor_raw",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Publish the folded single-tick capacity of the reviewed route so the review gate can prove the final input amount still fits inside the tick range of every hop.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_single_tick_capacity_state_change_20261114.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "single_tick_capacity_binding_pool_id",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Record the hop whose folded capacity is the smallest, so the review record names the pool that binds the route.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_single_tick_capacity_state_change_20261114.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "hop_sqrt_price_limits_json",
+      "migration": "20261114_009_hop_price_limit_schema",
+      "purpose": "Carry the per-hop tick-range price limit the review proved, so the executor never falls back to a global price bound.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_hop_price_limit_and_state_validation_20261114.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "single_tick_capacity_anchor_raw",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Carry the reviewed single-tick bound into the broadcast request so the executor refuses a payload larger than the reviewed capacity.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_capacity_and_transition_gate_20261114.json",
+      "scope": "broadcast",
+      "table": "manager_v4_review_broadcast_requests"
+    },
+    {
+      "column": "single_tick_capacity_binding_pool_id",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Carry the binding pool of the reviewed single-tick bound into the broadcast request.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_capacity_and_transition_gate_20261114.json",
+      "scope": "broadcast",
+      "table": "manager_v4_review_broadcast_requests"
+    },
+    {
+      "column": "hop_sqrt_price_limits_json",
+      "migration": "20261114_009_hop_price_limit_schema",
+      "purpose": "Carry the reviewed per-hop price limits into the broadcast request so the swap calldata is built from the proven limits.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_hop_price_limit_and_state_validation_20261114.json",
+      "scope": "broadcast",
+      "table": "manager_v4_review_broadcast_requests"
+    },
+    {
+      "column": "single_tick_capacity_anchor_raw",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Keep the reviewed single-tick bound on the last durable attempt row, so an operator can prove after the fact that the broadcast amount was inside the reviewed capacity.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_single_tick_capacity_state_transition_closure_20261115.json",
+      "scope": "submission",
+      "table": "manager_cow_execution_attempts"
+    },
+    {
+      "column": "single_tick_capacity_binding_pool_id",
+      "migration": "20261114_008_single_tick_capacity_schema",
+      "purpose": "Keep the binding pool of the reviewed single-tick bound on the attempt row.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_single_tick_capacity_state_transition_closure_20261115.json",
+      "scope": "submission",
+      "table": "manager_cow_execution_attempts"
+    },
+    {
+      "column": "hop_sqrt_price_limits_json",
+      "migration": "20261114_009_hop_price_limit_schema",
+      "purpose": "Keep the reviewed per-hop price limits on the attempt row so the broadcast can be audited against the proven limits.",
+      "review_record": "plan/runtime_evidence/reports/p0_8_hop_price_limit_and_state_validation_20261114.json",
+      "scope": "submission",
+      "table": "manager_cow_execution_attempts"
+    }
+  ],
+  "description": "AC-141 registry. Every column that the manager_db migrations add to a review / submission / broadcast table must be listed here together with the review record that proves the field supports the token/pool base structure. A new column without a registry entry is rejected by flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_review_submission_broadcast_schema_extensions_are_registered.",
+  "protected_tables": {
+    "broadcast": [
+      "manager_v4_review_broadcast_requests",
+      "manager_cow_execution_attempts"
+    ],
+    "review": [
+      "manager_review_library_state",
+      "manager_v4_reviews",
+      "manager_v4_review_diagnostics",
+      "manager_v4_review_broadcast_requests"
+    ],
+    "submission": [
+      "manager_cow_execution_attempts",
+      "manager_broadcast_attempt_diagnostics",
+      "manager_broadcast_library_state"
+    ]
+  },
+  "schema": "flashloan/tools/manager_db/schema_policy.json",
+  "updated_at": "2026-11-16",
+  "version": 1
+}

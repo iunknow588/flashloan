@@ -1,0 +1,218 @@
+{
+  "authorizations": {
+    "authoritySwitch": false,
+    "broadcast": false,
+    "deployment": false,
+    "productionWrite": false,
+    "releaseBinaryReplacement": false
+  },
+  "boundaries": [
+    "本轮全部为只读 check 与 dry-run；未执行 --apply",
+    "未部署合约、未广播、未切换 Authority、未写生产库、未替换锁定 release 二进制",
+    "闭环库重物化会改写 1146 行，属于生产写入，必须在显式授权窗口内执行"
+  ],
+  "chainId": 4663,
+  "databaseReadOnlyEvidence": {
+    "mtimeUtc": "2026-11-15T06:05:16Z",
+    "path": "flashloan\\db\\local_store_4663.sqlite3",
+    "sha256": "285CE72AEF57A15EA390232D7B7B76966BD5DA09C90D55048522284B89C697A0",
+    "sha256Source": "p0_8_non_persistent_live_parity_and_healer_repair_chain_20261115.json (同一轮只读实测前后一致)",
+    "sizeBytes": 3507453952
+  },
+  "dryRunVerification": {
+    "apply": false,
+    "closedLoopRebuild": {
+      "changedRows": 1146,
+      "poolScopeChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+      "trigger": "pool_scope_drift"
+    },
+    "report": "logs\\plan\\runtime_evidence\\reports\\mainnet_arbitrage_healer_repair_20261115T003209Z.json",
+    "scopeMaterialization": [
+      {
+        "eligiblePoolCount": 2022,
+        "libraryKeys": [
+          "core",
+          "stocks"
+        ],
+        "materializedChecksum": "sha256:e8892b7c4fe59d5460204c16403955b228559bc0407890359d97d1c8e601d3ab",
+        "scope": "core4",
+        "skipReasonCounts": {
+          "no_core_anchor": 51,
+          "token_not_admitted": 2668
+        },
+        "skippedPoolCount": 2719
+      },
+      {
+        "eligiblePoolCount": 2073,
+        "libraryKeys": [
+          "core",
+          "stocks"
+        ],
+        "materializedChecksum": "sha256:41726f38ab87a96b2ca9e5b9a9192eeee2e4a4b9e8f1c30e454c8a96d8d5182f",
+        "scope": "candidate_exchange",
+        "skipReasonCounts": {
+          "token_not_admitted": 2668
+        },
+        "skippedPoolCount": 2668
+      }
+    ],
+    "steps": [
+      {
+        "layer": "tooling",
+        "ok": null,
+        "skipped": null,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "reviewIndexes",
+        "ok": false,
+        "skipped": true,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "depthSchema",
+        "ok": false,
+        "skipped": true,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "poolDepth",
+        "ok": true,
+        "skipped": true,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "databaseBaseline",
+        "ok": true,
+        "skipped": null,
+        "tool": "manager-db",
+        "trigger": null
+      },
+      {
+        "layer": "tokens",
+        "ok": true,
+        "skipped": null,
+        "tool": "token-manager",
+        "trigger": null
+      },
+      {
+        "layer": "pools",
+        "ok": true,
+        "skipped": null,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "pools",
+        "ok": true,
+        "skipped": null,
+        "tool": "pool-manager",
+        "trigger": null
+      },
+      {
+        "layer": "closedLoops",
+        "ok": true,
+        "skipped": null,
+        "tool": "composite-manager",
+        "trigger": "pool_scope_drift"
+      },
+      {
+        "layer": "broadcast",
+        "ok": null,
+        "skipped": null,
+        "tool": "broadcast-manager-api",
+        "trigger": null
+      }
+    ],
+    "stopped": null
+  },
+  "generatedAt": "2026-11-15T00:32:09Z",
+  "implementation": {
+    "changes": [
+      "新增 CLOSED_LOOP_SCOPE_LAYER 常量与 closed_loop_scope_drift()，区分闭环层 checksum 漂移与 hop 缺失",
+      "闭环重建触发条件扩展为 consumers_need_rebuild>0 || 闭环层 invalid || 闭环层 scope 漂移",
+      "healing_actions 在闭环层漂移且 hop 全部可解析时返回 repair_closed_loops",
+      "transaction_production_status 的 reason 细分为 closed_loop_library_records_a_stale_pool_scope",
+      "新增模块级 tool_entry_failed()；显式 skipped 的步骤不再算 tool failure"
+    ],
+    "script": "scripts/mainnet_arbitrage_healer.py"
+  },
+  "network": "robinhood",
+  "nextBlockingStep": {
+    "command": "python scripts/mainnet_arbitrage_healer.py --mode repair --database flashloan/db/local_store_4663.sqlite3 --window-hours 24 --manager-api <manager-api> --apply",
+    "id": "P0-8-L",
+    "name": "授权窗口内执行 scope 策略与闭环库重物化",
+    "requires": "显式生产写入授权",
+    "then": "复核层物化 manager_v4_reviews，使每个复核都带明确盈亏数值；随后检测并修复广播交易"
+  },
+  "poolAdmissionRulesVerifiedInRust": {
+    "depth": "has_liquidity != Some(1) -> liquidity_not_confirmed; liquidity_index <= 0 -> liquidity_index_not_positive",
+    "dynamicFee": "is_dynamic_fee_pool -> dynamic_fee",
+    "dynamicPipeline": "observation(candidate_exchange) -> candidate(core4 TOP-5 per direction) -> recommendation(TOP-1)",
+    "fee": "fee == 0 || fee > MAX_CANDIDATE_FIXED_FEE -> fee_not_fixed_candidate_range",
+    "hook": "pool_key.hooks != ZERO_ADDRESS -> non_zero_hook -> pool_status blocked",
+    "identity": "stored pool_id != recomputed pool_id -> identity_mismatch",
+    "source": "flashloan/tools/pool_manager/src/scope.rs::materialize_raw_pool",
+    "specialFee": "special_fee != 0 || fee > V4_MAX_FEE.min(V4_SPECIAL_FEE_THRESHOLD) -> special_fee"
+  },
+  "reportId": "p0_8_scope_drift_closed_loop_rebuild_20261115",
+  "rootCause": {
+    "allHopPoolsPresentInCandidateExchangeScopeTable": true,
+    "baselineIssues": [
+      "extension_library_contains_unanchored_tokens",
+      "core_scope_library_policy_stale",
+      "candidate_scope_library_policy_stale",
+      "latest_manager_migration_not_applied"
+    ],
+    "distinctHopPools": 65,
+    "hopsAreHealthy": true,
+    "scopePolicyDatabase": {
+      "candidate_exchange": [
+        "core",
+        "stocks",
+        "extension",
+        "test"
+      ],
+      "core4": [
+        "core"
+      ]
+    },
+    "scopePolicyRustSource": {
+      "candidate_exchange": [
+        "core",
+        "stocks"
+      ],
+      "core4": [
+        "core",
+        "stocks"
+      ]
+    },
+    "summary": "闭环库记录的是它实际所属 scope 的 checksum；生产库闭环库于 2026-11-09 物化，早于 closed_loop_pool_scope_checksum 修复落地，因此仍写着 candidate_exchange 的 checksum。"
+  },
+  "scope": "P0-8 主网 scope 漂移根因定位与自愈闭环重建",
+  "selfHealingDeadlock": {
+    "description": "闭环重建只由 consumers_need_rebuild>0 或闭环层 invalid 触发；从错误 scope 物化的闭环库自认为最新，因此重建永远不触发，漂移永久存在。"
+  },
+  "symptom": {
+    "affectedLoopCount": 0,
+    "closedLoopChecksum": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1",
+    "driftedLayers": [
+      "manager_v4_closed_loop_library_state"
+    ],
+    "expectedChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+    "missingPoolHopCount": 0,
+    "productionState": "pool_scope_drift",
+    "reasonAfter": "closed_loop_library_records_a_stale_pool_scope",
+    "reasonBefore": "candidate_and_closed_loop_scopes_disagree"
+  },
+  "tests": {
+    "file": "flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py",
+    "newTests": 8,
+    "targetedSuite": "90 passed",
+    "totalTestsInFile": 23
+  }
+}

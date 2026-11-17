@@ -1,0 +1,51 @@
+{
+  "active_sha256": {
+    "check": "57741ebcbc4217b0b4e136d4ca7855503c1defd2bb073488faeae0dd9e93b537",
+    "dev": "a7330ee67c8a33b87361af0e1cc860550664fe882842f5ddcc5c7133be6ad608",
+    "readme": "d9ce5c817315d355b38826ce36a45a33a06a7677eacba5b940477cc103fe26f8",
+    "tasks": "c0452c9b0dd61956217e310b89cf9be172d47e9fa05b9137ec0113706ec48ff1"
+  },
+  "date": "2026-11-15",
+  "next_execution_order": [
+    "P0-8 单 Tick 容量与状态突变",
+    "P0-8-L 主网 scope、闭环库与权威复核层收敛",
+    "P0-9 数据库副本与 projected target 收敛",
+    "P0-2 + P1 单一生产授权窗口"
+  ],
+  "numbering": {
+    "acceptance_ids": "AC-001..AC-162",
+    "rule": "机器证据 JSON 必须引用所有相关任务与验收编号；任务和验收允许多对多覆盖，但映射必须明确。",
+    "task_ids": "TASK-001..TASK-099"
+  },
+  "scope": {
+    "active_files": [
+      "plan/未完成任务清单_20261113.md",
+      "plan/主网编排器审查修复_check_list_20261113.md",
+      "plan/开发计划_20261113.md",
+      "plan/README.md"
+    ],
+    "excluded": [
+      "代码实现",
+      "生产数据库写入",
+      "网络请求",
+      "交易广播"
+    ],
+    "frozen_snapshots": [
+      "plan/back/冻结归档_开发计划_20261115_v9.12.md",
+      "plan/back/冻结归档_未完成任务清单_20261115_v9.12.md",
+      "plan/back/冻结归档_主网编排器审查修复_check_list_20261115_v9.12.md",
+      "plan/back/冻结归档_README_20261115_v9.12.md"
+    ]
+  },
+  "title": "主网编排器计划四份活动文档同步重构记录",
+  "validation": {
+    "acceptance_id_sequence_contiguous": true,
+    "chinese_text_integrity": true,
+    "lf_only": true,
+    "repository_path_references_resolved": true,
+    "status": "PASS",
+    "task_id_sequence_contiguous": true,
+    "utf8_without_bom": true
+  },
+  "version": "v10.1"
+}

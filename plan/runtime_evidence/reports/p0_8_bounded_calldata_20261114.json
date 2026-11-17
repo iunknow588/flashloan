@@ -1,0 +1,23 @@
+{
+  "caseCount": 3,
+  "component": "RobinhoodPausedFlashLoanExecutor.buildV4PoolManagerBoundedExactInputRouteCalldata",
+  "failureCodes": [],
+  "generatedAt": "2026-11-14T18:18:00+08:00",
+  "mode": "test",
+  "passed": true,
+  "productionWrite": false,
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "command": "npx hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js --grep V4 PoolManager|per-hop current-tick|global-extreme",
+      "exitCode": 0,
+      "passed": 10
+    },
+    {
+      "command": "npx hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js",
+      "exitCode": 0,
+      "passed": 24
+    }
+  ]
+}

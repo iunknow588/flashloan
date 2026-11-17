@@ -15,6 +15,7 @@ from core.db.token_authority import (
     require_legacy_token_write,
     require_manager_projection,
 )
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from core.local_kv import store_path
 from core.market_profiles import BUILTIN_MARKET_SUMMARIES
 
@@ -32,6 +33,15 @@ def _int(value: object, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _decimals(value: object) -> int | None:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _json_dumps(value: Any) -> str:
@@ -58,7 +68,7 @@ def seed_chain_registry_meta(database_url: str) -> None:
     payload = {
         "schema_version": "1.0",
         "primary_key": "chain_id",
-        "registry_file": "src/chains/registry.json",
+        "registry_file": "chains/registry.json",
         "defaults": {"default_chain_ids": {"dex_arbitrage": 4663, "flash_loan_pool_page": 4663, "liquidation": 4663}},
         "updated_at": _stamp(),
     }
@@ -135,14 +145,15 @@ def seed_chain_tokens(
         address = _text(token.get("token_address") or token.get("address")).lower()
         if address and address not in addresses:
             addresses.append(address)
-    existing_metadata: dict[str, dict[str, Any]] = {}
-    existing_source: dict[str, dict[str, Any]] = {}
+    existing_rows: dict[str, dict[str, Any]] = {}
     if addresses:
         placeholders = ",".join("?" for _ in addresses)
         for row in query(
             database_url,
             f"""
-            SELECT token_address, token_metadata_json, source_json
+            SELECT token_address, token_symbol, token_name, token_decimals,
+                   token_kind, is_native, is_wrapped_native, is_stable,
+                   anchor_symbol, token_metadata_json, source_json, updated_at
             FROM chain_tokens
             WHERE network = ? AND chain_id = ?
               AND lower(token_address) IN ({placeholders})
@@ -150,22 +161,58 @@ def seed_chain_tokens(
             (network, chain_id, *addresses),
         ):
             key = _text(row.get("token_address")).lower()
-            existing_metadata[key] = _json_loads(row.get("token_metadata_json"))
-            existing_source[key] = _json_loads(row.get("source_json"))
+            if key:
+                existing_rows[key] = dict(row)
     rows = []
     now = _stamp()
     for token in token_rows:
         address = _text(token.get("token_address") or token.get("address")).lower()
-        symbol = _text(token.get("token_symbol") or token.get("symbol"))
-        if not address or not symbol:
+        incoming_symbol = _text(
+            token.get("token_symbol") or token.get("symbol")
+        )
+        if not address or not incoming_symbol:
             continue
+        existing = existing_rows.get(address) or {}
+        existing_symbol = _text(existing.get("token_symbol"))
+        # A V4 index row is not authoritative token metadata. It must never
+        # replace a resolved symbol/name/decimals with factory placeholders or
+        # a missing decimals value that an earlier RPC/metadata repair fixed.
+        symbol = incoming_symbol
+        if (
+            existing_symbol
+            and not is_unresolved_placeholder_symbol(existing_symbol)
+            and (
+                not incoming_symbol
+                or is_unresolved_placeholder_symbol(incoming_symbol)
+            )
+        ):
+            symbol = existing_symbol
+        incoming_name = token.get("token_name") or token.get("name")
+        name = incoming_name
+        existing_name = existing.get("token_name")
+        if (
+            existing_name
+            and not is_unresolved_placeholder_symbol(existing_name)
+            and (
+                not incoming_name
+                or is_unresolved_placeholder_symbol(incoming_name)
+            )
+        ):
+            name = existing_name
+        incoming_decimals = token.get("token_decimals")
+        if incoming_decimals is None:
+            incoming_decimals = token.get("decimals")
+        existing_decimals = _decimals(existing.get("token_decimals"))
+        decimals = incoming_decimals
+        if existing_decimals is not None and _decimals(incoming_decimals) is None:
+            decimals = existing_decimals
         metadata = _json_loads(
             token.get("token_metadata")
             or token.get("metadata")
             or token.get("token_metadata_json")
             or {}
         )
-        existing_meta = existing_metadata.get(address) or {}
+        existing_meta = _json_loads(existing.get("token_metadata_json"))
         if not str(metadata.get("category") or "").strip():
             for keep_key, keep_value in existing_meta.items():
                 if keep_value in (None, ""):
@@ -175,15 +222,15 @@ def seed_chain_tokens(
                     metadata[keep_key] = keep_value
         source = _json_loads(token.get("source") or {})
         if not source:
-            source = dict(existing_source.get(address) or {})
+            source = _json_loads(existing.get("source_json"))
         rows.append(
             (
                 network,
                 chain_id,
                 address,
                 symbol,
-                token.get("token_name") or token.get("name"),
-                token.get("token_decimals") or token.get("decimals"),
+                name,
+                decimals,
                 _text(token.get("token_kind") or "erc20"),
                 1 if bool(token.get("is_native")) else 0,
                 1 if bool(token.get("is_wrapped_native")) else 0,

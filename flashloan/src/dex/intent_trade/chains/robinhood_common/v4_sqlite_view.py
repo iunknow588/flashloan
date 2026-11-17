@@ -115,7 +115,11 @@ def _liquidity_pool_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _index_pool_row(pool: dict[str, Any], liquidity: dict[str, Any]) -> dict[str, Any]:
+def _index_pool_row(
+    pool: dict[str, Any],
+    liquidity: dict[str, Any],
+    token_metadata: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     pool_id = _pool_id(pool)
     pool_key = _pool_key(pool)
     token0 = _text(pool.get("token0") or pool_key.get("token0") or pool_key.get("currency0"))
@@ -126,6 +130,33 @@ def _index_pool_row(pool: dict[str, Any], liquidity: dict[str, Any]) -> dict[str
     currency1_metadata = pool_key.get("currency1Metadata")
     if not isinstance(currency1_metadata, dict):
         currency1_metadata = {}
+    known_tokens = token_metadata or {}
+    token0_metadata = known_tokens.get(_lower(token0)) or {}
+    token1_metadata = known_tokens.get(_lower(token1)) or {}
+    token0_symbol = _text(
+        pool_key.get("token0Symbol")
+        or pool_key.get("currency0Symbol")
+        or currency0_metadata.get("symbol")
+        or token0_metadata.get("symbol")
+    )
+    token1_symbol = _text(
+        pool_key.get("token1Symbol")
+        or pool_key.get("currency1Symbol")
+        or currency1_metadata.get("symbol")
+        or token1_metadata.get("symbol")
+    )
+    token0_decimals = (
+        pool_key.get("token0Decimals")
+        or currency0_metadata.get("decimals")
+    )
+    if token0_decimals in (None, ""):
+        token0_decimals = token0_metadata.get("decimals")
+    token1_decimals = (
+        pool_key.get("token1Decimals")
+        or currency1_metadata.get("decimals")
+    )
+    if token1_decimals in (None, ""):
+        token1_decimals = token1_metadata.get("decimals")
     return {
         "pool": pool_id,
         "poolId": pool_id,
@@ -137,20 +168,10 @@ def _index_pool_row(pool: dict[str, Any], liquidity: dict[str, Any]) -> dict[str
         "token1": token1,
         "currency0": token0,
         "currency1": token1,
-        "token0Symbol": _text(
-            pool_key.get("token0Symbol")
-            or pool_key.get("currency0Symbol")
-            or currency0_metadata.get("symbol")
-        ),
-        "token1Symbol": _text(
-            pool_key.get("token1Symbol")
-            or pool_key.get("currency1Symbol")
-            or currency1_metadata.get("symbol")
-        ),
-        "token0Decimals": pool_key.get("token0Decimals")
-        or currency0_metadata.get("decimals"),
-        "token1Decimals": pool_key.get("token1Decimals")
-        or currency1_metadata.get("decimals"),
+        "token0Symbol": token0_symbol,
+        "token1Symbol": token1_symbol,
+        "token0Decimals": token0_decimals,
+        "token1Decimals": token1_decimals,
         "fee": pool.get("fee") if pool.get("fee") is not None else pool_key.get("fee"),
         "tickSpacing": pool.get("tick_spacing")
         if pool.get("tick_spacing") is not None
@@ -209,6 +230,11 @@ def _index_payload(
         for row in liquidity_rows
         if _pool_id(row)
     }
+    token_metadata = load_v4_chain_token_metadata(
+        network,
+        chain_id,
+        database_url=db,
+    )
     pool_keys: list[dict[str, Any]] = []
     pools: list[dict[str, Any]] = []
     pool_manager = ""
@@ -230,6 +256,7 @@ def _index_payload(
             _index_pool_row(
                 row,
                 liquidity_by_id.get(_lower(pool_id)) or {},
+                token_metadata,
             )
         )
     payload = {

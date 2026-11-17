@@ -1,0 +1,1986 @@
+{
+  "comparisonCount": 24,
+  "executableMismatchCount": 6,
+  "hasAnomaly": true,
+  "memoryDeviationBlockCount": 0,
+  "report": {
+    "amountMismatchCount": 24,
+    "arbiterVersion": "single_tick",
+    "chainId": 4663,
+    "comparisonCount": 24,
+    "comparisons": [
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "90082364070894027643425",
+          "executable": true,
+          "gasEstimate": "77761",
+          "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "90082364070894027643425",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "7176972440503664668895207718611330",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "the hop leaves the current tick range (max input 29285350934 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "7176972440503664668895207718611330"
+        },
+        "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "121437",
+          "executable": true,
+          "gasEstimate": "42458",
+          "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "61",
+            "beyondTolerance": true,
+            "ethCallValue": "121437",
+            "field": "amountOut",
+            "memoryValue": "121498",
+            "relativeDelta": 0.0005020658776276152
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "7176972440503664668895207718611330",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000000000000",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "121498",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.0,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "7176972440503664668895207718611330"
+        },
+        "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "99535856328880567486",
+          "executable": true,
+          "gasEstimate": "42873",
+          "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "99625564588277760",
+            "beyondTolerance": true,
+            "ethCallValue": "99535856328880567486",
+            "field": "amountOut",
+            "memoryValue": "99635481893468853281",
+            "relativeDelta": 0.0009999004641217904
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "25135679834810638795243695334844",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.996355037153",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "99635481893468853281",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.9963550371527247,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "25135679834810638795243695334844"
+        },
+        "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "9826041138",
+          "executable": true,
+          "gasEstimate": "42170",
+          "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "9835877",
+            "beyondTolerance": true,
+            "ethCallValue": "9826041138",
+            "field": "amountOut",
+            "memoryValue": "9835877015",
+            "relativeDelta": 0.0009999999984749708
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "25135679834810638795243695334844",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000010166862",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "9835877015",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 1.0166861556506702e-05,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "25135679834810638795243695334844"
+        },
+        "poolId": "0x02a0ae7374b8248e0e3c61028be44188690cb7959ff11209aab57bc7f7e20539",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "99533745869419870863",
+          "executable": true,
+          "gasEstimate": "42877",
+          "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "99623452331982850",
+            "beyondTolerance": true,
+            "ethCallValue": "99533745869419870863",
+            "field": "amountOut",
+            "memoryValue": "99633369321751847774",
+            "relativeDelta": 0.0009999004651771136
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "25135413344137527768443779132598",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.996344474762",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "99633369321751847774",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.996344474762076,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "25135413344137527768443779132598"
+        },
+        "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "9826249494",
+          "executable": true,
+          "gasEstimate": "42170",
+          "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "9836086",
+            "beyondTolerance": true,
+            "ethCallValue": "9826249494",
+            "field": "amountOut",
+            "memoryValue": "9836085580",
+            "relativeDelta": 0.001000000042699913
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "25135413344137527768443779132598",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000010166646",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "9836085580",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 1.0166645977711545e-05,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "25135413344137527768443779132598"
+        },
+        "poolId": "0x032ac69878e715b921b09c5aa12b40dadb7cd4caba7d268786e071fc794bee96",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "249155507513259462510649",
+          "executable": true,
+          "gasEstimate": "42905",
+          "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "249155507513259462510649",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "1250823883745981917609453980406819",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "2.495321175971",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 2.4953211759712044,
+          "reason": "the hop leaves the current tick range (max input 58160868655047 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "1250823883745981917609453980406819"
+        },
+        "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "4011553",
+          "executable": true,
+          "gasEstimate": "42518",
+          "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "100",
+            "beyondTolerance": true,
+            "ethCallValue": "4011553",
+            "field": "amountOut",
+            "memoryValue": "4011653",
+            "relativeDelta": 2.492738030931389e-05
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "1250823883745981917609453980406819",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000000000000",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "4011653",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.0,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "1250823883745981917609453980406819"
+        },
+        "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "646630585486964879032041",
+          "executable": true,
+          "gasEstimate": "42841",
+          "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "646858894639949200000",
+            "beyondTolerance": true,
+            "ethCallValue": "646630585486964879032041",
+            "field": "amountOut",
+            "memoryValue": "647277444381604782279291",
+            "relativeDelta": 0.0009993533688756055
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "2026505670515495282451806451346269",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "6.472779838992",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "647277444381604782279291",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 6.472779838991584,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "2026505670515495282451806451346269"
+        },
+        "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1511695",
+          "executable": true,
+          "gasEstimate": "59590",
+          "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "1513",
+            "beyondTolerance": true,
+            "ethCallValue": "1511695",
+            "field": "amountOut",
+            "memoryValue": "1513208",
+            "relativeDelta": 0.000999862543682032
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "2026505670515495282451806451346269",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000000000000",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1513208",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.0,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "2026505670515495282451806451346269"
+        },
+        "poolId": "0x0a4b6ca2cb423d01ff5637034964546731b8f58d933d93c495058ec5995525ae",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1840072",
+          "executable": true,
+          "gasEstimate": "47929",
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "1840072",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3499139600138066291893156",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "561.817460997222",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 561.8174609972218,
+          "reason": "the hop leaves the current tick range (max input 5521539800943 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3499139600138066291893156"
+        },
+        "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3499139600138066291893156",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "9999.999672315023",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 9999.999672315023,
+          "reason": "the hop leaves the current tick range (max input 2339 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3499139600138066291893156"
+        },
+        "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1940093",
+          "executable": true,
+          "gasEstimate": "42749",
+          "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "1940093",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3495976716765670315393472",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.757258867141",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.7572588671407348,
+          "reason": "the hop leaves the current tick range (max input 320115617035579 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3495976716765670315393472"
+        },
+        "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3495976716765670315393472",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "9999.743296662336",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 9999.743296662336,
+          "reason": "the hop leaves the current tick range (max input 76499612 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3495976716765670315393472"
+        },
+        "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3345661192130134094427837",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "pool state is not usable",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3345661192130134094427837"
+        },
+        "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3345661192130134094427837",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "pool state is not usable",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3345661192130134094427837"
+        },
+        "poolId": "0x7b08d707a0e49290b221fa9256ad0b55361d0ad8ed4b43bc795af4125bc2f6a3",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1947417",
+          "executable": true,
+          "gasEstimate": "41788",
+          "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "101",
+            "beyondTolerance": true,
+            "ethCallValue": "1947417",
+            "field": "amountOut",
+            "memoryValue": "1947518",
+            "relativeDelta": 5.186088138851605e-05
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3496756478873409464054481",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.071885853480",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "1947518",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 0.07188585348019956,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3496756478873409464054481"
+        },
+        "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "20411689502355444440",
+          "executable": true,
+          "gasEstimate": "3861332",
+          "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "20411689502355444440",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "3496756478873409464054481",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "9997.344850629419",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 9997.344850629419,
+          "reason": "the hop leaves the current tick range (max input 40552675 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "3496756478873409464054481"
+        },
+        "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "294031093720278",
+          "executable": true,
+          "gasEstimate": "42852",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "147236696717",
+            "beyondTolerance": true,
+            "ethCallValue": "294031093720278",
+            "field": "amountOut",
+            "memoryValue": "294178330416995",
+            "relativeDelta": 0.00050050150365696
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "43036539623492203628755082752",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000017125871",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "294178330416995",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 1.7125870502529814e-05,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "43036539623492203628755082752"
+        },
+        "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "tick_boundary",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "3377242260252964",
+          "executable": true,
+          "gasEstimate": "42242",
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": "1691161251303",
+            "beyondTolerance": true,
+            "ethCallValue": "3377242260252964",
+            "field": "amountOut",
+            "memoryValue": "3378933421504267",
+            "relativeDelta": 0.0005005015016099702
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "43036539623492203628755082752",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "0.000058041336",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "true",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "3378933421504267",
+          "executable": true,
+          "gasEstimate": null,
+          "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 5.8041335651531236e-05,
+          "reason": null,
+          "sourceTag": "memory",
+          "sqrtPriceX96": "43036539623492203628755082752"
+        },
+        "poolId": "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "297336929907128902727188198433",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "37.861786621699",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 37.861786621699125,
+          "reason": "the hop leaves the current tick range (max input 63836539759 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "297336929907128902727188198433"
+        },
+        "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": true,
+        "attribution": "tick_range_gate",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": "70775587840025",
+          "executable": true,
+          "gasEstimate": "42459",
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": null,
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": true,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": "70775587840025",
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "297336929907128902727188198433",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": "2.697694877549",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "1",
+            "beyondTolerance": true,
+            "ethCallValue": "true",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": 1.0
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": 2.697694877549194,
+          "reason": "the hop leaves the current tick range (max input 740311467125496 raw)",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "297336929907128902727188198433"
+        },
+        "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "1176933914694696048848462112166",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "pool state is not usable",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "1176933914694696048848462112166"
+        },
+        "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": true
+      },
+      {
+        "anomaly": false,
+        "attribution": "not_executable",
+        "ethCall": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "quoter reverted: swap not executable at this amount",
+          "sourceTag": "eth_call",
+          "sqrtPriceX96": null
+        },
+        "ethCallTrust": "trusted",
+        "ethCallTrustReason": "none",
+        "executableMismatch": false,
+        "fields": [
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "amountOut",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": "0",
+            "beyondTolerance": false,
+            "ethCallValue": "1000000000000000",
+            "field": "amountIn",
+            "memoryValue": "1000000000000000",
+            "relativeDelta": 0.0
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "sqrtPriceX96",
+            "memoryValue": "1176933914694696048848462112166",
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": true,
+            "ethCallValue": null,
+            "field": "priceImpact",
+            "memoryValue": null,
+            "relativeDelta": null
+          },
+          {
+            "absoluteDelta": null,
+            "beyondTolerance": false,
+            "ethCallValue": "false",
+            "field": "executable",
+            "memoryValue": "false",
+            "relativeDelta": null
+          }
+        ],
+        "memory": {
+          "amountInRaw": "1000000000000000",
+          "amountOutRaw": null,
+          "executable": false,
+          "gasEstimate": null,
+          "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+          "poolStateVersion": "block:113647275",
+          "priceImpactBps": null,
+          "reason": "pool state is not usable",
+          "sourceTag": "memory",
+          "sqrtPriceX96": "1176933914694696048848462112166"
+        },
+        "poolId": "0xd4603bedffb6429c700f24026d29d545149c7c973ddde2897294d9d6b7e1fc7e",
+        "poolStateVersion": "block:113647275",
+        "zeroForOne": false
+      }
+    ],
+    "executableMismatchCount": 6,
+    "generatedAt": "2026-11-13T20:54:22.236091900+00:00",
+    "ledger": {
+      "entries": [
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4::zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x01f82f366164d570908f7144eb61919331f7dcc245553f8cdaa9e302b6ef27f4",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": true
+        },
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512::zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x086a3368b2604426a6deea7848154c45632dba6cea5a6afbdb88d523ccf3c512",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": true
+        },
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb::zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": true
+        },
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7::zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": true
+        },
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6::!zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": false
+        },
+        {
+          "affectedPath": "p0_1://arch4_shadow_diff",
+          "anomalyId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e::!zfo",
+          "attribution": "tick_range_gate",
+          "field": "amountOut",
+          "fields": [
+            "amountOut",
+            "sqrtPriceX96",
+            "priceImpact",
+            "executable"
+          ],
+          "firstSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "landedFix": "accepted_limit: version 1 deliberately fails closed when the final input cannot be proved inside one tick range; no arithmetic change was landed",
+          "lastSeenAt": "2026-11-13T20:54:22.236091900+00:00",
+          "magnitude": "1",
+          "observationCount": 1,
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e",
+          "regressionResult": "regression: the memory side remains non-executable, the chain-side fill is attributed to tick_range_gate, and memoryDeviationBlockCount remains zero",
+          "relativeMagnitude": 1.0,
+          "status": "explained",
+          "zeroForOne": false
+        }
+      ]
+    },
+    "liveState": true,
+    "maxRelativeDelta": 1.0,
+    "memoryDeviationBlockCount": 0,
+    "network": "robinhood",
+    "protocol": "uniswap_v4",
+    "unexplainedCount": 0,
+    "untrustedChainCount": 0
+  },
+  "skippedReason": "",
+  "unexplainedCount": 0,
+  "untrustedChainCount": 0
+}

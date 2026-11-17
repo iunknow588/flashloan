@@ -1,0 +1,177 @@
+{
+  "batch": "S2.2_capacity_gate_and_orchestrator_hardening",
+  "generatedAt": "2026-11-11T10:26:31Z",
+  "mode": "production_read_only_check",
+  "sourceReport": "logs\\plan\\runtime_evidence\\reports\\mainnet_arbitrage_healer_check_20261111T102631Z.json",
+  "network": "robinhood",
+  "chainId": 4663,
+  "completedItems": {
+    "AUD-P0-2": {
+      "title": "pool scope checksum cross-validation",
+      "implementation": "healer.py:pool_scope_drift_audit (four-way checksum)",
+      "productionResult": {
+        "code": "pool_scope_drift",
+        "expectedChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+        "layerChecksums": {
+          "pool_scope_config": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "manager_dex_candidate_library_state": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "manager_v4_closed_loop_library_state": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1",
+          "manager_market_observation_library_state": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1"
+        },
+        "driftedLayers": [
+          "manager_market_observation_library_state",
+          "manager_v4_closed_loop_library_state"
+        ],
+        "closedLoopHopCount": 318,
+        "missingPoolHopCount": 38,
+        "missingPoolHopRatio": 0.11949685534591195,
+        "affectedLoopCount": 38
+      },
+      "factCorrection": "previous '42/106 zero-hit loops' was wrong: 0 loops are fully detached, 38 loops are partially detached (38 of 318 hops = 11.9%)"
+    },
+    "AUD-P0-3": {
+      "title": "candidate validity from the real table",
+      "implementation": "healer.py:candidate_pool_inventory",
+      "productionResult": {
+        "rowCount": 114,
+        "poolCount": 93,
+        "pairCount": 42,
+        "source": "manager_dex_candidate_pools"
+      },
+      "stateCounter": 114
+    },
+    "AUD-P1-1": {
+      "title": "closed-loop rebuild trigger",
+      "implementation": "healer.py:repair - trigger is consumers_need_rebuild, not before.pools.valid"
+    },
+    "AUD-P1-2": {
+      "title": "three-way review missing counters",
+      "productionResult": {
+        "missingValue": 70,
+        "bestAmountMissing": 1356,
+        "positiveEstimateOnly": 76,
+        "ladderIncomplete": 1113
+      }
+    },
+    "AUD-P3-2": {
+      "title": "best_amount_too_small -> pool_depth_insufficient backtrace",
+      "productionResult": {
+        "pool_depth_insufficient": 0,
+        "gas_budget_exceeded": 0,
+        "best_amount_unresolved": 1356
+      },
+      "dominantCause": "best_amount_unresolved"
+    },
+    "AUD-P3-3": {
+      "title": "capacity gate in the broadcast path",
+      "implementation": [
+        "v4_pool_capacity.py:capacity_gate",
+        "dex_opportunity_helpers.py:_capacity_gate_verdict",
+        "dex_opportunity_review_engine_fixed.py: capacity gate block",
+        "rust_closed_loop.py:_native_worker_evidence / _route_capacity_gate",
+        "worker_pool.rs:capacity_gate_blocks_broadcast",
+        "storage_cow_policy.py:_PREFLIGHT_BLOCKED_AUTO_REASONS"
+      ],
+      "semantics": {
+        "knownInsufficient": "blocks (capacity_insufficient)",
+        "unknownNotMeasured": "reports unknown, does NOT block by default",
+        "promotionSwitch": "DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED=1",
+        "rationale": "production depth has not been rolled out (capacityRowCount=0); blocking on an unmeasured capacity would halt 100% of routes"
+      }
+    },
+    "AUD-P3-4": {
+      "title": "cross-language shared constants",
+      "rustAdmissionFloorBefore": 1,
+      "rustAdmissionFloorAfter": 100,
+      "sharedBoundary": "DEPTH_BAND_SHALLOW_CAPACITY",
+      "healerNowImportsSharedConstant": true
+    },
+    "AUD-P3-5": {
+      "title": "manager / legacy review source layering",
+      "productionResult": {
+        "managerReviewRows": 0,
+        "managerLibraryRows": 0,
+        "managerLibraryLoopCount": 0,
+        "managerLibraryPresent": false,
+        "legacyReviewRows": 19773,
+        "legacyIsAuditSource": true,
+        "managerIsMaterializedSource": true,
+        "sourcesDisagree": true,
+        "code": "review_library_not_materialized",
+        "managerState": null
+      }
+    },
+    "AUD-P2-2": {
+      "title": "rust max_workers default 3 -> 16"
+    },
+    "AUD-P2-3": {
+      "title": "duplicate bestAmount write removed"
+    },
+    "AUD-P2-4": {
+      "title": "duplicate time.sleep removed (poll interval was 2x)"
+    },
+    "AUD-P2-6": {
+      "title": "run_tool structured summary"
+    },
+    "AUD-P2-7": {
+      "title": "invalidLayers + per-layer code"
+    },
+    "AUD-P2-8": {
+      "title": "epochFallback explicit and bounded"
+    }
+  },
+  "productionState": {
+    "state": "pool_scope_drift",
+    "healthy": false,
+    "reason": "candidate_and_closed_loop_scopes_disagree",
+    "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+    "reviewAgeSeconds": 34244.318695,
+    "reviewFreshnessThresholdSeconds": 600,
+    "executablePositiveReviews": 0,
+    "transactionRecords": 0,
+    "latestAttemptAt": null,
+    "bestAmountMissing": 1356,
+    "poolScopeDrift": true,
+    "poolScopeDriftedLayers": [
+      "manager_market_observation_library_state",
+      "manager_v4_closed_loop_library_state"
+    ],
+    "poolScopeMissingHopCount": 38,
+    "poolScopeAffectedLoopCount": 38
+  },
+  "blockers": [
+    "pools",
+    "reviews",
+    "broadcast"
+  ],
+  "blockerCodes": {
+    "pools": "pool_scope_drift",
+    "reviews": "best_amount_missing",
+    "broadcast": "layer_invalid"
+  },
+  "invalidLayers": [
+    "pools",
+    "reviews",
+    "broadcast"
+  ],
+  "safeToAutoBroadcast": false,
+  "regression": {
+    "healerUnitTests": "63 passed",
+    "poolIndexTests": "19 passed",
+    "poolCapacityTests": "19 passed",
+    "autoExecuteTests": "72 passed",
+    "workerBridgeTests": "66 passed",
+    "mergedPython": "239 passed (5 files)",
+    "cargoTestPoolManager": "29 passed",
+    "cargoBuildReleaseRsSrc": "success"
+  },
+  "constraintsHonoured": [
+    "no production writes (mode=check only)",
+    "no index creation",
+    "no closed-loop rebuild",
+    "no authority switch",
+    "no real broadcast",
+    "daemon and run.py (PID 30304) neither stopped nor restarted",
+    "no commit, no branch"
+  ]
+}

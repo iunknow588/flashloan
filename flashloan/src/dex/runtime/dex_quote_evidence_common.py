@@ -430,6 +430,7 @@ def _load_v4_quote_adapter(*, network: str | None = None, chain_id: int | None =
             "UNISWAP_V4_QUOTE_ADAPTER",
             "DEX_V4_QUOTE_ADAPTER",
         )
+        chain_network = "robinhood-testnet"
     elif is_mainnet:
         preferred_names = (
             "ROBINHOOD_MAINNET_V4_QUOTE_ADAPTER",
@@ -437,18 +438,31 @@ def _load_v4_quote_adapter(*, network: str | None = None, chain_id: int | None =
             "UNISWAP_V4_QUOTE_ADAPTER",
             "DEX_V4_QUOTE_ADAPTER",
         )
+        chain_network = "robinhood"
     else:
         preferred_names = (
             "ROBINHOOD_V4_QUOTE_ADAPTER",
             "UNISWAP_V4_QUOTE_ADAPTER",
             "DEX_V4_QUOTE_ADAPTER",
         )
+        chain_network = ""
     reference = ""
     for name in preferred_names:
         candidate = str(os.getenv(name) or "").strip()
         if candidate:
             reference = candidate
             break
+    if not reference and chain_network:
+        try:
+            from core.chain_data_registry import chain_value
+
+            reference = chain_value(
+                chain_network,
+                "defaults.v4_quote_adapter",
+                *preferred_names,
+            )
+        except Exception:
+            reference = ""
     if reference:
         module_name, separator, attr_path = str(reference).strip().partition(":")
         if not module_name or not separator or not attr_path:

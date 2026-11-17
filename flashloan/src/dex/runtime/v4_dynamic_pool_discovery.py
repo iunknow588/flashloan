@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
     MIN_DIRECTION_CANDIDATE_POOLS,
@@ -241,7 +242,7 @@ def _usable_candidate_pool(row: dict[str, Any]) -> bool:
         fee = int(fee)
     except (TypeError, ValueError):
         return False
-    if fee <= 0 or fee > 3000 or bool(fee & 8388608):
+    if fee <= 0 or fee > MAX_CANDIDATE_FIXED_FEE or bool(fee & 8388608):
         return False
     hooks = _text(row.get("hooks"))
     return hooks in {"", ZERO_ADDRESS}
@@ -479,7 +480,7 @@ def _new_pool_candidates(
           ON s.network = p.network AND s.chain_id = p.chain_id
          AND s.protocol = p.protocol AND s.pool_id = p.pool_id
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
-          AND p.fee > 0 AND p.fee <= 3000 AND (p.fee & 8388608) = 0
+          AND p.fee > 0 AND p.fee <= {MAX_CANDIDATE_FIXED_FEE} AND (p.fee & 8388608) = 0
           AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = ?)
           AND (s.pool_id IS NULL OR s.has_liquidity IS NULL)
           AND {pair_sql}

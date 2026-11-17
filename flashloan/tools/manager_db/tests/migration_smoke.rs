@@ -2,7 +2,7 @@ use manager_db::{
     migrate, migration_checksum, preflight_read_only, schema_checksum, MigrationError,
     BROADCAST_MIGRATION_ID, CANDIDATE_EDGE_MIGRATION_ID, CANDIDATE_EXCHANGE_MIGRATION_ID,
     CLOSED_LOOP_MIGRATION_ID, COMPOSITE_MIGRATION_ID, LATEST_MIGRATION_ID, MIGRATION_ID,
-    MIGRATION_IDS, REVIEW_MIGRATION_ID,
+    MIGRATION_IDS, REVIEW_MIGRATION_ID, USDG_VALUATION_MIGRATION_ID,
 };
 use rusqlite::Connection;
 use std::path::Path;
@@ -14,6 +14,7 @@ const TARGET_TABLES: &[&str] = &[
     "token_test",
     "token_library_state",
     "token_admission_events",
+    "token_usdg_valuations",
     "manager_write_requests",
     "token_library_catalog",
     "pool_scope_config",
@@ -84,6 +85,10 @@ fn migration_is_idempotent_and_creates_only_empty_control_schema() {
     assert_eq!(first.migrations[4].migration_id, REVIEW_MIGRATION_ID);
     assert_eq!(first.migrations[5].migration_id, BROADCAST_MIGRATION_ID);
     assert_eq!(first.migrations[6].migration_id, COMPOSITE_MIGRATION_ID);
+    assert_eq!(
+        first.migrations[7].migration_id,
+        USDG_VALUATION_MIGRATION_ID
+    );
 
     let second = migrate(&path).unwrap();
     assert!(!second.applied_now);
@@ -108,6 +113,7 @@ fn migration_is_idempotent_and_creates_only_empty_control_schema() {
         "token_test",
         "token_library_state",
         "token_admission_events",
+        "token_usdg_valuations",
         "manager_write_requests",
         "pool_scope_config",
         "v4_exchange_pools_core4",

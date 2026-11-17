@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-11-14T10:08:57.438571400+00:00",
+  "stage": "P0-8",
+  "component": "pool_manager.state_transition",
+  "mode": "test",
+  "productionWrite": false,
+  "passed": true,
+  "caseCount": 6,
+  "cases": [
+    {
+      "name": "unchanged",
+      "verdict": {
+        "kind": "unchanged",
+        "reason": "same_input_output_unchanged",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79378162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "10000000000000000000",
+        "boundarySqrtPriceX96": "79228162514264337593543950336",
+        "expectedAmountOutRaw": "1000778646484",
+        "currentAmountOutRaw": "1000778646484",
+        "expectedCapacityRaw": "18953746130763647",
+        "exactCurrentCapacityRaw": "18953746130763647",
+        "candidateCapacityRaw": "18953746130763647",
+        "capacityBasis": "expected_state",
+        "capacityMultiplierBps": 10000,
+        "sqrtPriceLimitX96": "79228162514264337593543950336",
+        "broadcastAllowed": true
+      }
+    },
+    {
+      "name": "adverse_exact_output",
+      "verdict": {
+        "kind": "adverse",
+        "reason": "adverse_price_move",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79328162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "10000000000000000000",
+        "boundarySqrtPriceX96": "79228162514264337593543950336",
+        "expectedAmountOutRaw": "1000778646484",
+        "currentAmountOutRaw": "999518270366",
+        "expectedCapacityRaw": "18953746130763647",
+        "exactCurrentCapacityRaw": "12643795031819733",
+        "candidateCapacityRaw": null,
+        "capacityBasis": "unavailable",
+        "capacityMultiplierBps": null,
+        "sqrtPriceLimitX96": "79228162514264337593543950336",
+        "broadcastAllowed": false
+      }
+    },
+    {
+      "name": "favorable_token0",
+      "verdict": {
+        "kind": "favorable",
+        "reason": "favorable_price_move",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79428162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "10000000000000000000",
+        "boundarySqrtPriceX96": "79228162514264337593543950336",
+        "expectedAmountOutRaw": "1000778646484",
+        "currentAmountOutRaw": "1002039816759",
+        "expectedCapacityRaw": "18953746130763647",
+        "exactCurrentCapacityRaw": "25255753005770856",
+        "candidateCapacityRaw": "25255753005770855",
+        "capacityBasis": "price_distance_token0",
+        "capacityMultiplierBps": 13324,
+        "sqrtPriceLimitX96": "79228162514264337593543950336",
+        "broadcastAllowed": true
+      }
+    },
+    {
+      "name": "favorable_token1",
+      "verdict": {
+        "kind": "favorable",
+        "reason": "favorable_price_move",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79328162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "10000000000000000000",
+        "boundarySqrtPriceX96": "79466191966197645195421774833",
+        "expectedAmountOutRaw": "993235422523",
+        "currentAmountOutRaw": "994487876074",
+        "expectedCapacityRaw": "11144311837627858",
+        "exactCurrentCapacityRaw": "17474188710013108",
+        "candidateCapacityRaw": "17474188710013108",
+        "capacityBasis": "price_distance_token1",
+        "capacityMultiplierBps": 15679,
+        "sqrtPriceLimitX96": "79466191966197645195421774833",
+        "broadcastAllowed": true
+      }
+    },
+    {
+      "name": "liquidity_changed",
+      "verdict": {
+        "kind": "favorable",
+        "reason": "favorable_price_move",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79428162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "20000000000000000000",
+        "boundarySqrtPriceX96": "79228162514264337593543950336",
+        "expectedAmountOutRaw": "1000778646484",
+        "currentAmountOutRaw": "1002039866836",
+        "expectedCapacityRaw": "18953746130763647",
+        "exactCurrentCapacityRaw": "50511506011541711",
+        "candidateCapacityRaw": "37907492261527294",
+        "capacityBasis": "exact_current_liquidity",
+        "capacityMultiplierBps": 20000,
+        "sqrtPriceLimitX96": "79228162514264337593543950336",
+        "broadcastAllowed": true
+      }
+    },
+    {
+      "name": "crossed_tick",
+      "verdict": {
+        "kind": "fatal",
+        "reason": "tick_range_changed",
+        "expectedSqrtPriceX96": "79378162514264337593543950336",
+        "currentSqrtPriceX96": "79228162514264337593543950336",
+        "expectedLiquidity": "10000000000000000000",
+        "currentLiquidity": "10000000000000000000",
+        "boundarySqrtPriceX96": null,
+        "expectedAmountOutRaw": null,
+        "currentAmountOutRaw": null,
+        "expectedCapacityRaw": "18953746130763647",
+        "exactCurrentCapacityRaw": null,
+        "candidateCapacityRaw": null,
+        "capacityBasis": "unavailable",
+        "capacityMultiplierBps": null,
+        "sqrtPriceLimitX96": null,
+        "broadcastAllowed": false
+      }
+    }
+  ]
+}

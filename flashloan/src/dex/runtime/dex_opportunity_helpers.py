@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -75,6 +75,189 @@ def _evidence_has_cache_source(evidence: dict[str, Any]) -> bool:
     return False
 
 
+_OFFCHAIN_GAS_ESTIMATE_ETH_ENV = "FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_ETH"
+# Historical baseline from confirmed mainnet cow execution attempts 69-74
+# (chain 4663): gasUsed 270,666..345,540 and gasCostEth 5.45e-06..6.92e-06.
+# Median is ~6.02e-06 ETH.  This is an OFF-CHAIN estimation only: gas is a
+# sunk cost on-chain and the executor contract must never use it as a profit
+# requirement.  Override with FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_ETH when the
+# network fee environment changes.
+_OFFCHAIN_GAS_ESTIMATE_ETH_DEFAULT = 6.2e-06
+_OFFCHAIN_GAS_ESTIMATE_SOURCE = "historical_broadcast_estimate"
+# Profit currencies without a trusted gas conversion (e.g. stock tokens) use a
+# fixed placeholder cost.  It is 0 for now and can be calibrated later from
+# observed experience via FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED.
+_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED_ENV = "FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED"
+_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED_DEFAULT = 0.0
+_ETH_PROFIT_SYMBOLS = {"ETH", "WETH"}
+_STABLE_PROFIT_SYMBOLS = {
+    "USD",
+    "USDG",
+    "USDC",
+    "USDT",
+    "DAI",
+    "USDE",
+    "PYUSD",
+    "FDUSD",
+    "TUSD",
+    "CRCL",
+    "USDS",
+}
+
+
+def _offchain_gas_estimate_eth(
+    evidence: dict[str, Any],
+    costs: dict[str, Any],
+) -> tuple[float | None, str]:
+    """Return an off-chain gas estimate in ETH plus its provenance.
+
+    Priority: real receipt/estimate gas from the evidence, a historical
+    estimate injected by the review layer, an explicit environment override,
+    then the historical broadcast baseline.  The value is only consumed by
+    the off-chain broadcast gate; it is never sent to the contract.
+    """
+    live_value = _number_or_none(costs.get("gasCostEth"))
+    if live_value is not None and live_value >= 0:
+        return live_value, "receipt_or_estimate_gas"
+    historical_value = _number_or_none(
+        costs.get("gasEstimateEth")
+        if costs.get("gasEstimateEth") is not None
+        else costs.get("estimatedGasCostEth")
+    )
+    if historical_value is not None and historical_value >= 0:
+        return historical_value, str(costs.get("gasEstimateSource") or "review_estimate")
+    configured = _number_or_none(os.getenv(_OFFCHAIN_GAS_ESTIMATE_ETH_ENV, ""))
+    if configured is not None and configured >= 0:
+        return configured, "env_configured"
+    return _OFFCHAIN_GAS_ESTIMATE_ETH_DEFAULT, _OFFCHAIN_GAS_ESTIMATE_SOURCE
+
+
+def _offchain_unconverted_gas_cost() -> tuple[float, str]:
+    """Return the fixed gas cost used for profit currencies without conversion."""
+    configured = _number_or_none(os.getenv(_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED_ENV, ""))
+    if configured is not None and configured >= 0:
+        return configured, "env_configured"
+    return _OFFCHAIN_GAS_ESTIMATE_UNCONVERTED_DEFAULT, "default_zero_placeholder"
+
+
+def _offchain_net_after_gas(
+    evidence: dict[str, Any],
+    costs: dict[str, Any],
+    net_profit_amount: float,
+) -> tuple[float | None, str, str]:
+    """Return (net after estimated gas, currency, unavailable reason).
+
+    ETH/WETH profits are compared directly against the ETH gas estimate.
+    USD-basis evidence (stable borrow) compares its provided USD net profit
+    with the USD gas reserve.  When no trusted conversion exists, use the
+    configured fixed unconverted gas cost (currently zero) instead of treating
+    the missing conversion as a review failure.
+    """
+    symbol = str(costs.get("netProfitAmountSymbol") or "").strip().upper()
+    profit_basis = str(costs.get("profitBasis") or "").strip().lower()
+    if symbol in _ETH_PROFIT_SYMBOLS:
+        gas_eth, _gas_source = _offchain_gas_estimate_eth(evidence, costs)
+        if gas_eth is None:
+            return None, "ETH", "gas_estimate_unavailable"
+        return net_profit_amount - gas_eth, "ETH", ""
+    if profit_basis == "usd" or symbol in _STABLE_PROFIT_SYMBOLS:
+        submission_usd = _number_or_none(costs.get("submissionNetProfitUsd"))
+        gas_usd = _number_or_none(costs.get("gasReserveUsd"))
+        if submission_usd is not None and gas_usd is not None:
+            return submission_usd - gas_usd, "USD", ""
+        net_usd = _number_or_none(costs.get("netProfitUsd"))
+        if net_usd is not None:
+            return net_usd, "USD", ""
+        fixed_cost, _fixed_source = _offchain_unconverted_gas_cost()
+        return net_profit_amount - fixed_cost, symbol or "USD", ""
+    fixed_cost, _fixed_source = _offchain_unconverted_gas_cost()
+    return net_profit_amount - fixed_cost, symbol or "unknown", ""
+
+
+def _offchain_gas_skip_reason(evidence: dict[str, Any]) -> str | None:
+    """Return the concrete off-chain gas-gate skip reason, or ``None``.
+
+    The gate only evaluates evidence that already passed the live-review
+    structural checks, so callers can surface this reason without masking
+    unrelated review failures.  Evidence that does not expose a profit
+    currency keeps the legacy gross-profit decision.
+    """
+    if not isinstance(evidence, dict):
+        return None
+    if str(evidence.get("status") or "").strip().lower() != "live_verified":
+        return None
+    if not bool(evidence.get("readyForTransactionPreflight")):
+        return None
+    blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+    if blockers:
+        return None
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    symbol = str(costs.get("netProfitAmountSymbol") or "").strip().upper()
+    profit_basis = str(costs.get("profitBasis") or "").strip().lower()
+    has_currency_info = bool(symbol) or profit_basis == "usd" or (
+        costs.get("submissionNetProfitUsd") is not None
+        and costs.get("gasReserveUsd") is not None
+    )
+    if not has_currency_info:
+        # Legacy/synthetic rows without a profit currency cannot be converted
+        # safely; keep the historical gross-profit decision instead of
+        # inventing a rate.
+        return None
+    try:
+        net_profit_amount = float(
+            costs.get("netProfitAmount")
+            or evidence.get("referenceNetProfitAmount")
+            or evidence.get("profitableAmount")
+            or evidence.get("profitHuman")
+            or evidence.get("profit")
+            or 0
+        )
+    except (TypeError, ValueError):
+        return None
+    if net_profit_amount <= 0:
+        return None
+    net_after_gas, _currency, reason = _offchain_net_after_gas(evidence, costs, net_profit_amount)
+    if reason:
+        return reason
+    if net_after_gas is not None and net_after_gas <= 0:
+        return "expected_loss_after_gas_before_broadcast"
+    return None
+
+
+def _offchain_gas_gate_evidence(
+    evidence: dict[str, Any],
+    net_profit_amount: float | None,
+) -> dict[str, Any]:
+    """Return an off-chain gas-gate annotation for a review evidence row.
+
+    The executor contract intentionally ignores gas; this annotation only
+    documents the broadcast-side decision so review records expose why a
+    gross-positive route was not sent to the broadcast path.
+    """
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    reason = _offchain_gas_skip_reason(evidence)
+    net_after_gas, currency, unavailable_reason = _offchain_net_after_gas(
+        evidence,
+        costs,
+        net_profit_amount if net_profit_amount is not None else 0.0,
+    )
+    gas_estimate, gas_source = _offchain_gas_estimate_eth(evidence, costs)
+    annotation = {
+        "blocked": bool(reason),
+        "reason": reason,
+        "gasEstimateEth": gas_estimate,
+        "gasEstimateSource": gas_source,
+        "netAfterGas": net_after_gas if reason else None,
+        "currency": currency if reason else None,
+        "conversionUnavailableReason": unavailable_reason or None,
+    }
+    if currency not in {"ETH", "USD"}:
+        fixed_cost, fixed_source = _offchain_unconverted_gas_cost()
+        annotation["unconvertedFixedGasCost"] = fixed_cost
+        annotation["unconvertedFixedGasCostSource"] = fixed_source
+    return annotation
+
+
 def _evidence_review_consistent(evidence: dict[str, Any]) -> bool:
     """Return whether a row binds positive profit to a successful chain review.
 
@@ -82,6 +265,10 @@ def _evidence_review_consistent(evidence: dict[str, Any]) -> bool:
     reference or an earlier static estimate.  It is only executable when the
     same evidence also carries a live-verified review, an open transaction
     preflight, and no chain-review blockers.
+
+    Off-chain gas gate: an expected net loss after estimated gas is not
+    executable.  The executor contract deliberately does not apply this
+    rule because gas is already sunk on-chain; the two algorithms differ.
     """
     if not isinstance(evidence, dict):
         return False
@@ -103,6 +290,8 @@ def _evidence_review_consistent(evidence: dict[str, Any]) -> bool:
             or 0
         )
     except (TypeError, ValueError):
+        return False
+    if _offchain_gas_skip_reason(evidence):
         return False
     return net_profit_amount > 0
 
@@ -1229,3 +1418,121 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     route["priceEvidenceMode"] = analysis["priceEvidenceMode"]
     return route
 
+
+# ---------------------------------------------------------------------------
+# Capacity gate
+# ---------------------------------------------------------------------------
+#
+# A route is only executable when every hop can carry the intended position
+# inside the epsilon price-impact budget. The gate is expressed in the hop's
+# own token units, so it never depends on a USD quote.
+#
+# The required amount is derived from the expected profit and the profit rate
+# per unit of trade size:
+#
+#     required_amount = gas_profit / unit_profit
+#
+# A pool whose capacity is below that amount can only produce a position
+# whose profit never covers the gas estimate, which makes it a pool-selection
+# defect rather than a market condition.
+
+def _route_capacity_raw(route: dict[str, Any], input_symbol: str) -> int | None:
+    """Return the binding on-chain capacity of a route, in raw token units.
+
+    The value comes from the pool balances recorded by the pool index, which
+    carry the token-denominated capacity computed from the live on-chain
+    ``sqrtPriceX96`` / ``tick`` / ``liquidity`` state. When no capacity has
+    been observed the route has no usable depth evidence and the gate must
+    stay undecided.
+    """
+    pools = _pool_map(route)
+    if not pools:
+        return None
+    best: int | None = None
+    for pool in pools.values():
+        if not isinstance(pool, dict):
+            continue
+        balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
+        symbol = str(input_symbol or "").strip().upper()
+        for index in (0, 1):
+            pool_symbol = str(pool.get(f"token{index}Symbol") or "").strip().upper()
+            if pool_symbol and symbol and pool_symbol != symbol:
+                continue
+            for key in (f"capacityToken{index}Raw",):
+                raw = balances.get(key)
+                if raw in (None, ""):
+                    continue
+                try:
+                    value = int(raw)
+                except (TypeError, ValueError):
+                    continue
+                if value > 0 and (best is None or value < best):
+                    best = value
+        raw = balances.get("capacityRaw")
+        if raw not in (None, ""):
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                value = 0
+            if value > 0 and (best is None or value < best):
+                best = value
+    return best
+
+
+def _route_unit_profit(route: dict[str, Any]) -> float | None:
+    """Return the expected profit produced by one unit of trade size."""
+    for key in ("unitProfit", "unitProfitAmount", "profitPerUnit", "profitPerToken"):
+        value = _number_or_none(route.get(key))
+        if value is not None and value > 0:
+            return value
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    for key in ("unitProfit", "unitProfitAmount", "profitPerUnit", "profitPerToken"):
+        value = _number_or_none(analysis.get(key))
+        if value is not None and value > 0:
+            return value
+    return None
+
+
+def _route_gas_budget(route: dict[str, Any]) -> float | None:
+    """Return the gas cost that the position has to cover."""
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    for source in (route, analysis):
+        for key in ("gasEstimateEth", "gasReserve", "gasCost", "gasAmount"):
+            value = _number_or_none(source.get(key))
+            if value is not None and value > 0:
+                return value
+    return None
+
+
+def _capacity_gate_verdict(
+    route: dict[str, Any],
+    *,
+    input_symbol: str,
+    gas_budget: float | None = None,
+    unit_profit: float | None = None,
+) -> dict[str, Any]:
+    """Return the capacity-gate verdict for one route.
+
+    The gate never turns a missing number into a market conclusion. A known
+    capacity that is smaller than the required amount blocks the route: that
+    is a pool-selection defect. An unmeasured capacity is reported as
+    ``unknown`` without blocking, because the pool index may simply have not
+    published a capacity for that hop yet; the environment switch
+    ``DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED`` promotes that case into a
+    block once the depth rollout has landed.
+    """
+    from dex.intent_trade.chains.robinhood.v4_pool_capacity import (
+        capacity_gate,
+        required_amount_for_profit,
+    )
+
+    capacity_raw = _route_capacity_raw(route, input_symbol)
+    if gas_budget is None:
+        gas_budget = _route_gas_budget(route)
+    if unit_profit is None:
+        unit_profit = _route_unit_profit(route)
+    required_raw = required_amount_for_profit(gas_budget, unit_profit)
+    verdict = capacity_gate(capacity_raw, required_raw)
+    verdict["gasBudget"] = gas_budget
+    verdict["unitProfit"] = unit_profit
+    return verdict

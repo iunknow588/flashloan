@@ -36,17 +36,23 @@ use composite_manager::{
 use manager_contracts::{
     ErrorCode, ManagerError, ManagerResponse, TokenAuthorityMode, MANAGER_DTO_VERSION,
 };
-use pool_manager::{materialize_scope_write, read_scope_status, ScopeError, ScopeWriteRequest};
+use pool_manager::{
+    audit_mainnet_baseline, materialize_scope_write, read_scope_status, BaselineAuditError,
+    ScopeError, ScopeWriteRequest,
+};
 use review_manager::{
-    read_review_page, run_reviews_write, ExpectedUpstream as ReviewExpectedUpstream, ReviewError,
-    ReviewEvidenceInput, ReviewOutcomeFilter, ReviewReadQuery, ReviewWriteRequest,
+    clear_review_records_write, read_review_page, run_reviews_write,
+    ExpectedUpstream as ReviewExpectedUpstream, ReviewClearRequest, ReviewError,
+    ReviewEvidenceInput, ReviewOutcomeFilter, ReviewReadQuery, ReviewRecordStore,
+    ReviewWriteRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, net::SocketAddr, path::PathBuf, sync::Arc};
 use token_manager::{
     audit_manager_database, change_admission, read_library_tokens, resolve_token_symbol,
     AdmissionChangeRequest, AdmissionError, AdmissionStatus, LibraryKey, ManagerAuditError,
-    TokenQueryError, TokenSymbolResolution, ROBINHOOD_NETWORK,
+    TokenQueryError, TokenSymbolResolution, ROBINHOOD_CHAIN_ID, ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
 };
 
 pub const M0_MIGRATION_ID: &str = manager_db::MIGRATION_ID;
@@ -58,7 +64,16 @@ pub struct AppState {
     pub migration_checksum: String,
     pub schema_checksum: String,
     pub token_database_path: Option<PathBuf>,
-    pub token_network: String,
+    /// Network namespace the libraries are filtered by.
+    ///
+    /// Every chain owns a separate SQLite file and the network name is part
+    /// of that file's row identity (`network`, `chain_id`). The namespace is
+    /// therefore resolved per chain id, so one Manager API process can serve
+    /// the chain it was pointed at without ever crossing into another chain's
+    /// rows. `network_override` pins the namespace explicitly when the
+    /// operator wants to serve a namespace that the chain-id table does not
+    /// know yet.
+    pub network_override: Option<String>,
     pub token_authority: TokenAuthorityMode,
     pub candidate_authority: TokenAuthorityMode,
     pub exchange_authority: TokenAuthorityMode,
@@ -74,7 +89,7 @@ impl Default for AppState {
             migration_checksum: manager_db::migration_checksum(),
             schema_checksum: manager_db::schema_checksum(),
             token_database_path: None,
-            token_network: ROBINHOOD_NETWORK.to_owned(),
+            network_override: None,
             token_authority: TokenAuthorityMode::Legacy,
             candidate_authority: TokenAuthorityMode::Legacy,
             exchange_authority: TokenAuthorityMode::Legacy,
@@ -91,6 +106,30 @@ impl AppState {
         Self {
             token_database_path: Some(database_path.into()),
             ..Self::default()
+        }
+    }
+
+    /// Pin the network namespace this instance serves.
+    ///
+    /// The default is to resolve the namespace from the chain id of every
+    /// request, which keeps one process chain-safe. An explicit override is
+    /// needed when a namespace exists that the chain-id table does not know
+    /// yet; it applies to **every** route, so a process can never mix two
+    /// namespaces in one library.
+    pub fn with_network_override(mut self, network: impl Into<String>) -> Self {
+        let network = network.into();
+        if network.trim().is_empty() {
+            return self;
+        }
+        self.network_override = Some(network);
+        self
+    }
+
+    /// The network namespace a request is served from.
+    pub fn network_for(&self, chain_id: u64) -> String {
+        match &self.network_override {
+            Some(network) => network.clone(),
+            None => network_for_chain_id(chain_id),
         }
     }
 
@@ -144,6 +183,7 @@ pub fn app_with_state(state: Arc<AppState>) -> Router {
         .route("/v1/tokens/admit", post(admit_token))
         .route("/v1/tokens/block", post(block_token))
         .route("/v1/pools/scopes", get(list_pool_scope))
+        .route("/v1/pools/baseline-audit", get(audit_pool_baseline))
         .route("/v1/pools/scopes/rebuild", post(rebuild_pool_scope))
         .route("/v1/pools/scopes/repair", post(repair_pool_scope))
         .route("/v1/candidate-edge-pools", get(list_candidate_edge_pools))
@@ -172,6 +212,7 @@ pub fn app_with_state(state: Arc<AppState>) -> Router {
         .route("/v1/closed-loops/rebuild", post(rebuild_closed_loops))
         .route("/v1/reviews", get(list_reviews))
         .route("/v1/reviews/run", post(run_reviews_endpoint))
+        .route("/v1/reviews/clear", post(clear_reviews_endpoint))
         .route("/v1/overview", get(overview_endpoint))
         .route("/v1/broadcasts", get(list_broadcasts))
         .route("/v1/broadcasts/submit", post(submit_broadcasts_endpoint))
@@ -265,6 +306,7 @@ async fn capabilities(State(state): State<Arc<AppState>>) -> impl IntoResponse {
                 "tokens.admit",
                 "tokens.block",
                 "tokens.audit",
+                "pools.baseline.audit",
                 "pools.scope.read",
                 "pools.scope.rebuild",
                 "pools.scope.repair",
@@ -320,7 +362,7 @@ async fn list_tokens(
 
     match read_library_tokens(
         database_path,
-        &state.token_network,
+        &state.network_for(query.chain_id),
         query.chain_id,
         library,
         status,
@@ -356,7 +398,7 @@ async fn audit_tokens(
 
     match audit_manager_database(
         database_path,
-        &state.token_network,
+        &state.network_for(query.chain_id),
         query.chain_id,
         recent_event_limit,
     ) {
@@ -418,12 +460,47 @@ async fn list_pool_scope(
     let scope_key = query.scope_key.as_deref().unwrap_or("core4");
     match read_scope_status(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         scope_key,
     ) {
         Ok(status) => success(query.chain_id, status),
         Err(error) => failure(scope_failure(error, query.chain_id, "pools.scope.read")),
+    }
+}
+
+async fn audit_pool_baseline(
+    State(state): State<Arc<AppState>>,
+    query: Result<Query<PoolBaselineAuditQuery>, QueryRejection>,
+) -> Response {
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(rejection) => {
+            return failure(invalid_request(
+                rejection.body_text(),
+                "pools.baseline.audit",
+            ));
+        }
+    };
+    if query.chain_id == 0 {
+        return failure(invalid_request(
+            "chainId must be greater than zero",
+            "pools.baseline.audit",
+        ));
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure(upstream_unavailable(
+            "MANAGER_DB_PATH is not configured",
+            "pools.baseline.audit",
+        ));
+    };
+    match audit_mainnet_baseline(
+        database_path,
+        &state.network_for(query.chain_id),
+        query.chain_id as i64,
+    ) {
+        Ok(audit) => success(query.chain_id, audit),
+        Err(error) => failure(baseline_audit_failure(error, query.chain_id)),
     }
 }
 
@@ -477,7 +554,7 @@ async fn list_candidate_edge_pools(
     }
     match read_candidate_snapshot(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         query.anchor_token_key_id.as_deref(),
         limit,
@@ -527,7 +604,7 @@ async fn compare_candidate_edge_pools(
     };
     match compare_candidate_edges(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         &legacy_anchor_scope,
         sample_limit,
@@ -601,7 +678,7 @@ async fn rebuild_candidate_edge_pools(
     match materialize_candidate_edges_write(
         database_path,
         CandidateEdgeWriteRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -644,7 +721,7 @@ async fn list_candidate_exchange_pools(
     };
     match read_candidate_exchange_snapshot(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         query.anchor_token_key_id.as_deref(),
         limit,
@@ -684,7 +761,7 @@ async fn compare_candidate_exchange_pools(
     };
     match compare_candidate_exchanges(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         &legacy_anchor_scope,
         sample_limit,
@@ -758,7 +835,7 @@ async fn rebuild_candidate_exchange_pools(
     match materialize_candidate_exchanges_write(
         database_path,
         CandidateExchangeWriteRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -801,7 +878,7 @@ async fn list_closed_loops(
     };
     match read_closed_loop_snapshot(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         query.anchor_token_key_id.as_deref(),
         limit,
@@ -841,7 +918,7 @@ async fn compare_closed_loop_catalog(
     };
     match compare_closed_loops(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         &legacy_market_id,
         sample_limit,
@@ -915,7 +992,7 @@ async fn rebuild_closed_loops(
     match materialize_closed_loops_write(
         database_path,
         ClosedLoopWriteRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1021,7 +1098,7 @@ async fn list_reviews(
     };
     match read_review_page(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         ReviewReadQuery {
             loop_key,
@@ -1101,7 +1178,7 @@ async fn run_reviews_endpoint(
     match run_reviews_write(
         database_path,
         ReviewWriteRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1145,7 +1222,7 @@ async fn overview_endpoint(
     };
     match read_manager_overview_snapshot(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         limit,
     ) {
@@ -1202,7 +1279,7 @@ async fn list_broadcasts(
     };
     match read_broadcast_snapshot_page(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         query.attempt_id.as_deref(),
         status,
@@ -1288,7 +1365,7 @@ async fn submit_broadcasts_endpoint(
     match submit_broadcasts_write(
         database_path,
         BroadcastSubmitRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1372,7 +1449,7 @@ async fn finalize_broadcasts_endpoint(
     match finalize_broadcast_attempts_write(
         database_path,
         BroadcastFinalizeRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1387,6 +1464,84 @@ async fn finalize_broadcasts_endpoint(
         }
         Err(error) => failure_with_request_id(
             broadcast_failure(error, request.chain_id, stage),
+            Some(&request_id),
+        ),
+    }
+}
+
+async fn clear_reviews_endpoint(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    request: Result<Json<ReviewClearHttpRequest>, JsonRejection>,
+) -> Response {
+    let stage = "review.clear";
+    let request_id = match required_write_header_for(&headers, "X-Request-Id", stage) {
+        Ok(value) => value,
+        Err(error) => return failure(error),
+    };
+    let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+        Ok(value) => value,
+        Err(error) => return failure_with_request_id(error, Some(&request_id)),
+    };
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(rejection) => {
+            return failure_with_request_id(
+                invalid_request(rejection.body_text(), stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(dry_run) = request.dry_run else {
+        return failure_with_request_id(
+            invalid_request("dryRun is required and must be true or false", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    if request.chain_id == 0 {
+        return failure_with_request_id(
+            invalid_request("chainId must be greater than zero", stage),
+            Some(&request_id),
+        );
+    }
+    let record_store = match request.record_store.as_deref().unwrap_or("manager") {
+        "manager" => ReviewRecordStore::Manager,
+        "legacy" => ReviewRecordStore::Legacy,
+        value => {
+            return failure_with_request_id(
+                invalid_request(
+                    format!("recordStore must be manager or legacy, got {value}"),
+                    stage,
+                ),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure_with_request_id(
+            upstream_unavailable("MANAGER_DB_PATH is not configured", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    match clear_review_records_write(
+        database_path,
+        ReviewClearRequest {
+            network: state.network_for(request.chain_id),
+            chain_id: request.chain_id as i64,
+            operation: stage.to_owned(),
+            request_id: request_id.clone(),
+            idempotency_key,
+            apply: !dry_run,
+            record_store,
+        },
+    ) {
+        Ok(outcome) => {
+            success_with_request_id(request.chain_id, outcome, Some(request_id.as_str()))
+        }
+        Err(error) => failure_with_request_id(
+            review_failure(error, request.chain_id, stage),
             Some(&request_id),
         ),
     }
@@ -1456,12 +1611,13 @@ async fn clear_broadcasts_endpoint(
     match clear_broadcast_records_write(
         database_path,
         BroadcastClearRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
             idempotency_key,
             apply: !dry_run,
+            record_store: broadcast_manager::BroadcastRecordStore::Manager,
         },
     ) {
         Ok(outcome) => {
@@ -1494,7 +1650,7 @@ async fn pipeline_status_endpoint(
     };
     match read_pipeline_status(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
     ) {
         Ok(snapshot) => success(query.chain_id, snapshot),
@@ -1526,7 +1682,7 @@ async fn list_pipeline_runs(
     };
     match read_pipeline_runs(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         limit,
     ) {
@@ -1556,7 +1712,7 @@ async fn get_pipeline_run(
     };
     match read_pipeline_run_snapshot(
         database_path,
-        &network_for_chain_id(query.chain_id),
+        &state.network_for(query.chain_id),
         query.chain_id as i64,
         &run_id,
     ) {
@@ -1620,7 +1776,7 @@ async fn refresh_pipeline_endpoint(
     match refresh_pipeline_write(
         database_path,
         PipelineRefreshRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1691,7 +1847,7 @@ async fn begin_pipeline_step_endpoint(
     match begin_pipeline_step_write(
         database_path,
         PipelineBeginStepRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1763,7 +1919,7 @@ async fn complete_pipeline_step_endpoint(
     match complete_pipeline_step_write(
         database_path,
         PipelineCompleteStepRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             operation: stage.to_owned(),
             request_id: request_id.clone(),
@@ -1851,7 +2007,7 @@ fn change_pool_scope(
     match materialize_scope_write(
         database_path,
         ScopeWriteRequest {
-            network: network_for_chain_id(request.chain_id),
+            network: state.network_for(request.chain_id),
             chain_id: request.chain_id as i64,
             scope_key: scope_key.to_owned(),
             operation: stage.to_owned(),
@@ -1938,7 +2094,7 @@ fn change_token_admission(
     };
 
     let admission_request = AdmissionChangeRequest {
-        network: state.token_network.clone(),
+        network: state.network_for(request.chain_id),
         chain_id: request.chain_id,
         library,
         token_key_id: request.token_key_id,
@@ -2011,7 +2167,7 @@ async fn resolve_token(
 
     match resolve_token_symbol(
         database_path,
-        &state.token_network,
+        &state.network_for(request.chain_id),
         request.chain_id,
         &request.symbol,
         required_status,
@@ -2178,11 +2334,31 @@ fn upstream_unavailable(message: impl Into<String>, stage: &str) -> ManagerError
     ManagerError::new(ErrorCode::UpstreamUnavailable, message, stage)
 }
 
+/// Resolve the network namespace of a chain.
+///
+/// The namespace is part of the row identity of every library table, so it
+/// has to match the namespace the owning database was populated with. The
+/// canonical constants come from the token manager, which owns the chain
+/// registries, so the two can never drift apart. An unknown chain gets a
+/// derived namespace instead of silently borrowing another chain's rows.
 fn network_for_chain_id(chain_id: u64) -> String {
     match chain_id {
-        4663 => "robinhood".to_owned(),
-        46630 => "robinhood-testnet".to_owned(),
+        ROBINHOOD_CHAIN_ID => ROBINHOOD_NETWORK.to_owned(),
+        ROBINHOOD_TESTNET_CHAIN_ID => ROBINHOOD_TESTNET_NETWORK.to_owned(),
         other => format!("chain-{other}"),
+    }
+}
+
+fn baseline_audit_failure(error: BaselineAuditError, chain_id: u64) -> ManagerError {
+    match error {
+        BaselineAuditError::InvalidRequest(message) => {
+            invalid_request(message, "pools.baseline.audit")
+                .with_details(serde_json::json!({"chainId": chain_id}))
+        }
+        BaselineAuditError::Sqlite(error) => {
+            upstream_unavailable(error.to_string(), "pools.baseline.audit")
+                .with_details(serde_json::json!({"chainId": chain_id}))
+        }
     }
 }
 
@@ -2782,6 +2958,12 @@ struct PoolScopeQuery {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PoolBaselineAuditQuery {
+    chain_id: u64,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PoolScopeWriteRequest {
     chain_id: u64,
@@ -2879,6 +3061,14 @@ struct ReviewHttpRequest {
     chain_id: u64,
     expected_upstream: Option<ReviewExpectedUpstream>,
     evidence: Vec<ReviewEvidenceInput>,
+    dry_run: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewClearHttpRequest {
+    chain_id: u64,
+    record_store: Option<String>,
     dry_run: Option<bool>,
 }
 
@@ -3312,6 +3502,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn review_clear_endpoint_is_dry_run_safe_and_idempotent() {
+        let directory = tempfile::tempdir().unwrap();
+        let database_path = directory.path().join("manager.sqlite3");
+        manager_db::migrate(&database_path).unwrap();
+        {
+            let connection = rusqlite::Connection::open(&database_path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE cow_execution_reviews (
+                         id INTEGER PRIMARY KEY, network TEXT, chain_id INTEGER
+                     );
+                     INSERT INTO cow_execution_reviews(network, chain_id)
+                     VALUES ('robinhood', 4663);",
+                )
+                .unwrap();
+        }
+        let app = app_with_state(Arc::new(
+            AppState::with_token_database(database_path.clone())
+                .with_review_authority(TokenAuthorityMode::Manager),
+        ));
+
+        let dry = app
+            .clone()
+            .oneshot(admission_request(
+                "/v1/reviews/clear",
+                r#"{"chainId":4663,"recordStore":"legacy","dryRun":true}"#.to_owned(),
+                Some("review-clear-dry"),
+                Some("review-clear-dry"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(dry.status(), StatusCode::OK);
+        let dry_value = response_json(dry).await;
+        assert_eq!(dry_value["data"]["dryRun"], true);
+        assert_eq!(dry_value["data"]["clearedReviews"], 1);
+        assert_eq!(dry_value["data"]["remainingReviews"], 1);
+
+        let apply = app
+            .clone()
+            .oneshot(admission_request(
+                "/v1/reviews/clear",
+                r#"{"chainId":4663,"recordStore":"legacy","dryRun":false}"#.to_owned(),
+                Some("review-clear-apply"),
+                Some("review-clear-apply"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(apply.status(), StatusCode::OK);
+        let apply_value = response_json(apply).await;
+        assert_eq!(apply_value["data"]["remainingReviews"], 0);
+
+        let replay = app
+            .oneshot(admission_request(
+                "/v1/reviews/clear",
+                r#"{"chainId":4663,"recordStore":"legacy","dryRun":false}"#.to_owned(),
+                Some("review-clear-replay"),
+                Some("review-clear-apply"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(
+            response_json(replay).await["data"]["idempotentReplay"],
+            true
+        );
+    }
+
+    #[tokio::test]
     async fn health_is_available_without_business_state() {
         let response = app()
             .oneshot(
@@ -3322,8 +3580,9 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        let status = response.status();
         let value = response_json(response).await;
+        assert_eq!(status, StatusCode::OK, "capabilities response: {value:?}");
         assert_eq!(value["status"], "ok");
         assert_eq!(value["version"], "manager_dto_v1");
     }
@@ -3339,8 +3598,9 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        let status = response.status();
         let value = response_json(response).await;
+        assert_eq!(status, StatusCode::OK, "baseline response: {value:?}");
         assert_eq!(value["data"]["migrationId"], M8_MIGRATION_ID);
         assert_eq!(value["data"]["milestone"], "M8");
         assert_eq!(value["data"]["tokenAuthorityMode"], "legacy");
@@ -3372,35 +3632,79 @@ mod tests {
         assert_eq!(value["data"]["capabilities"][4], "tokens.admit");
         assert_eq!(value["data"]["capabilities"][5], "tokens.block");
         assert_eq!(value["data"]["capabilities"][6], "tokens.audit");
-        assert_eq!(value["data"]["capabilities"][7], "pools.scope.read");
-        assert_eq!(value["data"]["capabilities"][8], "pools.scope.rebuild");
-        assert_eq!(value["data"]["capabilities"][9], "pools.scope.repair");
-        assert_eq!(value["data"]["capabilities"][10], "candidate_edge.read");
-        assert_eq!(value["data"]["capabilities"][11], "candidate_edge.compare");
-        assert_eq!(value["data"]["capabilities"][12], "candidate_edge.rebuild");
-        assert_eq!(value["data"]["capabilities"][13], "candidate_exchange.read");
+        assert_eq!(value["data"]["capabilities"][7], "pools.baseline.audit");
+        assert_eq!(value["data"]["capabilities"][8], "pools.scope.read");
+        assert_eq!(value["data"]["capabilities"][9], "pools.scope.rebuild");
+        assert_eq!(value["data"]["capabilities"][10], "pools.scope.repair");
+        assert_eq!(value["data"]["capabilities"][11], "candidate_edge.read");
+        assert_eq!(value["data"]["capabilities"][12], "candidate_edge.compare");
+        assert_eq!(value["data"]["capabilities"][13], "candidate_edge.rebuild");
+        assert_eq!(value["data"]["capabilities"][14], "candidate_exchange.read");
         assert_eq!(
-            value["data"]["capabilities"][14],
+            value["data"]["capabilities"][15],
             "candidate_exchange.compare"
         );
         assert_eq!(
-            value["data"]["capabilities"][15],
+            value["data"]["capabilities"][16],
             "candidate_exchange.rebuild"
         );
-        assert_eq!(value["data"]["capabilities"][16], "closed_loop.read");
-        assert_eq!(value["data"]["capabilities"][17], "closed_loop.compare");
-        assert_eq!(value["data"]["capabilities"][18], "closed_loop.rebuild");
-        assert_eq!(value["data"]["capabilities"][19], "review.read");
-        assert_eq!(value["data"]["capabilities"][20], "review.run");
-        assert_eq!(value["data"]["capabilities"][21], "broadcast.read");
-        assert_eq!(value["data"]["capabilities"][22], "broadcast.submit");
-        assert_eq!(value["data"]["capabilities"][23], "broadcast.finalize");
-        assert_eq!(value["data"]["capabilities"][24], "broadcast.clear");
-        assert_eq!(value["data"]["capabilities"][25], "pipeline.read");
-        assert_eq!(value["data"]["capabilities"][26], "pipeline.refresh");
-        assert_eq!(value["data"]["capabilities"][27], "pipeline.step.begin");
-        assert_eq!(value["data"]["capabilities"][28], "pipeline.step.complete");
-        assert_eq!(value["data"]["capabilities"][29], "overview.read");
+        assert_eq!(value["data"]["capabilities"][17], "closed_loop.read");
+        assert_eq!(value["data"]["capabilities"][18], "closed_loop.compare");
+        assert_eq!(value["data"]["capabilities"][19], "closed_loop.rebuild");
+        assert_eq!(value["data"]["capabilities"][20], "review.read");
+        assert_eq!(value["data"]["capabilities"][21], "review.run");
+        assert_eq!(value["data"]["capabilities"][22], "broadcast.read");
+        assert_eq!(value["data"]["capabilities"][23], "broadcast.submit");
+        assert_eq!(value["data"]["capabilities"][24], "broadcast.finalize");
+        assert_eq!(value["data"]["capabilities"][25], "broadcast.clear");
+        assert_eq!(value["data"]["capabilities"][26], "pipeline.read");
+        assert_eq!(value["data"]["capabilities"][27], "pipeline.refresh");
+        assert_eq!(value["data"]["capabilities"][28], "pipeline.step.begin");
+        assert_eq!(value["data"]["capabilities"][29], "pipeline.step.complete");
+        assert_eq!(value["data"]["capabilities"][30], "overview.read");
+    }
+
+    #[tokio::test]
+    async fn pool_baseline_audit_returns_unanchored_extension_token_details() {
+        let (_directory, state, path) = temporary_state();
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS v4_exchange_pools (
+                network TEXT NOT NULL, chain_id INTEGER NOT NULL, protocol TEXT NOT NULL,
+                pool_id TEXT NOT NULL, token0 TEXT NOT NULL, token1 TEXT NOT NULL,
+                token0_decimals INTEGER, token1_decimals INTEGER, token0_symbol TEXT,
+                token1_symbol TEXT, fee INTEGER, hooks TEXT, tick_spacing INTEGER,
+                sqrt_price_x96 TEXT, tick INTEGER, liquidity TEXT, pool_status TEXT,
+                observed_at TEXT, block_number INTEGER, source TEXT, source_locator TEXT
+            );",
+            )
+            .unwrap();
+        drop(connection);
+
+        let response = app_with_state(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/pools/baseline-audit?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let status = response.status();
+        let value = response_json(response).await;
+        assert_eq!(status, StatusCode::OK, "baseline response: {value:?}");
+        assert_eq!(value["data"]["extension"]["unanchored"], 1);
+        assert_eq!(
+            value["data"]["extension"]["unanchoredTokens"][0]["tokenSymbol"],
+            "UNIQUE"
+        );
+        assert!(value["data"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue == "extension_library_contains_unanchored_tokens"));
     }
 
     #[tokio::test]
@@ -4050,6 +4354,126 @@ mod tests {
         );
     }
 
+    /// A token in one chain's namespace must never be visible to another
+    /// chain's namespace, even inside the same database file. The manager
+    /// resolves the namespace from the chain id of the request, so a testnet
+    /// request only ever sees testnet rows and a mainnet request only ever
+    /// sees mainnet rows.
+    #[tokio::test]
+    async fn token_routes_never_cross_chain_namespaces() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("manager.sqlite3");
+        manager_db::migrate(&path).unwrap();
+        let mut connection = Connection::open(&path).unwrap();
+        write_library(
+            &mut connection,
+            LibraryKey::Extension,
+            "robinhood-testnet",
+            46630,
+            vec![TokenWrite {
+                network: "robinhood-testnet".to_owned(),
+                chain_id: 46630,
+                token_key_id: TokenKeyId::new("robinhood-testnet", 46630, UNIQUE).unwrap(),
+                v4_currency_key: UNIQUE.to_owned(),
+                token_address: UNIQUE.to_owned(),
+                token_symbol: "TESTONLY".to_owned(),
+                token_name: Some("TESTONLY".to_owned()),
+                token_decimals: 18,
+                token_kind: "erc20".to_owned(),
+                is_native: false,
+                is_wrapped_native: false,
+                is_stable: false,
+                admission_status: AdmissionStatus::Admitted,
+                admission_source: "fixture".to_owned(),
+                metadata_source: "fixture".to_owned(),
+                metadata_checksum: "sha256:testonly".to_owned(),
+                source_json: Some("{}".to_owned()),
+                first_seen_at: None,
+                blocked_reason: None,
+            }],
+            Some("fixture:v1"),
+            "test",
+            "fixture",
+        )
+        .unwrap();
+        drop(connection);
+        let state = Arc::new(
+            AppState::with_token_database(&path).with_token_authority(TokenAuthorityMode::Manager),
+        );
+        let app = app_with_state(state);
+
+        // The testnet namespace resolves the testnet-only symbol.
+        let testnet = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/tokens/resolve")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"chainId":46630,"symbol":"TESTONLY","requiredStatus":"admitted"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(testnet.status(), StatusCode::OK);
+        let testnet_value = response_json(testnet).await;
+        assert_eq!(
+            testnet_value["data"]["tokenKeyId"],
+            format!("robinhood-testnet:46630:{UNIQUE}")
+        );
+
+        // The mainnet namespace must not see the testnet row, even though the
+        // symbol is unique inside the testnet namespace.
+        let mainnet = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/tokens/resolve")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"chainId":4663,"symbol":"TESTONLY","requiredStatus":"admitted"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(mainnet.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response_json(mainnet).await["error"]["code"],
+            "TOKEN_NOT_FOUND"
+        );
+    }
+
+    /// An explicit namespace override pins **every** route to one namespace.
+    /// A process must never mix two namespaces inside one library, so the
+    /// override applies to the token routes and to the business managers
+    /// alike.
+    #[tokio::test]
+    async fn network_override_pins_every_route_to_one_namespace() {
+        let (_directory, state, _path) = temporary_state();
+        assert_eq!(state.network_for(4663), "robinhood");
+        assert_eq!(state.network_for(46630), "robinhood-testnet");
+        assert_eq!(state.network_for(9999), "chain-9999");
+
+        let overridden = (*state).clone().with_network_override("robinhood-testnet");
+        assert_eq!(overridden.network_for(4663), "robinhood-testnet");
+        assert_eq!(overridden.network_for(46630), "robinhood-testnet");
+        assert_eq!(overridden.network_for(9999), "robinhood-testnet");
+    }
+
+    /// A blank namespace override is rejected instead of silently emptying
+    /// the namespace, which would turn every query into a silent miss.
+    #[tokio::test]
+    async fn blank_network_override_is_ignored() {
+        let (_directory, state, _path) = temporary_state();
+        let overridden = (*state).clone().with_network_override("   ");
+        assert_eq!(overridden.network_for(4663), "robinhood");
+        assert_eq!(overridden.network_for(46630), "robinhood-testnet");
+    }
+
     #[tokio::test]
     async fn token_reads_fail_closed_without_database_configuration() {
         let response = app()
@@ -4385,7 +4809,10 @@ mod tests {
                     hop_candidate_combination_count, recommendation_basis,
                     recommended_first_priority, candidate_edge_version,
                     candidate_edge_checksum, observation_version,
-                    observation_checksum, status, source, created_at, updated_at
+                    observation_checksum, status, source,
+                    single_tick_capacity_anchor_raw,
+                    single_tick_capacity_binding_pool_id,
+                    created_at, updated_at
                  ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-1',
                            'route:v1',
                            'robinhood:4663:0x1111111111111111111111111111111111111111',
@@ -4398,20 +4825,116 @@ mod tests {
                            '[\"pool-a\",\"pool-yz\",\"pool-d\"]', '{}',
                            '{\"1\":1,\"2\":1,\"3\":1}', 1, 'fixture', 1, 7,
                            'sha256:candidate-edge', 4, 'sha256:observation',
-                           'active', 'fixture', 'fixture', 'fixture')",
+                           'active', 'fixture',
+                           '1000000000000000000000000', 'pool-yz',
+                           'fixture', 'fixture')",
                 [],
             )
             .unwrap();
+        seed_review_pool_states(&connection);
     }
 
-    fn review_body(dry_run: Option<bool>) -> String {
+    /// Seeds the measured pool state the final single-tick gate reads.
+    ///
+    /// The gate needs the price, the liquidity, the tick and the tick
+    /// spacing of every hop of the route, so the fixture has to carry a
+    /// usable state for all three pools.
+    fn seed_review_pool_states(connection: &Connection) {
+        connection
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS v4_exchange_pools (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    token0 TEXT NOT NULL,
+                    token1 TEXT NOT NULL,
+                    fee INTEGER NOT NULL,
+                    dynamic_fee INTEGER NOT NULL DEFAULT 0,
+                    special_fee INTEGER NOT NULL DEFAULT 0,
+                    hooks TEXT NOT NULL DEFAULT '',
+                    tick_spacing INTEGER
+                );
+                CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    depth_status TEXT NOT NULL,
+                    liquidity TEXT,
+                    has_liquidity INTEGER,
+                    tick INTEGER,
+                    sqrt_price_x96 TEXT,
+                    liquidity_read_at TEXT,
+                    evidence_source TEXT,
+                    capacity_raw TEXT,
+                    capacity_binding_raw REAL,
+                    price_impact_bps REAL,
+                    balances_json TEXT,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                );",
+            )
+            .unwrap();
+        let pools = [
+            (
+                "pool-a",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            (
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            (
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        for (pool_id, token0, token1) in pools {
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pools (
+                        network, chain_id, protocol, pool_id, token0, token1,
+                        fee, dynamic_fee, special_fee, hooks, tick_spacing
+                     ) VALUES ('robinhood', 4663, 'uniswap_v4', ?1, ?2, ?3,
+                               3000, 0, 0, '', 60)",
+                    rusqlite::params![pool_id, token0, token1],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                        network, chain_id, protocol, pool_id, depth_status,
+                        liquidity, has_liquidity, tick, sqrt_price_x96,
+                        liquidity_read_at, evidence_source
+                     ) VALUES ('robinhood', 4663, 'uniswap_v4', ?1, 'ok',
+                               '100000000000000000000', 1, 0,
+                               '79228162514264337593543950336',
+                               'block:100', 'fixture')",
+                    rusqlite::params![pool_id],
+                )
+                .unwrap();
+        }
+    }
+
+    /// Builds a review body whose evidence is stable across the calls of a
+    /// single test.
+    ///
+    /// The idempotency digest covers the evidence, so the dry run, the
+    /// apply and the replay have to carry the same evidence. The evidence
+    /// carries the moment of the review, and the review has to be fresh
+    /// enough to earn a broadcast request, so the moment is captured once
+    /// and reused.
+    fn review_body_with_evidence(dry_run: Option<bool>, reviewed_at: &str) -> String {
         serde_json::json!({
             "chainId": 4663,
             "dryRun": dry_run,
             "evidence": [{
                 "loopKey": "loop-1",
                 "staticPreview": {"ok": true},
-                "reviewedAt": "2026-11-04T00:00:00Z",
+                "reviewedAt": reviewed_at,
                 "runArbitrage": {
                     "ok": true,
                     "executable": true,
@@ -4424,11 +4947,58 @@ mod tests {
                         "unit": "token",
                         "source": "runArbitrage"
                     },
-                    "gasEstimate": "120000"
+                    "gasEstimate": "120000",
+                    "selectedAmountRaw": "1000000000000000",
+                    "quote": {
+                        "candidate_pools": [
+                            review_candidate_pool_fixture(
+                                "pool-a",
+                                "0x1111111111111111111111111111111111111111",
+                                "0x2222222222222222222222222222222222222222",
+                            ),
+                            review_candidate_pool_fixture(
+                                "pool-yz",
+                                "0x2222222222222222222222222222222222222222",
+                                "0x3333333333333333333333333333333333333333",
+                            ),
+                            review_candidate_pool_fixture(
+                                "pool-d",
+                                "0x3333333333333333333333333333333333333333",
+                                "0x1111111111111111111111111111111111111111",
+                            ),
+                        ]
+                    }
                 }
             }]
         })
         .to_string()
+    }
+
+    /// The review-time state of one candidate pool.
+    ///
+    /// The values match the state the fixture stores for the pool, so the
+    /// three-state execution gate classifies the route as unchanged.
+    fn review_candidate_pool_fixture(
+        pool_id: &str,
+        token0: &str,
+        token1: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "poolId": pool_id,
+            "token0": token0,
+            "token1": token1,
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "sqrtPriceX96": "79228162514264337593543950336",
+            "tick": 0,
+            "liquidity": "100000000000000000000",
+            "liquidityReadAt": "block:100",
+        })
+    }
+
+    fn review_body(dry_run: Option<bool>) -> String {
+        review_body_with_evidence(dry_run, &chrono::Utc::now().to_rfc3339())
     }
 
     fn insert_review_query_fixture(
@@ -4501,7 +5071,7 @@ mod tests {
                         path_symbols_json, pool_path_key, pool_ids_json,
                         signed_pnl_raw, signed_pnl_amount, signed_pnl_currency,
                         signed_pnl_address, signed_pnl_unit, signed_pnl_source,
-                        request_status, created_at, updated_at
+                        request_status, hop_sqrt_price_limits_json, created_at, updated_at
                      ) VALUES (
                         'robinhood', 4663, 'uniswap_v4', 'core4', ?1, 9,
                         'sha256:closed-loop',
@@ -4510,7 +5080,7 @@ mod tests {
                         '[\"USDG\"]', 'pool-path:fixture', '[\"pool-a\"]',
                         ?3, ?4, 'USDG',
                         '0x1111111111111111111111111111111111111111',
-                        'token', 'runArbitrage', 'generated', ?5, ?5
+                        'token', 'runArbitrage', 'generated', '[\"100\",\"200\",\"300\"]', ?5, ?5
                      )",
                     rusqlite::params![
                         loop_key,
@@ -4557,7 +5127,8 @@ mod tests {
                     path_symbols_json, pool_path_key, pool_ids_json,
                     signed_pnl_raw, signed_pnl_amount, signed_pnl_currency,
                     signed_pnl_address, signed_pnl_unit, signed_pnl_source,
-                    request_status, request_reason, created_at, updated_at
+                    request_status, request_reason, hop_sqrt_price_limits_json,
+                    created_at, updated_at
                  ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-1',
                            7, 'sha256:closed-loop',
                            'robinhood:4663:0x1111111111111111111111111111111111111111',
@@ -4568,7 +5139,8 @@ mod tests {
                            '12.5 USDG', 12.5, 'USDG',
                            '0x1111111111111111111111111111111111111111',
                            'token', 'runArbitrage', 'generated',
-                           'positive executable signed PnL', 'fixture', 'fixture')",
+                           'positive executable signed PnL',
+                           '[\"100\",\"200\",\"300\"]', 'fixture', 'fixture')",
                 [],
             )
             .unwrap();
@@ -4685,11 +5257,16 @@ mod tests {
         );
         let app = app_with_state(state);
 
+        // The idempotency digest covers the evidence, so every request of
+        // this test has to carry the same evidence. Only the dry-run flag
+        // differs, because it is part of the digest as well.
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+
         let dry = app
             .clone()
             .oneshot(admission_request(
                 "/v1/reviews/run",
-                review_body(Some(true)),
+                review_body_with_evidence(Some(true), &reviewed_at),
                 Some("review-dry"),
                 Some("review-idem"),
             ))
@@ -4715,7 +5292,7 @@ mod tests {
             .clone()
             .oneshot(admission_request(
                 "/v1/reviews/run",
-                review_body(Some(false)),
+                review_body_with_evidence(Some(false), &reviewed_at),
                 Some("review-apply"),
                 Some("review-idem"),
             ))
@@ -4732,7 +5309,7 @@ mod tests {
             .clone()
             .oneshot(admission_request(
                 "/v1/reviews/run",
-                review_body(Some(false)),
+                review_body_with_evidence(Some(false), &reviewed_at),
                 Some("review-new-request"),
                 Some("review-idem"),
             ))

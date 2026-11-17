@@ -1,4 +1,4 @@
-"""Validate that RPC/chain config is centralized in flashloan/src/chains/*/chain.json."""
+"""Validate that RPC/chain config is centralized in flashloan/chains/*/chain.json."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHAINS_ROOT = ROOT / "flashloan" / "src" / "chains"
-FOUNDRY_GENERATED = ROOT / "runtime" / "external" / "rh-flash-toolkit" / "generated" / "foundry.chain.toml"
+CHAINS_ROOT = ROOT / "flashloan" / "chains"
+FOUNDRY_GENERATED = ROOT / "flashloan" / "config" / "foundry.chain.toml"
 
 FORBIDDEN_FIELDS = ("officialRpc", "officialRpcUrls", "rpc_url", "rpc_urls")
 RPC_RE = re.compile(r"https?://")
@@ -28,6 +28,7 @@ def iter_chain_files():
 def main() -> int:
     errors: list[str] = []
     seen_rpc: dict[str, str] = {}
+    chain_rpc: dict[int, str] = {}
     for chain_id, chain_file in iter_chain_files():
         if not chain_file.exists():
             errors.append(f"missing chain config: {chain_file}")
@@ -49,6 +50,7 @@ def main() -> int:
             errors.append(f"{chain_file}: duplicate RPC {primary!r} also in {seen_rpc[primary]}")
         if primary:
             seen_rpc[primary] = str(chain_file)
+            chain_rpc[chain_id] = primary
     for path in [
         ROOT / "contract" / "robinhood" / "DEX" / "config" / "chain.json",
         ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain.json",
@@ -59,12 +61,15 @@ def main() -> int:
         for field in FORBIDDEN_FIELDS:
             if field in config:
                 errors.append(f"{path}: still contains deprecated field {field}")
-    foundry_toml = ROOT / "runtime" / "external" / "rh-flash-toolkit" / "foundry.toml"
-    text = foundry_toml.read_text(encoding="utf-8")
-    if "[rpc_endpoints]" in text:
-        errors.append(f"{foundry_toml}: still contains hardcoded [rpc_endpoints]")
     if not FOUNDRY_GENERATED.exists():
         errors.append(f"{FOUNDRY_GENERATED}: missing generated foundry config; run generate-foundry-config.py")
+    else:
+        generated_text = FOUNDRY_GENERATED.read_text(encoding="utf-8")
+        if "[rpc_endpoints]" not in generated_text:
+            errors.append(f"{FOUNDRY_GENERATED}: missing [rpc_endpoints] section")
+        for chain_id, primary in sorted(chain_rpc.items()):
+            if primary not in generated_text:
+                errors.append(f"{FOUNDRY_GENERATED}: missing rpc.primary for chain {chain_id}")
     if errors:
         print("\n".join(errors))
         return 1

@@ -1,0 +1,91 @@
+{
+  "mode": "rereview",
+  "generatedAt": "2026-11-10T05:23:52Z",
+  "apply": false,
+  "dryRun": true,
+  "policy": "historical profit ranks candidates; only a new positive live review may broadcast",
+  "candidateCount": 3,
+  "results": [
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "path": "WETH -> SPCX -> USDG -> WETH",
+      "routeSymbols": [
+        "WETH",
+        "SPCX",
+        "USDG",
+        "WETH"
+      ],
+      "routeAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "historicalReviewId": 59509,
+      "historicalProfit": 0.01220484055376797,
+      "historicalCurrency": "WETH",
+      "historicalReviewedAt": "2026-11-08T23:05:19.150059200+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "ok": false,
+        "status": null,
+        "body": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      }
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "path": "WETH -> USDG -> ETH -> WETH",
+      "routeSymbols": [
+        "WETH",
+        "USDG",
+        "ETH",
+        "WETH"
+      ],
+      "routeAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "historicalReviewId": 59502,
+      "historicalProfit": 0.20122564885362676,
+      "historicalCurrency": "WETH",
+      "historicalReviewedAt": "2026-11-08T23:05:11.493668500+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "ok": false,
+        "status": null,
+        "body": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      }
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "path": "WETH -> NVDA -> ETH -> WETH",
+      "routeSymbols": [
+        "WETH",
+        "NVDA",
+        "ETH",
+        "WETH"
+      ],
+      "routeAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "historicalReviewId": 59498,
+      "historicalProfit": 0.3066648054931717,
+      "historicalCurrency": "WETH",
+      "historicalReviewedAt": "2026-11-08T23:05:11.276062700+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "ok": false,
+        "status": null,
+        "body": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      }
+    }
+  ]
+}

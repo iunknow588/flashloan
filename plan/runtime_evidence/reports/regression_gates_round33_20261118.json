@@ -1,0 +1,167 @@
+{
+  "round": 33,
+  "date": "2026-11-18",
+  "title": "核心缺陷定位与修复：链级无关性证明（闭环池解析 + 内核准入判决发布）",
+  "scope": "chain-agnostic core defects proven on BOTH chains (4663 mainnet / 46630 testnet)",
+  "tasks": [
+    "TASK-137",
+    "TASK-138",
+    "TASK-139",
+    "TASK-140"
+  ],
+  "acceptance_conditions": [
+    "AC-203",
+    "AC-204",
+    "AC-205",
+    "AC-206"
+  ],
+  "core_defects_fixed": [
+    {
+      "id": "CORE-R33-01",
+      "title": "闭环池解析仅查锚点作用域面，共享桥接池被整体丢弃",
+      "chain_agnostic": true,
+      "evidence": {
+        "mainnet_4663": {
+          "closed_loops": 46,
+          "closed_loop_hops": 138,
+          "hops_missing_from_observation_surface": 92,
+          "hops_missing_from_candidate_surface": 88,
+          "bridge_pool_ids_never_in_candidate_surface": 19,
+          "note": "bridge (hop_index=2) pools are shared across anchors; the anchor scoped candidate/observation surfaces record them under only the anchor that discovered them"
+        },
+        "testnet_46630": {
+          "closed_loops": 38,
+          "closed_loop_hops": 114,
+          "note": "same anchor scoped resolution applies"
+        },
+        "chain_scoped_coverage_mainnet": {
+          "v4_exchange_pools": "36/36 loop pools present",
+          "v4_exchange_pool_liquidity_snapshots": "36/36 loop pools present"
+        }
+      },
+      "root_cause": "market_observation_core.db_closed_loop_sequences._anchor_candidate_pool() returned None for any pool absent from the anchor scoped candidate/observation surfaces; the hop was then skipped, so len(route_rows) != 3 discarded EVERY sequence.",
+      "fix": {
+        "file": "flashloan/src/dex/intent_trade/chains/robinhood_common/market_observation_core.py",
+        "change": "fall back to the chain scoped v4_exchange_pools / v4_exchange_pool_liquidity_snapshots when the pool is absent from the anchor scoped surfaces"
+      },
+      "before": {
+        "mainnet_4663_sequences": 0,
+        "testnet_46630_sequences": 0
+      },
+      "after": {
+        "mainnet_4663_sequences": 6,
+        "testnet_46630_sequences": 0
+      }
+    },
+    {
+      "id": "CORE-R33-02",
+      "title": "Rust 内核准入判决未发布到链级流动性快照表，链级读取方一律判为覆盖缺口",
+      "chain_agnostic": true,
+      "evidence": {
+        "mainnet_4663": {
+          "v4_exchange_pool_liquidity_snapshots_rows": 2480,
+          "rows_carrying_kernel_verdict_before": 0,
+          "rows_carrying_kernel_verdict_after": 21,
+          "dex_candidate_pools_rows": 32,
+          "dex_candidate_pools_rows_carrying_kernel_verdict": 22,
+          "market_observation_liquidity_snapshots_rows": 360,
+          "market_observation_rows_carrying_kernel_verdict": 0
+        },
+        "testnet_46630": {
+          "note": "identical defect: the verdict was published on the anchor scoped candidate surface only"
+        }
+      },
+      "root_cause": "has_confirmed_depth() consumes the kernel verdict (kernelAdmitted) published by the Rust kernel. business_builder.rs published it on dex_candidate_pools.depth_band_json only, so every pool read from the chain scoped exchange tables had reason 'kernel_verdict_missing' and was never admitted.",
+      "fix": [
+        {
+          "file": "flashloan/rs-src/src/evidence.rs",
+          "change": "attach_kernel_admission_verdict() publishes kernelAdmitted/kernelAdmissionReason/kernelDepthBand onto the chain scoped liquidity snapshot depth document"
+        },
+        {
+          "file": "flashloan/tools/pool_manager/src/depth_config.rs",
+          "change": "shared admit_candidate_pool_with_liquidity() reads the shared depth policy"
+        },
+        {
+          "file": "flashloan/tools/pool_manager/src/lib.rs",
+          "change": "depth_band_json_with_admission() publishes the verdict on both the candidate surface and the chain scoped snapshot"
+        }
+      ],
+      "after": {
+        "mainnet_4663": {
+          "loop_pools_admitted": "21/36 measured, 6 closed loop sequences produced"
+        },
+        "testnet_46630": {
+          "loop_pools_admitted": "8/16",
+          "remaining_8": "legitimately rejected: depth_verdict_rejected:dust / :shallow"
+        }
+      }
+    }
+  ],
+  "core_vs_chain_separation": {
+    "rule": "system data and the processing pipeline are separated; the pipeline must not depend on a concrete chain",
+    "method": "the same core code path and the same defect signature was reproduced on BOTH chains before the fix, and the same fix was applied once in chain agnostic code",
+    "mainnet_4663": {
+      "before_sequences": 0,
+      "after_sequences": 6,
+      "residual_blocker": "none for the ETH/WETH/NVDA route"
+    },
+    "testnet_46630": {
+      "before_sequences": 0,
+      "after_sequences": 0,
+      "residual_blocker": "chain DATA condition: 8 of 16 loop pools are measured dust/shallow, not a pipeline defect",
+      "evidence": "all 38 testnet loops are blocked by at least one pool whose kernel reason is depth_verdict_rejected:dust / :shallow"
+    }
+  },
+  "regression_gates": {
+    "rust_rs_src_lib": {
+      "command": "cargo test --locked --lib",
+      "before": 152,
+      "after": 156,
+      "failed": 0
+    },
+    "rust_pool_manager_lib": {
+      "command": "cargo test --locked -p pool-manager --lib",
+      "before": 143,
+      "after": 147,
+      "failed": 0
+    },
+    "python_app_runtime": {
+      "command": "pytest flashloan/app_runtime/tests",
+      "passed": 3047,
+      "skipped": 3,
+      "failed": 0
+    },
+    "architecture_guards": {
+      "command": "pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+      "passed": 53,
+      "failed": 0
+    },
+    "previously_failing_test": {
+      "test": "flashloan/app_runtime/tests/unit/test_mainnet_observation_isolation.py::test_mainnet_closed_loops_use_fixed_fee_pools_without_hooks",
+      "before": "FAILED (closedLoopSequences == [])",
+      "after": "PASSED"
+    }
+  },
+  "artifacts": {
+    "rust_rs_src_evidence_rs": "21836af56b7c816402a418539f6786243806606e20e08dc5686370fc50ef2ff7",
+    "rust_pool_manager_lib_rs": "bf3510a696c050cecdabaf1382d17afd3bd91cf1b00d633c6c1732b224e66c0b",
+    "rust_pool_manager_depth_config_rs": "3ad86830f7e6eed09f110f11dc8da90fd0197793905214dddf0595274c20e7a3",
+    "python_market_observation_core": "a6f18b0f7fb78e584a531858a2850c2f1243401621cb7cdb700c9bde2b471673"
+  },
+  "production_db": {
+    "mainnet": {
+      "path": "flashloan/db/local_store_4663.sqlite3",
+      "backup": ".tmp_backup/local_store_4663_pre_verdict.sqlite3",
+      "write_performed": "pool-manager depth --scope all --apply (21 pools refreshed with the kernel verdict)"
+    },
+    "testnet": {
+      "path": "flashloan/db/local_store_46630.sqlite3",
+      "write_performed": "pool-manager depth --scope all --apply (25 pools refreshed with the kernel verdict)"
+    }
+  },
+  "not_yet_achieved": [
+    "no production arbitrage broadcast transaction has been produced yet",
+    "the stability criterion (STABILITY_REQUIRED_WINDOWS=3 / STABILITY_MIN_WINDOW_SECONDS=1800, blockers==[], missingValue==0, positive>0) is still unmet",
+    "the mainnet review repair gate (manager_v4_reviews payload_json.loop_key empty) is still open"
+  ]
+}

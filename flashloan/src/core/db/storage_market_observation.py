@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_business_io import execute, executemany, query
-from core.db.direction_pool_score import has_confirmed_depth, score_pool_by_direction
+from core.db.direction_pool_score import (
+    depth_band_document,
+    has_confirmed_depth,
+    score_pool_by_direction,
+)
 
 
 MAX_OBSERVATION_POOLS_PER_DIRECTION = 3
@@ -180,7 +184,7 @@ def replace_market_observation_tables(
                 _float_none(row.get("estimated_tvl_usd") or row.get("estimatedTvlUsd")),
                 _json_dumps(row.get("balances") or row.get("balances_json") or {}),
                 row.get("depth_status") or row.get("depthStatus") or "",
-                _json_dumps(row.get("depth_band") or row.get("depthBand") or {}),
+                _json_dumps(depth_band_document(row)),
                 row.get("sqrt_price_x96") or row.get("sqrtPriceX96") or "",
                 _int_none(row.get("tick")),
                 row.get("liquidity_read_at") or row.get("liquidityReadAt"),

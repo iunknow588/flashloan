@@ -27,6 +27,7 @@ from web.data_routes.manager_page_compare import (
     candidate_edge_refresh_manager_payload,
     candidate_manager_page_payload,
     manager_compare_requested,
+    review_clear_manager_payload,
     submission_clear_manager_payload,
     submission_detail_manager_payload,
     submission_execution_manager_payload,
@@ -95,6 +96,54 @@ def _write_request_contract_error(body: dict) -> tuple[dict, int] | None:
             "idempotencyKey": idempotency_key,
         }, 400
     return None
+
+
+def _registered_closed_loop_group_keys(chain_id: int) -> list[str]:
+    """Return the group keys the resident review workers actually run under."""
+    try:
+        from dex.runtime.rust_closed_loop import native_worker_status
+    except Exception:
+        return []
+    try:
+        status = native_worker_status(
+            include_payloads=False,
+            chain_id=chain_id,
+        )
+    except Exception:
+        return []
+    workers = status.get("workers") if isinstance(status.get("workers"), list) else []
+    keys: list[str] = []
+    for worker in workers:
+        if not isinstance(worker, dict):
+            continue
+        if worker.get("thread_live") is False:
+            continue
+        key = str(worker.get("group_key") or "").strip().lower()
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def _resolve_closed_loop_group_key(chain_id: int, route_symbols: list[str]) -> str:
+    """Resolve the worker group key that serves the requested route.
+
+    The closed-loop library stores every loop ETH-anchored, while the
+    scanner registers its resident worker under the route order it
+    discovered, which is a rotation of the same directed cycle. The worker
+    pool keys its state machine by the exact registered string, so the
+    request order has to be resolved against the live workers before the
+    transition can find them.
+    """
+    requested_key = "|".join(
+        str(symbol).strip().lower() for symbol in route_symbols[:3]
+    )
+    from dex.runtime.closed_loop_identity import resolve_registered_group_key
+
+    resolved = resolve_registered_group_key(
+        route_symbols,
+        _registered_closed_loop_group_keys(chain_id),
+    )
+    return resolved or requested_key
 
 
 def _closed_loop_transition_status(error: str) -> int:
@@ -1066,6 +1115,19 @@ def register_dex_scanner_routes(app) -> None:
         body = request.get_json(silent=True) or {}
         mode = str(body.get("mode") or request.args.get("mode") or "deep").strip().lower()
         wait = str(request.args.get("wait") or "0").strip().lower() in {"1", "true", "yes", "on"}
+        scanner = _root.get_dex_opportunity_scanner(chain_id=selected_chain_id)
+        if getattr(scanner, "_native_rust_closed_loop", False):
+            native_result = scanner._refresh_native_closed_loop_group(
+                group_key=str(group_key or "").strip(),
+                chain_id=selected_chain_id,
+                protocols=protocols,
+            )
+            return jsonify(
+                {
+                    **native_result,
+                    "chain_selection": chain_selection,
+                }
+            )
         groups = _closed_loop_groups_for_refresh(
             chain_id=selected_chain_id,
             protocols=protocols,
@@ -1087,19 +1149,6 @@ def register_dex_scanner_routes(app) -> None:
             (group.get("flashLoanToken") or group.get("startToken") or {}).get("symbol") or ""
         ).strip().upper()
         refresh_group_key = anchor or str(group_key).strip().upper()
-        scanner = _root.get_dex_opportunity_scanner(chain_id=selected_chain_id)
-        if getattr(scanner, "_native_rust_closed_loop", False):
-            native_result = scanner._refresh_native_closed_loop_group(
-                group_key=refresh_group_key,
-                chain_id=selected_chain_id,
-                protocols=protocols,
-            )
-            return jsonify(
-                {
-                    **native_result,
-                    "chain_selection": chain_selection,
-                }
-            )
         priority = SCAN_PRIORITY if mode in {"scan"} else USER_PRIORITY
         task = scanner.closed_loop_review_queue.submit_group(
             group_key=refresh_group_key,
@@ -1175,8 +1224,10 @@ def register_dex_scanner_routes(app) -> None:
                     "chain_selection": chain_selection,
                 }
             ), 400
-        middle = sorted([route_symbols[1], route_symbols[2]])
-        group_key = f"{route_symbols[0].lower()}|{middle[0].lower()}|{middle[1].lower()}"
+        group_key = _resolve_closed_loop_group_key(
+            selected_chain_id,
+            route_symbols,
+        )
         chain_runtime = getattr(g, "chain_runtime", None)
         if chain_runtime is None or not hasattr(chain_runtime, "execute_command"):
             return jsonify(
@@ -1272,8 +1323,10 @@ def register_dex_scanner_routes(app) -> None:
                     "chain_selection": chain_selection,
                 }
             ), 400
-        middle = sorted([route_symbols[1], route_symbols[2]])
-        group_key = f"{route_symbols[0].lower()}|{middle[0].lower()}|{middle[1].lower()}"
+        group_key = _resolve_closed_loop_group_key(
+            selected_chain_id,
+            route_symbols,
+        )
         chain_runtime = getattr(g, "chain_runtime", None)
         if chain_runtime is None or not hasattr(chain_runtime, "execute_command"):
             return jsonify(
@@ -1933,7 +1986,7 @@ def register_dex_submission_routes(app) -> None:
             or body.get("recordKind")
             or ""
         ).strip().lower()
-        if record_kind != "submission":
+        if record_kind not in {"submission", "review"}:
             return jsonify(
                 {
                     "ok": False,
@@ -1982,12 +2035,20 @@ def register_dex_submission_routes(app) -> None:
                     "error": "idempotency_key_required",
                 }
             ), 400
-        payload = submission_clear_manager_payload(
-            chain_id=selected_chain_id,
-            dry_run=dry_run,
-            request_id=request_id,
-            idempotency_key=idempotency_key,
-        )
+        if record_kind == "review":
+            payload = review_clear_manager_payload(
+                chain_id=selected_chain_id,
+                dry_run=dry_run,
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+            )
+        else:
+            payload = submission_clear_manager_payload(
+                chain_id=selected_chain_id,
+                dry_run=dry_run,
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+            )
         if not payload.get("ok"):
             upstream_status = payload.get("upstreamStatus")
             status = upstream_status if isinstance(upstream_status, int) else 503

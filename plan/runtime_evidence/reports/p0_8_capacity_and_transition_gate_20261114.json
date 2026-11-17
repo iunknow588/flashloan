@@ -1,0 +1,65 @@
+{
+  "id": "p0_8_capacity_and_transition_gate_20261114",
+  "generatedAt": "2026-11-14",
+  "workPackage": "P0-8",
+  "title": "Folded single-tick capacity propagation and three-state execution gate",
+  "scope": "M0-A",
+  "authority": {
+    "productionDatabaseWrite": false,
+    "authoritySwitch": false,
+    "broadcast": false,
+    "lockedBinaryReplacement": false
+  },
+  "changes": [
+    {
+      "area": "manager_db",
+      "change": "New migration 20261114_008_single_tick_capacity_schema adds single_tick_capacity_anchor_raw and single_tick_capacity_binding_pool_id to manager_v4_closed_loops, manager_v4_reviews, manager_v4_review_broadcast_requests and manager_cow_execution_attempts."
+    },
+    {
+      "area": "closed_loop_manager",
+      "change": "The folded single-tick capacity (M_cap) is computed once and published on the closed-loop row together with the binding hop. It is no longer used as a filter and discarded."
+    },
+    {
+      "area": "review_manager",
+      "change": "The final gate enforces amount_in <= M_cap and fail-closes when no folded capacity is published. A new three-state execution gate classifies every hop as favorable, unchanged, adverse or fatal using pool_manager::state_transition."
+    },
+    {
+      "area": "broadcast_manager",
+      "change": "The broadcast attempt carries the reviewed folded capacity so the amount that was broadcast can be proven against the bound the review established."
+    },
+    {
+      "area": "runtime",
+      "change": "The Python task config publishes the folded capacity as maxProbeAmountRaw and singleTickCapacityRaw. The Rust ladder prefers singleTickCapacityRaw over maxProbeAmountRaw and records the basis."
+    }
+  ],
+  "failClosed": [
+    "No published folded capacity blocks the route with single_tick_capacity_unavailable.",
+    "A final input above the folded capacity blocks the route with final_input_exceeds_single_tick_capacity.",
+    "An adverse market move blocks the route with the stable reason adverse_price_move.",
+    "A price that left the expected tick range is fatal.",
+    "A missing expected or current pool state blocks the route."
+  ],
+  "regression": {
+    "poolManager": "131 passed",
+    "closedLoopManager": "20 passed",
+    "reviewManager": "122 passed",
+    "broadcastManager": "12 passed",
+    "managerApi": "24 passed",
+    "managerDb": "5 passed",
+    "compositeManager": "17 passed",
+    "rsSrc": "111 passed",
+    "contractExecutor": "24 passed",
+    "pythonBridgeAndRuntime": "180 passed"
+  },
+  "formatting": {
+    "cargoFmtTools": "clean",
+    "cargoFmtRsSrc": "clean"
+  },
+  "remaining": [
+    "The bounded sqrtPriceLimitX96 is not yet written into the production broadcast payload.",
+    "The on-chain contract does not yet read the current pool state and re-verify the three-state transition.",
+    "Batch isolation for a single failing closed loop is not yet proven end to end.",
+    "Chain and off-chain parity for the final three-hop input amount is not yet recorded.",
+    "The production broadcast switch remains disabled; no production database was written."
+  ]
+}

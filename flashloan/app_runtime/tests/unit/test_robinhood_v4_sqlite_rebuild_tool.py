@@ -294,6 +294,7 @@ def test_incremental_import_preserves_existing_token_category(tmp_path):
             {
                 "token_address": custom,
                 "token_symbol": "CUSTOM",
+                "token_name": "Custom Token",
                 "token_decimals": 18,
                 "token_metadata": {
                     "category": "stablecoin",
@@ -308,7 +309,8 @@ def test_incremental_import_preserves_existing_token_category(tmp_path):
         {
             **payloads["index"]["pools"][0],
             "token0": custom,
-            "token0Symbol": "CUSTOM",
+            "token0Symbol": "0XAAAAAAAA",
+            "token0Decimals": None,
             "token1": tz,
             "token1Symbol": "TZ",
         }
@@ -324,16 +326,80 @@ def test_incremental_import_preserves_existing_token_category(tmp_path):
     rows = query(
         database,
         """
-        SELECT token_symbol, token_metadata_json
+        SELECT token_symbol, token_name, token_decimals, token_metadata_json
         FROM chain_tokens
         WHERE network = ? AND chain_id = ? AND lower(token_address) = ?
         """,
         (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, custom.lower()),
     )
     assert len(rows) == 1
+    assert rows[0]["token_symbol"] == "CUSTOM"
+    assert rows[0]["token_name"] == "Custom Token"
+    assert rows[0]["token_decimals"] == 18
     metadata = json.loads(rows[0]["token_metadata_json"])
     assert metadata.get("category") == "stablecoin"
     assert metadata.get("source") == "operator_seed"
+
+
+def test_seed_chain_tokens_never_downgrades_resolved_metadata(tmp_path):
+    database = str(tmp_path / "no-token-downgrade.sqlite3")
+    ensure_database_schema(database)
+    custom = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    seed_chain_tokens(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        token_rows=[
+            {
+                "token_address": custom,
+                "token_symbol": "CUSTOM",
+                "token_name": "Custom Token",
+                "token_decimals": 18,
+                "token_metadata": {
+                    "symbol": "CUSTOM",
+                    "name": "Custom Token",
+                    "decimals": 18,
+                    "source": "chain_live_erc20",
+                },
+                "source": {"source": "chain_live_erc20"},
+            }
+        ],
+    )
+
+    seed_chain_tokens(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        token_rows=[
+            {
+                "token_address": custom,
+                "token_symbol": "0XAAAAAAAA",
+                "token_name": None,
+                "token_decimals": None,
+                "token_metadata": {"category": "raw_v4_index"},
+                "source": {"seed": "v4_pool_index"},
+            }
+        ],
+    )
+
+    from core.db.storage_business_io import query
+
+    rows = query(
+        database,
+        """
+        SELECT token_symbol, token_name, token_decimals
+        FROM chain_tokens
+        WHERE network = ? AND chain_id = ? AND lower(token_address) = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, custom.lower()),
+    )
+    assert rows == [
+        {
+            "token_symbol": "CUSTOM",
+            "token_name": "Custom Token",
+            "token_decimals": 18,
+        }
+    ]
 
 
 def test_import_v4_evidence_payloads_skips_index_rows_without_explicit_liquidity(tmp_path):
@@ -641,6 +707,15 @@ def test_v4_sqlite_view_loaders_mark_source_as_sqlite(tmp_path):
         index_payload=payloads["index"],
         liquidity_payload=payloads["liquidity"],
     )
+    execute(
+        database,
+        """
+        UPDATE v4_exchange_pools
+        SET pool_key_json = '{}'
+        WHERE network = ? AND chain_id = ?
+        """,
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
 
     index = load_v4_pool_index_payload(
         ROBINHOOD_TESTNET_NETWORK,
@@ -656,6 +731,10 @@ def test_v4_sqlite_view_loaders_mark_source_as_sqlite(tmp_path):
     assert index["source"] == "sqlite_db"
     assert len(index["pools"]) == 1
     assert index["pools"][0]["source"] == "sqlite_db"
+    assert index["pools"][0]["token0Symbol"] == "TZ"
+    assert index["pools"][0]["token1Symbol"] == "USDE"
+    assert index["pools"][0]["token0Decimals"] == 18
+    assert index["pools"][0]["token1Decimals"] == 18
     assert liquidity["ok"] is True
     assert liquidity["source"] == "sqlite_db"
     assert liquidity["pools"][0]["hasLiquidity"] is True
@@ -1116,6 +1195,7 @@ def test_refresh_v4_live_dry_run_is_read_only_and_plans_small_batch(
         pool_ids=["0x" + "aa" * 32],
         import_pool_ids=["0x" + "bb" * 32],
         batch_size=5,
+        anchors="TZ,USDE",
         dry_run=True,
         clear_cache=False,
     )
@@ -1127,6 +1207,7 @@ def test_refresh_v4_live_dry_run_is_read_only_and_plans_small_batch(
     assert report["steps"][0]["connection"] == "sqlite_mode_ro"
     assert report["plan"]["neededDirectionCount"] == 2
     assert set(report["plan"]["targets"]) == {f"{tz}:{usde}", f"{usde}:{tz}"}
+    assert report["scope"]["confirmedLiquidityPoolCount"] == 1
     assert report["requested"]["poolIds"] == ["0x" + "aa" * 32]
     assert report["requested"]["importPoolIds"] == ["0x" + "bb" * 32]
     assert report["requested"]["batchSize"] == 5
@@ -1155,6 +1236,41 @@ def test_direction_backfill_plan_enumerates_missing_anchor_directions(
     assert set(plan["targets"]) == {f"{tz}:{usde}", f"{usde}:{tz}"}
     assert set(plan["targets"].values()) == {MAX_DIRECTION_CANDIDATE_POOLS}
     assert plan["basis"] == "direction_candidate_shortfall"
+
+
+def test_prepare_v4_evidence_rows_uses_live_liquidity_observation_time() -> None:
+    from dex.tools.v4_rust_refresh import prepare_v4_evidence_rows
+
+    observed_at = "2026-11-15T02:18:09Z"
+    pool_id = "0x" + "ab" * 32
+    payload = {
+        "network": ROBINHOOD_TESTNET_NETWORK,
+        "chainId": ROBINHOOD_TESTNET_CHAIN_ID,
+        "generatedAt": None,
+        "pools": [
+            {
+                "poolId": pool_id,
+                "token0": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["TZ"],
+                "token1": TESTNET_ANCHOR_ADDRESS_BY_SYMBOL["USDE"],
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+                "hasLiquidity": True,
+                "liquidity": "1",
+                "liquidityReadAt": observed_at,
+                "liquidityBlockNumber": 123,
+            }
+        ],
+    }
+
+    rows = prepare_v4_evidence_rows(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        index_payload=payload,
+    )
+
+    assert rows["index_liquidity_rows"][0]["pool_id"] == pool_id
+    assert rows["index_liquidity_rows"][0]["observed_at"] == observed_at
 
 
 def test_refresh_v4_live_main_dry_run_prints_read_only_report(

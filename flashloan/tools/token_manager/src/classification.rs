@@ -1,15 +1,15 @@
 use crate::metadata::{MetadataSourceKind, NormalizedTokenMetadata};
 use crate::model::{AdmissionStatus, LibraryKey, TokenWrite};
 use crate::sources::{
-    mainnet_core4_allowlist, V4PoolCurrencyReference, V4PoolLiquidityEvidence, ROBINHOOD_CHAIN_ID,
-    ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
+    core4_allowlist, mainnet_core4_allowlist, V4PoolCurrencyReference, V4PoolLiquidityEvidence,
+    ROBINHOOD_CHAIN_ID, ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
 };
 use manager_contracts::normalize_address;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
-const MAX_CANDIDATE_FIXED_FEE: i64 = 3000;
+const MAX_CANDIDATE_FIXED_FEE: i64 = 30_000;
 
 pub const TESTNET_TEST_TOKEN_ADDRESSES: [&str; 1] = ["0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"];
 
@@ -68,10 +68,21 @@ impl ClassificationPolicy {
     }
 
     pub fn testnet_test_policy() -> Self {
+        // The testnet carries the same four core assets as mainnet: the
+        // native coin, its wrapped form and the two stablecoins. Without
+        // them in the core set every core token would fall through to the
+        // extension library, and the core4 scope would materialize empty.
+        let core_addresses = core4_allowlist(
+            ROBINHOOD_TESTNET_NETWORK,
+            ROBINHOOD_TESTNET_CHAIN_ID,
+        )
+        .into_iter()
+        .filter_map(|record| record.token_address)
+        .filter_map(|address| normalize_address(&address).ok());
         Self::new(
             ROBINHOOD_TESTNET_NETWORK,
             ROBINHOOD_TESTNET_CHAIN_ID,
-            std::iter::empty(),
+            core_addresses,
             testnet_test_token_addresses(),
         )
     }
@@ -245,6 +256,33 @@ impl ClassificationResult {
                 .flat_map(|token| token.to_token_writes_for_library(library))
                 .collect();
             (library, writes)
+        })
+        .collect()
+    }
+
+    /// The token keys every library carries, taken from the
+    /// classification rather than from the admission decisions.
+    ///
+    /// A token the economic gate withdrew or left pending is still a token
+    /// of the source -- it is only not admitted. The materializer needs
+    /// this set to tell a token that the source no longer carries from a
+    /// token that the source carries but that is not admitted.
+    pub fn source_token_keys_by_library(&self) -> BTreeMap<LibraryKey, BTreeSet<String>> {
+        [
+            LibraryKey::Core,
+            LibraryKey::Stocks,
+            LibraryKey::Test,
+            LibraryKey::Extension,
+        ]
+        .into_iter()
+        .map(|library| {
+            let keys = self
+                .tokens
+                .iter()
+                .flat_map(|token| token.to_token_writes_for_library(library))
+                .map(|write| write.token_key_id.as_str().to_owned())
+                .collect();
+            (library, keys)
         })
         .collect()
     }
@@ -560,7 +598,16 @@ pub fn pool_is_liquidity_qualified(pool: &V4PoolLiquidityEvidence) -> bool {
     {
         return false;
     }
-    if !pool.has_liquidity || pool.liquidity_index.unwrap_or(0.0) <= 0.0 {
+    let raw_liquidity = pool
+        .liquidity
+        .as_deref()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    if !pool.has_liquidity
+        || (raw_liquidity <= 0.0
+            && pool.liquidity_index.unwrap_or(0.0) <= 0.0
+            && pool.estimated_tvl_usd.unwrap_or(0.0) <= 0.0)
+    {
         return false;
     }
     true
@@ -680,9 +727,11 @@ mod tests {
             special_fee: 0,
             hooks: Some(crate::classification::ZERO_ADDRESS.to_owned()),
             has_liquidity,
+            liquidity: Some("1000000000000000000000".to_owned()),
             liquidity_index: Some(1000.0),
+            estimated_tvl_usd: Some(1000.0),
             depth_status: Some(depth_status.to_owned()),
-            evidence_source: Some("pool_manager_extsload_live_state_batch".to_owned()),
+            evidence_source: Some("pool_manager_extsload_live_state_batch_rust".to_owned()),
         }
     }
 
@@ -953,6 +1002,15 @@ mod tests {
         for pool in [dynamic_fee, special_fee, non_zero_hook, missing_liquidity] {
             assert!(!pool_is_liquidity_qualified(&pool), "{pool:?}");
         }
+    }
+
+    #[test]
+    fn liquidity_gate_accepts_positive_raw_liquidity_with_zero_index() {
+        let mut pool = liquidity("raw-liquidity", "no_liquidity", true);
+        pool.liquidity = Some("520797957".to_owned());
+        pool.liquidity_index = Some(0.0);
+        pool.estimated_tvl_usd = None;
+        assert!(pool_is_liquidity_qualified(&pool));
     }
 
     #[test]

@@ -8,6 +8,10 @@ license.workspace = true
 name = "composite_manager"
 path = "src/lib.rs"
 
+[[bin]]
+name = "composite-manager"
+path = "src/main.rs"
+
 [dependencies]
 broadcast-manager = { path = "../broadcast_manager" }
 candidate-edge-pool-manager = { path = "../candidate_edge_pool_manager" }
@@ -25,5 +29,6 @@ sha2.workspace = true
 token-manager = { path = "../token_manager" }
 
 [dev-dependencies]
+manager-contracts = { path = "../manager_contracts" }
 manager-db = { path = "../manager_db" }
 tempfile.workspace = true

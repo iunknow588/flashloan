@@ -260,10 +260,13 @@ def test_review_route_identity_resolves_native_weth_eth_and_observed_symbol():
     assert identity["status"] == "ok"
     assert identity["identity_mode"] == "address"
     assert identity["address_source"] == "chain_owned_allowlist"
+    # The third hop still carries the stale factory placeholder ``0XC9F9C8``.
+    # It is repaired from the chain-owned token registry, which returns the
+    # canonical EIP-55 spelling of the TSLA address.
     assert identity["route_addresses"] == [
         "0x7943e237c7F95DA44E0301572D358911207852Fa",
         "0x0000000000000000000000000000000000000000",
-        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
         "0x7943e237c7F95DA44E0301572D358911207852Fa",
     ]
     assert identity["routeAddresses"] == identity["route_addresses"]

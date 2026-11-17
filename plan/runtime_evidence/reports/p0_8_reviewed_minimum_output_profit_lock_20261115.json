@@ -1,0 +1,116 @@
+{
+  "authority": "code_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "executor_profit_lock + worker_pool_gate + execution",
+  "contractChanges": {
+    "deployedBytecodeBytes": {
+      "mainnet": 24500,
+      "mainnetHeadroom": 76,
+      "mainnetLimit": 24576,
+      "testnet": 24377,
+      "testnetHeadroom": 199
+    },
+    "eventRenamed": {
+      "event": "RobinhoodProfitGuardChecked",
+      "field": "minAmountOut",
+      "previousField": "gasReserve"
+    },
+    "files": [
+      "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "contract/robinhood-testnet/DEX/src/RobinhoodPausedFlashLoanExecutor.sol"
+    ],
+    "mechanism": "The V4 accounting callback compares the route's final balance against the reviewed minimum output before the profit guard and before settlement. A route below the floor reverts with BadFlashRepayment instead of settling at the worse price.",
+    "productionWrite": false,
+    "requestFieldRenamed": {
+      "abiLayoutUnchanged": true,
+      "field": "minAmountOut",
+      "previousField": "gasReserve",
+      "struct": "V4FlashAccountingRequest",
+      "structs": [
+        "V4FlashAccountingRequest",
+        "V4FlashAccountingValueRequest"
+      ]
+    },
+    "transport": "The reviewed minimum output travels in the request's seventh word, which was renamed from `gasReserve` to `minAmountOut`. The V4 accounting path never enforced the old field (gas is a sunk on-chain cost, so the balance decision came from `minProfit` alone), and the hot-path request encoder is already at the EIP-170 limit, so the ABI layout was kept and only the field name changed. The rename is byte-for-byte compatible with the broadcaster."
+  },
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-15T00:00:00Z",
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "singleLoopBroadcastPathChanged": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "remainingGates": [
+    "主网 bounded executor 部署与接线（需显式授权）",
+    "复核侧构造 executorRequest 并填写 reviewed minimum output（当前由 gasReserve 字段承载）",
+    "主网 live parity 与同源数学精确链上三态分类",
+    "批次广播在生产开启前的端到端回放",
+    "逐 hop 输出下限（当前为路线级下限；逐 hop 需要新的 ABI，已超出 EIP-170 预算）"
+  ],
+  "rollbackAvailable": true,
+  "rollbackPoint": "撤销 Executor 的 minAmountOut 校验、事件字段改名、Rust 的 reviewed_min_amount_out 门禁与对应测试",
+  "rpcRequestCount": 0,
+  "rustChanges": {
+    "abiSignatureUnchanged": "requestV4FlashLoanBatch((address,uint256,address[],bytes[],address,uint256,uint256)[])",
+    "files": [
+      "flashloan/rs-src/src/worker_pool.rs",
+      "flashloan/rs-src/src/execution.rs"
+    ],
+    "gate": "reviewed_min_amount_out: a route without a parsable, non-zero reviewed minimum output never enters the executor batch",
+    "newFunction": "worker_pool::reviewed_min_amount_out",
+    "requestField": "minAmountOut (the encoder also accepts the legacy `gasReserve` key)"
+  },
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "rejects a V4 flash route whose final balance is below the reviewed minimum output",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "accepts a V4 flash route whose final balance meets the reviewed minimum output",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "reports the reviewed minimum output in the profit guard event",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "rejects a V4 flash route whose final balance is below the reviewed minimum output",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "accepts a V4 flash route whose final balance meets the reviewed minimum output",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "reports the reviewed minimum output in the profit guard event",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "executor_batch_refuses_a_route_without_a_reviewed_minimum_output",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    },
+    {
+      "name": "v4_flash_batch_calldata_carries_the_reviewed_minimum_output",
+      "result": "passed",
+      "target": "rs-src execution"
+    }
+  ],
+  "title": "Reviewed minimum output 利润锁（路线级，EIP-170 预算内）"
+}

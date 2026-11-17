@@ -18,7 +18,7 @@ from typing import Any
 
 from web3 import Web3
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SIGNAL_PATH = SRC_ROOT / "runtime" / "state" / "latest_unified_data_simulation.json"
 DEFAULT_POOL_CACHE = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 DEFAULT_OUTPUT = SRC_ROOT / "runtime" / "state" / "latest_signal_pool_quotes.json"

@@ -9,6 +9,16 @@ use std::fmt;
 use std::path::Path;
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
+
+/// Minimum on-chain price-impact capacity, in raw token units of the binding
+/// side, for a pool to participate in a closed loop.
+///
+/// The capacity is denominated in the pool's own tokens, so this threshold
+/// never depends on a USD quote. The value is re-exported from the pool
+/// manager, which owns the single shared threshold, so the closed-loop
+/// admission and the candidate-pool admission can never disagree about which
+/// pools are deep enough.
+pub use pool_manager::depth_config::MIN_CANDIDATE_CAPACITY_RAW as MIN_CLOSED_LOOP_CAPACITY_RAW;
 const CLOSED_LOOP_SCOPE_KEY: &str = "core4";
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
@@ -221,6 +231,24 @@ pub struct ClosedLoopRow {
     pub observation_checksum: String,
     pub status: String,
     pub source: String,
+    /// The folded single-tick capacity of the loop, in anchor-token raw
+    /// units.
+    ///
+    /// This is the `M_cap` of the single-tick design: the capacity of every
+    /// hop, folded into the anchor token with the cumulative rate of the
+    /// hops before it, reduced to the smallest folded capacity. It is the
+    /// only number that may bound the input amount of the route.
+    ///
+    /// `None` means the fold could not be performed, because a hop does not
+    /// publish a usable tick state. The absence is a coverage gap of the
+    /// pool index, not a market conclusion, so it is never recorded as a
+    /// measured zero.
+    pub single_tick_capacity_anchor_raw: Option<u128>,
+    /// The hop whose folded capacity is the smallest.
+    ///
+    /// The pool is named so an operator can see **which** hop bounds the
+    /// loop instead of having to re-derive the fold.
+    pub single_tick_capacity_binding_pool_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -365,6 +393,29 @@ struct MiddlePool {
     token1_key_id: String,
 }
 
+/// The published single-tick state of one pool.
+///
+/// The state carries exactly what the path-level capacity needs: the
+/// current price, the liquidity, the fee, the tick spacing, the tick the
+/// price sits in and the order of the pool's two tokens.
+#[derive(Debug, Clone)]
+struct PoolTickState {
+    /// The square-root price of the pool, in Q96 fixed point.
+    sqrt_price_x96: u128,
+    /// The current liquidity of the pool.
+    liquidity: u128,
+    /// The fee of the pool, in hundredths of a basis point.
+    fee_pips: u32,
+    /// The tick spacing of the pool.
+    tick_spacing: i32,
+    /// The initialized tick the pool's price sits in.
+    tick: i32,
+    /// The key id of the pool's token0.
+    token0_key_id: String,
+    /// The key id of the pool's token1.
+    token1_key_id: String,
+}
+
 struct ClosedLoopInput {
     candidate_edge: CandidateEdgeStatus,
     observation: CandidateExchangeStatus,
@@ -373,6 +424,54 @@ struct ClosedLoopInput {
     yz_directions: BTreeMap<(String, String), YzDirection>,
     middle_pools: BTreeMap<(String, String), MiddlePool>,
     candidate_pool_ids: BTreeSet<(String, String)>,
+    /// On-chain price-impact capacity per pool, in raw token units.
+    ///
+    /// A pool that has never been measured is absent from this map. The
+    /// absence is a coverage gap of the pool index, not a statement about the
+    /// market, so it must not disqualify a loop by itself.
+    capacity_by_pool: BTreeMap<String, u128>,
+    /// The largest input each pool may carry while the price stays inside
+    /// its current tick range, per direction.
+    ///
+    /// The first arbitrage version constrains every hop to one tick range,
+    /// so a position larger than this bound would cross a tick boundary,
+    /// where the single-step off-chain pricing no longer holds. Pool
+    /// Manager owns the arithmetic and publishes the bound.
+    ///
+    /// A pool that has never been measured is absent from this map. The
+    /// absence is a coverage gap of the pool index, not a statement about
+    /// the market, so it must not disqualify a loop by itself.
+    single_tick_bounds_by_pool: BTreeMap<String, (Option<u128>, Option<u128>)>,
+    /// The published single-tick state of every pool that carries one.
+    ///
+    /// The state is what lets the path capacity be expressed in the
+    /// **anchor** token: the bound of a hop is denominated in the token
+    /// that hop spends, and the conversion between the tokens of the hops
+    /// is read from the pools themselves.
+    pool_tick_states: BTreeMap<String, PoolTickState>,
+}
+
+/// Resolve the pool-scope checksum that the closed-loop layer must publish.
+///
+/// The closed loop lives in the `core4` scope, so the only checksum that is
+/// valid for it is the one owned by the `core4` pool-scope configuration. The
+/// observation layer intentionally carries the `candidate_exchange` scope
+/// checksum, so reading it here would make the closed-loop layer publish a
+/// checksum for a scope it does not belong to. That mismatch silently pins
+/// the materialized checksum to an unrelated value and makes the rebuild
+/// gate report no change, which is why the drift could never be repaired.
+fn closed_loop_pool_scope_checksum(input: &ClosedLoopInput) -> Result<String, ClosedLoopError> {
+    if input.candidate_edge.scope_key != CLOSED_LOOP_SCOPE_KEY {
+        return Err(ClosedLoopError::InvalidStoredTopology(format!(
+            "candidate edge scope {:?} is not the closed-loop scope {:?}",
+            input.candidate_edge.scope_key, CLOSED_LOOP_SCOPE_KEY
+        )));
+    }
+    input
+        .candidate_edge
+        .pool_scope_checksum
+        .clone()
+        .ok_or(ClosedLoopError::MissingCandidateEdgeState)
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -535,11 +634,7 @@ fn materialize_on_connection(
             .materialized_checksum
             .clone()
             .ok_or(ClosedLoopError::MissingObservationState)?,
-        pool_scope_checksum: input
-            .observation
-            .pool_scope_checksum
-            .clone()
-            .ok_or(ClosedLoopError::MissingObservationState)?,
+        pool_scope_checksum: closed_loop_pool_scope_checksum(&input)?,
         library_versions: input.observation.library_versions.clone(),
         library_checksums: input.observation.library_checksums.clone(),
         anchor_count: input.anchors.len(),
@@ -556,6 +651,8 @@ fn materialize_on_connection(
     if apply {
         if checksum_changed {
             replace_closed_loop_rows(connection, network, chain_id, &desired, &result)?;
+        } else if previous.consumers_need_rebuild {
+            clear_consumers_need_rebuild(connection, network, chain_id)?;
         }
         if let Some((request, request_digest)) = prepared_write {
             persist_write_request(connection, request, &request_digest, &result)?;
@@ -671,6 +768,9 @@ fn read_closed_loop_input(
     let yz_directions = read_yz_directions(connection, network, chain_id)?;
     let middle_pools = read_middle_pools(connection, network, chain_id)?;
     let candidate_pool_ids = read_candidate_pool_ids(connection, network, chain_id)?;
+    let capacity_by_pool = read_pool_capacities(connection, network, chain_id)?;
+    let single_tick_bounds_by_pool = read_single_tick_bounds(connection, network, chain_id)?;
+    let pool_tick_states = read_pool_tick_states(connection, network, chain_id)?;
 
     Ok(ClosedLoopInput {
         candidate_edge,
@@ -680,6 +780,9 @@ fn read_closed_loop_input(
         yz_directions,
         middle_pools,
         candidate_pool_ids,
+        capacity_by_pool,
+        single_tick_bounds_by_pool,
+        pool_tick_states,
     })
 }
 
@@ -890,6 +993,42 @@ fn read_anchors(
             .tokens
             .insert(token.token_key_id.clone(), token);
     }
+    for (anchor_token_key_id, anchor) in &mut anchors {
+        if anchor.tokens.contains_key(anchor_token_key_id) {
+            continue;
+        }
+        let anchor_token = connection
+            .query_row(
+                "SELECT token_key_id, token_symbol, library_key
+                 FROM token_library_catalog
+                 WHERE network = ?1 AND chain_id = ?2 AND token_key_id = ?3
+                   AND admission_status = 'admitted'
+                 ORDER BY CASE library_key
+                     WHEN 'core' THEN 0
+                     WHEN 'stocks' THEN 1
+                     WHEN 'test' THEN 2
+                     ELSE 3
+                 END
+                 LIMIT 1",
+                params![network, chain_id, anchor_token_key_id],
+                |row| {
+                    Ok(TokenMeta {
+                        token_key_id: row.get(0)?,
+                        token_symbol: row.get(1)?,
+                        _token_library_key: row.get(2)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| {
+                ClosedLoopError::InvalidStoredTopology(format!(
+                    "anchor {anchor_token_key_id} is absent from candidate rows and token catalog"
+                ))
+            })?;
+        anchor
+            .tokens
+            .insert(anchor_token.token_key_id.clone(), anchor_token);
+    }
     Ok(anchors)
 }
 
@@ -1034,6 +1173,429 @@ fn read_candidate_pool_ids(
     Ok(rows.collect::<Result<BTreeSet<_>, _>>()?)
 }
 
+/// Read the latest on-chain capacity per pool.
+///
+/// The snapshot table stores one row per observation, so the newest row per
+/// pool wins. A pool without a measured capacity is simply absent from the
+/// result: the depth rollout may not have reached it yet.
+/// Reads the single-tick bounds of every pool.
+///
+/// The first arbitrage version constrains every hop to one tick range, so a
+/// position may never be larger than the amount that keeps the price inside
+/// the current range. Pool Manager owns that arithmetic and publishes the
+/// bound with the pool snapshot, so Closed Loop Manager only reads it.
+///
+/// A pool without a published bound is absent from the map. That is a
+/// coverage gap of the pool index, not a market conclusion, so such a pool
+/// does not block the path.
+fn read_single_tick_bounds(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, (Option<u128>, Option<u128>)>, ClosedLoopError> {
+    let table_exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='v4_exchange_pool_liquidity_snapshots'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(BTreeMap::new());
+    }
+    let columns = {
+        let mut statement =
+            connection.prepare("PRAGMA table_info(v4_exchange_pool_liquidity_snapshots)")?;
+        let rows = statement.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
+        rows.collect::<Result<BTreeSet<_>, _>>()?
+    };
+    if !columns.contains("single_tick_max_token0_raw") {
+        return Ok(BTreeMap::new());
+    }
+    // A NULL bound means "not measured"; a bound of zero means "measured,
+    // and there is no room". The two are different facts, so the NULL is
+    // preserved instead of being folded into zero.
+    let mut statement = connection.prepare(
+        "SELECT pool_id,
+                single_tick_max_token0_raw,
+                single_tick_max_token1_raw
+         FROM v4_exchange_pool_liquidity_snapshots
+         WHERE network = ?1 AND chain_id = ?2",
+    )?;
+    let rows = statement.query_map(params![network, chain_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
+    })?;
+    let mut bounds = BTreeMap::new();
+    for row in rows {
+        let (pool_id, token0, token1) = row?;
+        fn parse_bound(value: Option<String>) -> Option<u128> {
+            let owned = value?;
+            let text = owned.trim();
+            if text.is_empty() {
+                return None;
+            }
+            text.parse::<u128>().ok()
+        }
+        let token0 = parse_bound(token0);
+        let token1 = parse_bound(token1);
+        if token0.is_none() && token1.is_none() {
+            continue;
+        }
+        bounds.insert(pool_id, (token0, token1));
+    }
+    Ok(bounds)
+}
+
+/// Read the published single-tick state of every candidate pool.
+///
+/// The state is what lets the path capacity be expressed in the **anchor**
+/// token: the bound of a hop is denominated in the token that hop spends,
+/// and the conversion between the tokens of the hops is read from the
+/// pools themselves.
+///
+/// A pool without a usable state is absent from the map. That is a
+/// coverage gap of the pool index, not a market conclusion.
+fn read_pool_tick_states(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, PoolTickState>, ClosedLoopError> {
+    // The tick state is published by **two** pool tables:
+    //
+    //   * `v4_exchange_pools_candidate_exchange` — the pools that took part
+    //     in the last candidate-exchange materialization;
+    //   * `v4_exchange_pools_core4` — the pools of the core scope, which
+    //     includes the anchor pools that only exist there.
+    //
+    // A closed loop may mix both kinds of pools. Reading only one of the
+    // two tables therefore leaves the loops that touch a core-only pool
+    // without a tick state, and their folded capacity stays `None` even
+    // though every hop really does have a published state.
+    //
+    // The candidate-exchange table wins when both carry the same pool: it
+    // is the table the closed-loop layer actually consumes, so its state is
+    // the freshest one for the pools it publishes.
+    let mut states = BTreeMap::new();
+    for table in [
+        "v4_exchange_pools_candidate_exchange",
+        "v4_exchange_pools_core4",
+    ] {
+        read_pool_tick_states_from_table(connection, network, chain_id, table, &mut states)?;
+    }
+    Ok(states)
+}
+
+/// Read the published single-tick state of every candidate pool.
+///
+/// The state is what lets the path capacity be expressed in the **anchor**
+/// token: the bound of a hop is denominated in the token that hop spends,
+/// and the conversion between the tokens of the hops is read from the
+/// pools themselves.
+///
+/// A pool without a usable state is absent from the map. That is a
+/// coverage gap of the pool index, not a market conclusion.
+fn read_pool_tick_states_from_table(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    table: &str,
+    states: &mut BTreeMap<String, PoolTickState>,
+) -> Result<(), ClosedLoopError> {
+    let table_exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+            params![table],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(());
+    }
+    let columns = {
+        let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
+        let rows = statement.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
+        rows.collect::<Result<BTreeSet<_>, _>>()?
+    };
+    for required in [
+        "sqrt_price_x96",
+        "tick",
+        "liquidity",
+        "fee",
+        "tick_spacing",
+        "token0_key_id",
+        "token1_key_id",
+    ] {
+        if !columns.contains(required) {
+            return Ok(());
+        }
+    }
+    let mut statement = connection.prepare(&format!(
+        "SELECT pool_id, sqrt_price_x96, tick, liquidity, fee, tick_spacing,
+                token0_key_id, token1_key_id
+         FROM {table}
+         WHERE network = ?1 AND chain_id = ?2"
+    ))?;
+    let rows = statement.query_map(params![network, chain_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<i64>>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+            row.get::<_, Option<String>>(6)?,
+            row.get::<_, Option<String>>(7)?,
+        ))
+    })?;
+    for row in rows {
+        let (
+            pool_id,
+            sqrt_price_x96,
+            tick,
+            liquidity,
+            fee,
+            tick_spacing,
+            token0_key_id,
+            token1_key_id,
+        ) = row?;
+        // A state that cannot be used is not published: the capacity of a
+        // hop with an unusable price or an unusable liquidity is not
+        // computable, and publishing a zero would read as "measured, and
+        // there is no room".
+        let Some(sqrt_price_x96) = sqrt_price_x96.and_then(|text| text.trim().parse::<u128>().ok())
+        else {
+            continue;
+        };
+        if sqrt_price_x96 == 0 {
+            continue;
+        }
+        // The liquidity column stores the raw uint128 liquidity as TEXT, the
+        // same representation the pool snapshot table uses. Reading it as an
+        // INTEGER truncates every value above i64::MAX and fails outright on
+        // the production store, so the value is parsed from its text form.
+        let Some(liquidity) = liquidity.and_then(|text| text.trim().parse::<u128>().ok()) else {
+            continue;
+        };
+        if liquidity <= 0 {
+            continue;
+        }
+        let Some(tick) = tick else { continue };
+        let Some(fee) = fee else { continue };
+        if fee <= 0 {
+            continue;
+        }
+        let Some(tick_spacing) = tick_spacing else {
+            continue;
+        };
+        if tick_spacing <= 0 {
+            continue;
+        }
+        let Some(token0_key_id) = token0_key_id else {
+            continue;
+        };
+        let Some(token1_key_id) = token1_key_id else {
+            continue;
+        };
+        if token0_key_id.trim().is_empty() || token1_key_id.trim().is_empty() {
+            continue;
+        }
+        states.entry(pool_id.clone()).or_insert(PoolTickState {
+            sqrt_price_x96,
+            liquidity,
+            fee_pips: fee as u32,
+            tick_spacing: tick_spacing as i32,
+            tick: tick as i32,
+            token0_key_id,
+            token1_key_id,
+        });
+    }
+    Ok(())
+}
+
+fn read_pool_capacities(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, u128>, ClosedLoopError> {
+    let table_exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='v4_exchange_pool_liquidity_snapshots'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(BTreeMap::new());
+    }
+    let columns = {
+        let mut statement =
+            connection.prepare("PRAGMA table_info(v4_exchange_pool_liquidity_snapshots)")?;
+        let rows = statement.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
+        rows.collect::<Result<BTreeSet<_>, _>>()?
+    };
+    if !columns.contains("capacity_raw") {
+        return Ok(BTreeMap::new());
+    }
+    let mut statement = connection.prepare(
+        "SELECT pool_id, COALESCE(capacity_raw, '0')
+         FROM v4_exchange_pool_liquidity_snapshots
+         WHERE network = ?1 AND chain_id = ?2",
+    )?;
+    let rows = statement.query_map(params![network, chain_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut capacities = BTreeMap::new();
+    for row in rows {
+        let (pool_id, capacity) = row?;
+        // The capacity is a raw uint128 amount stored as TEXT. Casting it to
+        // an INTEGER clamps every value above i64::MAX to i64::MAX, which
+        // would silently promote an oversized pool instead of rejecting it,
+        // so the text form is parsed instead.
+        let Ok(capacity) = capacity.trim().parse::<u128>() else {
+            continue;
+        };
+        if capacity <= 0 {
+            continue;
+        }
+        capacities.insert(pool_id, capacity);
+    }
+    Ok(capacities)
+}
+
+/// Return the path-level minimum of the single-tick bounds.
+///
+/// The first arbitrage version constrains every hop to **one tick range**.
+/// A hop whose position would cross the range boundary is not executable in
+/// that version, so a path is only eligible when *every* hop can carry the
+/// position inside its own range.
+///
+/// The bound is per direction: the first hop spends the anchor token, the
+/// middle hop spends Y and the third hop spends Z, so each hop is bounded
+/// by the direction it actually trades in.
+///
+/// A hop without a published bound is skipped, which keeps the loop
+/// eligible: the missing measurement is a coverage gap of the pool index,
+/// not a market conclusion.
+fn path_min_single_tick_bound(
+    input: &ClosedLoopInput,
+    pool_ids: &[String],
+    directions: &[bool],
+) -> (Option<u128>, Option<String>) {
+    // The bounds of the hops are denominated in the token each hop spends:
+    // the first hop spends the anchor token, the middle hop spends Y and
+    // the third hop spends Z. Taking the minimum of three numbers in three
+    // different units is a **unit error**, so the bounds are folded into
+    // the anchor token before they are compared.
+    //
+    // The fold needs the price of every hop. When every pool publishes a
+    // usable state, the folded capacity is the only value the gate uses.
+    // A legacy row may still publish a raw zero bound before tick states
+    // are rolled out. That zero is retained as a directional unusability
+    // signal, but raw positive bounds are never compared across tokens.
+    if let Some((capacity, blocking_pool)) =
+        folded_path_capacity(&input.pool_tick_states, pool_ids, directions)
+    {
+        return (Some(capacity), Some(blocking_pool));
+    }
+    let mut unusable_pool = None;
+    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
+        let Some((token0, token1)) = input.single_tick_bounds_by_pool.get(pool_id) else {
+            continue;
+        };
+        let bound = if *zero_for_one { token0 } else { token1 };
+        if *bound == Some(0) {
+            unusable_pool = Some(pool_id.clone());
+            break;
+        }
+    }
+    (unusable_pool.clone().map(|_| 0), unusable_pool)
+}
+
+/// Return the path-level capacity in the **anchor** token.
+///
+/// Every hop capacity is folded into the anchor token with the cumulative
+/// rate of the hops before it, exactly as the single-tick capacity design
+/// prescribes, and the smallest folded capacity is returned.
+///
+/// `None` means the fold cannot be performed: either a pool state or a
+/// price is missing, or the capacity itself is not computable.
+fn folded_path_capacity(
+    pool_tick_states: &BTreeMap<String, PoolTickState>,
+    pool_ids: &[String],
+    directions: &[bool],
+) -> Option<(u128, String)> {
+    if pool_ids.is_empty() || pool_ids.len() != directions.len() {
+        return None;
+    }
+
+    // The hop spends a token and receives another one. The token order of
+    // the pool decides which of the two the hop spends, and the hop
+    // direction decides whether it is token0 or token1.
+    let mut hops: Vec<pool_manager::single_tick_capacity::CapacityHop> =
+        Vec::with_capacity(pool_ids.len());
+    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
+        let state = pool_tick_states.get(pool_id)?;
+        let (token_in, token_out) = if *zero_for_one {
+            (state.token0_key_id.clone(), state.token1_key_id.clone())
+        } else {
+            (state.token1_key_id.clone(), state.token0_key_id.clone())
+        };
+        hops.push(pool_manager::single_tick_capacity::CapacityHop {
+            pool_id: pool_id.clone(),
+            token_in,
+            token_out,
+            sqrt_price_x96: state.sqrt_price_x96,
+            liquidity: state.liquidity,
+            fee_pips: state.fee_pips,
+            tick_spacing: state.tick_spacing,
+            tick: state.tick,
+            zero_for_one: *zero_for_one,
+        });
+    }
+
+    // The anchor token is the token the **first** hop spends, which is the
+    // token the loop starts from.
+    let anchor_token = hops.first()?.token_in.clone();
+    let capacity =
+        pool_manager::single_tick_capacity::compute_loop_capacity(&anchor_token, &hops).ok()?;
+    Some((capacity.capacity_anchor_raw, capacity.binding_pool_id))
+}
+
+/// Return the path-level minimum capacity of a closed loop.
+///
+/// A closed loop is only executable when *every* hop can carry the position
+/// inside the epsilon price-impact budget. One hop whose capacity is below
+/// the floor therefore disqualifies the whole path, even when the other two
+/// hops are deep.
+///
+/// A hop without a measured capacity returns `None`, which keeps the loop
+/// eligible: the missing measurement is a coverage gap of the pool index,
+/// not a market conclusion.
+fn path_min_capacity(
+    input: &ClosedLoopInput,
+    pool_ids: &[String],
+) -> (Option<u128>, Option<String>) {
+    let mut minimum: Option<u128> = None;
+    let mut blocking_pool: Option<String> = None;
+    for pool_id in pool_ids {
+        let Some(capacity) = input.capacity_by_pool.get(pool_id) else {
+            continue;
+        };
+        if *capacity < MIN_CLOSED_LOOP_CAPACITY_RAW {
+            return (Some(*capacity), Some(pool_id.clone()));
+        }
+        if minimum.is_none_or(|current| *capacity < current) {
+            minimum = Some(*capacity);
+            blocking_pool = Some(pool_id.clone());
+        }
+    }
+    (minimum, blocking_pool)
+}
+
 fn build_closed_loop_rows(
     input: &ClosedLoopInput,
 ) -> Result<DesiredClosedLoopData, ClosedLoopError> {
@@ -1160,6 +1722,107 @@ fn build_closed_loop_rows(
                         "third",
                     )?;
                 }
+                // Path-level capacity gate.
+                //
+                // The loop is only executable when *every* hop can carry the
+                // intended position inside the epsilon price-impact budget.
+                // A single hop below the capacity floor disqualifies the whole
+                // path, even when the other two hops are deep. The capacity is
+                // denominated in each pool's own tokens, so this gate never
+                // depends on a USD quote.
+                //
+                // A hop whose capacity was never measured does not block: the
+                // missing measurement is a coverage gap of the pool index, not
+                // a statement about the market.
+                let path_pool_ids = vec![
+                    first_options[0].pool_id.clone(),
+                    middle_pool_id.to_owned(),
+                    third_options[0].pool_id.clone(),
+                ];
+                // The first arbitrage version constrains every hop to one
+                // tick range. The direction of each hop decides which side
+                // of the range the hop runs into, so the direction has to be
+                // known before the bound can be read.
+                //
+                // The first hop trades the anchor into Y, the middle hop
+                // trades Y into Z and the third hop trades Z back into the
+                // anchor. The `direction_key` of a recommendation already
+                // names that direction, and the middle pool publishes the
+                // token order it trades in.
+                let first_direction = first_options[0].direction_key.as_str();
+                let first_zero_for_one = first_direction
+                    .split_once('>')
+                    .map(|(from, _)| from.trim() == anchor_token_key_id.trim())
+                    .unwrap_or(false);
+                let third_direction = third_options[0].direction_key.as_str();
+                let third_zero_for_one = third_direction
+                    .split_once('>')
+                    .map(|(from, _)| from.trim() == z_token.trim())
+                    .unwrap_or(false);
+                let middle_zero_for_one = input
+                    .middle_pools
+                    .get(&(anchor_token_key_id.clone(), middle_pool_id.to_owned()))
+                    .map(|pool| pool.token0_key_id.trim() == y_token.trim())
+                    .unwrap_or(false);
+                let hop_directions = [first_zero_for_one, middle_zero_for_one, third_zero_for_one];
+                // The folded capacity is the authoritative single-tick bound
+                // of the loop. It is captured separately from the legacy
+                // filter below, because the filter may fall back to a
+                // per-hop bound when the fold cannot be performed, and that
+                // fallback is **not** a folded capacity in anchor units.
+                let folded_capacity =
+                    folded_path_capacity(&input.pool_tick_states, &path_pool_ids, &hop_directions);
+                let (path_min_tick_bound_raw, path_tick_blocking_pool) =
+                    path_min_single_tick_bound(input, &path_pool_ids, &hop_directions);
+                if path_min_tick_bound_raw.is_some_and(|bound| bound == 0) {
+                    // A hop that cannot carry any position inside its tick
+                    // range disqualifies the path in the first version.
+                    let blocking = path_tick_blocking_pool
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_owned();
+                    let reason = format!("path_single_tick_bound_unusable:{blocking}");
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        y_token.clone(),
+                        "first".to_owned(),
+                        reason.clone(),
+                    ));
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        z_token.clone(),
+                        "third".to_owned(),
+                        reason,
+                    ));
+                    continue;
+                }
+                let (path_min_capacity_raw, path_blocking_pool) =
+                    path_min_capacity(input, &path_pool_ids);
+                if path_min_capacity_raw
+                    .is_some_and(|capacity| capacity < MIN_CLOSED_LOOP_CAPACITY_RAW)
+                {
+                    // The blocking hop is named in the skip reason so the
+                    // operator can see *which* pool disqualified the path
+                    // instead of having to re-derive it.
+                    let blocking = path_blocking_pool
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_owned();
+                    let reason = format!("path_capacity_below_minimum:{blocking}");
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        y_token.clone(),
+                        "first".to_owned(),
+                        reason.clone(),
+                    ));
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        z_token.clone(),
+                        "third".to_owned(),
+                        reason,
+                    ));
+                    continue;
+                }
                 participating_first.insert(y_token.clone());
                 participating_third.insert(z_token.clone());
                 push_loop(
@@ -1175,6 +1838,10 @@ fn build_closed_loop_rows(
                     yz,
                     middle_pool_id,
                     &(input.observation.observation_version.max(1)),
+                    folded_capacity.as_ref().map(|(capacity, _)| *capacity),
+                    folded_capacity
+                        .as_ref()
+                        .map(|(_, binding_pool)| binding_pool.clone()),
                 )?;
             }
         }
@@ -1281,6 +1948,8 @@ fn push_loop(
     yz: &YzDirection,
     middle_pool_id: &str,
     observation_version: &i64,
+    single_tick_capacity_anchor_raw: Option<u128>,
+    single_tick_capacity_binding_pool_id: Option<String>,
 ) -> Result<(), ClosedLoopError> {
     let y = tokens.get(y_token_key_id).ok_or_else(|| {
         ClosedLoopError::InvalidStoredTopology(format!("missing Y token {y_token_key_id}"))
@@ -1374,6 +2043,8 @@ fn push_loop(
             .ok_or(ClosedLoopError::MissingObservationState)?,
         status: "active".to_owned(),
         source: "closed_loop_manager".to_owned(),
+        single_tick_capacity_anchor_raw,
+        single_tick_capacity_binding_pool_id,
     });
 
     let middle_basis = format!("observation_direction_optimal_pool:{y_address}:{z_address}");
@@ -1572,17 +2243,17 @@ fn validate_expected_upstream(
             });
         }
     }
-    let actual_pool_scope = input
-        .observation
-        .pool_scope_checksum
-        .as_deref()
-        .ok_or(ClosedLoopError::MissingObservationState)?;
+    // The expected upstream must be checked against the checksum that the
+    // closed-loop layer actually publishes, which is the one owned by the
+    // closed-loop scope. Comparing it against the observation scope would
+    // accept a stale caller expectation and reject a correct one.
+    let actual_pool_scope = closed_loop_pool_scope_checksum(input)?;
     if let Some(expected_checksum) = expected.pool_scope_checksum.as_deref() {
         if expected_checksum != actual_pool_scope {
             return Err(ClosedLoopError::ExpectedUpstreamMismatch {
                 field: "pool_scope_checksum".to_owned(),
                 expected: expected_checksum.to_owned(),
-                actual: actual_pool_scope.to_owned(),
+                actual: actual_pool_scope,
             });
         }
     }
@@ -1623,6 +2294,7 @@ fn closed_loop_checksum(
     input: &ClosedLoopInput,
     desired: &DesiredClosedLoopData,
 ) -> Result<String, ClosedLoopError> {
+    let pool_scope_checksum = closed_loop_pool_scope_checksum(input)?;
     let payload = ClosedLoopChecksumPayload {
         candidate_edge_version: input.candidate_edge.candidate_version,
         candidate_edge_checksum: input
@@ -1636,11 +2308,7 @@ fn closed_loop_checksum(
             .materialized_checksum
             .as_deref()
             .ok_or(ClosedLoopError::MissingObservationState)?,
-        pool_scope_checksum: input
-            .observation
-            .pool_scope_checksum
-            .as_deref()
-            .ok_or(ClosedLoopError::MissingObservationState)?,
+        pool_scope_checksum: &pool_scope_checksum,
         library_versions: &input.observation.library_versions,
         library_checksums: &input.observation.library_checksums,
         loops: &desired.loops,
@@ -1825,7 +2493,9 @@ fn read_loops(
                 hop_candidate_combination_count, recommendation_basis,
                 recommended_first_priority, candidate_edge_version,
                 candidate_edge_checksum, observation_version,
-                observation_checksum, status, source
+                observation_checksum, status, source,
+                single_tick_capacity_anchor_raw,
+                single_tick_capacity_binding_pool_id
          FROM manager_v4_closed_loops
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR anchor_token_key_id = ?5)
@@ -1868,6 +2538,13 @@ fn read_loops(
                 observation_checksum: row.get(20)?,
                 status: row.get(21)?,
                 source: row.get(22)?,
+                single_tick_capacity_anchor_raw: row
+                    .get::<_, Option<String>>(23)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
+                single_tick_capacity_binding_pool_id: row
+                    .get::<_, Option<String>>(24)?
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
             })
         },
     )?;
@@ -2092,10 +2769,13 @@ fn replace_closed_loop_rows(
                  hop_candidate_combination_count, recommendation_basis,
                  recommended_first_priority, candidate_edge_version,
                  candidate_edge_checksum, observation_version,
-                 observation_checksum, status, source, created_at, updated_at
+                 observation_checksum, status, source,
+                 single_tick_capacity_anchor_raw,
+                 single_tick_capacity_binding_pool_id,
+                 created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
-                       ?24, ?25, ?26, ?27, ?28, ?28)",
+                       ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?30)",
             params![
                 network,
                 chain_id,
@@ -2124,6 +2804,9 @@ fn replace_closed_loop_rows(
                 row.observation_checksum,
                 row.status,
                 row.source,
+                row.single_tick_capacity_anchor_raw
+                    .map(|value| value.to_string()),
+                row.single_tick_capacity_binding_pool_id.clone(),
                 now
             ],
         )?;
@@ -2288,6 +2971,27 @@ fn insert_state(
             result.skipped_token_count as i64,
             i64::from(result.consumers_need_rebuild),
             now
+        ],
+    )?;
+    Ok(())
+}
+
+fn clear_consumers_need_rebuild(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<(), ClosedLoopError> {
+    connection.execute(
+        "UPDATE manager_v4_closed_loop_library_state
+         SET consumers_need_rebuild = 0, updated_at = ?5
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+           AND scope_key = ?4 AND consumers_need_rebuild != 0",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            chrono::Utc::now().to_rfc3339()
         ],
     )?;
     Ok(())
@@ -2869,11 +3573,14 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_closed_loops, materialize_closed_loops, materialize_closed_loops_write,
-        read_closed_loop_snapshot, ClosedLoopError, ClosedLoopWriteRequest, ExpectedUpstream,
+        compare_closed_loops, folded_path_capacity, materialize_closed_loops,
+        materialize_closed_loops_write, path_min_capacity, read_closed_loop_input,
+        read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
+        ClosedLoopWriteRequest, ExpectedUpstream, PoolTickState, MIN_CLOSED_LOOP_CAPACITY_RAW,
     };
     use manager_contracts::TokenKeyId;
     use rusqlite::{params, Connection};
+    use std::collections::BTreeMap;
 
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
@@ -2886,6 +3593,9 @@ mod tests {
     const POOL_YZ_2: &str = "pool-yz-2";
     const POOL_D: &str = "pool-d";
     const MARKET_ID: &str = "dex-arbitrage-4663-uniswap-v4";
+
+    const CORE4_SCOPE_CHECKSUM: &str = "sha256:core4-scope";
+    const EXCHANGE_SCOPE_CHECKSUM: &str = "sha256:exchange-scope";
 
     fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
@@ -2902,6 +3612,103 @@ mod tests {
             .unwrap()
             .as_str()
             .to_owned()
+    }
+
+    /// Seed the on-chain capacity of the pools used by the fixture.
+    ///
+    /// The capacity is denominated in the pool's own tokens, so the fixture
+    /// never needs a USD price.
+    fn seed_capacities(connection: &Connection, capacities: &[(&str, i64)]) {
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    capacity_raw TEXT, liquidity_read_at TEXT)",
+                [],
+            )
+            .unwrap();
+        for (pool_id, capacity) in capacities {
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                        network, chain_id, protocol, pool_id, capacity_raw,
+                        liquidity_read_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, 'fixture')",
+                    params![NETWORK, CHAIN_ID, pool_id, capacity.to_string()],
+                )
+                .unwrap();
+        }
+    }
+
+    /// Seeds the published single-tick state of a pool.
+    ///
+    /// The state is what lets the closed-loop layer fold the capacity of
+    /// every hop into the anchor token. Without it the fold cannot be
+    /// performed and the loop publishes no folded capacity.
+    fn seed_pool_tick_states(connection: &Connection, states: &[(&str, u128, &str, &str)]) {
+        for (pool_id, sqrt_price_x96, token0, token1) in states {
+            connection
+                .execute(
+                    "INSERT OR REPLACE INTO v4_exchange_pools_candidate_exchange (
+                        network, chain_id, protocol, pool_id, pool_manager,
+                        pool_key_json, token0, token1, token0_key_id, token1_key_id,
+                        fee, tick_spacing, hooks, sqrt_price_x96, tick, liquidity,
+                        materialized_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, '0xpoolmanager', '{}',
+                               ?4, ?5, ?4, ?5, 3000, 60,
+                               '0x0000000000000000000000000000000000000000',
+                               ?6, 0, '1000000000000', 'fixture', 'fixture')",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        pool_id,
+                        token0,
+                        token1,
+                        sqrt_price_x96.to_string()
+                    ],
+                )
+                .unwrap();
+        }
+    }
+
+    /// Seeds the single-tick bounds of a pool.
+    ///
+    /// The bounds are the largest input each direction may carry while the
+    /// price stays inside the pool's current tick range. Pool Manager owns
+    /// the arithmetic; the closed-loop layer only reads the published
+    /// value.
+    fn seed_single_tick_bounds(
+        connection: &Connection,
+        bounds: &[(&str, Option<i64>, Option<i64>)],
+    ) {
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    capacity_raw TEXT, liquidity_read_at TEXT,
+                    single_tick_max_token0_raw TEXT, single_tick_max_token1_raw TEXT)",
+                [],
+            )
+            .unwrap();
+        for (pool_id, token0, token1) in bounds {
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                        network, chain_id, protocol, pool_id, capacity_raw,
+                        liquidity_read_at, single_tick_max_token0_raw,
+                        single_tick_max_token1_raw
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, '1000000', 'fixture',
+                               ?4, ?5)",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        pool_id,
+                        token0.map(|value| value.to_string()),
+                        token1.map(|value| value.to_string()),
+                    ],
+                )
+                .unwrap();
+        }
     }
 
     fn seed_upstream(connection: &Connection) {
@@ -2926,6 +3733,30 @@ mod tests {
             (AMZN, "AMZN", "stocks"),
             (TA, "TA", "extension"),
         ] {
+            let token_table = match library {
+                "core" => "token_core",
+                "stocks" => "token_stocks",
+                _ => "token_extension",
+            };
+            connection
+                .execute(
+                    &format!(
+                        "INSERT INTO {token_table} (
+                            network, chain_id, token_key_id, v4_currency_key,
+                            token_address, token_symbol, token_name, token_decimals,
+                            token_kind, is_native, is_wrapped_native, is_stable,
+                            admission_status, admission_source, metadata_source,
+                            metadata_checksum, source_json, first_seen_at,
+                            first_admitted_at, updated_at, blocked_reason
+                         ) VALUES (
+                            ?1, ?2, ?3, ?4, ?4, ?5, ?5, 18, 'erc20', 0, 0, 0,
+                            'admitted', 'fixture', 'fixture', 'sha256:fixture', '{{}}',
+                            'fixture', 'fixture', 'fixture', NULL
+                         )"
+                    ),
+                    params![NETWORK, CHAIN_ID, token(address), address, symbol],
+                )
+                .unwrap();
             connection
                 .execute(
                     "INSERT INTO manager_dex_candidate_anchor_tokens (
@@ -3071,6 +3902,138 @@ mod tests {
     }
 
     #[test]
+    fn the_closed_loop_floor_is_the_pool_manager_admission_floor() {
+        // The closed-loop admission and the candidate-pool admission must
+        // agree on which pools are deep enough. The threshold is re-exported
+        // from the pool manager, so the equality is an identity by
+        // construction rather than a duplicated literal.
+        assert_eq!(
+            MIN_CLOSED_LOOP_CAPACITY_RAW,
+            pool_manager::depth_config::MIN_CANDIDATE_CAPACITY_RAW
+        );
+    }
+
+    #[test]
+    fn a_hop_below_the_capacity_floor_disqualifies_the_whole_path() {
+        // The middle hop is the weak one. The first and third hops are deep.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_D, 1_000_000),
+                ],
+            );
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(
+            dry_run.loop_count, 0,
+            "a loop with one shallow hop must not be materialized"
+        );
+        assert!(
+            dry_run.skipped_token_count > 0,
+            "the disqualified path must be reported as skipped"
+        );
+    }
+
+    #[test]
+    fn every_hop_above_the_capacity_floor_admits_the_loop() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[(POOL_A1, 1_000_000), (POOL_YZ, 5_000), (POOL_D, 1_000_000)],
+            );
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(dry_run.loop_count, 1);
+        assert_eq!(dry_run.hop_count, 3);
+    }
+
+    #[test]
+    fn a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path() {
+        // The middle hop has no usable room inside its tick range, so the
+        // first arbitrage version cannot size a position through it.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_single_tick_bounds(
+                &connection,
+                &[
+                    (POOL_A1, Some(1_000_000), Some(1_000_000)),
+                    (POOL_YZ, Some(0), Some(0)),
+                    (POOL_D, Some(1_000_000), Some(1_000_000)),
+                ],
+            );
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(
+            dry_run.loop_count, 0,
+            "a loop whose hop has no tick room must not be materialized"
+        );
+        assert!(
+            dry_run.skipped_token_count > 0,
+            "the disqualified path must be reported as skipped"
+        );
+    }
+
+    #[test]
+    fn a_hop_with_room_inside_its_tick_range_admits_the_loop() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_single_tick_bounds(
+                &connection,
+                &[
+                    (POOL_A1, Some(1_000_000), Some(1_000_000)),
+                    (POOL_YZ, Some(5_000), Some(5_000)),
+                    (POOL_D, Some(1_000_000), Some(1_000_000)),
+                ],
+            );
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(dry_run.loop_count, 1);
+        assert_eq!(dry_run.hop_count, 3);
+    }
+
+    #[test]
+    fn an_unmeasured_hop_does_not_disqualify_the_path() {
+        // A pool without a measured capacity is a coverage gap of the pool
+        // index, not a statement about the market, so it must not block.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(&connection, &[(POOL_A1, 1_000_000), (POOL_D, 1_000_000)]);
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(dry_run.loop_count, 1);
+    }
+
+    #[test]
+    fn the_path_minimum_is_the_binding_capacity() {
+        // The reported minimum must be the smallest hop capacity, not the
+        // largest one, so the audit and the gate agree.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[(POOL_A1, 9_000), (POOL_YZ, 1_200), (POOL_D, 5_000)],
+            );
+        }
+        let connection = Connection::open(&path).unwrap();
+        let input = read_closed_loop_input(&connection, NETWORK, CHAIN_ID).unwrap();
+        let pool_ids = vec![POOL_A1.to_owned(), POOL_YZ.to_owned(), POOL_D.to_owned()];
+        let (minimum, binding) = path_min_capacity(&input, &pool_ids);
+        assert_eq!(minimum, Some(1_200));
+        assert_eq!(binding.as_deref(), Some(POOL_YZ));
+    }
+
+    #[test]
     fn builds_three_token_loop_without_usd_depth_dependency() {
         let (_directory, path) = database();
         let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
@@ -3106,14 +4069,78 @@ mod tests {
         assert!(!snapshot.loops[0].pool_path_key.contains("usd"));
     }
 
+    /// The folded single-tick capacity is published on the closed-loop row.
+    ///
+    /// The capacity is the `M_cap` of the single-tick design and the only
+    /// number that may bound the input amount of the route, so it has to
+    /// survive the materialization instead of being used as a filter and
+    /// thrown away.
+    #[test]
+    fn the_folded_single_tick_capacity_is_published_on_the_loop() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_pool_tick_states(
+                &connection,
+                &[
+                    (POOL_A1, 1u128 << 96, USDG, AMZN),
+                    (POOL_YZ, 1u128 << 96, AMZN, TA),
+                    (POOL_D, 1u128 << 96, TA, USDG),
+                ],
+            );
+        }
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_row = &snapshot.loops[0];
+        let capacity = loop_row
+            .single_tick_capacity_anchor_raw
+            .expect("the fold must be published when every hop publishes a state");
+        assert!(capacity > 0);
+        assert_eq!(
+            loop_row.single_tick_capacity_binding_pool_id.as_deref(),
+            Some(loop_row.pool_ids[0].as_str())
+                .or_else(|| { loop_row.single_tick_capacity_binding_pool_id.as_deref() })
+        );
+        // The binding pool must be one of the hops of the loop.
+        assert!(loop_row.pool_ids.contains(
+            loop_row
+                .single_tick_capacity_binding_pool_id
+                .as_ref()
+                .unwrap()
+        ));
+    }
+
+    /// A loop whose hops do not all publish a usable tick state has **no**
+    /// folded capacity. The absence is a coverage gap, not a measured zero,
+    /// so it is published as NULL rather than as `0`.
+    #[test]
+    fn a_loop_without_tick_states_publishes_no_folded_capacity() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_row = &snapshot.loops[0];
+        assert_eq!(loop_row.single_tick_capacity_anchor_raw, None);
+        assert_eq!(loop_row.single_tick_capacity_binding_pool_id, None);
+    }
+
     #[test]
     fn repeated_apply_is_stable_and_idempotent() {
         let (_directory, path) = database();
         let first = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert!(
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
+        );
         let second = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(first.materialized_checksum, second.materialized_checksum);
         assert_eq!(first.closed_loop_version, second.closed_loop_version);
         assert!(!second.consumers_need_rebuild);
+        assert!(
+            !read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
+        );
 
         let expected = ExpectedUpstream {
             candidate_edge_version: Some(first.candidate_edge_version),
@@ -3141,6 +4168,24 @@ mod tests {
             outcome.result.materialized_checksum,
             replay.result.materialized_checksum
         );
+    }
+
+    #[test]
+    fn anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "DELETE FROM manager_dex_candidate_anchor_tokens
+                 WHERE network = ?1 AND chain_id = ?2
+                   AND anchor_token_key_id = token_key_id",
+                params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+
+        let result = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(result.loop_count, 1);
     }
 
     #[test]
@@ -3260,5 +4305,207 @@ mod tests {
         assert_eq!(comparison.loops.manager_row_count, 1);
         assert_eq!(comparison.hops.manager_row_count, 3);
         let _ = (anchor, middle, third);
+    }
+
+    /// Read the pool-scope checksum that the closed-loop layer persisted.
+    fn stored_closed_loop_scope_checksum(path: &std::path::Path) -> String {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .query_row(
+                "SELECT pool_scope_checksum
+                 FROM manager_v4_closed_loop_library_state
+                 WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                   AND scope_key = ?4",
+                params![NETWORK, CHAIN_ID, "uniswap_v4", "core4"],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap()
+    }
+
+    /// Replace every closed-loop hop with a stale pool that is not part of
+    /// the materialized topology, which is the shape of the production drift
+    /// that the scope-checksum bug made impossible to repair.
+    fn corrupt_closed_loop_hops(connection: &Connection) {
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_hops
+                 SET pool_id = 'pool-stale'
+                 WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                   AND scope_key = ?4",
+                params![NETWORK, CHAIN_ID, "uniswap_v4", "core4"],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn the_closed_loop_layer_publishes_its_own_scope_checksum() {
+        let (_directory, path) = database();
+        let result = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+
+        // The closed loop lives in the core4 scope, so it must publish the
+        // core4 checksum and never the observation scope's checksum.
+        assert_eq!(result.pool_scope_checksum, CORE4_SCOPE_CHECKSUM);
+        assert_ne!(result.pool_scope_checksum, EXCHANGE_SCOPE_CHECKSUM);
+        assert_eq!(
+            stored_closed_loop_scope_checksum(&path),
+            CORE4_SCOPE_CHECKSUM
+        );
+    }
+
+    #[test]
+    fn a_stale_scope_checksum_is_repaired_and_the_drift_is_removed() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            corrupt_closed_loop_hops(&connection);
+            // Simulate the legacy row that stored the observation scope's
+            // checksum in the closed-loop layer.
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loop_library_state
+                     SET pool_scope_checksum = ?5
+                     WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                       AND scope_key = ?4",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        "uniswap_v4",
+                        "core4",
+                        EXCHANGE_SCOPE_CHECKSUM
+                    ],
+                )
+                .unwrap();
+        }
+
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert!(
+            dry_run.changed_rows > 0,
+            "a stale closed-loop scope checksum must not be reported as unchanged"
+        );
+
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert!(applied.changed_rows > 0);
+        assert_eq!(applied.pool_scope_checksum, CORE4_SCOPE_CHECKSUM);
+        assert_eq!(
+            stored_closed_loop_scope_checksum(&path),
+            CORE4_SCOPE_CHECKSUM
+        );
+
+        // The stale hop rows must have been replaced by the real topology.
+        let connection = Connection::open(&path).unwrap();
+        let stale: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM manager_v4_closed_loop_hops
+                 WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                   AND scope_key = ?4 AND pool_id = 'pool-stale'",
+                params![NETWORK, CHAIN_ID, "uniswap_v4", "core4"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stale, 0);
+    }
+
+    #[test]
+    fn repairing_the_scope_checksum_is_idempotent() {
+        let (_directory, path) = database();
+        let first = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let second = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(first.materialized_checksum, second.materialized_checksum);
+        assert_eq!(second.changed_rows, 0);
+        assert!(!second.consumers_need_rebuild);
+    }
+
+    #[test]
+    fn a_mismatched_expected_scope_checksum_refuses_to_write() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let before = stored_closed_loop_scope_checksum(&path);
+
+        let request = ClosedLoopWriteRequest {
+            network: NETWORK.to_owned(),
+            chain_id: CHAIN_ID,
+            operation: "closed_loops.rebuild".to_owned(),
+            request_id: "closed-loop-scope-mismatch".to_owned(),
+            idempotency_key: "closed-loop-scope-mismatch".to_owned(),
+            apply: true,
+            expected_upstream: ExpectedUpstream {
+                candidate_edge_version: None,
+                candidate_edge_checksum: None,
+                observation_version: None,
+                observation_checksum: None,
+                pool_scope_checksum: Some(EXCHANGE_SCOPE_CHECKSUM.to_owned()),
+                library_versions: BTreeMap::new(),
+                library_checksums: BTreeMap::new(),
+            },
+        };
+        let error = materialize_closed_loops_write(&path, request).unwrap_err();
+        assert!(
+            matches!(error, ClosedLoopError::ExpectedUpstreamMismatch { .. }),
+            "unexpected error: {error:?}"
+        );
+        assert_eq!(stored_closed_loop_scope_checksum(&path), before);
+    }
+
+    /// A pool tick state map that carries only what the capacity fold needs.
+    fn tick_state_map(states: &[(&str, u128, &str, &str)]) -> BTreeMap<String, PoolTickState> {
+        let mut pool_tick_states = BTreeMap::new();
+        for (pool_id, sqrt_price_x96, token0, token1) in states {
+            pool_tick_states.insert(
+                (*pool_id).to_owned(),
+                PoolTickState {
+                    sqrt_price_x96: *sqrt_price_x96,
+                    liquidity: 1_000_000_000_000,
+                    fee_pips: 3000,
+                    tick_spacing: 60,
+                    tick: 0,
+                    token0_key_id: (*token0).to_owned(),
+                    token1_key_id: (*token1).to_owned(),
+                },
+            );
+        }
+        pool_tick_states
+    }
+
+    #[test]
+    fn the_path_capacity_is_folded_into_the_anchor_token() {
+        // The first hop spends the anchor token A and receives B at a pool
+        // price of 2*Q96, so the pool prices token1/token0 at 4.
+        //
+        // The second hop spends B and receives C. One B is worth 1/4 A, so
+        // the capacity of the second hop has to be divided by four before
+        // it can be compared with the first hop's capacity.
+        //
+        // The third hop spends C and receives A at a price of 1, so its
+        // capacity is unchanged by the fold.
+        let q96: u128 = 1u128 << 96;
+        let pool_tick_states = tick_state_map(&[
+            ("pool-a", 2 * q96, USDG, AMZN),
+            ("pool-b", q96, AMZN, TA),
+            ("pool-c", q96, TA, USDG),
+        ]);
+        let pool_ids = vec![
+            "pool-a".to_owned(),
+            "pool-b".to_owned(),
+            "pool-c".to_owned(),
+        ];
+        // The first hop spends token0 (USDG is token0 of pool-a), the
+        // second hop spends token0 (AMZN is token0 of pool-b), and the
+        // third hop spends token1 (USDG is token1 of pool-c).
+        let directions = vec![true, true, false];
+        let (capacity, blocking) = folded_path_capacity(&pool_tick_states, &pool_ids, &directions)
+            .expect("the capacity must be computable");
+        assert!(capacity > 0);
+        assert!(!blocking.is_empty());
+    }
+
+    #[test]
+    fn a_hop_without_a_published_state_has_no_folded_capacity() {
+        let pool_tick_states = BTreeMap::new();
+        let pool_ids = vec!["pool-a".to_owned()];
+        let directions = vec![true];
+        assert!(
+            folded_path_capacity(&pool_tick_states, &pool_ids, &directions).is_none(),
+            "a missing pool state must not produce a folded capacity",
+        );
     }
 }

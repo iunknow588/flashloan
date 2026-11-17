@@ -12,7 +12,7 @@
   "network": "robinhood-testnet",
   "chainKey": "chain:46630",
   "marketId": "robinhood-testnet-dex-paused",
-  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood-testnet/chain.json",
+  "sourceChainConfig": "../../../flashloan/chains/robinhood-testnet/chain.json",
   "readyForPausedDeploy": true,
   "routePreflightStatus": "not_ready",
   "deploymentStatus": "deployed_paused_readback_verified",

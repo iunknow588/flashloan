@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import os
+import threading
 from typing import Any
 
 import pytest
@@ -177,7 +178,32 @@ def _mock_pair_key_trusted_symbols(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_build_group_task_config_builds_both_directions(
+def test_build_group_task_config_rejects_mixed_directions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_pool_helpers(monkeypatch)
+
+    group_key, task, failed = rust_closed_loop.build_group_task_config(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        routes=[
+            _route(["AAA", "BBB", "CCC", "AAA"]),
+            _route(["AAA", "CCC", "BBB", "AAA"]),
+        ],
+    )
+
+    assert group_key is None
+    assert task is None
+    assert {item["reason"] for item in failed} == {
+        "mixed_direction_routes_not_allowed"
+    }
+    assert all(
+        item["directedGroupKeys"] == ["aaa|bbb|ccc", "aaa|ccc|bbb"]
+        for item in failed
+    )
+
+
+def test_build_group_task_config_keeps_direction_pool_candidates_independent(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -185,10 +211,19 @@ def test_build_group_task_config_builds_both_directions(
     monkeypatch.setenv("DEX_CLOSED_LOOP_NATIVE_RUST", "1")
     monkeypatch.setenv("ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST", "true")
     _mock_pool_helpers(monkeypatch)
+    def candidate_pool_details(**kwargs):
+        details = _candidate_pool_details()
+        route_addresses = [str(item).lower() for item in kwargs["route_addresses"]]
+        fee = 500 if route_addresses[1] == Y_ADDRESS else 10_000
+        for key in details["groups"][0]:
+            key["fee"] = fee
+        details["routeAddresses"] = route_addresses
+        return details
+
     monkeypatch.setattr(
         rust_closed_loop,
         "_candidate_pool_key_groups_from_database",
-        lambda **kwargs: _candidate_pool_details(),
+        candidate_pool_details,
     )
     monkeypatch.setattr(
         "dex.runtime.dex_route_rpc._probe_robinhood_family_rpc",
@@ -215,38 +250,54 @@ def test_build_group_task_config_builds_both_directions(
         lambda chain_id: "robinhood-testnet",
     )
 
-    group_key, task, failed = rust_closed_loop.build_group_task_config(
+    forward_group_key, forward_task, forward_failed = rust_closed_loop.build_group_task_config(
         chain_id=46630,
         protocols=["uniswap_v4"],
-        routes=[
-            _route(["AAA", "BBB", "CCC", "AAA"]),
-            _route(["AAA", "CCC", "BBB", "AAA"]),
-        ],
+        routes=[_route(["AAA", "BBB", "CCC", "AAA"])],
+    )
+    reverse_group_key, reverse_task, reverse_failed = rust_closed_loop.build_group_task_config(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        routes=[_route(["AAA", "CCC", "BBB", "AAA"])],
     )
 
-    assert failed == []
-    assert group_key == "aaa|bbb|ccc"
-    assert task is not None
-    assert task["network"] == "robinhood-testnet"
-    assert task["rpcUrl"] == "http://rpc.test"
-    assert task["rpcUrls"] == ["http://rpc.test", "http://backup.test"]
-    assert task["arbAddress"] == "0x" + ("a" * 40)
-    assert (
-        task["poolGroupKey"]
-        == "0x" + ("1" * 40) + "|0x" + ("2" * 40) + "|0x" + ("3" * 40)
-    )
-    assert task["broadcastEnabled"] is True
-    assert task["deferBroadcast"] is True
-    assert task["broadcastPrivateKey"] == "0x" + ("b" * 32)
-    assert task["allow_public_fallback"] is True
-    assert task.get("relayUrls") is None
-    assert task["scanIntervalSeconds"] == 60
-    assert len(task["routes"]) == 2
-    for route_config in task["routes"]:
+    assert forward_failed == []
+    assert reverse_failed == []
+    assert forward_group_key == "aaa|bbb|ccc"
+    assert reverse_group_key == "aaa|ccc|bbb"
+    assert forward_task is not None
+    assert reverse_task is not None
+    assert forward_task["poolGroupKey"] == FORWARD_LOOP_KEY.replace(":", "|")
+    assert reverse_task["poolGroupKey"] == REVERSE_LOOP_KEY.replace(":", "|")
+    assert forward_task["poolGroupKey"] != reverse_task["poolGroupKey"]
+    assert len(forward_task["routes"]) == 1
+    assert len(reverse_task["routes"]) == 1
+    assert forward_task["routes"][0]["routeSymbols"] == ["AAA", "BBB", "CCC", "AAA"]
+    assert reverse_task["routes"][0]["routeSymbols"] == ["AAA", "CCC", "BBB", "AAA"]
+    assert {key["fee"] for key in forward_task["routes"][0]["entryKeys"]} == {500}
+    assert {key["fee"] for key in reverse_task["routes"][0]["entryKeys"]} == {10_000}
+    for task in (forward_task, reverse_task):
+        assert task["network"] == "robinhood-testnet"
+        assert task["rpcUrl"] == "http://rpc.test"
+        assert task["rpcUrls"] == ["http://rpc.test", "http://backup.test"]
+        assert task["arbAddress"] == "0x" + ("a" * 40)
+        assert task["broadcastEnabled"] is True
+        assert task["deferBroadcast"] is True
+        assert task["broadcastPrivateKey"] == "0x" + ("b" * 32)
+        assert task["allow_public_fallback"] is True
+        assert task.get("relayUrls") is None
+        assert task["scanIntervalSeconds"] == 60
+        route_config = task["routes"][0]
         assert route_config["token"] == "0x" + ("1" * 40)
-        assert route_config["initialAmountRaw"] == str(10**6)
+        # D4-a: the ladder start is derived from the measured capacity
+        # (3_000_000 raw in this fixture) instead of a fixed 1.0 token.
+        assert route_config["initialAmountRaw"] == str(3_000_000 // 2)
+        assert route_config["ladderStartBasis"] == "capacity_fraction_0.50"
         assert route_config["minProbeAmountRaw"] == str(10**3)
         assert route_config["maxProbeAmountRaw"] == "3000000"
+        assert route_config["offchainGasGate"]["automaticOnly"] is True
+        assert route_config["offchainGasGate"]["conversionAvailable"] is True
+        assert route_config["offchainGasGate"]["minProfitRaw"] == "0"
 
 
 def test_build_group_task_config_passes_relay_urls_when_configured(
@@ -337,6 +388,7 @@ def test_get_native_pool_forwards_execution_queue_config(
 
 
 def test_native_pool_registry_replaces_python_pool_cache(
+    tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pools: dict[str, Any] = {}
@@ -376,7 +428,14 @@ def test_native_pool_registry_replaces_python_pool_cache(
     monkeypatch.setattr(rust_closed_loop, "_rust_runtime_module", lambda: fake_module)
     monkeypatch.setattr(rust_closed_loop, "_POOLS_BY_DATABASE", {})
     monkeypatch.setattr(rust_closed_loop, "_POOLS_BY_CHAIN", {})
-    monkeypatch.setattr(rust_closed_loop, "_database_path", lambda: "sqlite:///tmp/native.sqlite3")
+    # The pool database is resolved through the chain-scoped runtime registry
+    # now, so the test has to pin that resolver instead of the legacy
+    # ``_database_path`` helper.
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_default_pool_database_url",
+        lambda: str(tmp_path / "native.sqlite3"),
+    )
 
     first = rust_closed_loop.get_native_pool()
     same = rust_closed_loop.get_native_pool()
@@ -798,6 +857,123 @@ def test_route_task_config_builds_from_pool_manager_candidate_database(
     assert config["entryDirections"] == [True]
     assert config["bridgeDirections"] == [True]
     assert config["exitDirections"] == [True]
+
+
+def test_folded_single_tick_capacity_bounds_the_probe_maximum(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The folded Manager capacity is the authoritative probe ceiling.
+
+    The generic pool-depth share is **not** a single-tick bound: it can be
+    larger than the tick range allows. When the Manager published the fold,
+    the fold wins.
+    """
+    import sqlite3
+
+    database = tmp_path / "folded_capacity.sqlite3"
+    connection = sqlite3.connect(str(database))
+    connection.executescript(
+        """
+        CREATE TABLE dex_candidate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT NOT NULL,
+            depth_status TEXT NOT NULL,
+            has_liquidity INTEGER NOT NULL,
+            usable_for_observation INTEGER NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        )
+        """
+    )
+    a = "0x" + ("1" * 40)
+    b = "0x" + ("2" * 40)
+    c = "0x" + ("3" * 40)
+    zero_hook = "0x0000000000000000000000000000000000000000"
+    for pool_id, token0, token1 in (
+        ("p-a-b", a, b),
+        ("p-b-c", b, c),
+        ("p-c-a", c, a),
+    ):
+        connection.execute(
+            """
+            INSERT INTO dex_candidate_pools (
+                network, chain_id, protocol, pool_id, token0, token1, fee,
+                tick_spacing, hooks, pool_key_json, depth_status,
+                has_liquidity, usable_for_observation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "robinhood",
+                4663,
+                "uniswap_v4",
+                pool_id,
+                token0,
+                token1,
+                3000,
+                60,
+                zero_hook,
+                json.dumps(
+                    {
+                        "currency0": token0,
+                        "currency1": token1,
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": zero_hook,
+                    }
+                ),
+                "deep",
+                1,
+                1,
+            ),
+        )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "resolve_runtime",
+        lambda chain_id=None, **kwargs: {
+            "databasePath": str(database),
+            "source": "explicit",
+        },
+    )
+    monkeypatch.setattr(
+        "market.binance_market.dex_route_helpers._official_v4_route_pool_key_groups",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
+    )
+    monkeypatch.setattr(
+        "dex.runtime.dex_opportunity_helpers._liquidity_cap_raw",
+        lambda pool_map, input_symbol, borrow_decimals: (3_000_000, "pool_depth_50pct"),
+    )
+
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    route["singleTickCapacityAnchorRaw"] = "123456"
+    route["singleTickCapacityBindingPoolId"] = "p-b-c"
+
+    config = rust_closed_loop._route_task_config(
+        route=route,
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+    )
+
+    assert config is not None
+    assert config["maxProbeAmountRaw"] == "123456"
+    assert config["singleTickCapacityRaw"] == "123456"
+    assert config["singleTickCapacityBasis"] == "folded_single_tick_capacity_anchor"
+    assert config["singleTickCapacityBindingPoolId"] == "p-b-c"
 
 
 def test_candidate_pool_key_groups_reports_missing_edge_and_refreshes(
@@ -1338,6 +1514,7 @@ def test_native_pool_stop_returns_while_maintenance_handler_is_blocked() -> None
 def test_scanner_submits_native_groups_without_python_closed_loop_thread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _mock_pair_key_trusted_symbols(monkeypatch)
     from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
     from dex.runtime import closed_loop_consumer
 
@@ -1350,13 +1527,17 @@ def test_scanner_submits_native_groups_without_python_closed_loop_thread(
     monkeypatch.setattr(
         rust_mixin,
         "native_worker_status",
-        lambda **kwargs: {"workers": []},
+        lambda **kwargs: {
+            "workers": [
+                {"group_key": "usdg|eth|spy", "state": "idle"},
+            ]
+        },
     )
     monkeypatch.setattr(
         rust_mixin,
         "build_group_task_config",
         lambda *, chain_id, protocols, routes: (
-            "aaa|bbb|ccc",
+            "|".join(symbol.lower() for symbol in routes[0]["routeSymbols"][:3]),
             {"routes": routes},
             [],
         ),
@@ -1382,12 +1563,12 @@ def test_scanner_submits_native_groups_without_python_closed_loop_thread(
         protocols=["uniswap_v4"],
     )
 
-    assert len(submitted) == 1
-    assert submitted[0]["group_key"] == "aaa|bbb|ccc"
-    assert submitted[0]["mode"] == "deep"
-    # Both directions are carried inside one Rust worker task; no Python
-    # ThreadPoolExecutor is created for closed-loop scheduling.
-    assert len(submitted[0]["task_config"]["routes"]) == 2
+    assert [item["group_key"] for item in submitted] == [
+        "aaa|bbb|ccc",
+        "aaa|ccc|bbb",
+    ]
+    assert all(item["mode"] == "deep" for item in submitted)
+    assert all(len(item["task_config"]["routes"]) == 1 for item in submitted)
 
 
 def test_scanner_claims_each_direction_with_physical_loop_key(
@@ -1409,7 +1590,7 @@ def test_scanner_claims_each_direction_with_physical_loop_key(
         rust_mixin,
         "build_group_task_config",
         lambda *, chain_id, protocols, routes: (
-            "aaa|bbb|ccc",
+            "|".join(symbol.lower() for symbol in routes[0]["routeSymbols"][:3]),
             {"routes": routes},
             [],
         ),
@@ -1435,8 +1616,8 @@ def test_scanner_claims_each_direction_with_physical_loop_key(
         protocols=["uniswap_v4"],
     )
 
-    assert len(submitted) == 1
-    assert len(submitted[0]["task_config"]["routes"]) == 2
+    assert len(submitted) == 2
+    assert all(len(item["task_config"]["routes"]) == 1 for item in submitted)
     common = {
         "network": "robinhood-testnet",
         "chain_id": 46630,
@@ -1649,6 +1830,109 @@ def test_scanner_caps_total_native_group_workers(
     assert submitted == []
 
 
+def test_scanner_native_submit_prefers_requested_group_over_capacity(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_pair_key_trusted_symbols(monkeypatch)
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    submitted: list[dict[str, Any]] = []
+    monkeypatch.setenv("DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS", "2")
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {
+            "workers": [
+                {"group_key": "aaa|bbb|zzz", "state": "idle"},
+                {"group_key": "aaa|ddd|zzz", "state": "idle"},
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "build_group_task_config",
+        lambda *, chain_id, protocols, routes: (
+            "aaa|bbb|ccc",
+            {"routes": routes},
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "submit_group",
+        lambda **kwargs: submitted.append(kwargs) or {"accepted": True},
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner.auto_execute_enabled = True
+    scanner._native_database_url = lambda chain_id=None: str(tmp_path / "native.sqlite3")
+
+    result = rust_mixin.DexOpportunityNativeRustMixin._submit_native_closed_loop_groups(
+        scanner,
+        payload={"routes": [_route(["AAA", "BBB", "CCC", "AAA"])]},
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        preferred_group_key="aaa|bbb|ccc",
+        allow_capacity_override=True,
+    )
+
+    assert len(submitted) == 1
+    assert result["ok"] is True
+    assert result["submittedGroupKeys"] == ["aaa|bbb|ccc"]
+    assert result["capacity"]["overrideUsed"] is True
+
+
+def test_scanner_native_submit_only_builds_requested_group(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_pair_key_trusted_symbols(monkeypatch)
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    built: list[list[dict[str, Any]]] = []
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {"workers": []},
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "build_group_task_config",
+        lambda *, chain_id, protocols, routes: (
+            built.append(routes) or "aaa|bbb|ccc",
+            {"routes": routes},
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "submit_group",
+        lambda **kwargs: {"accepted": True},
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner.auto_execute_enabled = True
+    scanner._native_database_url = lambda chain_id=None: str(tmp_path / "native.sqlite3")
+
+    result = rust_mixin.DexOpportunityNativeRustMixin._submit_native_closed_loop_groups(
+        scanner,
+        payload={
+            "routes": [
+                _route(["AAA", "BBB", "CCC", "AAA"]),
+                _route(["AAA", "DDD", "EEE", "AAA"]),
+            ]
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        preferred_group_key="aaa|bbb|ccc",
+        allow_capacity_override=True,
+    )
+
+    assert result["groupsDiscovered"] == 2
+    assert result["groupsConsidered"] == 1
+    assert len(built) == 1
+    assert built[0][0]["routeSymbols"] == ["AAA", "BBB", "CCC", "AAA"]
+
+
 def test_scanner_skips_closed_loop_when_pool_candidates_missing(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -1755,6 +2039,56 @@ def test_scanner_records_preflight_failed_when_native_rpc_config_unavailable(
     assert state is not None
     assert state["state"] == "preflight_failed"
     assert "native_task_config_unavailable" in str(state.get("last_error") or "")
+
+
+def test_scanner_does_not_create_review_when_rpc_probe_is_temporarily_unavailable(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_pair_key_trusted_symbols(monkeypatch)
+    from dex.runtime import closed_loop_consumer
+    from dex.runtime.closed_loop_state_machine import load_loop_state
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    database = tmp_path / "native_rpc_probe_failure.sqlite3"
+    monkeypatch.setattr(
+        closed_loop_consumer,
+        "resolve_runtime_database",
+        lambda database_url=None: str(database),
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {"workers": []},
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "build_group_task_config",
+        lambda *, chain_id, protocols, routes: (
+            None,
+            None,
+            [{"reason": "rpc_probe_failed: temporary DNS failure"}],
+        ),
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner.auto_execute_enabled = True
+
+    rust_mixin.DexOpportunityNativeRustMixin._submit_native_closed_loop_groups(
+        scanner,
+        payload={"routes": [_route(["AAA", "BBB", "CCC", "AAA"])]},
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    state = load_loop_state(
+        str(database),
+        network="robinhood-testnet",
+        chain_id=46630,
+        protocol="uniswap_v4",
+        market_id="dex-arbitrage-46630-uniswap-v4",
+        loop_key=FORWARD_LOOP_KEY,
+    )
+    assert state is None
 
 
 def test_scanner_status_exposes_closed_loop_rust_workers(
@@ -1940,7 +2274,15 @@ def test_build_native_worker_attempt_records_profitable_broadcast_tx(
                 "profitable": True,
                 "routeIndex": "0x0",
                 "attemptedCount": "0x1",
-            }
+            },
+            {
+                "amountRaw": "0x1e8480",
+                "profitRaw": "0x000000",
+                "ok": True,
+                "profitable": False,
+                "routeIndex": "0x0",
+                "attemptedCount": "0x2",
+            },
         ],
         "broadcast": {
             "ok": True,
@@ -2011,7 +2353,15 @@ def test_build_native_worker_attempt_keeps_aggregate_preview_out_of_live_readine
                 "profitable": True,
                 "routeIndex": "0x0",
                 "attemptedCount": "0x1",
-            }
+            },
+            {
+                "amountRaw": "0x1e8480",
+                "profitRaw": "0x000000",
+                "ok": True,
+                "profitable": False,
+                "routeIndex": "0x0",
+                "attemptedCount": "0x2",
+            },
         ],
     }
 
@@ -2563,6 +2913,109 @@ def test_build_native_worker_attempt_keeps_broadcast_disabled_when_gate_closed(
     assert auto_execute["broadcastGate"]["broadcastEnabled"] is False
 
 
+def test_build_native_worker_attempt_fails_closed_when_amount_ladder_never_ran(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 18,
+    )
+    _mock_sqlite_reference_unavailable(monkeypatch)
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    result = {
+        "method": "previewBestPool+previewArbitrageBestAmount+runArbitrage",
+        "searchMode": "inner_single_call",
+        "status": "not_profitable_after_costs",
+        "initialAmountRaw": "0x0de0b6b3a7640000",
+        "selectedAmountRaw": "0x0",
+        "selectedProfitRaw": "0x0",
+        "poolPreview": {"ok": False, "error": "NoProfitableRoute"},
+        "attempts": [],
+    }
+
+    attempt = rust_closed_loop.build_native_worker_attempt(
+        route=route,
+        result=result,
+        chain_id=46630,
+        observed_at="2026-10-20T00:00:00+00:00",
+    )
+
+    assert attempt is not None
+    evidence = attempt["quote"]["live_onchain_evidence"]
+    assert evidence["status"] == "review_failed_missing_best_amount"
+    assert evidence["reviewFailureKind"] == "best_amount_missing"
+    assert evidence["bestAmountMissing"] is True
+    assert evidence["bestAmountConfirmed"] is False
+    assert evidence["bestAmount"] is None
+    assert "no concrete best trade amount" in " ".join(evidence["blockers"])
+    assert attempt["auto_execute"]["skipped"] is True
+    assert attempt["auto_execute"]["reason"] == "review_failed_quote_unavailable"
+    calculation = attempt["bestAmountCalculation"]
+    assert calculation["bestAmountMissing"] is True
+    assert calculation["bestAmountConfirmed"] is False
+
+
+def test_build_native_worker_attempt_keeps_no_profit_when_ladder_actually_ran(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
+    )
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    result = {
+        "method": "previewBestPool+previewArbitrageBestAmount+runArbitrage",
+        "searchMode": "inner_single_call",
+        "status": "not_profitable_after_costs",
+        "initialAmountRaw": "0x0f4240",
+        "selectedAmountRaw": "0x0",
+        "selectedProfitRaw": "0x0",
+        "reportedNetProductDeltaRaw": "-0x0de0b6b3a7640000",
+        "poolPreviewDetailed": {
+            "ok": True,
+            "numericValuesAvailable": True,
+            "netProduct": "0xde0b6b3a7640000",
+            "netProductDeltaRaw": "-0x0de0b6b3a7640000",
+            "profitable": False,
+        },
+        "attempts": [
+            {
+                "amountRaw": "0x0f4240",
+                "profitRaw": "0x0",
+                "ok": False,
+                "profitable": False,
+                "routeIndex": "0x0",
+                "attemptedCount": "0x1",
+            },
+            {
+                "amountRaw": "0x7a1200",
+                "profitRaw": "0x0",
+                "ok": False,
+                "profitable": False,
+                "routeIndex": "0x0",
+                "attemptedCount": "0x2",
+            },
+        ],
+    }
+
+    attempt = rust_closed_loop.build_native_worker_attempt(
+        route=route,
+        result=result,
+        chain_id=46630,
+        observed_at="2026-10-20T00:00:00+00:00",
+    )
+
+    assert attempt is not None
+    evidence = attempt["quote"]["live_onchain_evidence"]
+    # The ladder ran and genuinely found no profitable amount, so this stays a
+    # normal "no profit" review rather than a missing-amount failure.
+    assert evidence["status"] == "route_unprofitable"
+    assert evidence["reviewFailureKind"] is None
+    assert attempt["auto_execute"]["reason"] == "manual_review_not_profitable"
+
+
 def test_build_native_worker_attempt_records_unprofitable_skip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2599,7 +3052,13 @@ def test_build_native_worker_attempt_records_unprofitable_skip(
 
     assert attempt is not None
     evidence = attempt["quote"]["live_onchain_evidence"]
-    assert evidence["status"] == "route_unprofitable"
+    # The amount ladder never ran (``attempts`` is empty), so the review has
+    # no concrete best trade amount and must fail closed instead of being
+    # recorded as a normal "no profit" conclusion.
+    assert evidence["status"] == "review_failed_missing_best_amount"
+    assert evidence["reviewFailureKind"] == "best_amount_missing"
+    assert evidence["bestAmountMissing"] is True
+    assert evidence["bestAmountConfirmed"] is False
     assert evidence["costModel"]["profitable"] is False
     assert evidence["costModel"]["netProfitAmount"] == pytest.approx(-1.0)
     assert evidence["costModel"]["netProfitAmountMissingReason"] is None
@@ -2609,8 +3068,9 @@ def test_build_native_worker_attempt_records_unprofitable_skip(
     )
     assert evidence["referenceNetProfitAmount"] == pytest.approx(-1.0)
     assert attempt["auto_execute"]["skipped"] is True
-    assert attempt["auto_execute"]["reason"] == "manual_review_not_profitable"
+    assert attempt["auto_execute"]["reason"] == "review_failed_quote_unavailable"
     assert "NoProfitableRoute" in " ".join(evidence["blockers"])
+    assert "no concrete best trade amount" in " ".join(evidence["blockers"])
 
 
 def test_build_native_worker_attempt_keeps_initial_amount_null_when_only_zero_placeholder(
@@ -2826,7 +3286,10 @@ def test_build_native_worker_attempt_records_contract_rate_delta_loss(
     assert attempt is not None
     evidence = attempt["quote"]["live_onchain_evidence"]
     costs = evidence["costModel"]
-    assert evidence["status"] == "route_unprofitable"
+    # No probe rows means the amount ladder never ran, so the review has no
+    # concrete best trade amount and fails closed.
+    assert evidence["status"] == "review_failed_missing_best_amount"
+    assert evidence["reviewFailureKind"] == "best_amount_missing"
     assert costs["netProfitAmount"] == pytest.approx(-0.0684365691687937)
     assert costs["netProfitAmountMissingReason"] is None
     assert costs["netProfitReferenceSource"] == "native_contract_rate_delta_estimate"
@@ -2877,7 +3340,10 @@ def test_build_native_worker_attempt_keeps_positive_rate_delta_unconfirmed(
     assert attempt is not None
     evidence = attempt["quote"]["live_onchain_evidence"]
     costs = evidence["costModel"]
-    assert evidence["status"] == "static_reference_pending_live_review"
+    # No probe rows means the amount ladder never ran, so the review has no
+    # concrete best trade amount and fails closed.
+    assert evidence["status"] == "review_failed_missing_best_amount"
+    assert evidence["reviewFailureKind"] == "best_amount_missing"
     assert evidence["executionEligible"] is False
     assert evidence["readyForTransactionPreflight"] is False
     assert costs["netProfitAmount"] == pytest.approx(0.022431796602268777)
@@ -2960,7 +3426,10 @@ def test_build_native_worker_attempt_keeps_swap_not_resolved_unconfirmed(
     assert attempt is not None
     evidence = attempt["quote"]["live_onchain_evidence"]
     costs = evidence["costModel"]
-    assert evidence["status"] == "route_unprofitable"
+    # No probe rows means the amount ladder never ran, so the review has no
+    # concrete best trade amount and fails closed.
+    assert evidence["status"] == "review_failed_missing_best_amount"
+    assert evidence["reviewFailureKind"] == "best_amount_missing"
     assert evidence["executionEligible"] is False
     assert evidence["profitable"] is False
     assert evidence["runArbitrageErrorKind"] == "swap_not_resolved"
@@ -2980,7 +3449,7 @@ def test_build_native_worker_attempt_keeps_swap_not_resolved_unconfirmed(
     assert "SwapNotResolved" in " ".join(evidence["blockers"])
     assert "0xb20c2204" in " ".join(evidence["blockers"])
     assert attempt["auto_execute"]["skipped"] is True
-    assert attempt["auto_execute"]["reason"] == "manual_review_not_profitable"
+    assert attempt["auto_execute"]["reason"] == "review_failed_quote_unavailable"
 
 
 def test_build_native_worker_attempt_route_stage_locates_pool_currency_mismatch(
@@ -3181,7 +3650,15 @@ def test_build_native_worker_attempt_skips_non_attempt_broadcast_during_review(
                 "profitable": True,
                 "routeIndex": "0x0",
                 "attemptedCount": "0x1",
-            }
+            },
+            {
+                "amountRaw": "0x1e8480",
+                "profitRaw": "0x000000",
+                "ok": True,
+                "profitable": False,
+                "routeIndex": "0x0",
+                "attemptedCount": "0x2",
+            },
         ],
         "broadcast": {
             "ok": False,
@@ -3815,6 +4292,85 @@ def test_scanner_records_native_worker_results_once(
     assert recorded[0]["auto_execute"]["executed"] is True
 
 
+def test_scanner_records_native_review_when_auto_execute_is_disabled(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+
+    monkeypatch.setenv("DEX_CLOSED_LOOP_NATIVE_RUST", "1")
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
+    )
+    scanner = DexOpportunityScanner(
+        quote_payload_provider=lambda **kwargs: {"routes": []},
+        auto_execute_enabled=False,
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        periodic_scan_enabled=False,
+    )
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    scanner._native_route_templates = {"aaa|bbb|ccc": [route]}
+    recorded: list[dict[str, Any]] = []
+    scanner.record_attempts = lambda attempts, **kwargs: recorded.extend(attempts) or {
+        "recorded": len(attempts),
+        "source": "test",
+        "error": None,
+    }
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {
+            "workers": [
+                {
+                    "group_key": "aaa|bbb|ccc",
+                    "chain_id": 46630,
+                    "state": "idle",
+                    "updated_at": "2026-11-15T00:00:00+00:00",
+                    "last_result": {
+                        "status": "route_unprofitable",
+                        "selectedAmountRaw": "0x0f4240",
+                        "selectedProfitRaw": "-0x01",
+                        "initialAmountRaw": "0x0f4240",
+                        "attempts": [],
+                    },
+                }
+            ]
+        },
+    )
+
+    recording = scanner._record_native_worker_results()
+
+    assert int(recording.get("recorded") or 0) == 1
+    assert len(recorded) == 1
+    assert recorded[0].get("auto_execute", {}).get("executed") is not True
+
+
+def test_native_review_with_broadcast_disabled_does_not_request_execution(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dex.runtime.closed_loop_consumer import _execution_requested
+
+    attempt = {
+        "priority_reason": "live_verified",
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "costModel": {"netProfitAmount": 0.001},
+            }
+        },
+        "auto_execute": {
+            "skipped": True,
+            "attempted": False,
+            "reason": "native_broadcast_disabled",
+        },
+    }
+
+    assert _execution_requested(attempt) is False
+
+
 def test_scanner_records_broadcast_history_after_last_result_overwritten(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -4329,12 +4885,162 @@ def test_scanner_rust_refresh_feeds_group_without_python_pipeline(
     assert submitted[0]["payload"]["routes"] == [route]
 
 
+def test_scanner_rust_refresh_fails_fast_while_background_submission_is_active() -> None:
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner._native_submission_lock = threading.Lock()
+    scanner._native_submission_lock.acquire()
+    try:
+        result = rust_mixin.DexOpportunityNativeRustMixin._refresh_native_closed_loop_group(
+            scanner,
+            group_key="AAA|BBB|CCC",
+            chain_id=4663,
+            protocols=["uniswap_v4"],
+        )
+    finally:
+        scanner._native_submission_lock.release()
+
+    assert result["ok"] is False
+    assert result["error"] == "closed_loop_submission_busy"
+    assert result["retryable"] is True
+
+
+def test_scanner_rust_refresh_uses_closed_loop_manager_for_unobserved_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+    from dex.runtime import dex_opportunity_route_runner as route_runner
+    from flask import Flask, g
+
+    submitted: list[dict[str, Any]] = []
+    usdg_loop = {
+        "pathSymbols": ["USDG", "ETH", "SPY", "USDG"],
+        "pathAddresses": [
+            "0x" + ("a" * 40),
+            "0x" + ("0" * 40),
+            "0x" + ("b" * 40),
+            "0x" + ("a" * 40),
+        ],
+        "poolIds": ["pool-a", "pool-b", "pool-c"],
+        "poolPathKey": "pool-a|pool-b|pool-c",
+    }
+
+    class _ManagerRuntime:
+        def manager_view(self, view: str, limit: int) -> dict[str, Any]:
+            assert view == "closed_loops"
+            assert limit == 1000
+            return {
+                "ok": True,
+                "dataSource": "rust_runtime_core",
+                "view": "closed_loops",
+                "runtimeCore": {"chainId": 4663},
+                "data": {
+                    "loops": [
+                        usdg_loop,
+                        {
+                            **usdg_loop,
+                            "pathSymbols": ["ETH", "WETH", "SPCX", "ETH"],
+                        },
+                    ]
+                },
+            }
+
+    monkeypatch.setattr(
+        rust_mixin.DexOpportunityNativeRustMixin,
+        "_submit_native_closed_loop_groups",
+        lambda self, **kwargs: submitted.append(kwargs) or None,
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {
+            "workers": [
+                {"group_key": "usdg|eth|spy", "state": "idle"},
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        route_runner,
+        "_quote_routes_payload_from_facade",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("closed-loop manager must beat the static facade")
+        ),
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    app = Flask(__name__)
+    with app.app_context():
+        g.chain_runtime = _ManagerRuntime()
+        result = rust_mixin.DexOpportunityNativeRustMixin._refresh_native_closed_loop_group(
+            scanner,
+            group_key="USDG|ETH|SPY",
+            chain_id=4663,
+            protocols=["uniswap_v4"],
+        )
+
+    assert result["ok"] is True
+    assert submitted[0]["chain_id"] == 4663
+    assert submitted[0]["payload"]["source"] == "manager_closed_loops"
+    assert [
+        route["routeSymbols"] for route in submitted[0]["payload"]["routes"]
+    ] == [["USDG", "ETH", "SPY", "USDG"]]
+
+
+def test_scanner_rust_refresh_reports_worker_not_started(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+    from dex.runtime import dex_opportunity_route_runner as route_runner
+
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    monkeypatch.setattr(
+        rust_mixin.DexOpportunityNativeRustMixin,
+        "_submit_native_closed_loop_groups",
+        lambda self, **kwargs: {
+            "ok": False,
+            "submittedGroupKeys": [],
+            "existingGroupKeys": [],
+            "failures": [
+                {
+                    "groupKey": "aaa|bbb|ccc",
+                    "reason": "missing_official_v4_arb_address",
+                }
+            ],
+            "skipped": [],
+            "capacity": {},
+        },
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {"workers": []},
+    )
+    monkeypatch.setattr(
+        route_runner,
+        "_quote_routes_payload_from_facade",
+        lambda **_kwargs: {"routes": [route]},
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+
+    result = rust_mixin.DexOpportunityNativeRustMixin._refresh_native_closed_loop_group(
+        scanner,
+        group_key="AAA|BBB|CCC",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    assert result["ok"] is False
+    assert result["accepted"] is False
+    assert result["error"] == "missing_official_v4_arb_address"
+
+
 def test_scanner_rust_refresh_rejects_busy_group_without_resubmitting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
 
     called = []
+    status_calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         rust_mixin.DexOpportunityNativeRustMixin,
         "_submit_native_closed_loop_groups",
@@ -4343,15 +5049,16 @@ def test_scanner_rust_refresh_rejects_busy_group_without_resubmitting(
     monkeypatch.setattr(
         rust_mixin,
         "native_worker_status",
-        lambda **kwargs: {
-            "workers": [
-                {
-                    "group_key": "aaa|bbb|ccc",
-                    "state": "running",
-                    "chain_id": 46630,
-                }
-            ]
-        },
+        lambda **kwargs: status_calls.append(kwargs)
+        or {
+                "workers": [
+                    {
+                        "group_key": "aaa|bbb|ccc",
+                        "state": "running",
+                        "chain_id": 46630,
+                    }
+                ]
+            },
     )
     scanner = object.__new__(DexOpportunityScanner)
 
@@ -4365,6 +5072,7 @@ def test_scanner_rust_refresh_rejects_busy_group_without_resubmitting(
     assert result["error"] == "closed_loop_group_busy"
     assert result["ok"] is False
     assert called == []
+    assert status_calls == [{"chain_id": 46630, "include_payloads": False}]
 
 
 def test_manual_native_review_feeds_exact_idle_route_group(

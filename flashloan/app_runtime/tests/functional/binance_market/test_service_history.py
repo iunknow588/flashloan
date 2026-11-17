@@ -564,7 +564,14 @@ def test_cow_quote_verification_marks_requested_owner_source(monkeypatch):
     assert payload["owner_source"] == "request.owner"
 
 
-def test_cow_quote_verification_keeps_failed_unknown_token_routes():
+def test_cow_quote_verification_keeps_failed_unknown_token_routes(monkeypatch):
+    # The operator ``.env`` may configure a CoW owner for Avalanche.  This
+    # test asserts the *unsupported token* path, so it must control the
+    # owner resolution explicitly instead of inheriting a local value.
+    monkeypatch.delenv("COW_OWNER_AVALANCHE", raising=False)
+    # The operator ``.env`` may select a different CoW quote network.  This
+    # test asserts the Avalanche wording, so pin the network explicitly.
+    monkeypatch.setenv("COW_REALTIME_QUOTE_NETWORK", "avalanche")
     market_state = {
         "observed_at": "2026-08-04T00:00:00+00:00",
         "pairs": [

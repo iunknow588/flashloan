@@ -1,0 +1,29 @@
+﻿{
+    "startedAt":  "2026-11-10T12:23:02.5286442Z",
+    "pid":  13020,
+    "command":  "C:\\ProgramData\\Miniconda3\\python.exe scripts/mainnet_arbitrage_healer.py --mode supervise --apply --interval 120 --candidate-limit 1 --startup-timeout 300 --restart-limit 10 --leave-runtime-running",
+    "stdout":  "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\diagnostics\\mainnet_self_healing_orchestrator\\continuous_20261110T122302Z.stdout.log",
+    "stderr":  "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\diagnostics\\mainnet_self_healing_orchestrator\\continuous_20261110T122302Z.stderr.log",
+    "runtimeApi":  "http://127.0.0.1:5000",
+    "chainId":  4663,
+    "objective":  "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+    "protections":  [
+                        "fresh_live_review_positive_only",
+                        "historical_profit_requires_rereview",
+                        "manual_broadcast_not_invoked",
+                        "offchain_expected_profit_after_gas_positive_only"
+                    ],
+    "productionStates":  [
+                             "market_no_executable_profit",
+                             "review_stalled",
+                             "profitable_review_waiting_for_broadcast",
+                             "transaction_records_present"
+                         ],
+    "pnlEvidence":  [
+                        "expected_contract_preview",
+                        "receipt_gas",
+                        "erc20_transfer_realized_delta"
+                    ],
+    "gasPolicy":  "offchain_review_estimated_gas_gate; contract_excludes_gas; unconverted_fixed_cost_default_zero",
+    "loadedFix":  "deep_review_broadcast_gas_gate_before_send"
+}

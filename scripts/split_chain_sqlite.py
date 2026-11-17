@@ -2,7 +2,7 @@
 """Split the legacy single SQLite store into per-chain SQLite files.
 
 This tool is intentionally read-only against the source database.  For every
-chain registered in ``flashloan/src/chains/registry.json`` it creates
+chain registered in ``flashloan/chains/registry.json`` it creates
 ``<sqlite_root>/<database.sqlite_file>`` (or the default
 ``local_store_<chain_id>.sqlite3`` when the chain JSON does not configure a
 file).  Global tables plus per-chain rows are copied into each new database;
@@ -22,7 +22,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = ROOT / "flashloan" / "src"
-CHAIN_DATA_ROOT = SRC_ROOT / "chains"
+CHAIN_DATA_ROOT = ROOT / "flashloan" / "chains"
 DB_ROOT = SRC_ROOT.parent / "db"
 
 # Tables that are shared across chains and copied verbatim into every new file.

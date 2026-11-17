@@ -1,0 +1,9 @@
+﻿{
+    "output":  "scope: network=robinhood chainId=4663 targets=428 existingResolved=5925 remainingPlaceholders=427\nmarkedUnresolved=427\nresolved=428 updated=428 failed=0 remaining=0",
+    "scope":  "candidate_closed_loop",
+    "exitCode":  0,
+    "network":  "robinhood",
+    "command":  "resolve_robinhood_testnet_token_metadata.py",
+    "metadata":  "chain_live_erc20",
+    "chain_id":  4663
+}

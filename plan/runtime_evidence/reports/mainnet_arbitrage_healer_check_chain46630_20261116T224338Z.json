@@ -1,0 +1,611 @@
+{
+  "mode": "check",
+  "generatedAt": "2026-11-16T22:43:38Z",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+  "observationStartedAt": "2026-01-01T00:00:00Z",
+  "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+  "successCriteria": {
+    "continuousFreshReviews": true,
+    "broadcastOnlyFromFreshProfitableReview": true,
+    "terminalTransactionRecords": true,
+    "expectedAndGasAdjustedPnlAvailable": true
+  },
+  "layers": {
+    "tokens": {
+      "valid": false,
+      "source": {
+        "total": 47662,
+        "missing_decimals": 47623,
+        "missing_symbol": 0
+      },
+      "libraries": {
+        "core": {
+          "total": 4,
+          "admitted": 4,
+          "missing_decimals": 0,
+          "missing_symbol": 0,
+          "tablePresent": true
+        },
+        "stocks": {
+          "total": 5,
+          "admitted": 5,
+          "missing_decimals": 0,
+          "missing_symbol": 0,
+          "tablePresent": true
+        },
+        "extension": {
+          "total": 6,
+          "admitted": 0,
+          "missing_decimals": 0,
+          "missing_symbol": 0,
+          "tablePresent": true
+        },
+        "test": {
+          "total": 0,
+          "admitted": null,
+          "missing_decimals": null,
+          "missing_symbol": null,
+          "tablePresent": true
+        }
+      },
+      "admittedTotal": 9,
+      "libraryMissingFields": 0,
+      "missingLibraryTables": [],
+      "officialFundingAddresses": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "TZ": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      },
+      "fundingAddressMismatches": [
+        {
+          "symbol": "TZ",
+          "expectedAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "actualAddress": null
+        }
+      ],
+      "counterfeitFundingAdmissions": [],
+      "stockProvenanceInvalid": [
+        {
+          "token_symbol": "PLTR",
+          "token_address": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "NFLX",
+          "token_address": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "AMZN",
+          "token_address": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "AMD",
+          "token_address": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "TSLA",
+          "token_address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        }
+      ],
+      "defects": [
+        {
+          "kind": "stock_provenance_invalid",
+          "symbol": "PLTR",
+          "address": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "library": "token_stocks",
+          "reason": "the stock token is admitted without the stock registry provenance the token library requires"
+        },
+        {
+          "kind": "stock_provenance_invalid",
+          "symbol": "NFLX",
+          "address": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "library": "token_stocks",
+          "reason": "the stock token is admitted without the stock registry provenance the token library requires"
+        },
+        {
+          "kind": "stock_provenance_invalid",
+          "symbol": "AMZN",
+          "address": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "library": "token_stocks",
+          "reason": "the stock token is admitted without the stock registry provenance the token library requires"
+        },
+        {
+          "kind": "stock_provenance_invalid",
+          "symbol": "AMD",
+          "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "library": "token_stocks",
+          "reason": "the stock token is admitted without the stock registry provenance the token library requires"
+        },
+        {
+          "kind": "stock_provenance_invalid",
+          "symbol": "TSLA",
+          "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "library": "token_stocks",
+          "reason": "the stock token is admitted without the stock registry provenance the token library requires"
+        }
+      ],
+      "defectCount": 5,
+      "defectKinds": [
+        "stock_provenance_invalid"
+      ],
+      "resolvableTargets": [
+        {
+          "symbol": "AMD",
+          "defectKinds": [
+            "stock_provenance_invalid"
+          ],
+          "addresses": [
+            "0x71178bac73cbeb415514eb542a8995b82669778d"
+          ]
+        },
+        {
+          "symbol": "AMZN",
+          "defectKinds": [
+            "stock_provenance_invalid"
+          ],
+          "addresses": [
+            "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02"
+          ]
+        },
+        {
+          "symbol": "NFLX",
+          "defectKinds": [
+            "stock_provenance_invalid"
+          ],
+          "addresses": [
+            "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93"
+          ]
+        },
+        {
+          "symbol": "PLTR",
+          "defectKinds": [
+            "stock_provenance_invalid"
+          ],
+          "addresses": [
+            "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0"
+          ]
+        },
+        {
+          "symbol": "TSLA",
+          "defectKinds": [
+            "stock_provenance_invalid"
+          ],
+          "addresses": [
+            "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+          ]
+        }
+      ],
+      "unresolvableDefectCount": 0
+    },
+    "pools": {
+      "valid": false,
+      "scope": {
+        "enabled": 1,
+        "materialized_checksum": "sha256:335f0bbf05c03ec6a3d780d6e4b462abf3fdcff992baea98d8332c7349c041e9",
+        "last_rebuilt_at": "2026-11-15T14:24:38.662718500+00:00"
+      },
+      "candidate": {
+        "eligible_pool_count": 14,
+        "candidate_token_count": 5,
+        "abnormal_pool_count": 0,
+        "materialized_checksum": "sha256:e0fdc535dc067b8480818b9d0ec2d7846fc6cee6f8d2f852af8476509b767b78",
+        "generated_at": "2026-11-15T16:32:59.839800700+00:00"
+      },
+      "observation": {
+        "pool_count": 5,
+        "direction_count": 20,
+        "empty_direction_count": 12,
+        "abnormal_pool_count": 1,
+        "materialized_checksum": "sha256:41c8bee0475df4c431caffd448547625bcc85b1503e4e566af8314ff687e0904",
+        "generated_at": "2026-11-15T06:20:57.646142500+00:00"
+      },
+      "exchange": {
+        "total": 4207,
+        "missing_currencies": 0,
+        "filtered_fee": 0
+      },
+      "depth": {
+        "valid": false,
+        "code": "pool_depth_insufficient",
+        "classification": "pool_depth_insufficient",
+        "repairPath": "replace_shallow_pool_and_remeasure_depth",
+        "badReadingCount": 16,
+        "badReadingPoolCount": 16,
+        "unmeasuredPoolCount": 0,
+        "thinPoolIdCount": 972,
+        "adequatePoolIdCount": 65,
+        "candidatePoolIdCount": 1053,
+        "minTvlUsd": 100000.0,
+        "maxTvlUsd": 1000000000.0,
+        "candidatePoolCount": 1053,
+        "uniquePoolCount": 1053,
+        "candidatePoolRows": 1076,
+        "adequateDepthPoolCount": 65,
+        "insufficientDepthPoolCount": 988,
+        "thinPoolCount": 943,
+        "unpricedPoolCount": 0,
+        "reason": "candidate pools below the minimum depth band can only produce dust-sized best trade amounts whose profit never covers gas",
+        "byDepthStatus": [
+          {
+            "depthStatus": "deep",
+            "poolCount": 33,
+            "adequatePoolCount": 13,
+            "badReadingCount": 16,
+            "minTvlUsd": 0.0,
+            "maxTvlUsd": 2550000000017.295,
+            "avgTvlUsd": 161141547405.01962
+          },
+          {
+            "depthStatus": "medium",
+            "poolCount": 71,
+            "adequatePoolCount": 48,
+            "badReadingCount": 0,
+            "minTvlUsd": 0.0,
+            "maxTvlUsd": 229662.17182948,
+            "avgTvlUsd": 83869.5671376811
+          },
+          {
+            "depthStatus": "no_liquidity",
+            "poolCount": 6,
+            "adequatePoolCount": 0,
+            "badReadingCount": 0,
+            "minTvlUsd": 3e-15,
+            "maxTvlUsd": 2.97000000029997,
+            "avgTvlUsd": 0.495000001549996
+          },
+          {
+            "depthStatus": "thin",
+            "poolCount": 943,
+            "adequatePoolCount": 4,
+            "badReadingCount": 0,
+            "minTvlUsd": 0.0,
+            "maxTvlUsd": 597278.38475427,
+            "avgTvlUsd": 2622.227044151019
+          }
+        ]
+      },
+      "bestAmount": {
+        "code": null,
+        "valid": true,
+        "confirmedCount": 0,
+        "belowGasCount": 0,
+        "tooSmallCount": 0,
+        "insufficientCount": 0,
+        "gasEstimateEth": 6.2e-06,
+        "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+        "bySymbol": {},
+        "belowGasSamples": [],
+        "tooSmallSamples": []
+      },
+      "binarySupport": {
+        "available": true,
+        "binary": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\debug\\pool-manager.exe",
+        "binaryModifiedAt": "2026-11-16T13:43:28.773253Z",
+        "requiredCommands": [
+          "audit",
+          "baseline-audit",
+          "cleanup",
+          "materialize-scope",
+          "ensure-indexes",
+          "ensure-depth-schema",
+          "depth"
+        ],
+        "missingCommands": [],
+        "complete": true,
+        "reason": null
+      }
+    },
+    "closedLoops": {
+      "valid": true,
+      "library": {
+        "loop_count": 8,
+        "hop_count": 24,
+        "consumers_need_rebuild": 0,
+        "materialized_checksum": "sha256:d4badfafcb1c04c32c044c099c085f500c6243ddcbd64591a93c7647176bb855",
+        "generated_at": "2026-11-15T16:32:59.968552+00:00"
+      },
+      "runtime": [
+        {
+          "state": "execution_not_requested",
+          "count": 6
+        },
+        {
+          "state": "preflight_running",
+          "count": 5
+        },
+        {
+          "state": "offchain_estimate",
+          "count": 3
+        }
+      ]
+    },
+    "reviews": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 1,
+        "reviews": 8
+      },
+      "legacy": {
+        "windowHours": 24,
+        "stats": {
+          "total": 8,
+          "withValue": 8,
+          "missingValue": 0,
+          "positive": 0,
+          "positiveAmount": 2,
+          "positiveEstimateOnly": 0,
+          "estimatedProfitOnlyCount": 0,
+          "confirmedSum": 0.0,
+          "nonPositive": 6,
+          "sum": -188.9699772040584,
+          "minimum": -31.9985121558824,
+          "maximum": 0.009443745501743933,
+          "byCurrency": {
+            "PLTR": -62.45072626097837,
+            "ETH": -31.998503134430983,
+            "TSLA": -94.52074780864906
+          }
+        },
+        "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+        "currentLoopMatched": 8,
+        "staleOrUnmatched": 0,
+        "currentDistinctLoops": 8,
+        "matchedMissingPnl": 0,
+        "unmatchedMissingPnl": 0,
+        "bestAmountMissing": 8,
+        "bestAmountMissingCurrentLoop": 8,
+        "bestAmountLadderIncomplete": 8,
+        "bestAmountLadderIncompleteCurrentLoop": 8,
+        "bestAmountConfirmed": 0
+      },
+      "bestAmount": {
+        "code": "best_amount_missing",
+        "missing": 8,
+        "missingCurrentLoop": 8,
+        "ladderIncomplete": 8,
+        "ladderIncompleteCurrentLoop": 8,
+        "total": 8,
+        "confirmed": 0,
+        "retryable": false,
+        "failClosed": true,
+        "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+        "reasons": [
+          {
+            "reason": "best amount unresolved",
+            "count": 8
+          }
+        ],
+        "samples": [
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": null,
+            "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d",
+            "currentLoop": true,
+            "reason": "best amount unresolved",
+            "status": "",
+            "reviewFailureKind": "",
+            "initialProbeAmount": null,
+            "requestedSymbol": null,
+            "ladderIncomplete": true,
+            "probeCount": 0
+          }
+        ]
+      },
+      "missingReasons": [],
+      "missingClassifications": []
+    },
+    "broadcast": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "attempts": 0
+      },
+      "legacy": {
+        "total": 0,
+        "categories": {},
+        "latestAttemptAt": null,
+        "recent": []
+      },
+      "profitAnalysis": {
+        "expectedByCurrency": {},
+        "gasCostEthTotal": 0.0,
+        "gasCostObservedAttempts": 0,
+        "expectedEthOrWethNetAfterGas": 0.0,
+        "expectedEthOrWethNetObservedAttempts": 0,
+        "realizedByCurrency": {},
+        "realizedNetAfterGasByCurrency": {},
+        "realizedPnlObservedAttempts": 0,
+        "realizedPnlMissingAttempts": 0,
+        "realizedPnlMissingReasons": {},
+        "realizedPnlAvailable": false,
+        "source": "contract_preview_plus_confirmed_receipt_gas"
+      },
+      "outcomes": {
+        "success": 0,
+        "failed": 0,
+        "pending": 0,
+        "other": 0
+      },
+      "historicalPositiveReviewsInWindow": 0,
+      "automaticBroadcastCandidates": 0,
+      "automaticBroadcastPolicy": "fresh_positive_review_only"
+    },
+    "cascadeMatrix": {
+      "fundingTokens": {
+        "expected": 5,
+        "valid": 4,
+        "invalid": [
+          {
+            "symbol": "TZ",
+            "reason": "not_admitted",
+            "expectedAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+          }
+        ],
+        "invalidCount": 1,
+        "counterfeitAdmitted": [],
+        "counterfeitAdmittedCount": 0,
+        "complete": false
+      },
+      "candidateTokens": {
+        "admitted": 9,
+        "byLibrary": {
+          "token_core": 4,
+          "token_stocks": 5,
+          "token_extension": 0,
+          "token_test": 0
+        },
+        "symbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "TSLA",
+          "USDE",
+          "USDG",
+          "WETH"
+        ],
+        "symbolCount": 9,
+        "fundingSymbolCount": 4,
+        "nonFundingSymbolCount": 5,
+        "missingDecimals": []
+      },
+      "candidatePools": {
+        "total": 1053,
+        "distinctPoolCount": 1053,
+        "byDepthStatus": {
+          "deep": 33,
+          "medium": 71,
+          "no_liquidity": 6,
+          "thin": 943
+        }
+      },
+      "closedLoops": {
+        "total": 8,
+        "exactThreeHops": 8,
+        "notExactThreeHops": 0,
+        "hopsTotal": 24,
+        "hopsInCandidateScope": 24,
+        "hopsMissingFromCandidateScope": 0,
+        "loopsWithMissingHop": 0,
+        "allHopsInScope": true,
+        "allExactThreeHops": true
+      }
+    }
+  },
+  "blockers": [
+    "tokens",
+    "pools",
+    "reviews",
+    "broadcast"
+  ],
+  "transactionProduction": {
+    "state": "upstream_invalid",
+    "healthy": false,
+    "reason": "token_pool_or_closed_loop_invalid",
+    "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+    "reviewAgeSeconds": 104793.200139,
+    "reviewFreshnessThresholdSeconds": 600,
+    "executablePositiveReviews": 0,
+    "transactionRecords": 0,
+    "latestAttemptAt": null,
+    "bestAmountMissing": 8
+  },
+  "safeToAutoBroadcast": false
+}

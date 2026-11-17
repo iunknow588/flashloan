@@ -1,0 +1,269 @@
+{
+  "active_key_count": 272,
+  "chain_scoped_migration": [
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.primary",
+      "env_key": "ROBINHOOD_RPC_URL",
+      "example_value": "",
+      "refs": 15
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.fallbacks",
+      "env_key": "ROBINHOOD_RPCS",
+      "example_value": "",
+      "refs": 12
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.alchemy",
+      "env_key": "ROBINHOOD_ALCHEMY_RPC_URL",
+      "example_value": "",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.hyperrpc",
+      "env_key": "ROBINHOOD_HYPERRPC_URL",
+      "example_value": "",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.overrides",
+      "env_key": "ROBINHOOD_MAINNET_RPC_URLS",
+      "example_value": "",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "rpc.wss",
+      "env_key": "ROBINHOOD_MAINNET_WSS_URLS",
+      "example_value": "",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "rpc.primary",
+      "env_key": "ROBINHOOD_TESTNET_RPC_URL",
+      "example_value": "",
+      "refs": 20
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "rpc.fallbacks",
+      "env_key": "ROBINHOOD_TESTNET_RPCS",
+      "example_value": "",
+      "refs": 13
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "rpc.alchemy",
+      "env_key": "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
+      "example_value": "",
+      "refs": 6
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "contracts.v3_quoter",
+      "env_key": "ROBINHOOD_V3_QUOTER_ADDRESS",
+      "example_value": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "contracts.v3_quoter",
+      "env_key": "ROBINHOOD_V3_QUOTER_ADDRESSES",
+      "example_value": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "contracts.v3_quoter",
+      "env_key": "DEX_V3_QUOTER_ADDRESS",
+      "example_value": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "contracts.v3_router",
+      "env_key": "DEX_ROUTER_ADDRESS",
+      "example_value": "0x60aE616a2155Ee3d9A68541Ba4544862310933d4",
+      "refs": 24
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "officialV4.arb",
+      "env_key": "ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS",
+      "example_value": "",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "officialV4.composer",
+      "env_key": "ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS",
+      "example_value": "",
+      "refs": 3
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "officialV4.arb",
+      "env_key": "ROBINHOOD_TESTNET_OFFICIAL_V4_ARB_ADDRESS",
+      "example_value": "",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "officialV4.composer",
+      "env_key": "ROBINHOOD_TESTNET_OFFICIAL_V4_COMPOSER_ADDRESS",
+      "example_value": "",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_quote_adapter",
+      "env_key": "ROBINHOOD_MAINNET_V4_QUOTE_ADAPTER",
+      "example_value": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+      "refs": 3
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_sdk_adapter",
+      "env_key": "ROBINHOOD_MAINNET_V4_SDK_ADAPTER",
+      "example_value": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "defaults.v4_quote_adapter",
+      "env_key": "ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER",
+      "example_value": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_quote_adapter",
+      "env_key": "UNISWAP_V4_QUOTE_ADAPTER",
+      "example_value": "execution.uniswap_v4_sdk_adapter:quote_v4_exact_input_single_from_env",
+      "refs": 1
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_sdk_adapter",
+      "env_key": "UNISWAP_V4_SDK_ADAPTER",
+      "example_value": "",
+      "refs": 2
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_quote_adapter",
+      "env_key": "DEX_V4_QUOTE_ADAPTER",
+      "example_value": "",
+      "refs": 2
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "defaults.v4_sdk_adapter",
+      "env_key": "DEX_V4_SDK_ADAPTER",
+      "example_value": "",
+      "refs": 2
+    },
+    {
+      "chain": "avalanche",
+      "chain_home": "rpc.fallbacks",
+      "env_key": "AVALANCHE_RPCS",
+      "example_value": "",
+      "refs": 7
+    },
+    {
+      "chain": "bnb",
+      "chain_home": "rpc.fallbacks",
+      "env_key": "BNB_RPCS",
+      "example_value": "",
+      "refs": 4
+    },
+    {
+      "chain": "bnb",
+      "chain_home": "rpc.log_fallbacks",
+      "env_key": "BNB_LOG_RPCS",
+      "example_value": "",
+      "refs": 2
+    },
+    {
+      "chain": "avalanche-testnet",
+      "chain_home": "contracts.usdc",
+      "env_key": "FUJI_USDC_ADDRESS",
+      "example_value": "0x5425890298aed601595a70AB815c96711a31Bc65",
+      "refs": 9
+    },
+    {
+      "chain": "avalanche",
+      "chain_home": "contracts.aave_v3_pool",
+      "env_key": "AAVE_POOL_ADDRESS",
+      "example_value": "0x794a61358D6845594F94dc1db02a252b5b4814aD",
+      "refs": 40
+    },
+    {
+      "chain": "avalanche",
+      "chain_home": "contracts.aave_v3_data_provider",
+      "env_key": "AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS",
+      "example_value": "0x243Aa95cAC2a25651eda86e80bEe66114413c43b",
+      "refs": 4
+    },
+    {
+      "chain": "avalanche",
+      "chain_home": "contracts.aave_liquidation_data_provider",
+      "env_key": "AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS",
+      "example_value": "",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood",
+      "chain_home": "features.dex_arbitrage.allow_official_v4_broadcast",
+      "env_key": "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
+      "example_value": "false",
+      "refs": 4
+    },
+    {
+      "chain": "robinhood-testnet",
+      "chain_home": "features.dex_arbitrage.allow_official_v4_broadcast",
+      "env_key": "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
+      "example_value": "true",
+      "refs": 7
+    }
+  ],
+  "chain_scoped_secret_keys": [
+    {
+      "env_key": "ROBINHOOD_MAINNET_DEX_PRIVATE_KEY",
+      "scope": "robinhood"
+    },
+    {
+      "env_key": "ROBINHOOD_TESTNET_DEX_PRIVATE_KEY",
+      "scope": "robinhood-testnet"
+    },
+    {
+      "env_key": "DEX_EXECUTION_PRIVATE_KEY",
+      "scope": "active-chain"
+    },
+    {
+      "env_key": "OFFICIAL_V4_PRIVATE_KEY",
+      "scope": "active-chain"
+    },
+    {
+      "env_key": "LIQUIDATION_EXECUTION_PRIVATE_KEY",
+      "scope": "active-chain"
+    },
+    {
+      "env_key": "COW_ORDER_SIGNER_PRIVATE_KEY",
+      "scope": "cow-chain"
+    }
+  ],
+  "example_file": "flashloan/app_runtime/.env.example",
+  "generated_at": "2026-11-16",
+  "referenced_key_count": 271,
+  "schema_version": "env-parameter-layering-v1",
+  "unreferenced_keys": [
+    "ROBINHOOD_HyperRPC_URL"
+  ]
+}

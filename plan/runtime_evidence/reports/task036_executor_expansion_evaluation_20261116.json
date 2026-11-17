@@ -1,0 +1,143 @@
+{
+  "acceptance_item": "TASK-036",
+  "broadcast_authority_switches": 0,
+  "chain_transactions": 0,
+  "contract_changes_made": 0,
+  "current_state": {
+    "executor_batch_enabled_default": false,
+    "mainnet_executor_deployed_bytes": 24551,
+    "mainnet_executor_headroom_bytes": 25,
+    "reason_headroom_is_tiny": "The hot-path V4FlashAccountingRequest ABI encoder is the byte-count driver: any added field inflates both encoder and decoder.",
+    "testnet_executor_deployed_bytes": 24428,
+    "testnet_executor_headroom_bytes": 148
+  },
+  "deployments": 0,
+  "eip170_budget_consumed_bytes": 0,
+  "eip170_limit_bytes": 24576,
+  "evidence": [
+    "plan/back/阶段性设计与审计_20261114/p0_8_bounded_v4_flash_batch_20261115.md",
+    "plan/runtime_evidence/reports/p0_8_reviewed_minimum_output_profit_lock_20261115.json",
+    "plan/runtime_evidence/reports/p0_8_executor_request_autobuild_20261115.json"
+  ],
+  "expansion_options": [
+    {
+      "byte_pressure_on_executor": "Replaced rather than added. The per-hop encoding code leaves the Executor, creating headroom. The Executor still needs to verify the payload it is handed, so the net saving is smaller than the raw encoding size.",
+      "id": "A",
+      "name": "Split the Executor (move per-hop payload encoding out of the main contract)",
+      "operational_cost": "Two deployments, two addresses in the config, and a versioned payload format. Every chain.json needs the encoder address. Deployment ordering matters (encoder must exist before the Executor can call it).",
+      "rationale": "Strongest security model but the largest operational change. Not justified while the route-level floor already provides a hard settlement bound and the batch path is still disabled by default.",
+      "recommended": false,
+      "shape": "Keep the Executor as the flash-loan + settlement + profit-guard entry point. Move per-hop amountOutMinimum encoding into a separate contract (or library) that returns the encoded hop payloads and the pool ids. The Executor receives the already-encoded call data and verifies it against the expected route before use.",
+      "trust_model": "The external encoder is untrusted input. The Executor must independently re-derive or at minimum hash-bind the expected payload (route id -> payload hash) so a malicious encoder cannot substitute a worse route."
+    },
+    {
+      "byte_pressure_on_executor": "Minimal. A trailing-calldata read plus a pass-through is a small amount of code; the measured per-hop variant landed exactly at 24,576 bytes with zero headroom, so this must be re-measured after the current +25-byte executorRequest work is accounted for.",
+      "id": "B",
+      "name": "Off-chain precompile + calldata concatenation",
+      "operational_cost": "Lowest. No new deployment. Requires a strict off-chain builder and a versioned payload format agreed between Rust and Solidity.",
+      "rationale": "Best cost/benefit for the next step. It keeps every per-hop decision in the reviewed Rust path, needs no new contract, and can be validated on testnet with the existing 148-byte headroom. Recommended as the first attempt, explicitly measured again on a fresh branch before mainnet.",
+      "recommended": true,
+      "shape": "Compile the per-hop payload off-chain (Rust already produces the exact PoolManager swap calldata) and append it as trailing calldata. The Executor reads the trailing bytes and passes them through to PoolManager.",
+      "trust_model": "None added on-chain: the Executor still decides the settlement floor. But the Executor cannot itself verify that each hop honoured a per-hop minimum, because a plain V4 swap has no amountOutMinimum parameter at all. Per-hop protection therefore depends entirely on the off-chain builder being correct."
+    },
+    {
+      "byte_pressure_on_executor": "delegatecall plus the library address in bytecode adds bytes rather than removing them. Against 25 bytes of headroom this cannot fit without first removing other code.",
+      "id": "C",
+      "name": "delegatecall to an auxiliary library",
+      "operational_cost": "A library deployment plus an address pin, and the address must be updated whenever the library is redeployed.",
+      "rationale": "Worst fit for the remaining budget and the weakest trust model of the three. Rejected for now; revisit only if B is proven insufficient and A is rejected.",
+      "recommended": false,
+      "shape": "Move the per-hop encoding and verification into a deployed library and call it with delegatecall so it runs in the Executor's storage context.",
+      "trust_model": "delegatecall executes the library with full access to the Executor's storage, so a malicious or buggy library can corrupt balances and approvals. The Executor must pin the library address and ideally verify its code hash."
+    }
+  ],
+  "generated_at": "2026-11-16",
+  "measured_candidates": [
+    {
+      "deployed_bytes": 24576,
+      "fits": true,
+      "headroom_bytes": 0,
+      "note": "Exactly at the EIP-170 limit. Zero headroom, so any later change (including a security fix) would be undeployable. Measured with the hot-path V4FlashAccountingRequest encoder unchanged.",
+      "scheme": "per-hop minimum output (calldata trailing 32 bytes)"
+    },
+    {
+      "deployed_bytes": 24500,
+      "fits": true,
+      "headroom_bytes": 76,
+      "note": "Already implemented. ABI layout unchanged, semantics strengthened from gas echo to balance floor.",
+      "scheme": "route-level minimum output (reuse gasReserve field, renamed minAmountOut)"
+    },
+    {
+      "deployed_bytes": 24551,
+      "fits": true,
+      "headroom_bytes": 25,
+      "note": "The live candidate. Only 25 bytes of headroom remain.",
+      "scheme": "current mainnet Executor (post executorRequest autobuild)"
+    },
+    {
+      "deployed_bytes": 24677,
+      "fits": false,
+      "headroom_bytes": -101,
+      "note": "Exceeds EIP-170 by 101 bytes.",
+      "scheme": "V4FlashAccountingRequest + uint256 field"
+    },
+    {
+      "deployed_bytes": 24779,
+      "fits": false,
+      "headroom_bytes": -203,
+      "note": "Exceeds EIP-170 by 203 bytes.",
+      "scheme": "V4FlashAccountingRequest + uint256[] field"
+    },
+    {
+      "deployed_bytes": 24852,
+      "fits": false,
+      "headroom_bytes": -276,
+      "note": "Exceeds EIP-170 by 276 bytes.",
+      "scheme": "both request structs + uint256 field"
+    },
+    {
+      "deployed_bytes": 24687,
+      "fits": false,
+      "headroom_bytes": -111,
+      "note": "Exceeds EIP-170 by 111 bytes.",
+      "scheme": "new external entry point (uint256 parameter)"
+    }
+  ],
+  "mode": "evaluation_only",
+  "network_switches": 0,
+  "open_questions": [
+    "Does the team require on-chain enforcement of per-hop minimum output, or is an off-chain verified payload acceptable? The answer decides between option A and option B.",
+    "What is the acceptable operational cost of a second deployment (option A) for the mainnet and testnet chains?",
+    "Is a zero-headroom deployment acceptable as a fallback if no option leaves meaningful margin? The measured per-hop variant was exactly 24,576 bytes, which leaves no room for a later security fix."
+  ],
+  "recommendation": {
+    "explicit_non_claim": "This evaluation does not implement, deploy or measure any new contract. No EIP-170 budget was consumed and the mainnet Executor was not touched.",
+    "preconditions": [
+      "1. Re-measure the deployed bytecode on a clean branch before touching mainnet. The 24,576-byte figure predates the current 24,551-byte executorRequest work and cannot be reused.",
+      "2. Prove the per-hop payload on testnet first: the testnet Executor still has 148 bytes of headroom.",
+      "3. Specify the payload format and its version byte, and make the Executor reject an unknown version.",
+      "4. Decide explicitly whether per-hop protection is advisory (off-chain verification only) or enforceable on-chain (requires option A). Uniswap V4's native swap has no amountOutMinimum, so on-chain per-hop enforcement is only possible via option A.",
+      "5. Keep executorBatchEnabled false until the parity gate has produced real review rows and the route-level floor is proven on testnet."
+    ],
+    "primary": "B",
+    "summary": "Off-chain precompile plus calldata concatenation is the recommended next step for per-hop amountOutMinimum.",
+    "why": [
+      "It is the only option that can plausibly fit without a structural change to the Executor.",
+      "It adds no new trusted contract, so the fail-closed profit guard and the route-level minAmountOut keep their current trust assumptions.",
+      "The per-hop data is already produced and reviewed by the Rust path, so the off-chain builder is a formatting step rather than a new decision point."
+    ]
+  },
+  "safety_assertions": {
+    "arbitrage_broadcast_transactions_claimed": false,
+    "healer_production_state": "review_stalled",
+    "mainnet_db_path": "flashloan/db/local_store_4663.sqlite3",
+    "mainnet_db_size_bytes": 3507453952,
+    "mainnet_executor_deployed": false,
+    "manager_v4_closed_loops": 106,
+    "manager_v4_reviews": 0,
+    "safe_to_auto_broadcast": false,
+    "testnet_executor_deployed": false
+  },
+  "schema_version": "executor-expansion-evaluation-v1",
+  "task_id": "TASK-104"
+}

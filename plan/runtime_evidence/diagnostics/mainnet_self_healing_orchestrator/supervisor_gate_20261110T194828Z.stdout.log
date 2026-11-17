@@ -1,0 +1,6 @@
+[2026-11-10T19:49:36Z] pnl_snapshot sample=0 elapsedMin=1.1 remainingMin=298.9 reviews=145 valued=133 missing=12 execPositive=0 attempts=0 expected={} netAfterGas=0.0 realized={} state=market_no_executable_profit
+[2026-11-10T19:49:36Z] sample=0 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=0
+[2026-11-10T19:52:24Z] sample=1 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=0
+[2026-11-10T19:55:02Z] pnl_snapshot sample=2 elapsedMin=6.6 remainingMin=293.4 reviews=177 valued=162 missing=15 execPositive=0 attempts=0 expected={} netAfterGas=0.0 realized={} state=market_no_executable_profit
+[2026-11-10T19:55:02Z] sample=2 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=0
+[2026-11-10T19:57:25Z] sample=3 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=0

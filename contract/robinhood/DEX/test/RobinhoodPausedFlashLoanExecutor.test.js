@@ -17,6 +17,30 @@ async function deployFixture() {
   return { owner, other, executor };
 }
 
+
+const Q96 = 79_228_162_514_264_337_593_543_950_336n;
+const MIN_SQRT_PRICE_LIMIT = Q96 - 1_000_000_000_000_000_000n;
+const MAX_SQRT_PRICE_LIMIT = Q96 + 1_000_000_000_000_000_000n;
+
+function encodePoolKey(poolKey) {
+  return ethers.AbiCoder.defaultAbiCoder().encode(
+    ["address", "address", "uint24", "int24", "address"],
+    [poolKey.currency0, poolKey.currency1, poolKey.fee, poolKey.tickSpacing, poolKey.hooks],
+  );
+}
+
+async function setMockV4PoolState(poolManager, poolKey, sqrtPriceX96 = Q96, liquidity = 1_000_000n) {
+  const poolId = ethers.keccak256(encodePoolKey(poolKey));
+  const stateSlot = ethers.keccak256(
+    ethers.solidityPacked(["bytes32", "uint256"], [poolId, 6n]),
+  );
+  const liquiditySlot = ethers.toBeHex(BigInt(stateSlot) + 3n, 32);
+  const tick = 0;
+  const slot0 = BigInt(sqrtPriceX96) | (BigInt(tick & 0xffffff) << 160n);
+  await poolManager.setMockExtsloadValue(stateSlot, slot0);
+  await poolManager.setMockExtsloadValue(liquiditySlot, liquidity);
+}
+
 function v4Swap(currency0, currency1, zeroForOne, amountIn = 1_000_000n, amountOutMinimum = 990_000n) {
   return {
     poolKey: {
@@ -192,7 +216,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: [],
       finalToken: tokenAddress,
       minProfit: 0n,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(executor, "Paused");
@@ -306,6 +330,86 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
         deadline,
       ),
     ).to.be.revertedWithCustomError(executor, "InvalidRequest");
+  });
+
+  it("builds a direct V4 route with per-hop current-tick price limits", async function () {
+    const { executor } = await deployFixture();
+    const poolManager = addr(0x6107n);
+    await executor.setUniswapV4Adapter(true, addr(0x6108n), poolManager, addr(0x6109n), ethers.ZeroHash);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenA = addr(0x7311n);
+    const tokenB = addr(0x7312n);
+    const tokenC = addr(0x7313n);
+    const swaps = [
+      v4SwapForDirection(tokenA, tokenB),
+      v4SwapForDirection(tokenB, tokenC),
+      v4SwapForDirection(tokenC, tokenA),
+    ];
+    const limits = [79_100_000_000_000_000_000_000_000_000n, 79_200_000_000_000_000_000_000_000_000n, 79_300_000_000_000_000_000_000_000_000n];
+
+    const [targets, calldatas, initialToken, finalToken] =
+      await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(swaps, limits, deadline);
+
+    expect(targets).to.deep.equal([poolManager, poolManager, poolManager]);
+    expect(initialToken).to.equal(tokenA);
+    expect(finalToken).to.equal(tokenA);
+    const poolManagerInterface = new ethers.Interface([
+      "function swap((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks),(bool zeroForOne,int256 amountSpecified,uint160 sqrtPriceLimitX96),bytes hookData)",
+    ]);
+    for (let i = 0; i < calldatas.length; i++) {
+      const decoded = poolManagerInterface.decodeFunctionData("swap", calldatas[i]);
+      expect(decoded[1].sqrtPriceLimitX96).to.equal(limits[i]);
+      expect(decoded[1].amountSpecified).to.equal(-swaps[i].amountIn);
+    }
+  });
+
+  it("rejects missing or global-extreme V4 price limits", async function () {
+    const { executor } = await deployFixture();
+    await executor.setUniswapV4Adapter(true, addr(0x6110n), addr(0x6111n), addr(0x6112n), ethers.ZeroHash);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const swap = v4SwapForDirection(addr(0x7321n), addr(0x7322n));
+
+    await expect(
+      executor.buildV4PoolManagerBoundedExactInputRouteCalldata([swap], [], deadline),
+    ).to.be.revertedWithCustomError(executor, "InvalidRequest");
+    await expect(
+      executor.buildV4PoolManagerBoundedExactInputRouteCalldata([swap], [4_295_128_740n], deadline),
+    ).to.be.revertedWithCustomError(executor, "InvalidSqrtPriceLimit");
+    await expect(
+      executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+        [swap],
+        [1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341n],
+        deadline,
+      ),
+    ).to.be.revertedWithCustomError(executor, "InvalidSqrtPriceLimit");
+  });
+
+  it("validates the current V4 pool state against a bounded route", async function () {
+    const { executor, poolManager } = await deployV4FlashFixture();
+    const swap = v4SwapForDirection(addr(0x7321n), addr(0x7322n));
+    await setMockV4PoolState(poolManager, swap.poolKey, Q96, 123456n);
+    const snapshots = await executor.validateV4PoolManagerBoundedRoute(
+      [swap],
+      [swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT],
+    );
+    expect(snapshots.length).to.equal(1);
+    expect(snapshots[0].sqrtPriceX96).to.equal(Q96);
+    expect(snapshots[0].tick).to.equal(0);
+    expect(snapshots[0].liquidity).to.equal(123456n);
+  });
+
+  it("rejects a bounded route whose price limit is on the wrong side", async function () {
+    const { executor, poolManager } = await deployV4FlashFixture();
+    const swap = v4SwapForDirection(addr(0x7321n), addr(0x7322n));
+    await setMockV4PoolState(poolManager, swap.poolKey);
+    await expect(
+      executor.validateV4PoolManagerBoundedRoute(
+        [swap],
+        [swap.zeroForOne ? MAX_SQRT_PRICE_LIMIT : MIN_SQRT_PRICE_LIMIT],
+      ),
+    ).to.be.revertedWithCustomError(executor, "V4PriceLimitWrongDirection");
   });
 
   it("builds V3/V4 mixed route calldata with token continuity checks", async function () {
@@ -446,7 +550,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: [],
       finalToken: tokenAddress,
       minProfit: 0n,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request))
@@ -460,6 +564,99 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
     expect(await token.balanceOf(await executor.getAddress())).to.equal(0n);
     expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("isolates failed V4 flash requests inside one bounded batch transaction", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount);
+    await executor.setPaused(false);
+
+    const tokenAddress = await token.getAddress();
+    const failedRequest = {
+      token: tokenAddress,
+      amount: 0n,
+      swapTargets: [],
+      swapCalldatas: [],
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      minAmountOut: 0n,
+    };
+    const successfulRequest = { ...failedRequest, amount };
+    const invalidRequestSelector = executor.interface.getError("InvalidRequest").selector;
+
+    await expect(executor.requestV4FlashLoanBatch([failedRequest, successfulRequest]))
+      .to.emit(executor, "RobinhoodV4FlashBatchItemResult")
+      .withArgs(0n, false, invalidRequestSelector)
+      .and.to.emit(executor, "RobinhoodV4FlashBatchItemResult")
+      .withArgs(1n, true, "0x00000000")
+      .and.to.emit(executor, "RobinhoodV4FlashBatchCompleted")
+      .withArgs(2n, 1n, 1n)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount);
+
+    expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("does not let an earlier batch profit subsidize a later unprofitable request", async function () {
+    const { executor, token, poolManager, router } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    const minProfit = 1n;
+    const tokenAddress = await token.getAddress();
+    await token.mint(await poolManager.getAddress(), amount);
+    await token.mint(await router.getAddress(), minProfit);
+    await router.setTransferOnNextExecute(tokenAddress, minProfit);
+    await executor.setPaused(false);
+
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const routerInterface = new ethers.Interface(["function execute(bytes commands, bytes[] inputs, uint256 deadline)"]);
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: [await router.getAddress()],
+      swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
+      finalToken: tokenAddress,
+      minProfit,
+      minAmountOut: 0n,
+    };
+    const repaymentSelector = executor.interface.getError("BadFlashRepayment").selector;
+
+    await expect(executor.requestV4FlashLoanBatch([request, request]))
+      .to.emit(executor, "RobinhoodV4FlashBatchItemResult")
+      .withArgs(0n, true, "0x00000000")
+      .and.to.emit(executor, "RobinhoodV4FlashBatchItemResult")
+      .withArgs(1n, false, repaymentSelector)
+      .and.to.emit(executor, "RobinhoodV4FlashBatchCompleted")
+      .withArgs(2n, 1n, 1n);
+
+    expect(await token.balanceOf(await executor.getAddress())).to.equal(minProfit);
+    expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
+    expect(await router.queryFilter(router.filters.Executed())).to.have.length(1);
+  });
+
+  it("bounds V4 flash batches and protects the self-call item entry", async function () {
+    const { executor, token } = await deployV4FlashFixture();
+    await executor.setPaused(false);
+    const tokenAddress = await token.getAddress();
+    const request = {
+      token: tokenAddress,
+      amount: 1n,
+      swapTargets: [],
+      swapCalldatas: [],
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      minAmountOut: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoanBatch([])).to.be.revertedWithCustomError(executor, "InvalidRequest");
+    await expect(executor.requestV4FlashLoanBatch(Array.from({ length: 17 }, () => request)))
+      .to.be.revertedWithCustomError(executor, "InvalidRequest");
+    await expect(executor.executeV4FlashLoanBatchItem(request)).to.be.revertedWithCustomError(
+      executor,
+      "BadFlashCallback",
+    );
   });
 
   it("runs a mocked V4 PoolManager flash route before settling", async function () {
@@ -479,7 +676,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
       finalToken: tokenAddress,
       minProfit: 0n,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request))
@@ -508,8 +705,17 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     await tokenCContract.mint(await poolManager.getAddress(), amount);
     await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
 
-    const [targets, calldatas] = await executor.buildV4PoolManagerExactInputRouteCalldata(
-      [v4SwapForDirection(tokenAddress, tokenB), v4SwapForDirection(tokenB, tokenC), v4SwapForDirection(tokenC, tokenAddress)],
+    const directSwaps = [
+      v4SwapForDirection(tokenAddress, tokenB),
+      v4SwapForDirection(tokenB, tokenC),
+      v4SwapForDirection(tokenC, tokenAddress),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
       deadline,
     );
     const request = {
@@ -519,7 +725,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: Array.from(calldatas),
       finalToken: tokenAddress,
       minProfit: 0n,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request))
@@ -529,6 +735,199 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       .withArgs(tokenAddress, amount, amount);
     expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
     expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("rejects a V4 flash route whose incremental output is below the reviewed minimum output", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    // The pool manager repays the principal but the route only produced
+    // `amount`, so a reviewed floor above `amount` must reject the route.
+    await token.mint(await poolManager.getAddress(), amount * 2n);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenAddress = await token.getAddress();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, (await ethers.getSigners())[0].address);
+    const tokenCContract = await Token.deploy("Token C", "TKC", 6, (await ethers.getSigners())[0].address);
+    const tokenB = await tokenBContract.getAddress();
+    const tokenC = await tokenCContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await tokenCContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
+
+    const directSwaps = [
+      v4SwapForDirection(tokenAddress, tokenB),
+      v4SwapForDirection(tokenB, tokenC),
+      v4SwapForDirection(tokenC, tokenAddress),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
+      deadline,
+    );
+
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      // The reviewed minimum incremental output of the route. This floor sits
+      // above what the mocked route actually produced.
+      minAmountOut: amount * 4n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(
+      executor,
+      "BadFlashRepayment",
+    );
+  });
+
+  it("accepts a V4 flash route whose incremental output meets the reviewed minimum output", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount * 2n);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenAddress = await token.getAddress();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, (await ethers.getSigners())[0].address);
+    const tokenCContract = await Token.deploy("Token C", "TKC", 6, (await ethers.getSigners())[0].address);
+    const tokenB = await tokenBContract.getAddress();
+    const tokenC = await tokenCContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await tokenCContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
+
+    const directSwaps = [
+      v4SwapForDirection(tokenAddress, tokenB),
+      v4SwapForDirection(tokenB, tokenC),
+      v4SwapForDirection(tokenC, tokenAddress),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
+      deadline,
+    );
+
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      // The route produced one principal unit, so that incremental floor is
+      // accepted.
+      minAmountOut: amount,
+    };
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount);
+  });
+
+  it("does not let a pre-existing executor balance subsidize the reviewed minimum output", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await executor.getAddress(), amount * 10n);
+    await token.mint(await poolManager.getAddress(), amount * 2n);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenAddress = await token.getAddress();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, (await ethers.getSigners())[0].address);
+    const tokenCContract = await Token.deploy("Token C", "TKC", 6, (await ethers.getSigners())[0].address);
+    const tokenB = await tokenBContract.getAddress();
+    const tokenC = await tokenCContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await tokenCContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
+
+    const directSwaps = [
+      v4SwapForDirection(tokenAddress, tokenB, amount),
+      v4SwapForDirection(tokenB, tokenC, amount),
+      v4SwapForDirection(tokenC, tokenAddress, amount),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
+      deadline,
+    );
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      minAmountOut: amount * 3n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(
+      executor,
+      "BadFlashRepayment",
+    );
+  });
+
+  it("reports the reviewed minimum output in the profit guard event", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount * 2n);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenAddress = await token.getAddress();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, (await ethers.getSigners())[0].address);
+    const tokenCContract = await Token.deploy("Token C", "TKC", 6, (await ethers.getSigners())[0].address);
+    const tokenB = await tokenBContract.getAddress();
+    const tokenC = await tokenCContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await tokenCContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
+
+    const directSwaps = [
+      v4SwapForDirection(tokenAddress, tokenB),
+      v4SwapForDirection(tokenB, tokenC),
+      v4SwapForDirection(tokenC, tokenAddress),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
+      deadline,
+    );
+
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      minAmountOut: amount * 2n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request)).to.emit(executor, "RobinhoodProfitGuardChecked");
+    const events = await executor.queryFilter(executor.filters.RobinhoodProfitGuardChecked());
+    const last = events[events.length - 1];
+    expect(last.args.minAmountOut).to.equal(amount * 2n);
   });
 
   it("runs a mocked direct V4 PoolManager native ETH route before settling", async function () {
@@ -546,8 +945,16 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     await poolManager.setSwapTransferQueue([tokenB], [amount]);
     await poolManager.setNativeSwapTransferQueue([minProfit]);
 
-    const [targets, calldatas, initialToken, finalToken] = await executor.buildV4PoolManagerExactInputRouteCalldata(
-      [v4SwapForDirection(ethers.ZeroAddress, tokenB), v4SwapForDirection(tokenB, ethers.ZeroAddress)],
+    const directSwaps = [
+      v4SwapForDirection(ethers.ZeroAddress, tokenB),
+      v4SwapForDirection(tokenB, ethers.ZeroAddress),
+    ];
+    for (const swap of directSwaps) {
+      await setMockV4PoolState(poolManager, swap.poolKey);
+    }
+    const [targets, calldatas, initialToken, finalToken] = await executor.buildV4PoolManagerBoundedExactInputRouteCalldata(
+      directSwaps,
+      directSwaps.map((swap) => (swap.zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT)),
       deadline,
     );
     const request = {
@@ -557,7 +964,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: Array.from(calldatas),
       finalToken: ethers.ZeroAddress,
       minProfit,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     expect(initialToken).to.equal(ethers.ZeroAddress);
@@ -581,7 +988,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     const [requiredRepay, requiredBalance] = await executor.previewRequiredBalance(1_000_000n, 5, 1n, 0n);
 
     expect(requiredRepay).to.equal(1_000_500n);
-    expect(requiredBalance).to.equal(1_000_512n);
+    expect(requiredBalance).to.equal(1_000_505n);
   });
 
   it("accepts a non-stable V4 flash-accounting route with positive X-denominated profit", async function () {
@@ -607,7 +1014,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
       finalToken: tokenAddress,
       minProfit,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request))
@@ -641,7 +1048,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapValues: [amount],
       finalToken: ethers.ZeroAddress,
       minProfit,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoanWithValues(request))
@@ -670,7 +1077,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       swapCalldatas: [],
       finalToken: tokenAddress,
       minProfit: 1n,
-      gasReserve: 0n,
+      minAmountOut: 0n,
     };
 
     await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(

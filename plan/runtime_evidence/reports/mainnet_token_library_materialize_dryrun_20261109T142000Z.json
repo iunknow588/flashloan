@@ -1,0 +1,75 @@
+﻿{
+  "applied": false,
+  "chainId": 4663,
+  "classification": {
+    "duplicateSymbolGroups": 6,
+    "issues": 0,
+    "tokens": 4618,
+    "unclassified": 4281
+  },
+  "libraries": [
+    {
+      "chainId": 4663,
+      "events": 4,
+      "inserted": 4,
+      "library": "core",
+      "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "network": "robinhood",
+      "sourceCheckpoint": "sha256:653e26d5663893f868acd95216dbc638611be845ae0f09524d482c20b0136e11",
+      "unchanged": 0,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 0
+    },
+    {
+      "chainId": 4663,
+      "events": 194,
+      "inserted": 194,
+      "library": "stocks",
+      "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "network": "robinhood",
+      "sourceCheckpoint": "sha256:653e26d5663893f868acd95216dbc638611be845ae0f09524d482c20b0136e11",
+      "unchanged": 0,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 0
+    },
+    {
+      "chainId": 4663,
+      "events": 1,
+      "inserted": 1,
+      "library": "test",
+      "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+      "network": "robinhood",
+      "sourceCheckpoint": "sha256:653e26d5663893f868acd95216dbc638611be845ae0f09524d482c20b0136e11",
+      "unchanged": 0,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 0
+    },
+    {
+      "chainId": 4663,
+      "events": 162,
+      "inserted": 162,
+      "library": "extension",
+      "metadataChecksum": "sha256:20425ff1c9a289f3cab07b9f62190051aa836d8775bf37cdbc5b3355e0be1c4f",
+      "network": "robinhood",
+      "sourceCheckpoint": "sha256:653e26d5663893f868acd95216dbc638611be845ae0f09524d482c20b0136e11",
+      "unchanged": 0,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 0
+    }
+  ],
+  "mode": "dry_run",
+  "network": "robinhood",
+  "normalization": {
+    "accepted": 4816,
+    "rejected": 1735
+  },
+  "quickCheck": "ok",
+  "registry": ".\\flashloan\\src\\chains\\robinhood\\robinhood_stock_tokens.json",
+  "sourceCheckpoint": "sha256:653e26d5663893f868acd95216dbc638611be845ae0f09524d482c20b0136e11",
+  "sourceDatabase": ".\\flashloan\\db\\local_store_4663.sqlite3",
+  "targetDatabase": ".\\flashloan\\db\\local_store_4663.sqlite3"
+}

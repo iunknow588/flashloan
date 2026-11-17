@@ -36,34 +36,43 @@ def test_normalize_resolves_known_placeholder_from_mainnet_allowlist() -> None:
 
 
 def test_mainnet_stock_identity_uses_sqlite_registry_not_json(monkeypatch, tmp_path) -> None:
-    import core.db.database_path as database_path
+    import core.route_symbol_identity as identity
     from market.binance_market import dex_route_helpers as helpers
 
     stock_address = "0x" + "1" * 40
     captured: dict[str, object] = {}
 
-    def fake_stock_token_by_symbol(**kwargs):
-        captured.update(kwargs)
-        assert kwargs.get("database_url")
-        return {"SPY": {"address": stock_address, "symbol": "SPY"}}
+    def fake_load_chain_tokens(database_url, *, network, chain_id):
+        captured["database_url"] = database_url
+        captured["network"] = network
+        captured["chain_id"] = chain_id
+        return [
+            {
+                "token_symbol": "SPY",
+                "token_address": stock_address,
+                "token_metadata_json": {"category": "robinhood_stock"},
+            }
+        ]
 
-    previous_cache = helpers._SYMBOL_ADDRESS_CACHE.pop(4663, None)
-    monkeypatch.setattr(helpers, "stock_token_by_symbol", fake_stock_token_by_symbol)
+    previous_cache = identity._SYMBOL_ADDRESS_CACHE.pop(4663, None)
+    monkeypatch.setattr(identity, "load_chain_tokens", fake_load_chain_tokens)
     monkeypatch.setattr(
-        database_path,
-        "absolute_database_path",
-        lambda database_url=None: tmp_path / "mainnet.sqlite3",
+        identity,
+        "chain_database_path",
+        lambda chain_id, network: tmp_path / "mainnet.sqlite3",
     )
     try:
         assert helpers._official_route_addresses(["SPY"], chain_id=4663) == [stock_address]
+        # The stock identity has to come from the SQLite registry, never from
+        # the static JSON allowlist.
         assert captured["network"] == "robinhood"
         assert captured["chain_id"] == 4663
         assert str(captured["database_url"]).endswith("mainnet.sqlite3")
     finally:
         if previous_cache is None:
-            helpers._SYMBOL_ADDRESS_CACHE.pop(4663, None)
+            identity._SYMBOL_ADDRESS_CACHE.pop(4663, None)
         else:
-            helpers._SYMBOL_ADDRESS_CACHE[4663] = previous_cache
+            identity._SYMBOL_ADDRESS_CACHE[4663] = previous_cache
 
 
 def test_trusted_symbol_lookup_rejects_unknown_address_even_if_it_claims_known_name() -> None:

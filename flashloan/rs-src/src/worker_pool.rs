@@ -6,11 +6,12 @@ use std::thread;
 use std::time::Duration;
 
 use broadcast_manager::{BroadcastSupervisor, ExecutionTask};
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint, Sign};
 use pyo3::prelude::*;
 use review_manager::{ReviewRuntime, ReviewSupervisor, ReviewSupervisorCommand};
 use serde_json::{json, Value};
 
+use crate::closed_loop_identity::ClosedLoopCatalog;
 use crate::execution;
 use crate::json_result_to_py;
 use crate::pool_index::{self, V4PoolKey};
@@ -115,6 +116,15 @@ struct WorkerState {
     last_error: Option<String>,
     last_result: Option<Value>,
     direction_results: Vec<Value>,
+    /// The **non-persistent** parity input of the last live review.
+    ///
+    /// The payload is transient by design: it carries the pool state the
+    /// review saw, it is held in memory only, and it is never written to
+    /// the database. Its whole purpose is to let Review Manager replay the
+    /// review against the state the review quoted, instead of against a
+    /// later snapshot of a market that has already moved on.
+    last_parity_payload: Option<Value>,
+    last_parity_payload_at: Option<String>,
     phase: String,
     phase_started_at: Option<String>,
     backoff_until: Option<String>,
@@ -150,6 +160,8 @@ impl Default for WorkerState {
             last_error: None,
             last_result: None,
             direction_results: Vec::new(),
+            last_parity_payload: None,
+            last_parity_payload_at: None,
             phase: "idle".to_string(),
             phase_started_at: None,
             backoff_until: None,
@@ -175,6 +187,19 @@ struct ContextCacheData {
     liquidity_count: usize,
     token_count: usize,
     registry: V4PoolRegistry,
+    /// The closed loops of this chain, as the Manager published them.
+    ///
+    /// The catalog lives in the **in-memory object** together with the
+    /// pool registry and the liquidity registry, so every processing step
+    /// reads the same snapshot the runtime started from. The Manager
+    /// library is read once per refresh; nothing reads it per review.
+    closed_loops: ClosedLoopCatalog,
+    /// The decimals of every token of this chain.
+    ///
+    /// The decimals travel with the in-memory object, so the kernel can
+    /// turn a raw profit into the human amount the Review Manager
+    /// requires without asking the database and without asking Python.
+    token_decimals: TokenDecimalsRegistry,
     registry_scope: Option<String>,
     loaded_at: Option<String>,
 }
@@ -188,11 +213,59 @@ struct ContextCache {
 struct PoolRegistryEntry {
     token0: String,
     token1: String,
+    pool_manager: String,
 }
 
 #[derive(Clone, Debug, Default)]
 struct LiquidityRegistryEntry {
     has_liquidity: Option<i64>,
+}
+
+/// The decimals of every token of one chain.
+///
+/// The registry is part of the **in-memory object** of the runtime. It is
+/// filled once, when the runtime initializes, and from then on the kernel
+/// reads the decimals of the borrow token from here. Nothing in the
+/// processing path reads the database to learn how many decimals a token
+/// has.
+#[derive(Clone, Debug, Default)]
+struct TokenDecimalsRegistry {
+    decimals_by_address: HashMap<String, i64>,
+}
+
+impl TokenDecimalsRegistry {
+    fn replace_from_rows(&mut self, rows: &[Value]) {
+        self.decimals_by_address.clear();
+        for row in rows {
+            let Some(address) = row
+                .get("token_address")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_lowercase())
+                .filter(|value| !value.is_empty())
+            else {
+                continue;
+            };
+            let Some(decimals) = row.get("token_decimals").and_then(Value::as_i64) else {
+                continue;
+            };
+            if decimals < 0 {
+                continue;
+            }
+            self.decimals_by_address.insert(address, decimals);
+        }
+    }
+
+    /// The decimals of one token address.
+    fn decimals_for(&self, address: &str) -> Option<i64> {
+        let key = address.trim().to_lowercase();
+        self.decimals_by_address.get(&key).copied()
+    }
+
+    /// The number of tokens the registry knows the decimals of.
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.decimals_by_address.len()
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -235,6 +308,11 @@ impl V4PoolRegistry {
                                 .unwrap_or_default(),
                             token1: row
                                 .get("token1")
+                                .and_then(Value::as_str)
+                                .map(|value| value.trim().to_lowercase())
+                                .unwrap_or_default(),
+                            pool_manager: row
+                                .get("pool_manager")
                                 .and_then(Value::as_str)
                                 .map(|value| value.trim().to_lowercase())
                                 .unwrap_or_default(),
@@ -285,6 +363,44 @@ impl V4PoolRegistry {
                     .insert(pool_id.clone());
             }
         }
+    }
+
+    fn pool_manager_for_selected_keys(&self, keys: &[Value]) -> Option<String> {
+        if keys.len() != 3 {
+            return None;
+        }
+        let mut selected_manager: Option<String> = None;
+        for key in keys {
+            let pool_key = V4PoolKey {
+                currency0: key.get("currency0")?.as_str()?.to_owned(),
+                currency1: key.get("currency1")?.as_str()?.to_owned(),
+                fee: key.get("fee")?.as_u64()?,
+                tick_spacing: i32::try_from(key.get("tickSpacing")?.as_i64()?).ok()?,
+                hooks: key
+                    .get("hooks")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0x0000000000000000000000000000000000000000")
+                    .to_owned(),
+            };
+            let pool_id = pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase();
+            let manager = self
+                .pool_by_id
+                .get(&pool_id)?
+                .pool_manager
+                .trim()
+                .to_ascii_lowercase();
+            if manager.is_empty() {
+                return None;
+            }
+            if let Some(existing) = selected_manager.as_ref() {
+                if existing != &manager {
+                    return None;
+                }
+            } else {
+                selected_manager = Some(manager);
+            }
+        }
+        selected_manager
     }
 
     fn get_pool_info(&self, pool_id: &str) -> Option<&PoolRegistryEntry> {
@@ -916,7 +1032,13 @@ fn load_context_registry_rows(
     network: &str,
     chain_id: u64,
     protocol: &str,
-) -> Option<(Vec<Value>, Vec<Value>, Vec<Value>)> {
+) -> Option<(
+    Vec<Value>,
+    Vec<Value>,
+    Vec<Value>,
+    Vec<Value>,
+    ClosedLoopCatalog,
+)> {
     let connection = match sqlite_read::open_readonly(database_path) {
         Ok(connection) => connection,
         Err(_) => return None,
@@ -929,7 +1051,28 @@ fn load_context_registry_rows(
             .unwrap_or_default();
     let token_rows = sqlite_read::load_chain_token_registry_rows(&connection, network, chain_id)
         .unwrap_or_default();
-    Some((pool_rows, liquidity_rows, token_rows))
+    // The token decimals are read here, with the rest of the initialization
+    // snapshot. The kernel needs them to publish a human profit amount,
+    // and it must never go back to the database for them.
+    let token_decimals_rows =
+        sqlite_read::load_chain_token_decimals_rows(&connection, network, chain_id).unwrap_or_default();
+    // The closed-loop catalog is read **here**, once, with the rest of the
+    // initialization snapshot. Every later processing step works on the
+    // in-memory object, so the Manager library is never read per review.
+    //
+    // The read is chain-scoped: the network and the chain id both take
+    // part in the query, so the catalog of one chain can never be applied
+    // to another chain.
+    let closed_loop_rows =
+        sqlite_read::load_manager_closed_loop_rows(&connection, network, chain_id).unwrap_or_default();
+    let closed_loops = crate::closed_loop_identity::catalog_from_rows(&closed_loop_rows);
+    Some((
+        pool_rows,
+        liquidity_rows,
+        token_rows,
+        token_decimals_rows,
+        closed_loops,
+    ))
 }
 
 fn context_cache_is_stale(data: &ContextCacheData) -> bool {
@@ -968,7 +1111,7 @@ fn load_context_cache(
         if !stale {
             return Some((cached, true));
         }
-        if let Some((pool_rows, liquidity_rows, token_rows)) =
+        if let Some((pool_rows, liquidity_rows, token_rows, token_decimals_rows, closed_loops)) =
             load_context_registry_rows(&database_path, &network, chain_id, &protocol)
         {
             cached.data.write().unwrap().replace_from_rows(
@@ -977,14 +1120,18 @@ fn load_context_cache(
                 &token_rows,
                 &registry_scope,
             );
+            cached.data.write().unwrap().token_decimals.replace_from_rows(&token_decimals_rows);
+            cached.data.write().unwrap().closed_loops = closed_loops;
             return Some((cached, false));
         }
         return Some((cached, true));
     }
-    let (pool_rows, liquidity_rows, token_rows) =
+    let (pool_rows, liquidity_rows, token_rows, token_decimals_rows, closed_loops) =
         load_context_registry_rows(&database_path, &network, chain_id, &protocol)?;
     let mut data = ContextCacheData::default();
     data.replace_from_rows(&pool_rows, &liquidity_rows, &token_rows, &registry_scope);
+    data.token_decimals.replace_from_rows(&token_decimals_rows);
+    data.closed_loops = closed_loops;
     let cache = Arc::new(ContextCache {
         data: RwLock::new(data),
     });
@@ -992,10 +1139,41 @@ fn load_context_cache(
     Some((cache, false))
 }
 
+/// Turn a signed raw amount into the human amount of its token.
+///
+/// The raw form is what the contract produced: a hexadecimal integer with
+/// an optional minus sign. The human amount is the same number scaled by
+/// the decimals of the token, so the two always describe the same value.
+fn signed_raw_to_amount(raw: &Value, decimals: i64) -> Option<f64> {
+    let text = raw.as_str()?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (negative, digits) = if let Some(rest) = text.strip_prefix('-') {
+        (true, rest.trim())
+    } else {
+        (false, text.trim())
+    };
+    let digits = digits.strip_prefix("0x").or_else(|| digits.strip_prefix("0X"))?;
+    let magnitude = BigUint::parse_bytes(digits.as_bytes(), 16)?;
+    let value = BigInt::from_biguint(Sign::Plus, magnitude);
+    let signed = if negative { -value } else { value };
+    let scale = 10f64.powi(decimals as i32);
+    if !scale.is_finite() || scale <= 0.0 {
+        return None;
+    }
+    // The raw value is exact up to this many digits; beyond it the f64
+    // mantissa runs out, so the amount is published with the precision the
+    // float can carry rather than a number that pretends to be exact.
+    let human = signed.to_string().parse::<f64>().ok()? / scale;
+    human.is_finite().then_some(human)
+}
+
 fn apply_selected_route_overrides(
     payload: &mut Value,
     route_payload: &Value,
     route_config: &Value,
+    token_decimals: Option<&TokenDecimalsRegistry>,
 ) {
     payload["selectedRoutePayload"] = route_payload.clone();
     payload["selectedAmountRaw"] = route_payload
@@ -1015,6 +1193,516 @@ fn apply_selected_route_overrides(
         .cloned()
         .unwrap_or(Value::Null);
     payload["token"] = route_config.get("token").cloned().unwrap_or(Value::Null);
+    // The identity of the closed loop comes from the closed-loop Manager.
+    // The review is filed under that key, so it can never be attributed to
+    // a loop the Manager did not publish.
+    payload["closedLoopKey"] = route_config
+        .get("closedLoopKey")
+        .cloned()
+        .unwrap_or(Value::Null);
+    payload["closedLoopPoolIds"] = route_config
+        .get("closedLoopPoolIds")
+        .cloned()
+        .unwrap_or(Value::Null);
+    // The executable flag and the signed profit of the reviewed size are
+    // **kernel conclusions**. They are published here so that every
+    // consumer reads the same numbers the contract call produced, and no
+    // other layer has to derive them.
+    //
+    // The borrow token is the currency of the profit: the route borrows it
+    // and repays it, so the signed profit is denominated in it.
+    let borrow_symbol = route_config
+        .get("routeSymbols")
+        .and_then(Value::as_array)
+        .and_then(|rows| rows.first())
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_uppercase();
+    let borrow_address = route_config
+        .get("routeAddresses")
+        .and_then(Value::as_array)
+        .and_then(|rows| rows.first())
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase();
+    let run_arbitrage = route_payload
+        .get("runArbitrage")
+        .or_else(|| route_payload.get("selectedRoutePayload").and_then(|inner| inner.get("runArbitrage")))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let executable = run_arbitrage
+        .get("executable")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    payload["executable"] = json!(executable);
+    let signed_profit_raw = route_payload
+        .get("reportedNetProfitRaw")
+        .or_else(|| route_payload.get("selectedProfitRaw"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    if !signed_profit_raw.is_null() {
+        // The human amount is a **kernel conclusion** too. The Review
+        // Manager requires it, and the decimals of the borrow token live
+        // in the in-memory object, so the kernel can publish it without
+        // asking the database and without asking Python to derive it.
+        let human_amount = token_decimals
+            .and_then(|registry| registry.decimals_for(&borrow_address))
+            .and_then(|decimals| signed_raw_to_amount(&signed_profit_raw, decimals));
+        let signed_pnl = json!({
+            "raw": signed_profit_raw,
+            "amount": human_amount,
+            "currency": borrow_symbol,
+            "address": borrow_address,
+            "unit": "raw",
+            "source": "native_rust_ladder",
+        });
+        payload["signedPnl"] = signed_pnl.clone();
+        // The Review Manager reads the signed profit from **inside** the
+        // ``runArbitrage`` object, so the kernel publishes it there as
+        // well. The two places carry the same value: they are written from
+        // the same kernel conclusion, never from two derivations.
+        let mut nested_run = match payload.get("runArbitrage") {
+            Some(Value::Object(map)) => Value::Object(map.clone()),
+            _ => json!({}),
+        };
+        nested_run["executable"] = json!(executable);
+        nested_run["signedPnl"] = signed_pnl;
+        payload["runArbitrage"] = nested_run;
+    } else {
+        payload["signedPnl"] = Value::Null;
+    }
+    payload["offchainGasGate"] = route_config
+        .get("offchainGasGate")
+        .cloned()
+        .unwrap_or(Value::Null);
+    // The capacity gate is recorded on the route evidence. The route config
+    // wins when it carries a verdict, so a stale evidence payload can never
+    // silently re-enable a route whose capacity was already judged.
+    payload["capacityGate"] = route_config
+        .get("capacityGate")
+        .cloned()
+        .or_else(|| {
+            route_payload.get("capacityGate").cloned().or_else(|| {
+                route_payload
+                    .get("live_onchain_evidence")
+                    .and_then(Value::as_object)
+                    .and_then(|evidence| evidence.get("capacityGate").cloned())
+            })
+        })
+        .unwrap_or(Value::Null);
+
+    // D4-e: the token-denominated economic floor travels with the route
+    // evidence for the same reason the capacity gate does. A stale payload
+    // must never silently re-enable a route whose economic verdict was
+    // already decided.
+    payload["economicFloorGate"] = route_config
+        .get("economicFloorGate")
+        .cloned()
+        .or_else(|| {
+            route_payload.get("economicFloorGate").cloned().or_else(|| {
+                route_payload
+                    .get("live_onchain_evidence")
+                    .and_then(Value::as_object)
+                    .and_then(|evidence| evidence.get("economicFloorGate").cloned())
+            })
+        })
+        .unwrap_or(Value::Null);
+    // The per-hop price limits are the executable form of the single-tick
+    // proof. The route config wins when it carries them; otherwise the
+    // selected route evidence may supply the limits that the review proved.
+    payload["hopSqrtPriceLimits"] = route_config
+        .get("hopSqrtPriceLimits")
+        .cloned()
+        .or_else(|| route_payload.get("hopSqrtPriceLimits").cloned())
+        .or_else(|| {
+            route_payload
+                .get("live_onchain_evidence")
+                .and_then(Value::as_object)
+                .and_then(|evidence| evidence.get("hopSqrtPriceLimits").cloned())
+        })
+        .unwrap_or(Value::Null);
+}
+
+/// Builds the **non-persistent** parity input of one live review.
+///
+/// The review rows are transient garbage data: they are cleaned on purpose,
+/// because a review row is a snapshot of a market that has already moved on
+/// and has no lasting statistical value. A parity replay that reads the
+/// recorded reviews therefore has nothing left to measure once the cleanup
+/// has run, and it correctly refuses to pass its gate.
+///
+/// The way out is not to restore the reviews. The way out is to derive the
+/// parity input **from the review that is happening right now**: the review
+/// already selected a route, a principal and a profit, and the pool state it
+/// priced is readable from Pool Manager at this very moment. That state is
+/// captured here, in memory, and handed to Review Manager's
+/// `review_parity_replay_payload` command.
+///
+/// The payload is **never persisted**:
+///
+/// * no table is written,
+/// * no schema is added for transient data,
+/// * the payload only lives for the duration of one measurement.
+///
+/// A route that cannot be described completely is **skipped**, never
+/// guessed: a wrong price would produce a wrong simulation, which is worse
+/// than no simulation.
+fn live_review_parity_payload(
+    payload: &Value,
+    pool_registry: Option<&V4PoolRegistry>,
+    rpc_url: &str,
+    timeout_seconds: u64,
+) -> Option<Value> {
+    let route_payload = payload.get("selectedRoutePayload")?;
+    let status = route_payload.get("status").and_then(Value::as_str)?;
+    if status != "profitable_amount_found" {
+        return None;
+    }
+    let selected_keys = route_payload
+        .get("selectedKeys")
+        .and_then(Value::as_array)
+        .filter(|keys| keys.len() == 3)?;
+    let selected_directions = route_payload
+        .get("selectedDirections")
+        .and_then(Value::as_array)
+        .filter(|directions| directions.len() == 3)?;
+
+    // The route addresses are the token path of the selected route. They are
+    // the identity the parity comparison reconstructs the hop chain from.
+    let route_addresses = route_payload
+        .get("routeAddresses")
+        .and_then(Value::as_array)
+        .map(|addresses| {
+            addresses
+                .iter()
+                .filter_map(|value| value.as_str().map(|text| text.trim().to_lowercase()))
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .filter(|addresses| addresses.len() == 4)?;
+    let borrow_token = route_addresses.first()?.clone();
+
+    // The pool ids are derived from the **selected** pool keys, so the
+    // comparison always runs against the pools the review actually priced
+    // and never against the whole candidate set.
+    let mut pool_ids = Vec::with_capacity(selected_keys.len());
+    for key in selected_keys {
+        let pool_key = V4PoolKey {
+            currency0: key.get("currency0")?.as_str()?.to_owned(),
+            currency1: key.get("currency1")?.as_str()?.to_owned(),
+            fee: key.get("fee")?.as_u64()?,
+            tick_spacing: i32::try_from(key.get("tickSpacing")?.as_i64()?).ok()?,
+            hooks: key
+                .get("hooks")
+                .and_then(Value::as_str)
+                .unwrap_or("0x0000000000000000000000000000000000000000")
+                .to_owned(),
+        };
+        pool_ids.push(pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase());
+    }
+
+    // The pool manager has to be the one the selected pools actually live
+    // in. A mixed route has no single manager and is skipped. The manager is
+    // never guessed: without it the state could not be read from the right
+    // contract, and a wrong contract would produce a wrong price.
+    let pool_manager = pool_registry?
+        .pool_manager_for_selected_keys(selected_keys)?
+        .to_owned();
+    if pool_manager.is_empty() {
+        return None;
+    }
+
+    // The state is read **now**, from the chain, through Pool Manager's own
+    // reader. This is the state the review saw, because the review ran
+    // moments earlier against the same chain.
+    let states =
+        execution::read_v4_pool_states_impl(rpc_url, &pool_manager, &pool_ids, timeout_seconds)
+            .ok()?;
+    let state_map = states.get("states")?.as_object()?;
+
+    let mut candidate_pools = Vec::with_capacity(pool_ids.len());
+    for (index, pool_id) in pool_ids.iter().enumerate() {
+        let state = state_map.get(pool_id)?;
+        let key = selected_keys.get(index)?;
+        let direction = selected_directions.get(index)?;
+        let token0 = key
+            .get("currency0")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_lowercase();
+        let token1 = key
+            .get("currency1")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_lowercase();
+        // The direction decides which way the hop runs. A pool that does not
+        // sit between the route's two tokens cannot be simulated, so it is
+        // skipped rather than guessed.
+        let zero_for_one = direction
+            .get("zeroForOne")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let (token_in, token_out) = if zero_for_one {
+            (token0.clone(), token1.clone())
+        } else {
+            (token1.clone(), token0.clone())
+        };
+        if !route_addresses.contains(&token_in) || !route_addresses.contains(&token_out) {
+            return None;
+        }
+        let sqrt_price_x96 = state
+            .get("sqrtPriceX96")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())?;
+        let liquidity = state
+            .get("liquidity")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())?;
+        candidate_pools.push(json!({
+            "poolId": pool_id,
+            "token0": token0,
+            "token1": token1,
+            "fee": key.get("fee").cloned().unwrap_or(Value::Null),
+            "tickSpacing": key.get("tickSpacing").cloned().unwrap_or(Value::Null),
+            "hooks": key
+                .get("hooks")
+                .and_then(Value::as_str)
+                .unwrap_or("0x0000000000000000000000000000000000000000"),
+            "sqrtPriceX96": sqrt_price_x96,
+            "tick": state.get("tick").cloned().unwrap_or(Value::Null),
+            "liquidity": liquidity,
+            "liquidityReadAt": state
+                .get("liquidityReadAt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+        }));
+    }
+
+    let selected_amount_raw = payload
+        .get("selectedAmountRaw")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())?;
+    let selected_profit_raw = payload
+        .get("selectedProfitRaw")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("");
+
+    Some(json!({
+        "routeAddresses": route_addresses,
+        "poolPathKey": pool_ids.join("|"),
+        "poolIds": pool_ids,
+        "selectedAmountRaw": selected_amount_raw,
+        "selectedProfitRaw": selected_profit_raw,
+        "token": borrow_token,
+        "quote": {
+            "candidate_pools": candidate_pools,
+        },
+        "reviewTimeStateSource": "pool_manager_live_read_during_review",
+    }))
+}
+
+fn eligible_executor_batch_request(
+    route_payload: &Value,
+    route_config: &Value,
+    pool_registry: Option<&V4PoolRegistry>,
+) -> Result<Option<Value>, String> {
+    if route_payload.get("status").and_then(Value::as_str) != Some("profitable_amount_found") {
+        return Ok(None);
+    }
+    let mut gate_payload = json!({});
+    apply_selected_route_overrides(&mut gate_payload, route_payload, route_config, None);
+    if !offchain_broadcast_gate_allows(&gate_payload, route_config)
+        || capacity_gate_blocks_broadcast(&gate_payload).is_some()
+        || economic_floor_gate_blocks_broadcast(&gate_payload).is_some()
+        || hop_price_limit_gate_blocks_broadcast(&gate_payload).is_some()
+    {
+        return Ok(None);
+    }
+    let request = if let Some(request) = route_config
+        .get("executorRequest")
+        .cloned()
+        .or_else(|| route_payload.get("executorRequest").cloned())
+    {
+        request
+    } else {
+        let selected_keys = route_payload
+            .get("selectedKeys")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "executor_request_missing_selected_keys".to_string())?;
+        let pool_manager = route_config
+            .get("poolManager")
+            .or_else(|| route_config.get("poolManagerAddress"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .or_else(|| pool_registry?.pool_manager_for_selected_keys(selected_keys.as_slice()))
+            .ok_or_else(|| "executor_request_pool_manager_unavailable".to_string())?;
+        let mut request_config = route_config.clone();
+        for field in ["token", "minProfitRaw", "hopSqrtPriceLimits"] {
+            if request_config.get(field).is_none() {
+                if let Some(value) = gate_payload.get(field) {
+                    request_config[field] = value.clone();
+                }
+            }
+        }
+        execution::build_v4_flash_executor_request(route_payload, &request_config, &pool_manager)
+            .map_err(|error| format!("executor_request_build_failed:{error}"))?
+    };
+    // The reviewed minimum output of the route is part of the execution
+    // proof, not advisory metadata. Uniswap V4's native swap carries no
+    // output floor, so the contract can only bound the route after the fact.
+    // A request that carries no reviewed floor is therefore unbounded on
+    // chain, and the batch refuses it rather than sending a route whose
+    // execution bound was never proved.
+    if reviewed_min_amount_out(&request).is_none() {
+        return Err("executor_request_reviewed_minimum_output_unavailable".to_string());
+    }
+    Ok(Some(request))
+}
+
+/// The reviewed minimum output of an executor request, in raw units.
+///
+/// The contract field was renamed from `gasReserve` to `minAmountOut`. The
+/// V4 accounting path never enforced the old field: gas is a sunk on-chain
+/// cost, so the balance decision is made from `minProfit` alone. The
+/// contract now reads it as the route's reviewed output floor, which is the
+/// bound the execution path was missing.
+///
+/// A missing or unparsable value is `None`, because "cannot prove" is not
+/// "is zero": an unbounded route must not be treated as a bounded one.
+fn reviewed_min_amount_out(request: &Value) -> Option<BigUint> {
+    let raw = request
+        .get("minAmountOut")
+        .or_else(|| request.get("gasReserve"))?;
+    if raw.is_null() {
+        return None;
+    }
+    let parsed = execution::parse_big_uint(raw).ok()?;
+    if parsed == BigUint::from(0u8) {
+        return None;
+    }
+    Some(parsed)
+}
+
+/// Return the capacity-gate reason that blocks a broadcast, or `None`.
+///
+/// The capacity gate requires every hop to carry the intended position
+/// inside the epsilon price-impact budget. The verdict is expressed in the
+/// hop's own token units, so it never depends on a USD quote.
+///
+/// Only a *known* insufficient capacity blocks. A route whose capacity was
+/// never measured, and a payload that carries no capacity verdict at all,
+/// are coverage gaps of the pool index rather than statements about the
+/// market, so they must not halt the broadcast path. The reviewer promotes
+/// the unmeasured case into a block once the depth rollout has landed, by
+/// setting the verdict's `blocked` flag.
+fn capacity_gate_blocks_broadcast(payload: &Value) -> Option<String> {
+    let Some(gate) = payload.get("capacityGate").and_then(Value::as_object) else {
+        // No capacity verdict at all: the gate never produced one. This is
+        // not a market conclusion, so it cannot block the broadcast.
+        return None;
+    };
+    if gate.get("blocked").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    Some(
+        gate.get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or("capacity_insufficient")
+            .to_string(),
+    )
+}
+
+/// Return the economic-floor reason that blocks a broadcast, or `None`.
+///
+/// D4-e: a route whose tightest measured capacity cannot carry the amount
+/// needed to cover Gas can never be profitable at any size the pool can
+/// absorb. Such a route is refused before it is broadcast.
+///
+/// The threshold is expressed in the borrow token's own raw units. No USD
+/// quote participates: 86 of 88 production loops borrow a token that is
+/// neither ETH nor a USD stablecoin, so a USD valuation could not be
+/// computed for the active book at all.
+///
+/// The pools themselves stay in the candidate set for human observation; only
+/// the execution path is closed.
+fn economic_floor_gate_blocks_broadcast(payload: &Value) -> Option<String> {
+    let Some(gate) = payload.get("economicFloorGate").and_then(Value::as_object) else {
+        // No economic verdict at all: this is not a market conclusion, so it
+        // cannot block the broadcast.
+        return None;
+    };
+    if gate.get("blocked").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    Some(
+        gate.get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or("dust_unprofitable")
+            .to_string(),
+    )
+}
+
+/// Return the reason that blocks a broadcast because the route has no
+/// complete per-hop price limits, or `None` when the limits are complete.
+///
+/// Version 1 may only execute inside a single tick range per hop. The
+/// deployed arbiter takes no price-limit argument, so the bound can only
+/// be enforced when the executor builds the swap calldata from a limit the
+/// review proved. A payload that does not carry all three limits would
+/// fall back to the global V4 price bound, which is exactly the behaviour
+/// version 1 forbids, so the broadcast is refused.
+fn hop_price_limit_gate_blocks_broadcast(payload: &Value) -> Option<String> {
+    let limits = payload
+        .get("hopSqrtPriceLimits")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| row.as_str())
+                .filter(|value| !value.trim().is_empty())
+                .count()
+        })
+        .unwrap_or(0);
+    if limits == 3 {
+        return None;
+    }
+    Some(format!("hop_price_limits_incomplete:{}/3", limits.min(3)))
+}
+
+fn offchain_broadcast_gate_allows(payload: &Value, config: &Value) -> bool {
+    if config
+        .get("manualBroadcast")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let Some(gate) = payload.get("offchainGasGate").and_then(Value::as_object) else {
+        return false;
+    };
+    let Some(profit_raw) = payload
+        .get("selectedProfitRaw")
+        .and_then(Value::as_str)
+        .and_then(|value| execution::parse_big_uint(&json!(value)).ok())
+    else {
+        return false;
+    };
+    if gate.get("conversionAvailable").and_then(Value::as_bool) == Some(false) {
+        return profit_raw > BigUint::from(0u8);
+    }
+    let Some(min_profit_raw) = gate
+        .get("minProfitRaw")
+        .and_then(Value::as_str)
+        .and_then(|value| execution::parse_big_uint(&json!(value)).ok())
+    else {
+        return false;
+    };
+    profit_raw > min_profit_raw
 }
 
 fn mark_selected_route_direction(payload: &mut Value, best_index: usize) {
@@ -1297,8 +1985,46 @@ fn per_direction_results(payload: &Value) -> Vec<Value> {
     snapshots
 }
 
+/// The number of probe rows the reviewer needs before it accepts a ladder as
+/// a **search** rather than a single measurement.
+const MIN_LADDER_PROBE_ROWS: usize = 2;
+
+/// Whether the `inner_single_call` result has to be retried with the full
+/// ladder.
+///
+/// There are two reasons to retry:
+///
+/// 1. The single call found no profitable route at the probed size. The
+///    contract's internal search only looks at one size, so the full ladder
+///    has to look at more.
+/// 2. The single call found a profitable route, but it measured **only one
+///    size**. The reviewer treats a ladder with fewer than two probe rows as
+///    an **incomplete ladder** and withdraws the best trade amount, so the
+///    profitable amount would be discarded even though the route really is
+///    profitable. The full ladder searches the size range and publishes the
+///    complete probe record, which is what lets the review confirm the
+///    amount.
 fn should_retry_inner_single_call_no_profit(result: &Value) -> bool {
-    if result.get("status").and_then(Value::as_str) != Some("not_profitable_after_costs") {
+    let status = result.get("status").and_then(Value::as_str);
+    let attempts = result
+        .get("attempts")
+        .and_then(Value::as_array)
+        .map(|rows| rows.as_slice())
+        .unwrap_or(&[]);
+    // A profitable single-size result is only trustworthy when the ladder
+    // actually searched. One probe row is a measurement, not a search, so
+    // the full ladder has to run before the reviewer can confirm the
+    // amount.
+    //
+    // A profitable result with **no** probe row at all is a different
+    // defect: nothing was measured, and the route error path handles it.
+    if status == Some("profitable_amount_found")
+        && attempts.len() == 1
+        && attempts.len() < MIN_LADDER_PROBE_ROWS
+    {
+        return true;
+    }
+    if status != Some("not_profitable_after_costs") {
         return false;
     }
     let attempts = result
@@ -1350,6 +2076,26 @@ fn maybe_broadcast(
         payload["stopRequested"] = json!(true);
         return Ok(());
     }
+    if !offchain_broadcast_gate_allows(payload, config) {
+        payload["broadcastSkipped"] = json!("expected_loss_after_gas_before_broadcast");
+        payload["offchainGasGateBlocked"] = json!(true);
+        return Ok(());
+    }
+    if let Some(capacity_reason) = capacity_gate_blocks_broadcast(payload) {
+        payload["broadcastSkipped"] = json!(capacity_reason);
+        payload["capacityGateBlocked"] = json!(true);
+        return Ok(());
+    }
+    if let Some(economic_reason) = economic_floor_gate_blocks_broadcast(payload) {
+        payload["broadcastSkipped"] = json!(economic_reason);
+        payload["economicFloorGateBlocked"] = json!(true);
+        return Ok(());
+    }
+    if let Some(limit_reason) = hop_price_limit_gate_blocks_broadcast(payload) {
+        payload["broadcastSkipped"] = json!(limit_reason);
+        payload["hopPriceLimitGateBlocked"] = json!(true);
+        return Ok(());
+    }
     let selected_amount_raw = payload
         .get("selectedAmountRaw")
         .and_then(Value::as_str)
@@ -1371,6 +2117,33 @@ fn maybe_broadcast(
         .get("relayUrls")
         .and_then(Value::as_str)
         .map(str::to_string);
+    if config
+        .get("executorBatchEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        let requests = validated_executor_batch_requests(payload)?;
+        let executor_address = config
+            .get("executorAddress")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "executor batch config is missing executorAddress".to_string())?;
+        let broadcast = execution::broadcast_v4_flash_batch_inner(
+            config,
+            requests,
+            rpc_url,
+            executor_address,
+            private_key,
+            chain_id,
+            relay_urls.as_deref(),
+            timeout_seconds,
+        )?;
+        payload["broadcastExecuted"] = json!(broadcast
+            .get("ok")
+            .and_then(Value::as_bool)
+            .unwrap_or(false));
+        payload["broadcast"] = broadcast;
+        return Ok(());
+    }
     let selected_amount =
         execution::parse_big_uint(&json!(selected_amount_raw)).map_err(|error| {
             format!("selectedAmountRaw {selected_amount_raw} is not a uint256: {error}")
@@ -1429,6 +2202,56 @@ fn maybe_broadcast(
         .unwrap_or(false));
     payload["broadcast"] = broadcast;
     Ok(())
+}
+
+fn validated_executor_batch_requests(payload: &Value) -> Result<&Vec<Value>, String> {
+    let requests = payload
+        .get("executorBatchRequests")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "executor batch is enabled but executorBatchRequests is missing".to_string()
+        })?;
+    let failures = payload
+        .get("executorBatchBuildFailures")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "executor batch is enabled but executorBatchBuildFailures is missing".to_string()
+        })?;
+    let failure_count = payload
+        .get("executorBatchBuildFailureCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(u64::MAX) as usize;
+    if failure_count != failures.len() {
+        return Err(format!(
+            "executor batch build failure count mismatch: declared={failure_count}, actual={}",
+            failures.len()
+        ));
+    }
+    if let Some(failure) = failures.first() {
+        let reason = failure
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        return Err(format!(
+            "executor batch request construction failed for {} gated route(s): {reason}",
+            failures.len()
+        ));
+    }
+    let eligible_count = payload
+        .get("executorBatchEligibleRouteCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as usize;
+    let gated_count = payload
+        .get("executorBatchGatedRouteCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as usize;
+    if requests.is_empty() || eligible_count != requests.len() || gated_count != eligible_count {
+        return Err(format!(
+            "executor batch completeness mismatch: gated={gated_count}, eligible={eligible_count}, requests={}",
+            requests.len()
+        ));
+    }
+    Ok(requests)
 }
 
 fn run_retryable_rpc_with_failover(
@@ -1681,11 +2504,50 @@ fn prefilter_config_pool_keys(
     (entry_dropped, bridge_dropped, exit_dropped)
 }
 
+/// Apply the published closed-loop identity to one route config.
+///
+/// The Manager published the loop key of the route and the folded
+/// single-tick capacity that bounds it. Both are copied into the route
+/// config so the amount ladder is bounded by the number the Manager
+/// proved, and so the review can be filed under the loop it belongs to.
+///
+/// A route the Manager does not know keeps the values it came with: the
+/// absence is a coverage gap of the Manager layer, not proof that the
+/// route fits, so the caller decides what to do with it.
+fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCatalog) {
+    let symbols: Vec<String> = route_config
+        .get("routeSymbols")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .map(|item| item.as_str().unwrap_or_default().trim().to_uppercase())
+                .filter(|item| !item.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let Some(identity) = catalog.identity_for(&symbols) else {
+        return;
+    };
+    route_config["closedLoopKey"] = json!(identity.loop_key);
+    if let Some(capacity) = identity.single_tick_capacity_anchor_raw {
+        route_config["singleTickCapacityRaw"] = json!(format!("0x{capacity:x}"));
+        route_config["singleTickCapacityBasis"] = json!("folded_single_tick_capacity_anchor");
+    }
+    if let Some(binding) = identity.single_tick_capacity_binding_pool_id.as_ref() {
+        route_config["singleTickCapacityBindingPoolId"] = json!(binding);
+    }
+    if !identity.pool_ids.is_empty() {
+        route_config["closedLoopPoolIds"] = json!(identity.pool_ids);
+    }
+}
+
 fn run_native_review(
     config_json: &str,
     pool_registry: Option<&V4PoolRegistry>,
     stop_requested: &dyn Fn() -> bool,
     on_phase: &dyn Fn(&str) -> (),
+    closed_loops: Option<&ClosedLoopCatalog>,
+    token_decimals: Option<&TokenDecimalsRegistry>,
 ) -> Result<Value, String> {
     let mut config: Value = serde_json::from_str(config_json)
         .map_err(|error| format!("closed-loop config JSON is invalid: {error}"))?;
@@ -1720,6 +2582,9 @@ fn run_native_review(
     let mut payload = if let Some(routes) = config.get("routes").and_then(Value::as_array) {
         let mut route_results = Vec::with_capacity(routes.len());
         let mut best_route: Option<(BigUint, Value, Value, usize, String, usize)> = None;
+        let mut executor_batch_requests = Vec::new();
+        let mut executor_batch_gated_route_count = 0usize;
+        let mut executor_batch_build_failures = Vec::new();
         for route in routes {
             let mut route_config = config.clone();
             for field in [
@@ -1734,6 +2599,9 @@ fn run_native_review(
                 "minProfitRaw",
                 "minProbeAmountRaw",
                 "maxProbeAmountRaw",
+                "singleTickCapacityRaw",
+                "singleTickCapacityBasis",
+                "singleTickCapacityBindingPoolId",
                 "maxProbeAttempts",
                 "searchMode",
             ] {
@@ -1747,6 +2615,16 @@ fn run_native_review(
                 prefilter_counts.0 += entry_dropped;
                 prefilter_counts.1 += bridge_dropped;
                 prefilter_counts.2 += exit_dropped;
+            }
+            // The closed-loop Manager published the identity of this loop
+            // and the folded single-tick capacity that bounds it. The
+            // published values win over anything the caller supplied: the
+            // Manager is the only layer that knows which pools and which
+            // capacity belong together, so a capacity that was rebuilt
+            // somewhere else could bound the amount with a number that was
+            // never proved for this route.
+            if let Some(catalog) = closed_loops {
+                apply_closed_loop_identity(&mut route_config, catalog);
             }
             let original_search_mode = route_config
                 .get("searchMode")
@@ -1833,6 +2711,15 @@ fn run_native_review(
                 && original_search_mode == "inner_single_call"
                 && should_retry_inner_single_call_no_profit(&result)
             {
+                // Whether the single call found a profitable size at all.
+                // The distinction matters for the audit trail: a route that
+                // was profitable at one size but whose ladder never expanded
+                // is a different repair than a route that was not
+                // profitable at any size.
+                let original_result_was_profitable = result
+                    .get("status")
+                    .and_then(Value::as_str)
+                    == Some("profitable_amount_found");
                 let mut retry_config = route_config.clone();
                 retry_config["searchMode"] = json!("external_ladder");
                 match preview_official_v4_with_rpc_failover(
@@ -1844,8 +2731,13 @@ fn run_native_review(
                 ) {
                     Ok((mut retry_payload, retry_url, retry_failover_count)) => {
                         retried_search_mode = Some("external_ladder".to_string());
-                        retry_payload["retriedFrom"] =
-                            json!("inner_single_call_no_profitable_route");
+                        retry_payload["retriedFrom"] = json!(
+                            if original_result_was_profitable {
+                                "inner_single_call_incomplete_ladder"
+                            } else {
+                                "inner_single_call_no_profitable_route"
+                            }
+                        );
                         retry_payload["originalResult"] = result.clone();
                         retry_payload["primaryRpcMetadata"] = json!({
                             "attemptedRpcUrls": rpc_urls,
@@ -1903,6 +2795,28 @@ fn run_native_review(
             let profitable =
                 result.get("status").and_then(Value::as_str) == Some("profitable_amount_found");
             if profitable {
+                match eligible_executor_batch_request(&result, &route_config, pool_registry) {
+                    Ok(Some(request)) => {
+                        executor_batch_gated_route_count += 1;
+                        executor_batch_requests.push(request);
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        executor_batch_gated_route_count += 1;
+                        executor_batch_build_failures.push(json!({
+                            "routeIndex": route_index,
+                            "routeSymbols": result
+                                .get("routeSymbols")
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                            "routeAddresses": result
+                                .get("routeAddresses")
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                            "error": error,
+                        }));
+                    }
+                }
                 let profit_raw = result
                     .get("selectedProfitRaw")
                     .and_then(Value::as_str)
@@ -1942,6 +2856,11 @@ fn run_native_review(
             "status": if profitable { "profitable_amount_found" } else { "not_profitable_after_costs" },
             "routes": route_results,
             "routeErrors": route_errors,
+            "executorBatchBuildFailureCount": executor_batch_build_failures.len(),
+            "executorBatchBuildFailures": executor_batch_build_failures,
+            "executorBatchEligibleRouteCount": executor_batch_requests.len(),
+            "executorBatchGatedRouteCount": executor_batch_gated_route_count,
+            "executorBatchRequests": executor_batch_requests,
         });
         if let Some((
             _profit,
@@ -1953,7 +2872,12 @@ fn run_native_review(
         )) = best_route
         {
             mark_selected_route_direction(&mut payload, best_index);
-            apply_selected_route_overrides(&mut payload, &route_payload, &route_config);
+            apply_selected_route_overrides(
+                &mut payload,
+                &route_payload,
+                &route_config,
+                token_decimals,
+            );
             payload["rpcMetadata"] = json!({
                 "attemptedRpcUrls": rpc_urls,
                 "selectedRpcUrl": best_rpc_url,
@@ -2102,9 +3026,23 @@ fn should_route_to_execution_queue(payload: &Value, command: &SubmitCommand) -> 
     let Ok(config) = serde_json::from_str::<Value>(&command.config_json) else {
         return false;
     };
+    let batch_ready = if config
+        .get("executorBatchEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        validated_executor_batch_requests(payload).is_ok()
+    } else {
+        true
+    };
     config.get("deferBroadcast").and_then(Value::as_bool) == Some(true)
         && config.get("broadcastEnabled").and_then(Value::as_bool) == Some(true)
+        && batch_ready
         && payload.get("status").and_then(Value::as_str) == Some("profitable_amount_found")
+        && offchain_broadcast_gate_allows(payload, &config)
+        && capacity_gate_blocks_broadcast(payload).is_none()
+        && economic_floor_gate_blocks_broadcast(payload).is_none()
+        && hop_price_limit_gate_blocks_broadcast(payload).is_none()
 }
 
 fn enqueue_execution_from_review(
@@ -2396,6 +3334,9 @@ fn worker_loop(
         {
             continue;
         }
+        // The closed-loop catalog is part of the **in-memory object**, so
+        // the review never reads the Manager library. The SQLite read
+        // happens once, when the context object is built or refreshed.
         let result = match context_cache.as_ref() {
             Some((cache, _)) => {
                 let data = cache.data.read().unwrap();
@@ -2404,26 +3345,70 @@ fn worker_loop(
                     Some(&data.registry),
                     &stop_requested,
                     &mark_phase,
+                    Some(&data.closed_loops),
+                    Some(&data.token_decimals),
                 )
             }
-            None => run_native_review(&command.config_json, None, &stop_requested, &mark_phase),
+            None => run_native_review(
+                &command.config_json,
+                None,
+                &stop_requested,
+                &mark_phase,
+                None,
+                None,
+            ),
         };
         let result = result.map(|payload| {
             let direction_results = per_direction_results(&payload);
             (payload, direction_results)
         });
         drop(_permit);
+        let result = result.map(|(mut payload, direction_results)| {
+            if enqueue_execution_from_review(&inner, &command, &payload) {
+                payload["executionQueued"] = json!(true);
+                payload["executionQueueAt"] = json!(now_iso());
+            }
+            if let Some((cache, _)) = &context_cache {
+                let data = cache.data.read().unwrap();
+                let config_value: Value =
+                    serde_json::from_str(&command.config_json).unwrap_or(Value::Null);
+                let route_addresses = config_route_addresses(&config_value);
+                let group_pool_ids = data.registry.route_pool_ids(&route_addresses);
+                let pool_group_key = config_value
+                    .get("poolGroupKey")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                payload["workerContext"] = json!({
+                    "poolCount": data.pool_count,
+                    "liquidityCount": data.liquidity_count,
+                    "tokenCount": data.token_count,
+                    "poolIndexCount": data.registry.pool_by_id.len(),
+                    "liquidityIndexCount": data.registry.liquidity_by_id.len(),
+                    "tokenIndexCount": data.registry.token_index_count,
+                    "poolGroupKey": pool_group_key,
+                    "groupPoolIds": group_pool_ids,
+                    "routeAddressCount": route_addresses.len(),
+                    "loadedAt": data.loaded_at.clone(),
+                    "cacheHit": context_cache.as_ref().is_some_and(|(_, hit)| *hit),
+                    "registryScope": data.registry_scope.clone(),
+                    "cacheTtlSeconds": CONTEXT_CACHE_TTL_SECONDS,
+                    "databasePath": command.database_path.clone(),
+                    "network": command.network.clone(),
+                    "protocol": command.protocol.clone(),
+                });
+            }
+            (payload, direction_results)
+        });
+        let should_stop = inner.stop_flags.lock().unwrap().contains(&group_key)
+            || inner.shutdown.load(Ordering::SeqCst);
         {
             let mut states = inner.states.lock().unwrap();
             let state = states.entry(group_key.clone()).or_default();
             state.updated_at = Some(now_iso());
             match result {
-                Ok((mut payload, direction_results)) => {
+                Ok((payload, direction_results)) => {
                     inner.review_runtime.mark_completed();
-                    if enqueue_execution_from_review(&inner, &command, &payload) {
-                        payload["executionQueued"] = json!(true);
-                        payload["executionQueueAt"] = json!(now_iso());
-                    }
                     state.phase = "idle".to_string();
                     state.phase_started_at = None;
                     state.backoff_until = None;
@@ -2479,41 +3464,51 @@ fn worker_loop(
                         }
                         state.broadcast_failure_count += 1;
                     }
-                    if let Some((cache, cache_hit)) = &context_cache {
-                        if *cache_hit {
-                            state.cache_hit += 1;
-                        }
-                        let data = cache.data.read().unwrap();
-                        let config_value: Value =
-                            serde_json::from_str(&command.config_json).unwrap_or(Value::Null);
-                        let route_addresses = config_route_addresses(&config_value);
-                        let group_pool_ids = data.registry.route_pool_ids(&route_addresses);
-                        let pool_group_key = config_value
-                            .get("poolGroupKey")
-                            .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string();
-                        let worker_context = json!({
-                            "poolCount": data.pool_count,
-                            "liquidityCount": data.liquidity_count,
-                            "tokenCount": data.token_count,
-                            "poolIndexCount": data.registry.pool_by_id.len(),
-                            "liquidityIndexCount": data.registry.liquidity_by_id.len(),
-                            "tokenIndexCount": data.registry.token_index_count,
-                            "poolGroupKey": pool_group_key,
-                            "groupPoolIds": group_pool_ids,
-                            "routeAddressCount": route_addresses.len(),
-                            "loadedAt": data.loaded_at.clone(),
-                            "cacheHit": *cache_hit,
-                            "registryScope": data.registry_scope.clone(),
-                            "cacheTtlSeconds": CONTEXT_CACHE_TTL_SECONDS,
-                            "databasePath": command.database_path.clone(),
-                            "network": command.network.clone(),
-                            "protocol": command.protocol.clone(),
-                        });
-                        payload["workerContext"] = worker_context;
+                    if context_cache
+                        .as_ref()
+                        .is_some_and(|(_, cache_hit)| *cache_hit)
+                    {
+                        state.cache_hit += 1;
                     }
                     state.direction_results = direction_results;
+                    // The live parity input is derived **here**, while the
+                    // review that priced the route is still fresh. It is a
+                    // transient, in-memory value: it is handed to Review
+                    // Manager for one measurement and is never persisted, so
+                    // no long-term schema is added for transient data.
+                    let parity_payload = {
+                        // The RPC endpoint the review actually used is
+                        // published with the review result, so the state is
+                        // read from the same node the review priced.
+                        let rpc_url = payload
+                            .get("rpcMetadata")
+                            .and_then(|metadata| metadata.get("selectedRpcUrl"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_owned();
+                        let timeout_seconds = command
+                            .config_json
+                            .parse::<Value>()
+                            .ok()
+                            .and_then(|config| config.get("timeoutSeconds").and_then(Value::as_u64))
+                            .unwrap_or(20);
+                        let registry_guard = context_cache
+                            .as_ref()
+                            .map(|(cache, _)| cache.data.read().unwrap());
+                        let parity_payload = registry_guard.as_ref().and_then(|data| {
+                            live_review_parity_payload(
+                                &payload,
+                                Some(&data.registry),
+                                &rpc_url,
+                                timeout_seconds,
+                            )
+                        });
+                        parity_payload
+                    };
+                    if let Some(parity_payload) = parity_payload {
+                        state.last_parity_payload = Some(parity_payload);
+                        state.last_parity_payload_at = Some(now_iso());
+                    }
                     state.last_result = Some(payload);
                 }
                 Err(error) => {
@@ -2531,9 +3526,7 @@ fn worker_loop(
                     state.next_scan_at = state.backoff_until.clone();
                 }
             }
-            if inner.stop_flags.lock().unwrap().contains(&group_key)
-                || inner.shutdown.load(Ordering::SeqCst)
-            {
+            if should_stop {
                 state.state = "stopped".to_string();
                 state.updated_at = Some(now_iso());
                 state.next_scan_at = None;
@@ -2662,6 +3655,70 @@ fn set_review_wait_deadline_inner(
             WorkerControl::Wake(WorkerWakeControl { generation }),
         );
         result["generation"] = json!(generation);
+    }
+    Ok(result)
+}
+
+fn trigger_immediate_review_inner(
+    inner: &Arc<PoolInner>,
+    group_key: &str,
+    apply: bool,
+) -> Result<Value, String> {
+    let normalized_key = group_key.trim().to_lowercase();
+    if normalized_key.is_empty() {
+        return Err("group_key is required".to_string());
+    }
+    let command = {
+        let last_commands = inner.last_commands.lock().unwrap();
+        last_commands
+            .get(&normalized_key)
+            .cloned()
+            .ok_or_else(|| format!("closed_loop_group_not_found:{normalized_key}"))?
+    };
+    {
+        let mut states = inner.states.lock().unwrap();
+        let state = states
+            .get_mut(&normalized_key)
+            .ok_or_else(|| format!("closed_loop_group_not_found:{normalized_key}"))?;
+        if state.state != "idle" {
+            return Err(format!(
+                "closed_loop_group_busy:{normalized_key}:{}",
+                state.state
+            ));
+        }
+        state.backoff_until = None;
+        state.next_scan_at = None;
+        state.phase = "idle".to_string();
+        state.phase_started_at = None;
+        state.updated_at = Some(now_iso());
+        state.wake_generation = state.wake_generation.saturating_add(1);
+    }
+    let mut result = json!({
+        "accepted": true,
+        "group_key": normalized_key,
+        "action": "trigger_immediate_review",
+        "waitingDeadlineCleared": true,
+        "dryRun": !apply,
+    });
+    if apply {
+        let sender = inner
+            .group_senders
+            .lock()
+            .unwrap()
+            .get(&normalized_key)
+            .cloned();
+        let sent = sender
+            .map(|sender| sender.send(WorkerControl::Submit(command)).is_ok())
+            .unwrap_or(false);
+        if !sent {
+            return Err(format!(
+                "closed_loop_group_worker_not_running:{normalized_key}"
+            ));
+        }
+        result["transitionQueued"] = json!(true);
+    } else {
+        result["transitionQueued"] = json!(false);
+        result["wouldTransition"] = json!(true);
     }
     Ok(result)
 }
@@ -3251,6 +4308,14 @@ fn worker_state_value(state: &WorkerState, include_payloads: bool) -> Value {
     }
     if include_payloads {
         worker["last_result"] = state.last_result.clone().unwrap_or(Value::Null);
+        // The live parity input is transient: it is published only when the
+        // caller asks for the full payloads, and it is never persisted.
+        worker["last_parity_payload"] = state.last_parity_payload.clone().unwrap_or(Value::Null);
+        worker["last_parity_payload_at"] = state
+            .last_parity_payload_at
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null);
         worker["broadcast_history"] = json!(state.broadcast_history.clone());
         worker["broadcast_failure_history"] = json!(state.broadcast_failure_history.clone());
         worker["direction_results"] = json!(state
@@ -3273,7 +4338,7 @@ fn worker_state_value(state: &WorkerState, include_payloads: bool) -> Value {
 #[pymethods]
 impl ClosedLoopWorkerPool {
     #[new]
-    #[pyo3(signature = (max_workers=3, database_path=None, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
+    #[pyo3(signature = (max_workers=16, database_path=None, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
     fn new(
         max_workers: usize,
         database_path: Option<String>,
@@ -3365,12 +4430,12 @@ impl ClosedLoopWorkerPool {
         json_result_to_py(py, payload)
     }
 
-    #[pyo3(signature = (group_key, wait_until=None, dry_run=false))]
+    #[pyo3(signature = (group_key, _wait_until=None, dry_run=false))]
     fn wake_waiting_for_review(
         &self,
         py: Python<'_>,
         group_key: String,
-        wait_until: Option<String>,
+        _wait_until: Option<String>,
         dry_run: bool,
     ) -> PyResult<PyObject> {
         if self.stopped {
@@ -3384,26 +4449,28 @@ impl ClosedLoopWorkerPool {
                 "group_key is required",
             ));
         }
-        let preview =
-            set_review_wait_deadline_inner(&self.inner, &normalized_key, wait_until.clone(), false)
-                .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        let preview = trigger_immediate_review_inner(&self.inner, &normalized_key, false)
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
         if dry_run {
             let mut result = preview;
             result["accepted"] = json!(true);
             result["transitionQueued"] = json!(false);
             result["wouldTransition"] = json!(true);
+            result["dryRun"] = json!(true);
             return Ok(json_result_to_py(py, result));
         }
-        if !self.send_command(ReviewSupervisorCommand::SetWaitDeadline {
-            group_key: normalized_key.clone(),
-            wait_until,
-            apply: true,
-        }) {
+        let applied = trigger_immediate_review_inner(&self.inner, &normalized_key, true)
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        if !applied
+            .get("accepted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
             return Err(pyo3::exceptions::PyRuntimeError::new_err(
                 "review state transition queue is unavailable",
             ));
         }
-        let mut result = preview;
+        let mut result = applied;
         result["accepted"] = json!(true);
         result["transitionQueued"] = json!(true);
         result["dryRun"] = json!(false);
@@ -3729,7 +4796,7 @@ mod tests {
             "minProfitRaw": "0x01",
         });
         let mut payload = json!({"status": "profitable_amount_found"});
-        apply_selected_route_overrides(&mut payload, &route_payload, &route_config);
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, None);
         assert_eq!(
             payload["token"],
             json!("0x1111111111111111111111111111111111111111")
@@ -3742,6 +4809,190 @@ mod tests {
             payload["selectedRoutePayload"]["status"],
             json!("profitable_amount_found")
         );
+    }
+
+    /// The token decimals of the in-memory object decide the human amount
+    /// of the signed profit, and the Review Manager reads that amount from
+    /// inside the ``runArbitrage`` object.
+    #[test]
+    fn the_signed_profit_carries_the_human_amount_of_the_borrow_token() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let decimals = TokenDecimalsRegistry::default();
+        let mut registry = decimals;
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "ETH",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "reportedNetProfitRaw": "0x8ac7230489e80000",
+            "runArbitrage": {
+                "ok": true,
+                "executable": true,
+                "reportedNetProfitRaw": "0x8ac7230489e80000",
+            },
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "minProfitRaw": "0x01",
+            "routeSymbols": ["ETH", "AMZN", "AMD"],
+            "routeAddresses": [
+                borrow_address,
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ],
+        });
+        let mut payload = json!({"status": "profitable_amount_found"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+        assert_eq!(payload["executable"], json!(true));
+        assert_eq!(payload["signedPnl"]["raw"], json!("0x8ac7230489e80000"));
+        assert_eq!(payload["signedPnl"]["amount"], json!(10.0));
+        assert_eq!(payload["signedPnl"]["currency"], json!("ETH"));
+        assert_eq!(payload["signedPnl"]["unit"], json!("raw"));
+        assert_eq!(payload["signedPnl"]["source"], json!("native_rust_ladder"));
+        // The Review Manager reads the nested object, so it has to carry
+        // the same conclusion.
+        assert_eq!(payload["runArbitrage"]["executable"], json!(true));
+        assert_eq!(payload["runArbitrage"]["signedPnl"]["amount"], json!(10.0));
+    }
+
+    /// A negative measured profit keeps its sign in the human amount.
+    #[test]
+    fn a_negative_signed_profit_keeps_its_sign() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "ETH",
+            "token_decimals": 6,
+        })]);
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "reportedNetProfitRaw": "-0x0f4240",
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "routeSymbols": ["ETH", "AMZN", "AMD"],
+            "routeAddresses": [borrow_address],
+        });
+        let mut payload = json!({"status": "profitable_amount_found"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+        assert_eq!(payload["signedPnl"]["amount"], json!(-1.0));
+    }
+
+    /// Without the decimals of the borrow token the kernel cannot publish a
+    /// human amount, and it must not invent one.
+    #[test]
+    fn a_missing_decimal_count_leaves_the_human_amount_unknown() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "reportedNetProfitRaw": "0x0a",
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "routeSymbols": ["ETH", "AMZN", "AMD"],
+            "routeAddresses": [borrow_address],
+        });
+        let mut payload = json!({"status": "profitable_amount_found"});
+        apply_selected_route_overrides(
+            &mut payload,
+            &route_payload,
+            &route_config,
+            Some(&TokenDecimalsRegistry::default()),
+        );
+        assert!(payload["signedPnl"]["amount"].is_null());
+        assert_eq!(payload["signedPnl"]["raw"], json!("0x0a"));
+    }
+
+    /// The decimals registry only holds the tokens of its own chain.
+    #[test]
+    fn the_decimals_registry_is_keyed_by_the_lower_case_address() {
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[
+            json!({"token_address": "0xAA", "token_decimals": 18}),
+            json!({"token_address": "0xbb", "token_decimals": 6}),
+            json!({"token_address": "0xcc"}),
+        ]);
+        assert_eq!(registry.len(), 2);
+        assert_eq!(registry.decimals_for("0xaa"), Some(18));
+        assert_eq!(registry.decimals_for("0xAA"), Some(18));
+        assert_eq!(registry.decimals_for("0xbb"), Some(6));
+        assert_eq!(registry.decimals_for("0xcc"), None);
+    }
+
+    /// A selected route whose three pools live in one Pool Manager.
+    fn parity_review_payload() -> Value {
+        json!({
+            "selectedAmountRaw": "0x10",
+            "selectedProfitRaw": "0x02",
+            "rpcMetadata": {"selectedRpcUrl": "https://rpc.example.invalid"},
+            "selectedRoutePayload": {
+                "status": "profitable_amount_found",
+                "routeAddresses": [
+                    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "0xcccccccccccccccccccccccccccccccccccccccc",
+                    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                ],
+                "selectedKeys": [
+                    {
+                        "currency0": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "currency1": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": "0x0000000000000000000000000000000000000000"
+                    },
+                    {
+                        "currency0": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "currency1": "0xcccccccccccccccccccccccccccccccccccccccc",
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": "0x0000000000000000000000000000000000000000"
+                    },
+                    {
+                        "currency0": "0xcccccccccccccccccccccccccccccccccccccccc",
+                        "currency1": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "fee": 3000,
+                        "tickSpacing": 60,
+                        "hooks": "0x0000000000000000000000000000000000000000"
+                    }
+                ],
+                "selectedDirections": [
+                    {"zeroForOne": true},
+                    {"zeroForOne": true},
+                    {"zeroForOne": true}
+                ]
+            }
+        })
+    }
+
+    #[test]
+    fn the_live_parity_payload_is_refused_when_the_route_is_not_profitable() {
+        // A route that does not pay has no parity measurement to make.
+        let mut payload = parity_review_payload();
+        payload["selectedRoutePayload"]["status"] = json!("not_profitable_after_costs");
+        assert!(super::live_review_parity_payload(&payload, None, "", 20).is_none());
+    }
+
+    #[test]
+    fn the_live_parity_payload_is_refused_without_a_pool_registry() {
+        // The Pool Manager is never guessed: without the registry there is
+        // no way to know which contract holds the state.
+        assert!(
+            super::live_review_parity_payload(&parity_review_payload(), None, "", 20).is_none()
+        );
+    }
+
+    #[test]
+    fn the_live_parity_payload_is_refused_when_the_route_does_not_close() {
+        // The parity comparison reconstructs the hop chain from the route
+        // addresses, so a route that does not close cannot be simulated.
+        let mut payload = parity_review_payload();
+        payload["selectedRoutePayload"]["routeAddresses"] =
+            json!(["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
+        assert!(super::live_review_parity_payload(&payload, None, "", 20).is_none());
     }
 
     #[test]
@@ -3895,6 +5146,40 @@ mod tests {
             "attempts": [{"amountRaw": "0xde0b6b3a7640000", "error": "NoProfitableRoute"}],
         });
         assert!(should_retry_inner_single_call_no_profit(&payload));
+    }
+
+    /// A profitable result that measured only **one** size is not a search.
+    /// The reviewer withdraws the best trade amount when the ladder carries
+    /// fewer than two probe rows, so the full ladder has to run before the
+    /// amount can be confirmed.
+    #[test]
+    fn a_profitable_single_probe_requests_the_full_ladder() {
+        let payload = json!({
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0xde0b6b3a7640000",
+            "attempts": [{
+                "amountRaw": "0xde0b6b3a7640000",
+                "ok": true,
+                "profitable": true,
+                "profitRaw": "0x1",
+            }],
+        });
+        assert!(should_retry_inner_single_call_no_profit(&payload));
+    }
+
+    /// A profitable result that already carries a **complete** ladder must
+    /// not be retried: the review can confirm the amount as it stands.
+    #[test]
+    fn a_profitable_complete_ladder_is_not_retried() {
+        let payload = json!({
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0xde0b6b3a7640000",
+            "attempts": [
+                {"amountRaw": "0xde0b6b3a7640000", "ok": true, "profitable": true, "profitRaw": "0x1"},
+                {"amountRaw": "0x6fc23ac00", "ok": true, "profitable": true, "profitRaw": "0x2"},
+            ],
+        });
+        assert!(!should_retry_inner_single_call_no_profit(&payload));
     }
 
     #[test]
@@ -4182,12 +5467,59 @@ mod tests {
             config_json: r#"{"deferBroadcast":true,"broadcastEnabled":true}"#.to_string(),
             database_path: None,
         };
+        let complete_hop_limits = json!(["0x01", "0x02", "0x03"]);
         assert!(should_route_to_execution_queue(
-            &json!({"status": "profitable_amount_found"}),
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
             &command,
         ));
         assert!(!should_route_to_execution_queue(
-            &json!({"status": "not_profitable_after_costs"}),
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": ["0x01", "0x02"]
+            }),
+            &command,
+        ));
+        assert!(!should_route_to_execution_queue(
+            &json!({
+                "status": "not_profitable_after_costs",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
+            &command,
+        ));
+        assert!(!should_route_to_execution_queue(
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x0f",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
+            &command,
+        ));
+        assert!(should_route_to_execution_queue(
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": false},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
+            &command,
+        ));
+        assert!(!should_route_to_execution_queue(
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x00",
+                "offchainGasGate": {"conversionAvailable": false},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
             &command,
         ));
         let gated_off = SubmitCommand {
@@ -4195,9 +5527,277 @@ mod tests {
             ..command.clone()
         };
         assert!(!should_route_to_execution_queue(
-            &json!({"status": "profitable_amount_found"}),
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
             &gated_off,
         ));
+        let manual = SubmitCommand {
+            config_json:
+                r#"{"deferBroadcast":true,"broadcastEnabled":true,"manualBroadcast":true}"#
+                    .to_string(),
+            ..command
+        };
+        assert!(should_route_to_execution_queue(
+            &json!({
+                "status": "profitable_amount_found",
+                "hopSqrtPriceLimits": complete_hop_limits
+            }),
+            &manual,
+        ));
+        assert!(!should_route_to_execution_queue(
+            &json!({"status": "profitable_amount_found"}),
+            &manual,
+        ));
+    }
+
+    #[test]
+    fn executor_batch_queue_requires_nonempty_matching_eligible_requests() {
+        let command = SubmitCommand {
+            group_key: "anchor|batch".to_string(),
+            chain_id: Some(4663),
+            network: Some("robinhood".to_string()),
+            protocol: Some("uniswap_v4".to_string()),
+            protocols: vec!["uniswap_v4".to_string()],
+            mode: "deep".to_string(),
+            config_json: r#"{
+                "deferBroadcast":true,
+                "broadcastEnabled":true,
+                "manualBroadcast":true,
+                "executorBatchEnabled":true
+            }"#
+            .to_string(),
+            database_path: None,
+        };
+        let request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": "1",
+            "swapTargets": [],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": "0",
+            "gasReserve": "0"
+        });
+        let base = json!({
+            "status": "profitable_amount_found",
+            "hopSqrtPriceLimits": ["0x01", "0x02", "0x03"]
+        });
+        assert!(!should_route_to_execution_queue(&base, &command));
+
+        let mut ready = base.clone();
+        ready["executorBatchRequests"] = json!([request.clone(), request]);
+        ready["executorBatchBuildFailureCount"] = json!(0);
+        ready["executorBatchBuildFailures"] = json!([]);
+        ready["executorBatchEligibleRouteCount"] = json!(2);
+        ready["executorBatchGatedRouteCount"] = json!(2);
+        assert!(should_route_to_execution_queue(&ready, &command));
+
+        ready["executorBatchEligibleRouteCount"] = json!(1);
+        assert!(!should_route_to_execution_queue(&ready, &command));
+
+        ready["executorBatchEligibleRouteCount"] = json!(2);
+        ready["executorBatchBuildFailureCount"] = json!(1);
+        ready["executorBatchBuildFailures"] = json!([{
+            "routeIndex": 1,
+            "error": "executor_request_build_failed:missing outTz"
+        }]);
+        assert!(!should_route_to_execution_queue(&ready, &command));
+    }
+
+    #[test]
+    fn executor_batch_validator_rejects_partial_requests_after_build_failure() {
+        let payload = json!({
+            "executorBatchRequests": [{
+                "token": "0x1111111111111111111111111111111111111111",
+                "amount": "16",
+                "swapTargets": [],
+                "swapCalldatas": [],
+                "finalToken": "0x1111111111111111111111111111111111111111",
+                "minProfit": "1",
+                "minAmountOut": "0x20"
+            }],
+            "executorBatchBuildFailureCount": 1,
+            "executorBatchBuildFailures": [{
+                "routeIndex": 1,
+                "error": "executor_request_build_failed:reviewed route outTz is required"
+            }],
+            "executorBatchEligibleRouteCount": 1,
+            "executorBatchGatedRouteCount": 2
+        });
+
+        let error = validated_executor_batch_requests(&payload).unwrap_err();
+        assert!(error.contains("request construction failed for 1 gated route"));
+    }
+
+    #[test]
+    fn executor_batch_collects_only_fully_gated_profitable_routes() {
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0x10",
+            "selectedProfitRaw": "0x20"
+        });
+        let request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": "16",
+            "swapTargets": [],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": "1",
+            // The reviewed minimum output of the route, in raw units.
+            "minAmountOut": "0x20"
+        });
+        let route_config = json!({
+            "manualBroadcast": true,
+            "hopSqrtPriceLimits": ["0x01", "0x02", "0x03"],
+            "executorRequest": request
+        });
+        assert!(
+            eligible_executor_batch_request(&route_payload, &route_config, None)
+                .unwrap()
+                .is_some()
+        );
+
+        let mut incomplete = route_config.clone();
+        incomplete["hopSqrtPriceLimits"] = json!(["0x01", "0x02"]);
+        assert!(
+            eligible_executor_batch_request(&route_payload, &incomplete, None)
+                .unwrap()
+                .is_none()
+        );
+
+        let mut no_profit = route_payload;
+        no_profit["status"] = json!("not_profitable_after_costs");
+        assert!(
+            eligible_executor_batch_request(&no_profit, &route_config, None)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn executor_batch_builds_request_from_reviewed_route_and_pool_catalog() {
+        let token_a = "0x1111111111111111111111111111111111111111";
+        let token_b = "0x2222222222222222222222222222222222222222";
+        let token_c = "0x3333333333333333333333333333333333333333";
+        let pool_manager = "0x4444444444444444444444444444444444444444";
+        let keys = vec![
+            json!({
+                "currency0": token_a,
+                "currency1": token_b,
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            }),
+            json!({
+                "currency0": token_b,
+                "currency1": token_c,
+                "fee": 500,
+                "tickSpacing": 10,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            }),
+            json!({
+                "currency0": token_a,
+                "currency1": token_c,
+                "fee": 1000,
+                "tickSpacing": 20,
+                "hooks": "0x0000000000000000000000000000000000000000",
+            }),
+        ];
+        let pool_rows = keys
+            .iter()
+            .map(|key| {
+                let pool_key = V4PoolKey {
+                    currency0: key["currency0"].as_str().unwrap().to_owned(),
+                    currency1: key["currency1"].as_str().unwrap().to_owned(),
+                    fee: key["fee"].as_u64().unwrap(),
+                    tick_spacing: key["tickSpacing"].as_i64().unwrap() as i32,
+                    hooks: key["hooks"].as_str().unwrap().to_owned(),
+                };
+                json!({
+                    "pool_id": pool_index::pool_id(&pool_key).unwrap(),
+                    "token0": key["currency0"],
+                    "token1": key["currency1"],
+                    "pool_manager": pool_manager,
+                })
+            })
+            .collect::<Vec<_>>();
+        let registry = V4PoolRegistry::from_rows(&pool_rows, &[], &[]);
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0x64",
+            "selectedProfitRaw": "0x0a",
+            "selectedKeys": keys,
+            "selectedDirections": [true, true, false],
+            "outTb": "0x5a",
+            "outTa": "0x50",
+            "outTz": "0x6e",
+        });
+        let route_config = json!({
+            "manualBroadcast": true,
+            "token": token_a,
+            "minProfitRaw": "0x05",
+            "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+        });
+        let request =
+            eligible_executor_batch_request(&route_payload, &route_config, Some(&registry))
+                .unwrap()
+                .unwrap();
+        assert_eq!(request["minAmountOut"], json!("0x6e"));
+        assert_eq!(
+            request["swapTargets"],
+            json!([pool_manager, pool_manager, pool_manager])
+        );
+        assert_eq!(request["swapCalldatas"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn executor_batch_refuses_a_route_without_a_reviewed_minimum_output() {
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0x10",
+            "selectedProfitRaw": "0x20"
+        });
+        let base_request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": "16",
+            "swapTargets": [],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": "1"
+        });
+        let mut route_config = json!({
+            "manualBroadcast": true,
+            "hopSqrtPriceLimits": ["0x01", "0x02", "0x03"],
+            "executorRequest": base_request.clone()
+        });
+
+        // No floor at all: the route is unbounded on chain.
+        assert!(eligible_executor_batch_request(&route_payload, &route_config, None).is_err());
+
+        // A zero floor disables the contract check, so it proves nothing.
+        let mut zero_floor = base_request.clone();
+        zero_floor["minAmountOut"] = json!("0");
+        route_config["executorRequest"] = zero_floor;
+        assert!(eligible_executor_batch_request(&route_payload, &route_config, None).is_err());
+
+        // A floor that cannot be parsed is not a proof either.
+        let mut broken_floor = base_request.clone();
+        broken_floor["minAmountOut"] = json!("not-a-number");
+        route_config["executorRequest"] = broken_floor;
+        assert!(eligible_executor_batch_request(&route_payload, &route_config, None).is_err());
+
+        // A reviewed floor makes the route bounded and therefore eligible.
+        let mut bounded = base_request;
+        bounded["gasReserve"] = json!("0x20");
+        route_config["executorRequest"] = bounded;
+        assert!(
+            eligible_executor_batch_request(&route_payload, &route_config, None)
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]

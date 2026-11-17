@@ -9,7 +9,7 @@ The historical DEX-only Python tree is archived locally under
 implementation of this runtime. The related local design archive is under
 `back/legacy-docs/back-dex`.
 
-This directory is the Web/runtime adapter layer for the active Python runtime. The split implementation lives under `flashloan/src/{core,bot,dex,market}`; `app_runtime` keeps Flask/Web adapters and tests. Chain data and runtime evidence live under `flashloan/src/chains` and `flashloan/src/runtime`.
+This directory is the Web/runtime adapter layer for the active Python runtime. The split implementation lives under `flashloan/src/{core,bot,dex,market}`; `app_runtime` keeps Flask/Web adapters and tests. Chain data and runtime evidence live under `flashloan/chains` and `flashloan/src/runtime`.
 
 ## Packages
 
@@ -19,7 +19,7 @@ This directory is the Web/runtime adapter layer for the active Python runtime. T
 - `tests/README.md`: test taxonomy, run order, and regression checklist.
 - Top-level imports now resolve directly to `flashloan/src` split packages; no compatibility shims remain in `app_runtime`.
 
-Chain-owned JSON registry and flow data live under `flashloan/src/chains`; runtime evidence, state, logs, and cache data live under `flashloan/src/runtime`.
+Chain-owned JSON registry and flow data live under `flashloan/chains`; runtime evidence, state, logs, and cache data live under `flashloan/src/runtime`.
 
 ## Shared Chain Selection
 
@@ -58,7 +58,7 @@ registry is BNB-only.
 
 Each chain owns one directory under `chains/<network>/`:
 
-The physical directory is `flashloan/src/chains/<network>/`. Use that path
+The physical directory is `flashloan/chains/<network>/`. Use that path
 directly.
 
 - `chain.json`: chain ID, display metadata, contracts, chain-owned data-file

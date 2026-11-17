@@ -1,10 +1,25 @@
 from core.db.storage_cow_execution import record_cow_execution_attempts
+from datetime import datetime, timedelta, timezone
+
 from dex.runtime.closed_loop_state_machine import (
     STATE_EXECUTION_NOT_REQUESTED,
     STATE_OFFCHAIN_ESTIMATE,
     upsert_loop_state,
 )
 from web.data_routes.dex_surface_routes_ops import _closed_loop_monitor_summary
+
+
+def _recent_timestamp(minutes_ago: int) -> str:
+    """Return an ISO timestamp inside the execution retention window.
+
+    The mirror only keeps attempts newer than the retention window, so a
+    fixture with a hard-coded date silently stops counting once that date
+    falls out of the window.  The fixtures below are therefore relative to
+    the current time.
+    """
+
+    moment = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+    return moment.isoformat()
 
 
 def _review_row(pair, created_at, status="route_unprofitable", reason=""):
@@ -52,10 +67,10 @@ def test_closed_loop_monitor_separates_review_records_from_loop_health(tmp_path)
     record_cow_execution_attempts(
         database,
         [
-            _review_row("TZ -> TA -> TB -> TZ", "2026-10-30T00:00:00+00:00", "route_unprofitable"),
+            _review_row("TZ -> TA -> TB -> TZ", _recent_timestamp(60), "route_unprofitable"),
             _review_row(
                 "WETH -> TZ -> TA -> WETH",
-                "2026-10-30T00:01:00+00:00",
+                _recent_timestamp(59),
                 "rpc_unavailable",
                 reason="previewBestPool unavailable",
             ),
@@ -100,16 +115,16 @@ def test_closed_loop_monitor_counts_missing_review_and_broadcast_loops(tmp_path)
     record_cow_execution_attempts(
         database,
         [
-            _review_row("TZ -> TA -> TB -> TZ", "2026-10-30T00:00:00+00:00", "route_unprofitable"),
+            _review_row("TZ -> TA -> TB -> TZ", _recent_timestamp(60), "route_unprofitable"),
             _execution_row(
                 "TZ -> TA -> TB -> TZ",
-                "2026-10-30T00:02:00+00:00",
+                _recent_timestamp(58),
                 "execution_success",
                 "0x" + "ab" * 32,
             ),
             _execution_row(
                 "WETH -> TZ -> TA -> WETH",
-                "2026-10-30T00:03:00+00:00",
+                _recent_timestamp(57),
                 "execution_failed",
                 "0x" + "cd" * 32,
             ),

@@ -1,0 +1,13 @@
+{
+    "network": "robinhood",
+    "chainId": 4663,
+    "startedAt": "2026-11-10T19:57:50Z",
+    "reason": "record_page_clear_applied_legacy_physical_rows_removed_reset_analysis_baseline",
+    "clearEndpoint": "/api/dex/submissions/clear",
+    "managerCleared": 0,
+    "legacyPhysicalRowsCleared": 93,
+    "legacyPhysicalRowsRetained": false,
+    "legacyRemaining": 0,
+    "requestedBy": "user",
+    "resetAt": "2026-11-10T19:57:50Z"
+}

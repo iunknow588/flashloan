@@ -1,0 +1,127 @@
+{
+  "schema": "MainnetArbitrageHealerDiagnostic",
+  "generatedAt": "2026-11-11T09:30:43Z",
+  "sourceReport": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_20261111T093043Z.json",
+  "batch": "S2.5-prime",
+  "layers": {
+    "L1_tokens": {
+      "valid": true,
+      "admitted": 199,
+      "missing": 0,
+      "note": "core 4 / stocks 194 / test 1, all admitted, no missing symbol or decimals"
+    },
+    "L2_pools": {
+      "valid": true,
+      "eligible": 114,
+      "observation": 130,
+      "depth": {
+        "uniquePoolCount": 16,
+        "candidatePoolRows": 47,
+        "adequateDepthPoolCount": 16,
+        "insufficientDepthPoolCount": 0,
+        "thinPoolCount": 0,
+        "unpricedPoolCount": 0,
+        "candidateScopedBadReadingCount": 0,
+        "snapshotWideBadReadingCount": 1287,
+        "depthBasis": "estimated_tvl_usd_legacy",
+        "capacitySchemaPresent": false,
+        "minCapacityRaw": 100.0
+      },
+      "depthSnapshot": {
+        "latestReadAt": "2026-11-09T03:08:30.458976Z",
+        "ageSeconds": 195713.138825,
+        "stale": true,
+        "maxAgeSeconds": 900,
+        "capacityRowCount": 0
+      },
+      "pathCapacity": {
+        "available": false,
+        "reason": "capacity_schema_missing"
+      }
+    },
+    "L3_loops": {
+      "valid": true,
+      "loops": 106,
+      "rebuild": 0,
+      "note": "closed-loop count is correct; pool_ids coverage defect remains and is owned by AUD-P0-2 / S3"
+    },
+    "L4_reviews": {
+      "valid": false,
+      "total": 1356,
+      "valued": 1286,
+      "missingValue": 70,
+      "positive": 0,
+      "positiveAmount": 101,
+      "nonPositive": 1185,
+      "sum": -167.7598806758911,
+      "positiveEstimateOnly": 76,
+      "confirmedSum": 0.0,
+      "bestAmount": {
+        "confirmed": 0,
+        "missing": 1356,
+        "missingCurrentLoop": 546,
+        "ladderIncomplete": 1113,
+        "ladderIncompleteCurrentLoop": 468,
+        "code": "best_amount_missing",
+        "failClosed": true,
+        "reasons": [
+          {"reason": "route_unprofitable: best amount unresolved", "count": 1261},
+          {"reason": "quote_unavailable: previewBestPool unavailable", "count": 70},
+          {"reason": "best_amount_ladder_incomplete: 1 probe record observed, at least 2 required", "count": 25}
+        ]
+      }
+    },
+    "L5_broadcast": {
+      "valid": false,
+      "manager": 0,
+      "epochLegacy": 0,
+      "historicalPositiveInEpoch": 0,
+      "realizedPnlAvailable": false
+    }
+  },
+  "productionState": {
+    "state": "review_best_amount_missing",
+    "healthy": false,
+    "reason": "review_without_concrete_best_trade_amount",
+    "reviewAgeSeconds": 30896.318695
+  },
+  "blockers": ["reviews", "broadcast"],
+  "safeToAutoBroadcast": false,
+  "baselineReconciliation": {
+    "positiveEstimateOnly": {
+      "planBaseline": 165,
+      "healerObserved": 76,
+      "full24hObserved": 165,
+      "status": "RESOLVED - observation epoch clip, not a regression",
+      "epochStartedAt": "2026-11-10T19:57:50Z",
+      "epochClipRows": 1356,
+      "fullWindowRows": 3808
+    },
+    "badReadingCount": {
+      "planBaseline": 1287,
+      "candidateScoped": 0,
+      "snapshotWide": 1287,
+      "status": "RESOLVED - scope discrepancy; added snapshotBadReadings companion metric"
+    }
+  },
+  "timing": {
+    "elapsedSeconds": 20.119,
+    "baselineSeconds": 19.37,
+    "degradationRatio": 0.038,
+    "stopLineRatio": 0.5,
+    "status": "PASS"
+  },
+  "openProductionGaps": [
+    "ensure-depth-schema --apply (capacity columns absent)",
+    "depth --apply (snapshot 2.26 days stale, balances_json still 100% empty)",
+    "ladderIncomplete remains 1113 until balances refresh lands"
+  ],
+  "invariantsHeld": [
+    "liquidity_index was not used as a depth signal",
+    "all 4 candidate pools with liquidity_index < 1 remain in the candidate set, carrying 28 closed-loop hop references",
+    "no token pair was delisted based on TVL conclusions",
+    "estimated_tvl_usd did not act as an admission gate",
+    "production database was opened read-only",
+    "daemon and run.py were neither stopped nor restarted"
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "authority": "user_authorized_via_manager_cleanup_interface",
+  "blocked": false,
+  "checksum": {
+    "mainnet_poolCatalogStable": true,
+    "mainnet_tokenCatalogStable": true,
+    "method": "sqlite row counts per table per database after apply",
+    "testnet_poolCatalogStable": true,
+    "testnet_tokenCatalogStable": true
+  },
+  "cleanupInterfaces": [
+    {
+      "file": "flashloan/tools/review_manager/src/lib.rs",
+      "layer": "rust_manager",
+      "supports": [
+        "dryRun",
+        "apply",
+        "idempotencyKey",
+        "recordStore=manager",
+        "recordStore=legacy"
+      ],
+      "symbol": "review_manager::clear_review_records_write"
+    },
+    {
+      "file": "flashloan/tools/manager_api/src/lib.rs",
+      "layer": "http",
+      "optionalBodyFields": [
+        "recordStore"
+      ],
+      "requiredBodyFields": [
+        "chainId",
+        "dryRun"
+      ],
+      "requiredHeaders": [
+        "X-Request-Id",
+        "Idempotency-Key"
+      ],
+      "route": "POST /v1/reviews/clear"
+    },
+    {
+      "command": "clear_reviews",
+      "file": "flashloan/rs-src/src/runtime_core.rs",
+      "layer": "runtime_core",
+      "resultFields": [
+        "clearedReviews",
+        "remainingReviews",
+        "idempotentReplay"
+      ],
+      "storeSelection": "broadcast_authority.manager_apply_enabled() ? manager : legacy"
+    },
+    {
+      "file": "flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "layer": "python_ops",
+      "note": "仅代理 RuntimeCore 命令，不新增 Python 业务判断",
+      "recordKind": "review",
+      "route": "POST /api/dex/submissions/clear"
+    }
+  ],
+  "component": "review_manager",
+  "databases": [
+    {
+      "after": {
+        "chain_tokens": 6353,
+        "cow_execution_reviews": 2,
+        "manager_review_library_state": 0,
+        "manager_v4_review_broadcast_requests": 0,
+        "manager_v4_review_diagnostics": 0,
+        "manager_v4_reviews": 0,
+        "v4_exchange_pools": 4741
+      },
+      "afterReviewScopes": [
+        {
+          "chainId": 0,
+          "count": 1,
+          "network": ""
+        },
+        {
+          "chainId": 56,
+          "count": 1,
+          "network": "bnb"
+        }
+      ],
+      "apply": {
+        "clearedReviews": 19771,
+        "dryRun": false,
+        "remainingReviews": 0
+      },
+      "before": {
+        "chain_tokens": 6353,
+        "cow_execution_reviews": 19773,
+        "v4_exchange_pools": 4741
+      },
+      "catalogPreserved": true,
+      "chainId": 4663,
+      "dryRun": {
+        "clearedReviews": 19771,
+        "dryRun": true,
+        "remainingReviews": 19771
+      },
+      "label": "mainnet",
+      "network": "robinhood",
+      "path": "flashloan/db/local_store_4663.sqlite3",
+      "preservedOtherScopes": [
+        {
+          "chainId": 0,
+          "count": 1,
+          "network": ""
+        },
+        {
+          "chainId": 56,
+          "count": 1,
+          "network": "bnb"
+        }
+      ],
+      "recordStore": "legacy"
+    },
+    {
+      "after": {
+        "chain_tokens": 47661,
+        "cow_execution_reviews": 0,
+        "manager_review_library_state": null,
+        "manager_v4_review_broadcast_requests": null,
+        "manager_v4_review_diagnostics": null,
+        "manager_v4_reviews": null,
+        "v4_exchange_pools": 47702
+      },
+      "afterReviewScopes": [],
+      "apply": {
+        "clearedReviews": 52,
+        "dryRun": false,
+        "remainingReviews": 0
+      },
+      "before": {
+        "chain_tokens": 47661,
+        "cow_execution_reviews": 52,
+        "v4_exchange_pools": 47702
+      },
+      "catalogPreserved": true,
+      "chainId": 46630,
+      "dryRun": {
+        "clearedReviews": 52,
+        "dryRun": true,
+        "remainingReviews": 52
+      },
+      "label": "testnet",
+      "network": "robinhood-testnet",
+      "path": "flashloan/db/local_store_46630.sqlite3",
+      "preservedOtherScopes": [],
+      "recordStore": "legacy"
+    }
+  ],
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-14T15:31:28Z",
+  "mode": "apply",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "legacyBusinessWriteFallbackUsed": false,
+    "lockedBinaryReplaced": false,
+    "otherChainScopeDeleted": false,
+    "poolCatalogWritten": false,
+    "tokenCatalogWritten": false
+  },
+  "notes": [
+    "主网保留的 2 条 review 行属于其他 network/chain scope，属正确保留而非残留。",
+    "Manager 权威 review 表在两个库中均为 0 行，因此本次清理只影响 legacy 表。"
+  ],
+  "passed": true,
+  "principle": {
+    "constraints": [
+      "不得为 review/submission/broadcast 记录扩展长期持久化 schema",
+      "清理必须走管理器提供的清理接口，Python 不得直接写业务库",
+      "清理必须支持 dry-run、幂等键与精确 scope 匹配",
+      "清理不得触碰 token 目录、pool 目录、准入状态与 scope 状态"
+    ],
+    "decisionSource": "用户明确裁决 2026-11-14",
+    "statement": "复核、提交、广播结果属于可再生瞬时运行记录，不具备长期统计意义；长期价值集中在代币基础数据与池基础数据。"
+  },
+  "productionWrite": true,
+  "productionWriteScope": "review record rows only (cow_execution_reviews); no token/pool catalog writes",
+  "rollbackAvailable": true,
+  "rollbackPoint": "flashloan/db/local_store_4663.sqlite3 与 flashloan/db/local_store_46630.sqlite3 的清理前副本（清理为纯删除，token/pool 目录未变）",
+  "rowCount": {
+    "poolRowsPreserved": 52443,
+    "reviewsCleared": 19823,
+    "tokenRowsPreserved": 54014
+  },
+  "rpcRequestCount": 0,
+  "schemaRegression": {
+    "latestManagerMigration": "20261114_009_hop_price_limit_schema",
+    "reason": "该迁移为 review/broadcast 瞬时记录扩展长期字段，与数据分层裁决冲突",
+    "revertedMigration": "20261114_010_hop_amount_out_minimum_schema"
+  },
+  "schemaVersion": "1.0",
+  "stage": "P0-10",
+  "tests": [
+    {
+      "name": "clear_review_records_is_dry_run_safe_and_preserves_catalogs",
+      "result": "passed",
+      "target": "review_manager"
+    },
+    {
+      "name": "clear_review_records_works_without_manager_write_ledger",
+      "result": "passed",
+      "target": "review_manager"
+    },
+    {
+      "name": "review_clear_endpoint_is_dry_run_safe_and_idempotent",
+      "result": "passed",
+      "target": "manager_api"
+    },
+    {
+      "name": "clear_reviews_command_uses_legacy_store_and_preserves_catalogs",
+      "result": "passed",
+      "target": "rs-src runtime_core"
+    },
+    {
+      "name": "test_dex_review_clear_uses_review_payload_and_never_touches_catalogs",
+      "result": "passed",
+      "target": "app_runtime functional"
+    },
+    {
+      "name": "test_dex_review_clear_rejects_unknown_record_kind",
+      "result": "passed",
+      "target": "app_runtime functional"
+    }
+  ],
+  "title": "Review/submission/broadcast 瞬时记录清理与 token/pool 目录保留验证"
+}

@@ -1,4 +1,4 @@
-﻿from core.contracts import (ExecutionGate, ExecutionIntent, EvidenceEnvelope, GateDecision, MarketScope, normalize_data_source, source_metadata)
+from core.contracts import (ExecutionGate, ExecutionIntent, EvidenceEnvelope, GateDecision, MarketScope, normalize_data_source, source_metadata)
 
 
 from core.contracts import scope_matches, validate_scope_contract, validate_scoped_payload

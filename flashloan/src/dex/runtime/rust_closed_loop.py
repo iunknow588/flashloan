@@ -34,6 +34,29 @@ _GAS_ESTIMATION_FAILURE_MARKERS = (
     "gas estimation",
 )
 
+# Minimum number of probe records a completed best-trade-amount ladder must
+# produce. With a single record the ladder never expanded: the reported best
+# amount is only the lower bound of the initial probe, so it cannot be treated
+# as a confirmed trade size.
+BEST_AMOUNT_LADDER_MIN_PROBE_ROWS = 2
+
+# Review failure kind reported when the amount ladder never expanded.
+BEST_AMOUNT_LADDER_INCOMPLETE_KIND = "best_amount_ladder_incomplete"
+# A ladder that was **blocked** before it probed anything is a
+# different defect than a ladder that ran and found nothing: the
+# missing input is a **missing published capacity**, which only the
+# closed-loop manager can repair. Sending the orchestrator after the
+# review manager would ask it to repair a measurement that was never
+# broken.
+BEST_AMOUNT_LADDER_BLOCKED_KIND = "best_amount_ladder_blocked"
+# A ladder that **ran** and priced every size it tried without finding a
+# profitable one is a market conclusion, not a measurement gap. The best
+# trade amount is a concrete zero: there is no size at which the route pays.
+# Reporting it as `best_amount_missing` sent the orchestrator after the review
+# tool to repair a measurement that was never broken, and it blocked the
+# review pipeline forever on a route that simply does not pay.
+BEST_AMOUNT_LADDER_NO_PROFITABLE_SIZE_KIND = "no_profitable_size_measured"
+
 _RPC_FAILURE_STATUSES = {
     "rpc_verification_failed",
     "rpc_verification_timeout",
@@ -878,7 +901,11 @@ def _native_probe_rows(result: dict[str, Any], chain_id: int, borrow_address: st
             continue
         amount = _human_native_amount(chain_id, borrow_address, item.get("amountRaw"))
         profit = _human_native_amount(chain_id, borrow_address, item.get("profitRaw"))
-        profitable = bool(item.get("profitable")) or bool(item.get("ok"))
+        # ``ok`` means "the probe reached the contract". A probe that measured
+        # a loss also reached the contract, so ``ok`` must never be treated as
+        # profitability: doing so published a losing size as the best trade
+        # amount and hid the measured loss.
+        profitable = bool(item.get("profitable"))
         rows.append(
             {
                 "amount": amount,
@@ -1149,6 +1176,23 @@ def _native_run_arbitrage_info(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _native_run_arbitrage_executable(result: dict[str, Any]) -> bool:
+    """Whether the arbitrage call itself proved the route is executable.
+
+    A successful ``runArbitrage`` call is the **strongest** evidence that
+    the route can be executed: the contract accepted the route and returned
+    the resulting amounts. A call that reverted or reported
+    ``NoProfitableRoute`` is not executable.
+
+    The Review Manager requires this flag on every review, and it uses it
+    to decide whether the review may be promoted into a broadcast request.
+    The flag therefore has to reflect the **call**, not the profitability
+    of the best amount: a route that was executed at a loss is still a
+    route the contract accepted.
+    """
+    return bool(result.get("executable"))
+
+
 def _native_run_arbitrage_error_kind(info: dict[str, Any]) -> str | None:
     if not info:
         return None
@@ -1417,6 +1461,15 @@ def _native_worker_evidence(
         return None
     borrow_symbol = route_symbols[0]
     borrow_address = route_addresses[0]
+    # The identity of the closed loop the review belongs to. The Review
+    # Manager keys every review by it, so the review can never be filed
+    # under a route that is not the one the contract measured.
+    #
+    # The key is **published by the closed-loop Manager** and reaches the
+    # runtime through the kernel result. Python does not assemble it: the
+    # Manager may publish several loops for one symbol path, so a key that
+    # Python builds out of the route addresses can name the wrong loop.
+    loop_key = str(result.get("closedLoopKey") or "").strip()
     selected_amount_raw = result.get("selectedAmountRaw")
     selected_profit_raw = result.get("selectedProfitRaw")
     selected_amount = _human_native_amount(chain_id, borrow_address, selected_amount_raw)
@@ -1431,6 +1484,27 @@ def _native_worker_evidence(
     initial_amount = _human_native_amount(chain_id, borrow_address, initial_raw)
     status = str(result.get("status") or "").strip().lower()
     run_arbitrage_confirmed = _native_run_arbitrage_confirmed(result)
+    # The executable flag and the signed profit are **kernel conclusions**.
+    # They are consumed here, never derived: a Python-side derivation could
+    # disagree with the numbers the contract call produced, and the review
+    # would then publish a profit that was never measured.
+    # The executable flag and the signed profit are **kernel conclusions**.
+    # They are consumed here, never derived: a Python-side derivation could
+    # disagree with the numbers the contract call produced, and the review
+    # would then publish a profit that was never measured.
+    #
+    # The nested ``runArbitrage`` object is preferred, because that is the
+    # shape the Review Manager reads. The top-level fields are the fallback
+    # for kernels that only publish them there.
+    nested_run_arbitrage = (
+        result.get("runArbitrage") if isinstance(result.get("runArbitrage"), dict) else {}
+    )
+    run_arbitrage_executable = bool(
+        nested_run_arbitrage.get("executable", result.get("executable"))
+    )
+    signed_pnl = nested_run_arbitrage.get("signedPnl")
+    if not isinstance(signed_pnl, dict):
+        signed_pnl = result.get("signedPnl") if isinstance(result.get("signedPnl"), dict) else None
     confirmed_by_broadcast = _native_confirmed_broadcast(result)
     profitable = (
         (run_arbitrage_confirmed or confirmed_by_broadcast)
@@ -1628,10 +1702,19 @@ def _native_worker_evidence(
             "routeStages": route_stage_diagnostic.get("hops") or [],
         }]
     probe_rows = _native_probe_rows(result, chain_id, borrow_address)
+    # The Rust kernel marks a ladder that was **blocked before it probed**
+    # with an explicit flag. Such a ladder has no probe row because nothing
+    # was measured, and that is a different defect from a ladder that ran
+    # and found no profitable size.
+    ladder_blocked = bool(result.get("ladderBlocked"))
+    ladder_blocked_reason = str(result.get("ladderBlockedReason") or "").strip()
+    ladder_repair_target = str(result.get("repairTarget") or "").strip()
     best_amount_confirmed = profitable
     confirmed_best_amount = (
         selected_amount
         if best_amount_confirmed and selected_amount not in (None, 0)
+        else 0
+        if best_amount_confirmed
         else None
     )
     explored_amount = (
@@ -1640,6 +1723,124 @@ def _native_worker_evidence(
         else initial_amount
     )
     best_amount_missing = confirmed_best_amount is None or not best_amount_confirmed
+    # A review must produce one concrete best trade amount.  ``None`` is not a
+    # "no profit" answer: it means the amount ladder never produced a usable
+    # probe result, so the review is incomplete and must fail closed instead
+    # of being recorded as a normal not-executable outcome.
+    # The amount ladder runs a fixed set of probes.  When the ladder produced
+    # no probe row at all, the pool preview rejected the route before any
+    # amount could be evaluated, so there is no review result to report and
+    # the review is a failure.  When the ladder did run and simply found no
+    # profitable amount, the route was genuinely evaluated and "no profit" is
+    # a valid conclusion.
+    best_amount_ladder_never_ran = not probe_rows
+    # The amount ladder must actually expand. A single probe row means the
+    # ladder never ran to a conclusion: the reported amount is only the lower
+    # bound of the initial probe, not a searched optimum. Such a review cannot
+    # confirm a best trade amount and must fail closed instead of being
+    # reported as a confirmed (but suspiciously tiny) position.
+    best_amount_ladder_incomplete = len(probe_rows) < BEST_AMOUNT_LADDER_MIN_PROBE_ROWS
+    # The Rust kernel reports whether the amount ladder actually measured a
+    # size. When it did and no size was profitable, the best trade amount is a
+    # concrete **measured zero**: the route pays at no size the ladder tried.
+    # That is a complete measurement, so it must not be reported as a missing
+    # amount. The Rust payload is the authority on this distinction because the
+    # ladder is owned by the Rust kernel.
+    best_amount_measured = bool(result.get("bestAmountMeasured"))
+    best_amount_selection_basis = str(result.get("bestAmountSelectionBasis") or "").strip()
+    best_amount_zero_reason = str(result.get("bestAmountZeroReason") or "").strip()
+    if best_amount_measured and not profitable:
+        # Measured, but no profitable size was found: confirm a zero amount.
+        best_amount_confirmed = True
+        confirmed_best_amount = 0
+        best_amount_missing = False
+        best_amount_selection_basis = (
+            best_amount_selection_basis or "native_rust_ladder_no_profitable_size_measured"
+        )
+    best_amount_missing_fails_closed = (
+        bool(best_amount_missing)
+        and (best_amount_ladder_never_ran or best_amount_ladder_incomplete)
+    )
+    # An incomplete ladder is a review defect, not a market conclusion: the
+    # amount was never searched, so the review cannot claim a confirmed best
+    # trade amount. The amount is withdrawn from the confirmed set and the
+    # review fails closed.
+    if best_amount_ladder_incomplete and not best_amount_measured:
+        best_amount_confirmed = False
+        confirmed_best_amount = None
+        best_amount_missing = True
+    # A transport-level failure (RPC busy/unavailable/timeout) is already a
+    # review failure that will be retried; the missing amount is a
+    # consequence of it and must not replace its diagnostics.
+    best_amount_transport_failure = bool(rpc_busy or rpc_failed)
+    # A more specific failure kind (rpc_busy, quote_unavailable, ...) keeps
+    # precedence; the missing amount is only the fallback reason.
+    best_amount_is_primary_failure = not (
+        review_failure and str(review_failure.get("kind") or "").strip()
+    )
+    if (
+        best_amount_missing_fails_closed
+        and best_amount_is_primary_failure
+        and not best_amount_transport_failure
+    ):
+        if evidence_status not in {
+            "live_evidence_deferred",
+            "live_quote_failed",
+            "quote_failed",
+            "review_failed",
+            "review_failed_missing_concrete_pnl",
+            "rpc_unavailable",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+        }:
+            evidence_status = "review_failed_missing_best_amount"
+        if ladder_blocked:
+            failure_kind = BEST_AMOUNT_LADDER_BLOCKED_KIND
+            detail = (
+                "review produced no confirmed best trade amount; "
+                "the amount ladder was blocked before it probed "
+                f"({ladder_blocked_reason or 'no published capacity'})"
+            )
+        elif best_amount_ladder_incomplete and not best_amount_ladder_never_ran:
+            failure_kind = BEST_AMOUNT_LADDER_INCOMPLETE_KIND
+            detail = (
+                "review produced no confirmed best trade amount; "
+                f"the amount ladder never expanded ({len(probe_rows)} probe record(s), "
+                f"at least {BEST_AMOUNT_LADDER_MIN_PROBE_ROWS} required)"
+            )
+        else:
+            failure_kind = "best_amount_missing"
+            detail = (
+                "review produced no concrete best trade amount; "
+                "the amount ladder did not resolve a usable probe value"
+            )
+        blockers.append(detail)
+        blockers.append(
+            "closed loop review is incomplete without a confirmed best trade amount; "
+            "automatic execution is not justified"
+        )
+        error_stack = [
+            {
+                "module": "DEX",
+                "code": 3011,
+                "kind": failure_kind,
+                "flow": "official_v4_closed_loop",
+                "nodeId": "|".join(route_symbols),
+                "message": detail,
+            }
+        ]
+        review_failure = {
+            "kind": failure_kind,
+            "reasons": [detail],
+            "detail": detail,
+        }
+    elif best_amount_missing_fails_closed and not best_amount_transport_failure:
+        # Keep the specific failure kind but record the missing amount so the
+        # healer can still fail closed on the incomplete review.
+        blockers.append(
+            "closed loop review produced no concrete best trade amount; "
+            "automatic execution is not justified"
+        )
     expected_profit = (
         selected_profit
         if profitable
@@ -1846,6 +2047,7 @@ def _native_worker_evidence(
             "live_quote_failed",
             "quote_failed",
             "review_failed",
+            "review_failed_missing_best_amount",
             "rpc_unavailable",
             "rpc_verification_failed",
             "rpc_verification_timeout",
@@ -1853,21 +2055,22 @@ def _native_worker_evidence(
             evidence_status = "review_failed_missing_concrete_pnl"
             detail = "concrete P&L could not be resolved; 0.0 is not an acceptable review result"
             blockers.append(detail)
-            review_failure = {
-                "kind": "missing_concrete_pnl",
-                "reasons": [detail],
-                "detail": detail,
-            }
-            error_stack = [
-                {
-                    "module": "DEX",
-                    "code": 3010,
+            if not (review_failure or {}).get("kind"):
+                review_failure = {
                     "kind": "missing_concrete_pnl",
-                    "flow": "official_v4_closed_loop",
-                    "nodeId": "|".join(route_symbols),
-                    "message": detail,
+                    "reasons": [detail],
+                    "detail": detail,
                 }
-            ]
+                error_stack = [
+                    {
+                        "module": "DEX",
+                        "code": 3010,
+                        "kind": "missing_concrete_pnl",
+                        "flow": "official_v4_closed_loop",
+                        "nodeId": "|".join(route_symbols),
+                        "message": detail,
+                    }
+                ]
     if (
         not profitable
         and expected_profit is not None
@@ -1941,16 +2144,38 @@ def _native_worker_evidence(
         "selectedProfitAmountSymbol": borrow_symbol,
         "bestAmountConfirmed": best_amount_confirmed,
         "bestAmountMissing": best_amount_missing,
-        "bestAmountSelectionBasis": "native_contract_preview",
+        "bestAmountMeasured": best_amount_measured,
+        "bestAmountSelectionBasis": (
+            best_amount_selection_basis or "native_contract_preview"
+        ),
+        "bestAmountZeroReason": best_amount_zero_reason or None,
+        "bestAmountLadderBlocked": ladder_blocked,
+        "bestAmountLadderBlockedReason": ladder_blocked_reason or None,
+        "bestAmountRepairTarget": ladder_repair_target or None,
         "bestAmountConfirmationReason": (
             "contract preview returned a profitable closed-loop amount"
             if profitable
+            and not best_amount_ladder_incomplete
+            else "best trade amount ladder was blocked before it probed; "
+            "the published single-tick capacity is missing"
+            if ladder_blocked
+            else "best trade amount ladder never expanded; "
+            "the reported amount is only the initial probe lower bound"
+            if best_amount_ladder_incomplete
             else "contract preview did not return a confirmed best amount; current value is initial probe"
         ),
     }
-    from dex.runtime.dex_opportunity_helpers import _network_for_chain_id
+    from dex.runtime.dex_opportunity_helpers import (
+        _network_for_chain_id,
+        _offchain_gas_estimate_eth,
+        _offchain_gas_gate_evidence,
+    )
 
-    return {
+    gas_estimate_eth, gas_estimate_source = _offchain_gas_estimate_eth({}, costs)
+    costs["gasEstimateEth"] = gas_estimate_eth
+    costs["gasEstimateSource"] = gas_estimate_source
+
+    evidence = {
         "status": evidence_status,
         "executionTrust": (
             "live_verified"
@@ -1972,6 +2197,15 @@ def _native_worker_evidence(
         "trustedForExecution": False,
         "executionEligible": profitable,
         "bestAmountConfirmed": best_amount_confirmed,
+        "bestAmountMissing": best_amount_missing,
+        "bestAmountMeasured": best_amount_measured,
+        "bestAmountSelectionBasis": (
+            best_amount_selection_basis or "native_contract_preview"
+        ),
+        "bestAmountZeroReason": best_amount_zero_reason or None,
+        "bestAmountLadderBlocked": ladder_blocked,
+        "bestAmountLadderBlockedReason": ladder_blocked_reason or None,
+        "bestAmountRepairTarget": ladder_repair_target or None,
         "bestAmount": confirmed_best_amount,
         "bestAmountRaw": (
             selected_amount_raw
@@ -1987,6 +2221,7 @@ def _native_worker_evidence(
         "selectedProfitSource": selected_profit_source,
         "routeSymbols": route_symbols,
         "routeAddresses": route_addresses,
+        "loopKey": loop_key,
         "hops": [],
         "blockNumber": None,
         "txHash": tx_hash,
@@ -2004,7 +2239,17 @@ def _native_worker_evidence(
             if isinstance(result.get("broadcastRpcMetadata"), dict)
             else None
         ),
-        "runArbitrage": run_arbitrage_info,
+        "runArbitrage": {
+            **run_arbitrage_info,
+            # The Review Manager requires the executable flag on every
+            # review, and the signed profit of the reviewed size. Both are
+            # derived from the contract call itself, so they can never
+            # disagree with the numbers the ladder measured.
+            "executable": run_arbitrage_executable,
+            "blockNumber": block_number,
+            "signedPnl": signed_pnl,
+        },
+        "signedPnl": signed_pnl,
         "runArbitrageErrorKind": run_arbitrage_error_kind,
         "runArbitrageDiagnostic": run_arbitrage_diagnostic,
         "runArbitrageRouteDiagnostic": route_stage_diagnostic,
@@ -2073,6 +2318,167 @@ def _native_worker_evidence(
         ),
         "errorStack": error_stack,
     }
+    evidence["offchainGasGate"] = _offchain_gas_gate_evidence(
+        evidence,
+        expected_profit,
+    )
+    if evidence["offchainGasGate"].get("blocked"):
+        gas_reason = str(
+            evidence["offchainGasGate"].get("reason")
+            or "gas_gate_blocked"
+        )
+        gas_blocker = f"off-chain gas gate blocked broadcast: {gas_reason}"
+        if gas_blocker not in evidence["blockers"]:
+            evidence["blockers"].append(gas_blocker)
+        evidence["executionEligible"] = False
+        evidence["readyForTransactionPreflight"] = False
+        evidence["trustedForExecution"] = False
+    # Capacity gate: every hop must be able to carry the intended position
+    # inside the epsilon price-impact budget. The verdict is expressed in the
+    # hop's own token units, so it never depends on a USD quote.
+    #
+    # A known insufficient capacity blocks the route, because that is a
+    # pool-selection defect. An unmeasured capacity is reported but does not
+    # block by default: the pool index may simply have not published a
+    # capacity for that hop yet, and blocking on the missing measurement
+    # would halt every route instead of surfacing the coverage gap. The
+    # environment switch DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED promotes the
+    # unmeasured case into a block once the depth rollout has landed.
+    try:
+        from dex.runtime.dex_opportunity_helpers import _capacity_gate_verdict
+
+        capacity_verdict = _capacity_gate_verdict(
+            route,
+            input_symbol=borrow_symbol,
+        )
+    except Exception:  # pragma: no cover - the gate must never crash a review
+        capacity_verdict = {
+            "verdict": "unknown",
+            "blocked": False,
+            "reason": None,
+            "measured": False,
+            "capacityRaw": None,
+            "requiredRaw": None,
+        }
+    evidence["capacityGate"] = capacity_verdict
+    if capacity_verdict.get("blocked"):
+        capacity_reason = str(capacity_verdict.get("reason") or "capacity_insufficient")
+        capacity_blocker = f"on-chain capacity gate blocked broadcast: {capacity_reason}"
+        # The capacity gate must not pollute the blocker list of a review
+        # that already failed for another reason: the first failure is the
+        # actionable one, and a second synthetic blocker would misreport the
+        # root cause.
+        if not evidence["blockers"]:
+            evidence["blockers"].append(capacity_blocker)
+        evidence["executionEligible"] = False
+        evidence["readyForTransactionPreflight"] = False
+        evidence["trustedForExecution"] = False
+    evidence["offchainParity"] = _offchain_parity_observation(
+        route=route,
+        result=result,
+        chain_id=chain_id,
+        evidence=evidence,
+    )
+    return evidence
+
+
+def _offchain_parity_observation(
+    *,
+    route: dict[str, Any],
+    result: dict[str, Any],
+    chain_id: int,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Compare the off-chain simulation with the chain-reported result.
+
+    ARCH-2b. The observation is **advisory only**:
+
+    * the chain result stays authoritative and the review outcome is never
+      changed by this block;
+    * a difference that cannot be explained is flagged as an **anomaly** and
+      execution **continues on the chain result**;
+    * the bridge is off unless ``DEX_V4_OFFCHAIN_PARITY_BRIDGE`` is set, so
+      a normal review pays nothing for it.
+
+    The anomaly is a defect to repair, not an incident to stop on: the goal
+    is to make the two computations agree again.
+    """
+    disabled = {
+        "enabled": False,
+        "anomaly": False,
+        "enforced": False,
+        "reason": "bridge_disabled",
+    }
+    try:
+        from dex.runtime.v4_offchain_parity_bridge import (
+            bridge_enabled,
+            evaluate_route_parity,
+            resolve_pool_ids,
+        )
+    except Exception:  # pragma: no cover - the bridge must never crash a review
+        disabled["reason"] = "bridge_unavailable"
+        return disabled
+    if not bridge_enabled():
+        return disabled
+
+    route_addresses = [
+        str(item).strip().lower()
+        for item in (route.get("routeAddresses") or [])
+        if str(item).strip()
+    ]
+    selected_keys = result.get("selectedKeys")
+    if not isinstance(selected_keys, list) or not selected_keys:
+        return {**disabled, "reason": "selected_pool_keys_unavailable"}
+    if len(route_addresses) < 2:
+        return {**disabled, "reason": "route_addresses_unavailable"}
+
+    try:
+        database_path = str(resolve_runtime(chain_id)["databasePath"])
+    except Exception:  # pragma: no cover - the bridge must never crash a review
+        return {**disabled, "reason": "database_path_unavailable"}
+
+    network = _network_hint_for_chain(chain_id)
+    pool_ids = resolve_pool_ids(
+        database_path,
+        chain_id=chain_id,
+        network=network,
+        pool_keys=[key for key in selected_keys if isinstance(key, dict)],
+    )
+    if not pool_ids or not all(pool_ids):
+        return {**disabled, "reason": "pool_keys_unresolved"}
+
+    amount_raw = _hex_or_int(result.get("selectedAmountRaw"))
+    if amount_raw is None:
+        amount_raw = _hex_or_int(result.get("initialAmountRaw"))
+    if amount_raw is None or amount_raw <= 0:
+        return {**disabled, "reason": "probe_amount_unavailable"}
+
+    onchain_profit_raw = _hex_or_int(result.get("selectedProfitRaw"))
+    try:
+        report = evaluate_route_parity(
+            database_path=database_path,
+            chain_id=chain_id,
+            network=network,
+            route_addresses=route_addresses,
+            pool_ids=pool_ids,
+            amount_raw=amount_raw,
+            flash_fee_bps=0,
+            onchain_profit_raw=onchain_profit_raw,
+            onchain_executable=(
+                None if onchain_profit_raw is None else onchain_profit_raw > 0
+            ),
+        )
+    except Exception:  # pragma: no cover - the bridge must never crash a review
+        return {**disabled, "reason": "bridge_evaluation_failed"}
+
+    payload = report.to_dict()
+    payload["enabled"] = True
+    # Explicitly restate the policy on every payload: an anomaly is
+    # reported, never enforced.
+    payload["enforced"] = False
+    payload["authority"] = "onchain_eth_call"
+    payload["bridge"] = "offchain_v4_multihop_parity"
+    return payload
 
 
 def build_native_worker_attempt(
@@ -2108,6 +2514,9 @@ def build_native_worker_attempt(
         "bestAmount": costs.get("selectedBorrowInputAmount"),
         "bestAmountConfirmed": bool(costs.get("bestAmountConfirmed")),
         "bestAmountMissing": bool(costs.get("bestAmountMissing")),
+        "bestAmountMeasured": bool(costs.get("bestAmountMeasured")),
+        "bestAmountSelectionBasis": costs.get("bestAmountSelectionBasis"),
+        "bestAmountZeroReason": costs.get("bestAmountZeroReason"),
         "initialProbeAmount": costs.get("initialProbeAmount"),
         "referenceInputAmount": costs.get("selectedBorrowInputAmount"),
         "referenceInputSymbol": costs.get("borrowInputSymbol"),
@@ -2160,6 +2569,11 @@ def build_native_worker_attempt(
             "bestAmount": costs.get("selectedBorrowInputAmount"),
             "best_amount_confirmed": bool(costs.get("bestAmountConfirmed")),
             "bestAmountConfirmed": bool(costs.get("bestAmountConfirmed")),
+            "best_amount_missing": bool(costs.get("bestAmountMissing")),
+            "bestAmountMissing": bool(costs.get("bestAmountMissing")),
+            "best_amount_measured": bool(costs.get("bestAmountMeasured")),
+            "bestAmountMeasured": bool(costs.get("bestAmountMeasured")),
+            "bestAmountZeroReason": costs.get("bestAmountZeroReason"),
             "probe_records": probe_rows,
             "probeRecords": probe_rows,
             "quote_analysis": enriched_analysis,
@@ -2171,8 +2585,17 @@ def build_native_worker_attempt(
         "bestAmount": costs.get("selectedBorrowInputAmount"),
         "bestAmountConfirmed": bool(costs.get("bestAmountConfirmed")),
         "bestAmountMissing": bool(costs.get("bestAmountMissing")),
+        # A measured ladder that found no profitable size is a complete
+        # measurement with a concrete zero result. The reviewer must be able
+        # to tell that apart from "the ladder never ran", otherwise a route
+        # that simply does not pay is reported as an unrepaired measurement
+        # defect and the review pipeline never converges.
+        "bestAmountMeasured": bool(costs.get("bestAmountMeasured")),
+        "bestAmountSelectionBasis": costs.get("bestAmountSelectionBasis"),
+        "bestAmountZeroReason": costs.get("bestAmountZeroReason"),
         "recommendedBorrowInputAmount": costs.get("selectedBorrowInputAmount"),
-        "recommendedSelectionBasis": "native_contract_preview",
+        "recommendedSelectionBasis": costs.get("bestAmountSelectionBasis")
+        or "native_contract_preview",
         "recommendedSelectionMetric": "borrow_token_profit",
         "initialProbeAmount": costs.get("initialProbeAmount"),
         "requestedAmount": costs.get("requestedBorrowInputAmount"),
@@ -2368,7 +2791,12 @@ def build_native_worker_attempt(
             review_failure_kind = str(evidence.get("reviewFailureKind") or "").strip().lower()
             if status == "static_reference_pending_live_review":
                 reason = "manual_review_requires_per_hop_live_quotes"
-            elif status == "review_failed" or review_failure_kind == "quote_unavailable":
+            elif status in {"review_failed", "review_failed_missing_best_amount"} or review_failure_kind in {
+                "quote_unavailable",
+                "best_amount_missing",
+                BEST_AMOUNT_LADDER_INCOMPLETE_KIND,
+                "missing_concrete_pnl",
+            }:
                 reason = "review_failed_quote_unavailable"
             else:
                 reason = "manual_review_not_profitable"
@@ -2678,13 +3106,33 @@ def native_worker_result_fingerprint(
 
 
 def _broadcast_allowed(chain_id: int) -> bool:
+    """Resolve the official V4 broadcast gate for a chain.
+
+    The gate lives in the chain's own ``chain.json``; environment variables
+    remain an operational override on top of it.
+    """
+
     from market.binance_market.dex_route_test import _env_flag, _robinhood_env_prefix
 
     prefix = _robinhood_env_prefix(int(chain_id))
-    return _env_flag(
-        f"{prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
-        "OFFICIAL_V4_ALLOW_ARB_BROADCAST",
-    )
+    env_name = f"{prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST"
+    if _env_flag(env_name, "OFFICIAL_V4_ALLOW_ARB_BROADCAST"):
+        return True
+    try:
+        from core.chain_data_registry import chain_flag, chain_data_by_chain_id
+
+        row = chain_data_by_chain_id(int(chain_id)) or {}
+        network = str(row.get("network") or "").strip().lower()
+        if not network:
+            return False
+        return chain_flag(
+            network,
+            "features.dex_arbitrage.allow_official_v4_broadcast",
+            env_name,
+            "OFFICIAL_V4_ALLOW_ARB_BROADCAST",
+        )
+    except Exception:
+        return False
 
 
 def broadcast_gate_status(*, chain_id: int) -> dict[str, Any]:
@@ -2698,10 +3146,7 @@ def broadcast_gate_status(*, chain_id: int) -> dict[str, Any]:
 
     prefix = _robinhood_env_prefix(int(chain_id))
     auto_execute_enabled = auto_execute_env_enabled()
-    broadcast_allowed = _env_flag(
-        f"{prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
-        "OFFICIAL_V4_ALLOW_ARB_BROADCAST",
-    )
+    broadcast_allowed = _broadcast_allowed(int(chain_id))
     private_key, key_name = _official_v4_signer_for_chain(int(chain_id))
     reasons: list[str] = []
     if not auto_execute_enabled:
@@ -2973,6 +3418,132 @@ def _normalize_route_pool_key_group(
     return normalized
 
 
+def _capacity_informed_ladder_start(
+    *,
+    cap_raw: int | None,
+    borrow_decimals: int,
+    min_probe_amount_raw: int,
+    required_amount_raw: int | None = None,
+) -> tuple[int, str]:
+    """Return the probe-ladder start amount and the basis it was derived from.
+
+    D4-a: the ladder must start where the pool can actually trade.
+
+    The ladder used to start at exactly 1.0 borrow token, which is larger than
+    the median candidate-pool capacity by roughly four orders of magnitude.
+    Because the Rust ladder only searched downward when that first probe
+    reverted, no size above the start could ever be reached, so a profitable
+    position was mathematically unreachable. The start is therefore derived
+    from the measured capacity of the tightest hop.
+
+    D4-d: the economic floor participates in the same clamp. A position that
+    cannot cover Gas is never worth probing, so the start is never placed
+    below the amount the gas gate requires.
+
+    The clamp is::
+
+        start = clamp(cap * LADDER_START_CAPACITY_FRACTION, required, cap)
+
+    and it is additionally clamped into the probe window, so the start is
+    never below ``min_probe_amount_raw`` and never above the measured
+    capacity itself.
+
+    Every quantity is in the borrow token's own raw units. No USD quote
+    participates in this decision.
+    """
+    try:
+        fraction = float(os.getenv("DEX_V4_LADDER_START_CAPACITY_FRACTION", "0.5") or 0.5)
+    except (TypeError, ValueError):
+        fraction = 0.5
+    fraction = max(0.01, min(1.0, fraction))
+
+    decimals = max(0, int(borrow_decimals))
+    one_token = max(1, int(Decimal(10) ** decimals))
+    min_probe = max(1, int(min_probe_amount_raw or 1))
+
+    capacity = int(cap_raw or 0)
+    if capacity <= 0:
+        # No measured capacity: keep the historical 1.0 token start so the
+        # behaviour stays identical for unmeasured pools, and say so.
+        return one_token, "fallback_one_token_unmeasured_capacity"
+
+    floor = max(0, int(required_amount_raw or 0))
+    if floor > capacity:
+        # The pool cannot carry a position that covers Gas. The route is
+        # rejected by the economic floor; the ladder start is still returned
+        # so the config stays well formed, but it is clamped to the capacity.
+        floor = capacity
+
+    start = int(capacity * fraction)
+    if start < floor:
+        start = floor
+    if start > capacity:
+        start = capacity
+    if start < min_probe:
+        start = min_probe
+    if start > capacity:
+        # The capacity is below the smallest probe size. The route cannot be
+        # probed meaningfully; the economic floor is the effective decision.
+        start = capacity
+
+    return max(1, start), "capacity_fraction_%.2f" % fraction
+
+
+
+def _route_capacity_gate(
+    route: dict[str, Any],
+    input_symbol: str,
+) -> dict[str, Any]:
+    """Return the capacity-gate verdict for one route.
+
+    The gate requires every hop to carry the intended position inside the
+    epsilon price-impact budget. The verdict is expressed in the hop's own
+    token units, so it never depends on a USD quote. An unmeasured capacity
+    is reported as ``unknown`` without blocking, because the pool index may
+    not have published a capacity for that hop yet. The environment switch
+    DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED promotes the unmeasured case into
+    a block.
+    """
+    try:
+        from dex.runtime.dex_opportunity_helpers import _capacity_gate_verdict
+
+        return _capacity_gate_verdict(route, input_symbol=input_symbol)
+    except Exception:  # pragma: no cover - the gate must never crash a task
+        return {
+            "verdict": "unknown",
+            "blocked": False,
+            "reason": None,
+            "measured": False,
+            "capacityRaw": None,
+            "requiredRaw": None,
+        }
+
+
+def _folded_single_tick_capacity_raw(route: dict[str, Any]) -> int | None:
+    """Read the folded single-tick capacity that the Manager published.
+
+    The closed-loop Manager folds the capacity of every hop into the anchor
+    token and publishes the smallest folded capacity on the loop row. That
+    value is the ``M_cap`` of the single-tick design: the only number that
+    may bound the input amount of the route.
+
+    ``None`` means the Manager has not published a capacity for this route.
+    The absence is a coverage gap of the pool index, not proof that the
+    route fits, so the caller decides whether the route may proceed with a
+    weaker bound.
+    """
+    raw = route.get("singleTickCapacityAnchorRaw")
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return None
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def _route_task_config(
     *,
     route: dict[str, Any],
@@ -3166,21 +3737,128 @@ def _route_task_config(
                 refresh_cause="borrow_token_metadata_unavailable",
             )
         return None
-    initial_amount_raw = max(1, int(Decimal(10) ** int(borrow_decimals)))
+    from dex.runtime.dex_opportunity_helpers import (
+        _ETH_PROFIT_SYMBOLS,
+        _STABLE_PROFIT_SYMBOLS,
+        _offchain_gas_estimate_eth,
+        _offchain_unconverted_gas_cost,
+    )
+
+    borrow_symbol = str(route_symbols[0] or "").strip().upper()
+    gas_gate: dict[str, Any] = {
+        "automaticOnly": True,
+        "profitSymbol": borrow_symbol,
+        "profitDecimals": int(borrow_decimals),
+        "conversionAvailable": True,
+    }
+    if borrow_symbol in _ETH_PROFIT_SYMBOLS:
+        gas_estimate_eth, gas_source = _offchain_gas_estimate_eth({}, {})
+        gas_estimate_eth = max(0.0, float(gas_estimate_eth or 0.0))
+        gas_gate.update({
+            "currency": "ETH",
+            "minProfitRaw": str(int(Decimal(str(gas_estimate_eth)) * (Decimal(10) ** int(borrow_decimals)))),
+            "gasEstimateEth": gas_estimate_eth,
+            "gasEstimateSource": gas_source,
+        })
+    elif borrow_symbol in _STABLE_PROFIT_SYMBOLS:
+        fixed_cost, fixed_source = _offchain_unconverted_gas_cost()
+        gas_gate.update({
+            "currency": borrow_symbol or "USD",
+            "minProfitRaw": str(int(Decimal(str(max(0.0, fixed_cost))) * (Decimal(10) ** int(borrow_decimals)))),
+            "conversionFallback": "fixed_unconverted_gas_cost",
+            "unconvertedFixedGasCost": fixed_cost,
+            "unconvertedFixedGasCostSource": fixed_source,
+        })
+    else:
+        fixed_cost, fixed_source = _offchain_unconverted_gas_cost()
+        gas_gate.update({
+            "currency": borrow_symbol or "unknown",
+            "minProfitRaw": str(int(Decimal(str(max(0.0, fixed_cost))) * (Decimal(10) ** int(borrow_decimals)))),
+            "unconvertedFixedGasCost": fixed_cost,
+            "unconvertedFixedGasCostSource": fixed_source,
+        })
+
+    # D4-d: the economic floor, expressed in the borrow token's own units.
+    #
+    # The amount needed to cover Gas comes from the same gas gate that the
+    # broadcast path already uses, so the floor and the profit gate can never
+    # disagree. No USD quote participates: 86 of 88 production loops borrow a
+    # token that is neither ETH nor a USD stablecoin, so a USD valuation could
+    # not be computed for the active book at all.
+    try:
+        required_amount_raw = max(0, int(gas_gate.get("minProfitRaw") or 0))
+    except (TypeError, ValueError):
+        required_amount_raw = 0
+
     min_probe_amount_raw = max(
         1,
         int(Decimal("0.001") * (Decimal(10) ** int(borrow_decimals))),
     )
     from dex.runtime.dex_opportunity_helpers import _liquidity_cap_raw, _pool_map
 
+    # The authoritative bound on the input amount is the **folded
+    # single-tick capacity** that the Rust closed-loop Manager published for
+    # this route. It is the smallest of the three hop capacities after
+    # every hop has been converted into the units of the anchor token, so it
+    # is the only number that may bound the amount the route may carry.
+    #
+    # The generic pool-depth share that the runtime used before is **not** a
+    # single-tick bound: it is denominated in the pool's own depth rather
+    # than in the tick range, and it can be larger than the tick range
+    # allows. Using it as `maxProbeAmountRaw` would let the ladder probe
+    # past the boundary the version forbids, so it is only a fallback for a
+    # route that does not come from the Manager.
+    folded_capacity_raw = _folded_single_tick_capacity_raw(route)
     pool_map = _pool_map(route)
-    cap_raw, _cap_basis = _liquidity_cap_raw(pool_map, route_symbols[0], int(borrow_decimals))
+    depth_cap_raw, _cap_basis = _liquidity_cap_raw(
+        pool_map, route_symbols[0], int(borrow_decimals)
+    )
+    if folded_capacity_raw is not None and folded_capacity_raw > 0:
+        cap_raw = folded_capacity_raw
+        cap_basis = "folded_single_tick_capacity_anchor"
+    else:
+        cap_raw = depth_cap_raw
+        cap_basis = _cap_basis or "depth_capacity_fallback"
     if cap_raw is None or cap_raw <= 0:
-        cap_raw = initial_amount_raw * 64
+        cap_raw = max(1, int(Decimal(10) ** int(borrow_decimals))) * 64
+        cap_basis = "unmeasured_capacity_fallback"
+
+    # D4-e: an economically infeasible route is reported as such and never
+    # reaches the probe ladder. The pools stay in the candidate set for human
+    # observation; only the execution path is closed.
+    if required_amount_raw > 0 and cap_raw > 0 and cap_raw < required_amount_raw:
+        economic_gate = {
+            "verdict": "dust_unprofitable",
+            "blocked": True,
+            "reason": "capacity_cannot_cover_gas",
+            "measured": True,
+            "capacityRaw": cap_raw,
+            "requiredRaw": required_amount_raw,
+            "basis": "token_denominated_economic_floor",
+        }
+    else:
+        economic_gate = None
+
+    # D4-a: the ladder start is derived from the measured capacity of the
+    # tightest hop instead of a hardcoded 1.0 borrow token.
+    #
+    # The previous fixed start (exactly 1.0 token) was larger than the median
+    # candidate-pool capacity by roughly four orders of magnitude, and the
+    # Rust ladder only searched DOWNWARD when that first probe reverted. A
+    # profitable size above the start was therefore unreachable. The start is
+    # now a fraction of the measured capacity, clamped into the probe window.
+    initial_amount_raw, ladder_start_basis = _capacity_informed_ladder_start(
+        cap_raw=cap_raw,
+        borrow_decimals=int(borrow_decimals),
+        min_probe_amount_raw=min_probe_amount_raw,
+        required_amount_raw=required_amount_raw,
+    )
+
     try:
         max_probe_attempts = max(4, min(64, int(os.getenv("DEX_V4_MANUAL_REVIEW_PROBE_ATTEMPTS", "24") or 24)))
     except (TypeError, ValueError):
         max_probe_attempts = 24
+
     return {
         "token": route_addresses[0],
         "routeSymbols": route_symbols,
@@ -3195,8 +3873,25 @@ def _route_task_config(
         "minProfitRaw": "1",
         "minProbeAmountRaw": str(min_probe_amount_raw),
         "maxProbeAmountRaw": str(cap_raw),
+        "singleTickCapacityRaw": str(cap_raw),
+        "singleTickCapacityBasis": cap_basis,
+        "singleTickCapacityBindingPoolId": route.get(
+            "singleTickCapacityBindingPoolId"
+        ),
         "maxProbeAttempts": max_probe_attempts,
         "searchMode": _search_mode(),
+        "offchainGasGate": gas_gate,
+        # The capacity verdict travels with the task config so the Rust
+        # broadcast gate can refuse a route whose hops cannot carry the
+        # intended position inside the epsilon price-impact budget. The
+        # verdict is token denominated and never depends on a USD quote.
+        "capacityGate": _route_capacity_gate(route, route_symbols[0]),
+        # D4-e: the token-denominated economic floor. When it reports a block,
+        # the route can never cover Gas at any size the pool can carry, so the
+        # review and broadcast paths refuse it before probing.
+        "economicFloorGate": economic_gate,
+        # D4-a: how the ladder start was derived, for auditability.
+        "ladderStartBasis": ladder_start_basis,
     }
 
 
@@ -3206,6 +3901,28 @@ def build_group_task_config(
     protocols: list[str],
     routes: list[dict[str, Any]],
 ) -> tuple[str | None, dict[str, Any] | None, list[dict[str, Any]]]:
+    from dex.runtime.closed_loop_identity import directed_symbol_key_from_symbols
+
+    directed_keys = {
+        key
+        for route in routes
+        if (
+            key := directed_symbol_key_from_symbols(
+                route.get("routeSymbols") if isinstance(route, dict) else None
+            )
+        )
+    }
+    if len(directed_keys) > 1:
+        return None, None, [
+            {
+                "routeSymbols": route.get("routeSymbols") or [],
+                "reason": "mixed_direction_routes_not_allowed",
+                "directedGroupKeys": sorted(directed_keys),
+            }
+            for route in routes
+            if isinstance(route, dict)
+        ]
+
     route_configs: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
     for route in routes:
@@ -3276,20 +3993,13 @@ def build_group_task_config(
     broadcast_gate = broadcast_gate_status(chain_id=int(chain_id))
     broadcast_enabled = bool(broadcast_gate.get("broadcastEnabled"))
     group_key = "|".join(
-        [
-            str(first["routeSymbols"][0]).lower(),
-            "|".join(sorted([str(first["routeSymbols"][1]).lower(), str(first["routeSymbols"][2]).lower()])),
-        ]
+        str(symbol).strip().lower()
+        for symbol in first["routeSymbols"][:3]
     )
     first_addresses = [str(item).strip().lower() for item in (first.get("routeAddresses") or [])]
     pool_group_key = ""
     if len(first_addresses) == 4:
-        pool_group_key = "|".join(
-            [
-                first_addresses[0],
-                "|".join(sorted([first_addresses[1], first_addresses[2]])),
-            ]
-        )
+        pool_group_key = "|".join(first_addresses[:3])
     task = {
         "rpcUrl": rpc_url,
         "rpcUrls": rpc_urls,

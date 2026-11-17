@@ -1,0 +1,191 @@
+{
+  "schema": "arch2_multihop_simulator_evidence",
+  "version": "1.0",
+  "generated_at": "2026-11-12T00:03:37.654765Z",
+  "scope": "ARCH-2: off-chain 3-hop closed-loop simulator + on-chain parity regression",
+  "authority": "controlled-replay",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "isolation": "process",
+    "architecture": "x86_64",
+    "id": "dev-workstation"
+  },
+  "production_writes": 0,
+  "locked_decisions": [
+    "Zero USD dependency for depth/execution decisions",
+    "Capacity criterion = on-chain price-impact capacity, token-denominated, epsilon=10bps",
+    "estimated_tvl_usd = tie-breaker/observation only; never delist token pairs by TVL",
+    "best_amount_ladder_incomplete fail-closed must not be relaxed",
+    "No production writes without explicit authorization",
+    "Do not stop/restart daemon or run.py; no commit; no branch"
+  ],
+  "artifacts": [
+    {
+      "path": "flashloan/src/dex/intent_trade/chains/robinhood/v4_multihop_simulator.py",
+      "role": "off-chain 3-hop simulator (parity target)",
+      "sha256": "034573ef1b086887d192b4e2048d68d75ce9b273f7b20b8ff2d8a0e886b5c3c6",
+      "bytes": 11154,
+      "lines": 339
+    },
+    {
+      "path": "flashloan/app_runtime/tests/unit/test_v4_multihop_simulator.py",
+      "role": "parity + regression + architectural guard tests",
+      "sha256": "856920e966e6e6691fb3b41c0d6ece8cb610367bdf1c1a6017c2205ef1cbd063",
+      "bytes": 18799,
+      "lines": 461
+    }
+  ],
+  "on_chain_parity_targets": [
+    {
+      "symbol": "flash_fee",
+      "contract": "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "line": 1092,
+      "contract_form": "(amount * feeBps + 9999) / 10000",
+      "rounding": "up",
+      "note": "Rounding down would make the simulator more optimistic than the chain and could report a profitable route the chain rejects."
+    },
+    {
+      "symbol": "required_repay",
+      "contract": "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "line": 1097,
+      "contract_form": "amount + _fee(amount, feeBps)"
+    },
+    {
+      "symbol": "route_settlement",
+      "contract": "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "line": 702,
+      "contract_form": "profitAfterRepay = balance > requiredRepay ? balance - requiredRepay : 0",
+      "executable_rule": "executable iff profit > 0"
+    },
+    {
+      "symbol": "single_hop_swap_output",
+      "contract": null,
+      "contract_form": "Uniswap V4 canonical formulas",
+      "cross_language_reference": "flashloan/tools/pool_manager/src/depth.rs::fallback_swap_amount_out",
+      "note": "Same rounding on both sides: up for the amount0/sqrt step, down for the amount1 step, down for both deltas."
+    }
+  ],
+  "semantic_clarification": {
+    "production_contract_profit": "balance - requiredRepay (flash fee INCLUDED)",
+    "testnet_contract_profit": "outTz - amountIn (flash fee EXCLUDED); minProfit is a threshold, not a fee",
+    "testnet_reference": "contract/robinhood-testnet/DEX/src/test/OfficialV4FlashArb.sol:590",
+    "simulator_follows": "production",
+    "warning": "The two contracts are NOT the same profit convention. Switching to the testnet contract requires an explicit flash_fee_bps=0 settlement branch; the conventions must never be mixed."
+  },
+  "test_results": {
+    "new_suite": {
+      "command": "pytest flashloan/app_runtime/tests/unit/test_v4_multihop_simulator.py -q -p no:cacheprovider",
+      "passed": 23,
+      "failed": 0
+    },
+    "full_suite": {
+      "command": "pytest flashloan/app_runtime/tests -q -p no:cacheprovider",
+      "passed": 2765,
+      "failed": 26,
+      "skipped": 3,
+      "baseline_before_arch2": {
+        "passed": 2742,
+        "failed": 26,
+        "skipped": 3
+      },
+      "delta_passed": 23,
+      "final_failure_set": {
+        "count": 26,
+        "identical_to_pre_arch2_baseline": true,
+        "comparison_method": "sorted FAILED node-id sets compared byte for byte between the ARCH-2 run, the ARCH-2-disabled run, and the final run after the T1 fixture fix"
+      }
+    },
+    "zero_new_failure_proof": {
+      "method": "surgically remove the ARCH-2 module and its test file, re-run the full suite, compare failure sets",
+      "with_arch2_failure_count": 26,
+      "without_arch2_failure_count": 26,
+      "new_failures_introduced": [],
+      "failures_fixed": [],
+      "sets_identical": true
+    },
+    "healer_suite": {
+      "command": "pytest scripts/tests/test_mainnet_arbitrage_healer.py -q -p no:cacheprovider",
+      "passed": 95,
+      "failed": 0,
+      "note": "Initially 91 passed / 4 failed because of the pre-existing time-bomb fixture (see side_finding T1); after the fixture fix the suite matches the recorded baseline."
+    },
+    "combined_targeted_suites": {
+      "command": "pytest scripts/tests/test_mainnet_arbitrage_healer.py flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py flashloan/app_runtime/tests/unit/test_v4_multihop_simulator.py flashloan/app_runtime/tests/unit/test_robinhood_mainnet_v4_pool_index.py -q",
+      "passed": 169,
+      "failed": 0
+    },
+    "pool_manager_cargo": {
+      "command": "cargo test --manifest-path flashloan/tools/pool_manager/Cargo.toml",
+      "passed": 56,
+      "failed": 0,
+      "note": "Only the pre-existing harmless `is_retryable` dead-code warning."
+    }
+  },
+  "negative_controls": [
+    {
+      "injected": "USD price read (ETH_USD env)",
+      "detected": true
+    },
+    {
+      "injected": "network import (requests)",
+      "detected": true
+    },
+    {
+      "injected": "flash fee rounded DOWN instead of up",
+      "detected": true
+    },
+    {
+      "injected": "profit computed without the flash fee",
+      "detected": true
+    },
+    {
+      "injected": "none (restore)",
+      "detected": false,
+      "note": "suite green again: 23 passed"
+    }
+  ],
+  "architectural_guards": {
+    "no_usd_or_tvl_dependency": true,
+    "no_network_or_storage_import": true,
+    "integer_accounting_only": "the sole float is the price-impact observation, which is a measurement and not an accounting value",
+    "guard_scope": "executable code only (docstring prose is excluded, so the module may document WHY it has no USD dependency)"
+  },
+  "production_readonly_verification": {
+    "snapshot_balances_json_non_empty": 0,
+    "snapshot_total": 4669,
+    "candidate_balances_json_non_empty": 0,
+    "candidate_total": 47,
+    "cow_execution_attempts": 0,
+    "v4_closed_loops": 88,
+    "capacity_raw_column_present": false,
+    "conclusion": "production DB unchanged by ARCH-2",
+    "verified_after_all_changes": true
+  },
+  "unlocked": [
+    "The off-chain profit curve can now be evaluated exactly; D4-d's unit_profit no longer strictly requires a chain-side eth_call preview.",
+    "Chain-off/chain-on equivalence is now continuously testable rather than a one-off assertion."
+  ],
+  "still_locked": [
+    "ARCH-2b: the simulator is NOT wired into the production path. Before switching, a copy-database run must compare off-chain predictions against chain previews amount-by-amount with zero deviation.",
+    "ARCH-3: the on-chain snapshot comparison and the degradation array are not implemented, so the chain still has no final safety net.",
+    "The chain-side Quoter must NOT be disabled on the basis of ARCH-2 alone."
+  ],
+  "limitations": [
+    "The simulator reproduces the chain's integer arithmetic; it does not reproduce EVM-level behaviours such as token transfer ordering, rounding in the PoolManager's own accounting, or gas costs.",
+    "No live broadcast has occurred (cow_execution_attempts = 0), so the 3-hop gas profile remains unmeasured.",
+    "The parity regression is deterministic over synthetic pool states; it is not yet validated against production pool states (that is ARCH-2b)."
+  ],
+  "side_finding": {
+    "id": "T1",
+    "severity": "P2",
+    "title": "healer test fixture hard-coded a review timestamp that rotted out of the audit window",
+    "discovery": "While running the ARCH-2 regression, scripts/tests/test_mainnet_arbitrage_healer.py showed 4 failures (91 passed / 4 failed) instead of the recorded 95-passed baseline.",
+    "root_cause": "The fixture `best_amount_database()` inserted rows with created_at='2026-11-10T11:00:00Z'. The audit query filters on `created_at >= datetime('now', '-24 hours')`, so once wall-clock time moved past that hard-coded instant, the fixture's own row was excluded from the query and the assertions observed an empty result set (confirmed=0 instead of 1).",
+    "why_it_matters": "This is a time-dependent test that silently rots: it reported a false failure today and would have reported a false PASS in the other direction (a genuinely missing best amount would have looked absent from the window rather than missing). The assertions were never actually exercising the intended code path.",
+    "fix": "Introduced `MainnetArbitrageHealerTests.review_created_at()`, which returns the current UTC timestamp formatted as '%Y-%m-%dT%H:%M:%SZ'. Both fixture INSERTs now use it, so the row always lands inside the audit window.",
+    "verification": "scripts/tests/test_mainnet_arbitrage_healer.py -> 95 passed (matches the recorded baseline exactly).",
+    "not_related_to_arch2": "Proven by removing the ARCH-2 module and its test file and re-running: the same 4 failures persisted (identical set), and the healer has no import dependency on the simulator.",
+    "production_impact": "None. Test-only change; no production code and no production database were touched."
+  }
+}

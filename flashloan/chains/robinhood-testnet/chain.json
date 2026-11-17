@@ -1,0 +1,97 @@
+{
+  "chain_id": 46630,
+  "contracts": {
+    "multicall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8",
+    "owner": "",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "position_manager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
+    "unified_executor": "",
+    "universal_router": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+    "usdc": "",
+    "v4_pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "v4_quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+    "wrapped_native": "0x7943e237c7F95DA44E0301572D358911207852Fa"
+  },
+  "data_files": {
+    "chain_test": "runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "lending_liquidity": "runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "normal_testnet_probe": "runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json",
+    "predeploy_readiness": "runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
+    "robinhood_stock_tokens": "../chains/robinhood-testnet/robinhood_stock_tokens.json",
+    "v4_pool_index": "runtime/evidence/robinhood-testnet/v4_pool_index/latest.json",
+    "v4_pool_liquidity": "runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json",
+    "v4_token_allowlist": "../chains/robinhood-testnet/v4_token_allowlist.json"
+  },
+  "database": {
+    "sqlite_dir": "../../db",
+    "sqlite_file": "local_store_46630.sqlite3"
+  },
+  "defaults": {
+    "flash_loan_pool_page": true,
+    "v4_quote_adapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+    "v4_sdk_adapter": ""
+  },
+  "display_name": "Robinhood Testnet",
+  "explorer": {
+    "url": "https://explorer.testnet.chain.robinhood.com"
+  },
+  "features": {
+    "dex_arbitrage": {
+      "allow_official_v4_broadcast": false,
+      "default_market_id": "dex-arbitrage-46630-uniswap-v4",
+      "legacy_default_market_id": "robinhood-testnet-dex-paused",
+      "observation_only": false,
+      "protocol": "uniswap_v4",
+      "protocol_supported": true
+    },
+    "liquidation": {
+      "default_market_id": "liquidation-46630-morpho-blue",
+      "legacy_default_market_id": "robinhood-testnet-liquidation-shadow",
+      "observation_only": true,
+      "protocol": "morpho_blue",
+      "protocol_supported": false
+    }
+  },
+  "flash_loan": {
+    "candidate_protocols": [
+      "uniswap_v4"
+    ],
+    "default_protocols": [
+      "uniswap_v4"
+    ],
+    "supported_protocol_count": 1,
+    "supports_aave_or_morpho_flash_loans": false
+  },
+  "native_symbol": "ETH",
+  "network": "robinhood-testnet",
+  "officialV4": {
+    "arb": "0x1A8Cc533EaBA93Ec7f68Ac6c428cDa948D7bB8DE",
+    "composer": "0x3a9636AfD016C01d18e81AF8B4F52F7b01562956"
+  },
+  "processing_handlers": {
+    "dex_overview": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_overview_flow",
+    "dex_pool_candidates": "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload",
+    "dex_quote_request": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow",
+    "dex_quote_routes": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_routes_flow",
+    "flash_loan_pools": "intent_trade.chains.robinhood_testnet.flash_loan_pools:flash_loan_pool_protocol_view",
+    "lending_liquidity": "intent_trade.chains.robinhood_testnet.lending_liquidity:lending_liquidity_flow",
+    "market_observation": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+    "predeploy_readiness": "intent_trade.chains.robinhood_testnet.predeploy_readiness:predeploy_readiness_flow"
+  },
+  "rpc": {
+    "alchemy": "",
+    "fallbacks": [
+      "https://robinhood-sepolia-rpc.publicnode.com"
+    ],
+    "hyperrpc": "",
+    "overrides": [],
+    "primary": "https://rpc.testnet.chain.robinhood.com/rpc",
+    "timeout_seconds": 20,
+    "wss": []
+  },
+  "schema_version": "chain-data-v1",
+  "tooling": {
+    "foundry_alias": "robinhoodTestnet",
+    "hardhat_network": "robinhoodTestnet"
+  }
+}

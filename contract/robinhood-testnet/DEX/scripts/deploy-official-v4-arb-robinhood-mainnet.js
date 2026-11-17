@@ -6,7 +6,7 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const { matchesArtifactRuntime } = require("../../../../test-token_create/scripts/tool/official-v4-immutable-code");
+const { matchesArtifactRuntime } = require("../../../../flashloan/tools/test-token_create/scripts/tool/official-v4-immutable-code");
 
 const MAINNET_CHAIN_ID = 4663;
 const DEFAULT_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951";

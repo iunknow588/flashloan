@@ -1,0 +1,151 @@
+{
+  "batch": "S1 (口径修正) + S1.5 (池深根因修复)",
+  "conclusions": {
+    "bestAmountRootCause": "probeRecords 长度全为 1（探测阶梯从未展开，bestAmount 实为初始 1.0 token 的二分下界）；balances 字典从未写入 token0/token1，导致 _liquidity_cap_raw 恒为 None，maxProbeAmountRaw 回退为 64 tokens 固定上限。本轮以 best_amount_ladder_incomplete fail-closed 止血，根因待后续批次。",
+    "corrLog10LiVsTrueTvl": 0.999999999999807,
+    "liBelowOneExclusionRule": "作废（会误删 $97.8K–$4.96M 真深池并打断 24 条闭环）",
+    "liquidityIndexIsDepthSignal": false,
+    "marketDepthExhausted": "作废",
+    "noDepthQualifiedPoolExists": "作废",
+    "remainingUnpricedPools": {
+      "closedLoopHopCount": 58,
+      "closedLoopImpact": "其中 58 条闭环跳引用这 12 个 unpriced 池，需在后续批次接入股票侧定价",
+      "count": 12,
+      "reason": "ETH/股票配对缺少股票侧市场价来源，按 fail-closed 规则明确报 unpriced"
+    },
+    "tokenPairRemovalAllowed": false,
+    "tokenPairRemovalConstraint": "在真实储备数据全面铺开前不得依据 TVL 结论下架任何 token 对"
+  },
+  "generatedAt": "2026-11-11T06:03:56.993696Z",
+  "healerCheck": {
+    "automaticBroadcastCandidates": 0,
+    "bestAmount": {
+      "code": "best_amount_missing",
+      "confirmed": 0,
+      "failClosed": true,
+      "ladderIncomplete": 1113,
+      "missing": 1356,
+      "retryable": false
+    },
+    "generatedAt": "2026-11-11T05:50:25Z",
+    "mode": "check",
+    "observationStartedAt": "2026-11-10T19:57:50Z",
+    "pnlStats": {
+      "confirmedSum": 0.0,
+      "estimatedProfitOnlyCount": 76,
+      "nonPositive": 1185,
+      "positiveAmount": 101,
+      "positiveEstimateOnly": 76,
+      "sum": -167.7598806758911,
+      "total": 1356,
+      "withValue": 1286
+    },
+    "poolDepth": {
+      "adequateDepthPoolCount": 16,
+      "badReadingCount": 0,
+      "candidatePoolRows": 47,
+      "insufficientDepthPoolCount": 0,
+      "maxTvlUsd": 1000000000.0,
+      "minTvlUsd": 100000.0,
+      "uniquePoolCount": 16
+    },
+    "safeToAutoBroadcast": false,
+    "transactionProduction": {
+      "bestAmountMissing": 1356,
+      "executablePositiveReviews": 0,
+      "healthy": false,
+      "latestAttemptAt": null,
+      "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+      "reason": "review_without_concrete_best_trade_amount",
+      "reviewAgeSeconds": 17678.318695,
+      "reviewFreshnessThresholdSeconds": 600,
+      "state": "review_best_amount_missing",
+      "transactionRecords": 0
+    }
+  },
+  "poolDepthRecompute": {
+    "acceptance": {
+      "corrLog10LiquidityIndexVsTrueTvl": 0.999999999999807,
+      "note": "corr(log10 li, log10 TVL) is a historical diagnostic only, NOT an acceptance criterion: liquidity_index is not a depth signal. Acceptance is based on true-reserve ranking consistency plus zero bad readings in the candidate set.",
+      "pricedPoolSampleSize": 4,
+      "spearmanStoredTvlVsTrueTvl": 1.0,
+      "statisticsCaveat": "Only 4 of 16 candidate pools can be priced (the remaining 12 are ETH/stock pairs whose market price source is not implemented yet, so the corrected formula deliberately reports them as 'unpriced'). With n=4 the reported correlation and Spearman coefficient are not statistically meaningful and must not be read as acceptance evidence; acceptance rests on (a) zero bad readings inside the candidate set and (b) the true-reserve TVL ranking for the ETH/USDG pools that carry live closed loops."
+    },
+    "closedLoopHopCountPricedPools": 28,
+    "closedLoopHopCountUnpricedPools": 58,
+    "counts": {
+      "candidatePoolBadReadingsAboveMax": 0,
+      "candidatePoolRows": 47,
+      "recomputedPriced": 4,
+      "recomputedUnpriced": 12,
+      "snapshotBadReadingsAboveMax": 1287,
+      "uniquePoolCount": 16
+    },
+    "ethUsdgPools": [
+      {
+        "closedLoopHopCount": 4,
+        "depthStatus": "deep",
+        "liquidityIndex": 0.11077345,
+        "poolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "storedTvlUsd": 7180684.903626192,
+        "trueReserveTvlUsd": "10080259.170700785379995028361131931196748717708225544907805198104476080449753588"
+      },
+      {
+        "closedLoopHopCount": 0,
+        "depthStatus": "deep",
+        "liquidityIndex": 0.03627748,
+        "poolId": "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+        "storedTvlUsd": 2352024.298843545,
+        "trueReserveTvlUsd": "3301200.3214918281197886254423528748418143608340083043046519153689256879142610722"
+      },
+      {
+        "closedLoopHopCount": 24,
+        "depthStatus": "deep",
+        "liquidityIndex": 0.02854432,
+        "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "storedTvlUsd": 1850470.5873978185,
+        "trueReserveTvlUsd": "2597498.0110724223270240242313167237232820257053733830680559069391391535672155415"
+      },
+      {
+        "closedLoopHopCount": 0,
+        "depthStatus": "liquid",
+        "liquidityIndex": 0.00218677,
+        "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866",
+        "storedTvlUsd": 141761.04295400315,
+        "trueReserveTvlUsd": "198993.13009679813680234532653084234583612760344057348273040142075806765073818671"
+      }
+    ],
+    "loopUsage": {
+      "closedLoopHopCountByPool": {
+        "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc": 6,
+        "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc": 14,
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e": 24,
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982": 4,
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6": 10,
+        "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168": 7,
+        "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748": 4,
+        "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c": 7,
+        "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d": 6,
+        "0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801": 4
+      },
+      "note": "The ETH/USDG pool with liquidity_index=0.02854432 carries 24 closed-loop hops. It is a genuine deep pool (true-reserve TVL $2,597,498) and must NOT be excluded; the original 'exclude liquidity_index < 1' rule was disproved by this measurement.",
+      "totalClosedLoops": 106
+    },
+    "priceEvidence": {
+      "errors": [],
+      "observedAt": "2026-11-11T06:03:56.923294Z",
+      "priceSource": "binance_us",
+      "priceUsd": 2069.59
+    }
+  },
+  "scope": {
+    "authoritySwitch": false,
+    "chainId": 4663,
+    "closedLoopRebuild": false,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "network": "robinhood",
+    "productionWrites": false,
+    "realBroadcast": false,
+    "serviceRestart": false
+  }
+}

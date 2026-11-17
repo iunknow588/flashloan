@@ -220,6 +220,20 @@ CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
     observed_at TEXT NOT NULL,
     refreshed_at TEXT NOT NULL,
     evidence_source TEXT,
+    -- The on-chain capacity evidence. The capacity is denominated in raw
+    -- token units, so it carries no external price dependency.
+    -- `capacity_binding_raw` is the decimals-normalised binding-side
+    -- capacity: the quantity the depth bands and the kernel admission floor
+    -- are actually applied to.
+    capacity_token0_raw TEXT,
+    capacity_token1_raw TEXT,
+    capacity_raw TEXT,
+    capacity_binding_raw REAL,
+    price_impact_bps REAL,
+    price_impact_limit_bps REAL,
+    depth_basis TEXT,
+    single_tick_max_token0_raw TEXT,
+    single_tick_max_token1_raw TEXT,
     PRIMARY KEY (network, chain_id, protocol, pool_id),
     FOREIGN KEY (network, chain_id, protocol, pool_id)
         REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)

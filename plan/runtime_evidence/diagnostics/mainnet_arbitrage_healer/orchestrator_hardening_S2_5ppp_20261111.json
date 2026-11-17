@@ -1,0 +1,220 @@
+{
+  "schema": "orchestrator_hardening_evidence",
+  "version": "S2.5-ppp",
+  "generatedAt": "2026-11-11T12:17:40.972636Z",
+  "summary": {
+    "theme": "deployment gate + Rust capacity saturation fix",
+    "findings": [
+      {
+        "id": "AUD-P0-6",
+        "title": "deployed pool-manager binary predates the capacity commands",
+        "severity": "critical",
+        "observed": {
+          "deployedBinary": "flashloan/tools/target/debug/pool-manager.exe",
+          "deployedBinaryModifiedAt": "2026-11-11T02:53:30.142500Z",
+          "deployedUsage": "<audit|cleanup|add-pair|refresh-pair|materialize-scope|scope-status>",
+          "freshUsage": "<audit|cleanup|add-pair|refresh-pair|refresh-key|materialize-scope|scope-status|ensure-indexes|ensure-depth-schema|depth>",
+          "missingCommands": [
+            "ensure-indexes",
+            "ensure-depth-schema",
+            "depth"
+          ],
+          "oldBehaviour": "repair() continued after ok=False and reported success"
+        },
+        "fix": {
+          "probe": "pool_manager_command_support(tools) reads the binary usage line (read-only)",
+          "layer": "build_report() adds a tooling layer with an explicit valid key",
+          "blocker": "pool_manager_commands_missing / tooling_deployment_gap",
+          "chainStop": "repair() returns stopped=tool_deployment_gap before running any tool",
+          "deployment": "flashloan/tools/target/debug/pool-manager.exe rebuilt (gitignored build artifact)",
+          "notRebuilt": "manager-api.exe (locked by the resident service; no restart performed)"
+        }
+      },
+      {
+        "id": "AUD-P1-6",
+        "title": "the repair chain continued after a tool failure",
+        "severity": "high",
+        "fix": {
+          "helper": "_tool_failed(entry)",
+          "steps": [
+            "tokens",
+            "pools.depth",
+            "pools.materialize",
+            "closedLoops"
+          ],
+          "result": "stopped=tool_failure + stoppedAt + reason"
+        }
+      },
+      {
+        "id": "AUD-P2-6",
+        "title": "Rust capacity saturated at u128::MAX and was read as zero price impact",
+        "severity": "critical",
+        "observed": {
+          "sentinel": "340282366920938463463374607431768211454",
+          "sentinelMeaning": "2**128 - 2",
+          "reportedPriceImpactBps": 0.0,
+          "rootCause": [
+            "spot_amount_out() multiplied in 256 bits; the product wrapped for amounts near u128::MAX",
+            "the wrapped spot output made amount_out >= spot_out hold for every oversized input",
+            "the price impact was reported as exactly 0 and the binary search accepted the saturated value"
+          ],
+          "poolSideVariability": "only some pools triggered it, depending on sqrtP and amount, so the baseline did not catch it"
+        },
+        "fix": {
+          "spot": "spot_amount_out() now uses the SDK 512-bit mul_div with an upper clamp",
+          "ceiling": "reserve_ceiling() computes the virtual reserve ceiling with a 512-bit mul_div",
+          "guard": "spot_out > ceiling returns an error",
+          "bracket": "solve_capacity() clamps the search upper bound to the ceiling"
+        },
+        "chainReadback": [
+          {
+            "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc",
+            "before": "340282366920938463463374607431768211454",
+            "after": "99938943274133825410",
+            "priceImpactBps": 10.0
+          },
+          {
+            "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "before": "340282366920938463463374607431768211454",
+            "after": "2130400100532712269",
+            "priceImpactBps": 10.0
+          },
+          {
+            "poolId": "0xd1aeea40e4def63338b6ae30e541f9207329585d58ccd57b9e4228f82b872388",
+            "before": "2406735040102765",
+            "after": "2406735040102765",
+            "priceImpactBps": 10.0
+          }
+        ],
+        "pythonReference": {
+          "verdict": "the Python implementation was already correct (arbitrary-precision integers); Rust was the deviating side",
+          "pythonCapacityRaw": 99938936973127434099,
+          "rustCapacityRaw": 99938943274133825410,
+          "relativeError": 6.3e-09
+        }
+      },
+      {
+        "id": "AUD-P3-6",
+        "title": "the Rust tool only read RPC endpoints from the environment",
+        "severity": "high",
+        "observed": {
+          "rustError": "no RPC endpoint configured; set ROBINHOOD_MAINNET_RPC_URLS or pass --rpc-url",
+          "pythonFallback": [
+            "https://rpc.mainnet.chain.robinhood.com",
+            "https://robinhood-rpc.publicnode.com",
+            "https://rpc.ordofi.network"
+          ],
+          "chainConfigSource": "flashloan/src/chains/robinhood/chain.json"
+        },
+        "fix": {
+          "functions": [
+            "rpc_urls_from_chain_config()",
+            "chain_data_roots()",
+            "rpc_urls()"
+          ],
+          "precedence": "environment first, chain configuration as the fallback",
+          "lookup": "walks up from the current directory and the executable location"
+        },
+        "knownIssue": {
+          "id": "DEP-P1-9",
+          "endpoint": "https://rpc.ordofi.network",
+          "problem": "DNS does not resolve; a full-batch depth refresh waits for the timeout on every fallback and hangs",
+          "action": "remove or repair the endpoint before the S2.5' production rollout"
+        }
+      },
+      {
+        "id": "AUD-P4-6",
+        "title": "Python/Rust capacity parity was not locked",
+        "severity": "medium",
+        "fix": {
+          "test": "flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py",
+          "vectors": 3,
+          "tolerance": "relative error < 1e-6",
+          "additional": "a regression test that the live-pool capacity is never saturated"
+        }
+      }
+    ]
+  },
+  "regression": {
+    "python": {
+      "scripts/tests/test_mainnet_arbitrage_healer.py": "78 passed",
+      "test_robinhood_mainnet_v4_pool_index.py": "19 passed",
+      "test_robinhood_v4_pool_capacity.py": "26 passed",
+      "test_dex_opportunity_auto_execute.py": "72 passed",
+      "test_rust_closed_loop_worker_bridge.py": "66 passed",
+      "merged": "261 passed"
+    },
+    "rust": {
+      "cargo test pool_manager": "37 passed",
+      "cargo test closed_loop_manager": "10 passed",
+      "cargo build --release rs-src": "success"
+    },
+    "knownPreExistingFailures": {
+      "test_verify_closed_loop_runtime_identity_isolation.py": 5,
+      "note": "pre-existing before this batch; not fixed and not counted as new failures"
+    }
+  },
+  "productionReadOnlyCheck": {
+    "report": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\mainnet_arbitrage_healer_check_20261111T121409Z.json",
+    "reportSha256": "38ed1224bd62d63e2bfd801d0f4f68aee9e3fb179d3cec801ed22eaea3ca5306",
+    "elapsedSeconds": 24.9,
+    "baselineSeconds": 19.37,
+    "tooling": {
+      "available": true,
+      "binary": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\debug\\pool-manager.exe",
+      "binaryModifiedAt": "2026-11-11T12:07:40.537781Z",
+      "requiredCommands": [
+        "audit",
+        "cleanup",
+        "materialize-scope",
+        "ensure-indexes",
+        "ensure-depth-schema",
+        "depth"
+      ],
+      "missingCommands": [],
+      "complete": true,
+      "reason": null,
+      "valid": true,
+      "code": null,
+      "secondaryCodes": []
+    },
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "blockerCodes": {
+      "pools": "pool_scope_drift",
+      "reviews": "best_amount_missing",
+      "broadcast": "layer_invalid"
+    },
+    "secondaryBlockerCodes": {
+      "pools": [
+        "pool_depth_snapshot_stale"
+      ],
+      "reviews": [],
+      "broadcast": []
+    },
+    "productionState": "pool_scope_drift",
+    "safeToAutoBroadcast": false
+  },
+  "constraintsObserved": {
+    "productionWrites": "none",
+    "productionDatabase": "read-only (file:...?mode=ro)",
+    "daemon": "PID 30304 / 0.0.0.0:5000 not stopped, not restarted",
+    "commits": "none",
+    "branches": "none",
+    "rustBuildTargetDir": "flashloan/tools/.cargo-verify-target",
+    "tvlDelisting": "no token pair was delisted on TVL grounds; market_depth_exhausted remains void",
+    "buildArtifactUpdate": "flashloan/tools/target/debug/pool-manager.exe was rebuilt; the directory is gitignored"
+  },
+  "artifacts": {
+    "healer": "scripts/mainnet_arbitrage_healer.py",
+    "rustDepth": "flashloan/tools/pool_manager/src/depth.rs",
+    "rustChain": "flashloan/tools/pool_manager/src/chain.rs",
+    "rustLib": "flashloan/tools/pool_manager/src/lib.rs",
+    "pythonCapacity": "flashloan/src/dex/intent_trade/chains/robinhood/v4_pool_capacity.py",
+    "parityTest": "flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py",
+    "archive": "plan/back/已完成任务归档_20261111_S2_5ppp.md"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "batch": "S2.5'' remaining code items",
+  "generatedAt": "2026-11-11T11:13:00.521611Z",
+  "scope": {
+    "AUD-P2-3": "snapshot freshness gate wired into the pool layer and the production status",
+    "DEP-P2-2": "path-level minimum capacity enforced at closed-loop materialization",
+    "AUD-P3-4": "remaining cross-language shared constants consolidated into pool_manager::depth_config"
+  },
+  "productionWrites": [],
+  "daemon": {
+    "pid": 30304,
+    "port": 5000,
+    "stopped": false,
+    "restarted": false
+  },
+  "regression": {
+    "scripts/tests/test_mainnet_arbitrage_healer.py": {
+      "passed": 70,
+      "baseline": 63
+    },
+    "flashloan/app_runtime/tests/unit/test_robinhood_mainnet_v4_pool_index.py": {
+      "passed": 19,
+      "baseline": 19
+    },
+    "flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py": {
+      "passed": 22,
+      "baseline": 19
+    },
+    "flashloan/app_runtime/tests/unit/test_dex_opportunity_auto_execute.py": {
+      "passed": 72,
+      "baseline": 72
+    },
+    "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py": {
+      "passed": 66,
+      "baseline": 66
+    },
+    "merged_python_5_files": {
+      "passed": 249,
+      "baseline": 239
+    },
+    "cargo_test_pool_manager": {
+      "passed": 30,
+      "baseline": 29
+    },
+    "cargo_test_closed_loop_manager": {
+      "passed": 10,
+      "baseline": 5
+    },
+    "cargo_build_release_rs_src": "success"
+  },
+  "new_artifacts": [
+    "flashloan/tools/pool_manager/src/depth_config.rs"
+  ],
+  "changed_files": [
+    "scripts/mainnet_arbitrage_healer.py",
+    "scripts/tests/test_mainnet_arbitrage_healer.py",
+    "flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py",
+    "flashloan/tools/pool_manager/src/depth_config.rs",
+    "flashloan/tools/pool_manager/src/depth.rs",
+    "flashloan/tools/pool_manager/src/lib.rs",
+    "flashloan/tools/pool_manager/src/scope.rs",
+    "flashloan/tools/closed_loop_manager/Cargo.toml",
+    "flashloan/tools/closed_loop_manager/src/lib.rs"
+  ],
+  "gate_semantics": {
+    "capacity_unknown": "not blocked by default; DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED=1 promotes it",
+    "snapshot_stale": "blocks the pool layer; unreadable timestamp counts as stale",
+    "snapshot_table_missing": "not stale; reported by the depth audit as capacity schema missing"
+  },
+  "production_read_only_source": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\mainnet_arbitrage_healer_check_20261111T110659Z.json"
+}

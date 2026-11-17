@@ -1,0 +1,11 @@
+{
+  "band": "unmeasured",
+  "chainId": 4663,
+  "count": 0,
+  "generatedAt": "2026-11-12T17:29:08.559445Z",
+  "minimumPoolDepthUsdg": "10.000000",
+  "minimumPoolDepthUsdgRaw": 10000000,
+  "mode": "read-only",
+  "network": "robinhood",
+  "pools": []
+}

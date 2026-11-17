@@ -146,7 +146,7 @@ def _has_preserved_manifest_evidence(route: dict[str, Any]) -> bool:
 def _mainnet_last_arb_live_test(chain_id: int | None) -> dict[str, Any] | None:
     if int(chain_id or 0) != 4663:
         return None
-    manifest_path = _workspace_root() / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
+    manifest_path = _workspace_root() / "flashloan" / "tools" / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:

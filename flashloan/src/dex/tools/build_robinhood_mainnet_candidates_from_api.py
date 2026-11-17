@@ -30,6 +30,7 @@ SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.chain_data_registry import chain_data_file_path  # noqa: E402
 from core.env_loader import load_chain_env_files  # noqa: E402
 from dex.intent_trade.chains.robinhood.dex_pool_candidates import (  # noqa: E402
@@ -116,7 +117,7 @@ def _normalize_usde_rows(path: Path) -> list[dict[str, Any]]:
                 "dynamic": dynamic,
                 "hook": hook,
                 "liq": liq,
-                "normal": (not dynamic) and (0 < fee <= 3000) and hook in ("", ZERO_ADDRESS.lower()),
+                "normal": (not dynamic) and (0 < fee <= MAX_CANDIDATE_FIXED_FEE) and hook in ("", ZERO_ADDRESS.lower()),
                 "createdBlock": row.get("createdBlock"),
             }
         )

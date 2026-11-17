@@ -1,0 +1,67 @@
+{
+  "chain_id": 43114,
+  "contracts": {
+    "aave_liquidation_data_provider": "",
+    "aave_v3_data_provider": "",
+    "aave_v3_pool": "",
+    "owner": "",
+    "unified_executor": "",
+    "usdc": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+  },
+  "data_files": {
+    "aave_reserves": "runtime/cache/aave_reserve_assets.json",
+    "uniswap_v3_pools": "runtime/cache/avalanche_l1_pool_static_table.json",
+    "v2_pool_discovery": "runtime/cache/avalanche_multi_dex_v2_pool_discovery.json"
+  },
+  "display_name": "Avalanche Chain",
+  "explorer": {
+    "url": "https://snowtrace.io"
+  },
+  "features": {
+    "dex_arbitrage": {
+      "default_market_id": "dex-arbitrage-43114-uniswap-v3",
+      "legacy_default_market_id": "avalanche-dex-arbitrage",
+      "protocol": "uniswap_v3"
+    },
+    "liquidation": {
+      "default_market_id": "liquidation-43114-aave-v3",
+      "legacy_default_market_id": "avalanche-aave-v3",
+      "protocol": "aave_v3"
+    }
+  },
+  "flash_loan": {
+    "candidate_protocols": [
+      "aave_v3",
+      "uniswap_v3",
+      "uniswap_v4",
+      "traderjoe_v2",
+      "curve"
+    ],
+    "default_protocols": [
+      "aave_v3",
+      "uniswap_v3",
+      "traderjoe_v2"
+    ],
+    "supported_protocol_count": 5
+  },
+  "native_symbol": "AVAX",
+  "network": "avalanche",
+  "processing_handlers": {
+    "dex_pool_candidates": "intent_trade.chains.avalanche.dex_pool_candidates:dex_pool_candidates_payload",
+    "flash_loan_pools": "intent_trade.chains.avalanche.flash_loan_pools:flash_loan_pool_protocol_view",
+    "pool_discovery": "intent_trade.chains.avalanche.pool_discovery:pool_discovery_flow"
+  },
+  "rpc": {
+    "fallbacks": [
+      "https://rpc.ankr.com/avalanche",
+      "https://avalanche-c-chain-rpc.publicnode.com"
+    ],
+    "primary": "https://api.avax.network/ext/bc/C/rpc",
+    "timeout_seconds": 20
+  },
+  "schema_version": "chain-data-v1",
+  "tooling": {
+    "foundry_alias": "avalanche",
+    "hardhat_network": "avalanche"
+  }
+}

@@ -21,6 +21,7 @@ from dex.intent_trade.chains.robinhood_common.rpc_gate import (
     v4_live_quote_enabled as _rpc_gate_v4_live_quote_enabled,
 )
 from market.binance_market.dex_surfaces import (
+    CHAIN_FLASH_LOAN_FEE_BPS,
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
 )
@@ -833,7 +834,12 @@ def build_route_onchain_evidence(
         if all_hops_verified and route_closed and final_symbol == input_symbol and final_amount is not None
         else None
     )
-    token_flash_fee = borrow_input_amount * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    # The chain's own fee: the live evidence reproduces the chain's
+    # arithmetic, so it must use the fee the chain charges and not the
+    # preflight margin. The production route borrows straight from the
+    # Uniswap V4 PoolManager and pays no flash-loan fee.
+    token_flash_fee = borrow_input_amount * Decimal(str(CHAIN_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    token_preflight_margin = borrow_input_amount * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
     token_submission_net_profit = token_gross_profit - token_flash_fee if token_gross_profit is not None else None
     token_net_profit = token_submission_net_profit
     token_net_profit_bps = (
@@ -843,9 +849,10 @@ def build_route_onchain_evidence(
     )
     final_output_usd = final_amount if borrow_asset_is_stable and final_symbol in _STABLE_ANCHOR_SYMBOLS and final_amount is not None else None
     gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
-    flash_fee = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    flash_fee = notional * Decimal(str(CHAIN_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    preflight_margin_usd = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
     gas_reserve = Decimal(str(DEFAULT_GAS_RESERVE_USD))
-    submission_net_profit_usd = gross_profit_usd - flash_fee if gross_profit_usd is not None else None
+    submission_net_profit_usd = gross_profit_usd - preflight_margin_usd if gross_profit_usd is not None else None
     net_profit_usd = submission_net_profit_usd - gas_reserve if submission_net_profit_usd is not None else None
     net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
     min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
@@ -1126,7 +1133,9 @@ def _build_onchain_quote_evidence_payload(c: dict[str, Any]) -> dict[str, Any]:
             "tokenGasExcluded": not borrow_asset_is_stable,
             "finalOutputUsd": float(final_output_usd) if final_output_usd is not None else None,
             "grossProfitUsd": float(gross_profit_usd) if gross_profit_usd is not None else None,
-            "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
+            "chainFlashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
+        "flashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
+        "preflightMarginBps": DEFAULT_FLASH_LOAN_FEE_BPS,
             "flashLoanFeeUsd": float(flash_fee),
             "gasReserveUsd": float(gas_reserve),
             "offchainMinProfitUsd": float(min_profit_usd),

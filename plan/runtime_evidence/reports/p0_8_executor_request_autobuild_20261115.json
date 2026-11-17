@@ -1,0 +1,116 @@
+{
+  "authority": "code_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "executor incremental output guard + worker executorRequest autobuild + pool catalog lookup",
+  "contractChanges": {
+    "deployedBytecodeBytes": {
+      "mainnet": 24551,
+      "mainnetHeadroom": 25,
+      "mainnetLimit": 24576,
+      "testnet": 24428,
+      "testnetHeadroom": 148
+    },
+    "files": [
+      "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "contract/robinhood-testnet/DEX/src/RobinhoodPausedFlashLoanExecutor.sol"
+    ],
+    "guard": "balanceAfter >= balanceBefore + minAmountOut",
+    "mechanism": "The reviewed route output is enforced as an incremental balance increase, so pre-existing executor funds cannot subsidize a worse-than-reviewed fill.",
+    "productionWrite": false
+  },
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-15T00:00:00Z",
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "reviewBroadcastSchemaExpanded": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "remainingGates": [
+    "主网 bounded executor 部署与接线（需显式授权）",
+    "主网 live parity 与同源数学精确链上三态分类",
+    "批次广播在生产开启前的端到端回放",
+    "逐 hop 输出下限（当前仅路线级下限；新 ABI 无 EIP-170 预算）"
+  ],
+  "rollbackAvailable": true,
+  "rollbackPoint": "撤销增量 minAmountOut 校验、executorRequest 自动构造、pool_manager 目录读取与对应测试",
+  "rpcRequestCount": 0,
+  "rustChanges": {
+    "executorRequest": {
+      "amountInputs": [
+        "selectedAmountRaw",
+        "outTb",
+        "outTa"
+      ],
+      "fields": [
+        "token",
+        "amount",
+        "swapTargets",
+        "swapCalldatas",
+        "finalToken",
+        "minProfit",
+        "minAmountOut"
+      ],
+      "finalOutputFloor": "outTz",
+      "poolManagerSource": "v4_exchange_pools.pool_manager resolved by the three selected PoolKey pool ids",
+      "priceLimits": "hopSqrtPriceLimits",
+      "routeInputs": [
+        "selectedKeys",
+        "selectedDirections"
+      ]
+    },
+    "files": [
+      "flashloan/rs-src/src/execution.rs",
+      "flashloan/rs-src/src/sqlite_read.rs",
+      "flashloan/rs-src/src/worker_pool.rs"
+    ],
+    "persistencePolicy": "No long-term review/submission/broadcast schema expansion; the request is regenerated from pool catalog facts and the current review result."
+  },
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "RobinhoodPausedFlashLoanExecutor mainnet suite",
+      "result": "33 passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "RobinhoodPausedFlashLoanExecutor testnet suite",
+      "result": "31 passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "flashloan-rs offline suite",
+      "result": "121 passed / 0 failed",
+      "target": "flashloan/rs-src"
+    },
+    {
+      "name": "tools offline workspace",
+      "result": "exit code 0",
+      "target": "flashloan/tools"
+    },
+    {
+      "name": "reviewed_route_builds_bounded_pool_manager_executor_request",
+      "result": "passed",
+      "target": "rs-src execution"
+    },
+    {
+      "name": "executor_batch_builds_request_from_reviewed_route_and_pool_catalog",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    },
+    {
+      "name": "does not let a pre-existing executor balance subsidize the reviewed minimum output",
+      "result": "passed on mainnet and testnet suites",
+      "target": "executor contract"
+    }
+  ],
+  "title": "P0-8 executorRequest 自动构造与增量输出反补贴"
+}

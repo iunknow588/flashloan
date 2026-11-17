@@ -9,11 +9,23 @@ SENSITIVE_ENV_MARKERS = (
     "JWT",
 )
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
+    """Return the ``.env`` files that apply to ``start_path``.
+
+    The upward walk stops at the repository root.  The repository lives inside
+    a shared parent folder that holds unrelated projects and its own ``.env``
+    files, and loading those would silently merge foreign configuration into
+    this application.  Only ``.env`` files at or below the repository root
+    are ever considered.
+    """
+
     path = Path(os.path.abspath(start_path))
     directory = path.parent if path.is_file() else path
     paths: list[Path] = []
+    stop = find_repo_root(directory)
 
     for current in [directory, *directory.parents]:
+        if stop is not None and current == stop:
+            break
         env_path = current / ".env"
         if env_path.exists() and env_path.is_file():
             paths.append(env_path)

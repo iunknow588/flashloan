@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "../..");
-const CHAINS_ROOT = path.join(ROOT, "flashloan", "src", "chains");
+const CHAINS_ROOT = path.join(ROOT, "flashloan", "chains");
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));

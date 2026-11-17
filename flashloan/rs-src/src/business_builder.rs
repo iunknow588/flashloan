@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const DYNAMIC_FEE_FLAG: i64 = 8_388_608;
 const MAX_FIXED_FEE: i64 = 100_000;
-const MAX_USABLE_CANDIDATE_FIXED_FEE: i64 = 3000;
+const MAX_USABLE_CANDIDATE_FIXED_FEE: i64 = 30_000;
 const MAX_DIRECTION_CANDIDATE_POOLS: usize = 5;
 const MAX_OBSERVATION_POOLS_PER_DIRECTION: usize = 3;
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
@@ -93,12 +93,25 @@ fn v_bool(value: bool) -> Value {
     Value::from(if value { 1 } else { 0 })
 }
 
+/// Whether a token symbol is an unresolved factory placeholder.
+///
+/// The registry keeps two forms of the same unresolved token: the bare
+/// ``0X`` plus eight hex digits, and the same value behind an
+/// ``UNRESOLVED:`` prefix. The Python builder rejects both, so the Rust
+/// builder has to reject both as well: a builder that accepts the
+/// prefixed form would publish closed loops whose path carries a
+/// placeholder symbol, and the reviewer would then see a route that was
+/// never a route.
 fn is_unresolved_placeholder_symbol(symbol: &str) -> bool {
     let normalized = symbol.trim().to_uppercase();
-    if normalized.len() != 10 || !normalized.starts_with("0X") {
+    let candidate = match normalized.strip_prefix("UNRESOLVED:") {
+        Some(rest) => rest.trim(),
+        None => normalized.as_str(),
+    };
+    if candidate.len() != 10 || !candidate.starts_with("0X") {
         return false;
     }
-    normalized[2..].chars().all(|item| item.is_ascii_hexdigit())
+    candidate[2..].chars().all(|item| item.is_ascii_hexdigit())
 }
 
 fn is_fixed_fee(fee: Option<i64>, max_fixed_fee: i64) -> bool {
@@ -142,7 +155,6 @@ fn balances_tvl(balances_json: &Option<String>) -> f64 {
 }
 
 fn has_confirmed_liquidity(pool: &PoolRow) -> bool {
-    let evidence_source = norm(&pool.evidence_source);
     let has_liquidity = pool.has_liquidity;
     // Explicit zero-liquidity evidence always wins over stale depth.  The
     // raw pool row is retained so a later positive snapshot makes the pool
@@ -150,7 +162,7 @@ fn has_confirmed_liquidity(pool: &PoolRow) -> bool {
     if has_liquidity == Some(0) {
         return false;
     }
-    if evidence_source == "pool_manager_extsload_live_state_batch" && has_liquidity == Some(1) {
+    if has_liquidity == Some(1) {
         let raw_liquidity = pool
             .liquidity
             .as_deref()
@@ -442,6 +454,54 @@ fn map_pool_row(row: &Row<'_>) -> rusqlite::Result<PoolRow> {
     })
 }
 
+/// Read the admission inputs of every measured pool of one chain.
+///
+/// The payload is the pool manager's depth verdict plus the depth-band
+/// document that carries the decimals-normalised binding-side capacity.
+/// Both values are observations written by the pool manager; the admission
+/// decision itself belongs to the kernel.
+pub fn read_pool_admission_inputs(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    protocol: &str,
+) -> Result<BTreeMap<String, (Option<String>, Option<String>, Option<bool>)>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT p.pool_id, l.depth_status, l.depth_band_json, l.has_liquidity
+             FROM v4_exchange_pools p
+             LEFT JOIN v4_exchange_pool_liquidity_snapshots l
+               ON l.network = p.network AND l.chain_id = p.chain_id
+              AND l.protocol = p.protocol AND l.pool_id = p.pool_id
+             WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
+             ORDER BY p.pool_id",
+        )
+        .map_err(|error| format!("pool admission prepare failed: {error}"))?;
+    let rows = statement
+        .query_map(
+            rusqlite::params![network, chain_id, protocol],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                ))
+            },
+        )
+        .map_err(|error| format!("pool admission query failed: {error}"))?;
+    let mut inputs = BTreeMap::new();
+    for row in rows {
+        let (pool_id, depth_status, depth_band_json, has_liquidity) =
+            row.map_err(|error| format!("pool admission row failed: {error}"))?;
+        inputs.insert(
+            pool_id,
+            (depth_status, depth_band_json, has_liquidity.map(|value| value != 0)),
+        );
+    }
+    Ok(inputs)
+}
+
 fn pools_by_edge(pools: &[PoolRow]) -> BTreeMap<String, Vec<PoolRow>> {
     let mut by_edge: BTreeMap<String, Vec<PoolRow>> = BTreeMap::new();
     for pool in pools {
@@ -486,6 +546,43 @@ fn fee_label_value(fee: Option<i64>) -> Value {
     } else {
         Value::from(fee.unwrap_or(0))
     }
+}
+
+/// Build the depth-band document with the kernel's admission verdict.
+///
+/// The verdict is written into the row the candidate surface already
+/// carries, so Python reads one decision from one place instead of looking
+/// for a second source of truth.
+fn kernel_admission_document(pool: &PoolRow) -> JsonValue {
+    let verdict = crate::depth_verdict::admit_candidate_pool_with_liquidity(
+        pool.depth_status.as_deref(),
+        pool.depth_band_json.as_deref(),
+        pool.has_liquidity.map(|value| value != 0),
+    );
+    let mut document = match json_object(&pool.depth_band_json) {
+        JsonValue::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    document.insert(
+        "kernelAdmitted".to_string(),
+        JsonValue::Bool(verdict.admitted),
+    );
+    document.insert(
+        "kernelAdmissionReason".to_string(),
+        JsonValue::String(verdict.reason),
+    );
+    if let Some(band) = verdict.depth_band {
+        document.insert("kernelDepthBand".to_string(), JsonValue::String(band));
+    }
+    if let Some(capacity) = verdict.capacity_binding_raw {
+        document.insert(
+            "kernelCapacityBindingRaw".to_string(),
+            serde_json::Number::from_f64(capacity)
+                .map(JsonValue::Number)
+                .unwrap_or(JsonValue::Null),
+        );
+    }
+    JsonValue::Object(document)
 }
 
 fn pool_write_values(
@@ -547,7 +644,9 @@ fn pool_write_values(
         as_number(pool.estimated_tvl_usd),
         Value::Text(json_dumps(&json_object(&pool.balances_json))),
         Value::Text(pool.depth_status.clone().unwrap_or_default()),
-        Value::Text(json_dumps(&json_object(&pool.depth_band_json))),
+        // The kernel publishes its admission verdict next to the depth band
+        // so every consumer reads the same decision from the same row.
+        Value::Text(json_dumps(&kernel_admission_document(pool))),
         v_bool(true),
         v_bool(is_first),
         v_bool(is_third),
@@ -1540,7 +1639,18 @@ pub(crate) fn build_candidate_anchor(
     let normal_pools: Vec<PoolRow> = pools
         .iter()
         .filter(|pool| {
-            is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE) && has_no_hook(&pool.hooks)
+            is_fixed_fee(pool.fee, MAX_USABLE_CANDIDATE_FIXED_FEE)
+                && has_no_hook(&pool.hooks)
+                // The kernel owns the admission decision: a pool that
+                // cannot carry a position must never enter the candidate
+                // set, because the closed loops are built from it and a
+                // shallow pool produces a route that can never be sized
+                // into a profitable position.
+                && crate::depth_verdict::admit_candidate_pool(
+                    pool.depth_status.as_deref(),
+                    pool.depth_band_json.as_deref(),
+                )
+                .admitted
         })
         .cloned()
         .collect();
@@ -2594,15 +2704,120 @@ mod tests {
         assert!(!is_unresolved_placeholder_symbol("0XABCDEF12F"));
     }
 
+    /// The registry keeps the prefixed form as well, and the Python
+    /// builder rejects it. A Rust builder that accepted only the bare
+    /// form would publish closed loops over unresolved tokens.
+    #[test]
+    fn the_unresolved_prefix_form_is_rejected_too() {
+        assert!(is_unresolved_placeholder_symbol("UNRESOLVED:0X102154E7"));
+        assert!(is_unresolved_placeholder_symbol("unresolved:0x60042b65"));
+        assert!(is_unresolved_placeholder_symbol("UNRESOLVED: 0X102154E7"));
+        assert!(!is_unresolved_placeholder_symbol("UNRESOLVED:ETH"));
+        assert!(!is_unresolved_placeholder_symbol("PLTR"));
+    }
+
+    /// The candidate rebuild reads the base pool table, so a pool whose depth
+    /// verdict is `thin` came back on every refresh and the shallow-pool
+    /// cleanup never converged.
+    #[test]
+    fn the_depth_verdict_decides_whether_a_pool_enters_the_candidate_set() {
+        // The verdict that can carry a position is admitted.
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(Some("deep")));
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(Some("liquid")));
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(Some("medium")));
+        // The verdict that cannot carry a position is rejected.
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("thin")));
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("shallow")));
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("dust")));
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("unpriced")));
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("no_liquidity")));
+        // The verdict is case- and whitespace-insensitive.
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(Some("  DEEP ")));
+        assert!(!crate::depth_verdict::depth_verdict_admits_pool(Some("Thin")));
+        // A missing verdict is a coverage gap of the store, not a defect of
+        // the pool, so it is not a rejection.
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(None));
+        assert!(crate::depth_verdict::depth_verdict_admits_pool(Some("")));
+    }
+
     #[test]
     fn fixed_fee_rule_excludes_dynamic_and_high_fee() {
         assert!(is_fixed_fee(Some(3000), MAX_USABLE_CANDIDATE_FIXED_FEE));
+        assert!(is_fixed_fee(Some(30_000), MAX_USABLE_CANDIDATE_FIXED_FEE));
         assert!(is_fixed_fee(Some(100), MAX_USABLE_CANDIDATE_FIXED_FEE));
-        assert!(!is_fixed_fee(Some(3001), MAX_USABLE_CANDIDATE_FIXED_FEE));
+        assert!(!is_fixed_fee(Some(30_001), MAX_USABLE_CANDIDATE_FIXED_FEE));
         assert!(!is_fixed_fee(
             Some(8_388_608 | 3000),
             MAX_USABLE_CANDIDATE_FIXED_FEE
         ));
         assert!(!is_fixed_fee(None, MAX_USABLE_CANDIDATE_FIXED_FEE));
+    }
+
+    #[test]
+    fn positive_raw_liquidity_confirms_pool_for_any_live_source() {
+        let pool = PoolRow {
+            pool_id: "0x01".to_string(),
+            pool_identity_mode: None,
+            pool_manager: None,
+            pool_key_json: None,
+            token0: None,
+            token1: None,
+            fee: Some(3000),
+            tick_spacing: None,
+            hooks: None,
+            address_pair: None,
+            sqrt_price_x96: None,
+            tick: None,
+            has_liquidity: Some(1),
+            liquidity: Some("520797957".to_string()),
+            liquidity_index: Some(0.0),
+            estimated_tvl_usd: None,
+            balances_json: None,
+            depth_status: Some("no_liquidity".to_string()),
+            depth_band_json: None,
+            depth_score_usd: None,
+            price: None,
+            liquidity_read_at: None,
+            liquidity_block_number: Some(109_733_549),
+            recent_swap_active: None,
+            observed_at: None,
+            refreshed_at: None,
+            evidence_source: Some("pool_manager_extsload_live_state_batch_rust".to_string()),
+        };
+        assert!(has_confirmed_liquidity(&pool));
+    }
+
+    #[test]
+    fn explicit_zero_liquidity_still_wins_over_positive_raw_liquidity() {
+        let pool = PoolRow {
+            pool_id: "0x01".to_string(),
+            pool_identity_mode: None,
+            pool_manager: None,
+            pool_key_json: None,
+            token0: None,
+            token1: None,
+            fee: Some(3000),
+            tick_spacing: None,
+            hooks: None,
+            address_pair: None,
+            sqrt_price_x96: None,
+            tick: None,
+            has_liquidity: Some(0),
+            liquidity: Some("520797957".to_string()),
+            liquidity_index: Some(0.0),
+            estimated_tvl_usd: None,
+            balances_json: None,
+            depth_status: Some("no_liquidity".to_string()),
+            depth_band_json: None,
+            depth_score_usd: None,
+            price: None,
+            liquidity_read_at: None,
+            liquidity_block_number: Some(109_733_549),
+            recent_swap_active: None,
+            observed_at: None,
+            refreshed_at: None,
+            evidence_source: Some("pool_manager_extsload_live_state_batch_rust".to_string()),
+        };
+        assert!(!has_confirmed_liquidity(&pool));
     }
 }

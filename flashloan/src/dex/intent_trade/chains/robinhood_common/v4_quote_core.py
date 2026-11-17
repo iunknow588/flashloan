@@ -16,6 +16,17 @@ from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_netwo
 
 
 V4_POOLS_SLOT = (6).to_bytes(32, "big")
+# Uniswap V4 `Pool.State` packs the following fields into consecutive
+# storage words after the keccak-derived state slot:
+#   word 0 -> slot0 (packed sqrtPriceX96/tick/fees)
+#   word 1 -> feeGrowthGlobal0X128
+#   word 2 -> feeGrowthGlobal1X128
+#   word 3 -> liquidity
+# Reading word 1 instead of word 3 returns the fee-growth accumulator, which
+# makes empty pools look deep and routes them into arbitrage scans.
+# Keep this aligned with the Rust reader in `rs-src/src/execution.rs`
+# (`liquidity_slot = state_slot + 3`).
+V4_STATE_LIQUIDITY_WORD_OFFSET = 3
 V4_POOL_MANAGER_EXTSLOAD_ABI = [
     {
         "inputs": [{"internalType": "bytes32", "name": "slot", "type": "bytes32"}],
@@ -126,6 +137,7 @@ __all__ = [
     "V4_CUSTOM_ERROR_SELECTORS",
     "V4_POOL_MANAGER_EXTSLOAD_ABI",
     "V4_POOLS_SLOT",
+    "V4_STATE_LIQUIDITY_WORD_OFFSET",
     "V4_QUOTER_ABI",
     "chain_row",
     "normalize_address",

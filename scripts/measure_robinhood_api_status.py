@@ -28,7 +28,8 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "logs" / "plan" / "runtime_evidence" / "reports"
+# The plan tree was migrated from `logs/plan/` to `plan/` on 2026-11-14.
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "plan" / "runtime_evidence" / "reports"
 DEFAULT_PROCESS_MARKER = "flashloan/app_runtime/run.py"
 SCHEMA = "robinhood-api-status-measurement-v1"
 

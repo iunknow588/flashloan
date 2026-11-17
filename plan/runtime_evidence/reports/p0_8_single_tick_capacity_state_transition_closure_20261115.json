@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0",
+  "title": "P0-8 单 Tick 容量与状态突变闭环（代码与离线回归收口）",
+  "generatedAt": "2026-11-15T21:40:00+08:00",
+  "stage": "P0-8",
+  "mode": "offline_regression_only",
+  "authority": "code_only_no_deploy_no_broadcast_no_production_write",
+  "productionWrite": false,
+  "failed": false,
+  "passed": true,
+  "blocked": false,
+  "taskIds": ["TASK-006", "TASK-007", "TASK-008"],
+  "acceptanceIds": ["AC-010", "AC-011", "AC-012"],
+  "openTaskIds": ["TASK-009", "TASK-010"],
+  "openAcceptanceIds": ["AC-006", "AC-007", "AC-008", "AC-009"],
+  "components": [
+    "flashloan/tools/pool_manager/src/state_transition.rs",
+    "flashloan/tools/pool_manager/src/single_tick_capacity.rs",
+    "flashloan/tools/pool_manager/src/baseline_audit.rs",
+    "flashloan/tools/review_manager/src/state_transition_gate.rs",
+    "flashloan/tools/review_manager/src/lib.rs",
+    "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+    "contract/robinhood/DEX/test/RobinhoodPausedFlashLoanExecutor.test.js"
+  ],
+  "closureScope": {
+    "TASK-006": "方向判定按同输入 exact-output 单调性执行；token1 使用线性 sqrtPrice 距离比例，token0 额外包含倒数价格项；放大倍率硬上限 20000 bps（DEFAULT_MAX_CAPACITY_MULTIPLIER_BPS），超出即降级为 fatal；Tick 越界返回 tick_range_changed 且 broadcast_allowed=false；当前 Tick 的 sqrtPriceLimitX96 由 route_transition_price_limits() 逐跳生成，任一跳缺失则返回空列表（拒绝使用全局极值）；路线级 amountOutMinimum（reviewed minimum output）由 gasReserve 字段承载并强制比较增量输出，旧余额不得补贴劣化成交。",
+    "TASK-007": "状态变好只产出候选上界（candidate_capacity_raw），绝不作为利润证明；review_manager::evaluate_final_state_transition_gate() 以 final_input_amount_raw(run) 为准，按最终输入量逐跳重算 expected capacity 与 current exact-output，最终 single-tick 门禁与状态突变门禁均基于同一最终输入量；缺最终输入量时返回 final_input_amount_unavailable 并 fail-closed。",
+    "TASK-008": "单 Tick 单元测试、三跳闭环测试、链上/链下 parity、状态变好/变坏/跨 Tick 回归全部通过（见 tests 明细）。批内单闭环失败隔离已在 Executor 单元层证明：失败项不回滚成功项。",
+    "scopeLimit": "本轮仅覆盖离线代码与单元/合约测试；主网 bounded executor 部署、批次入口接线、同源链上三态分类与 live parity 输入仍由 TASK-009/TASK-010 与 AC-006..AC-009 承接，未宣称完成。"
+  },
+  "stateTransitionModel": {
+    "verdictKinds": ["fatal", "adverse", "unchanged", "favorable"],
+    "capacityBasis": ["unavailable", "expected_state", "exact_current_liquidity", "price_distance_token0", "price_distance_token1"],
+    "ratioSerialization": "decimal strings without JSON numeric precision loss",
+    "maxCapacityMultiplierBps": 20000,
+    "broadcastRule": "only unchanged or favorable may continue; adverse and fatal are fail-closed with stable reason codes (adverse_price_move / tick_range_changed)"
+  },
+  "tests": [
+    {
+      "name": "cargo test -p pool-manager state_transition --locked",
+      "target": "flashloan/tools",
+      "result": "9 passed / 0 failed",
+      "note": "方向（token0/token1 价格上移下移）、流动性变化、跨 Tick、倍率硬上限、最终输入量超容量、不可信期望容量均覆盖"
+    },
+    {
+      "name": "cargo test -p pool-manager single_tick --locked",
+      "target": "flashloan/tools",
+      "result": "21 passed / 0 failed"
+    },
+    {
+      "name": "cargo test -p review-manager --locked",
+      "target": "flashloan/tools",
+      "result": "129 passed / 0 failed"
+    },
+    {
+      "name": "cargo test --locked --workspace",
+      "target": "flashloan/tools",
+      "result": "exit code 0 / 0 failed",
+      "note": "含 pool-manager 135 passed、review-manager 129 passed、manager-db 138 passed、composite-manager 14 passed 等全部 workspace crate"
+    },
+    {
+      "name": "npx hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js",
+      "target": "contract/robinhood/DEX",
+      "result": "33 passing / 0 failing",
+      "note": "覆盖 reviewed minimum output 利润锁、增量输出比较、旧余额不补贴、批内失败隔离、批次上界与自调用防护"
+    }
+  ],
+  "negativeAssertions": {
+    "productionDatabaseWritten": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "authoritySwitched": false,
+    "releaseBinaryReplacement": false,
+    "networkRequestIssued": false,
+    "migrationApplied": false,
+    "pruneExecuted": false
+  },
+  "rpcRequestCount": 0,
+  "rollbackAvailable": true,
+  "rollbackPoint": "回退 flashloan/tools/pool_manager/src/state_transition.rs、single_tick_capacity.rs、review_manager/src/state_transition_gate.rs 与对应合约/测试改动；本轮未产生生产状态变更，无需数据回滚",
+  "relatedEvidence": [
+    "plan/runtime_evidence/reports/p0_8_capacity_and_transition_gate_20261114.json",
+    "plan/runtime_evidence/reports/p0_8_exact_transition_ratio_evidence_20261115.json",
+    "plan/runtime_evidence/reports/p0_8_reviewed_minimum_output_profit_lock_20261115.json",
+    "plan/runtime_evidence/reports/p0_8_bounded_v4_flash_batch_20261115.json",
+    "plan/runtime_evidence/reports/p0_8_executor_request_autobuild_20261115.json"
+  ],
+  "remainingGates": [
+    "AC-006 链上比例 calldata（分子/分母写入主网 Executor，受 EIP-170 字节余量约束）",
+    "AC-007 逐跳 amountOutMinimum 下限（需新 ABI，路线级下限已实现）",
+    "AC-008 状态变化证据中的比例分子/分母尚未写入链上 calldata",
+    "AC-009 每跳 tick 状态与 single_tick_max_token0_raw / single_tick_max_token1_raw 的生产物化 dry-run 影响评估",
+    "TASK-009 主网 bounded executor 部署后批次入口接线（executorBatchEnabled=true 显式开启）",
+    "TASK-010 主网 live parity 与同源数学精确链上三态分类"
+  ]
+}

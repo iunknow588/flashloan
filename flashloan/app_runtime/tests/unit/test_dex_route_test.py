@@ -59,7 +59,7 @@ def test_official_arb_script_for_chain_maps_live_network_to_script_name():
     testnet_script = route_test_module._official_arb_script_for_chain(46630)
     assert testnet_script == (
         route_test_module.ROOT
-        / "test-token_create"
+        / "flashloan" / "tools" / "test-token_create"
         / "scripts"
         / "tool"
         / "testnet-v4-official-arb-live.js"
@@ -69,7 +69,7 @@ def test_official_arb_script_for_chain_maps_live_network_to_script_name():
     mainnet_script = route_test_module._official_arb_script_for_chain(4663)
     assert mainnet_script == (
         route_test_module.ROOT
-        / "test-token_create"
+        / "flashloan" / "tools" / "test-token_create"
         / "scripts"
         / "tool"
         / "mainnet-v4-official-arb-live.js"

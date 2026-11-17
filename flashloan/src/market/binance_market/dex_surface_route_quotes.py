@@ -44,6 +44,27 @@ from market.binance_market.dex_route_identity import missing_route_identity_anal
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
+
+# The flash-loan fee the chain actually charges.
+#
+# The production route borrows straight from the Uniswap V4 PoolManager,
+# which charges no flash-loan fee at all: the contract only asks for
+# `amount + minProfit` back, where `minProfit` is a one-wei profit guard,
+# not a fee. The recorded chain settlements confirm it: every reviewed route
+# on chain 4663 settled with `requiredRepay == amount + 1`.
+#
+# This is a **chain fact**, not a market assumption, so it must not be
+# conflated with the submission margin below.
+CHAIN_FLASH_LOAN_FEE_BPS = 0.0
+
+# The extra margin the off-chain preflight keeps on top of the chain's own
+# arithmetic.
+#
+# The margin is what protects a submission from the things the chain's
+# settlement does not include: the gas the transaction will burn, the slippage
+# between the preview and the inclusion, and the state that moves between the
+# preview and the transaction. It is **not** a fee the chain charges, and it
+# must never be reported as one.
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
 ROBINHOOD_CHAIN_ID = _ROBINHOOD_CHAIN_ID
@@ -484,10 +505,16 @@ def _route_quote_analysis(
         warnings.append("v4_token_decimals_missing_requires_metadata")
     reference_final_output_usd = current_usd if complete and not untrusted_usd_reference else None
     reference_gross_profit_usd = (reference_final_output_usd - notional_usd) if reference_final_output_usd is not None else None
-    flash_loan_fee_usd = notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
-    submission_min_profit_usd = flash_loan_fee_usd
+    # The chain's own fee: the reference economics reproduce the chain's
+    # arithmetic, so they must use the fee the chain charges and not the
+    # preflight margin.
+    flash_loan_fee_usd = notional_usd * CHAIN_FLASH_LOAN_FEE_BPS / 10_000.0
+    # The preflight margin is what the submission gate keeps in reserve for
+    # gas, slippage and state drift. It is a gate, not a fee.
+    preflight_margin_usd = notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    submission_min_profit_usd = preflight_margin_usd
     submission_net_profit_usd = (
-        reference_gross_profit_usd - flash_loan_fee_usd if reference_gross_profit_usd is not None else None
+        reference_gross_profit_usd - preflight_margin_usd if reference_gross_profit_usd is not None else None
     )
     reference_net_profit_usd = (
         submission_net_profit_usd - DEFAULT_GAS_RESERVE_USD if submission_net_profit_usd is not None else None
@@ -511,7 +538,7 @@ def _route_quote_analysis(
         else None
     )
     reference_flash_loan_fee_amount = (
-        token_basis_input_amount * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+        token_basis_input_amount * CHAIN_FLASH_LOAN_FEE_BPS / 10_000.0
         if token_basis_input_amount is not None
         else None
     )
@@ -749,8 +776,11 @@ def _route_quote_analysis(
         "referenceFinalOutputUsd": reference_final_output_usd,
         "grossProfitUsd": gross_profit_usd,
         "referenceGrossProfitUsd": reference_gross_profit_usd,
-        "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
+        "chainFlashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
+        "flashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
         "flashLoanFeeUsd": flash_loan_fee_usd,
+        "preflightMarginBps": DEFAULT_FLASH_LOAN_FEE_BPS,
+        "preflightMarginUsd": preflight_margin_usd,
         "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
         "minProfitUsd": min_profit_usd,
         "offchainMinProfitUsd": min_profit_usd,

@@ -1,0 +1,167 @@
+{
+  "baselineAudit": {
+    "appliedMigrationCount": 7,
+    "managerDbPreflight": {
+      "quickCheck": "ok",
+      "readyForMigration": true
+    },
+    "missingMigrationCount": 3,
+    "missingMigrations": [
+      "20261112_007_usdg_valuation_schema",
+      "20261114_008_single_tick_capacity_schema",
+      "20261114_009_hop_price_limit_schema"
+    ],
+    "unknownMigrationCount": 0,
+    "valid": false
+  },
+  "blockers": [
+    "reviews",
+    "broadcast"
+  ],
+  "chainId": 4663,
+  "conclusion": "Token, pool and closed-loop layers are already healthy. The only upstream defects are three unapplied manager migrations and a stale pool-scope library policy. Reviews are empty because no live review has been materialized, and broadcasts are empty because the broadcast policy only accepts a fresh positive review.",
+  "database": {
+    "journalMode": "wal",
+    "mtimeUtc": "2026-11-16T13:24:24Z",
+    "path": "flashloan\\db\\local_store_4663.sqlite3",
+    "quickCheck": "ok",
+    "sizeBytes": 3507453952
+  },
+  "generatedAt": "2026-11-16T13:42:00Z",
+  "layers": {
+    "L1_tokens": {
+      "admittedTotal": 199,
+      "conclusion": "no token repair needed: every admitted token has address, symbol and decimals",
+      "core": {
+        "admitted": 4,
+        "total": 4
+      },
+      "extension": {
+        "admitted": 0,
+        "issue": "extension_library_contains_unanchored_tokens",
+        "total": 162,
+        "unanchored": [
+          "TA",
+          "TB"
+        ]
+      },
+      "libraryMissingFields": 0,
+      "stocks": {
+        "admitted": 194,
+        "total": 194
+      },
+      "test": {
+        "admitted": 1,
+        "total": 1
+      },
+      "valid": true
+    },
+    "L2_pools": {
+      "bestAmount": {
+        "code": null,
+        "confirmedCount": 0
+      },
+      "candidateScopeActiveCount": 108,
+      "candidateScopeActiveInvalidFeeOrHookCount": 0,
+      "candidateScopeActiveMissingStateCount": 0,
+      "candidateScopeOutOfPolicyPoolCount": 0,
+      "conclusion": "no pool validity repair needed; the scope library policy is stale and must be re-materialized",
+      "depth": {
+        "adequateDepthPoolCount": 16,
+        "badReadingCount": 0,
+        "candidatePoolCount": 16,
+        "insufficientDepthPoolCount": 0,
+        "thinPoolCount": 0,
+        "uniquePoolCount": 16,
+        "unpricedPoolCount": 0
+      },
+      "eligibleCandidatePools": 114,
+      "invalidHopPoolReferenceCount": 0,
+      "observationPools": 130,
+      "scopePolicyDrift": {
+        "candidate_scope_library_policy_stale": true,
+        "core_scope_library_policy_stale": true,
+        "materializeScopeDryRun": {
+          "activePoolCount": 531,
+          "changedRows": 438,
+          "consumersNeedRebuild": true,
+          "deletedRows": 0,
+          "eligiblePoolCount": 2022,
+          "insertedRows": 0,
+          "libraryKeys": [
+            "core",
+            "stocks"
+          ],
+          "updatedRows": 438
+        }
+      },
+      "valid": true
+    },
+    "L3_closed_loops": {
+      "conclusion": "no loop repair needed; every hop resolves and no hop names a missing pool",
+      "consumersNeedRebuild": 0,
+      "hopCount": 318,
+      "incompleteLoopCount": 0,
+      "invalidHopPoolReferenceCount": 0,
+      "loopCount": 106,
+      "runtimeStates": {
+        "execution_failed": 4,
+        "execution_not_requested": 58,
+        "offchain_estimate": 10,
+        "offchain_pending": 10,
+        "preflight_failed": 6
+      },
+      "valid": true
+    },
+    "L4_reviews": {
+      "code": "best_amount_missing",
+      "legacyInWindow": 0,
+      "manager_v4_reviews": 0,
+      "reason": "no review has ever been materialized into the authoritative manager library",
+      "valid": false
+    },
+    "L5_broadcast": {
+      "automaticBroadcastCandidates": 0,
+      "automaticBroadcastPolicy": "fresh_positive_review_only",
+      "legacyAttempts": 0,
+      "managerAttempts": 0,
+      "valid": false
+    }
+  },
+  "mode": "read_only_diagnosis",
+  "network": "robinhood",
+  "productionState": "review_stalled",
+  "requiredWriteWindow": [
+    {
+      "risk": "schema only, additive",
+      "scope": "3 schema migrations",
+      "step": 1,
+      "tool": "manager-db migrate"
+    },
+    {
+      "risk": "index only",
+      "scope": "review window index",
+      "step": 2,
+      "tool": "pool-manager ensure-indexes"
+    },
+    {
+      "risk": "candidate pool set rewrite",
+      "scope": "438 pool rows",
+      "step": 3,
+      "tool": "pool-manager materialize-scope --scope core4"
+    },
+    {
+      "risk": "closed-loop rewrite",
+      "scope": "closed-loop library",
+      "step": 4,
+      "tool": "composite-manager materialize-arbitrage"
+    },
+    {
+      "risk": "RPC reads, review materialization, on-chain broadcast",
+      "scope": "live reviews + broadcast",
+      "step": 5,
+      "tool": "healer supervise --apply"
+    }
+  ],
+  "safeToAutoBroadcast": false
+}

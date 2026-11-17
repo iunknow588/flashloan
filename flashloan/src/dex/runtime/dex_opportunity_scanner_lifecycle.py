@@ -160,6 +160,15 @@ class DexOpportunityScannerLifecycleMixin:
                         self._watch_closed_loop_supervisors(chain_id=chain_id)
                     except Exception as exc:
                         logger.warning("closed-loop watchdog tick failed for chain %s: %s", chain_id, exc)
+                    if self._native_rust_closed_loop:
+                        try:
+                            self._record_native_worker_results()
+                        except Exception as exc:
+                            logger.warning(
+                                "native closed-loop result sync failed for chain %s: %s",
+                                chain_id,
+                                exc,
+                            )
                 self._stop.wait(interval)
 
 
@@ -178,6 +187,13 @@ class DexOpportunityScannerLifecycleMixin:
                     self._watch_closed_loop_supervisors(chain_id=chain_id)
                     continue
                 watched = self._watched_items()
+                if watched:
+                    # ARCH-1: recompute as soon as the pool state moved,
+                    # instead of waiting for the next fixed tick. The
+                    # version check is a cheap read of the snapshot table;
+                    # the scan it triggers is the expensive part, and it
+                    # only runs when the state actually changed.
+                    self._trigger_scans_on_pool_state_change(watched)
                 if not watched:
                     self._stop.wait(self._queue_poll_seconds)
                     continue
@@ -290,6 +306,29 @@ class DexOpportunityScannerLifecycleMixin:
             snapshot = self.snapshot(chain_id=chain_id, protocols=protocols)
             snapshot["queued"] = True
             return snapshot
+
+
+        def _enqueue_scan(
+            self,
+            *,
+            chain_id: int | None = None,
+            protocols: list[str] | None = None,
+        ) -> bool:
+            """Queue one scan without touching the worker thread.
+
+            Returns whether the scan was actually queued. A duplicate key is
+            not queued twice, so a burst of version changes costs one scan,
+            not one scan per change.
+            """
+            normalized = tuple(
+                str(item).strip().lower() for item in (protocols or []) if str(item).strip()
+            )
+            scan_key = (chain_id, normalized)
+            with self._lock:
+                if scan_key in self._queued_scans:
+                    return False
+                self._queued_scans.append(scan_key)
+            return True
 
 
         def _pop_queued_scan(self) -> tuple[int | None, tuple[str, ...]] | None:

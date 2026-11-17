@@ -1,0 +1,9 @@
+{
+  "mode": "rereview",
+  "generatedAt": "2026-11-10T05:36:24Z",
+  "apply": false,
+  "dryRun": true,
+  "policy": "historical profit ranks candidates; only a new positive live review may broadcast",
+  "candidateCount": 0,
+  "results": []
+}

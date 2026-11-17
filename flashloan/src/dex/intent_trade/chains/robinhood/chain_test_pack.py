@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import sys
@@ -7,11 +7,12 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-SRC_ROOT = Path(__file__).resolve().parents[3]
+SRC_ROOT = Path(__file__).resolve().parents[4]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from market.binance_market.dex_surfaces import (
+    CHAIN_FLASH_LOAN_FEE_BPS,
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
 )
@@ -202,8 +203,23 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
                 or final_hop.get("outputUsd")
                 or final_hop.get("amountOut")
             )
-            flash_fee_bps = float(DEFAULT_FLASH_LOAN_FEE_BPS)
+            # The chain's own fee: the repayment constraint below is the
+            # amount the chain asks back, so it must use the fee the chain
+            # charges. The production route borrows straight from the
+            # Uniswap V4 PoolManager and pays no flash-loan fee.
+            #
+            # This branch runs only when the live evidence carried no cost
+            # model, so there is no recorded fee to honour and the chain's own
+            # fee is the only defensible answer. When the evidence does
+            # carry a fee, it is authoritative: the fee is an owner-mutable
+            # on-chain setting, and the evidence speaks for the adapter that
+            # was configured.
+            flash_fee_bps = float(CHAIN_FLASH_LOAN_FEE_BPS)
             flash_fee_usd = notional * flash_fee_bps / 10_000
+            # The preflight margin is a gate, not a fee: it reserves room for
+            # gas, slippage and state drift before a submission.
+            preflight_margin_bps = float(DEFAULT_FLASH_LOAN_FEE_BPS)
+            preflight_margin_usd = notional * preflight_margin_bps / 10_000
             gas_reserve_usd = float(DEFAULT_GAS_RESERVE_USD)
             gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
             net_profit_usd = gross_profit_usd - flash_fee_usd - gas_reserve_usd if gross_profit_usd is not None else None
@@ -212,13 +228,16 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
                 "notionalUsd": notional,
                 "finalOutputUsd": final_output_usd,
                 "grossProfitUsd": gross_profit_usd,
+                "chainFlashLoanFeeBps": flash_fee_bps,
                 "flashLoanFeeBps": flash_fee_bps,
                 "flashLoanFeeUsd": flash_fee_usd,
+                "preflightMarginBps": preflight_margin_bps,
+                "preflightMarginUsd": preflight_margin_usd,
                 "gasReserveUsd": gas_reserve_usd,
                 "offchainMinProfitUsd": min_profit_usd,
                 "minProfitUsd": min_profit_usd,
-                "submissionMinProfitUsd": flash_fee_usd,
-                "submissionNetProfitUsd": gross_profit_usd - flash_fee_usd if gross_profit_usd is not None else None,
+                "submissionMinProfitUsd": preflight_margin_usd,
+                "submissionNetProfitUsd": gross_profit_usd - preflight_margin_usd if gross_profit_usd is not None else None,
                 "offchainNetProfitUsd": net_profit_usd,
                 "netProfitUsd": net_profit_usd,
                 "netProfitBps": (net_profit_usd / notional * 10_000) if net_profit_usd is not None and notional else None,
@@ -313,7 +332,15 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         preflight_status = "not_ready"
     repayment_constraint = _repayment_constraint(
         hop_summaries,
-        flash_fee_bps=float(cost_model.get("flashLoanFeeBps") or DEFAULT_FLASH_LOAN_FEE_BPS),
+        # The chain's own fee, never the preflight margin: the repayment
+        # constraint is what the chain asks back, and the margin must not
+        # inflate it. A fee recorded in the evidence is authoritative,
+        # because the fee is an owner-mutable on-chain setting.
+        flash_fee_bps=float(
+            cost_model.get("flashLoanFeeBps")
+            if cost_model.get("flashLoanFeeBps") is not None
+            else CHAIN_FLASH_LOAN_FEE_BPS
+        ),
         cost_model=cost_model,
     )
     execution_model = _execution_model(hop_summaries, repayment_constraint)

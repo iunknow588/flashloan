@@ -1434,6 +1434,87 @@ def test_d9_40_migrated_page_modules_have_no_dead_legacy_submission_sqlite_paths
         )
 
 
+def test_python_never_clears_the_manager_business_tables_directly():
+    """AC-142: clearing the business tables must go through the manager.
+
+    The review, submission and broadcast tables are owned by the Rust
+    managers.  A Python ``DELETE`` against them would bypass the manager
+    write ledger, the dry-run gate and the catalog preservation checks, so
+    the durable record could lose rows that no audit ever saw.
+
+    The guard scans every active Python file for a write statement against a
+    manager table.  Test files are excluded on purpose: they build their own
+    fixture databases.
+    """
+
+    manager_tables = (
+        "manager_v4_reviews",
+        "manager_v4_review_diagnostics",
+        "manager_v4_review_broadcast_requests",
+        "manager_cow_execution_attempts",
+        "manager_broadcast_attempt_diagnostics",
+        "manager_review_library_state",
+        "manager_broadcast_library_state",
+    )
+    write_pattern = re.compile(
+        r"\b(?:INSERT\s+INTO|UPDATE\s+\w+|DELETE\s+FROM|REPLACE\s+INTO"
+        r"|DROP\s+TABLE|ALTER\s+TABLE)\b",
+        re.IGNORECASE,
+    )
+
+    offenders = []
+    for path in _python_files():
+        if "tests" in path.parts:
+            continue
+        source = path.read_text(encoding="utf-8")
+        for match in write_pattern.finditer(source):
+            window = source[max(0, match.start() - 200) : match.end() + 200]
+            for table in manager_tables:
+                if table in window:
+                    offenders.append(f"{path}: {match.group(0)} {table}")
+
+    assert offenders == [], (
+        "AC-142: Python must not write the manager business tables directly; "
+        "clearing has to go through the manager interface: " + "; ".join(offenders)
+    )
+
+
+def test_review_submission_broadcast_schema_extensions_are_registered():
+    """AC-141: a durable review/submission/broadcast column needs a review record.
+
+    A migration may extend the manager schema only when the registry in
+    ``flashloan/tools/manager_db/schema_policy.json`` names the review record
+    that proves the field supports the token/pool base structure.  Without the
+    registry entry the field would enter the long-lived schema on the strength
+    of one transient observation.
+    """
+
+    from core.schema_extension_policy import (
+        collect_schema_extensions,
+        stale_allowlist_entries,
+        unregistered_extensions,
+    )
+
+    extensions = collect_schema_extensions()
+    assert extensions, "manager_db migrations must expose review/submission columns"
+
+    unregistered = unregistered_extensions()
+    assert unregistered == [], (
+        "AC-141: these review/submission/broadcast columns are not registered "
+        "with a justifying review record: "
+        + ", ".join(
+            f"{item.table}.{item.column} ({item.migration})"
+            for item in unregistered
+        )
+    )
+
+    stale = stale_allowlist_entries()
+    assert stale == [], (
+        "AC-141: the schema policy registry names columns that no migration "
+        f"creates any more: {stale}"
+    )
+
+
 def test_d9_41_control_panel_scanner_lifecycle_is_manager_read_only():
     control_source = _resolved("web/control_panel_page_routes.py").read_text(
         encoding="utf-8"

@@ -6,7 +6,7 @@ from market.tools.run_binance_market_snapshot_daemon import write_snapshot
 def test_binance_market_snapshot_daemon_writes_snapshot_file(tmp_path, monkeypatch):
     path = tmp_path / "binance_market_snapshot.json"
     monkeypatch.setattr(
-        "tools.run_binance_market_snapshot_daemon.build_binance_rest_market_snapshot",
+        "market.tools.run_binance_market_snapshot_daemon.build_binance_rest_market_snapshot",
         lambda *args, **kwargs: {
             "observed_at": "2026-08-04T00:00:00+00:00",
             "price_source": "rest_interval",

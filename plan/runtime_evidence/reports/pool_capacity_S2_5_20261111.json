@@ -1,0 +1,200 @@
+{
+  "schema": "PoolCapacityS2_5Evidence",
+  "generatedAt": "2026-11-11T09:30:43Z",
+  "batch": "S2.5-prime pool depth / capacity de-USD-ification",
+  "authority": "shipped-artifact + controlled-replay",
+  "environment": {
+    "platform": "windows",
+    "architecture": "x86_64",
+    "isolation": "process",
+    "python": "C:/ProgramData/Miniconda3/python.exe",
+    "rustc": "1.96",
+    "cargoTargetDir": "E:/2026OPC大赛/flashLoan/flashloan/tools/.cargo-verify-target"
+  },
+  "constraints": [
+    "production database remained read-only (sqlite mode=ro)",
+    "no production write, no index creation, no closed-loop rebuild, no authority switch, no real broadcast",
+    "daemon and run.py (PID 30304) were neither stopped nor restarted"
+  ],
+  "decisions": {
+    "primaryDepthCriterion": "on-chain price-impact capacity (token denominated)",
+    "epsilonBps": 10,
+    "epsilonConstant": "DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS",
+    "usdDependency": "none for execution; estimated_tvl_usd is a sort tie-breaker and human observation only",
+    "poolManagerExtension": "pool_manager crate extended in place (reqwest + uniswap-v4-sdk); no new crate"
+  },
+  "productionReadOnlyAcceptance": {
+    "healerReport": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_20261111T093043Z.json",
+    "elapsedSeconds": 20.119,
+    "baselineSeconds": 19.37,
+    "degradationRatio": 0.038,
+    "stopLineRatio": 0.5,
+    "poolDepth": {
+      "uniquePoolCount": 16,
+      "candidatePoolRows": 47,
+      "adequateDepthPoolCount": 16,
+      "insufficientDepthPoolCount": 0,
+      "thinPoolCount": 0,
+      "unpricedPoolCount": 0,
+      "badReadingCount": 0,
+      "depthBasis": "estimated_tvl_usd_legacy",
+      "capacitySchemaPresent": false,
+      "snapshotBadReadings": {
+        "available": true,
+        "rowCount": 4669,
+        "nullReadingCount": 3194,
+        "badReadingCount": 1287,
+        "maxTvlUsd": 1.7586799563335515e+43,
+        "maxTvlUsdLimit": 1000000000.0
+      }
+    },
+    "depthSnapshot": {
+      "available": true,
+      "latestReadAt": "2026-11-09T03:08:30.458976Z",
+      "ageSeconds": 195713.138825,
+      "stale": true,
+      "maxAgeSeconds": 900,
+      "capacityRowCount": 0
+    },
+    "pathCapacity": {
+      "available": false,
+      "reason": "capacity_schema_missing",
+      "detail": "run `pool-manager ensure-depth-schema --apply` first"
+    },
+    "bestAmount": {
+      "total": 1356,
+      "confirmed": 0,
+      "missing": 1356,
+      "ladderIncomplete": 1113,
+      "code": "best_amount_missing",
+      "failClosed": true
+    },
+    "pnl": {
+      "total": 1356,
+      "valued": 1286,
+      "missingValue": 70,
+      "positiveAmount": 101,
+      "positive": 0,
+      "confirmedSum": 0.0,
+      "nonPositive": 1185,
+      "sum": -167.7598806758911
+    }
+  },
+  "baselineReconciliation": {
+    "positiveEstimateOnly": {
+      "planBaseline": 165,
+      "observedInFull24hWindow": 165,
+      "observedInHealerWindow": 76,
+      "status": "RESOLVED - epoch clip, not a regression",
+      "rootCause": "observation epoch file pins the window start to 2026-11-10T19:57:50Z; the full 24h window contains 3808 rows while the epoch-clipped window contains 1356",
+      "evidence": {
+        "full24h": {
+          "total": 3808,
+          "positiveEstimateOnly": 165,
+          "source": "native_contract_rate_delta_estimate with selected_profit_amount > 0"
+        },
+        "epochClipped": {
+          "total": 1356,
+          "positiveEstimateOnly": 76,
+          "source": "same predicate, additionally clipped by datetime(created_at) >= datetime('2026-11-10T19:57:50Z')"
+        },
+        "epochFile": "plan/runtime_evidence/observation_epoch/mainnet_current.json",
+        "epochStartedAt": "2026-11-10T19:57:50Z",
+        "epochReason": "record_page_clear_applied_legacy_physical_rows_removed_reset_analysis_baseline"
+      },
+      "actionTaken": "none - the healer predicate is correct; no code change required",
+      "documentationAction": "recorded in plan/未完成任务清单_20261111.md section 1 and section 10"
+    },
+    "badReadingCount": {
+      "planBaseline": 1287,
+      "observedCandidateScoped": 0,
+      "observedSnapshotWide": 1287,
+      "status": "RESOLVED - scope discrepancy; plan baseline is table-wide",
+      "rootCause": "pool_depth_audit joins candidate pools to snapshots, so it only counts bad readings among the 16 selectable pools; all 1287 malformed readings belong to non-candidate pools",
+      "actionTaken": "added a table-wide companion metric `snapshotBadReadings` to pool_depth_audit so both scopes are visible without changing the candidate-scoped contract",
+      "filesChanged": [
+        "scripts/mainnet_arbitrage_healer.py",
+        "scripts/tests/test_mainnet_arbitrage_healer.py"
+      ],
+      "testsAdded": "test_pool_depth_audit_reports_snapshot_wide_bad_readings"
+    }
+  },
+  "voidedEntries": [
+    {"entry": "DEP-P1-4", "reason": "USD price sources do not express arbitrage value and must not gate execution"},
+    {"entry": "DEP-P3-2", "reason": "same as DEP-P1-4"},
+    {"entry": "liquidity_index as depth signal", "reason": "correlation with real TVL is only +0.09"},
+    {"entry": "liquidity_index < 1 exclusion", "reason": "would delete genuinely deep pools and break 28 closed-loop hops"},
+    {"entry": "market_depth_exhausted", "reason": "built on the incorrect TVL criterion"},
+    {"entry": "corr(log10 li, log10 TVL) > 0.7", "reason": "measured only +0.09"},
+    {"entry": "estimated_tvl_usd >= 100000 admission floor", "reason": "removed; capacityRaw is the primary criterion"},
+    {"entry": "depth_score_usd >= 10000 admission floor", "reason": "removed; column semantics redefined as token-denominated capacity"},
+    {"entry": "epsilon = 0.5%", "reason": "unified at 10 bps"}
+  ],
+  "lowLiquidityIndexRegressionGuard": {
+    "rule": "no liquidity_index-based exclusion may be applied",
+    "candidatePoolsWithLiquidityIndexBelowOne": [
+      {"poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e", "liquidityIndex": 0.02854432, "depthStatus": "deep", "estimatedTvlUsd": 1850470.5873978185, "closedLoopHopReferences": 24},
+      {"poolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982", "liquidityIndex": 0.11077345, "depthStatus": "deep", "estimatedTvlUsd": 7180684.903626192, "closedLoopHopReferences": 4},
+      {"poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866", "liquidityIndex": 0.00218677, "depthStatus": "liquid", "estimatedTvlUsd": 141761.0429540035, "closedLoopHopReferences": 0},
+      {"poolId": "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32", "liquidityIndex": 0.03627748, "depthStatus": "deep", "estimatedTvlUsd": 2352024.298843545, "closedLoopHopReferences": 0}
+    ],
+    "totalCandidatePoolsChecked": 4,
+    "allStillPresentInCandidateSet": true,
+    "totalClosedLoopHopReferences": 28,
+    "closedLoopsTouchingThesePools": 28,
+    "closedLoopsTotal": 106,
+    "closedLoopHopsTotal": 318
+  },
+  "productionGapsOpen": [
+    {"id": "capacity_schema_missing", "detail": "v4_exchange_pool_liquidity_snapshots has no capacity columns; the healer correctly falls back to the legacy TVL band and reports depthBasis=estimated_tvl_usd_legacy", "requires": "pool-manager ensure-depth-schema --apply", "authorized": false},
+    {"id": "depth_snapshot_stale", "detail": "latest liquidity_read_at is 2026-11-09T03:08:30.458976Z, ageSeconds ~195713 (~2.26 days), maxAgeSeconds=900", "requires": "pool-manager depth --apply", "authorized": false},
+    {"id": "balances_json_empty", "detail": "0 of 4669 snapshot rows carry a non-empty balances_json; balancesNonEmpty=0 and depthScoreNonEmpty=0", "requires": "pool-manager depth --apply", "authorized": false},
+    {"id": "ladder_incomplete", "detail": "1113 of 1356 reviews have probeRecords length 1; the best_amount_ladder_incomplete fail-closed safety net remains armed", "requires": "production balances refresh", "authorized": false}
+  ],
+  "numericDefectPostmortem": [
+    {
+      "id": "Q96_SHIFT",
+      "symptom": "capacity values were off by 2^32 (Q96 computed as 2^128)",
+      "rootCause": "U256::from_limbs([0,0,1,0]) is 2^128, not 2^96; from_limbs takes [u64;4] in little-endian limb order",
+      "fix": "Q96 = U256::from_limbs([0, 4_294_967_296, 0, 0]); liquidity_q96 uses `U256::from(liquidity) << 96` because ruint `*` silently wraps on overflow while `<<` is exact",
+      "severity": "critical"
+    },
+    {
+      "id": "FALLBACK_OPERAND_ORDER",
+      "symptom": "fallback backend disagreed with the SDK backend on token0 amounts",
+      "rootCause": "get_next_sqrt_price_from_amount_1_rounding_down used mul_div(L, amount, Q96) instead of amount * Q96 / L",
+      "fix": "(amount << 96) / L when amount <= U160_MAX, otherwise mul_div(amount, Q96, L)",
+      "severity": "high"
+    },
+    {
+      "id": "FEE_COUNTED_AS_IMPACT",
+      "symptom": "price impact exceeded 10 bps even for near-zero trades",
+      "rootCause": "realized output was compared against the gross spot output, charging the LP fee as price impact; the Python reference implementation sets priceImpactFeeExcluded=True",
+      "fix": "compare realized output against spot_amount_out(fee_adjusted_input(amount, fee_pips)) computed in U256 to avoid u128 overflow",
+      "severity": "high"
+    }
+  ],
+  "verification": {
+    "healerUnitTests": {"command": "pytest scripts/tests/test_mainnet_arbitrage_healer.py -q", "passed": 47, "baseline": 40},
+    "poolIndexAndCapacityTests": {"command": "pytest test_robinhood_mainnet_v4_pool_index.py test_robinhood_v4_pool_capacity.py -q", "passed": 31, "baseline": 19, "newFile": "flashloan/app_runtime/tests/unit/test_robinhood_v4_pool_capacity.py"},
+    "mergedPythonRegression": {"command": "pytest <9 files> -q", "passed": 318},
+    "poolManagerRust": {"command": "cargo test --manifest-path flashloan/tools/pool_manager/Cargo.toml", "passed": 28, "baseline": 19},
+    "rsSrcReleaseBuild": {"command": "cargo build --release --manifest-path flashloan/rs-src/Cargo.toml", "result": "success"},
+    "knownPreExistingFailures": {
+      "test": "test_verify_closed_loop_runtime_identity_isolation.py",
+      "failed": 5,
+      "classification": "pre-existing before this batch; closed_loop_identity.py was already modified in the working tree; not fixed and not counted as a new failure"
+    }
+  },
+  "deliveryLevel": {
+    "code": "L2 (single tests + merged regression + release build)",
+    "productionRollout": "not executed",
+    "closedLoopRebuild": "not executed",
+    "requiredBeforeS3": [
+      "pool-manager ensure-depth-schema --apply",
+      "pool-manager depth --apply",
+      "capacityRowCount > 0 and depthSnapshot.stale == false",
+      "ladderIncomplete == 0"
+    ]
+  }
+}

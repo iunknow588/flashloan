@@ -1,6 +1,6 @@
 const { assert } = require("chai");
 const { ethers, artifacts } = require("hardhat");
-const { matchesArtifactRuntime } = require("../../../../test-token_create/scripts/tool/official-v4-immutable-code.js");
+const { matchesArtifactRuntime } = require("../../../../flashloan/tools/test-token_create/scripts/tool/official-v4-immutable-code.js");
 
 describe("OfficialV4ImmutableCode", function () {
   it("accepts deployed runtime code that only differs in immutable fields", async function () {

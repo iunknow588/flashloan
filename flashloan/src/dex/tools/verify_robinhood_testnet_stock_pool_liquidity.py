@@ -214,8 +214,19 @@ def verify_stock_pool_liquidity(
             )
         metric_pool = _pool_row_for_metrics(pool)
         metrics = liquidity_metrics._liquidity_reserve_metrics(metric_pool, state)
-        metric_pool["liquidityIndex"] = metrics.get("liquidityIndex")
-        metric_pool["estimatedTvlUsd"] = metrics.get("estimatedTvlUsd")
+        # The depth verdict is decided on the on-chain price-impact capacity.
+        # Every capacity field has to reach the classifier: without them the
+        # classifier can only report "unpriced", because the capacity is
+        # unknown, and a live, deep pool would be indistinguishable from a
+        # pool whose capacity could not be measured at all.
+        metric_pool.update(
+            {
+                key: value
+                for key, value in metrics.items()
+                if key.startswith("capacity")
+                or key in {"liquidityIndex", "estimatedTvlUsd", "hasLiquidity"}
+            }
+        )
         depth = liquidity_metrics._liquidity_depth_status(metric_pool)
         rows.append(
             {

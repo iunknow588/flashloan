@@ -1,0 +1,153 @@
+{
+  "checksum": "sha256:171ec475aadf57aab2d313146cd12d6d8e7b1013ab802903f68112b3aaa74343",
+  "component": "token_manager",
+  "decision": {
+    "expirySemantics": {
+      "expiredNoRouteStaysNegative": false,
+      "expiredObservationMeans": "unknown",
+      "expiredRouteFoundStaysPositive": false,
+      "futureTimestampMeans": "unknown",
+      "rationale": "fail-closed: every ambiguity resolves to unknown, never to a negative, so an expired observation can never move a membership",
+      "staleRowsAreDeleted": false,
+      "unverifiableTimestampMeans": "unknown"
+    },
+    "failClosedBoundary": [
+      "timestamp missing -> unverifiable -> unknown",
+      "timestamp unparseable -> unverifiable -> unknown",
+      "timestamp in the future -> stale -> unknown",
+      "observation older than its tolerance -> stale -> unknown",
+      "stored verdict api_unavailable/api_error -> unknown (never a negative)"
+    ],
+    "noRouteApproximation": {
+      "adopted": false,
+      "decision": "rejected",
+      "enforcedBy": "token_manager::valuation_freshness::approximation_may_promote_to_negative",
+      "mayAffectMembership": false,
+      "mayBeStoredAsNoRoute": false,
+      "rationale": "the verdict vocabulary has exactly one producer for a real negative: the upstream routing service; an API-free heuristic can only ever produce 'probably no path', which is a different statement"
+    },
+    "producerPrecedence": "usdG valuation is a value/economy judgement and is NOT admissible as a depth or capacity signal (R-02/R-03/R-04 stand); depth remains on-chain tick liquidity",
+    "ttl": {
+      "magnitudeMaxAgeMinutes": 60,
+      "magnitudeMaxAgeSeconds": 3600,
+      "membershipMaxAgeHours": 24,
+      "membershipMaxAgeSeconds": 86400,
+      "rationale": "membership is a coarse fact about the token's place in the venue routing graph and changes slowly; magnitude is a market observation used for capacity banding and changes quickly"
+    }
+  },
+  "defectsClosed": [
+    {
+      "evidence": "flashloan/tools/token_manager/src/valuation.rs execute_quote_request reads the non-success body before classifying the status; no_route_detail_from_body recognises the NoRouteFoundError errorCode; valuation_tests.rs pins the 404-body, canonical-error-code, 404-without-signal, 200-no-route, 429 and 401 cases",
+      "id": "VAL-4-13",
+      "note": "the README still described this as an open P1 defect; the fix is present in the source and the regression suite, so the 194-token full run is no longer blocked by it",
+      "status": "already_fixed_in_code",
+      "title": "404 + NoRouteFoundError was classified as api_error instead of no_route"
+    }
+  ],
+  "durationMs": 0,
+  "failureCodes": [],
+  "failureSummary": null,
+  "generatedAt": "2026-11-14T00:01:44.266Z",
+  "inputVersion": "valuation-freshness-policy/1",
+  "inputVersions": {
+    "magnitudeMaxAgeSeconds": 3600,
+    "membershipMaxAgeSeconds": 86400,
+    "valuationFreshnessPolicy": "valuation-freshness-policy/1"
+  },
+  "measured": {
+    "magnitudeFreshCount": 3,
+    "magnitudeStaleCount": 3,
+    "magnitudeUnverifiableCount": 1,
+    "membershipFreshCount": 4,
+    "membershipStaleCount": 2,
+    "membershipUnverifiableCount": 1,
+    "negativeVerdictCount": 2,
+    "positiveVerdictCount": 4,
+    "unknownVerdictCount": 1
+  },
+  "mode": "read_only",
+  "outputVersion": "valuation-freshness-policy/1",
+  "outputVersions": {
+    "magnitudeMaxAgeSeconds": 3600,
+    "membershipMaxAgeSeconds": 86400,
+    "valuationFreshnessPolicy": "valuation-freshness-policy/1"
+  },
+  "productionState": {
+    "authoritySwitch": 0,
+    "broadcastCount": 0,
+    "note": "the production database has not been migrated with 20261112_007_usdg_valuation_schema, so the valuation store does not exist there yet; the R-12 blocked-row withdrawal from VAL-4-7 was applied to a copy only",
+    "productionDatabase": "flashloan/db/local_store_4663.sqlite3",
+    "productionWrite": false,
+    "tokenStocksAdmittedCount": 194,
+    "tokenStocksBlockedCount": 0,
+    "tokenStocksRowCount": 194,
+    "tokenUsdgValuationsTablePresent": false
+  },
+  "productionWrite": false,
+  "rollbackAvailable": false,
+  "rollbackPoint": "none-read-only-temporary-copy",
+  "rowCount": 7,
+  "rpcRequestCount": 0,
+  "schemaVersion": "p0-7-unified-evidence/1",
+  "stage": "P0-5",
+  "staleMagnitudeTokens": {
+    "0x0000000000000000000000000000000000000003": {
+      "ageSeconds": 7200,
+      "maxAgeSeconds": 3600,
+      "reason": "valuation observation is older than its accepted maximum age",
+      "storedVerdict": "route_found",
+      "tokenAddress": "0x0000000000000000000000000000000000000003"
+    },
+    "0x0000000000000000000000000000000000000004": {
+      "ageSeconds": 172800,
+      "maxAgeSeconds": 3600,
+      "reason": "valuation observation is older than its accepted maximum age",
+      "storedVerdict": "no_route",
+      "tokenAddress": "0x0000000000000000000000000000000000000004"
+    },
+    "0x0000000000000000000000000000000000000006": {
+      "ageSeconds": null,
+      "maxAgeSeconds": 3600,
+      "reason": "valuation timestamp could not be parsed",
+      "storedVerdict": "route_found",
+      "tokenAddress": "0x0000000000000000000000000000000000000006"
+    },
+    "0x0000000000000000000000000000000000000007": {
+      "ageSeconds": -600,
+      "maxAgeSeconds": 3600,
+      "reason": "valuation timestamp lies in the future",
+      "storedVerdict": "route_found",
+      "tokenAddress": "0x0000000000000000000000000000000000000007"
+    }
+  },
+  "staleMembershipTokens": {
+    "0x0000000000000000000000000000000000000004": {
+      "ageSeconds": 172800,
+      "maxAgeSeconds": 86400,
+      "reason": "valuation observation is older than its accepted maximum age",
+      "storedVerdict": "no_route",
+      "tokenAddress": "0x0000000000000000000000000000000000000004"
+    },
+    "0x0000000000000000000000000000000000000006": {
+      "ageSeconds": null,
+      "maxAgeSeconds": 86400,
+      "reason": "valuation timestamp could not be parsed",
+      "storedVerdict": "route_found",
+      "tokenAddress": "0x0000000000000000000000000000000000000006"
+    },
+    "0x0000000000000000000000000000000000000007": {
+      "ageSeconds": -600,
+      "maxAgeSeconds": 86400,
+      "reason": "valuation timestamp lies in the future",
+      "storedVerdict": "route_found",
+      "tokenAddress": "0x0000000000000000000000000000000000000007"
+    }
+  },
+  "status": "passed",
+  "testCommands": [
+    "cargo test --locked -p token-manager valuation_freshness",
+    "cargo test --locked -p token-manager",
+    "cargo test --locked --workspace",
+    "cargo run --locked -p token-manager --example p0_5_valuation_expiry_probe"
+  ]
+}

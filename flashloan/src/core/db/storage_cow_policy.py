@@ -123,12 +123,14 @@ _REVIEW_NOT_READY_EVIDENCE_STATUSES = frozenset(
         "not_live_verified",
         "live_quote_failed",
         "quote_failed",
-        "quote_unavailable",
-        "review_failed",
-        "rpc_unavailable",
-        "rpc_verification_failed",
-        "rpc_verification_timeout",
-        "live_evidence_deferred",
+            "quote_unavailable",
+            "review_failed",
+            "review_failed_missing_best_amount",
+            "review_failed_missing_concrete_pnl",
+            "rpc_unavailable",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+            "live_evidence_deferred",
         "preflight_failed",
     }
 )
@@ -149,6 +151,14 @@ _PREFLIGHT_BLOCKED_AUTO_REASONS = frozenset(
         "not_profitable",
         "chain_review_inconsistent",
         "execution_not_requested",
+        # The on-chain capacity of at least one hop is smaller than the
+        # position the route needs, so the position can never pay for its
+        # own gas. This is a pool-selection defect, not a market condition.
+        "capacity_insufficient",
+        # An unmeasured capacity is not a broadcast blocker: it is a
+        # coverage gap of the pool index, not a statement about the
+        # market. The reviewer promotes it into a block once the depth
+        # rollout has landed and the capacity verdict says so.
     }
 )
 

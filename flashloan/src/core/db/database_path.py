@@ -4,9 +4,13 @@ The resolution rule is intentionally single-sourced here: an explicit
 ``database_url`` wins, then the per-chain SQLite file derived from the current
 chain scope, then ``FLASHLOAN_KV_PATH``, then the default chain's SQLite file
 from the chain registry.  The old cross-chain ``flashloan/db/local_store.sqlite3``
-is no longer the implicit default.  Relative database URLs resolve against the
-current working directory so they can never accidentally land in a nested
-runtime directory.  ``core.local_kv.store_path`` and the other storage helpers
+is no longer the implicit default.
+
+Relative database URLs resolve against the current working directory so they
+can never accidentally land in a nested runtime directory.  Callers that want a
+stable location must pass an absolute path or an explicit chain scope; the
+tests pin the working directory to ``tmp_path`` so no orphan store is created
+in the repository.  ``core.local_kv.store_path`` and the other storage helpers
 delegate here.
 """
 

@@ -1,0 +1,10 @@
+﻿{
+    "Pid":  224,
+    "BroadcastEnabled":  false,
+    "NativeRust":  true,
+    "Database":  "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "Stdout":  "E:\\2026OPC大赛\\flashLoan\\plan\\runtime_evidence\\diagnostics\\testnet_review\\runtime_sync_20261115T112950.stdout.log",
+    "Stderr":  "E:\\2026OPC大赛\\flashLoan\\plan\\runtime_evidence\\diagnostics\\testnet_review\\runtime_sync_20261115T112950.stderr.log",
+    "ChainId":  46630,
+    "Network":  "robinhood-testnet"
+}

@@ -1,0 +1,161 @@
+{
+  "schema": "pool_manager_design_review_evidence",
+  "version": "1.0",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "scope": "Pool-manager architecture review against the proposed core_pools/watch_pools design doc",
+  "authority": "controlled-replay",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "isolation": "process",
+    "architecture": "x86_64",
+    "id": "dev-workstation"
+  },
+  "production_writes": 0,
+  "production_schema_facts": {
+    "tables_present": [
+      "v4_exchange_pool_liquidity_snapshots (4669 rows)",
+      "dex_candidate_pools (47 rows)",
+      "manager_dex_candidate_pools (114 rows)",
+      "pool_scope_config (2 rows)",
+      "v4_exchange_pools"
+    ],
+    "core_pools_table_exists": false,
+    "watch_pools_table_exists": false,
+    "candidate_union_pool_count": 94,
+    "distinct_snapshot_pool_count": 4669,
+    "snapshot_liquidity_read_at_distribution": {
+      "2026-11-09": 247,
+      "2026-11-04": 3,
+      "2026-10-16": 4419
+    },
+    "recent_swap_active_nonnull_count": 0,
+    "manager_candidate_recommended_first_hop_count": 100,
+    "manager_candidate_recommended_third_hop_count": 100,
+    "design_doc_topk_target_per_direction": 5
+  },
+  "new_defects_discovered": [
+    {
+      "id": "D5",
+      "title": "depth --apply populates the SNAPSHOT table but never the CANDIDATE table; the sizing path reads the CANDIDATE table",
+      "severity": "P0",
+      "blocks": "D4 production effect / W6-5",
+      "evidence": {
+        "rehearsal_db": "%TEMP%/w6_rehearsal3.sqlite3",
+        "snapshot_balances_json_nonempty": "94/4669",
+        "dex_candidate_pools_balances_json_nonempty": "0/47",
+        "candidate_pools_with_populated_snapshot": "47/47",
+        "manager_dex_candidate_pools_with_populated_snapshot": "114/114"
+      },
+      "root_cause": "pool_manager/src/lib.rs: write_depth_snapshot() UPDATEs v4_exchange_pool_liquidity_snapshots only. dex_candidate_pools is written solely by upsert_eligible_pool_rows() (lib.rs:1089), which is reached from refresh_pair() (lib.rs:1180) / refresh_key(), never from refresh_depth() (lib.rs:1347).",
+      "read_path": "flashloan/src/core/db/builders.py:688 and :823 -> 'balances': _json_loads(pool.get('balances_json')) reading dex_candidate_pools; flashloan/src/dex/runtime/dex_quote_evidence_size.py:172 _liquidity_cap_raw() consumes it.",
+      "impact": "Even after W6-4 succeeds, _liquidity_cap_raw() still returns None for every candidate pool, so D4-a capacity-aware ladder start still takes the fallback_one_token_unmeasured_capacity path, and D4-d economicFloorGate never sees a measured capacity. W6-5 (ladderIncomplete -> 0) CANNOT be reached by W6-4 alone.",
+      "severity_note": "This invalidates the W6-4 acceptance criterion '_liquidity_cap_raw() non-None', which was verified against the snapshot table rather than the table the sizing path actually reads."
+    },
+    {
+      "id": "D6",
+      "title": "upsert_eligible_pool_rows writes token ADDRESSES into balances_json.token0/token1, but the sizing path expects token AMOUNTS",
+      "severity": "P0",
+      "blocks": "any refresh_pair/refresh_key run after depth --apply",
+      "evidence": {
+        "source": "flashloan/tools/pool_manager/src/lib.rs:1126-1134",
+        "writes": "{\"token0\": pool.token0, \"token1\": pool.token1, ...}",
+        "pool_token0_origin": "SELECT e.token0 FROM v4_exchange_pools e  (lib.rs:997) -> a 0x-prefixed token ADDRESS",
+        "consumer": "dex_quote_evidence_size.py:146 _pool_borrow_side_amount -> _positive_decimal_or_none -> _decimal() raises ValueError('invalid decimal amount')",
+        "proof": "Decimal('0x0868...') raises InvalidOperation; the helper _decimal() converts that to ValueError",
+        "is_guarded": false,
+        "guard_evidence": "rust_closed_loop.py:3438 calls _liquidity_cap_raw() with no try/except; _route_task_config is invoked at rust_closed_loop.py:3612 without a local exception handler"
+      },
+      "root_cause": "The candidate-table writer reuses the pool address fields for the balances payload. The snapshot writer (write_depth_snapshot, lib.rs:1739-1754) correctly writes human-readable capacity AMOUNTS, but the candidate writer never was migrated.",
+      "impact": "If refresh_pair or refresh_key runs after depth --apply, dex_candidate_pools.balances_json.token0/token1 become address strings. The next review cycle then raises an uncaught ValueError inside the sizing path, potentially aborting the whole review batch rather than degrading to a fallback. This is worse than the current empty-object state, which degrades safely to None.",
+      "severity_note": "Latent: currently masked because dex_candidate_pools.balances_json is still '{}' in production, so no address has been written yet."
+    }
+  ],
+  "design_doc_verdict": {
+    "overall": "Direction is right (chain-side lightweight snapshot arbitration + off-chain full computation + memory/persistence separation), but the proposed DATA LAYER must not be adopted literally.",
+    "must_not_do": [
+      "Do NOT create core_pools / watch_pools dual tables: pool_scope_config is already the scope authority (scope_key + library_checksums_json + materialized_checksum). A second physical pool table introduces exactly the dual-source drift that produced the current pool_scope_drift blocker.",
+      "Do NOT use USD thresholds: 86/88 production loops (97.7%) borrow a token that is neither ETH nor a USD stablecoin; 42/88 (47.7%) borrow stock tokens. cap_in_usd is not evaluable on this chain.",
+      "Do NOT use TTL DELETE on a watch table: recent_swap_active is NULL for all 4669 snapshot rows, so there is no event-recency signal to base a TTL on yet.",
+      "Do NOT claim amountOutMinimum: Uniswap V4 has no amountOutMinimum; the corresponding parameter is sqrtPriceLimitX96.",
+      "Do NOT hardcode gasLimit=500000: production broadcast count is 0 and 3-hop flash-loan gas is unmeasured.",
+      "Do NOT implement a local tick cache: capacity is determined by (sqrtPriceX96, liquidity, fee); the codebase contains no tickBitmap/tickLiquidityNet."
+    ],
+    "should_adopt": [
+      "Keep capacity as the primary admission signal with token-denominated economics (already implemented as economicFloorGate).",
+      "Keep the strict separation of 'radar inclusion' from 'execution eligibility' (already implemented: dust_unprofitable closes the execution path only).",
+      "Keep U256/integer-only arithmetic for all profit and capacity math (already satisfied).",
+      "Adopt the snapshot-vs-recompute arbitration direction, but gate it behind ARCH-2 (off-chain 3-hop simulator parity)."
+    ],
+    "already_satisfied_in_repo": [
+      "capacity-primary admission SQL with USD only as a tie-breaker (pool_manager/src/lib.rs:996-1023)",
+      "shared single-source depth policy (flashloan/config/depth_policy.json, Rust start-up assertion + Python import-time load)",
+      "on-chain extsload batch reader with RPC endpoint preflight and fallback (pool_manager/src/chain.rs)",
+      "scope-scoped depth refresh with candidate default scope, --resume, --max-pools, --progress-every",
+      "D4 capacity-aware ladder start + upward search + token-denominated economic floor (2026-11-12)"
+    ]
+  },
+  "recommended_data_layer": {
+    "principle": "Extend the existing authority instead of adding a parallel one.",
+    "items": [
+      {
+        "item": "Fix D5: after depth --apply, propagate the snapshot balances_json into dex_candidate_pools.balances_json (either a dedicated propagation step in refresh_depth, or change builders.py to read the snapshot)."
+      },
+      {
+        "item": "Fix D6: upsert_eligible_pool_rows must write human-readable capacity AMOUNTS (and the decimals), never token addresses."
+      },
+      {
+        "item": "Add a single execution_eligible flag per pool, derived from economicFloorGate, instead of deleting rows."
+      },
+      {
+        "item": "Populate last_chain_event_at from real chain events (WSS/logs) to replace the all-NULL recent_swap_active before any TTL/eviction policy is designed."
+      },
+      {
+        "item": "Define the Top-K recommendation sort key explicitly (capacityBindingRaw DESC + direction key + pool_id), and reconcile it with the existing is_first_hop_recommended / is_third_hop_recommended flags (currently 100 rows flagged per direction, far above the proposed K=5)."
+      }
+    ]
+  },
+  "next_actions_requiring_authorization": [
+    "Fix D5 and D6 in pool_manager (code only, no production write).",
+    "Re-run the W6 rehearsal end-to-end on a fresh copy with the corrected candidate propagation, then re-validate '_liquidity_cap_raw() non-None' against dex_candidate_pools (not the snapshot table).",
+    "Only then request production write authorization for W6-4."
+  ],
+  "evidence_files": [
+    "plan/runtime_evidence/reports/pool_manager_design_review_20261112.json",
+    "plan/runtime_evidence/reports/d4_implementation_20261112.json"
+  ],
+  "defect_fix_results": {
+    "D5": {
+      "status": "fixed",
+      "fixed_at": "2026-11-12",
+      "implementation": "flashloan/tools/pool_manager/src/lib.rs::propagate_balances_to_candidate_pools(), wired into refresh_depth() when options.apply is set",
+      "rehearsal_result": {
+        "candidateBalancesPropagated": 47,
+        "candidate_balances_non_empty": "47/47",
+        "before": "0/47"
+      }
+    },
+    "D6": {
+      "status": "fixed",
+      "fixed_at": "2026-11-12",
+      "implementation": "upsert_eligible_pool_rows now sources token0/token1 from the measured snapshot payload; addresses preserved under token0Address/token1Address; Value::Null when unmeasured",
+      "rehearsal_result": {
+        "candidate_rows_with_0x_prefixed_token0_or_token1": 0,
+        "liquidity_cap_raw_non_none_symbols": "12/12"
+      }
+    },
+    "w6_4_acceptance_criterion": {
+      "original": "_liquidity_cap_raw() returns non-None (checked against the snapshot table)",
+      "corrected": "_liquidity_cap_raw() returns non-None when evaluated against the candidate table (dex_candidate_pools), which is what the sizing path reads",
+      "revalidated": true
+    },
+    "regression": {
+      "cargo_test_pool_manager": "56 passed",
+      "pytest_healer": "95 passed",
+      "pytest_capacity_pool_index_d4_quote_evidence_worker_bridge": "186 passed",
+      "cargo_build_release_rs_src": "success",
+      "deployed_binary_matches_source": true
+    },
+    "production_writes": 0
+  }
+}

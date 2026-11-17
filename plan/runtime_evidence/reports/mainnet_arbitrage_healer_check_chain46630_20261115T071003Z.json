@@ -1,0 +1,926 @@
+{
+  "mode": "check",
+  "generatedAt": "2026-11-15T07:10:02Z",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "toolingBlocker": null,
+  "concurrency": {
+    "workerConcurrency": null,
+    "workerConcurrencyActive": null,
+    "workerConcurrencyConfigured": 16,
+    "workerConcurrencyLimit": null,
+    "workerConcurrencyCeiling": 32,
+    "workerConcurrencyUnknown": true,
+    "workerConcurrencySource": "configured_defaults",
+    "workerConcurrencyReason": "runtime API did not return a worker-pool status object",
+    "residentWorkers": null,
+    "scanRequestCount": 204,
+    "scanReviewCount": 192,
+    "scanPoolCount": 12,
+    "candidateLimitPerRound": 5,
+    "candidateLimitConfigured": true,
+    "candidateLimitSemantics": "repair requests submitted per round; NOT the worker concurrency",
+    "workerConcurrencySemantics": "resident Rust review workers that may run simultaneously; independent of the healer candidate limit",
+    "definitions": {
+      "workerConcurrency": "parallel review workers in the Rust runtime",
+      "scanRequestCount": "rows and pools inspected during this report",
+      "candidateLimitPerRound": "repair requests the healer submits per round"
+    }
+  },
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+  "observationStartedAt": "2026-01-01T00:00:00Z",
+  "observationEpochFallback": true,
+  "observationEpochUnknown": true,
+  "observationEpochFallbackReason": "FileNotFoundError",
+  "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+  "successCriteria": {
+    "continuousFreshReviews": true,
+    "broadcastOnlyFromFreshProfitableReview": true,
+    "terminalTransactionRecords": true,
+    "expectedAndGasAdjustedPnlAvailable": true
+  },
+  "layers": {
+    "tokens": {
+      "valid": false,
+      "source": {
+        "total": 47662,
+        "missing_decimals": 47628,
+        "missing_symbol": 0
+      },
+      "libraries": {
+        "core": {
+          "total": 4,
+          "admitted": 4,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "stocks": {
+          "total": 5,
+          "admitted": 5,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "extension": {
+          "total": 6,
+          "admitted": 0,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "test": {
+          "total": 0,
+          "admitted": null,
+          "missing_decimals": null,
+          "missing_symbol": null
+        }
+      },
+      "admittedTotal": 9,
+      "libraryMissingFields": 0,
+      "officialFundingAddresses": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "TZ": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      },
+      "fundingAddressMismatches": [
+        {
+          "symbol": "TZ",
+          "expectedAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "actualAddress": null
+        }
+      ],
+      "counterfeitFundingAdmissions": [],
+      "stockProvenanceInvalid": [
+        {
+          "token_symbol": "PLTR",
+          "token_address": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "NFLX",
+          "token_address": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "AMZN",
+          "token_address": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "AMD",
+          "token_address": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        },
+        {
+          "token_symbol": "TSLA",
+          "token_address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "metadata_source": "robinhood_testnet_v4_evidence",
+          "admission_source": "bootstrap:stock_registry"
+        }
+      ],
+      "code": "layer_invalid",
+      "secondaryCodes": []
+    },
+    "pools": {
+      "valid": false,
+      "scope": {
+        "enabled": 1,
+        "materialized_checksum": "sha256:9367ec53306cf731d4672c850d9f36296d9ccbffa08ab6346df1d14444062c6c",
+        "last_rebuilt_at": "2026-11-15T06:20:56.735244100+00:00"
+      },
+      "candidate": {
+        "eligible_pool_count": 12,
+        "candidate_token_count": 5,
+        "abnormal_pool_count": 3,
+        "materialized_checksum": "sha256:a92676d78cc02a90288fde85a59fe9893c44fdce47653f7d22bcaa4b21b90e2c",
+        "generated_at": "2026-11-15T06:20:57.577268+00:00"
+      },
+      "observation": {
+        "pool_count": 6,
+        "direction_count": 20,
+        "empty_direction_count": 12,
+        "abnormal_pool_count": 3,
+        "materialized_checksum": "sha256:eb7c5ba96610f617cb13d8e602dbee817b2d3779cea7bd0cb001ff7faf7a8643",
+        "generated_at": "2026-11-15T06:20:57.646142500+00:00"
+      },
+      "exchange": {
+        "total": 12312,
+        "missing_currencies": 0,
+        "filtered_fee": 0
+      },
+      "depth": {
+        "valid": false,
+        "code": "pool_depth_insufficient",
+        "depthBasis": "estimated_tvl_usd_legacy",
+        "capacitySchemaPresent": false,
+        "bindingCapacitySchemaPresent": false,
+        "capacityBasis": "raw_units",
+        "minCapacityRaw": 0.001,
+        "minTvlUsd": 100000.0,
+        "maxTvlUsd": 1000000000.0,
+        "candidatePoolCount": 3,
+        "uniquePoolCount": 3,
+        "candidatePoolRows": 6,
+        "badReadingCount": 2,
+        "snapshotBadReadings": {
+          "available": true,
+          "reason": null,
+          "rowCount": 1383,
+          "nullReadingCount": 672,
+          "badReadingCount": 556,
+          "maxTvlUsd": 1.9822474706525369e+40,
+          "maxTvlUsdLimit": 1000000000.0
+        },
+        "capacityPoolCount": 2,
+        "adequateDepthPoolCount": 0,
+        "insufficientDepthPoolCount": 3,
+        "minCapacityRawObserved": null,
+        "maxCapacityRawObserved": null,
+        "thinPoolCount": 0,
+        "unpricedPoolCount": 1,
+        "reason": "candidate pools whose on-chain capacity is below the minimum depth band can only produce dust-sized best trade amounts whose profit never covers gas",
+        "byDepthStatus": [
+          {
+            "depthStatus": "deep",
+            "poolCount": 2,
+            "adequatePoolCount": 0,
+            "capacityPoolCount": 2,
+            "badReadingCount": 2,
+            "minTvlUsd": 7.380293779818824e+16,
+            "maxTvlUsd": 3.80632194984308e+20,
+            "avgTvlUsd": 1.9035299896105307e+20,
+            "minCapacityRaw": null,
+            "maxCapacityRaw": null
+          },
+          {
+            "depthStatus": "unpriced",
+            "poolCount": 1,
+            "adequatePoolCount": 0,
+            "capacityPoolCount": 0,
+            "badReadingCount": 0,
+            "minTvlUsd": 0.0,
+            "maxTvlUsd": 0.0,
+            "avgTvlUsd": 0.0,
+            "minCapacityRaw": null,
+            "maxCapacityRaw": null
+          }
+        ]
+      },
+      "depthSnapshot": {
+        "available": true,
+        "latestReadAt": "2026-11-15T06:58:25.484944Z",
+        "oldestReadAt": "2026-11-15T06:40:54.323118Z",
+        "rowCount": 1383,
+        "capacityRowCount": 0,
+        "ageSeconds": 691.511897,
+        "stale": false,
+        "unverifiableTimestamp": false,
+        "code": null,
+        "valid": true,
+        "reason": null,
+        "maxAgeSeconds": 900
+      },
+      "pathCapacity": {
+        "available": false,
+        "reason": "capacity_schema_missing",
+        "detail": "run `pool-manager ensure-depth-schema --apply` first"
+      },
+      "bestAmount": {
+        "code": null,
+        "valid": true,
+        "gateBacktrace": {
+          "counts": {
+            "pool_depth_insufficient": 0,
+            "gas_budget_exceeded": 0,
+            "best_amount_unresolved": 192
+          },
+          "total": 192,
+          "dominantCause": "best_amount_unresolved",
+          "samples": {
+            "pool_depth_insufficient": [],
+            "gas_budget_exceeded": [],
+            "best_amount_unresolved": [
+              {
+                "reviewId": 244,
+                "reason": "best_amount_unresolved",
+                "bestAmount": null
+              },
+              {
+                "reviewId": 240,
+                "reason": "best_amount_unresolved",
+                "bestAmount": null
+              },
+              {
+                "reviewId": 239,
+                "reason": "best_amount_unresolved",
+                "bestAmount": null
+              },
+              {
+                "reviewId": 243,
+                "reason": "best_amount_unresolved",
+                "bestAmount": null
+              },
+              {
+                "reviewId": 238,
+                "reason": "best_amount_unresolved",
+                "bestAmount": null
+              }
+            ]
+          },
+          "reason": "the dominant cause of an unusable best trade amount; pool_depth_insufficient means the pool set must change"
+        },
+        "confirmedCount": 0,
+        "belowGasCount": 0,
+        "tooSmallCount": 0,
+        "insufficientCount": 0,
+        "gasEstimateEth": 6.2e-06,
+        "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+        "bySymbol": {},
+        "belowGasSamples": [],
+        "tooSmallSamples": []
+      },
+      "scopeDrift": {
+        "code": null,
+        "valid": true,
+        "expectedChecksum": "sha256:9367ec53306cf731d4672c850d9f36296d9ccbffa08ab6346df1d14444062c6c",
+        "layerChecksums": {
+          "pool_scope_config": "sha256:9367ec53306cf731d4672c850d9f36296d9ccbffa08ab6346df1d14444062c6c",
+          "manager_dex_candidate_library_state": "sha256:9367ec53306cf731d4672c850d9f36296d9ccbffa08ab6346df1d14444062c6c",
+          "manager_v4_closed_loop_library_state": "sha256:9367ec53306cf731d4672c850d9f36296d9ccbffa08ab6346df1d14444062c6c",
+          "manager_market_observation_library_state": "sha256:d9a87d77faff1f58970590ee1b7c77832903d8550aaedc9d8010aa5a3317a210"
+        },
+        "driftedLayers": [],
+        "candidatePoolCount": 12,
+        "closedLoopHopCount": 24,
+        "missingPoolHopCount": 0,
+        "missingPoolHopRatio": 0.0,
+        "affectedLoopCount": 0,
+        "affectedLoopKeys": [],
+        "scopeRebuiltAt": "2026-11-15T06:20:56.735244100+00:00",
+        "candidateGeneratedAt": "2026-11-15T06:20:57.577268+00:00",
+        "closedLoopGeneratedAt": "2026-11-15T06:20:57.697959800+00:00",
+        "observationGeneratedAt": "2026-11-15T06:20:57.646142500+00:00",
+        "reason": null
+      },
+      "closedLoopScopeDrift": {
+        "closedLoopScopeDrifted": false,
+        "driftedLayers": [],
+        "missingPoolHopCount": 0,
+        "affectedLoopCount": 0,
+        "hopsMissingFromCandidateScope": false,
+        "reason": null
+      },
+      "candidateInventory": {
+        "rowCount": 12,
+        "poolCount": 12,
+        "pairCount": 5,
+        "source": "manager_dex_candidate_pools"
+      },
+      "code": "pool_depth_insufficient",
+      "secondaryCodes": []
+    },
+    "closedLoops": {
+      "valid": false,
+      "library": {
+        "loop_count": 8,
+        "hop_count": 24,
+        "consumers_need_rebuild": 1,
+        "materialized_checksum": "sha256:e18e248e665a39482eb5477696b2b69956265bce8c3a92d191b3dc7f18f3893d",
+        "generated_at": "2026-11-15T06:20:57.697959800+00:00"
+      },
+      "runtime": [
+        {
+          "state": "execution_not_requested",
+          "count": 2
+        },
+        {
+          "state": "preflight_failed",
+          "count": 1
+        }
+      ],
+      "code": "layer_invalid",
+      "secondaryCodes": []
+    },
+    "reviews": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "reviews": 0
+      },
+      "sources": {
+        "managerReviewRows": 0,
+        "managerLibraryRows": 0,
+        "managerLibraryLoopCount": 0,
+        "managerLibraryPresent": false,
+        "legacyReviewRows": 192,
+        "legacyIsAuditSource": true,
+        "managerIsMaterializedSource": true,
+        "auditSource": "legacy",
+        "sourcesDisagree": true,
+        "code": "review_library_not_materialized",
+        "managerState": null
+      },
+      "legacy": {
+        "windowHours": 24,
+        "stats": {
+          "total": 192,
+          "withValue": 170,
+          "missingValue": 22,
+          "positive": 0,
+          "positiveAmount": 81,
+          "positiveEstimateOnly": 0,
+          "estimatedProfitOnlyCount": 0,
+          "confirmedSum": 0.0,
+          "nonPositive": 89,
+          "sum": -1511.9105015113503,
+          "minimum": -31.999999972141637,
+          "maximum": 8.975329313020541,
+          "byCurrency": {
+            "NFLX": -437.91403383829766,
+            "ETH": -520.9749291770341,
+            "PLTR": -553.0215384960189
+          }
+        },
+        "windowReviewCount": 192,
+        "latestReviewAt": "2026-11-15T07:06:51.490731400+00:00",
+        "currentLoopMatched": 64,
+        "staleOrUnmatched": 128,
+        "currentDistinctLoops": 2,
+        "matchedMissingPnl": 10,
+        "unmatchedMissingPnl": 12,
+        "bestAmountMissing": 192,
+        "bestAmountMissingCurrentLoop": 64,
+        "bestAmountLadderIncomplete": 182,
+        "bestAmountLadderIncompleteCurrentLoop": 56,
+        "bestAmountConfirmed": 0
+      },
+      "bestAmount": {
+        "code": "best_amount_missing",
+        "missing": 192,
+        "missingCurrentLoop": 64,
+        "ladderIncomplete": 182,
+        "ladderIncompleteCurrentLoop": 56,
+        "total": 192,
+        "confirmed": 0,
+        "retryable": false,
+        "failClosed": true,
+        "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+        "reasons": [
+          {
+            "reason": "live_verified: best amount unresolved",
+            "count": 67
+          },
+          {
+            "reason": "best_amount_missing: review produced no concrete best trade amount; the amount ladder did not resolve a usable probe value",
+            "count": 50
+          },
+          {
+            "reason": "route_unprofitable: best amount unresolved",
+            "count": 39
+          },
+          {
+            "reason": "slippage_limit_exceeded: best amount unresolved",
+            "count": 14
+          },
+          {
+            "reason": "not_enough_liquidity: best amount unresolved",
+            "count": 10
+          },
+          {
+            "reason": "review_failed: best amount unresolved",
+            "count": 9
+          },
+          {
+            "reason": "rpc_verification_timeout: best amount unresolved",
+            "count": 3
+          }
+        ],
+        "samples": [
+          {
+            "reviewId": 244,
+            "loopKey": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "currentLoop": false,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "NFLX",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 240,
+            "loopKey": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "currentLoop": false,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "NFLX",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 239,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "currentLoop": true,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "ETH",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 243,
+            "loopKey": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000",
+            "currentLoop": false,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "PLTR",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 238,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "currentLoop": true,
+            "reason": "best_amount_missing: review produced no concrete best trade amount; the amount ladder did not resolve a usable probe value",
+            "status": "review_failed_missing_best_amount",
+            "reviewFailureKind": "best_amount_missing",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "ETH",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 242,
+            "loopKey": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "currentLoop": false,
+            "reason": "best_amount_missing: review produced no concrete best trade amount; the amount ladder did not resolve a usable probe value",
+            "status": "review_failed_missing_best_amount",
+            "reviewFailureKind": "best_amount_missing",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "PLTR",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 241,
+            "loopKey": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000",
+            "currentLoop": false,
+            "reason": "best_amount_missing: review produced no concrete best trade amount; the amount ladder did not resolve a usable probe value",
+            "status": "review_failed_missing_best_amount",
+            "reviewFailureKind": "best_amount_missing",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "NFLX",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          },
+          {
+            "reviewId": 237,
+            "loopKey": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000",
+            "currentLoop": false,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "PLTR",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 236,
+            "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "currentLoop": true,
+            "reason": "live_verified: best amount unresolved",
+            "status": "live_verified",
+            "reviewFailureKind": "",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "ETH",
+            "ladderIncomplete": true,
+            "probeCount": 1
+          },
+          {
+            "reviewId": 234,
+            "loopKey": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "currentLoop": false,
+            "reason": "best_amount_missing: review produced no concrete best trade amount; the amount ladder did not resolve a usable probe value",
+            "status": "review_failed_missing_best_amount",
+            "reviewFailureKind": "best_amount_missing",
+            "initialProbeAmount": 32.0,
+            "requestedSymbol": "PLTR",
+            "ladderIncomplete": true,
+            "probeCount": 0
+          }
+        ]
+      },
+      "missingReasons": [
+        {
+          "reason": "hop 2 PLTR->NFLX is not executable for requested amount (not profitable / liquidity): robinhood testnet v4 quoter exact-input call failed; robinhood testnet v4 quoter reverted: UnexpectedRevertBytes(b",
+          "count": 10
+        },
+        {
+          "reason": "native_task_config_unavailable",
+          "count": 9
+        },
+        {
+          "reason": "on-chain evidence timed out after 120.0s; DEX:3006:requires_live_quoter",
+          "count": 2
+        },
+        {
+          "reason": "on-chain evidence timed out after 120.0s; DEX:3006:static_reference_pending_live_review",
+          "count": 1
+        }
+      ],
+      "missingClassifications": [
+        {
+          "code": "other",
+          "retryable": false,
+          "currentLoop": false,
+          "count": 10,
+          "sampleReviewIds": [
+            134,
+            133,
+            120,
+            59,
+            58
+          ]
+        },
+        {
+          "code": "quote_failed",
+          "retryable": false,
+          "currentLoop": true,
+          "count": 10,
+          "sampleReviewIds": [
+            106,
+            107,
+            100,
+            101,
+            94
+          ]
+        },
+        {
+          "code": "quote_failed",
+          "retryable": false,
+          "currentLoop": false,
+          "count": 2,
+          "sampleReviewIds": [
+            127,
+            113
+          ]
+        }
+      ],
+      "code": "best_amount_missing",
+      "secondaryCodes": []
+    },
+    "broadcast": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "attempts": 0
+      },
+      "legacy": {
+        "total": 0,
+        "categories": {},
+        "latestAttemptAt": null,
+        "recent": []
+      },
+      "profitAnalysis": {
+        "expectedByCurrency": {},
+        "gasCostEthTotal": 0.0,
+        "gasCostObservedAttempts": 0,
+        "expectedEthOrWethNetAfterGas": 0.0,
+        "expectedEthOrWethNetObservedAttempts": 0,
+        "realizedByCurrency": {},
+        "realizedNetAfterGasByCurrency": {},
+        "realizedPnlObservedAttempts": 0,
+        "realizedPnlMissingAttempts": 0,
+        "realizedPnlMissingReasons": {},
+        "realizedPnlAvailable": false,
+        "source": "contract_preview_plus_confirmed_receipt_gas"
+      },
+      "outcomes": {
+        "success": 0,
+        "failed": 0,
+        "pending": 0,
+        "other": 0
+      },
+      "historicalPositiveReviewsInWindow": 0,
+      "automaticBroadcastCandidates": 0,
+      "automaticBroadcastPolicy": "fresh_positive_review_only",
+      "code": "layer_invalid",
+      "secondaryCodes": []
+    },
+    "tooling": {
+      "available": true,
+      "binary": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\debug\\pool-manager.exe",
+      "binaryModifiedAt": "2026-11-15T01:08:13.259329Z",
+      "requiredCommands": [
+        "audit",
+        "baseline-audit",
+        "cleanup",
+        "materialize-scope",
+        "ensure-indexes",
+        "ensure-depth-schema",
+        "depth"
+      ],
+      "missingCommands": [],
+      "complete": true,
+      "reason": null,
+      "sourceConsistency": {
+        "verified": true,
+        "valid": true,
+        "script": "E:\\2026OPC大赛\\flashLoan\\scripts\\verify_pool_manager_binary_matches_source.py",
+        "crateDir": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\pool_manager",
+        "reason": null,
+        "sourceDigest": "73c10dac6ffc2444398658cb5a3930692591ec6a2eca4fef011ed3ae90053ecc",
+        "sourceCommandSet": [
+          "add-pair",
+          "audit",
+          "baseline-audit",
+          "cleanup",
+          "depth",
+          "ensure-depth-schema",
+          "ensure-indexes",
+          "materialize-scope",
+          "pool-role-cleanup",
+          "pool-roles",
+          "rebuild-scope",
+          "refresh-key",
+          "refresh-pair",
+          "scope",
+          "scope-status",
+          "swap-activity",
+          "tick-state",
+          "update-pair",
+          "wss-monitor"
+        ],
+        "binaryCommandSet": [
+          "add-pair",
+          "audit",
+          "baseline-audit",
+          "cleanup",
+          "depth",
+          "ensure-depth-schema",
+          "ensure-indexes",
+          "materialize-scope",
+          "pool-role-cleanup",
+          "pool-roles",
+          "rebuild-scope",
+          "refresh-key",
+          "refresh-pair",
+          "scope",
+          "scope-status",
+          "swap-activity",
+          "tick-state",
+          "update-pair",
+          "wss-monitor"
+        ],
+        "commandsMissingFromBinary": [],
+        "requiredCommandsMissingFromBinary": [],
+        "problems": []
+      },
+      "valid": true,
+      "code": null,
+      "secondaryCodes": []
+    },
+    "databaseBaseline": {
+      "chainId": 46630,
+      "closedLoops": {
+        "completeThreeHopLoopCount": 8,
+        "hopCount": 24,
+        "incompleteLoopCount": 0,
+        "invalidHopPoolReferenceCount": 0,
+        "loopCount": 8
+      },
+      "extension": {
+        "admitted": 0,
+        "anchoredToCoreOrStocks": 6,
+        "candidateOnly": 6,
+        "total": 6,
+        "unanchored": 0,
+        "unanchoredTokens": []
+      },
+      "issues": [],
+      "migrations": {
+        "appliedCount": 10,
+        "appliedMigrations": [
+          "20261103_001_manager_schema",
+          "20261104_001_candidate_edge_schema",
+          "20261104_002_candidate_exchange_schema",
+          "20261104_003_closed_loop_schema",
+          "20261104_004_review_schema",
+          "20261104_005_broadcast_schema",
+          "20261104_006_composite_schema",
+          "20261112_007_usdg_valuation_schema",
+          "20261114_008_single_tick_capacity_schema",
+          "20261114_009_hop_price_limit_schema"
+        ],
+        "latestExpectedApplied": true,
+        "latestExpectedMigration": "20261114_009_hop_price_limit_schema",
+        "ledger": "schema_migrations",
+        "missingMigrations": [],
+        "unknownMigrationCount": 0
+      },
+      "network": "robinhood-testnet",
+      "pools": {
+        "candidatePairCount": 5,
+        "candidatePairMissingTop1DirectionCount": 0,
+        "candidatePoolCount": 12,
+        "candidatePoolInvalidReferenceCount": 0,
+        "candidateScopeActiveCount": 18,
+        "candidateScopeActiveInvalidFeeOrHookCount": 0,
+        "candidateScopeActiveMissingStateCount": 0,
+        "candidateScopeConfiguredLibraries": [
+          "core",
+          "stocks"
+        ],
+        "candidateScopeOutOfPolicyPoolCount": 0,
+        "candidateScopePolicyMatches": true,
+        "candidateScopePoolCount": 24,
+        "coreScopeConfiguredLibraries": [
+          "core",
+          "stocks"
+        ],
+        "coreScopePolicyMatches": true,
+        "observationDirectDirectionCount": 8,
+        "observationDirectionCount": 20,
+        "observationEmptyDirectionCount": 12,
+        "observationInvalidPoolReferenceCount": 0,
+        "observationPoolCount": 6,
+        "recommendationCount": 24,
+        "recommendationInvalidPoolReferenceCount": 0,
+        "sourcePoolCount": 12312,
+        "top1RecommendationCount": 10
+      },
+      "tokenLibraries": [
+        {
+          "admitted": 4,
+          "libraryKey": "core",
+          "missingAddress": 0,
+          "missingDecimals": 0,
+          "missingName": 0,
+          "missingSymbol": 0,
+          "stateAdmittedCount": 4,
+          "stateMatchesRows": true,
+          "stateTokenCount": 4,
+          "total": 4
+        },
+        {
+          "admitted": 5,
+          "libraryKey": "stocks",
+          "missingAddress": 0,
+          "missingDecimals": 0,
+          "missingName": 0,
+          "missingSymbol": 0,
+          "stateAdmittedCount": 5,
+          "stateMatchesRows": true,
+          "stateTokenCount": 5,
+          "total": 5
+        },
+        {
+          "admitted": 0,
+          "libraryKey": "extension",
+          "missingAddress": 0,
+          "missingDecimals": 0,
+          "missingName": 0,
+          "missingSymbol": 0,
+          "stateAdmittedCount": 0,
+          "stateMatchesRows": true,
+          "stateTokenCount": 6,
+          "total": 6
+        },
+        {
+          "admitted": 0,
+          "libraryKey": "test",
+          "missingAddress": 0,
+          "missingDecimals": 0,
+          "missingName": 0,
+          "missingSymbol": 0,
+          "stateAdmittedCount": 0,
+          "stateMatchesRows": true,
+          "stateTokenCount": 0,
+          "total": 0
+        }
+      ],
+      "valid": true,
+      "command": [
+        "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\debug\\pool-manager.exe",
+        "baseline-audit",
+        "--store",
+        "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+        "--chain-id",
+        "46630"
+      ],
+      "missingMigrationCount": 0,
+      "missingMigrations": [],
+      "code": null,
+      "secondaryCodes": []
+    }
+  },
+  "blockers": [
+    "tokens",
+    "pools",
+    "closedLoops",
+    "reviews",
+    "broadcast"
+  ],
+  "invalidLayers": [
+    "tokens",
+    "pools",
+    "closedLoops",
+    "reviews",
+    "broadcast"
+  ],
+  "blockerCodes": {
+    "tokens": "layer_invalid",
+    "pools": "pool_depth_insufficient",
+    "closedLoops": "layer_invalid",
+    "reviews": "best_amount_missing",
+    "broadcast": "layer_invalid"
+  },
+  "secondaryBlockerCodes": {
+    "tokens": [],
+    "pools": [],
+    "closedLoops": [],
+    "reviews": [],
+    "broadcast": []
+  },
+  "transactionProduction": {
+    "state": "upstream_invalid",
+    "healthy": false,
+    "reason": "token_pool_or_closed_loop_invalid",
+    "latestReviewAt": "2026-11-15T07:06:51.490731400+00:00",
+    "reviewAgeSeconds": 190.509269,
+    "reviewFreshnessThresholdSeconds": 600,
+    "executablePositiveReviews": 0,
+    "transactionRecords": 0,
+    "latestAttemptAt": null,
+    "bestAmountMissing": 192,
+    "poolScopeDrift": false,
+    "poolScopeDriftedLayers": [],
+    "poolScopeMissingHopCount": 0,
+    "poolScopeAffectedLoopCount": 0,
+    "closedLoopScopeDrift": {
+      "closedLoopScopeDrifted": false,
+      "driftedLayers": [],
+      "missingPoolHopCount": 0,
+      "affectedLoopCount": 0,
+      "hopsMissingFromCandidateScope": false,
+      "reason": null
+    },
+    "poolDepthSnapshotStale": false,
+    "poolDepthSnapshotAgeSeconds": 691.511897,
+    "poolDepthSnapshotMaxAgeSeconds": 900,
+    "toolingDeploymentGap": null
+  },
+  "safeToAutoBroadcast": false
+}

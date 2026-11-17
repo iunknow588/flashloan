@@ -1,0 +1,270 @@
+﻿{
+  "chainId": 4663,
+  "classification": {
+    "duplicateSymbolGroups": 6,
+    "duplicateSymbolSamples": [
+      {
+        "symbol": "CLOSED",
+        "tokenKeyIds": [
+          "robinhood:4663:0x07ad030e10091079ce2c25fc8bc051b3469eb107",
+          "robinhood:4663:0x512abfdf93475a080e657ccbc8d1236531f5f469",
+          "robinhood:4663:0x7911825683c9b85aa5657882714016c63af07c98",
+          "robinhood:4663:0x9926c9b8f3ad65def5fba823a5c2a50796d09336",
+          "robinhood:4663:0xfecf84e43b8e4621f52110cc87037a2eb8d7bbcd"
+        ]
+      },
+      {
+        "symbol": "GME",
+        "tokenKeyIds": [
+          "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+          "robinhood:4663:0x7e86381a763f0ecca2bdf27c54eac403ddd48123"
+        ]
+      },
+      {
+        "symbol": "GP",
+        "tokenKeyIds": [
+          "robinhood:4663:0xa89d6006aa58a8d06103e07480a40fe642be5b87",
+          "robinhood:4663:0xaa66abc84a6d615fd5debc37f15ed3b8ed93d4a1"
+        ]
+      },
+      {
+        "symbol": "MUSEBOOK",
+        "tokenKeyIds": [
+          "robinhood:4663:0x622145cdc8f0b99ae4d5954f1222fc725838c1c0",
+          "robinhood:4663:0x905bb5cf687bf337064a78e05924e117e6c4be5c"
+        ]
+      },
+      {
+        "symbol": "PEPE",
+        "tokenKeyIds": [
+          "robinhood:4663:0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+          "robinhood:4663:0xd089c3a157dced53f62d4727421ed5360c66ff56"
+        ]
+      },
+      {
+        "symbol": "SGURA",
+        "tokenKeyIds": [
+          "robinhood:4663:0x1a6e8f2ae073cd5e423e63d28f2cdd88c2798b86",
+          "robinhood:4663:0xc69c29cef07c5def262f22882bf6375c15be2fe5"
+        ]
+      }
+    ],
+    "extensionAnchorDistribution": {
+      "CORE_TOKEN": 160,
+      "STOCK_TOKEN": 23,
+      "TEST_TOKEN": 2
+    },
+    "extensionInputDiagnostics": {
+      "anchors": {
+        "0x0000000000000000000000000000000000000000": {
+          "chainTokenRowCounterparts": 591,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 130,
+          "liquidityQualifiedCounterparts": 130,
+          "liquidityQualifiedMetadataRejectedCounterparts": 0,
+          "metadataAcceptedCounterparts": 229,
+          "rawDistinctCounterparts": 591,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 359,
+            "PLACEHOLDER_SYMBOL": 3
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 229,
+          "symbolAvailableCounterparts": 588,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 11,
+          "validDecimalsAvailableCounterparts": 229
+        },
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73": {
+          "chainTokenRowCounterparts": 270,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 16,
+          "liquidityQualifiedCounterparts": 16,
+          "liquidityQualifiedMetadataRejectedCounterparts": 0,
+          "metadataAcceptedCounterparts": 35,
+          "rawDistinctCounterparts": 270,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 235
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 35,
+          "symbolAvailableCounterparts": 270,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 1,
+          "validDecimalsAvailableCounterparts": 35
+        },
+        "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+          "chainTokenRowCounterparts": 30,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 3,
+          "liquidityQualifiedCounterparts": 3,
+          "liquidityQualifiedMetadataRejectedCounterparts": 0,
+          "metadataAcceptedCounterparts": 4,
+          "rawDistinctCounterparts": 30,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 26
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 4,
+          "symbolAvailableCounterparts": 30,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 0,
+          "validDecimalsAvailableCounterparts": 4
+        },
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+          "chainTokenRowCounterparts": 1028,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 30,
+          "liquidityQualifiedCounterparts": 30,
+          "liquidityQualifiedMetadataRejectedCounterparts": 0,
+          "metadataAcceptedCounterparts": 148,
+          "rawDistinctCounterparts": 1028,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 879,
+            "PLACEHOLDER_SYMBOL": 1
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 148,
+          "symbolAvailableCounterparts": 1027,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 1,
+          "validDecimalsAvailableCounterparts": 148
+        }
+      },
+      "union": {
+        "chainTokenRowCounterparts": 1766,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 160,
+        "liquidityQualifiedCounterparts": 160,
+        "liquidityQualifiedMetadataRejectedCounterparts": 0,
+        "metadataAcceptedCounterparts": 328,
+        "rawDistinctCounterparts": 1766,
+        "symbolAndValidDecimalsAvailableCounterparts": 328,
+        "symbolAvailableCounterparts": 1762,
+        "usdDepthQualifiedCounterpartsDiagnosticOnly": 12,
+        "validDecimalsAvailableCounterparts": 328
+      }
+    },
+    "extensionMembers": 162,
+    "extensionOnly": 138,
+    "extensionOverlap": 24,
+    "extensionOverlapByPrimaryLibrary": {
+      "core": 4,
+      "stocks": 20,
+      "test": 0
+    },
+    "issuesByCode": {},
+    "libraryMemberships": {
+      "core": 4,
+      "extension": 162,
+      "stocks": 194,
+      "test": 1
+    },
+    "mainnetTestTokenCandidates": [
+      {
+        "address": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "classificationPresent": true,
+        "extensionAnchors": [],
+        "memberships": [
+          {
+            "admissionStatus": "admitted",
+            "libraryKey": "test",
+            "reason": "TEST_ALLOWLIST"
+          }
+        ],
+        "primaryLibrary": "test",
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TZ"
+      },
+      {
+        "address": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "classificationPresent": true,
+        "extensionAnchors": [
+          "TEST_TOKEN"
+        ],
+        "memberships": [
+          {
+            "admissionStatus": "candidate_only",
+            "libraryKey": "extension",
+            "reason": "EXTENSION_MEMBER"
+          }
+        ],
+        "primaryLibrary": null,
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TA"
+      },
+      {
+        "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "classificationPresent": true,
+        "extensionAnchors": [
+          "TEST_TOKEN"
+        ],
+        "memberships": [
+          {
+            "admissionStatus": "candidate_only",
+            "libraryKey": "extension",
+            "reason": "EXTENSION_MEMBER"
+          }
+        ],
+        "primaryLibrary": null,
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TB"
+      }
+    ],
+    "primaryLibraries": {
+      "core": 4,
+      "stocks": 194,
+      "test": 1
+    },
+    "sourceOverrides": 198,
+    "unclassified": 4281,
+    "uniqueTokens": 4618
+  },
+  "database": "..\\db\\local_store_4663.sqlite3",
+  "liquidityEligibility": {
+    "gateEnabled": true,
+    "poolCount": 4669,
+    "qualifiedPoolCount": 248,
+    "qualifiedPoolsByLegacyUsdDepthLabelDiagnosticOnly": {
+      "deep": 6,
+      "liquid": 10,
+      "no_liquidity": 1,
+      "thin": 137,
+      "unpriced": 94
+    },
+    "rule": "fixed fee in 1..=3000; dynamic/special fee zero; zero hooks; has_liquidity=1 with positive liquidity_index; legacy USD depth labels are diagnostic only and do not gate admission",
+    "source": "v4_exchange_pools JOIN v4_exchange_pool_liquidity_snapshots",
+    "usdDepthQualifiedPoolCountDiagnosticOnly": 16,
+    "usdDepthRelationshipRequired": false
+  },
+  "mode": "read_only_metadata_and_classification_audit",
+  "network": "robinhood",
+  "normalization": {
+    "accepted": 4816,
+    "acceptedBySource": {
+      "chain_tokens": 4618,
+      "core_allowlist": 4,
+      "stock_registry": 194
+    },
+    "errorSamplesByCode": {
+      "MISSING_DECIMALS": {
+        "code": "MISSING_DECIMALS",
+        "message": "token decimals are required",
+        "source": "chainTokens",
+        "sourceLocator": "chain_tokens:robinhood:4663:0x0008f81eb635bc3f149b2a465541f735e0c6a4e3",
+        "tokenAddress": "0x0008f81eb635bc3f149b2a465541f735e0c6a4e3"
+      },
+      "PLACEHOLDER_SYMBOL": {
+        "code": "PLACEHOLDER_SYMBOL",
+        "message": "placeholder symbol is not allowed: 0X0C6BAD7C",
+        "source": "chainTokens",
+        "sourceLocator": "chain_tokens:robinhood:4663:0x0c6bad7c366b301b7da2c33cf344868e238b3d1c",
+        "tokenAddress": "0x0c6bad7c366b301b7da2c33cf344868e238b3d1c"
+      }
+    },
+    "errorsByCode": {
+      "MISSING_DECIMALS": 1721,
+      "PLACEHOLDER_SYMBOL": 14
+    },
+    "rejected": 1735
+  },
+  "registry": "..\\src\\chains\\robinhood\\robinhood_stock_tokens.json",
+  "sourceCounts": {
+    "chainTokens": 6353,
+    "coreAllowlist": 4,
+    "stockRegistry": 194,
+    "v4PoolCurrencyReferences": 9482
+  },
+  "sourceKinds": [
+    "core_allowlist",
+    "chain_tokens",
+    "stock_registry"
+  ]
+}

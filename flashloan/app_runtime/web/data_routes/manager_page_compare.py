@@ -33,6 +33,7 @@ from web.data_routes.manager_quote_payload import (
     quote_routes_manager_page_payload,
 )
 from web.data_routes.manager_submission_payload import (
+    review_clear_manager_payload,
     review_manager_page_payload,
     submission_clear_manager_payload,
     submission_detail_manager_payload,
@@ -43,6 +44,7 @@ from web.data_routes.manager_submission_payload import (
 
 __all__ = [
     "broadcast_failure_manager_payload",
+    "review_clear_manager_payload",
     "candidate_edge_refresh_manager_payload",
     "candidate_exchange_refresh_manager_payload",
     "candidate_manager_page_payload",

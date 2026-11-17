@@ -129,7 +129,8 @@ def _pool_fee_label(pool: dict[str, Any]) -> str | int | None:
 def _observation_pool_usable(pool: dict[str, Any]) -> bool:
     """Return whether a pool belongs to the market-observation surface.
 
-    The static surface is fixed fee <= 3000 and no hook.  Liquidity is a
+    The static surface is a fixed fee at or below the shared candidate
+    ceiling and no hook.  Liquidity is a
     dynamic field refreshed separately and is not a pool-formation condition;
     DEX overview applies liquidity later when it builds executable loops.
     """
@@ -1052,6 +1053,11 @@ def _mainnet_fund_anchor_observation(
     anchor_symbols = list(MAINNET_CONFIGURED_ANCHOR_SYMBOLS)
     anchor_addresses = _mainnet_configured_anchor_addresses()
     neighbors = _anchor_neighbors(pools, anchor_addresses=anchor_addresses)
+    # The intermediate-pool report is optional. When no anchor group is
+    # supplied there is nothing to report, but the payload still carries the
+    # empty lists, so the variables are bound before the optional branch.
+    pool_files: list[dict[str, Any]] = []
+    missing_files: list[dict[str, Any]] = []
     if anchor_groups:
         candidate_token_count = 0
         validation_errors = _mainnet_validate_anchor_groups(anchor_groups)

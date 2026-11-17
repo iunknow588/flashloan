@@ -79,7 +79,7 @@ pub fn load_v4_exchange_pool_registry_rows(
 ) -> Result<Vec<Value>, String> {
     rows(
         connection,
-        "SELECT pool_id, token0, token1 \
+        "SELECT pool_id, token0, token1, pool_manager \
          FROM v4_exchange_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
          ORDER BY pool_id",
@@ -118,6 +118,32 @@ pub fn load_chain_token_registry_rows(
     rows(
         connection,
         "SELECT token_address \
+         FROM chain_tokens \
+         WHERE network = ?1 AND chain_id = ?2 \
+         ORDER BY token_address",
+        &[&network.to_string(), &(chain_id as i64)],
+    )
+}
+
+/// Read the decimals of every token of one chain.
+///
+/// The decimals are part of the **initialization snapshot**: the runtime
+/// reads them once, when it builds its in-memory object, and every later
+/// processing step takes them from that object. A raw profit is only a
+/// number until the decimals of the token it is denominated in are known,
+/// so the kernel needs them without asking the database again.
+///
+/// The read is chain-scoped: the network and the chain id both take part
+/// in the query, so the decimals of one chain can never be applied to a
+/// route of another chain.
+pub fn load_chain_token_decimals_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT token_address, token_symbol, token_decimals \
          FROM chain_tokens \
          WHERE network = ?1 AND chain_id = ?2 \
          ORDER BY token_address",
@@ -513,6 +539,28 @@ pub fn load_v4_closed_loop(
         "hops": hops,
         "optimizations": optimizations,
     }))
+}
+
+/// Read the closed-loop catalog the Manager published for one chain.
+///
+/// The Manager owns the closed-loop library, so its rows carry the
+/// identity of every loop and the folded single-tick capacity that bounds
+/// it. The runtime reads them once, into its in-memory object, and every
+/// later processing step works on that object.
+pub fn load_manager_closed_loop_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT loop_key, path_symbols_json, pool_ids_json, \
+         single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id \
+         FROM manager_v4_closed_loops \
+         WHERE network = ?1 AND chain_id = ?2 \
+         ORDER BY loop_key",
+        &[&network.to_string(), &(chain_id as i64)],
+    )
 }
 
 #[cfg(test)]

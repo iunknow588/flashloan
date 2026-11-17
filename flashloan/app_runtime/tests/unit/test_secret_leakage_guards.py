@@ -44,8 +44,14 @@ NON_SECRET_HEX_FIXTURES = (
     "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
     "0x0000000000000000000000001111111111111111111111111111111111111111",
     "0x6dff37dd1a996412e30723462231d2a67bc7d66702b498aa739746797c4302a3",
+    # Uniswap V4 pool ids taken from the Swap event topic of the recorded
+    # testnet trades; a pool id is a keccak of the pool key, not key
+    # material.
+    "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b",
+    "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+    "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
 )
-STOCK_REGISTRY_ID_SUFFIX = "flashloan/src/chains/robinhood/robinhood_stock_tokens.json"
+STOCK_REGISTRY_ID_SUFFIX = "flashloan/chains/robinhood/robinhood_stock_tokens.json"
 
 
 def _tracked_files() -> list[Path]:

@@ -1,0 +1,28 @@
+{
+  "band": "unmeasured",
+  "chainId": 4663,
+  "count": 1,
+  "generatedAt": "2026-11-12T05:51:32.959988Z",
+  "minimumPoolDepthUsdg": "10.000000",
+  "minimumPoolDepthUsdgRaw": 10000000,
+  "mode": "read-only",
+  "network": "robinhood",
+  "pools": [
+    {
+      "band": "unmeasured",
+      "bindingCapacityRaw": null,
+      "bindingSide": "",
+      "bindingToken": "",
+      "bindingTokenDecimals": null,
+      "depthUsdg": null,
+      "depthUsdgRaw": null,
+      "minimumEconomicPositionUsdgRaw": 10000000,
+      "poolId": "0xf44a6b1d03b19a9ebee6af28c94599d88df2c9381e15472c228ea92304aa880b",
+      "reason": "no side has both a measured capacity and known decimals",
+      "token0": "0x0000000000000000000000000000000000000000",
+      "token1": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "valuationSource": "",
+      "valuationUsdgRaw": null
+    }
+  ]
+}

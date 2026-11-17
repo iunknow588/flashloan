@@ -88,13 +88,13 @@ references. Normalization:
 Run the actual database audit through a read-only SQLite connection:
 
 ```text
-cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- audit-metadata --db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json
+cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- audit-metadata --db flashloan/db/local_store_4663.sqlite3 --registry flashloan/chains/robinhood/robinhood_stock_tokens.json
 ```
 
 Run the D1.1.6 admission-diff audit against a read-only target manager schema:
 
 ```text
-cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- audit-library --source-db flashloan/db/local_store_4663.sqlite3 --target-db <manager-schema.sqlite3> --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json
+cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- audit-library --source-db flashloan/db/local_store_4663.sqlite3 --target-db <manager-schema.sqlite3> --registry flashloan/chains/robinhood/robinhood_stock_tokens.json
 ```
 
 When the target database has no M0 token tables yet, the audit reports
@@ -104,7 +104,7 @@ copy database with the manager schema for D1.1.7 dry-run before production.
 Run the completed D1.1.7 temporary-database bootstrap simulation:
 
 ```text
-cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- bootstrap-simulate --source-db flashloan/db/local_store_4663.sqlite3 --registry flashloan/src/chains/robinhood/robinhood_stock_tokens.json
+cargo run --manifest-path flashloan/tools/token_manager/Cargo.toml --bin token-manager -- bootstrap-simulate --source-db flashloan/db/local_store_4663.sqlite3 --registry flashloan/chains/robinhood/robinhood_stock_tokens.json
 ```
 
 This creates a disposable SQLite database, applies the M0 migration twice,

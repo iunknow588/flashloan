@@ -1,0 +1,4 @@
+[2026-11-10T11:31:01Z] sample=0 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=3
+[2026-11-10T11:33:44Z] sample=1 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=3
+[2026-11-10T11:36:19Z] sample=2 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=3
+[2026-11-10T11:39:00Z] sample=3 actions=repair_reviews,fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=reviews,broadcast positive=0 broadcasts=3

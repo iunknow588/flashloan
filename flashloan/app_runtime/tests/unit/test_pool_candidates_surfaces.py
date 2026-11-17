@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates

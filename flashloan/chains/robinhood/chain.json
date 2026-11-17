@@ -1,0 +1,106 @@
+{
+  "chain_id": 4663,
+  "contracts": {
+    "morpho_blue_core": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
+    "multicall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
+    "owner": "",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "position_manager": "0x58DaEC3116AAe6D93017BAAEA7749052E8a04fa7",
+    "unified_executor": "",
+    "uniswap_v2_pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
+    "universal_router": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+    "usdc": "",
+    "usde": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "v2_factory": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
+    "v3_factory": "0x1f7d7550b1b028f7571e69a784071F0205FD2EfA",
+    "v3_quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+    "v3_router": "0xCaf681a66D020601342297493863E78C959E5cb2",
+    "v4_pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "v4_quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+    "wrapped_native": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+  },
+  "data_files": {
+    "chain_test": "runtime/evidence/robinhood/chain_test/latest/plan.json",
+    "dex_discovery": "runtime/evidence/robinhood/dex_discovery",
+    "eth_pair_tokens": "runtime/evidence/robinhood/eth_pair_tokens.json",
+    "flash_liquidity": "runtime/cache/robinhood/flash_loan_pool_discovery_snapshot.json",
+    "robinhood_stock_tokens": "../chains/robinhood/robinhood_stock_tokens.json",
+    "v4_pool_index": "runtime/evidence/robinhood/v4_pool_index/latest.json",
+    "v4_pool_liquidity": "runtime/evidence/robinhood/v4_pool_liquidity/latest.json",
+    "v4_pool_snapshot": "runtime/evidence/robinhood/v4_pool_snapshot/latest.json",
+    "v4_token_allowlist": "../chains/robinhood/v4_token_allowlist.json",
+    "v4_token_metadata": "runtime/evidence/robinhood/v4_token_metadata.json",
+    "yc_zc_tokens": "runtime/evidence/robinhood/yc_zc_tokens.json"
+  },
+  "database": {
+    "sqlite_dir": "../../db",
+    "sqlite_file": "local_store_4663.sqlite3"
+  },
+  "defaults": {
+    "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_initialize_logs",
+    "v4_pool_liquidity_writer": "intent_trade.chains.robinhood.v4_pool_liquidity:write_v4_pool_liquidity_from_contract_evidence",
+    "v4_quote_adapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
+    "v4_sdk_adapter": ""
+  },
+  "display_name": "Robinhood Chain",
+  "explorer": {
+    "url": "https://robinhoodchain.blockscout.com"
+  },
+  "features": {
+    "dex_arbitrage": {
+      "allow_official_v4_broadcast": false,
+      "default_market_id": "dex-arbitrage-4663-uniswap-v4",
+      "legacy_default_market_id": "robinhood-dex-shadow",
+      "observation_only": false,
+      "protocol": "uniswap_v4",
+      "protocol_supported": true
+    },
+    "liquidation": {
+      "default_market_id": "liquidation-4663-aave-v3",
+      "legacy_default_market_id": "robinhood-liquidation-shadow",
+      "protocol": "aave_v3"
+    }
+  },
+  "flash_loan": {
+    "candidate_protocols": [
+      "uniswap_v4"
+    ],
+    "default_protocols": [
+      "uniswap_v4"
+    ],
+    "supported_protocol_count": 1
+  },
+  "native_symbol": "ETH",
+  "network": "robinhood",
+  "officialV4": {
+    "arb": "0x63743AB0f08a1ea8F7078893a88E943d6BEAbcFB",
+    "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
+  },
+  "processing_handlers": {
+    "chain_test_package": "intent_trade.chains.robinhood.chain_test_package:chain_test_package_flow",
+    "dex_overview": "intent_trade.chains.robinhood.dex_surfaces:dex_overview_flow",
+    "dex_pool_candidates": "intent_trade.chains.robinhood.dex_pool_candidates:dex_pool_candidates_payload",
+    "dex_quote_request": "intent_trade.chains.robinhood.dex_surfaces:dex_quote_request_flow",
+    "dex_quote_routes": "intent_trade.chains.robinhood.dex_surfaces:dex_quote_routes_flow",
+    "flash_loan_pools": "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view",
+    "market_observation": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+    "pool_discovery": "intent_trade.chains.robinhood.flash_liquidity:pool_discovery_flow"
+  },
+  "rpc": {
+    "alchemy": "",
+    "fallbacks": [
+      "https://robinhood-rpc.publicnode.com"
+    ],
+    "hyperrpc": "",
+    "overrides": [],
+    "primary": "https://rpc.mainnet.chain.robinhood.com",
+    "timeout_seconds": 20,
+    "wss": []
+  },
+  "schema_version": "chain-data-v1",
+  "tooling": {
+    "foundry_alias": "robinhood",
+    "hardhat_network": "robinhood"
+  }
+}

@@ -22,7 +22,7 @@ from typing import Any
 
 from web3 import Web3
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DISCOVERY_CACHE = SRC_ROOT / "runtime" / "cache" / "avalanche_v3_pools.json"
 DEFAULT_OUTPUT = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 DEFAULT_LATEST_OUTPUT = SRC_ROOT / "runtime" / "state" / "latest_avalanche_l1_pool_static_table.json"

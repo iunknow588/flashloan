@@ -3,6 +3,7 @@ from core.db import builders
 from core.db.direction_pool_score import (
     has_confirmed_depth,
     has_confirmed_liquidity,
+    kernel_admission_verdict,
     select_directional_pool_ids,
 )
 from core.db.storage_business_io import query
@@ -18,148 +19,84 @@ from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
 )
 
 
-def test_minimum_liquidity_confirmation_uses_usd_then_one_token_fallback():
-    assert has_confirmed_liquidity(
-        {"estimated_tvl_usd": 1000, "liquidity_index": 0},
-    ) is True
-    assert has_confirmed_liquidity(
-        {"estimated_tvl_usd": 999, "liquidity_index": 0},
-    ) is False
-    assert has_confirmed_liquidity(
-        {"estimated_tvl_usd": 0, "liquidity_index": 1.0},
-    ) is True
-    assert has_confirmed_liquidity(
-        {"estimated_tvl_usd": 0, "liquidity_index": 0.9, "liquidity": ""},
-    ) is False
+def _kernel_admitted(**extra):
+    """Return a pool row the Rust kernel admitted."""
+    row = {
+        "kernel_admitted": True,
+        "kernel_admission_reason": "admitted",
+        "kernel_depth_band": "deep",
+    }
+    row.update(extra)
+    return row
 
 
-def test_live_onchain_extsload_state_confirms_thin_indexed_pool():
-    """PoolManager extsload live state is a generic confirmation of real
-    liquidity even when the derived liquidity index is below one token."""
-    assert has_confirmed_liquidity(
+def _kernel_rejected(reason="binding_capacity_below_floor", **extra):
+    """Return a pool row the Rust kernel rejected."""
+    row = {
+        "kernel_admitted": False,
+        "kernel_admission_reason": reason,
+        "kernel_depth_band": "dust",
+    }
+    row.update(extra)
+    return row
+
+
+def test_python_consumes_the_kernel_admission_verdict():
+    """Python has no admission threshold of its own.
+
+    The verdict published by the Rust kernel is the only admission input, so
+    a pool the kernel rejected stays rejected even when every legacy Python
+    liquidity reading looks healthy.
+    """
+    admitted = _kernel_admitted(
+        pool_id="0xadmitted",
+        has_liquidity=True,
+        liquidity="1000000000000000000000",
+        liquidity_index=1000.0,
+        estimated_tvl_usd=5_000_000.0,
+    )
+    rejected = _kernel_rejected(
+        pool_id="0xrejected",
+        has_liquidity=True,
+        liquidity="1000000000000000000000",
+        liquidity_index=1000.0,
+        estimated_tvl_usd=5_000_000.0,
+    )
+    assert has_confirmed_liquidity(admitted) is True
+    assert has_confirmed_depth(admitted) is True
+    assert has_confirmed_liquidity(rejected) is False
+    assert has_confirmed_depth(rejected) is False
+
+
+def test_a_pool_without_a_kernel_verdict_is_a_coverage_gap():
+    """The kernel measured the chain, so an absent verdict is a coverage gap
+    and never an admission by a Python-local rule."""
+    verdict = kernel_admission_verdict(
         {
+            "pool_id": "0xunknown",
             "has_liquidity": True,
-            "liquidity": "123456789012345678",
-            "liquidity_index": 0.123,
-            "estimated_tvl_usd": 0,
-            "evidence_source": "pool_manager_extsload_live_state_batch",
+            "liquidity_index": 1000.0,
+            "estimated_tvl_usd": 5_000_000.0,
         }
-    ) is True
+    )
+    assert verdict["admitted"] is False
+    assert verdict["reason"] == "kernel_verdict_missing"
 
 
-def test_candidate_and_yz_depth_gate_ignores_usd_depth_labels():
-    for status in ("thin", "unpriced", "low_usd_depth", ""):
-        assert has_confirmed_depth(
-            {
-                "has_liquidity": True,
-                "liquidity": "1000000000000000000",
-                "liquidity_index": 1.5,
-                "estimated_tvl_usd": 0,
-                "depth_status": status,
+def test_the_verdict_is_read_from_the_depth_band_document():
+    """The candidate row carries the verdict inside its depth-band document."""
+    verdict = kernel_admission_verdict(
+        {
+            "pool_id": "0xpool",
+            "depth_band": {
+                "kernelAdmitted": True,
+                "kernelAdmissionReason": "admitted",
+                "kernelDepthBand": "medium",
             },
-            min_usd=10**12,
-        ) is True
-    assert has_confirmed_depth(
-        {
-            "has_liquidity": False,
-            "liquidity": "1000000000000000000",
-            "liquidity_index": 1.5,
-            "depth_status": "deep",
         }
-    ) is False
-    assert has_confirmed_liquidity(
-        {
-            "has_liquidity": False,
-            "liquidity": "123456789012345678",
-            "liquidity_index": 0.123,
-            "estimated_tvl_usd": 0,
-            "evidence_source": "pool_manager_extsload_live_state_batch",
-        }
-    ) is False
-
-
-def test_explicit_zero_liquidity_wins_over_stale_depth():
-    """A later explicit ``has_liquidity=0`` snapshot must exclude the pool
-    from the candidate surface even when old USD depth is still present.
-    The raw pool row remains stored, so a future positive snapshot restores
-    eligibility without an Initialize rescan."""
-    stale = {
-        "pool_id": "0xdead",
-        "token0": "0xaaa",
-        "token1": "0xbbb",
-        "fee": 3000,
-        "tick_spacing": 60,
-        "hooks": "",
-        "sqrt_price_x96": str(1 << 96),
-        "has_liquidity": 0,
-        "liquidity": "0",
-        "liquidity_index": 5000.0,
-        "estimated_tvl_usd": 5_000_000.0,
-        "balances_json": "{}",
-        "depth_status": "no_liquidity",
-        "depth_band_json": "{}",
-        "evidence_source": "pool_manager_extsload_live_state_batch",
-    }
-    assert has_confirmed_liquidity(stale) is False
-    assert select_directional_pool_ids([stale], "0xaaa", "0xbbb") == []
-
-    fresh = {
-        **stale,
-        "pool_id": "0xalive",
-        "has_liquidity": 1,
-        "liquidity": "1000000000000000000000",
-        "liquidity_index": 1000.0,
-        "depth_status": "deep",
-    }
-    assert has_confirmed_liquidity(fresh) is True
-    assert select_directional_pool_ids([fresh], "0xaaa", "0xbbb") == ["0xalive"]
-
-
-def test_unresolved_placeholder_symbol_rule_is_generic():
-    assert is_unresolved_placeholder_symbol("0X60042B65") is True
-    assert is_unresolved_placeholder_symbol("0x102154e7") is True
-    assert is_unresolved_placeholder_symbol("0X33E419") is True
-    assert is_unresolved_placeholder_symbol("0x123456") is True
-    assert is_unresolved_placeholder_symbol("TA") is False
-    assert is_unresolved_placeholder_symbol("TB") is False
-    assert is_unresolved_placeholder_symbol("TZ") is False
-    assert is_unresolved_placeholder_symbol("ETH") is False
-    assert is_unresolved_placeholder_symbol("0X123") is False
-    assert is_unresolved_placeholder_symbol("0X12345") is False
-    assert is_unresolved_placeholder_symbol("0X123456789") is False
-    assert has_confirmed_liquidity(
-        {
-            "has_liquidity": True,
-            "liquidity": "0",
-            "liquidity_index": 0,
-            "estimated_tvl_usd": 0,
-            "evidence_source": "pool_manager_extsload_live_state_batch",
-        }
-    ) is False
-
-
-def test_confirmed_liquidity_marker_wins_over_low_usd_depth_evidence():
-    """Low USD depth evidence must not reject a confirmed pool.
-    A confirmed pool with a large published liquidity index stays eligible
-    even when its derived USD depth label is small or missing."""
-    assert has_confirmed_liquidity(
-        {
-            "has_liquidity": True,
-            "liquidity": "8820022023676511662838236763075056",
-            "liquidity_index": 8.8e33,
-            "estimated_tvl_usd": 0.08,
-            "evidence_source": "",
-        }
-    ) is True
-    assert has_confirmed_liquidity(
-        {
-            "has_liquidity": True,
-            "liquidity": "",
-            "liquidity_index": 0,
-            "estimated_tvl_usd": 0,
-            "evidence_source": "token_balance_scan",
-        }
-    ) is False
+    )
+    assert verdict["admitted"] is True
+    assert verdict["depthBand"] == "medium"
 
 
 def _candidate_pool(
@@ -189,6 +126,10 @@ def _candidate_pool(
         "depth_band_json": "{}",
         "liquidity_read_at": "2026-10-12T00:00:00Z",
         "liquidity_block_number": 1,
+        # The Rust kernel published the verdict for this pool.
+        "kernel_admitted": True,
+        "kernel_admission_reason": "admitted",
+        "kernel_depth_band": "deep",
     }
 
 
@@ -224,6 +165,9 @@ def test_candidate_rows_keep_one_best_pool_per_direction():
     no_liquid["liquidity_index"] = 0
     no_liquid["liquidity"] = ""
     no_liquid["depth_status"] = "empty"
+    # The kernel rejected this pool, so Python must not admit it.
+    no_liquid["kernel_admitted"] = False
+    no_liquid["kernel_admission_reason"] = "explicit_zero_liquidity"
     rows = _candidate_rows(
         network="robinhood-testnet",
         chain_id=46630,
@@ -575,6 +519,9 @@ def test_select_directional_pool_ids_skips_dead_pools_and_keeps_primary_order():
     dead["liquidity_index"] = 0
     dead["liquidity"] = ""
     dead["depth_status"] = "empty"
+    # The kernel rejected this pool, so Python must not admit it.
+    dead["kernel_admitted"] = False
+    dead["kernel_admission_reason"] = "explicit_zero_liquidity"
 
     selected = select_directional_pool_ids(
         [dead, low, high],
@@ -601,6 +548,8 @@ def test_directional_selection_keeps_pool_inclusion_symmetric():
     # is below the confirmed-depth gate even though one direction has enough
     # raw input capacity at the current extreme sqrt price.
     asymmetric = {
+        "kernel_admitted": False,
+        "kernel_admission_reason": "binding_capacity_below_floor",
         "pool_id": "pool-asymmetric",
         "token0": anchor,
         "token1": counter,
@@ -632,6 +581,9 @@ def test_directional_selection_keeps_pool_inclusion_symmetric():
     deep["liquidity_index"] = 1000.0
     deep["estimated_tvl_usd"] = 1_000_000
     deep["depth_status"] = "deep"
+    # The kernel admitted the measured pool.
+    deep["kernel_admitted"] = True
+    deep["kernel_admission_reason"] = "admitted"
     forward = select_directional_pool_ids([deep], anchor, counter)
     reverse = select_directional_pool_ids([deep], counter, anchor)
     assert forward == ["pool-asymmetric"]
@@ -645,6 +597,8 @@ def test_candidate_rows_keep_mirror_optimal_symmetry():
     anchor = "0xaaa"
     counter = "0xbbb"
     pool = {
+        "kernel_admitted": True,
+        "kernel_admission_reason": "admitted",
         "pool_id": "pool-only",
         "token0": anchor,
         "token1": counter,
@@ -671,6 +625,9 @@ def test_candidate_rows_keep_mirror_optimal_symmetry():
     dead["liquidity_index"] = 0
     dead["liquidity"] = ""
     dead["depth_status"] = "empty"
+    # The kernel rejected the dead pool.
+    dead["kernel_admitted"] = False
+    dead["kernel_admission_reason"] = "explicit_zero_liquidity"
     rows = _candidate_rows(
         network="robinhood-testnet",
         chain_id=46630,
@@ -698,6 +655,10 @@ def test_market_observation_storage_keeps_mirror_direction_symmetry(tmp_path):
     token_b = "0x" + "b" * 40
     q96 = 1 << 96
     pool = {
+        # The kernel rejected this thin pool, so neither direction may show a
+        # direct swap pool.
+        "kernelAdmitted": False,
+        "kernelAdmissionReason": "binding_capacity_below_floor",
         "pool_id": "pool-only",
         "poolId": "pool-only",
         "token0": token_a,
@@ -769,6 +730,9 @@ def test_market_observation_storage_keeps_mirror_direction_symmetry(tmp_path):
     deep["liquidity_index"] = 1000.0
     deep["estimated_tvl_usd"] = 1_000_000
     deep["depth_status"] = "deep"
+    # The kernel admitted the measured pool.
+    deep["kernelAdmitted"] = True
+    deep["kernelAdmissionReason"] = "admitted"
     replace_market_observation_tables(
         db,
         network="robinhood-testnet",
@@ -1027,6 +991,9 @@ def test_testnet_db_observation_rows_use_primary_and_backup_without_no_depth_ite
             "liquidity": "1000000000000000000000" if has_liquidity else "",
             "balances": {},
             "depthStatus": "liquid" if has_liquidity else "no_liquidity",
+            # The Rust kernel published the admission verdict for this pool.
+            "kernelAdmitted": has_liquidity,
+            "kernelAdmissionReason": "admitted" if has_liquidity else "explicit_zero_liquidity",
         }
 
     primary = obs_pool("pool-primary", has_liquidity=False, sqrt_price=q96 * 2)

@@ -63,7 +63,7 @@ def default_stock_token_registry_path(
     except (TypeError, ValueError, OSError):
         pass
     return (
-        Path(__file__).resolve().parents[4]
+        Path(__file__).resolve().parents[5]
         / "chains"
         / resolved_network
         / "robinhood_stock_tokens.json"

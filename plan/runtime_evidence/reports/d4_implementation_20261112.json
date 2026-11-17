@@ -1,0 +1,181 @@
+{
+  "schema": "d4_implementation_evidence",
+  "version": "1.0",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "generated_at_local": "2026-11-12T05:17:35.354928",
+  "scope": "D4-a..D4-e (capacity-aware bidirectional ladder + token-denominated economic floor + scoped dust blacklist)",
+  "authority": "controlled-replay",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "isolation": "process",
+    "architecture": "x86_64",
+    "id": "dev-workstation"
+  },
+  "production_writes": 0,
+  "locked_decisions": [
+    "Zero USD dependency for depth/execution decisions",
+    "Capacity criterion = on-chain price-impact capacity, token-denominated, epsilon=10bps",
+    "estimated_tvl_usd = tie-breaker/observation only; never delist token pairs by TVL",
+    "best_amount_ladder_incomplete fail-closed must not be relaxed",
+    "capacityGate.verdict=unknown != failure (blocks only with DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED=1)",
+    "No production writes without explicit authorization",
+    "Do not stop/restart daemon or run.py; no commit; no branch"
+  ],
+  "changed_files": [
+    {
+      "path": "flashloan/src/dex/runtime/rust_closed_loop.py",
+      "sha256": "8e88f92d7726bc6236b4d141dad5ab62d06ce96dea112bfa09cc1ece18a27ee4",
+      "change": "D4-a/D4-d: _capacity_informed_ladder_start + economicFloorGate"
+    },
+    {
+      "path": "flashloan/rs-src/src/execution.rs",
+      "sha256": "da65c00c60634d05eca4af1f582f731e95590f1bd13abfa406c751e2afb86aea",
+      "change": "D4-b: upward search in failure branch; D4-e: zero-probe short-circuit"
+    },
+    {
+      "path": "flashloan/rs-src/src/worker_pool.rs",
+      "sha256": "2fd2250cb1de2c35e08118042458c48752e273aa45ed229f194cebc71e31e2c9",
+      "change": "D4-e: economic_floor_gate_blocks_broadcast + payload propagation"
+    },
+    {
+      "path": "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py",
+      "sha256": "a3353d66dd5308de4c6baa198e03b9fde322f49dcad70c4a9cf146e0d516c268",
+      "change": "updated initialAmountRaw/ladderStartBasis expectations"
+    },
+    {
+      "path": "flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py",
+      "sha256": "add8640028495b59e61137643a3543e7ba6d93fe42d7afefbdc0d4e02ffa9e3d",
+      "change": "NEW: D4 regression tests (12)"
+    }
+  ],
+  "implementation": {
+    "D4-a": {
+      "file": "flashloan/src/dex/runtime/rust_closed_loop.py",
+      "symbol": "_capacity_informed_ladder_start",
+      "formula": "start = clamp(cap_raw*frac, required_amount_raw, cap_raw), then clamp into [min_probe_amount_raw, cap_raw]",
+      "frac_env": "DEX_V4_LADDER_START_CAPACITY_FRACTION",
+      "frac_default": 0.5,
+      "frac_clamp": [
+        0.01,
+        1.0
+      ],
+      "fallback": "fallback_one_token_unmeasured_capacity",
+      "emitted_field": "ladderStartBasis"
+    },
+    "D4-b": {
+      "file": "flashloan/rs-src/src/execution.rs",
+      "symbol": "official_v4_adaptive_best_amount_single_route_inner",
+      "behavior": "failure branch keeps bounded_half downward search and adds bounded_double upward search bounded by max_probe_raw"
+    },
+    "D4-d": {
+      "file": "flashloan/src/dex/runtime/rust_closed_loop.py",
+      "symbol": "_route_task_config",
+      "threshold_source": "gas_gate['minProfitRaw'] (most conservative unit-profit assumption)",
+      "verdict_when_blocked": "dust_unprofitable",
+      "reason": "capacity_cannot_cover_gas",
+      "basis": "token_denominated_economic_floor",
+      "usd_dependency": "none"
+    },
+    "D4-e": {
+      "files": [
+        "flashloan/rs-src/src/execution.rs",
+        "flashloan/rs-src/src/worker_pool.rs"
+      ],
+      "short_circuit": {
+        "status": "economically_infeasible",
+        "attemptedCount": "0x0",
+        "attempts": [],
+        "onchain_probes": 0
+      },
+      "broadcast_gate": "economic_floor_gate_blocks_broadcast",
+      "queue_gate": "should_route_to_execution_queue excludes blocked routes",
+      "candidate_set": "pool remains in candidate set (only execution path closed)"
+    }
+  },
+  "validation": {
+    "pytest_mainnet_healer": {
+      "cmd": "pytest scripts/tests/test_mainnet_arbitrage_healer.py -q",
+      "passed": 95,
+      "failed": 0
+    },
+    "cargo_pool_manager": {
+      "cmd": "cargo test --manifest-path flashloan/tools/pool_manager/Cargo.toml",
+      "passed": 52,
+      "failed": 0
+    },
+    "cargo_rs_src": {
+      "cmd": "cargo test --manifest-path flashloan/rs-src/Cargo.toml",
+      "passed": 104,
+      "failed": 0
+    },
+    "cargo_build_release_rs_src": {
+      "cmd": "cargo build --release --manifest-path flashloan/rs-src/Cargo.toml",
+      "status": "success",
+      "warnings": [
+        "pre-existing dead_code: pool_manager/src/chain.rs:54 is_retryable"
+      ]
+    },
+    "pytest_capacity_index_d4": {
+      "files": [
+        "test_robinhood_v4_pool_capacity.py",
+        "test_robinhood_mainnet_v4_pool_index.py",
+        "test_d4_capacity_informed_ladder.py"
+      ],
+      "passed": 63,
+      "failed": 0
+    },
+    "pytest_full": {
+      "passed": 2742,
+      "failed": 26,
+      "skipped": 3,
+      "baseline_failed": 26,
+      "new_failures": 0
+    }
+  },
+  "failure_attribution": {
+    "method": "surgical revert of D4 hunks + rerun of the polluting subset",
+    "suspects": [
+      "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py::test_native_pool_registry_replaces_python_pool_cache",
+      "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py::test_scanner_records_preflight_failed_when_native_rpc_config_unavailable"
+    ],
+    "with_d4": {
+      "failures_in_subset": 4
+    },
+    "with_d4_removed": {
+      "failures_in_subset": 5
+    },
+    "conclusion": "Removing D4 made the failure set LARGER; these are pre-existing cross-test pollution failures (test_architecture_guards.py pollutes global state consumed by test_rust_closed_loop_worker_bridge.py), NOT caused by D4. Zero new failures.",
+    "baseline_reference": "plan/主网编排器审查修复_check_list_20261111.md (section: failure attribution)"
+  },
+  "production_readonly_verification": {
+    "db": "flashloan/db/local_store_4663.sqlite3",
+    "access": "file:...?mode=ro",
+    "balances_json_nonempty": 0,
+    "total_snapshots": 4669,
+    "capacity_raw_column_present": false,
+    "depth_score_usd_nonempty": 0,
+    "cow_execution_attempts": 0,
+    "v4_closed_loops": 88
+  },
+  "daemon_status": {
+    "run_py_pid_30304": "not running at time of check (was already unreachable before D4 work; prior 2026-11-11T19:18Z healer report already showed workerConcurrencyUnknown=true with reason 'runtime API did not return a worker-pool status object')",
+    "manager_api_exe": {
+      "pid": 12960,
+      "creation": "2026-11-10T13:32:49",
+      "status": "running",
+      "touched": false
+    },
+    "action_taken": "none (never stopped/restarted)"
+  },
+  "known_blockers_for_d4_production_effect": [
+    "W6-4 depth --apply must write real balances_json (currently 0/4669) before capacity-aware ladder start can take effect in production",
+    "ARCH-2 chain-side 3-hop simulator needed for exact unit_profit (currently most-conservative gas_gate['minProfitRaw'])"
+  ],
+  "residual_constraints_unchanged": [
+    "best_amount_ladder_incomplete remains fail-closed",
+    "no token pair delisted based on TVL",
+    "market_depth_exhausted conclusion remains void",
+    "minCandidateBindingCapacity=0.001 remains an observation band label only"
+  ]
+}

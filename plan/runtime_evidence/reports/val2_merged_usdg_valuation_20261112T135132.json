@@ -1,0 +1,5882 @@
+{
+  "apiKeyConfigured": true,
+  "chainId": 4663,
+  "evaluatedCount": 197,
+  "noRouteCount": 35,
+  "nominalAmount": "1",
+  "observedAt": "2026-11-12T05:33:36.784278900+00:00",
+  "protocols": [
+    "V4"
+  ],
+  "quoteEndpoint": "https://trade-api.gateway.uniswap.org/v1/quote",
+  "quoteTarget": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "report": {
+    "evaluated_count": 194,
+    "no_route_count": 35,
+    "nominal_amount": "1",
+    "observed_at": "2026-11-12T05:33:36.784278900+00:00",
+    "protocols": [
+      "V4"
+    ],
+    "requested_count": 194,
+    "route_found_count": 159,
+    "source": "uniswap_trading_api_quote",
+    "tokens": [
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:31.897996+00:00",
+        "price_impact": "10.1",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e",
+        "token_symbol": "AAOI",
+        "usdg_amount_decimal": "48.391289",
+        "usdg_amount_raw": "48391289",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:34.133530800+00:00",
+        "price_impact": "0.07",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "token_symbol": "AAPL",
+        "usdg_amount_decimal": "355.938407",
+        "usdg_amount_raw": "355938407",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:36.195481+00:00",
+        "price_impact": "5.5",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e",
+        "token_symbol": "ABCL",
+        "usdg_amount_decimal": "11.44198",
+        "usdg_amount_raw": "11441980",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:38.570982400+00:00",
+        "price_impact": "6.27",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x232b8ed6377be97813853b0ac104c4cda8378d1b",
+        "token_symbol": "ADBE",
+        "usdg_amount_decimal": "223.088415",
+        "usdg_amount_raw": "223088415",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:40.550422500+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5f604fba1162193a4388a5dfa56f556f3e133cc2",
+        "token_symbol": "AEHR",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:42.703487300+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612",
+        "token_symbol": "AEIS",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:44.761108700+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc",
+        "token_symbol": "ALAB",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:46.975473200+00:00",
+        "price_impact": "27.62",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x36046893810a7e7fce501229d57dc3fc8c8716d0",
+        "token_symbol": "AMAT",
+        "usdg_amount_decimal": "270.342528",
+        "usdg_amount_raw": "270342528",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:49.286667500+00:00",
+        "price_impact": "5.93",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x99d9d8663545151603863c5acbd6fc3218899009",
+        "token_symbol": "AMBA",
+        "usdg_amount_decimal": "57.264371",
+        "usdg_amount_raw": "57264371",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:51.628620700+00:00",
+        "price_impact": "0.12",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+        "token_symbol": "AMC",
+        "usdg_amount_decimal": "3.396258",
+        "usdg_amount_raw": "3396258",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:53.933364200+00:00",
+        "price_impact": "0.11",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "token_symbol": "AMD",
+        "usdg_amount_decimal": "559.003324",
+        "usdg_amount_raw": "559003324",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:55.974373600+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b",
+        "token_symbol": "AMKR",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:26:58.280547400+00:00",
+        "price_impact": "0.08",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+        "token_symbol": "AMZN",
+        "usdg_amount_decimal": "266.171168",
+        "usdg_amount_raw": "266171168",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:00.563112300+00:00",
+        "price_impact": "11.76",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x28babd556b60e53663b8615036479a29c2cdd1bf",
+        "token_symbol": "ANET",
+        "usdg_amount_decimal": "162.892538",
+        "usdg_amount_raw": "162892538",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:03.976143200+00:00",
+        "price_impact": "2.4",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb8dbf92f9741c9ac1c32115e78581f23509916fd",
+        "token_symbol": "APLD",
+        "usdg_amount_decimal": "16.952046",
+        "usdg_amount_raw": "16952046",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:05.946542800+00:00",
+        "price_impact": "9.23",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa249baf1063af884807c1e1400aef7784836917e",
+        "token_symbol": "APP",
+        "usdg_amount_decimal": "356.469783",
+        "usdg_amount_raw": "356469783",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:07.853403700+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x47f93d52cbec7c6d2cfc080e154002370a60daea",
+        "token_symbol": "ASML",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:09.999602800+00:00",
+        "price_impact": "6.32",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+        "token_symbol": "ASTS",
+        "usdg_amount_decimal": "35.219053",
+        "usdg_amount_raw": "35219053",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:12.131421900+00:00",
+        "price_impact": "6.06",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x373c06c4f7bde527d7dae4ba169e42b55e393ced",
+        "token_symbol": "AUR",
+        "usdg_amount_decimal": "4.27192",
+        "usdg_amount_raw": "4271920",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:14.162884800+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf6290b5e7c26502e2da514c31509849718ea76a5",
+        "token_symbol": "AVAV",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:16.537687800+00:00",
+        "price_impact": "8.34",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x156e175dd063a8ce274c50654ef40e0032b3fbcf",
+        "token_symbol": "AVGO",
+        "usdg_amount_decimal": "318.330821",
+        "usdg_amount_raw": "318330821",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:18.417553900+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc27dbd474af5181c5a8777903690d8d262d12648",
+        "token_symbol": "AXON",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:20.438114600+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x141eea040c2250eec0314e336975e81f85f6585e",
+        "token_symbol": "AXTI",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:22.537540100+00:00",
+        "price_impact": "22.45",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4d21483a44bf67a86b77e3da301411880797d452",
+        "token_symbol": "BA",
+        "usdg_amount_decimal": "128.001694",
+        "usdg_amount_raw": "128001694",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:24.630118400+00:00",
+        "price_impact": "0.24",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+        "token_symbol": "BABA",
+        "usdg_amount_decimal": "97.530696",
+        "usdg_amount_raw": "97530696",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:26.663799400+00:00",
+        "price_impact": "0.82",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x48e39e56acdba37b09020c0b734a613c9a2f100a",
+        "token_symbol": "BB",
+        "usdg_amount_decimal": "9.105102",
+        "usdg_amount_raw": "9105102",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:28.825821100+00:00",
+        "price_impact": "8.41",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x822cc93ffd030293e9842c30bbd678f530701867",
+        "token_symbol": "BE",
+        "usdg_amount_decimal": "187.874215",
+        "usdg_amount_raw": "187874215",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:30.732896600+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x2f62fc9fabb470c690f141c28340ed832bb27020",
+        "token_symbol": "BND",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:33.157923500+00:00",
+        "price_impact": "0.92",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xcef9027c7d6985b85f0ba431125073529a947a68",
+        "token_symbol": "BULL",
+        "usdg_amount_decimal": "5.155806",
+        "usdg_amount_raw": "5155806",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:34.894661700+00:00",
+        "price_impact": "7.97",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5c90450bbb4273d7b2f17cf6917aeb237a569679",
+        "token_symbol": "CBRS",
+        "usdg_amount_decimal": "92.62198",
+        "usdg_amount_raw": "92621980",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:37.157890+00:00",
+        "price_impact": "5.32",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9651342cea770ae9a2969ba2a52611523146aef9",
+        "token_symbol": "CCL",
+        "usdg_amount_decimal": "28.914706",
+        "usdg_amount_raw": "28914706",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:39.662533200+00:00",
+        "price_impact": "1.37",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xae517a2903e68bd929dfd15be875f8369d53e94a",
+        "token_symbol": "CEG",
+        "usdg_amount_decimal": "269.693888",
+        "usdg_amount_raw": "269693888",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:41.705575100+00:00",
+        "price_impact": "6.06",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+        "token_symbol": "CELH",
+        "usdg_amount_decimal": "29.880955",
+        "usdg_amount_raw": "29880955",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:43.660782900+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x44f6d488021f8233b9416294d1fe9b1fee28382d",
+        "token_symbol": "CIEN",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:45.766686300+00:00",
+        "price_impact": "1.06",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x62200915e7deab1ec7f79fb246dadbb80eacddd0",
+        "token_symbol": "CLOV",
+        "usdg_amount_decimal": "4.946327",
+        "usdg_amount_raw": "4946327",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:47.858468100+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xbf449977089c718c004a66c554b26b94ef3ad4de",
+        "token_symbol": "CLS",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:50.102342600+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xcbb95bbf36099d34da091dc6fa6f49efa257cee3",
+        "token_symbol": "CLSK",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:52.368706+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x92f9f459f1a9a5ad266b182be7bffd1c6c666894",
+        "token_symbol": "COHR",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:54.632520+00:00",
+        "price_impact": "0.28",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+        "token_symbol": "COIN",
+        "usdg_amount_decimal": "132.897856",
+        "usdg_amount_raw": "132897856",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:56.780376700+00:00",
+        "price_impact": "6.81",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4ea005168d7f09a7a0ba9d1def21a479950e44c2",
+        "token_symbol": "COST",
+        "usdg_amount_decimal": "987.203362",
+        "usdg_amount_raw": "987203362",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:27:58.866544800+00:00",
+        "price_impact": "0.21",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "token_symbol": "CRCL",
+        "usdg_amount_decimal": "65.518938",
+        "usdg_amount_raw": "65518938",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:01.040425100+00:00",
+        "price_impact": "10.5",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b",
+        "token_symbol": "CRDO",
+        "usdg_amount_decimal": "122.656363",
+        "usdg_amount_raw": "122656363",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:03.250426200+00:00",
+        "price_impact": "70.76",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xd95b44124e475743a7589e68f3d74008a5536d44",
+        "token_symbol": "CRM",
+        "usdg_amount_decimal": "60.96667",
+        "usdg_amount_raw": "60966670",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:05.689513800+00:00",
+        "price_impact": "19.09",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931",
+        "token_symbol": "CRWD",
+        "usdg_amount_decimal": "733.973983",
+        "usdg_amount_raw": "733973983",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:08.128354200+00:00",
+        "price_impact": "1.06",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+        "token_symbol": "CRWV",
+        "usdg_amount_decimal": "56.2786",
+        "usdg_amount_raw": "56278600",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:10.487707400+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf543967eebb6f1917992ef0e68de63ab07a5a0da",
+        "token_symbol": "CSCO",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:12.481036300+00:00",
+        "price_impact": "7.46",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x63d5a3b6939a33f1e75d8bcd85759858239600db",
+        "token_symbol": "CTSH",
+        "usdg_amount_decimal": "61.024394",
+        "usdg_amount_raw": "61024394",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:14.627767+00:00",
+        "price_impact": "3.79",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa4f319104089fe321dc8093c6e707d4fe190a988",
+        "token_symbol": "CVNA",
+        "usdg_amount_decimal": "69.747829",
+        "usdg_amount_raw": "69747829",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:16.807354+00:00",
+        "price_impact": "3.42",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+        "token_symbol": "DDOG",
+        "usdg_amount_decimal": "178.529617",
+        "usdg_amount_raw": "178529617",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:19.180035200+00:00",
+        "price_impact": "3.92",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd",
+        "token_symbol": "DELL",
+        "usdg_amount_decimal": "345.090287",
+        "usdg_amount_raw": "345090287",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:21.647794300+00:00",
+        "price_impact": "2.22",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+        "token_symbol": "DJT",
+        "usdg_amount_decimal": "5.072479",
+        "usdg_amount_raw": "5072479",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:24.004316300+00:00",
+        "price_impact": "8.41",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd",
+        "token_symbol": "DOCN",
+        "usdg_amount_decimal": "76.537154",
+        "usdg_amount_raw": "76537154",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:25.956910500+00:00",
+        "price_impact": "3.55",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x39ec44bee4f6a116c6f9b8de566848a985c53c60",
+        "token_symbol": "ELF",
+        "usdg_amount_decimal": "112.384914",
+        "usdg_amount_raw": "112384914",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:28.131669300+00:00",
+        "price_impact": "20.46",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1c690498150252222c275a5ced69d3a6b1f52d5e",
+        "token_symbol": "EWT",
+        "usdg_amount_decimal": "74.203986",
+        "usdg_amount_raw": "74203986",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:30.203977900+00:00",
+        "price_impact": "1.77",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc",
+        "token_symbol": "EWY",
+        "usdg_amount_decimal": "141.585946",
+        "usdg_amount_raw": "141585946",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:32.288089+00:00",
+        "price_impact": "1.3",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x25c288e6d899b9bc30160965ad9644c67e73be0c",
+        "token_symbol": "F",
+        "usdg_amount_decimal": "12.247289",
+        "usdg_amount_raw": "12247289",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:34.605244400+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa48f22a46c0f1c46ca7d111cb6c137c271987180",
+        "token_symbol": "FICO",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:36.980240900+00:00",
+        "price_impact": "2.41",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x41f4267525a8aff329540ef24fd83d9044758b33",
+        "token_symbol": "FIG",
+        "usdg_amount_decimal": "18.186967",
+        "usdg_amount_raw": "18186967",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:39.177222500+00:00",
+        "price_impact": "6.85",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc",
+        "token_symbol": "FISV",
+        "usdg_amount_decimal": "56.901398",
+        "usdg_amount_raw": "56901398",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:41.358547100+00:00",
+        "price_impact": "11.24",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x93dbb1d2dc5d63f4abacff30485273f538df68ac",
+        "token_symbol": "FIX",
+        "usdg_amount_decimal": "1030.32204",
+        "usdg_amount_raw": "1030322040",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:43.188375100+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x282e87451e10fa6679bc7d76c69be44cd3fc777c",
+        "token_symbol": "FLNC",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:45.555845100+00:00",
+        "price_impact": "2.32",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x03bc731ffb162cdd7b98d3c6542bfc291126075d",
+        "token_symbol": "FLY",
+        "usdg_amount_decimal": "25.572056",
+        "usdg_amount_raw": "25572056",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:48.157166200+00:00",
+        "price_impact": "17.29",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x3fb8976980d486084b2eb4a404bd12e72823958f",
+        "token_symbol": "FTNT",
+        "usdg_amount_decimal": "99.721167",
+        "usdg_amount_raw": "99721167",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:50.060102+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d",
+        "token_symbol": "FUTU",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:51.887813600+00:00",
+        "price_impact": "2.94",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+        "token_symbol": "GE",
+        "usdg_amount_decimal": "328.35804",
+        "usdg_amount_raw": "328358040",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:53.771582400+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9",
+        "token_symbol": "GEV",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:55.896443600+00:00",
+        "price_impact": "0.15",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+        "token_symbol": "GLD",
+        "usdg_amount_decimal": "364.028756",
+        "usdg_amount_raw": "364028756",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:28:57.964399400+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6",
+        "token_symbol": "GLW",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:00.053081+00:00",
+        "price_impact": "0.32",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x2d427692e928fa156ec22acfabafa0447c5805b7",
+        "token_symbol": "GLXY",
+        "usdg_amount_decimal": "15.225912",
+        "usdg_amount_raw": "15225912",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:02.320578900+00:00",
+        "price_impact": "0.93",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+        "token_symbol": "GME",
+        "usdg_amount_decimal": "25.057079",
+        "usdg_amount_raw": "25057079",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:04.466606900+00:00",
+        "price_impact": "0.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "token_symbol": "GOOGL",
+        "usdg_amount_decimal": "294.257656",
+        "usdg_amount_raw": "294257656",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:06.925266900+00:00",
+        "price_impact": "7.7",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d",
+        "token_symbol": "HII",
+        "usdg_amount_decimal": "279.410174",
+        "usdg_amount_raw": "279410174",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:09.253906+00:00",
+        "price_impact": "0.33",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+        "token_symbol": "HIMS",
+        "usdg_amount_decimal": "20.204804",
+        "usdg_amount_raw": "20204804",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:11.330002300+00:00",
+        "price_impact": "3.34",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+        "token_symbol": "HPE",
+        "usdg_amount_decimal": "48.175363",
+        "usdg_amount_raw": "48175363",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:13.330731400+00:00",
+        "price_impact": "57.74",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xaea445c5f3db1a462998ccc422a875a361ee5d99",
+        "token_symbol": "HWM",
+        "usdg_amount_decimal": "77.365673",
+        "usdg_amount_raw": "77365673",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:15.557142800+00:00",
+        "price_impact": "0.64",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+        "token_symbol": "IBM",
+        "usdg_amount_decimal": "247.234737",
+        "usdg_amount_raw": "247234737",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:17.574691+00:00",
+        "price_impact": "10.52",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf",
+        "token_symbol": "IBRX",
+        "usdg_amount_decimal": "6.276211",
+        "usdg_amount_raw": "6276211",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:19.744746900+00:00",
+        "price_impact": "0.4",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xacef2e09adb47ad6abebad9ff06689e60615c2b6",
+        "token_symbol": "INDA",
+        "usdg_amount_decimal": "51.397536",
+        "usdg_amount_raw": "51397536",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:22.341797100+00:00",
+        "price_impact": "51.39",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb853bc83a753342a4f8320ea680b4b1e84118d21",
+        "token_symbol": "INFQ",
+        "usdg_amount_decimal": "3.875196",
+        "usdg_amount_raw": "3875196",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:24.200670200+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf1953dab6fad537488d5a022361ffaa8b4c95ec6",
+        "token_symbol": "INOD",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:26.463344200+00:00",
+        "price_impact": "0.2",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+        "token_symbol": "INTC",
+        "usdg_amount_decimal": "60.140013",
+        "usdg_amount_raw": "60140013",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:28.630195500+00:00",
+        "price_impact": "58.66",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x56d23bee5f41a7120170b0c603dae30128e460e9",
+        "token_symbol": "INTU",
+        "usdg_amount_decimal": "129.600988",
+        "usdg_amount_raw": "129600988",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:30.696233900+00:00",
+        "price_impact": "4.65",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x558378e000d634a36593e338ebacdd6207640efe",
+        "token_symbol": "IONQ",
+        "usdg_amount_decimal": "32.915795",
+        "usdg_amount_raw": "32915795",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:32.657655200+00:00",
+        "price_impact": "1.23",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf0ab0c93be6f41369d302e55db1a96b3c430212d",
+        "token_symbol": "IREN",
+        "usdg_amount_decimal": "19.476215",
+        "usdg_amount_raw": "19476215",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:34.736866100+00:00",
+        "price_impact": "43.99",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xeaf2512dfc1beac608f8794b3793cd4e02894aa6",
+        "token_symbol": "JBL",
+        "usdg_amount_decimal": "138.0005",
+        "usdg_amount_raw": "138000500",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:37.407756200+00:00",
+        "price_impact": "3.54",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80",
+        "token_symbol": "JNJ",
+        "usdg_amount_decimal": "267.006128",
+        "usdg_amount_raw": "267006128",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:39.662355200+00:00",
+        "price_impact": "6.68",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb334c5ce741b80b5b671f47f5c269cb193fe8e24",
+        "token_symbol": "JOBY",
+        "usdg_amount_decimal": "5.433197",
+        "usdg_amount_raw": "5433197",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:42.093360900+00:00",
+        "price_impact": "15.48",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+        "token_symbol": "KLAC",
+        "usdg_amount_decimal": "130.515101",
+        "usdg_amount_raw": "130515101",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:44.144136100+00:00",
+        "price_impact": "5.62",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993",
+        "token_symbol": "KSS",
+        "usdg_amount_decimal": "22.964939",
+        "usdg_amount_raw": "22964939",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:46.234215600+00:00",
+        "price_impact": "14.93",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7fd06a4d81ccfa3f351394e144d5191874c31313",
+        "token_symbol": "KTOS",
+        "usdg_amount_decimal": "30.981137",
+        "usdg_amount_raw": "30981137",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:48.353571300+00:00",
+        "price_impact": "12.33",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x48d60243c66437c6ac3c2495be94747aed5dfe25",
+        "token_symbol": "LHX",
+        "usdg_amount_decimal": "232.973613",
+        "usdg_amount_raw": "232973613",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:50.342684+00:00",
+        "price_impact": "7.52",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c",
+        "token_symbol": "LITE",
+        "usdg_amount_decimal": "577.321764",
+        "usdg_amount_raw": "577321764",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:52.370433300+00:00",
+        "price_impact": "3.14",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x8005d266423c7ea827372c9c864491e5786600ea",
+        "token_symbol": "LLY",
+        "usdg_amount_decimal": "1397.023382",
+        "usdg_amount_raw": "1397023382",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:54.480612500+00:00",
+        "price_impact": "1.18",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x329fcaceb9ad6f9580dd5f643fed0646900d043c",
+        "token_symbol": "LMT",
+        "usdg_amount_decimal": "600.833924",
+        "usdg_amount_raw": "600833924",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:56.474285900+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x57b0030166db0c31690d1a5aa167e2e26e2c29a4",
+        "token_symbol": "LRCX",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:29:58.525833400+00:00",
+        "price_impact": "1.57",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4e62068525ab11fe768e29dfd00ef909b9803016",
+        "token_symbol": "LULU",
+        "usdg_amount_decimal": "106.136713",
+        "usdg_amount_raw": "106136713",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:00.664737300+00:00",
+        "price_impact": "48.23",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa5d4968421ba94814be3b136b15cf422101ac1a3",
+        "token_symbol": "LUNR",
+        "usdg_amount_decimal": "3.879984",
+        "usdg_amount_raw": "3879984",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:02.802228+00:00",
+        "price_impact": "9.16",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xddf2266b79abf0b48898959b0ed6e6adf512be74",
+        "token_symbol": "MDB",
+        "usdg_amount_decimal": "300.466327",
+        "usdg_amount_raw": "300466327",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:04.897948400+00:00",
+        "price_impact": "0.34",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "token_symbol": "META",
+        "usdg_amount_decimal": "627.160024",
+        "usdg_amount_raw": "627160024",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:06.839947300+00:00",
+        "price_impact": "85.65",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc6cbad1016b38b797610c25e1dc7d95988b1f362",
+        "token_symbol": "MOD",
+        "usdg_amount_decimal": "12.81024",
+        "usdg_amount_raw": "12810240",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:09.398973300+00:00",
+        "price_impact": "39.04",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x52d50d0280ad1054b43f052bd70a49a212a1b128",
+        "token_symbol": "MPWR",
+        "usdg_amount_decimal": "825.176194",
+        "usdg_amount_raw": "825176194",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:11.603180400+00:00",
+        "price_impact": "1.01",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x43b07d15ce533bec5476d70c22a78a1b2b662155",
+        "token_symbol": "MRNA",
+        "usdg_amount_decimal": "245.222194",
+        "usdg_amount_raw": "245222194",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:13.878017400+00:00",
+        "price_impact": "31.4",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x62fd0668e10d8b72339be2dcf7643001688ff13b",
+        "token_symbol": "MRVL",
+        "usdg_amount_decimal": "111.460794",
+        "usdg_amount_raw": "111460794",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:16.626354300+00:00",
+        "price_impact": "0.09",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+        "token_symbol": "MSFT",
+        "usdg_amount_decimal": "520.088089",
+        "usdg_amount_raw": "520088089",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:19.074815100+00:00",
+        "price_impact": "0.3",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xec262a75e413fafd0df80480274532c79d42da09",
+        "token_symbol": "MSTR",
+        "usdg_amount_decimal": "117.727586",
+        "usdg_amount_raw": "117727586",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:22.142935600+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc93f4d80e268ab922e871bd169156c3cc41894e6",
+        "token_symbol": "MTSI",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:24.196255500+00:00",
+        "price_impact": "0.14",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "token_symbol": "MU",
+        "usdg_amount_decimal": "778.696806",
+        "usdg_amount_raw": "778696806",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:26.280386900+00:00",
+        "price_impact": "17.17",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x48961813349333209994750ffa89b3c5c22ec969",
+        "token_symbol": "MXL",
+        "usdg_amount_decimal": "47.538562",
+        "usdg_amount_raw": "47538562",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:28.323886100+00:00",
+        "price_impact": "6.16",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf7181b63fdb858558a74ba96bc42732684cd7965",
+        "token_symbol": "NAVN",
+        "usdg_amount_decimal": "24.464685",
+        "usdg_amount_raw": "24464685",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:30.326045100+00:00",
+        "price_impact": "1.14",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9d9c6684f596f66a64c030b93a886d51fd4d7931",
+        "token_symbol": "NBIS",
+        "usdg_amount_decimal": "148.475306",
+        "usdg_amount_raw": "148475306",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:32.598278900+00:00",
+        "price_impact": "1.73",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+        "token_symbol": "NET",
+        "usdg_amount_decimal": "308.302076",
+        "usdg_amount_raw": "308302076",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:34.907809400+00:00",
+        "price_impact": "1.11",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+        "token_symbol": "NFLX",
+        "usdg_amount_decimal": "63.128262",
+        "usdg_amount_raw": "63128262",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:36.660993400+00:00",
+        "price_impact": "1.25",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xbef75684c43c4ea7bd18dd532a2244674ee8b926",
+        "token_symbol": "NNE",
+        "usdg_amount_decimal": "11.641107",
+        "usdg_amount_raw": "11641107",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:39.040211700+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+        "token_symbol": "NOW",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:42.614983+00:00",
+        "price_impact": "5.2",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x408c14038a04f7bd235329e26d2bf569ee20e250",
+        "token_symbol": "NU",
+        "usdg_amount_decimal": "11.178513",
+        "usdg_amount_raw": "11178513",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:44.774746200+00:00",
+        "price_impact": "0.09",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "token_symbol": "NVDA",
+        "usdg_amount_decimal": "160.194535",
+        "usdg_amount_raw": "160194535",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:47.000382900+00:00",
+        "price_impact": "9.38",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xbe6702d7b70315376dc48a3293f24f0982f86386",
+        "token_symbol": "NVTS",
+        "usdg_amount_decimal": "8.560133",
+        "usdg_amount_raw": "8560133",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:49.179439400+00:00",
+        "price_impact": "9.36",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774",
+        "token_symbol": "OKLO",
+        "usdg_amount_decimal": "23.080356",
+        "usdg_amount_raw": "23080356",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:51.331460600+00:00",
+        "price_impact": "11.55",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xbbd09f72b025360fee5c928053dca6248d35be54",
+        "token_symbol": "ON",
+        "usdg_amount_decimal": "61.455344",
+        "usdg_amount_raw": "61455344",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:53.464034300+00:00",
+        "price_impact": "92.32",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef",
+        "token_symbol": "ONTO",
+        "usdg_amount_decimal": "17.990481",
+        "usdg_amount_raw": "17990481",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:55.460630600+00:00",
+        "price_impact": "1.12",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb0992820e760d836549ba69bc7598b4af75dee03",
+        "token_symbol": "ORCL",
+        "usdg_amount_decimal": "124.538703",
+        "usdg_amount_raw": "124538703",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:57.609024300+00:00",
+        "price_impact": "5.64",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x40e7a279850e443f582059ae5dc1c3b6563e6395",
+        "token_symbol": "OUST",
+        "usdg_amount_decimal": "36.304677",
+        "usdg_amount_raw": "36304677",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:30:59.634950300+00:00",
+        "price_impact": "4.22",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+        "token_symbol": "P",
+        "usdg_amount_decimal": "103.110657",
+        "usdg_amount_raw": "103110657",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:01.772934400+00:00",
+        "price_impact": "16.51",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb039597ed45cba7b6e2fb9e8be51802969cee5be",
+        "token_symbol": "PANW",
+        "usdg_amount_decimal": "268.628193",
+        "usdg_amount_raw": "268628193",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:03.789857800+00:00",
+        "price_impact": "4.63",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda",
+        "token_symbol": "PATH",
+        "usdg_amount_decimal": "12.457013",
+        "usdg_amount_raw": "12457013",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:05.935894200+00:00",
+        "price_impact": "3.41",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9b23573b156b52565012f5ce02cdf60afbaa70be",
+        "token_symbol": "PENG",
+        "usdg_amount_decimal": "46.492328",
+        "usdg_amount_raw": "46492328",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:08.006184800+00:00",
+        "price_impact": "0.2",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "token_symbol": "PFE",
+        "usdg_amount_decimal": "29.750389",
+        "usdg_amount_raw": "29750389",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:10.377590700+00:00",
+        "price_impact": "8.91",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xaa4d64474c172010ab57719cb9951e6142a100d3",
+        "token_symbol": "PL",
+        "usdg_amount_decimal": "12.344293",
+        "usdg_amount_raw": "12344293",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:12.951982700+00:00",
+        "price_impact": "0.13",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+        "token_symbol": "PLTR",
+        "usdg_amount_decimal": "169.008017",
+        "usdg_amount_raw": "169008017",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:15.108670800+00:00",
+        "price_impact": "5.62",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xcf6b2d875361be807eafa57458c80f28521f9333",
+        "token_symbol": "POET",
+        "usdg_amount_decimal": "5.049315",
+        "usdg_amount_raw": "5049315",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:17.010422+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x237c16d66590f67b886d978acd362eaead8b18c7",
+        "token_symbol": "POWL",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:19.123696500+00:00",
+        "price_impact": "5.42",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4189f0c66ebbb0bfef1c31f763131361ef32f77c",
+        "token_symbol": "PR",
+        "usdg_amount_decimal": "20.200643",
+        "usdg_amount_raw": "20200643",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:21.687305400+00:00",
+        "price_impact": "89.63",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd",
+        "token_symbol": "PWR",
+        "usdg_amount_decimal": "54.832566",
+        "usdg_amount_raw": "54832566",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:23.813778300+00:00",
+        "price_impact": "49.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc583c60aef9dc401da72cec1b404743a93cea1cc",
+        "token_symbol": "QBTS",
+        "usdg_amount_decimal": "4.240356",
+        "usdg_amount_raw": "4240356",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:25.882787600+00:00",
+        "price_impact": "0.73",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0f17206447090e464c277571124dd2688e48aea9",
+        "token_symbol": "QCOM",
+        "usdg_amount_decimal": "170.644793",
+        "usdg_amount_raw": "170644793",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:28.267206500+00:00",
+        "price_impact": "0.08",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+        "token_symbol": "QQQ",
+        "usdg_amount_decimal": "682.628772",
+        "usdg_amount_raw": "682628772",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:30.454207700+00:00",
+        "price_impact": "5.64",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4",
+        "token_symbol": "QUBT",
+        "usdg_amount_decimal": "6.065549",
+        "usdg_amount_raw": "6065549",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:32.880199800+00:00",
+        "price_impact": "0.26",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8",
+        "token_symbol": "RBLX",
+        "usdg_amount_decimal": "52.191937",
+        "usdg_amount_raw": "52191937",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:34.877619300+00:00",
+        "price_impact": "1.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xfde6b5d9bb419b10c23268c74e369abff39c0460",
+        "token_symbol": "RCAT",
+        "usdg_amount_decimal": "4.23261",
+        "usdg_amount_raw": "4232610",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:37.026705500+00:00",
+        "price_impact": "1.52",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+        "token_symbol": "RDDT",
+        "usdg_amount_decimal": "103.043738",
+        "usdg_amount_raw": "103043738",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:39.003199800+00:00",
+        "price_impact": "9.57",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x92ef19e82bd8ff36661de838d5eae7e5cef0effe",
+        "token_symbol": "RDW",
+        "usdg_amount_decimal": "6.8569",
+        "usdg_amount_raw": "6856900",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:41.354333+00:00",
+        "price_impact": "43.03",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x284358abc07f9359f19f4b5b4ac91901be2597ba",
+        "token_symbol": "RGTI",
+        "usdg_amount_decimal": "5.880386",
+        "usdg_amount_raw": "5880386",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:43.533643100+00:00",
+        "price_impact": "1.11",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+        "token_symbol": "RIVN",
+        "usdg_amount_decimal": "13.265009",
+        "usdg_amount_raw": "13265009",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:46.212041500+00:00",
+        "price_impact": "1.02",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2",
+        "token_symbol": "RKLB",
+        "usdg_amount_decimal": "63.991478",
+        "usdg_amount_raw": "63991478",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:48.364094200+00:00",
+        "price_impact": "0.43",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x756bc80af765c82da966a788858d65adf14f3793",
+        "token_symbol": "RUN",
+        "usdg_amount_decimal": "8.974066",
+        "usdg_amount_raw": "8974066",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:50.320928900+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x95052ddcd5dc25641657424a8cf04834997e1730",
+        "token_symbol": "SATS",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:52.530578400+00:00",
+        "price_impact": "5.37",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xd63abb2c13d7a8421a8017a712802053568e3c1d",
+        "token_symbol": "SCHD",
+        "usdg_amount_decimal": "33.168342",
+        "usdg_amount_raw": "33168342",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:54.854434+00:00",
+        "price_impact": "0.15",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x92fd66527192e3e61d4ddd13322aa222de86f9b5",
+        "token_symbol": "SGOV",
+        "usdg_amount_decimal": "101.23676",
+        "usdg_amount_raw": "101236760",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:57.050201400+00:00",
+        "price_impact": "1.61",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf53f66751b1eff985311b693531e3290f600c410",
+        "token_symbol": "SHOP",
+        "usdg_amount_decimal": "145.826299",
+        "usdg_amount_raw": "145826299",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:31:59.166631500+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8",
+        "token_symbol": "SHY",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:01.317674500+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x77e655e37f4d913fb9540e0d541d824171a60e81",
+        "token_symbol": "SIMO",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:03.330099400+00:00",
+        "price_impact": "0.38",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+        "token_symbol": "SKHY",
+        "usdg_amount_decimal": "136.890339",
+        "usdg_amount_raw": "136890339",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:05.470816500+00:00",
+        "price_impact": "24.09",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x285b231728c7e4333799183df1094d775246a535",
+        "token_symbol": "SLS",
+        "usdg_amount_decimal": "6.010683",
+        "usdg_amount_raw": "6010683",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:07.548035100+00:00",
+        "price_impact": "0.97",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f",
+        "token_symbol": "SLV",
+        "usdg_amount_decimal": "45.951993",
+        "usdg_amount_raw": "45951993",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:09.789583+00:00",
+        "price_impact": "9.94",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xc01aa1fecec0605b13bc84874ff7256c0f5f562a",
+        "token_symbol": "SMCI",
+        "usdg_amount_decimal": "26.262178",
+        "usdg_amount_raw": "26262178",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:11.964954300+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x072f979c2cac8e1391b0162a87fee094bf8744a0",
+        "token_symbol": "SMH",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:13.885324700+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x1eebee7f74517e0279dfb09d25b0407beec3fdd6",
+        "token_symbol": "SMR",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:16.138065800+00:00",
+        "price_impact": "0.25",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf6589f11bc40b669e584073f428b05562f568733",
+        "token_symbol": "SNAP",
+        "usdg_amount_decimal": "5.29151",
+        "usdg_amount_raw": "5291510",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:18.352992500+00:00",
+        "price_impact": "1.34",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb90a19ff0af67f7779aff50a882a9cff42446400",
+        "token_symbol": "SNDK",
+        "usdg_amount_decimal": "934.291935",
+        "usdg_amount_raw": "934291935",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:20.475049300+00:00",
+        "price_impact": "2.36",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xba0cab75495255d0cb58e22b648bfed4ecd1f47e",
+        "token_symbol": "SNOW",
+        "usdg_amount_decimal": "296.354716",
+        "usdg_amount_raw": "296354716",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:22.824851100+00:00",
+        "price_impact": "3.34",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+        "token_symbol": "SOFI",
+        "usdg_amount_decimal": "15.825155",
+        "usdg_amount_raw": "15825155",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:24.727461200+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54",
+        "token_symbol": "SOUN",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:26.944496100+00:00",
+        "price_impact": "5.57",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38",
+        "token_symbol": "SOXX",
+        "usdg_amount_decimal": "423.441755",
+        "usdg_amount_raw": "423441755",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:29.017530700+00:00",
+        "price_impact": "0.07",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "token_symbol": "SPCX",
+        "usdg_amount_decimal": "138.915511",
+        "usdg_amount_raw": "138915511",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:31.068859800+00:00",
+        "price_impact": "17.82",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xad622320e520de39e72d41ef07438c3fd3354875",
+        "token_symbol": "SPMO",
+        "usdg_amount_decimal": "104.202503",
+        "usdg_amount_raw": "104202503",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:33.228615800+00:00",
+        "price_impact": "0.04",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "token_symbol": "SPY",
+        "usdg_amount_decimal": "757.249859",
+        "usdg_amount_raw": "757249859",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:35.213102500+00:00",
+        "price_impact": "6.74",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d",
+        "token_symbol": "TE",
+        "usdg_amount_decimal": "2.078349",
+        "usdg_amount_raw": "2078349",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:37.247855800+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5b97476b922f3305131b8f0b9d333172e87f4aae",
+        "token_symbol": "TEAM",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:39.477326700+00:00",
+        "price_impact": "6.12",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xb1cc0ec7db69cf43539119814df40071b9d61793",
+        "token_symbol": "TEM",
+        "usdg_amount_decimal": "76.941878",
+        "usdg_amount_raw": "76941878",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:41.774309300+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+        "token_symbol": "TER",
+        "verdict": "no_route"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:43.939744400+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x89776d4cd68193597a2fc132cfac1fde36ccea8a",
+        "token_symbol": "TSEM",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:46.015588700+00:00",
+        "price_impact": "0.11",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "token_symbol": "TSLA",
+        "usdg_amount_decimal": "385.69506",
+        "usdg_amount_raw": "385695060",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:48.253163500+00:00",
+        "price_impact": "0.13",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+        "token_symbol": "TSM",
+        "usdg_amount_decimal": "400.919313",
+        "usdg_amount_raw": "400919313",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:50.807829100+00:00",
+        "price_impact": "5.39",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0b5fb4031cae9163db10b169ee72685f0edc8545",
+        "token_symbol": "TTD",
+        "usdg_amount_decimal": "14.73018",
+        "usdg_amount_raw": "14730180",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:53.309818500+00:00",
+        "price_impact": "0.54",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5e81213613b6b86eab4c6c50d718d34359459786",
+        "token_symbol": "TTWO",
+        "usdg_amount_decimal": "230.565796",
+        "usdg_amount_raw": "230565796",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:55.690570800+00:00",
+        "price_impact": "7.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0e6e67ba88e7b5d9b67636a215c76779b948de79",
+        "token_symbol": "UMC",
+        "usdg_amount_decimal": "13.763463",
+        "usdg_amount_raw": "13763463",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:32:58.289514300+00:00",
+        "price_impact": "5.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xcf364ea52787e289de6f32077834056e3e70d6a8",
+        "token_symbol": "UNH",
+        "usdg_amount_decimal": "383.174109",
+        "usdg_amount_raw": "383174109",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:01.124356400+00:00",
+        "price_impact": "1.18",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+        "token_symbol": "UPS",
+        "usdg_amount_decimal": "111.119456",
+        "usdg_amount_raw": "111119456",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:04.115692400+00:00",
+        "price_impact": "7.01",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xd917b029c761d264c6a312bbbcda868658ef86a6",
+        "token_symbol": "USAR",
+        "usdg_amount_decimal": "7.626041",
+        "usdg_amount_raw": "7626041",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:06.542380900+00:00",
+        "price_impact": "0.21",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+        "token_symbol": "USO",
+        "usdg_amount_decimal": "140.008543",
+        "usdg_amount_raw": "140008543",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:08.503058+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x6006ed4b2f94110851ff7509d97d034f0eed9226",
+        "token_symbol": "VICR",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:10.648359500+00:00",
+        "price_impact": "66.77",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xfa78c12e6488814a0262e4e802749a4a737d5fb7",
+        "token_symbol": "VRT",
+        "usdg_amount_decimal": "59.862108",
+        "usdg_amount_raw": "59862108",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:13.021482600+00:00",
+        "price_impact": "5.86",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x26dcbfb34fc83cabd6990f449674efdc6097ff85",
+        "token_symbol": "VSAT",
+        "usdg_amount_decimal": "71.694982",
+        "usdg_amount_raw": "71694982",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:15.176243300+00:00",
+        "price_impact": "6.74",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x561e2a49212b7ccf47f2744ccb83e200722fadbc",
+        "token_symbol": "VST",
+        "usdg_amount_decimal": "121.10321",
+        "usdg_amount_raw": "121103210",
+        "verdict": "route_found"
+      },
+      {
+        "failure_detail": "NoRouteFoundError",
+        "failure_kind": "no_route",
+        "has_value": false,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:17.481990+00:00",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0594134df3f171a354d9c85ebd65b7a6148f6d09",
+        "token_symbol": "VTI",
+        "verdict": "no_route"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:19.704851100+00:00",
+        "price_impact": "0.76",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x82da4646242e1d962e96e932269dc644c94a9caa",
+        "token_symbol": "WDAY",
+        "usdg_amount_decimal": "186.078187",
+        "usdg_amount_raw": "186078187",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:21.689087200+00:00",
+        "price_impact": "1.38",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf52597345a8edf418bc4071b4a35112472277d3e",
+        "token_symbol": "WDC",
+        "usdg_amount_decimal": "300.816753",
+        "usdg_amount_raw": "300816753",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:23.840189200+00:00",
+        "price_impact": "6.41",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd",
+        "token_symbol": "WULF",
+        "usdg_amount_decimal": "11.985898",
+        "usdg_amount_raw": "11985898",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:25.823228400+00:00",
+        "price_impact": "1.31",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e",
+        "token_symbol": "WYFI",
+        "usdg_amount_decimal": "10.236414",
+        "usdg_amount_raw": "10236414",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:27.833818800+00:00",
+        "price_impact": "5.31",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x15cd20759ce7f3285c29a319de2d1a2e098c6f43",
+        "token_symbol": "XLK",
+        "usdg_amount_decimal": "160.905796",
+        "usdg_amount_raw": "160905796",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:30.050407900+00:00",
+        "price_impact": "16.19",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289",
+        "token_symbol": "XNDU",
+        "usdg_amount_decimal": "3.484772",
+        "usdg_amount_raw": "3484772",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:32.141452400+00:00",
+        "price_impact": "9.22",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+        "token_symbol": "XOM",
+        "usdg_amount_decimal": "149.549252",
+        "usdg_amount_raw": "149549252",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:34.453669100+00:00",
+        "price_impact": "1.14",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x44c4f142009036cf477ed2d09932051843137cf1",
+        "token_symbol": "ZM",
+        "usdg_amount_decimal": "96.048299",
+        "usdg_amount_raw": "96048299",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:33:36.784221600+00:00",
+        "price_impact": "91.05",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7",
+        "token_symbol": "ZS",
+        "usdg_amount_decimal": "17.863269",
+        "usdg_amount_raw": "17863269",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:51:13.215896200+00:00",
+        "price_impact": "0.01",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH",
+        "usdg_amount_decimal": "2044.537553",
+        "usdg_amount_raw": "2044537553",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:51:15.298901300+00:00",
+        "price_impact": "0",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "token_symbol": "WETH",
+        "usdg_amount_decimal": "2043.899011",
+        "usdg_amount_raw": "2043899011",
+        "verdict": "route_found"
+      },
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:51:17.312141100+00:00",
+        "price_impact": "0.01",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "token_symbol": "USDE",
+        "usdg_amount_decimal": "0.999179",
+        "usdg_amount_raw": "999179",
+        "verdict": "route_found"
+      }
+    ],
+    "unknown_count": 0
+  },
+  "requestedCount": 197,
+  "routeFoundCount": 162,
+  "source": "uniswap_trading_api_quote",
+  "tokens": [
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:31.897996+00:00",
+      "price_impact": "10.1",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e",
+      "token_symbol": "AAOI",
+      "usdg_amount_decimal": "48.391289",
+      "usdg_amount_raw": "48391289",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:34.133530800+00:00",
+      "price_impact": "0.07",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "token_symbol": "AAPL",
+      "usdg_amount_decimal": "355.938407",
+      "usdg_amount_raw": "355938407",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:36.195481+00:00",
+      "price_impact": "5.5",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e",
+      "token_symbol": "ABCL",
+      "usdg_amount_decimal": "11.44198",
+      "usdg_amount_raw": "11441980",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:38.570982400+00:00",
+      "price_impact": "6.27",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x232b8ed6377be97813853b0ac104c4cda8378d1b",
+      "token_symbol": "ADBE",
+      "usdg_amount_decimal": "223.088415",
+      "usdg_amount_raw": "223088415",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:40.550422500+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5f604fba1162193a4388a5dfa56f556f3e133cc2",
+      "token_symbol": "AEHR",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:42.703487300+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612",
+      "token_symbol": "AEIS",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:44.761108700+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc",
+      "token_symbol": "ALAB",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:46.975473200+00:00",
+      "price_impact": "27.62",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x36046893810a7e7fce501229d57dc3fc8c8716d0",
+      "token_symbol": "AMAT",
+      "usdg_amount_decimal": "270.342528",
+      "usdg_amount_raw": "270342528",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:49.286667500+00:00",
+      "price_impact": "5.93",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x99d9d8663545151603863c5acbd6fc3218899009",
+      "token_symbol": "AMBA",
+      "usdg_amount_decimal": "57.264371",
+      "usdg_amount_raw": "57264371",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:51.628620700+00:00",
+      "price_impact": "0.12",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+      "token_symbol": "AMC",
+      "usdg_amount_decimal": "3.396258",
+      "usdg_amount_raw": "3396258",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:53.933364200+00:00",
+      "price_impact": "0.11",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "token_symbol": "AMD",
+      "usdg_amount_decimal": "559.003324",
+      "usdg_amount_raw": "559003324",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:55.974373600+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b",
+      "token_symbol": "AMKR",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:26:58.280547400+00:00",
+      "price_impact": "0.08",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+      "token_symbol": "AMZN",
+      "usdg_amount_decimal": "266.171168",
+      "usdg_amount_raw": "266171168",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:00.563112300+00:00",
+      "price_impact": "11.76",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x28babd556b60e53663b8615036479a29c2cdd1bf",
+      "token_symbol": "ANET",
+      "usdg_amount_decimal": "162.892538",
+      "usdg_amount_raw": "162892538",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:03.976143200+00:00",
+      "price_impact": "2.4",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb8dbf92f9741c9ac1c32115e78581f23509916fd",
+      "token_symbol": "APLD",
+      "usdg_amount_decimal": "16.952046",
+      "usdg_amount_raw": "16952046",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:05.946542800+00:00",
+      "price_impact": "9.23",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa249baf1063af884807c1e1400aef7784836917e",
+      "token_symbol": "APP",
+      "usdg_amount_decimal": "356.469783",
+      "usdg_amount_raw": "356469783",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:07.853403700+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x47f93d52cbec7c6d2cfc080e154002370a60daea",
+      "token_symbol": "ASML",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:09.999602800+00:00",
+      "price_impact": "6.32",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+      "token_symbol": "ASTS",
+      "usdg_amount_decimal": "35.219053",
+      "usdg_amount_raw": "35219053",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:12.131421900+00:00",
+      "price_impact": "6.06",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x373c06c4f7bde527d7dae4ba169e42b55e393ced",
+      "token_symbol": "AUR",
+      "usdg_amount_decimal": "4.27192",
+      "usdg_amount_raw": "4271920",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:14.162884800+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf6290b5e7c26502e2da514c31509849718ea76a5",
+      "token_symbol": "AVAV",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:16.537687800+00:00",
+      "price_impact": "8.34",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x156e175dd063a8ce274c50654ef40e0032b3fbcf",
+      "token_symbol": "AVGO",
+      "usdg_amount_decimal": "318.330821",
+      "usdg_amount_raw": "318330821",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:18.417553900+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc27dbd474af5181c5a8777903690d8d262d12648",
+      "token_symbol": "AXON",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:20.438114600+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x141eea040c2250eec0314e336975e81f85f6585e",
+      "token_symbol": "AXTI",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:22.537540100+00:00",
+      "price_impact": "22.45",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4d21483a44bf67a86b77e3da301411880797d452",
+      "token_symbol": "BA",
+      "usdg_amount_decimal": "128.001694",
+      "usdg_amount_raw": "128001694",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:24.630118400+00:00",
+      "price_impact": "0.24",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+      "token_symbol": "BABA",
+      "usdg_amount_decimal": "97.530696",
+      "usdg_amount_raw": "97530696",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:26.663799400+00:00",
+      "price_impact": "0.82",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x48e39e56acdba37b09020c0b734a613c9a2f100a",
+      "token_symbol": "BB",
+      "usdg_amount_decimal": "9.105102",
+      "usdg_amount_raw": "9105102",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:28.825821100+00:00",
+      "price_impact": "8.41",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x822cc93ffd030293e9842c30bbd678f530701867",
+      "token_symbol": "BE",
+      "usdg_amount_decimal": "187.874215",
+      "usdg_amount_raw": "187874215",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:30.732896600+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x2f62fc9fabb470c690f141c28340ed832bb27020",
+      "token_symbol": "BND",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:33.157923500+00:00",
+      "price_impact": "0.92",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xcef9027c7d6985b85f0ba431125073529a947a68",
+      "token_symbol": "BULL",
+      "usdg_amount_decimal": "5.155806",
+      "usdg_amount_raw": "5155806",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:34.894661700+00:00",
+      "price_impact": "7.97",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5c90450bbb4273d7b2f17cf6917aeb237a569679",
+      "token_symbol": "CBRS",
+      "usdg_amount_decimal": "92.62198",
+      "usdg_amount_raw": "92621980",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:37.157890+00:00",
+      "price_impact": "5.32",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9651342cea770ae9a2969ba2a52611523146aef9",
+      "token_symbol": "CCL",
+      "usdg_amount_decimal": "28.914706",
+      "usdg_amount_raw": "28914706",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:39.662533200+00:00",
+      "price_impact": "1.37",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xae517a2903e68bd929dfd15be875f8369d53e94a",
+      "token_symbol": "CEG",
+      "usdg_amount_decimal": "269.693888",
+      "usdg_amount_raw": "269693888",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:41.705575100+00:00",
+      "price_impact": "6.06",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+      "token_symbol": "CELH",
+      "usdg_amount_decimal": "29.880955",
+      "usdg_amount_raw": "29880955",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:43.660782900+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x44f6d488021f8233b9416294d1fe9b1fee28382d",
+      "token_symbol": "CIEN",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:45.766686300+00:00",
+      "price_impact": "1.06",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x62200915e7deab1ec7f79fb246dadbb80eacddd0",
+      "token_symbol": "CLOV",
+      "usdg_amount_decimal": "4.946327",
+      "usdg_amount_raw": "4946327",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:47.858468100+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xbf449977089c718c004a66c554b26b94ef3ad4de",
+      "token_symbol": "CLS",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:50.102342600+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xcbb95bbf36099d34da091dc6fa6f49efa257cee3",
+      "token_symbol": "CLSK",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:52.368706+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x92f9f459f1a9a5ad266b182be7bffd1c6c666894",
+      "token_symbol": "COHR",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:54.632520+00:00",
+      "price_impact": "0.28",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "token_symbol": "COIN",
+      "usdg_amount_decimal": "132.897856",
+      "usdg_amount_raw": "132897856",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:56.780376700+00:00",
+      "price_impact": "6.81",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4ea005168d7f09a7a0ba9d1def21a479950e44c2",
+      "token_symbol": "COST",
+      "usdg_amount_decimal": "987.203362",
+      "usdg_amount_raw": "987203362",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:27:58.866544800+00:00",
+      "price_impact": "0.21",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "token_symbol": "CRCL",
+      "usdg_amount_decimal": "65.518938",
+      "usdg_amount_raw": "65518938",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:01.040425100+00:00",
+      "price_impact": "10.5",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b",
+      "token_symbol": "CRDO",
+      "usdg_amount_decimal": "122.656363",
+      "usdg_amount_raw": "122656363",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:03.250426200+00:00",
+      "price_impact": "70.76",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xd95b44124e475743a7589e68f3d74008a5536d44",
+      "token_symbol": "CRM",
+      "usdg_amount_decimal": "60.96667",
+      "usdg_amount_raw": "60966670",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:05.689513800+00:00",
+      "price_impact": "19.09",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931",
+      "token_symbol": "CRWD",
+      "usdg_amount_decimal": "733.973983",
+      "usdg_amount_raw": "733973983",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:08.128354200+00:00",
+      "price_impact": "1.06",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+      "token_symbol": "CRWV",
+      "usdg_amount_decimal": "56.2786",
+      "usdg_amount_raw": "56278600",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:10.487707400+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf543967eebb6f1917992ef0e68de63ab07a5a0da",
+      "token_symbol": "CSCO",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:12.481036300+00:00",
+      "price_impact": "7.46",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x63d5a3b6939a33f1e75d8bcd85759858239600db",
+      "token_symbol": "CTSH",
+      "usdg_amount_decimal": "61.024394",
+      "usdg_amount_raw": "61024394",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:14.627767+00:00",
+      "price_impact": "3.79",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa4f319104089fe321dc8093c6e707d4fe190a988",
+      "token_symbol": "CVNA",
+      "usdg_amount_decimal": "69.747829",
+      "usdg_amount_raw": "69747829",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:16.807354+00:00",
+      "price_impact": "3.42",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+      "token_symbol": "DDOG",
+      "usdg_amount_decimal": "178.529617",
+      "usdg_amount_raw": "178529617",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:19.180035200+00:00",
+      "price_impact": "3.92",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd",
+      "token_symbol": "DELL",
+      "usdg_amount_decimal": "345.090287",
+      "usdg_amount_raw": "345090287",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:21.647794300+00:00",
+      "price_impact": "2.22",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "token_symbol": "DJT",
+      "usdg_amount_decimal": "5.072479",
+      "usdg_amount_raw": "5072479",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:24.004316300+00:00",
+      "price_impact": "8.41",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd",
+      "token_symbol": "DOCN",
+      "usdg_amount_decimal": "76.537154",
+      "usdg_amount_raw": "76537154",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:25.956910500+00:00",
+      "price_impact": "3.55",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x39ec44bee4f6a116c6f9b8de566848a985c53c60",
+      "token_symbol": "ELF",
+      "usdg_amount_decimal": "112.384914",
+      "usdg_amount_raw": "112384914",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:28.131669300+00:00",
+      "price_impact": "20.46",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1c690498150252222c275a5ced69d3a6b1f52d5e",
+      "token_symbol": "EWT",
+      "usdg_amount_decimal": "74.203986",
+      "usdg_amount_raw": "74203986",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:30.203977900+00:00",
+      "price_impact": "1.77",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc",
+      "token_symbol": "EWY",
+      "usdg_amount_decimal": "141.585946",
+      "usdg_amount_raw": "141585946",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:32.288089+00:00",
+      "price_impact": "1.3",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x25c288e6d899b9bc30160965ad9644c67e73be0c",
+      "token_symbol": "F",
+      "usdg_amount_decimal": "12.247289",
+      "usdg_amount_raw": "12247289",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:34.605244400+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa48f22a46c0f1c46ca7d111cb6c137c271987180",
+      "token_symbol": "FICO",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:36.980240900+00:00",
+      "price_impact": "2.41",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x41f4267525a8aff329540ef24fd83d9044758b33",
+      "token_symbol": "FIG",
+      "usdg_amount_decimal": "18.186967",
+      "usdg_amount_raw": "18186967",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:39.177222500+00:00",
+      "price_impact": "6.85",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc",
+      "token_symbol": "FISV",
+      "usdg_amount_decimal": "56.901398",
+      "usdg_amount_raw": "56901398",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:41.358547100+00:00",
+      "price_impact": "11.24",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x93dbb1d2dc5d63f4abacff30485273f538df68ac",
+      "token_symbol": "FIX",
+      "usdg_amount_decimal": "1030.32204",
+      "usdg_amount_raw": "1030322040",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:43.188375100+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x282e87451e10fa6679bc7d76c69be44cd3fc777c",
+      "token_symbol": "FLNC",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:45.555845100+00:00",
+      "price_impact": "2.32",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x03bc731ffb162cdd7b98d3c6542bfc291126075d",
+      "token_symbol": "FLY",
+      "usdg_amount_decimal": "25.572056",
+      "usdg_amount_raw": "25572056",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:48.157166200+00:00",
+      "price_impact": "17.29",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x3fb8976980d486084b2eb4a404bd12e72823958f",
+      "token_symbol": "FTNT",
+      "usdg_amount_decimal": "99.721167",
+      "usdg_amount_raw": "99721167",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:50.060102+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d",
+      "token_symbol": "FUTU",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:51.887813600+00:00",
+      "price_impact": "2.94",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+      "token_symbol": "GE",
+      "usdg_amount_decimal": "328.35804",
+      "usdg_amount_raw": "328358040",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:53.771582400+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9",
+      "token_symbol": "GEV",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:55.896443600+00:00",
+      "price_impact": "0.15",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+      "token_symbol": "GLD",
+      "usdg_amount_decimal": "364.028756",
+      "usdg_amount_raw": "364028756",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:28:57.964399400+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6",
+      "token_symbol": "GLW",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:00.053081+00:00",
+      "price_impact": "0.32",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x2d427692e928fa156ec22acfabafa0447c5805b7",
+      "token_symbol": "GLXY",
+      "usdg_amount_decimal": "15.225912",
+      "usdg_amount_raw": "15225912",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:02.320578900+00:00",
+      "price_impact": "0.93",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+      "token_symbol": "GME",
+      "usdg_amount_decimal": "25.057079",
+      "usdg_amount_raw": "25057079",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:04.466606900+00:00",
+      "price_impact": "0.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "token_symbol": "GOOGL",
+      "usdg_amount_decimal": "294.257656",
+      "usdg_amount_raw": "294257656",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:06.925266900+00:00",
+      "price_impact": "7.7",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d",
+      "token_symbol": "HII",
+      "usdg_amount_decimal": "279.410174",
+      "usdg_amount_raw": "279410174",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:09.253906+00:00",
+      "price_impact": "0.33",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+      "token_symbol": "HIMS",
+      "usdg_amount_decimal": "20.204804",
+      "usdg_amount_raw": "20204804",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:11.330002300+00:00",
+      "price_impact": "3.34",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+      "token_symbol": "HPE",
+      "usdg_amount_decimal": "48.175363",
+      "usdg_amount_raw": "48175363",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:13.330731400+00:00",
+      "price_impact": "57.74",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xaea445c5f3db1a462998ccc422a875a361ee5d99",
+      "token_symbol": "HWM",
+      "usdg_amount_decimal": "77.365673",
+      "usdg_amount_raw": "77365673",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:15.557142800+00:00",
+      "price_impact": "0.64",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+      "token_symbol": "IBM",
+      "usdg_amount_decimal": "247.234737",
+      "usdg_amount_raw": "247234737",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:17.574691+00:00",
+      "price_impact": "10.52",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf",
+      "token_symbol": "IBRX",
+      "usdg_amount_decimal": "6.276211",
+      "usdg_amount_raw": "6276211",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:19.744746900+00:00",
+      "price_impact": "0.4",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xacef2e09adb47ad6abebad9ff06689e60615c2b6",
+      "token_symbol": "INDA",
+      "usdg_amount_decimal": "51.397536",
+      "usdg_amount_raw": "51397536",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:22.341797100+00:00",
+      "price_impact": "51.39",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb853bc83a753342a4f8320ea680b4b1e84118d21",
+      "token_symbol": "INFQ",
+      "usdg_amount_decimal": "3.875196",
+      "usdg_amount_raw": "3875196",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:24.200670200+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf1953dab6fad537488d5a022361ffaa8b4c95ec6",
+      "token_symbol": "INOD",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:26.463344200+00:00",
+      "price_impact": "0.2",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+      "token_symbol": "INTC",
+      "usdg_amount_decimal": "60.140013",
+      "usdg_amount_raw": "60140013",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:28.630195500+00:00",
+      "price_impact": "58.66",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x56d23bee5f41a7120170b0c603dae30128e460e9",
+      "token_symbol": "INTU",
+      "usdg_amount_decimal": "129.600988",
+      "usdg_amount_raw": "129600988",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:30.696233900+00:00",
+      "price_impact": "4.65",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x558378e000d634a36593e338ebacdd6207640efe",
+      "token_symbol": "IONQ",
+      "usdg_amount_decimal": "32.915795",
+      "usdg_amount_raw": "32915795",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:32.657655200+00:00",
+      "price_impact": "1.23",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf0ab0c93be6f41369d302e55db1a96b3c430212d",
+      "token_symbol": "IREN",
+      "usdg_amount_decimal": "19.476215",
+      "usdg_amount_raw": "19476215",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:34.736866100+00:00",
+      "price_impact": "43.99",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xeaf2512dfc1beac608f8794b3793cd4e02894aa6",
+      "token_symbol": "JBL",
+      "usdg_amount_decimal": "138.0005",
+      "usdg_amount_raw": "138000500",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:37.407756200+00:00",
+      "price_impact": "3.54",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80",
+      "token_symbol": "JNJ",
+      "usdg_amount_decimal": "267.006128",
+      "usdg_amount_raw": "267006128",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:39.662355200+00:00",
+      "price_impact": "6.68",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb334c5ce741b80b5b671f47f5c269cb193fe8e24",
+      "token_symbol": "JOBY",
+      "usdg_amount_decimal": "5.433197",
+      "usdg_amount_raw": "5433197",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:42.093360900+00:00",
+      "price_impact": "15.48",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+      "token_symbol": "KLAC",
+      "usdg_amount_decimal": "130.515101",
+      "usdg_amount_raw": "130515101",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:44.144136100+00:00",
+      "price_impact": "5.62",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993",
+      "token_symbol": "KSS",
+      "usdg_amount_decimal": "22.964939",
+      "usdg_amount_raw": "22964939",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:46.234215600+00:00",
+      "price_impact": "14.93",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7fd06a4d81ccfa3f351394e144d5191874c31313",
+      "token_symbol": "KTOS",
+      "usdg_amount_decimal": "30.981137",
+      "usdg_amount_raw": "30981137",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:48.353571300+00:00",
+      "price_impact": "12.33",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x48d60243c66437c6ac3c2495be94747aed5dfe25",
+      "token_symbol": "LHX",
+      "usdg_amount_decimal": "232.973613",
+      "usdg_amount_raw": "232973613",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:50.342684+00:00",
+      "price_impact": "7.52",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c",
+      "token_symbol": "LITE",
+      "usdg_amount_decimal": "577.321764",
+      "usdg_amount_raw": "577321764",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:52.370433300+00:00",
+      "price_impact": "3.14",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x8005d266423c7ea827372c9c864491e5786600ea",
+      "token_symbol": "LLY",
+      "usdg_amount_decimal": "1397.023382",
+      "usdg_amount_raw": "1397023382",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:54.480612500+00:00",
+      "price_impact": "1.18",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x329fcaceb9ad6f9580dd5f643fed0646900d043c",
+      "token_symbol": "LMT",
+      "usdg_amount_decimal": "600.833924",
+      "usdg_amount_raw": "600833924",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:56.474285900+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x57b0030166db0c31690d1a5aa167e2e26e2c29a4",
+      "token_symbol": "LRCX",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:29:58.525833400+00:00",
+      "price_impact": "1.57",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4e62068525ab11fe768e29dfd00ef909b9803016",
+      "token_symbol": "LULU",
+      "usdg_amount_decimal": "106.136713",
+      "usdg_amount_raw": "106136713",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:00.664737300+00:00",
+      "price_impact": "48.23",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa5d4968421ba94814be3b136b15cf422101ac1a3",
+      "token_symbol": "LUNR",
+      "usdg_amount_decimal": "3.879984",
+      "usdg_amount_raw": "3879984",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:02.802228+00:00",
+      "price_impact": "9.16",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xddf2266b79abf0b48898959b0ed6e6adf512be74",
+      "token_symbol": "MDB",
+      "usdg_amount_decimal": "300.466327",
+      "usdg_amount_raw": "300466327",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:04.897948400+00:00",
+      "price_impact": "0.34",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "token_symbol": "META",
+      "usdg_amount_decimal": "627.160024",
+      "usdg_amount_raw": "627160024",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:06.839947300+00:00",
+      "price_impact": "85.65",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc6cbad1016b38b797610c25e1dc7d95988b1f362",
+      "token_symbol": "MOD",
+      "usdg_amount_decimal": "12.81024",
+      "usdg_amount_raw": "12810240",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:09.398973300+00:00",
+      "price_impact": "39.04",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x52d50d0280ad1054b43f052bd70a49a212a1b128",
+      "token_symbol": "MPWR",
+      "usdg_amount_decimal": "825.176194",
+      "usdg_amount_raw": "825176194",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:11.603180400+00:00",
+      "price_impact": "1.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x43b07d15ce533bec5476d70c22a78a1b2b662155",
+      "token_symbol": "MRNA",
+      "usdg_amount_decimal": "245.222194",
+      "usdg_amount_raw": "245222194",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:13.878017400+00:00",
+      "price_impact": "31.4",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x62fd0668e10d8b72339be2dcf7643001688ff13b",
+      "token_symbol": "MRVL",
+      "usdg_amount_decimal": "111.460794",
+      "usdg_amount_raw": "111460794",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:16.626354300+00:00",
+      "price_impact": "0.09",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+      "token_symbol": "MSFT",
+      "usdg_amount_decimal": "520.088089",
+      "usdg_amount_raw": "520088089",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:19.074815100+00:00",
+      "price_impact": "0.3",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xec262a75e413fafd0df80480274532c79d42da09",
+      "token_symbol": "MSTR",
+      "usdg_amount_decimal": "117.727586",
+      "usdg_amount_raw": "117727586",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:22.142935600+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc93f4d80e268ab922e871bd169156c3cc41894e6",
+      "token_symbol": "MTSI",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:24.196255500+00:00",
+      "price_impact": "0.14",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "token_symbol": "MU",
+      "usdg_amount_decimal": "778.696806",
+      "usdg_amount_raw": "778696806",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:26.280386900+00:00",
+      "price_impact": "17.17",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x48961813349333209994750ffa89b3c5c22ec969",
+      "token_symbol": "MXL",
+      "usdg_amount_decimal": "47.538562",
+      "usdg_amount_raw": "47538562",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:28.323886100+00:00",
+      "price_impact": "6.16",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf7181b63fdb858558a74ba96bc42732684cd7965",
+      "token_symbol": "NAVN",
+      "usdg_amount_decimal": "24.464685",
+      "usdg_amount_raw": "24464685",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:30.326045100+00:00",
+      "price_impact": "1.14",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9d9c6684f596f66a64c030b93a886d51fd4d7931",
+      "token_symbol": "NBIS",
+      "usdg_amount_decimal": "148.475306",
+      "usdg_amount_raw": "148475306",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:32.598278900+00:00",
+      "price_impact": "1.73",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+      "token_symbol": "NET",
+      "usdg_amount_decimal": "308.302076",
+      "usdg_amount_raw": "308302076",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:34.907809400+00:00",
+      "price_impact": "1.11",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+      "token_symbol": "NFLX",
+      "usdg_amount_decimal": "63.128262",
+      "usdg_amount_raw": "63128262",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:36.660993400+00:00",
+      "price_impact": "1.25",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xbef75684c43c4ea7bd18dd532a2244674ee8b926",
+      "token_symbol": "NNE",
+      "usdg_amount_decimal": "11.641107",
+      "usdg_amount_raw": "11641107",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:39.040211700+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+      "token_symbol": "NOW",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:42.614983+00:00",
+      "price_impact": "5.2",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x408c14038a04f7bd235329e26d2bf569ee20e250",
+      "token_symbol": "NU",
+      "usdg_amount_decimal": "11.178513",
+      "usdg_amount_raw": "11178513",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:44.774746200+00:00",
+      "price_impact": "0.09",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "token_symbol": "NVDA",
+      "usdg_amount_decimal": "160.194535",
+      "usdg_amount_raw": "160194535",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:47.000382900+00:00",
+      "price_impact": "9.38",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xbe6702d7b70315376dc48a3293f24f0982f86386",
+      "token_symbol": "NVTS",
+      "usdg_amount_decimal": "8.560133",
+      "usdg_amount_raw": "8560133",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:49.179439400+00:00",
+      "price_impact": "9.36",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774",
+      "token_symbol": "OKLO",
+      "usdg_amount_decimal": "23.080356",
+      "usdg_amount_raw": "23080356",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:51.331460600+00:00",
+      "price_impact": "11.55",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xbbd09f72b025360fee5c928053dca6248d35be54",
+      "token_symbol": "ON",
+      "usdg_amount_decimal": "61.455344",
+      "usdg_amount_raw": "61455344",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:53.464034300+00:00",
+      "price_impact": "92.32",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef",
+      "token_symbol": "ONTO",
+      "usdg_amount_decimal": "17.990481",
+      "usdg_amount_raw": "17990481",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:55.460630600+00:00",
+      "price_impact": "1.12",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb0992820e760d836549ba69bc7598b4af75dee03",
+      "token_symbol": "ORCL",
+      "usdg_amount_decimal": "124.538703",
+      "usdg_amount_raw": "124538703",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:57.609024300+00:00",
+      "price_impact": "5.64",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x40e7a279850e443f582059ae5dc1c3b6563e6395",
+      "token_symbol": "OUST",
+      "usdg_amount_decimal": "36.304677",
+      "usdg_amount_raw": "36304677",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:30:59.634950300+00:00",
+      "price_impact": "4.22",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+      "token_symbol": "P",
+      "usdg_amount_decimal": "103.110657",
+      "usdg_amount_raw": "103110657",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:01.772934400+00:00",
+      "price_impact": "16.51",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb039597ed45cba7b6e2fb9e8be51802969cee5be",
+      "token_symbol": "PANW",
+      "usdg_amount_decimal": "268.628193",
+      "usdg_amount_raw": "268628193",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:03.789857800+00:00",
+      "price_impact": "4.63",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda",
+      "token_symbol": "PATH",
+      "usdg_amount_decimal": "12.457013",
+      "usdg_amount_raw": "12457013",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:05.935894200+00:00",
+      "price_impact": "3.41",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9b23573b156b52565012f5ce02cdf60afbaa70be",
+      "token_symbol": "PENG",
+      "usdg_amount_decimal": "46.492328",
+      "usdg_amount_raw": "46492328",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:08.006184800+00:00",
+      "price_impact": "0.2",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "token_symbol": "PFE",
+      "usdg_amount_decimal": "29.750389",
+      "usdg_amount_raw": "29750389",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:10.377590700+00:00",
+      "price_impact": "8.91",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xaa4d64474c172010ab57719cb9951e6142a100d3",
+      "token_symbol": "PL",
+      "usdg_amount_decimal": "12.344293",
+      "usdg_amount_raw": "12344293",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:12.951982700+00:00",
+      "price_impact": "0.13",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+      "token_symbol": "PLTR",
+      "usdg_amount_decimal": "169.008017",
+      "usdg_amount_raw": "169008017",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:15.108670800+00:00",
+      "price_impact": "5.62",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xcf6b2d875361be807eafa57458c80f28521f9333",
+      "token_symbol": "POET",
+      "usdg_amount_decimal": "5.049315",
+      "usdg_amount_raw": "5049315",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:17.010422+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x237c16d66590f67b886d978acd362eaead8b18c7",
+      "token_symbol": "POWL",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:19.123696500+00:00",
+      "price_impact": "5.42",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4189f0c66ebbb0bfef1c31f763131361ef32f77c",
+      "token_symbol": "PR",
+      "usdg_amount_decimal": "20.200643",
+      "usdg_amount_raw": "20200643",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:21.687305400+00:00",
+      "price_impact": "89.63",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd",
+      "token_symbol": "PWR",
+      "usdg_amount_decimal": "54.832566",
+      "usdg_amount_raw": "54832566",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:23.813778300+00:00",
+      "price_impact": "49.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc583c60aef9dc401da72cec1b404743a93cea1cc",
+      "token_symbol": "QBTS",
+      "usdg_amount_decimal": "4.240356",
+      "usdg_amount_raw": "4240356",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:25.882787600+00:00",
+      "price_impact": "0.73",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0f17206447090e464c277571124dd2688e48aea9",
+      "token_symbol": "QCOM",
+      "usdg_amount_decimal": "170.644793",
+      "usdg_amount_raw": "170644793",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:28.267206500+00:00",
+      "price_impact": "0.08",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+      "token_symbol": "QQQ",
+      "usdg_amount_decimal": "682.628772",
+      "usdg_amount_raw": "682628772",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:30.454207700+00:00",
+      "price_impact": "5.64",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4",
+      "token_symbol": "QUBT",
+      "usdg_amount_decimal": "6.065549",
+      "usdg_amount_raw": "6065549",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:32.880199800+00:00",
+      "price_impact": "0.26",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8",
+      "token_symbol": "RBLX",
+      "usdg_amount_decimal": "52.191937",
+      "usdg_amount_raw": "52191937",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:34.877619300+00:00",
+      "price_impact": "1.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xfde6b5d9bb419b10c23268c74e369abff39c0460",
+      "token_symbol": "RCAT",
+      "usdg_amount_decimal": "4.23261",
+      "usdg_amount_raw": "4232610",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:37.026705500+00:00",
+      "price_impact": "1.52",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+      "token_symbol": "RDDT",
+      "usdg_amount_decimal": "103.043738",
+      "usdg_amount_raw": "103043738",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:39.003199800+00:00",
+      "price_impact": "9.57",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x92ef19e82bd8ff36661de838d5eae7e5cef0effe",
+      "token_symbol": "RDW",
+      "usdg_amount_decimal": "6.8569",
+      "usdg_amount_raw": "6856900",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:41.354333+00:00",
+      "price_impact": "43.03",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x284358abc07f9359f19f4b5b4ac91901be2597ba",
+      "token_symbol": "RGTI",
+      "usdg_amount_decimal": "5.880386",
+      "usdg_amount_raw": "5880386",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:43.533643100+00:00",
+      "price_impact": "1.11",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+      "token_symbol": "RIVN",
+      "usdg_amount_decimal": "13.265009",
+      "usdg_amount_raw": "13265009",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:46.212041500+00:00",
+      "price_impact": "1.02",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2",
+      "token_symbol": "RKLB",
+      "usdg_amount_decimal": "63.991478",
+      "usdg_amount_raw": "63991478",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:48.364094200+00:00",
+      "price_impact": "0.43",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x756bc80af765c82da966a788858d65adf14f3793",
+      "token_symbol": "RUN",
+      "usdg_amount_decimal": "8.974066",
+      "usdg_amount_raw": "8974066",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:50.320928900+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x95052ddcd5dc25641657424a8cf04834997e1730",
+      "token_symbol": "SATS",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:52.530578400+00:00",
+      "price_impact": "5.37",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xd63abb2c13d7a8421a8017a712802053568e3c1d",
+      "token_symbol": "SCHD",
+      "usdg_amount_decimal": "33.168342",
+      "usdg_amount_raw": "33168342",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:54.854434+00:00",
+      "price_impact": "0.15",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x92fd66527192e3e61d4ddd13322aa222de86f9b5",
+      "token_symbol": "SGOV",
+      "usdg_amount_decimal": "101.23676",
+      "usdg_amount_raw": "101236760",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:57.050201400+00:00",
+      "price_impact": "1.61",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf53f66751b1eff985311b693531e3290f600c410",
+      "token_symbol": "SHOP",
+      "usdg_amount_decimal": "145.826299",
+      "usdg_amount_raw": "145826299",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:31:59.166631500+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8",
+      "token_symbol": "SHY",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:01.317674500+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x77e655e37f4d913fb9540e0d541d824171a60e81",
+      "token_symbol": "SIMO",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:03.330099400+00:00",
+      "price_impact": "0.38",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+      "token_symbol": "SKHY",
+      "usdg_amount_decimal": "136.890339",
+      "usdg_amount_raw": "136890339",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:05.470816500+00:00",
+      "price_impact": "24.09",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x285b231728c7e4333799183df1094d775246a535",
+      "token_symbol": "SLS",
+      "usdg_amount_decimal": "6.010683",
+      "usdg_amount_raw": "6010683",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:07.548035100+00:00",
+      "price_impact": "0.97",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f",
+      "token_symbol": "SLV",
+      "usdg_amount_decimal": "45.951993",
+      "usdg_amount_raw": "45951993",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:09.789583+00:00",
+      "price_impact": "9.94",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xc01aa1fecec0605b13bc84874ff7256c0f5f562a",
+      "token_symbol": "SMCI",
+      "usdg_amount_decimal": "26.262178",
+      "usdg_amount_raw": "26262178",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:11.964954300+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x072f979c2cac8e1391b0162a87fee094bf8744a0",
+      "token_symbol": "SMH",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:13.885324700+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x1eebee7f74517e0279dfb09d25b0407beec3fdd6",
+      "token_symbol": "SMR",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:16.138065800+00:00",
+      "price_impact": "0.25",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf6589f11bc40b669e584073f428b05562f568733",
+      "token_symbol": "SNAP",
+      "usdg_amount_decimal": "5.29151",
+      "usdg_amount_raw": "5291510",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:18.352992500+00:00",
+      "price_impact": "1.34",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb90a19ff0af67f7779aff50a882a9cff42446400",
+      "token_symbol": "SNDK",
+      "usdg_amount_decimal": "934.291935",
+      "usdg_amount_raw": "934291935",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:20.475049300+00:00",
+      "price_impact": "2.36",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xba0cab75495255d0cb58e22b648bfed4ecd1f47e",
+      "token_symbol": "SNOW",
+      "usdg_amount_decimal": "296.354716",
+      "usdg_amount_raw": "296354716",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:22.824851100+00:00",
+      "price_impact": "3.34",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+      "token_symbol": "SOFI",
+      "usdg_amount_decimal": "15.825155",
+      "usdg_amount_raw": "15825155",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:24.727461200+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54",
+      "token_symbol": "SOUN",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:26.944496100+00:00",
+      "price_impact": "5.57",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38",
+      "token_symbol": "SOXX",
+      "usdg_amount_decimal": "423.441755",
+      "usdg_amount_raw": "423441755",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:29.017530700+00:00",
+      "price_impact": "0.07",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "token_symbol": "SPCX",
+      "usdg_amount_decimal": "138.915511",
+      "usdg_amount_raw": "138915511",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:31.068859800+00:00",
+      "price_impact": "17.82",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xad622320e520de39e72d41ef07438c3fd3354875",
+      "token_symbol": "SPMO",
+      "usdg_amount_decimal": "104.202503",
+      "usdg_amount_raw": "104202503",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:33.228615800+00:00",
+      "price_impact": "0.04",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "token_symbol": "SPY",
+      "usdg_amount_decimal": "757.249859",
+      "usdg_amount_raw": "757249859",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:35.213102500+00:00",
+      "price_impact": "6.74",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d",
+      "token_symbol": "TE",
+      "usdg_amount_decimal": "2.078349",
+      "usdg_amount_raw": "2078349",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:37.247855800+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5b97476b922f3305131b8f0b9d333172e87f4aae",
+      "token_symbol": "TEAM",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:39.477326700+00:00",
+      "price_impact": "6.12",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xb1cc0ec7db69cf43539119814df40071b9d61793",
+      "token_symbol": "TEM",
+      "usdg_amount_decimal": "76.941878",
+      "usdg_amount_raw": "76941878",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:41.774309300+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+      "token_symbol": "TER",
+      "verdict": "no_route"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:43.939744400+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x89776d4cd68193597a2fc132cfac1fde36ccea8a",
+      "token_symbol": "TSEM",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:46.015588700+00:00",
+      "price_impact": "0.11",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "token_symbol": "TSLA",
+      "usdg_amount_decimal": "385.69506",
+      "usdg_amount_raw": "385695060",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:48.253163500+00:00",
+      "price_impact": "0.13",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+      "token_symbol": "TSM",
+      "usdg_amount_decimal": "400.919313",
+      "usdg_amount_raw": "400919313",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:50.807829100+00:00",
+      "price_impact": "5.39",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0b5fb4031cae9163db10b169ee72685f0edc8545",
+      "token_symbol": "TTD",
+      "usdg_amount_decimal": "14.73018",
+      "usdg_amount_raw": "14730180",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:53.309818500+00:00",
+      "price_impact": "0.54",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5e81213613b6b86eab4c6c50d718d34359459786",
+      "token_symbol": "TTWO",
+      "usdg_amount_decimal": "230.565796",
+      "usdg_amount_raw": "230565796",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:55.690570800+00:00",
+      "price_impact": "7.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0e6e67ba88e7b5d9b67636a215c76779b948de79",
+      "token_symbol": "UMC",
+      "usdg_amount_decimal": "13.763463",
+      "usdg_amount_raw": "13763463",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:32:58.289514300+00:00",
+      "price_impact": "5.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xcf364ea52787e289de6f32077834056e3e70d6a8",
+      "token_symbol": "UNH",
+      "usdg_amount_decimal": "383.174109",
+      "usdg_amount_raw": "383174109",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:01.124356400+00:00",
+      "price_impact": "1.18",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+      "token_symbol": "UPS",
+      "usdg_amount_decimal": "111.119456",
+      "usdg_amount_raw": "111119456",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:04.115692400+00:00",
+      "price_impact": "7.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xd917b029c761d264c6a312bbbcda868658ef86a6",
+      "token_symbol": "USAR",
+      "usdg_amount_decimal": "7.626041",
+      "usdg_amount_raw": "7626041",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:06.542380900+00:00",
+      "price_impact": "0.21",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+      "token_symbol": "USO",
+      "usdg_amount_decimal": "140.008543",
+      "usdg_amount_raw": "140008543",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:08.503058+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x6006ed4b2f94110851ff7509d97d034f0eed9226",
+      "token_symbol": "VICR",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:10.648359500+00:00",
+      "price_impact": "66.77",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xfa78c12e6488814a0262e4e802749a4a737d5fb7",
+      "token_symbol": "VRT",
+      "usdg_amount_decimal": "59.862108",
+      "usdg_amount_raw": "59862108",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:13.021482600+00:00",
+      "price_impact": "5.86",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x26dcbfb34fc83cabd6990f449674efdc6097ff85",
+      "token_symbol": "VSAT",
+      "usdg_amount_decimal": "71.694982",
+      "usdg_amount_raw": "71694982",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:15.176243300+00:00",
+      "price_impact": "6.74",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x561e2a49212b7ccf47f2744ccb83e200722fadbc",
+      "token_symbol": "VST",
+      "usdg_amount_decimal": "121.10321",
+      "usdg_amount_raw": "121103210",
+      "verdict": "route_found"
+    },
+    {
+      "failure_detail": "NoRouteFoundError",
+      "failure_kind": "no_route",
+      "has_value": false,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:17.481990+00:00",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0594134df3f171a354d9c85ebd65b7a6148f6d09",
+      "token_symbol": "VTI",
+      "verdict": "no_route"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:19.704851100+00:00",
+      "price_impact": "0.76",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x82da4646242e1d962e96e932269dc644c94a9caa",
+      "token_symbol": "WDAY",
+      "usdg_amount_decimal": "186.078187",
+      "usdg_amount_raw": "186078187",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:21.689087200+00:00",
+      "price_impact": "1.38",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf52597345a8edf418bc4071b4a35112472277d3e",
+      "token_symbol": "WDC",
+      "usdg_amount_decimal": "300.816753",
+      "usdg_amount_raw": "300816753",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:23.840189200+00:00",
+      "price_impact": "6.41",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd",
+      "token_symbol": "WULF",
+      "usdg_amount_decimal": "11.985898",
+      "usdg_amount_raw": "11985898",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:25.823228400+00:00",
+      "price_impact": "1.31",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e",
+      "token_symbol": "WYFI",
+      "usdg_amount_decimal": "10.236414",
+      "usdg_amount_raw": "10236414",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:27.833818800+00:00",
+      "price_impact": "5.31",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x15cd20759ce7f3285c29a319de2d1a2e098c6f43",
+      "token_symbol": "XLK",
+      "usdg_amount_decimal": "160.905796",
+      "usdg_amount_raw": "160905796",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:30.050407900+00:00",
+      "price_impact": "16.19",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289",
+      "token_symbol": "XNDU",
+      "usdg_amount_decimal": "3.484772",
+      "usdg_amount_raw": "3484772",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:32.141452400+00:00",
+      "price_impact": "9.22",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+      "token_symbol": "XOM",
+      "usdg_amount_decimal": "149.549252",
+      "usdg_amount_raw": "149549252",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:34.453669100+00:00",
+      "price_impact": "1.14",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x44c4f142009036cf477ed2d09932051843137cf1",
+      "token_symbol": "ZM",
+      "usdg_amount_decimal": "96.048299",
+      "usdg_amount_raw": "96048299",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:33:36.784221600+00:00",
+      "price_impact": "91.05",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7",
+      "token_symbol": "ZS",
+      "usdg_amount_decimal": "17.863269",
+      "usdg_amount_raw": "17863269",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:13.215896200+00:00",
+      "price_impact": "0.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0000000000000000000000000000000000000000",
+      "token_symbol": "ETH",
+      "usdg_amount_decimal": "2044.537553",
+      "usdg_amount_raw": "2044537553",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:15.298901300+00:00",
+      "price_impact": "0",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "token_symbol": "WETH",
+      "usdg_amount_decimal": "2043.899011",
+      "usdg_amount_raw": "2043899011",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:17.312141100+00:00",
+      "price_impact": "0.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "token_symbol": "USDE",
+      "usdg_amount_decimal": "0.999179",
+      "usdg_amount_raw": "999179",
+      "verdict": "route_found"
+    }
+  ],
+  "unknownCount": 0,
+  "verdictCounts": {
+    "route_found": 162,
+    "no_route": 35
+  },
+  "mergedSources": [
+    "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\val2_stock_usdg_valuation_20261112T132628.json",
+    "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\val2_base_asset_usdg_valuation_20261112T135110.json"
+  ]
+}

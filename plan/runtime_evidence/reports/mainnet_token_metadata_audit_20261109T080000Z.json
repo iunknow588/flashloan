@@ -1,0 +1,238 @@
+﻿{
+  "chainId": 4663,
+  "classification": {
+    "duplicateSymbolGroups": 2,
+    "duplicateSymbolSamples": [
+      {
+        "symbol": "DJT",
+        "tokenKeyIds": [
+          "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+          "robinhood:4663:0x820012a9bfb19db161a1a059a6d83c2777fc0777"
+        ]
+      },
+      {
+        "symbol": "NET",
+        "tokenKeyIds": [
+          "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+          "robinhood:4663:0xca9c78dd337a67f6e0077f65f5e9218719d30edf"
+        ]
+      }
+    ],
+    "extensionAnchorDistribution": {
+      "CORE_TOKEN": 38,
+      "STOCK_TOKEN": 28,
+      "TEST_TOKEN": 2
+    },
+    "extensionInputDiagnostics": {
+      "anchors": {
+        "0x0000000000000000000000000000000000000000": {
+          "chainTokenRowCounterparts": 696,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 23,
+          "liquidityQualifiedCounterparts": 196,
+          "liquidityQualifiedMetadataRejectedCounterparts": 173,
+          "metadataAcceptedCounterparts": 145,
+          "rawDistinctCounterparts": 696,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 548,
+            "PLACEHOLDER_SYMBOL": 3
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 145,
+          "symbolAvailableCounterparts": 693,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 185,
+          "validDecimalsAvailableCounterparts": 145
+        },
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73": {
+          "chainTokenRowCounterparts": 489,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 5,
+          "liquidityQualifiedCounterparts": 234,
+          "liquidityQualifiedMetadataRejectedCounterparts": 229,
+          "metadataAcceptedCounterparts": 22,
+          "rawDistinctCounterparts": 489,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 467
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 22,
+          "symbolAvailableCounterparts": 489,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 1,
+          "validDecimalsAvailableCounterparts": 22
+        },
+        "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+          "chainTokenRowCounterparts": 32,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 2,
+          "liquidityQualifiedCounterparts": 4,
+          "liquidityQualifiedMetadataRejectedCounterparts": 2,
+          "metadataAcceptedCounterparts": 4,
+          "rawDistinctCounterparts": 32,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 28
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 4,
+          "symbolAvailableCounterparts": 32,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 0,
+          "validDecimalsAvailableCounterparts": 4
+        },
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+          "chainTokenRowCounterparts": 1037,
+          "liquidityQualifiedAndMetadataAcceptedCounterparts": 29,
+          "liquidityQualifiedCounterparts": 52,
+          "liquidityQualifiedMetadataRejectedCounterparts": 23,
+          "metadataAcceptedCounterparts": 127,
+          "rawDistinctCounterparts": 1037,
+          "rejectedByCode": {
+            "MISSING_DECIMALS": 909,
+            "PLACEHOLDER_SYMBOL": 1
+          },
+          "symbolAndValidDecimalsAvailableCounterparts": 127,
+          "symbolAvailableCounterparts": 1036,
+          "usdDepthQualifiedCounterpartsDiagnosticOnly": 1,
+          "validDecimalsAvailableCounterparts": 127
+        }
+      },
+      "union": {
+        "chainTokenRowCounterparts": 2084,
+        "liquidityQualifiedAndMetadataAcceptedCounterparts": 38,
+        "liquidityQualifiedCounterparts": 465,
+        "liquidityQualifiedMetadataRejectedCounterparts": 427,
+        "metadataAcceptedCounterparts": 232,
+        "rawDistinctCounterparts": 2084,
+        "symbolAndValidDecimalsAvailableCounterparts": 232,
+        "symbolAvailableCounterparts": 2080,
+        "usdDepthQualifiedCounterpartsDiagnosticOnly": 186,
+        "validDecimalsAvailableCounterparts": 232
+      }
+    },
+    "extensionMembers": 40,
+    "extensionOnly": 11,
+    "extensionOverlap": 29,
+    "extensionOverlapByPrimaryLibrary": {
+      "core": 4,
+      "stocks": 25,
+      "test": 0
+    },
+    "issuesByCode": {},
+    "libraryMemberships": {
+      "core": 4,
+      "extension": 40,
+      "stocks": 194,
+      "test": 1
+    },
+    "mainnetTestTokenCandidates": [
+      {
+        "address": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "classificationPresent": true,
+        "extensionAnchors": [],
+        "memberships": [
+          {
+            "admissionStatus": "admitted",
+            "libraryKey": "test",
+            "reason": "TEST_ALLOWLIST"
+          }
+        ],
+        "primaryLibrary": "test",
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TZ"
+      },
+      {
+        "address": "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "classificationPresent": true,
+        "extensionAnchors": [
+          "TEST_TOKEN"
+        ],
+        "memberships": [
+          {
+            "admissionStatus": "candidate_only",
+            "libraryKey": "extension",
+            "reason": "EXTENSION_MEMBER"
+          }
+        ],
+        "primaryLibrary": null,
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TA"
+      },
+      {
+        "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "classificationPresent": true,
+        "extensionAnchors": [
+          "TEST_TOKEN"
+        ],
+        "memberships": [
+          {
+            "admissionStatus": "candidate_only",
+            "libraryKey": "extension",
+            "reason": "EXTENSION_MEMBER"
+          }
+        ],
+        "primaryLibrary": null,
+        "source": "mainnet-v4-amm-create-tokens",
+        "symbol": "TB"
+      }
+    ],
+    "primaryLibraries": {
+      "core": 4,
+      "stocks": 194,
+      "test": 1
+    },
+    "sourceOverrides": 198,
+    "unclassified": 4275,
+    "uniqueTokens": 4485
+  },
+  "database": "flashloan/db/local_store_4663.sqlite3",
+  "liquidityEligibility": {
+    "gateEnabled": true,
+    "poolCount": 5468,
+    "qualifiedPoolCount": 613,
+    "qualifiedPoolsByLegacyUsdDepthLabelDiagnosticOnly": {
+      "deep": 193,
+      "liquid": 5,
+      "thin": 33,
+      "unpriced": 382
+    },
+    "rule": "fixed fee in 1..=3000; dynamic/special fee zero; zero hooks; has_liquidity=1 with positive liquidity_index; legacy USD depth labels are diagnostic only and do not gate admission",
+    "source": "v4_exchange_pools JOIN v4_exchange_pool_liquidity_snapshots",
+    "usdDepthQualifiedPoolCountDiagnosticOnly": 198,
+    "usdDepthRelationshipRequired": false
+  },
+  "mode": "read_only_metadata_and_classification_audit",
+  "network": "robinhood",
+  "normalization": {
+    "accepted": 4683,
+    "acceptedBySource": {
+      "chain_tokens": 4485,
+      "core_allowlist": 4,
+      "stock_registry": 194
+    },
+    "errorSamplesByCode": {
+      "MISSING_DECIMALS": {
+        "code": "MISSING_DECIMALS",
+        "message": "token decimals are required",
+        "source": "chainTokens",
+        "sourceLocator": "chain_tokens:robinhood:4663:0x0008f81eb635bc3f149b2a465541f735e0c6a4e3",
+        "tokenAddress": "0x0008f81eb635bc3f149b2a465541f735e0c6a4e3"
+      },
+      "PLACEHOLDER_SYMBOL": {
+        "code": "PLACEHOLDER_SYMBOL",
+        "message": "placeholder symbol is not allowed: 0X0C6BAD7C",
+        "source": "chainTokens",
+        "sourceLocator": "chain_tokens:robinhood:4663:0x0c6bad7c366b301b7da2c33cf344868e238b3d1c",
+        "tokenAddress": "0x0c6bad7c366b301b7da2c33cf344868e238b3d1c"
+      }
+    },
+    "errorsByCode": {
+      "MISSING_DECIMALS": 1854,
+      "PLACEHOLDER_SYMBOL": 14
+    },
+    "rejected": 1868
+  },
+  "registry": "flashloan/src/chains/robinhood/robinhood_stock_tokens.json",
+  "sourceCounts": {
+    "chainTokens": 6353,
+    "coreAllowlist": 4,
+    "stockRegistry": 194,
+    "v4PoolCurrencyReferences": 11080
+  },
+  "sourceKinds": [
+    "core_allowlist",
+    "chain_tokens",
+    "stock_registry"
+  ]
+}

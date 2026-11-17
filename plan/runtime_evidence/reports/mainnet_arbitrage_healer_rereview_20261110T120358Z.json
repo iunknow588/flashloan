@@ -1,0 +1,126 @@
+{
+  "mode": "rereview",
+  "generatedAt": "2026-11-10T12:03:58Z",
+  "apply": true,
+  "dryRun": false,
+  "policy": "historical profit ranks candidates; only a new positive live review may broadcast",
+  "candidateCount": 3,
+  "results": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "path": "ETH -> USDE -> USDG -> ETH",
+      "routeSymbols": [
+        "ETH",
+        "USDE",
+        "USDG",
+        "ETH"
+      ],
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "historicalReviewId": 60955,
+      "historicalProfit": 5.013509965e-08,
+      "historicalCurrency": "ETH",
+      "historicalCategory": "not_executable",
+      "historicalReviewedAt": "2026-11-10T12:02:54.690943600+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"action\":\"set_wait_deadline\",\"chainId\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"command\":\"manual_review\",\"dataSource\":\"rust_runtime_core\",\"dryRun\":false,\"groupKey\":\"eth|usde|usdg\",\"group_key\":\"eth|usde|usdg\",\"idempotencyKey\":\"healer-a4e8ebcad4274c85baddb6f2725019ec\",\"mode\":\"native_closed_loop_group_manual_review\",\"ok\":true,\"previousWaitUntil\":\"2026-11-10T12:03:54.690949400+00:00\",\"processingAsync\":true,\"requestId\":\"healer-ceddf42f01604ad889be5b3d9d481f0c\",\"routeAddresses\":[\"0x0000000000000000000000000000000000000000\",\"0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34\",\"0x5fc5360d0400a0fd4f2af552add042d716f1d168\",\"0x0000000000000000000000000000000000000000\"],\"routeSymbols\":[\"ETH\",\"USDE\",\"USDG\",\"ETH\"],\"stateReadRequired\":true,\"transitionQueued\":true,\"version\":\"rust_runtime_core_v1\",\"waitUntil\":\"2026-11-10T12:03:43.773180900+00:00\",\"waitingDeadlineCleared\":true}\n"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"action\":\"set_wait_deadline\",\"chainId\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"command\":\"manual_review\",\"dataSource\":\"rust_runtime_core\",\"dryRun\":false,\"groupKey\":\"eth|usde|usdg\",\"group_key\":\"eth|usde|usdg\",\"idempotencyKey\":\"healer-a4e8ebcad4274c85baddb6f2725019ec\",\"mode\":\"native_closed_loop_group_manual_review\",\"ok\":true,\"previousWaitUntil\":\"2026-11-10T12:03:54.690949400+00:00\",\"processingAsync\":true,\"requestId\":\"healer-ceddf42f01604ad889be5b3d9d481f0c\",\"routeAddresses\":[\"0x0000000000000000000000000000000000000000\",\"0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34\",\"0x5fc5360d0400a0fd4f2af552add042d716f1d168\",\"0x0000000000000000000000000000000000000000\"],\"routeSymbols\":[\"ETH\",\"USDE\",\"USDG\",\"ETH\"],\"stateReadRequired\":true,\"transitionQueued\":true,\"version\":\"rust_runtime_core_v1\",\"waitUntil\":\"2026-11-10T12:03:43.773180900+00:00\",\"waitingDeadlineCleared\":true}\n"
+        }
+      }
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "WETH -> ETH -> NVDA -> WETH",
+      "routeSymbols": [
+        "WETH",
+        "ETH",
+        "NVDA",
+        "WETH"
+      ],
+      "routeAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "historicalReviewId": 60683,
+      "historicalProfit": 3.877982949e-09,
+      "historicalCurrency": "WETH",
+      "historicalCategory": "not_executable",
+      "historicalReviewedAt": "2026-11-10T07:40:01.790493100+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"action\":\"set_wait_deadline\",\"chainId\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"command\":\"manual_review\",\"dataSource\":\"rust_runtime_core\",\"dryRun\":false,\"groupKey\":\"weth|eth|nvda\",\"group_key\":\"weth|eth|nvda\",\"idempotencyKey\":\"healer-6e1ccc973b204863bbec25bc741a30d9\",\"mode\":\"native_closed_loop_group_manual_review\",\"ok\":true,\"previousWaitUntil\":\"2026-11-10T12:03:49.417743500+00:00\",\"processingAsync\":true,\"requestId\":\"healer-d0aa02c004c94fdb9f268432d3cc6e18\",\"routeAddresses\":[\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\",\"0x0000000000000000000000000000000000000000\",\"0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec\",\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\"],\"routeSymbols\":[\"WETH\",\"ETH\",\"NVDA\",\"WETH\"],\"stateReadRequired\":true,\"transitionQueued\":true,\"version\":\"rust_runtime_core_v1\",\"waitUntil\":\"2026-11-10T12:03:44.944821300+00:00\",\"waitingDeadlineCleared\":true}\n"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"action\":\"set_wait_deadline\",\"chainId\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"command\":\"manual_review\",\"dataSource\":\"rust_runtime_core\",\"dryRun\":false,\"groupKey\":\"weth|eth|nvda\",\"group_key\":\"weth|eth|nvda\",\"idempotencyKey\":\"healer-6e1ccc973b204863bbec25bc741a30d9\",\"mode\":\"native_closed_loop_group_manual_review\",\"ok\":true,\"previousWaitUntil\":\"2026-11-10T12:03:49.417743500+00:00\",\"processingAsync\":true,\"requestId\":\"healer-d0aa02c004c94fdb9f268432d3cc6e18\",\"routeAddresses\":[\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\",\"0x0000000000000000000000000000000000000000\",\"0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec\",\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\"],\"routeSymbols\":[\"WETH\",\"ETH\",\"NVDA\",\"WETH\"],\"stateReadRequired\":true,\"transitionQueued\":true,\"version\":\"rust_runtime_core_v1\",\"waitUntil\":\"2026-11-10T12:03:44.944821300+00:00\",\"waitingDeadlineCleared\":true}\n"
+        }
+      }
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "path": "ETH -> SPY -> AAPL -> ETH",
+      "routeSymbols": [
+        "ETH",
+        "SPY",
+        "AAPL",
+        "ETH"
+      ],
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "historicalReviewId": 60657,
+      "historicalProfit": 0.12850297372067418,
+      "historicalCurrency": "ETH",
+      "historicalCategory": "not_executable",
+      "historicalReviewedAt": "2026-11-10T07:31:22.070440800+00:00",
+      "historicalProfitUsedOnlyForPriority": true,
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": 503,
+          "body": "{\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"code\":\"RUNTIME_CORE_NATIVE_COMMAND_FAILED\",\"command\":\"manual_review\",\"dataSource\":\"rust_runtime_core\",\"detail\":\"RuntimeError: closed_loop_group_worker_not_running:eth|spy|aapl\",\"dryRun\":false,\"group_key\":\"eth|spy|aapl\",\"idempotencyKey\":\"healer-36cd2a3a06e84e45b02acd5431c4b23f\",\"mode\":\"native_closed_loop_group_manual_review\",\"ok\":false,\"requestId\":\"healer-d76bd989654840d88c6fd5f88960849a\",\"routeAddresses\":[\"0x0000000000000000000000000000000000000000\",\"0x117cc2133c37b721f49de2a7a74833232b3b4c0c\",\"0xaf3d76f1834a1d425780943c99ea8a608f8a93f9\",\"0x0000000000000000000000000000000000000000\"],\"routeSymbols\":[\"ETH\",\"SPY\",\"AAPL\",\"ETH\"],\"upstreamStatus\":503}\n"
+        },
+        "workerRefreshRequired": true,
+        "groupKey": "eth|spy|aapl",
+        "workerRefreshApplied": true,
+        "workerRefresh": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"chain_id\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"group_key\":\"eth|spy|aapl\",\"mode\":\"native_closed_loop_group_refresh\",\"ok\":true,\"submission\":{\"capacity\":{\"batchLimit\":0,\"overrideUsed\":true,\"totalGroupLimit\":16,\"workerGroupCount\":18},\"existingGroupKeys\":[],\"failures\":[],\"groupsConsidered\":1,\"groupsDiscovered\":48,\"mode\":\"native_closed_loop_group_submit\",\"ok\":true,\"skipped\":[],\"submittedGroupKeys\":[\"eth|spy|aapl\"]},\"worker\":{\"backoff_until\":null,\"broadcastGate\":{\"autoExecuteEnabled\":true,\"broadcastAllowed\":true,\"broadcastEnabled\":true,\"privateKeyConfigured\":true,\"privateKeySource\":\"LIQUIDATION_EXECUTION_PRIVATE_KEY\",\"reasons\":[]},\"broadcast_count\":0,\"broadcast_failure_count\":0,\"broadcast_failure_recent\":[],\"cache_hit\":0,\"chain_id\":4663,\"consecutive_errors\":0,\"group_key\":\"eth|spy|aapl\",\"last_broadcast_at\":null,\"last_broadcast_failure_at\":null,\"last_confirmed_at\":null,\"last_error\":null,\"last_phase_error\":null,\"mode\":\"deep\",\"network\":\"robinhood\",\"next_scan_at\":null,\"phase\":\"reviewing\",\"phase_started_at\":\"2026-11-10T12:03:58.760019200+00:00\",\"poll_interval_seconds\":60,\"probe_count\":0,\"protocol\":\"uniswap_v4\",\"protocols\":[\"uniswap_v4\"],\"queued_count\":1,\"review_wait_ready\":false,\"started_at\":\"2026-11-10T12:03:58.759986200+00:00\",\"state\":\"running\",\"thread_id\":\"rust-closed-loop-18\",\"thread_live\":true,\"updated_at\":\"2026-11-10T12:03:58.760019800+00:00\",\"wake_generation\":0}}\n"
+        },
+        "reviewTriggeredByRefresh": true,
+        "finalReview": {
+          "ok": true,
+          "status": 200,
+          "body": "{\"accepted\":true,\"chain_id\":4663,\"chain_selection\":{\"canonical_market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"capabilities\":{\"dex_arbitrage\":true,\"execution\":true,\"liquidation\":false,\"observation\":true,\"robinhood_shadow\":false,\"shadow\":false},\"chain_default\":true,\"chain_id\":4663,\"chain_key\":\"chain:4663\",\"display_name\":\"Robinhood Uniswap V4\",\"enabled\":true,\"feature\":\"dex_arbitrage\",\"global_chain_id\":\"chain:4663\",\"is_default\":true,\"legacy_market_id\":\"robinhood-dex-shadow\",\"market_id\":\"dex-arbitrage-4663-uniswap-v4\",\"market_type\":\"native_chain\",\"native_symbol\":\"ETH\",\"network\":\"robinhood\",\"observation_only\":false,\"protocol\":\"uniswap_v4\",\"protocol_id\":\"uniswap_v4\",\"protocol_supported\":true},\"group_key\":\"eth|spy|aapl\",\"mode\":\"native_closed_loop_group_refresh\",\"ok\":true,\"submission\":{\"capacity\":{\"batchLimit\":0,\"overrideUsed\":true,\"totalGroupLimit\":16,\"workerGroupCount\":18},\"existingGroupKeys\":[],\"failures\":[],\"groupsConsidered\":1,\"groupsDiscovered\":48,\"mode\":\"native_closed_loop_group_submit\",\"ok\":true,\"skipped\":[],\"submittedGroupKeys\":[\"eth|spy|aapl\"]},\"worker\":{\"backoff_until\":null,\"broadcastGate\":{\"autoExecuteEnabled\":true,\"broadcastAllowed\":true,\"broadcastEnabled\":true,\"privateKeyConfigured\":true,\"privateKeySource\":\"LIQUIDATION_EXECUTION_PRIVATE_KEY\",\"reasons\":[]},\"broadcast_count\":0,\"broadcast_failure_count\":0,\"broadcast_failure_recent\":[],\"cache_hit\":0,\"chain_id\":4663,\"consecutive_errors\":0,\"group_key\":\"eth|spy|aapl\",\"last_broadcast_at\":null,\"last_broadcast_failure_at\":null,\"last_confirmed_at\":null,\"last_error\":null,\"last_phase_error\":null,\"mode\":\"deep\",\"network\":\"robinhood\",\"next_scan_at\":null,\"phase\":\"reviewing\",\"phase_started_at\":\"2026-11-10T12:03:58.760019200+00:00\",\"poll_interval_seconds\":60,\"probe_count\":0,\"protocol\":\"uniswap_v4\",\"protocols\":[\"uniswap_v4\"],\"queued_count\":1,\"review_wait_ready\":false,\"started_at\":\"2026-11-10T12:03:58.759986200+00:00\",\"state\":\"running\",\"thread_id\":\"rust-closed-loop-18\",\"thread_live\":true,\"updated_at\":\"2026-11-10T12:03:58.760019800+00:00\",\"wake_generation\":0}}\n"
+        }
+      }
+    }
+  ]
+}

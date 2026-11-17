@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 import time
 from typing import Any
+import urllib.error
+import urllib.request
 
 from web3 import Web3
 
@@ -38,6 +40,15 @@ from dex.intent_trade.chains.robinhood.v4_quote_adapter import (
     _read_live_pool_state_with_w3,
 )
 from dex.intent_trade.chains.robinhood.config import rpc_urls_from_env
+from dex.intent_trade.chains.robinhood.v4_pool_capacity import (
+    DEPTH_BAND_BASIS as CAPACITY_DEPTH_BAND_BASIS,
+    DEPTH_BASIS as CAPACITY_DEPTH_BASIS,
+    DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS as CAPACITY_PRICE_IMPACT_LIMIT_BPS,
+    binding_side_capacity,
+    capacity_band,
+    capacity_from_sqrt_price,
+    raw_to_decimal_text,
+)
 
 
 getcontext().prec = 80
@@ -61,7 +72,151 @@ ERC20_ABI = [
 
 
 Q96 = Decimal(2) ** 96
-DEFAULT_ETH_PRICE_USD = Decimal(str(os.getenv("ROBINHOOD_MAINNET_ETH_PRICE_USD", "3000")))
+
+# Live ETH/USD price discovery.
+#
+# The pool TVL must be priced with a real, recent market price. A hardcoded
+# fallback price silently produced TVL readings that were off by roughly a
+# third and made the depth bands meaningless, so the price is now fetched from
+# a small set of public sources with an explicit fallback chain. The
+# api.binance.com host answers HTTP 451 from this environment, therefore
+# api.binance.us is the primary source.
+ETH_PRICE_SOURCES: tuple[tuple[str, str], ...] = (
+    ("binance_us", "https://api.binance.us/api/v3/ticker/price?symbol=ETHUSDT"),
+    ("kraken", "https://api.kraken.com/0/public/Ticker?pair=ETHUSD"),
+    ("coingecko", "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"),
+)
+
+# A price outside this band is a broken or manipulated feed and must not be
+# used to price pool reserves.
+ETH_USD_PRICE_MIN = Decimal(str(os.getenv("ROBINHOOD_ETH_USD_PRICE_MIN", "500")))
+ETH_USD_PRICE_MAX = Decimal(str(os.getenv("ROBINHOOD_ETH_USD_PRICE_MAX", "20000")))
+
+# Maximum age of an accepted price observation.
+ETH_PRICE_MAX_AGE_SECONDS = int(os.getenv("ROBINHOOD_ETH_PRICE_MAX_AGE_SECONDS", "900"))
+
+# An explicit operator override always wins and is never re-validated against
+# the freshness window (the operator owns that decision).
+ETH_PRICE_OVERRIDE_USD = os.getenv("ROBINHOOD_MAINNET_ETH_PRICE_USD", "").strip()
+
+ETH_PRICE_CACHE: dict[str, Any] = {"price": None, "source": None, "observedAt": None}
+
+# ---------------------------------------------------------------------------
+# Stable coin identification
+# ---------------------------------------------------------------------------
+# The Robinhood chain lists several distinct ERC20 contracts that all use the
+# "USDG" symbol. Only one of them is the canonical USDG; the others are
+# unrelated launchpad and printer deployments. A symbol based lookup would
+# therefore price counterfeit tokens as one dollar. Stable coins are therefore
+# identified by their contract address, and only a contract that is both in the
+# canonical set and not in the known-counterfeit set is treated as a dollar.
+CANONICAL_USD_STABLE_ADDRESSES: frozenset[str] = frozenset({
+    # USDC
+    "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+    # USDG (canonical)
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+})
+
+# USD stable symbols that are safe to price at one dollar when the token
+# address is unknown (generic bridged stable coins).
+_USD_STABLE_SYMBOLS: frozenset[str] = frozenset({"USDC", "USDT", "DAI", "FRAX"})
+
+
+def _is_usd_stable_token(address: object, symbol: object) -> bool:
+    """Return whether a token is a canonical one-dollar stable coin.
+
+    The address check wins: a token that claims a stable symbol but is not the
+    canonical contract is never priced as a dollar.
+    """
+    normalized = str(address or "").strip().lower()
+    if normalized:
+        return normalized in CANONICAL_USD_STABLE_ADDRESSES
+    return str(symbol or "").strip().upper() in _USD_STABLE_SYMBOLS
+
+
+def _fetch_json(url: str, timeout: int = 10) -> Any:
+    request = urllib.request.Request(url, headers={"User-Agent": "flashloan-pool-index/1.0"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8", errors="replace"))
+
+
+def _extract_eth_price(payload: Any, source: str) -> Decimal | None:
+    """Read the ETH/USD price out of one provider response."""
+    try:
+        if source == "binance_us":
+            return Decimal(str(payload["price"]))
+        if source == "kraken":
+            result = payload.get("result") or {}
+            for entry in result.values():
+                closes = entry.get("c") or []
+                if closes:
+                    return Decimal(str(closes[0]))
+            return None
+        if source == "coingecko":
+            entry = (payload.get("ethereum") or {})
+            value = entry.get("usd")
+            return Decimal(str(value)) if value is not None else None
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return None
+    return None
+
+
+def eth_price_usd(*, refresh: bool = False) -> dict[str, Any]:
+    """Return the live ETH/USD price together with its provenance.
+
+    The result carries the price, the source that produced it and the moment
+    it was observed. When no source yields a usable price the price is
+    ``None``: callers must then refuse to publish a TVL instead of pricing
+    reserves with a stale or invented number.
+    """
+    if ETH_PRICE_OVERRIDE_USD:
+        try:
+            override = Decimal(ETH_PRICE_OVERRIDE_USD)
+        except (ArithmeticError, ValueError):
+            override = None
+        if override is not None and override > 0:
+            return {"price": override, "source": "operator_override",
+                    "observedAt": _stamp(), "priceSource": "operator_override"}
+    if not refresh and ETH_PRICE_CACHE.get("price") is not None:
+        return {"price": ETH_PRICE_CACHE["price"], "source": ETH_PRICE_CACHE["source"],
+                "observedAt": ETH_PRICE_CACHE["observedAt"],
+                "priceSource": ETH_PRICE_CACHE["source"]}
+    errors: list[str] = []
+    for source, url in ETH_PRICE_SOURCES:
+        try:
+            payload = _fetch_json(url)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError,
+                ValueError) as error:
+            errors.append(f"{source}: {error}")
+            continue
+        price = _extract_eth_price(payload, source)
+        if price is None or price <= 0:
+            errors.append(f"{source}: no price in response")
+            continue
+        if price < ETH_USD_PRICE_MIN or price > ETH_USD_PRICE_MAX:
+            errors.append(f"{source}: price {price} outside "
+                          f"[{ETH_USD_PRICE_MIN},{ETH_USD_PRICE_MAX}]")
+            continue
+        observed = _stamp()
+        ETH_PRICE_CACHE.update({"price": price, "source": source, "observedAt": observed})
+        return {"price": price, "source": source, "observedAt": observed, "priceSource": source}
+    ETH_PRICE_CACHE.update({"price": None, "source": None, "observedAt": None})
+    return {"price": None, "source": None, "observedAt": None,
+            "priceSource": None, "errors": errors}
+
+
+def _price_is_fresh(observed_at: str | None,
+                    max_age_seconds: int = ETH_PRICE_MAX_AGE_SECONDS) -> bool:
+    if not observed_at:
+        return False
+    try:
+        observed = datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if observed.tzinfo is None:
+        observed = observed.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - observed).total_seconds()
+    return 0 <= age <= max_age_seconds
 
 
 NETWORK = "robinhood"
@@ -368,13 +523,19 @@ def _liquidity_reserve_metrics(pool: dict[str, Any], state: dict[str, Any]) -> d
         amount1 = L * sqrtPrice
 
     Concentrated positions inside tighter ranges hold less than this bound, so
-    the returned values are deliberately labelled as an index rather than an
-    exact on-chain balance. The raw liquidity number is authoritative.
+    the returned values are an upper-bound estimate rather than an exact
+    on-chain balance. The raw liquidity number is authoritative.
+
+    The USD valuation uses a live ETH/USD price. There is no hardcoded price
+    fallback: when no price source succeeds the pool stays ``unpriced`` and
+    no TVL is published, because a fabricated price produces a fabricated
+    depth verdict.
     """
     sqrt_price_x96 = _int_or_none(state.get("sqrtPriceX96"))
     liquidity = _int_or_none(state.get("liquidity"))
     if not sqrt_price_x96 or sqrt_price_x96 <= 0 or liquidity is None or liquidity <= 0:
-        return {"liquidityIndex": 0, "hasLiquidity": False, "estimatedTvlUsd": 0}
+        return {"liquidityIndex": 0, "hasLiquidity": False, "estimatedTvlUsd": 0,
+                "depthBasis": "true_reserve_estimate"}
     decimals0 = _int_or_none(pool.get("token0Decimals") or pool.get("token0_decimals")) or 18
     decimals1 = _int_or_none(pool.get("token1Decimals") or pool.get("token1_decimals")) or 18
     sqrt_price = Decimal(sqrt_price_x96) / Q96
@@ -383,24 +544,102 @@ def _liquidity_reserve_metrics(pool: dict[str, Any], state: dict[str, Any]) -> d
     amount1_raw = liquidity_dec * sqrt_price
     amount0 = amount0_raw / (Decimal(10) ** decimals0)
     amount1 = amount1_raw / (Decimal(10) ** decimals1)
+    # The capacity is the primary depth signal. It is denominated in the
+    # pool's own tokens and never in USD, so it does not depend on any
+    # external price feed. The same maths and the same epsilon are used by
+    # the Rust pool manager.
+    capacity: dict[str, Any] = {}
+    try:
+        fee_pips = int(state.get("lpFee") or 0)
+        capacity = capacity_from_sqrt_price(
+            sqrt_price_x96,
+            liquidity,
+            fee_pips,
+            float(CAPACITY_PRICE_IMPACT_LIMIT_BPS),
+        )
+    except Exception:
+        capacity = {}
+    # DEP-4.2: the depth band is decided on the decimals-normalised
+    # binding-side capacity, not on the raw maximum of the two sides. The
+    # raw maximum mixed 6-decimal and 18-decimal amounts in one comparison
+    # and hid pools whose weaker side cannot absorb anything.
+    binding_capacity = binding_side_capacity(
+        capacity.get("capacityToken0Raw"),
+        capacity.get("capacityToken1Raw"),
+        decimals0,
+        decimals1,
+    )
     token0 = str(pool.get("token0") or "").lower()
     token1 = str(pool.get("token1") or "").lower()
+    price_evidence = eth_price_usd()
+    eth_price = price_evidence.get("price")
+    price_source = price_evidence.get("priceSource")
+    price_observed_at = price_evidence.get("observedAt")
+    if eth_price is not None and not _price_is_fresh(price_observed_at):
+        # A stale price is no better than no price at all.
+        eth_price = None
+        price_source = None
+        price_observed_at = None
     usd_price0: Decimal | None = None
     usd_price1: Decimal | None = None
     if token0 == ZERO_ADDRESS.lower():
-        usd_price0 = DEFAULT_ETH_PRICE_USD
+        usd_price0 = eth_price
     elif token1 == ZERO_ADDRESS.lower():
-        usd_price1 = DEFAULT_ETH_PRICE_USD
-    if usd_price0 is None and usd_price1 is None and amount1_raw > 0:
-        # For non-ETH pairs, infer an approximate price from the pool itself
-        # only when one side is a known USD stable proxy. This keeps TVL useful
-        # for ETH-anchored loops while avoiding unreliable generic token prices.
-        symbol0 = str(pool.get("token0Symbol") or "").upper()
-        symbol1 = str(pool.get("token1Symbol") or "").upper()
-        if symbol1 in {"USDC", "USDT", "USDG", "DAI", "FRAX"} and amount1_raw > 0:
-            usd_price1 = Decimal(1)
-        elif symbol0 in {"USDC", "USDT", "USDG", "DAI", "FRAX"} and amount0_raw > 0:
-            usd_price0 = Decimal(1)
+        usd_price1 = eth_price
+    # Price each side independently. A side that is a canonical USD stable
+    # coin is worth one dollar; the ETH side is worth the live ETH price. The
+    # symbol is only consulted when the contract address is unknown.
+    symbol0 = str(pool.get("token0Symbol") or "").upper()
+    symbol1 = str(pool.get("token1Symbol") or "").upper()
+    token0_address = str(pool.get("token0") or "").strip().lower()
+    token1_address = str(pool.get("token1") or "").strip().lower()
+    if usd_price1 is None and _is_usd_stable_token(token1_address, symbol1) and amount1_raw > 0:
+        usd_price1 = Decimal(1)
+    if usd_price0 is None and _is_usd_stable_token(token0_address, symbol0) and amount0_raw > 0:
+        usd_price0 = Decimal(1)
+    # A pool is only fully priced when BOTH sides carry a price. A partially
+    # priced pool would publish a TVL that silently omits one reserve, which is
+    # exactly the kind of under-reporting that made the depth verdict
+    # unreliable. Such a pool stays unpriced.
+    if (usd_price0 is None) != (usd_price1 is None):
+        reserve_usd0 = None
+        reserve_usd1 = None
+        estimated_tvl_usd = Decimal(0)
+        return {
+            "hasLiquidity": True,
+            "liquidityIndex": float(
+                (liquidity_dec / Decimal(10) ** 18).quantize(Decimal("0.00000001"))),
+            "token0Reserve": str(amount0.normalize()),
+            "token1Reserve": str(amount1.normalize()),
+            "reserveUsdToken0": None,
+            "reserveUsdToken1": None,
+            "token0ReserveUsd": None,
+            "token1ReserveUsd": None,
+            "estimatedTvlUsd": None,
+            "priceSource": price_source,
+            "priceObservedAt": price_observed_at,
+            "depthBasis": "true_reserve_estimate",
+            "sqrtPriceX96": str(sqrt_price_x96),
+            "tick": state.get("tick"),
+            "lpFee": state.get("lpFee"),
+            "protocolFee": state.get("protocolFee"),
+            "capacityToken0Raw": capacity.get("capacityToken0Raw"),
+            "capacityToken1Raw": capacity.get("capacityToken1Raw"),
+            "capacityRaw": capacity.get("capacityRaw"),
+            "capacityToken0": (
+                raw_to_decimal_text(capacity["capacityToken0Raw"], decimals0)
+                if capacity.get("capacityToken0Raw") is not None else None
+            ),
+            "capacityToken1": (
+                raw_to_decimal_text(capacity["capacityToken1Raw"], decimals1)
+                if capacity.get("capacityToken1Raw") is not None else None
+            ),
+            "capacityPriceImpactBps": capacity.get("priceImpactBps"),
+            "capacityPriceImpactLimitBps": capacity.get("priceImpactLimitBps"),
+            "capacityBasis": capacity.get("depthBasis") or CAPACITY_DEPTH_BASIS,
+            "capacityBindingRaw": binding_capacity,
+            "capacityBand": capacity_band(binding_capacity),
+        }
     estimated_tvl_usd = Decimal(0)
     reserve_usd0: Decimal | None = amount0 * usd_price0 if usd_price0 is not None else None
     reserve_usd1: Decimal | None = amount1 * usd_price1 if usd_price1 is not None else None
@@ -413,43 +652,101 @@ def _liquidity_reserve_metrics(pool: dict[str, Any], state: dict[str, Any]) -> d
         "liquidityIndex": float((liquidity_dec / Decimal(10) ** 18).quantize(Decimal("0.00000001"))),
         "token0Reserve": str(amount0.normalize()),
         "token1Reserve": str(amount1.normalize()),
+        "reserveUsdToken0": str(reserve_usd0.normalize()) if reserve_usd0 is not None else None,
+        "reserveUsdToken1": str(reserve_usd1.normalize()) if reserve_usd1 is not None else None,
         "token0ReserveUsd": str(reserve_usd0.normalize()) if reserve_usd0 is not None else None,
         "token1ReserveUsd": str(reserve_usd1.normalize()) if reserve_usd1 is not None else None,
         "estimatedTvlUsd": str(estimated_tvl_usd.normalize()) if estimated_tvl_usd > 0 else None,
+        "priceSource": price_source,
+        "priceObservedAt": price_observed_at,
+        "depthBasis": "true_reserve_estimate",
         "sqrtPriceX96": str(sqrt_price_x96),
         "tick": state.get("tick"),
         "lpFee": state.get("lpFee"),
         "protocolFee": state.get("protocolFee"),
+        "capacityToken0Raw": capacity.get("capacityToken0Raw"),
+        "capacityToken1Raw": capacity.get("capacityToken1Raw"),
+        "capacityRaw": capacity.get("capacityRaw"),
+        "capacityToken0": (
+            raw_to_decimal_text(capacity["capacityToken0Raw"], decimals0)
+            if capacity.get("capacityToken0Raw") is not None else None
+        ),
+        "capacityToken1": (
+            raw_to_decimal_text(capacity["capacityToken1Raw"], decimals1)
+            if capacity.get("capacityToken1Raw") is not None else None
+        ),
+        "capacityPriceImpactBps": capacity.get("priceImpactBps"),
+        "capacityPriceImpactLimitBps": capacity.get("priceImpactLimitBps"),
+        "capacityBasis": capacity.get("depthBasis") or CAPACITY_DEPTH_BASIS,
+        "capacityBindingRaw": binding_capacity,
+        "capacityBand": capacity_band(binding_capacity),
     }
 
 
 def _liquidity_depth_status(pool: dict[str, Any]) -> dict[str, Any]:
+    """Classify a pool into a depth band.
+
+    The band is derived from the on-chain price-impact capacity, which is
+    denominated in the pool's own tokens. The USD reading is reported for
+    human observation only and can never change the verdict: a TVL estimate
+    depends on an external price feed that does not exist inside the
+    arbitrage environment.
+
+    The band boundaries are shared with the Rust pool manager so both sides
+    reach the same verdict for the same on-chain state. The boundary operator
+    is ``>=`` on both sides.
+    """
     try:
         liquidity_index = float(str(pool.get("liquidityIndex") or "0"))
         tvl_text = pool.get("estimatedTvlUsd")
         tvl = float(tvl_text) if tvl_text not in (None, "") else 0.0
     except (TypeError, ValueError):
         liquidity_index, tvl = 0.0, 0.0
+    capacity_raw = _int_or_none(pool.get("capacityRaw"))
+    # DEP-4.2: the band is decided on the decimals-normalised binding-side
+    # capacity. A pool is only as deep as its weaker side, and raw units are
+    # not comparable across tokens with different decimals.
+    binding_capacity = pool.get("capacityBindingRaw")
+    if binding_capacity is None:
+        binding_capacity = binding_side_capacity(
+            pool.get("capacityToken0Raw"),
+            pool.get("capacityToken1Raw"),
+            _int_or_none(pool.get("token0Decimals") or pool.get("token0_decimals")),
+            _int_or_none(pool.get("token1Decimals") or pool.get("token1_decimals")),
+        )
+    band = capacity_band(binding_capacity)
     if liquidity_index <= 0:
         label, level, reason = "no_liquidity", "empty", "liquidity_is_zero"
-    elif tvl > 1_000_000:
-        label, level, reason = "deep", "deep", "liquidity_available"
-    elif tvl > 100_000:
-        label, level, reason = "liquid", "liquid", "liquidity_available"
-    elif tvl > 10_000:
-        label, level, reason = "thin", "thin", "liquidity_available"
-    elif tvl > 0:
-        label, level, reason = "thin", "thin", "liquidity_below_10k_usd"
-    elif liquidity_index > 0:
-        label, level, reason = "unpriced", "unpriced", "liquidity_present_but_no_usd_price"
+    elif capacity_raw is None:
+        # The pool has liquidity but the capacity could not be computed. The
+        # state is unknown, not shallow.
+        label, level, reason = "unpriced", "unpriced", "liquidity_present_but_no_capacity"
+    elif binding_capacity is None:
+        # The capacity is known but the token decimals are not, so the
+        # normalised capacity cannot be decided. The state is unknown, not
+        # shallow.
+        label, level, reason = "unpriced", "unpriced", "liquidity_present_but_no_capacity"
+    elif band == "deep":
+        label, level, reason = "deep", "deep", "capacity_within_10bps_limit"
+    elif band == "medium":
+        # The band labels are shared with the Rust pool manager, which uses
+        # `medium` rather than `liquid` for the middle capacity band.
+        label, level, reason = "medium", "medium", "capacity_within_10bps_limit"
+    elif band == "shallow":
+        label, level, reason = "thin", "thin", "capacity_within_10bps_limit"
     else:
-        label, level, reason = "no_liquidity", "empty", "liquidity_is_zero"
+        label, level, reason = "thin", "thin", "binding_capacity_below_shallow_band"
     return {
         "label": label,
         "level": level,
         "reason": reason,
         "liquidityIndex": float(liquidity_index),
         "estimatedTvlUsd": tvl if tvl > 0 else None,
+        "capacityRaw": capacity_raw,
+        "capacityBindingRaw": binding_capacity,
+        "capacityBand": band,
+        "depthBandBasis": CAPACITY_DEPTH_BAND_BASIS,
+        "depthBasis": CAPACITY_DEPTH_BASIS,
     }
 
 
@@ -514,9 +811,33 @@ def _enrich_pool_liquidity(
             depth = _liquidity_depth_status(pool)
             pool["depthStatus"] = depth["label"]
             pool["depthBand"] = depth
+            # The balances carry the token-denominated reserves and the
+            # on-chain capacity of the pool. Without the token amounts the
+            # execution sizer could not derive a liquidity cap, which forced
+            # the probe ladder to collapse to a single step and left every
+            # best-amount value unconfirmed.
             pool["balances"] = {
                 **pool.get("balances", {}),
                 "tvlUsd": pool.get("estimatedTvlUsd") or 0,
+                "token0": pool.get("token0Reserve"),
+                "token1": pool.get("token1Reserve"),
+                "capacityToken0": pool.get("capacityToken0"),
+                "capacityToken1": pool.get("capacityToken1"),
+                "capacityToken0Raw": (
+                    str(pool.get("capacityToken0Raw"))
+                    if pool.get("capacityToken0Raw") is not None else None
+                ),
+                "capacityToken1Raw": (
+                    str(pool.get("capacityToken1Raw"))
+                    if pool.get("capacityToken1Raw") is not None else None
+                ),
+                "capacityRaw": (
+                    str(pool.get("capacityRaw"))
+                    if pool.get("capacityRaw") is not None else None
+                ),
+                "priceImpactBps": pool.get("capacityPriceImpactBps"),
+                "priceImpactLimitBps": pool.get("capacityPriceImpactLimitBps"),
+                "depthBasis": pool.get("capacityBasis") or CAPACITY_DEPTH_BASIS,
             }
             if pool.get("hasLiquidity"):
                 pool["tvlUsd"] = pool.get("estimatedTvlUsd") or 0
@@ -989,3 +1310,9 @@ __all__ = [
     "write_v4_pool_index_from_observation_pool_ids",
     "write_v4_pool_index_from_initialize_logs",
 ]
+
+
+
+
+
+

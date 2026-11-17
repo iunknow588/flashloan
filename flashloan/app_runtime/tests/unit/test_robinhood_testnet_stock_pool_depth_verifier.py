@@ -31,16 +31,30 @@ STOCK_ADDRESS = "0x" + "bb" * 20
 
 
 def _real_runtime_database() -> str | None:
+    """Return the authoritative testnet chain SQLite path.
+
+    The runtime stores one SQLite file per chain.  The old cross-chain
+    ``src/runtime/local_store.sqlite3`` was removed during the chain-scoped
+    database migration, so the chain registry is the only source of truth.
+    """
     import os
 
+    from core.db.chain_database_context import chain_database_path
+
     env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
-    candidate = Path(env_path) if env_path else (
-        REPO_ROOT / "flashloan" / "src" / "runtime" / "local_store.sqlite3"
-    )
+    if env_path:
+        override = Path(env_path).expanduser()
+        candidate = (
+            override / "local_store_46630.sqlite3"
+            if override.is_dir()
+            else override
+        )
+    else:
+        candidate = chain_database_path(46630, "robinhood-testnet")
     if not candidate.exists():
         return None
     try:
-        candidate.resolve(strict=True)
+        candidate = candidate.resolve(strict=True)
     except OSError:
         return None
     return str(candidate)
@@ -249,9 +263,11 @@ def test_load_eth_stock_pools_from_sqlite_merges_stored_liquidity_evidence(tmp_p
 
 
 def test_real_runtime_sqlite_sources_five_official_stock_pool_candidates():
+    import pytest
+
     database = _real_runtime_database()
     if not database:
-        return
+        pytest.skip("real runtime testnet sqlite database is not present")
     selected = load_eth_stock_pools_from_sqlite(
         database,
         network="robinhood-testnet",

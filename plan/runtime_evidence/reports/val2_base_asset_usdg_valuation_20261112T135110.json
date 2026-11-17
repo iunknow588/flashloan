@@ -1,0 +1,54 @@
+{
+  "tokens": [
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:13.215896200+00:00",
+      "price_impact": "0.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0000000000000000000000000000000000000000",
+      "token_symbol": "ETH",
+      "usdg_amount_decimal": "2044.537553",
+      "usdg_amount_raw": "2044537553",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:15.298901300+00:00",
+      "price_impact": "0",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "token_symbol": "WETH",
+      "usdg_amount_decimal": "2043.899011",
+      "usdg_amount_raw": "2043899011",
+      "verdict": "route_found"
+    },
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:51:17.312141100+00:00",
+      "price_impact": "0.01",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "token_symbol": "USDE",
+      "usdg_amount_decimal": "0.999179",
+      "usdg_amount_raw": "999179",
+      "verdict": "route_found"
+    }
+  ],
+  "sources": [
+    "ETH",
+    "WETH",
+    "USDE"
+  ]
+}

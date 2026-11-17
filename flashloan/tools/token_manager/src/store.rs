@@ -60,6 +60,11 @@ pub struct LibraryWriteResult {
     pub events: usize,
     pub version_before: i64,
     pub version_after: i64,
+    pub token_count: i64,
+    pub admitted_count: i64,
+    pub candidate_only_count: i64,
+    pub blocked_count: i64,
+    pub pending_review_count: i64,
     pub metadata_checksum: String,
     pub source_checkpoint: Option<String>,
 }
@@ -281,6 +286,11 @@ fn write_library_inner(
         params![network, chain_id],
         |row| row.get(0),
     )?;
+    let candidate_only_count =
+        count_library_status(&transaction, table, network, chain_id, "candidate_only")?;
+    let blocked_count = count_library_status(&transaction, table, network, chain_id, "blocked")?;
+    let pending_review_count =
+        count_library_status(&transaction, table, network, chain_id, "pending_review")?;
     let metadata_checksum = library_metadata_checksum(&transaction, library, network, chain_id)?;
 
     transaction.execute(
@@ -320,6 +330,11 @@ fn write_library_inner(
         events,
         version_before,
         version_after,
+        token_count,
+        admitted_count,
+        candidate_only_count,
+        blocked_count,
+        pending_review_count,
         metadata_checksum,
         source_checkpoint: source_checkpoint.map(str::to_owned),
     };
@@ -329,6 +344,23 @@ fn write_library_inner(
         transaction.rollback()?;
     }
     Ok(result)
+}
+
+fn count_library_status(
+    connection: &Connection,
+    table: &str,
+    network: &str,
+    chain_id: u64,
+    status: &str,
+) -> Result<i64, StoreError> {
+    Ok(connection.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM {table}
+             WHERE network = ?1 AND chain_id = ?2 AND admission_status = ?3"
+        ),
+        params![network, chain_id, status],
+        |row| row.get(0),
+    )?)
 }
 
 pub fn library_metadata_checksum(
@@ -371,6 +403,37 @@ pub fn library_metadata_checksum(
         .map_err(|error| StoreError::InvalidSourceJson(error.to_string()))?;
     let digest = Sha256::digest(payload);
     Ok(format!("sha256:{}", hex::encode(digest)))
+}
+
+pub fn token_writes_metadata_checksum(
+    network: &str,
+    chain_id: u64,
+    writes: Vec<TokenWrite>,
+) -> Result<String, StoreError> {
+    let mut prepared = prepare_writes(network, chain_id, writes)?;
+    prepared.sort_by(|left, right| left.token_key_id.as_str().cmp(right.token_key_id.as_str()));
+    let rows = prepared
+        .into_iter()
+        .map(|write| CanonicalTokenRow {
+            token_key_id: write.token_key_id.as_str().to_owned(),
+            v4_currency_key: write.v4_currency_key,
+            token_address: write.token_address,
+            token_symbol: write.token_symbol,
+            token_name: write.token_name,
+            token_decimals: i64::from(write.token_decimals),
+            token_kind: write.token_kind,
+            is_native: write.is_native,
+            is_wrapped_native: write.is_wrapped_native,
+            is_stable: write.is_stable,
+            admission_status: write.admission_status.as_str().to_owned(),
+            admission_source: write.admission_source,
+            metadata_source: write.metadata_source,
+            metadata_checksum: write.metadata_checksum,
+        })
+        .collect::<Vec<_>>();
+    let payload = serde_json::to_vec(&rows)
+        .map_err(|error| StoreError::InvalidSourceJson(error.to_string()))?;
+    Ok(format!("sha256:{}", hex::encode(Sha256::digest(payload))))
 }
 
 fn prepare_writes(
@@ -649,8 +712,8 @@ fn insert_admission_event(
 #[cfg(test)]
 mod tests {
     use super::{
-        library_metadata_checksum, write_library, write_library_dry_run, LibraryWriteResult,
-        StoreError,
+        library_metadata_checksum, token_writes_metadata_checksum, write_library,
+        write_library_dry_run, LibraryWriteResult, StoreError,
     };
     use crate::model::{AdmissionStatus, LibraryKey, TokenWrite};
     use manager_contracts::TokenKeyId;
@@ -729,6 +792,11 @@ mod tests {
         assert_eq!(result.events, 2);
         assert_eq!(result.version_before, 0);
         assert_eq!(result.version_after, 1);
+        assert_eq!(result.token_count, 2);
+        assert_eq!(result.admitted_count, 2);
+        assert_eq!(result.candidate_only_count, 0);
+        assert_eq!(result.blocked_count, 0);
+        assert_eq!(result.pending_review_count, 0);
         assert!(result.metadata_checksum.starts_with("sha256:"));
 
         let token_count: i64 = connection
@@ -812,6 +880,25 @@ mod tests {
         assert_eq!(dry_run.inserted, apply.inserted);
         assert_eq!(dry_run.metadata_checksum, apply.metadata_checksum);
         assert_eq!(dry_run.version_after, apply.version_after);
+        assert_eq!(dry_run.token_count, 2);
+        assert_eq!(dry_run.admitted_count, 2);
+    }
+
+    #[test]
+    fn planned_write_checksum_matches_materialized_library_checksum() {
+        let (_directory, mut connection) = test_connection();
+        let writes = vec![
+            token_write(USDE, "USDE", AdmissionStatus::CandidateOnly),
+            token_write(USDG, "USDG", AdmissionStatus::Admitted),
+        ];
+        let planned = token_writes_metadata_checksum("robinhood", 4663, writes.clone()).unwrap();
+
+        let result = write(&mut connection, LibraryKey::Extension, writes).unwrap();
+
+        assert_eq!(planned, result.metadata_checksum);
+        assert_eq!(result.token_count, 2);
+        assert_eq!(result.admitted_count, 1);
+        assert_eq!(result.candidate_only_count, 1);
     }
 
     #[test]

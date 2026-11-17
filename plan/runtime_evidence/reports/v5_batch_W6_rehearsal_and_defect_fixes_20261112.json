@@ -1,0 +1,127 @@
+{
+  "batch": "v5",
+  "title": "W6 只读验收 + 生产库副本演练 + 缺陷修复",
+  "generatedAt": "2026-11-11T19:17:10.375456Z",
+  "productionWrites": 0,
+  "daemonTouched": false,
+  "binary": {
+    "path": "flashloan/tools/target/debug/pool-manager.exe",
+    "sha256": "c4d8d8066f8dd7633b39af29e73356392be6af8c2b0caf90904d8fabffb0c437",
+    "sizeBytes": 11125248
+  },
+  "defectsFixed": [
+    {
+      "id": "D1",
+      "title": "ensure-indexes --apply exit 1 (EXPLAIN detail read as integer)",
+      "file": "flashloan/tools/pool_manager/src/lib.rs",
+      "rootCause": "SQLite EXPLAIN QUERY PLAN column 3 (detail) is TEXT",
+      "fix": "row.get::<_, String>(3) at 2 sites",
+      "regressionTest": "tests::ensure_indexes_survives_sqlite_text_query_plan_detail"
+    },
+    {
+      "id": "D2",
+      "title": "balances_json always {} -> liquidity cap None -> ladder never expands",
+      "file": "flashloan/tools/pool_manager/src/lib.rs",
+      "rootCause": "write_depth_snapshot never wrote balances_json",
+      "fix": "write 14 token-denominated fields + human_amount() helper",
+      "regressionTest": "tests::depth_snapshot_writes_token_denominated_balances_payload"
+    },
+    {
+      "id": "D3",
+      "title": "deployed binary behind source",
+      "file": "flashloan/tools/target/debug/pool-manager.exe",
+      "rootCause": "stale source stamp",
+      "fix": "rebuild + deploy + --write-stamp",
+      "regressionTest": "scripts/verify_pool_manager_binary_matches_source.py (11 passed)"
+    }
+  ],
+  "rehearsal": {
+    "sourceStore": "flashloan/db/local_store_4663.sqlite3",
+    "copyStore": "C:\\Users\\iunkn\\AppData\\Local\\Temp\\w6_rehearsal3.sqlite3",
+    "ensureDepthSchema": {
+      "exitCode": 0,
+      "addedColumns": [
+        "capacity_token0_raw",
+        "capacity_token1_raw",
+        "capacity_raw",
+        "capacity_binding_raw",
+        "price_impact_bps",
+        "price_impact_limit_bps",
+        "depth_basis"
+      ]
+    },
+    "ensureIndexes": {
+      "exitCode": 0,
+      "indexes": [
+        {
+          "name": "idx_cow_execution_reviews_scope_created_v2",
+          "exists": true
+        },
+        {
+          "name": "idx_cow_execution_reviews_scope_profit_source_created",
+          "exists": true
+        }
+      ],
+      "profitSourceQueryPlanUsesIndex": true,
+      "reviewWindowQueryPlan": "SEARCH cow_execution_reviews USING COVERING INDEX idx_cow_execution_reviews_scope_created_v2 (network=? AND chain_id=? AND created_at>?)",
+      "profitSourceQueryPlan": "SEARCH cow_execution_reviews USING COVERING INDEX idx_cow_execution_reviews_scope_profit_source_created (network=? AND chain_id=? AND selected_profit_source=? AND created_at>?)"
+    },
+    "depthApply": {
+      "exitCode": 0,
+      "scope": "candidate",
+      "poolCount": 94,
+      "processedPoolCount": 94,
+      "writtenCount": 94,
+      "totalPoolCount": 94,
+      "errors": [],
+      "truncated": false,
+      "durationMs": 13069,
+      "skippedEndpoints": [],
+      "sourceTables": [
+        "dex_candidate_pools",
+        "manager_dex_candidate_pools"
+      ],
+      "depthBasis": "onchain_tick_liquidity",
+      "priceImpactLimitBps": 10.0
+    },
+    "balancesJson": {
+      "before": "0/4669",
+      "after": "94/4669"
+    },
+    "liquidityCapRaw": {
+      "nonNone": 38,
+      "none": 2,
+      "noneReason": "zero-capacity pools (no on-chain liquidity)",
+      "reasonTag": "liquidity_cap_pool_reserve_50pct"
+    },
+    "bandDistribution": {
+      "deep": 19,
+      "medium": 11,
+      "shallow": 6,
+      "dust": 58
+    }
+  },
+  "productionReadOnly": {
+    "depthDryRunCandidate": {
+      "poolCount": 94,
+      "durationSeconds": 12.85,
+      "errors": [],
+      "truncated": false,
+      "skippedEndpoints": []
+    }
+  },
+  "regression": {
+    "cargo_pool_manager": "52 passed",
+    "python_healer_plus_binary": "106 passed",
+    "python_capacity_plus_pool_index": "51 passed",
+    "python_full_app_runtime_321_files": "2887 passed / 26 failed / 3 skipped",
+    "newFailures": 0,
+    "newFailuresAttribution": "all 26 verified pre-existing (lib.rs reverted to HEAD => identical failure set)"
+  },
+  "binarySourceSync": {
+    "valid": true,
+    "problems": [],
+    "commandsMissingFromBinary": []
+  },
+  "nextGate": "W6 production writes require explicit user authorization"
+}

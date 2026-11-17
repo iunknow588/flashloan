@@ -27,6 +27,7 @@ GET  /v1/closed-loops/compare?chainId=4663
 POST /v1/closed-loops/rebuild
 GET  /v1/reviews?chainId=4663
 POST /v1/reviews/run
+POST /v1/reviews/clear
 GET  /v1/overview?chainId=4663&limit=1000
 GET  /v1/broadcasts?chainId=4663
 POST /v1/broadcasts/submit
@@ -325,6 +326,46 @@ signed PnL is `data_incomplete`, diagnostics never replace PnL, and only a
 completed review with a strictly positive executable signed PnL creates a
 `generated` broadcast request. M6 never sends a transaction.
 
+M6 review-record clear request:
+
+```http
+POST /v1/reviews/clear
+Content-Type: application/json
+X-Request-Id: request-20261114-m6-clear-001
+Idempotency-Key: reviews-clear-4663-20261114-001
+
+{
+  "chainId": 4663,
+  "recordStore": "legacy",
+  "dryRun": true
+}
+```
+
+Review rows are **regenerable runtime observations, not long-lived facts**. The
+token catalog, the pool catalog, the admission/scope state, and every other
+structural table are never touched by this route. Only the per-chain review
+observations are dropped:
+
+- `recordStore="manager"` clears `manager_v4_reviews`,
+  `manager_v4_review_diagnostics`, `manager_v4_review_broadcast_requests`, and
+  `manager_review_library_state` for the requested chain.
+- `recordStore="legacy"` clears the legacy `cow_execution_reviews` rows for the
+  requested chain. Rows belonging to other network/chain scopes are preserved.
+
+The route requires both headers and an explicit Boolean `dryRun`; a missing
+value is not treated as apply. `dryRun=true` reports the row counts that apply
+would remove and rolls back every row, including the idempotency ledger.
+`dryRun=false` deletes the rows and records the idempotent write. Repeating the
+same idempotency key with the same request content returns the original result
+with `idempotentReplay=true`; reusing the key for different content returns
+`IDEMPOTENCY_KEY_REUSED` / HTTP 409.
+
+The response reports `clearedReviews`, `remainingReviews`,
+`clearedDiagnostics`, `remainingDiagnostics`, `clearedBroadcastRequests`, and
+`remainingBroadcastRequests`. The same operation is available through the Rust
+RuntimeCore command `clear_reviews`, which the Flask UI calls for
+`recordKind="review"` on `/api/dex/submissions/clear`.
+
 M7 Broadcast submit request:
 
 ```http
@@ -491,8 +532,8 @@ RuntimeCore and native-pool ownership:
   `runtime_core_state`, `runtime_core_manager_snapshot`, `runtime_core_command`,
   `runtime_core_manager_view` and `runtime_core_close`. Commands require
   `requestId`, `idempotencyKey` and explicit `dryRun`; the command set currently
-  contains read-only `refresh_snapshot`, authoritative `clear_broadcasts`, and
-  authoritative `rebuild_candidate_edges` and
+  contains read-only `refresh_snapshot`, authoritative `clear_broadcasts`,
+  authoritative `clear_reviews`, and authoritative `rebuild_candidate_edges` and
   `rebuild_candidate_exchange_pools`.
 - `runtime_core_register` retains its original six-argument call contract and
   appends optional `candidate_exchange_authority="legacy"` as the seventh
@@ -502,6 +543,7 @@ RuntimeCore and native-pool ownership:
   `candidate_exchange`, `closed_loops`, `reviews` and `broadcasts`. View options
   are allow-listed in Rust; review/broadcast filters and pagination are
   preserved. Submission-record clear now calls `clear_broadcasts` through
+  RuntimeCore, and review-record clear calls `clear_reviews` through
   RuntimeCore; candidate-pool refresh calls `rebuild_candidate_edges` through
   RuntimeCore and uses `CANDIDATE_MANAGER_AUTHORITY` for apply gating;
   market-observation refresh calls `rebuild_candidate_exchange_pools` through

@@ -1,4 +1,4 @@
-"""Generate Foundry RPC/etherscan fragments from flashloan/src/chains chain.json."""
+"""Generate Foundry RPC/etherscan fragments from flashloan/chains chain.json."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHAINS_ROOT = ROOT / "flashloan" / "src" / "chains"
-OUTPUT = ROOT / "runtime" / "external" / "rh-flash-toolkit" / "generated" / "foundry.chain.toml"
+CHAINS_ROOT = ROOT / "flashloan" / "chains"
+OUTPUT = ROOT / "flashloan" / "config" / "foundry.chain.toml"
 
 
 def _read_json(path: Path, fallback=None):
@@ -26,7 +26,7 @@ def _toml_str(value: str) -> str:
 def chain_directories(registry: dict) -> dict[int, tuple[str, dict]]:
     result: dict[int, tuple[str, dict]] = {}
     chains = registry.get("chains") or {}
-    chain_root = (ROOT / "flashloan" / "src" / "chains").resolve()
+    chain_root = (ROOT / "flashloan" / "chains").resolve()
     for raw_chain_id, entry in chains.items():
         if not isinstance(entry, dict):
             continue
@@ -42,7 +42,7 @@ def chain_directories(registry: dict) -> dict[int, tuple[str, dict]]:
 
 def render_entries(chains: dict[int, tuple[str, dict]]) -> str:
     lines = ["# GENERATED FILE. DO NOT EDIT."]
-    lines.append("# Source: flashloan/src/chains/{chain}/chain.json")
+    lines.append("# Source: flashloan/chains/{chain}/chain.json")
     lines.append("")
     rpc_lines: list[str] = []
     etherscan_lines: list[str] = []
@@ -78,7 +78,7 @@ def generate(chain_ids: list[int], output: Path) -> None:
     if chain_ids:
         chains = {chain_id: chains[chain_id] for chain_id in chain_ids if chain_id in chains}
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_entries(chains), encoding="utf-8")
+    output.write_text(render_entries(chains), encoding="utf-8", newline="\n")
 
 
 def main() -> None:
@@ -101,7 +101,7 @@ def main() -> None:
         print(f"OK: {target}")
         return
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(rendered, encoding="utf-8")
+    target.write_text(rendered, encoding="utf-8", newline="\n")
     print(f"wrote {target}")
 
 

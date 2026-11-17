@@ -7,9 +7,11 @@ from the chain RPC and writes only ``chain_tokens`` columns for rows whose
 stored symbol is still an unresolved placeholder.
 
 It never imports JSON snapshots and never replaces rows that already carry a
-resolved symbol.  ``--include-exchange`` is opt-in because the full exchange
-pool table contains tens of thousands of currency addresses; the page surfaces
-only need the candidate/observation/closed-loop scope by default.
+resolved symbol.  ``--include-exchange`` is opted into by the operator and
+extends the target set only from executable V4 pools connected to one funding
+library endpoint (core, stocks, or test).  The opposite endpoint has no
+allowlist, but it must still satisfy the token admission minimums: symbol,
+decimals, and no placeholder metadata.
 """
 
 from __future__ import annotations
@@ -17,62 +19,43 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
-
-from eth_abi import decode
-import requests
-import urllib3
-from web3 import Web3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.db.database_path import absolute_database_path  # noqa: E402
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE  # noqa: E402
 from core.db.storage_business_io import execute, query  # noqa: E402
 from core.db.token_authority import require_legacy_token_write  # noqa: E402
 from core.db.token_symbols import is_unresolved_placeholder_symbol  # noqa: E402
+
+from dex.tools.robinhood_testnet_token_metadata_rpc import (  # noqa: E402
+    _chain_rpc_url,
+    _chain_rpc_urls,
+    _connect,
+    _decimals_int,
+    _fetch_metadata,
+    _metadata_for_address,
+)
 
 
 DEFAULT_NETWORK = "robinhood-testnet"
 DEFAULT_CHAIN_ID = 46630
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-BATCH_CALL_SIZE = 8
-HTTP_RETRY_COUNT = 3
+DYNAMIC_FEE_FLAG = 8388608
+CORE_LIBRARY_ADDRESSES = {
+    ZERO_ADDRESS,
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+}
 DEFAULT_REPAIR_ADDRESSES = [
     "0x450d9bc42be9a45269678669a786d2c3c5221bdf",
     "0x4e5c427499c43b222fec1ef60f5e2164b904d84e",
-]
-
-ERC20_METADATA_ABI = [
-    {
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [{"type": "string", "name": ""}],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "name",
-        "outputs": [{"type": "string", "name": ""}],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [{"type": "uint8", "name": ""}],
-        "stateMutability": "view",
-        "type": "function",
-    },
 ]
 
 
@@ -104,43 +87,98 @@ def _json_loads(value: Any) -> Any:
         return {}
 
 
-def _chain_rpc_url(network: str | None = None) -> str:
-    return _chain_rpc_urls(network)[0]
-
-
-def _chain_rpc_urls(network: str | None = None) -> list[str]:
-    resolved_network = str(network or DEFAULT_NETWORK).strip().lower()
-    path = SRC_ROOT / "chains" / resolved_network / "chain.json"
-    payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    rpc = payload.get("rpc") or {}
-    urls = [_text(rpc.get("primary"))]
-    urls.extend(_text(value) for value in rpc.get("fallbacks") or [])
-    urls = [url for url in urls if url]
-    if not urls:
-        raise RuntimeError(f"chain.json has no rpc endpoints: {path}")
-    return urls
-
-
-def _connect(
-    rpc_url: str | None,
+def _funding_library_tokens(
+    database: str,
     *,
-    network: str | None = None,
-    expected_chain_id: int | None = None,
-) -> tuple[Web3, str]:
-    url = _text(rpc_url) or _chain_rpc_url(network)
-    w3 = Web3(
-        Web3.HTTPProvider(
-            url,
-            request_kwargs={"timeout": 30, "verify": False},
-        )
+    network: str,
+    chain_id: int,
+) -> set[str]:
+    """Return tokens owned by the core, stocks, or test funding libraries.
+
+    The legacy projection uses category/anchor metadata in ``chain_tokens``.
+    Stock and test categories take precedence over the anchor marker because
+    stocks and TZ may also carry an anchor symbol.
+    """
+
+    rows = query(
+        database,
+        """
+        SELECT token_address, anchor_symbol, token_metadata_json
+        FROM chain_tokens
+        WHERE network = ? AND chain_id = ?
+        """,
+        (network, chain_id),
     )
-    actual_chain_id = int(w3.eth.chain_id)
-    resolved_expected = int(expected_chain_id or DEFAULT_CHAIN_ID)
-    if actual_chain_id != resolved_expected:
-        raise RuntimeError(
-            f"RPC returned chainId {actual_chain_id}, expected {resolved_expected}"
+    addresses: set[str] = {address for address in CORE_LIBRARY_ADDRESSES}
+    for row in rows:
+        address = _normalized_address(row.get("token_address"))
+        if not address:
+            continue
+        metadata = _json_loads(row.get("token_metadata_json") or {})
+        category = (
+            _text(metadata.get("category")).lower()
+            if isinstance(metadata, dict)
+            else ""
         )
-    return w3, url
+        if category in {"robinhood_stock", "test_tokens"}:
+            addresses.add(address)
+            continue
+        if _text(row.get("anchor_symbol")) or address in CORE_LIBRARY_ADDRESSES:
+            addresses.add(address)
+    return addresses
+
+
+def _exchange_extension_addresses(
+    database: str,
+    *,
+    network: str,
+    chain_id: int,
+    funding_tokens: set[str],
+) -> set[str]:
+    """Return both endpoints of executable pools touching a funding token."""
+
+    funding = sorted(
+        address
+        for address in (_normalized_address(value) for value in funding_tokens)
+        if address
+    )
+    if not funding:
+        return set()
+    placeholders = ",".join("?" for _ in funding)
+    rows = query(
+        database,
+        f"""
+        SELECT token0, token1
+        FROM v4_exchange_pools
+        WHERE network = ? AND chain_id = ?
+          AND fee > 0 AND fee <= ?
+          AND (fee & ?) = 0
+          AND (
+            COALESCE(hooks, '') = ''
+            OR lower(hooks) = ?
+          )
+          AND (
+            lower(token0) IN ({placeholders})
+            OR lower(token1) IN ({placeholders})
+          )
+        """,
+        (
+            network,
+            chain_id,
+            MAX_CANDIDATE_FIXED_FEE,
+            DYNAMIC_FEE_FLAG,
+            ZERO_ADDRESS,
+            *funding,
+            *funding,
+        ),
+    )
+    addresses: set[str] = set()
+    for row in rows:
+        for value in (row.get("token0"), row.get("token1")):
+            address = _normalized_address(value)
+            if address:
+                addresses.add(address)
+    return addresses
 
 
 def _scoped_addresses(
@@ -166,13 +204,6 @@ def _scoped_addresses(
         "SELECT input_address AS address FROM v4_closed_loop_hops",
         "SELECT output_address AS address FROM v4_closed_loop_hops",
     ]
-    if include_exchange:
-        queries.extend(
-            [
-                "SELECT token0 AS address FROM v4_exchange_pools",
-                "SELECT token1 AS address FROM v4_exchange_pools",
-            ]
-        )
     addresses: set[str] = set()
     for sql in queries:
         rows = query(
@@ -187,6 +218,21 @@ def _scoped_addresses(
             address = _normalized_address(row.get("address"))
             if address:
                 addresses.add(address)
+    if include_exchange:
+        funding_tokens = _funding_library_tokens(
+            database,
+            network=network,
+            chain_id=chain_id,
+        )
+        addresses.update(funding_tokens)
+        addresses.update(
+            _exchange_extension_addresses(
+                database,
+                network=network,
+                chain_id=chain_id,
+                funding_tokens=funding_tokens,
+            )
+        )
     return addresses
 
 
@@ -246,11 +292,11 @@ def _select_target_addresses(
     addresses: Iterable[str],
     existing: dict[str, dict[str, Any]],
 ) -> list[str]:
-    """Return rows that still need symbol or name resolution.
+    """Return rows that still need symbol, name, or decimals resolution.
 
-    A row is a target when its symbol is empty/unresolved or its name is
-    still missing.  Rows that already carry a resolved symbol and a real name
-    are left untouched.
+    A row is a target when any required metadata field is empty, unresolved,
+    or has an invalid decimals value.  Rows that already carry a resolved
+    symbol, a real name, and valid decimals are left untouched.
     """
     targets: list[str] = []
     for address in addresses:
@@ -266,6 +312,7 @@ def _select_target_addresses(
             or is_unresolved_placeholder_symbol(symbol)
             or is_unresolved_placeholder_symbol(name)
             or not name
+            or _decimals_int(row.get("token_decimals")) is None
         ):
             targets.append(address)
     return targets
@@ -447,270 +494,100 @@ def _repair_source_json(
     return changed, missing, inconsistent
 
 
-def _metadata_for_address(
-    w3: Web3,
-    address: str,
+def _repair_columns_from_metadata(
+    database: str,
     *,
-    rpc_url: str,
-) -> dict[str, Any]:
-    if address == ZERO_ADDRESS:
-        return {
-            "address": address,
-            "symbol": "ETH",
-            "name": "Ether",
-            "decimals": 18,
-            "ok": True,
-            "source": "known_native",
-        }
-    checksum = Web3.to_checksum_address(address)
-    contract = w3.eth.contract(address=checksum, abi=ERC20_METADATA_ABI)
-    symbol = ""
-    name = ""
-    decimals = None
-    try:
-        symbol = _text(contract.functions.symbol().call())
-    except Exception:
-        symbol = ""
-    try:
-        name = _text(contract.functions.name().call())
-    except Exception:
-        name = ""
-    try:
-        decimals_raw = contract.functions.decimals().call()
-        decimals = int(decimals_raw)
-    except Exception:
-        decimals = None
-    ok = bool(symbol) and decimals is not None
-    return {
-        "address": address,
-        "symbol": symbol or "",
-        "name": name,
-        "nameMissing": not name or is_unresolved_placeholder_symbol(name),
-        "decimals": decimals,
-        "ok": ok,
-        "source": "chain_live_erc20",
-        "rpcUrl": rpc_url,
-    }
+    network: str,
+    chain_id: int,
+    dry_run: bool,
+) -> tuple[list[str], int]:
+    """Replay resolved metadata_json fields into stale chain_tokens columns.
 
+    Pool-index refreshes can innocently carry factory placeholder symbols and
+    no decimals for addresses whose authoritative metadata was already fetched
+    from the chain.  That V4 seed path must never replace valid fields with
+    invalid ones, and this repair only fills invalid fields from the existing
+    metadata payload.  It never changes a resolved symbol/name/decimals, so it
+    is safe to run as part of incremental maintenance without RPC.
+    """
 
-def _fetch_metadata(
-    targets: list[str],
-    *,
-    rpc_url: str | None,
-    network: str | None = None,
-    expected_chain_id: int | None = None,
-    workers: int,
-) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    w3, resolved_url = _connect(
-        rpc_url,
-        network=network,
-        expected_chain_id=expected_chain_id,
+    rows = query(
+        database,
+        """
+        SELECT token_address, token_symbol, token_name, token_decimals,
+               token_metadata_json, source_json, updated_at
+        FROM chain_tokens
+        WHERE network = ? AND chain_id = ?
+        ORDER BY token_address
+        """,
+        (network, chain_id),
     )
-    rpc_urls = [resolved_url] if rpc_url else _chain_rpc_urls(network)
-    pages = [
-        targets[index : index + BATCH_CALL_SIZE]
-        for index in range(0, len(targets), BATCH_CALL_SIZE)
-    ]
-    metadata: dict[str, dict[str, Any]] = {}
-    errors: list[str] = []
-
-    def _worker(index: int, addresses: list[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
-        session = requests.Session()
-        session.headers.update({
-            "Content-Type": "application/json",
-            "User-Agent": "web3.py/7",
-        })
-        batch: list[dict[str, Any]] = []
-        slot_by_address: dict[str, list[int]] = {}
-        for address in addresses:
-            checksum = Web3.to_checksum_address(address)
-            slot_by_address[address] = []
-            for selector in ("0x95d89b41", "0x06fdde03", "0x313ce567"):
-                slot_by_address[address].append(len(batch))
-                batch.append(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": len(batch),
-                        "method": "eth_call",
-                        "params": [
-                            {"to": checksum, "data": selector},
-                            "latest",
-                        ],
-                    }
-                )
-        result_by_id: dict[int, dict[str, Any]] = {}
-        last_error = "metadata_unavailable"
-        attempts = len(rpc_urls) * (HTTP_RETRY_COUNT + 1)
-        for attempt in range(attempts):
-            endpoint = rpc_urls[(index + attempt) % len(rpc_urls)]
-            try:
-                response = session.post(
-                    endpoint,
-                    json=batch,
-                    timeout=60,
-                    verify=False,
-                )
-                if response.status_code in (429, 500, 502, 503, 504):
-                    last_error = f"{response.status_code} {endpoint}"
-                    time.sleep(min(1.0 + attempt * 0.5, 5.0))
-                    continue
-                response.raise_for_status()
-                raw = response.json()
-                for response in (raw if isinstance(raw, list) else []):
-                    if isinstance(response, dict) and response.get("id") is not None:
-                        result_by_id[int(response["id"])] = response
-                if len(result_by_id) >= len(batch):
-                    break
-                last_error = (
-                    "empty-rpc-response"
-                    if not result_by_id
-                    else "incomplete-rpc-response"
-                )
-                time.sleep(min(1.0 + attempt * 0.5, 5.0))
-            except Exception as exc:
-                last_error = str(exc)[:240]
-                time.sleep(min(0.5 + attempt * 0.4, 3.0))
-        rows: dict[str, dict[str, Any]] = {}
-        batch_errors: list[str] = []
-        page_resolved = 0
-        for address in addresses:
-            symbol = ""
-            name = ""
-            decimals = None
-            slots = slot_by_address[address]
-            for field, slot in zip(("symbol", "name", "decimals"), slots):
-                response = result_by_id.get(slot) or {}
-                value = response.get("result")
-                if not value or value in ("0x", "0X"):
-                    continue
-                try:
-                    raw = bytes.fromhex(str(value)[2:])
-                    if field == "decimals":
-                        decimals = int(decode(["uint256"], raw)[0])
-                    else:
-                        text = str(decode(["string"], raw)[0]).strip()
-                        if field == "symbol":
-                            symbol = text
-                        else:
-                            name = text
-                except Exception:
-                    continue
-            ok = bool(symbol) and decimals is not None
-            rows[address] = {
-                "address": address,
-                "symbol": symbol,
-                "name": name,
-                "nameMissing": not name or is_unresolved_placeholder_symbol(name),
-                "decimals": decimals,
-                "ok": ok,
-                "source": "chain_live_erc20",
-                "rpcUrl": endpoint,
-            }
-            if not ok:
-                batch_errors.append(
-                    f"{address}:metadata_unavailable"
-                )
-            else:
-                page_resolved += 1
-
-        # RPC batch calls can silently drop or truncate a few slots.  Re-run
-        # every address that still failed as a tiny single-address batch so a
-        # transient slot failure is not mistaken for missing metadata.
-        failed_addresses = [
-            address for address, row in rows.items() if not row["ok"]
-        ]
-        for address in failed_addresses:
-            checksum = Web3.to_checksum_address(address)
-            single_batch: list[dict[str, Any]] = []
-            single_slots: dict[str, int] = {}
-            for selector in ("0x95d89b41", "0x06fdde03", "0x313ce567"):
-                single_slots[selector] = len(single_batch)
-                single_batch.append(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": len(single_batch),
-                        "method": "eth_call",
-                        "params": [
-                            {"to": checksum, "data": selector},
-                            "latest",
-                        ],
-                    }
-                )
-            single_result: dict[int, dict[str, Any]] = {}
-            for attempt in range(len(rpc_urls) * (HTTP_RETRY_COUNT + 1)):
-                endpoint = rpc_urls[(index + attempt) % len(rpc_urls)]
-                try:
-                    response = session.post(
-                        endpoint,
-                        json=single_batch,
-                        timeout=60,
-                        verify=False,
-                    )
-                    if response.status_code in (429, 500, 502, 503, 504):
-                        time.sleep(min(1.0 + attempt * 0.5, 5.0))
-                        continue
-                    response.raise_for_status()
-                    raw = response.json()
-                    single_result = {}
-                    for item in (raw if isinstance(raw, list) else []):
-                        if isinstance(item, dict) and item.get("id") is not None:
-                            single_result[int(item["id"])] = item
-                    if len(single_result) == len(single_batch):
-                        break
-                except Exception:
-                    time.sleep(min(0.5 + attempt * 0.4, 3.0))
-            symbol = ""
-            name = ""
-            decimals = None
-            for selector, slot in single_slots.items():
-                response = single_result.get(slot) or {}
-                value = response.get("result")
-                if not value or value in ("0x", "0X"):
-                    continue
-                try:
-                    raw = bytes.fromhex(str(value)[2:])
-                    if selector == "0x313ce567":
-                        decimals = int(decode(["uint256"], raw)[0])
-                    else:
-                        text = str(decode(["string"], raw)[0]).strip()
-                        if selector == "0x95d89b41":
-                            symbol = text
-                        else:
-                            name = text
-                except Exception:
-                    continue
-            ok = bool(symbol) and decimals is not None
-            if ok:
-                rows[address] = {
-                    "address": address,
-                    "symbol": symbol,
-                    "name": name,
-                    "nameMissing": not name or is_unresolved_placeholder_symbol(name),
-                    "decimals": decimals,
-                    "ok": True,
-                    "source": "chain_live_erc20",
-                    "rpcUrl": endpoint,
-                }
-                batch_errors = [
-                    error
-                    for error in batch_errors
-                    if not error.startswith(f"{address}:")
-                ]
-                page_resolved += 1
-        if not page_resolved:
-            return {}, [f"{address}:{last_error}" for address in addresses]
-        return rows, batch_errors
-
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-        futures = [
-            executor.submit(_worker, index, page)
-            for index, page in enumerate(pages)
-        ]
-        for future in as_completed(futures):
-            page_rows, page_errors = future.result()
-            metadata.update(page_rows)
-            errors.extend(page_errors)
-    return metadata, errors
+    now = _utc_now_iso()
+    changed: list[str] = []
+    unchanged = 0
+    for row in rows:
+        address = _normalized_address(row.get("token_address"))
+        if not address:
+            unchanged += 1
+            continue
+        metadata = _json_loads(row.get("token_metadata_json") or {})
+        if not isinstance(metadata, dict):
+            unchanged += 1
+            continue
+        symbol = _text(row.get("token_symbol"))
+        name = _text(row.get("token_name"))
+        decimals = row.get("token_decimals")
+        desired_symbol = _text(metadata.get("symbol"))
+        desired_name = _text(metadata.get("name"))
+        desired_decimals = _decimals_int(metadata.get("decimals"))
+        next_symbol = symbol
+        if (
+            (not symbol or is_unresolved_placeholder_symbol(symbol))
+            and desired_symbol
+            and not is_unresolved_placeholder_symbol(desired_symbol)
+        ):
+            next_symbol = desired_symbol
+        next_name = name
+        if (
+            (not name or is_unresolved_placeholder_symbol(name))
+            and desired_name
+            and not is_unresolved_placeholder_symbol(desired_name)
+        ):
+            next_name = desired_name
+        next_decimals = decimals
+        if _decimals_int(decimals) is None and desired_decimals is not None:
+            next_decimals = desired_decimals
+        values = (next_symbol, next_name, next_decimals)
+        current = (symbol, name, decimals)
+        if values == current:
+            unchanged += 1
+            continue
+        changed.append(address)
+        if dry_run:
+            continue
+        require_legacy_token_write(
+            "chain_tokens.metadata.repair_columns",
+            database,
+        )
+        execute(
+            database,
+            """
+            UPDATE chain_tokens
+            SET token_symbol = ?, token_name = ?, token_decimals = ?,
+                updated_at = ?
+            WHERE network = ? AND chain_id = ? AND token_address = ?
+            """,
+            (
+                next_symbol,
+                next_name,
+                next_decimals,
+                now,
+                network,
+                chain_id,
+                address,
+            ),
+        )
+    return changed, unchanged
 
 
 def _write_rows(
@@ -808,7 +685,14 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--limit", type=int, default=None, help="Max target count")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--include-exchange", action="store_true")
+    parser.add_argument(
+        "--include-exchange",
+        action="store_true",
+        help=(
+            "Include the other endpoint of executable V4 pools connected to "
+            "one core/stocks/test funding token."
+        ),
+    )
     parser.add_argument(
         "--all-tokens",
         action="store_true",
@@ -824,6 +708,14 @@ def main() -> int:
         help="Align source_json name markers with token_metadata_json without changing token metadata",
     )
     parser.add_argument(
+        "--repair-columns-from-metadata",
+        action="store_true",
+        help=(
+            "Replay valid token_metadata_json fields into stale chain_tokens "
+            "columns without RPC; never overwrites already resolved fields"
+        ),
+    )
+    parser.add_argument(
         "--addresses",
         default=None,
         help="Comma-separated addresses for --repair-source-json; replaces the two default residual addresses",
@@ -831,6 +723,19 @@ def main() -> int:
     args = parser.parse_args()
 
     database = str(absolute_database_path(args.database))
+    if args.repair_columns_from_metadata:
+        changed, unchanged = _repair_columns_from_metadata(
+            database,
+            network=args.network,
+            chain_id=args.chain_id,
+            dry_run=args.dry_run,
+        )
+        action = "wouldRepair" if args.dry_run else "repaired"
+        print(
+            f"metadata-column-repair: network={args.network} chainId={args.chain_id} "
+            f"{action}={len(changed)} unchanged={unchanged} dryRun={args.dry_run}"
+        )
+        return 0
     if args.repair_source_json:
         addresses = (
             [value.strip() for value in args.addresses.split(",") if value.strip()]

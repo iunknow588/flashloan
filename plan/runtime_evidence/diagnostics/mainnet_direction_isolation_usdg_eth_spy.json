@@ -1,0 +1,70 @@
+﻿{
+    "accepted":  false,
+    "chain_id":  4663,
+    "chain_selection":  {
+                            "canonical_market_id":  "dex-arbitrage-4663-uniswap-v4",
+                            "capabilities":  {
+                                                 "dex_arbitrage":  true,
+                                                 "execution":  true,
+                                                 "liquidation":  false,
+                                                 "observation":  true,
+                                                 "robinhood_shadow":  false,
+                                                 "shadow":  false
+                                             },
+                            "chain_default":  true,
+                            "chain_id":  4663,
+                            "chain_key":  "chain:4663",
+                            "display_name":  "Robinhood Uniswap V4",
+                            "enabled":  true,
+                            "feature":  "dex_arbitrage",
+                            "global_chain_id":  "chain:4663",
+                            "is_default":  true,
+                            "legacy_market_id":  "robinhood-dex-shadow",
+                            "market_id":  "dex-arbitrage-4663-uniswap-v4",
+                            "market_type":  "native_chain",
+                            "native_symbol":  "ETH",
+                            "network":  "robinhood",
+                            "observation_only":  false,
+                            "protocol":  "uniswap_v4",
+                            "protocol_id":  "uniswap_v4",
+                            "protocol_supported":  true
+                        },
+    "detail":  {
+                   "reason":  "rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: \u003curlopen error [Errno 11001] getaddrinfo failed\u003e; https://robinhood-mainnet.g.alchemy.com/v2/alch_X81ySO9Rq5_9fARKfxR_T: \u003curlopen erro"
+               },
+    "error":  "rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: \u003curlopen error [Errno 11001] getaddrinfo failed\u003e; https://robinhood-mainnet.g.alchemy.com/v2/alch_X81ySO9Rq5_9fARKfxR_T: \u003curlopen erro",
+    "group_key":  "USDG|ETH|SPY",
+    "mode":  "native_closed_loop_group_refresh",
+    "ok":  false,
+    "submission":  {
+                       "capacity":  {
+                                        "batchLimit":  16,
+                                        "overrideUsed":  false,
+                                        "totalGroupLimit":  16,
+                                        "workerGroupCount":  0
+                                    },
+                       "existingGroupKeys":  [
+
+                                             ],
+                       "failures":  [
+                                        {
+                                            "detail":  {
+                                                           "reason":  "rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: \u003curlopen error [Errno 11001] getaddrinfo failed\u003e; https://robinhood-mainnet.g.alchemy.com/v2/alch_X81ySO9Rq5_9fARKfxR_T: \u003curlopen erro"
+                                                       },
+                                            "groupKey":  "usdg|eth|spy",
+                                            "reason":  "rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: \u003curlopen error [Errno 11001] getaddrinfo failed\u003e; https://robinhood-mainnet.g.alchemy.com/v2/alch_X81ySO9Rq5_9fARKfxR_T: \u003curlopen erro"
+                                        }
+                                    ],
+                       "groupsConsidered":  1,
+                       "groupsDiscovered":  46,
+                       "mode":  "native_closed_loop_group_submit",
+                       "ok":  false,
+                       "skipped":  [
+
+                                   ],
+                       "submittedGroupKeys":  [
+
+                                              ]
+                   },
+    "worker":  null
+}

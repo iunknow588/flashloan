@@ -409,6 +409,77 @@ def test_dex_submission_clear_passes_selected_chain_to_manager(monkeypatch):
     assert calls[0]["dry_run"] is False
 
 
+def test_dex_review_clear_uses_review_payload_and_never_touches_catalogs(monkeypatch):
+    from web.data_routes import dex_surface_routes_ops
+
+    monkeypatch.setattr(
+        dex_surface_routes_ops._root,
+        "selected_chain_id_from_request",
+        lambda: ({"market_id": CANONICAL_ROBINHOOD_DEX}, 4663),
+    )
+    monkeypatch.setattr(
+        dex_surface_routes_ops._root,
+        "request_dex_strategy_arg",
+        lambda: "closed_loop_routes",
+    )
+    calls = []
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "review_clear_manager_payload",
+        lambda **kwargs: calls.append(kwargs)
+        or {
+            "ok": True,
+            "dataSource": "manager",
+            "recordKind": "review",
+            "cleared": 19771,
+            "remaining": 0,
+            "clearedDiagnostics": 0,
+            "remainingDiagnostics": 0,
+            "dryRun": False,
+            "idempotentReplay": False,
+            "managerResult": {"clearedReviews": 19771, "remainingReviews": 0},
+        },
+    )
+
+    def _unexpected_submission_call(**kwargs):
+        raise AssertionError("review clear must not use the submission payload")
+
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "submission_clear_manager_payload",
+        _unexpected_submission_call,
+    )
+
+    response = app.test_client().post(
+        "/api/dex/submissions/clear",
+        json={"recordKind": "review", "dryRun": False},
+        headers={
+            "X-Request-Id": "functional-review-clear-1",
+            "Idempotency-Key": "functional-review-clear-key-1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["record_kind"] == "review"
+    assert payload["cleared"] == 19771
+    assert payload["remaining"] == 0
+    assert calls[0]["chain_id"] == 4663
+    assert calls[0]["dry_run"] is False
+    assert calls[0]["idempotency_key"] == "functional-review-clear-key-1"
+
+
+def test_dex_review_clear_rejects_unknown_record_kind():
+    response = app.test_client().post(
+        "/api/dex/submissions/clear?market_id=robinhood-dex-shadow&chain_id=4663",
+        json={"recordKind": "token", "dryRun": False},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "record_kind_manager_scope_required"
+
+
 def test_dex_submission_clear_requires_record_kind():
     response = app.test_client().post(
         "/api/dex/submissions/clear?market_id=robinhood-dex-shadow&chain_id=4663"

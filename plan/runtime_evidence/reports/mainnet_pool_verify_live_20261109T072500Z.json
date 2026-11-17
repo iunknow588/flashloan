@@ -1,0 +1,120 @@
+﻿python : C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestW
+arning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verificati
+on is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+At line:2 char:1
++ python flashloan/src/dex/tools/refresh_robinhood_v4_live.py --databas ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\iunkn\...ml#tls-warnings:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: U
+nverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is str
+ongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: U
+nverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is str
+ongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: U
+nverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is str
+ongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+{
+  "build": {
+    "anchorCount": 199,
+    "ok": true
+  },
+  "cacheEntriesCleared": 0,
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "errors": [],
+  "import": {
+    "detail": "read-only verification requested; import skipped",
+    "ok": true,
+    "skipped": true,
+    "source": "verify_only_no_db_writes"
+  },
+  "jsonEvidenceRemoved": [],
+  "liquidity": {
+    "blockNumber": 109623477,
+    "liquidityErrorCount": 0,
+    "liquidityErrors": [],
+    "liquidityMarkedPoolCount": 2,
+    "liquidityMarkerActive": true,
+    "liquidityPoolIds": [
+      "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87",
+      "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e"
+    ],
+    "liquidityScanAt": "2026-11-08T23:59:22.774352Z",
+    "liquiditySource": "pool_manager_extsload_live_state_batch",
+    "liquidityUnavailablePoolCount": 0,
+    "liquidityZeroPoolCount": 6,
+    "scannedPoolCount": 8
+  },
+  "marketId": "dex-arbitrage-4663-uniswap-v4",
+  "network": "robinhood",
+  "ok": true,
+  "poolManagerAccounting": {},
+  "prune": {},
+  "steps": [
+    {
+      "databaseState": {
+        "complete": true,
+        "confirmedLiquidityPoolCount": 5034,
+        "eligibleConfirmedCount": 613,
+        "eligiblePoolCount": 1041,
+        "eligibleUnknownCount": 0,
+        "eligibleZeroCount": 428,
+        "genericUnknownCount": 72,
+        "missingLiquiditySnapshotCount": 72,
+        "poolCount": 5540,
+        "snapshotCount": 5468,
+        "totalPoolCount": 5540,
+        "unknownLiquidityCount": 0,
+        "zeroLiquidityPoolCount": 434
+      },
+      "forcedFullScan": false,
+      "ok": true,
+      "reason": null,
+      "scanMode": "incremental",
+      "step": "v4_incremental_guard"
+    },
+    {
+      "fromBlock": null,
+      "generatedBlockNumber": null,
+      "ok": true,
+      "poolCount": 5540,
+      "scanMode": "incremental",
+      "source": "sqlite_db",
+      "step": "v4_pool_index"
+    },
+    {
+      "ok": true,
+      "reason": "skip_index_incremental_preserves_liquidity",
+      "replacedWith": false,
+      "step": "replace_evidence_guard"
+    },
+    {
+      "blockNumber": 109623477,
+      "errorCount": 0,
+      "markedPoolCount": 2,
+      "ok": true,
+      "scannedPoolCount": 8,
+      "source": "pool_manager_extsload_live_state_batch",
+      "step": "v4_pool_liquidity"
+    },
+    {
+      "ok": true,
+      "skipped": true,
+      "step": "import_v4_evidence_payloads",
+      "tokenCount": null,
+      "v4PoolCount": null
+    },
+    {
+      "anchorCount": 199,
+      "ok": true,
+      "step": "verify_anchor_integrity"
+    }
+  ]
+}

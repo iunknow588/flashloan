@@ -14,6 +14,9 @@ pub const CLOSED_LOOP_MIGRATION_ID: &str = "20261104_003_closed_loop_schema";
 pub const REVIEW_MIGRATION_ID: &str = "20261104_004_review_schema";
 pub const BROADCAST_MIGRATION_ID: &str = "20261104_005_broadcast_schema";
 pub const COMPOSITE_MIGRATION_ID: &str = "20261104_006_composite_schema";
+pub const USDG_VALUATION_MIGRATION_ID: &str = "20261112_007_usdg_valuation_schema";
+pub const SINGLE_TICK_CAPACITY_MIGRATION_ID: &str = "20261114_008_single_tick_capacity_schema";
+pub const HOP_PRICE_LIMIT_MIGRATION_ID: &str = "20261114_009_hop_price_limit_schema";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -22,8 +25,11 @@ pub const MIGRATION_IDS: &[&str] = &[
     REVIEW_MIGRATION_ID,
     BROADCAST_MIGRATION_ID,
     COMPOSITE_MIGRATION_ID,
+    USDG_VALUATION_MIGRATION_ID,
+    SINGLE_TICK_CAPACITY_MIGRATION_ID,
+    HOP_PRICE_LIMIT_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = COMPOSITE_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = HOP_PRICE_LIMIT_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -62,6 +68,18 @@ const MIGRATIONS: &[MigrationDefinition] = &[
         id: COMPOSITE_MIGRATION_ID,
         sql: include_str!("../migrations/20261104_006_composite_schema.sql"),
     },
+    MigrationDefinition {
+        id: USDG_VALUATION_MIGRATION_ID,
+        sql: include_str!("../migrations/20261112_007_usdg_valuation_schema.sql"),
+    },
+    MigrationDefinition {
+        id: SINGLE_TICK_CAPACITY_MIGRATION_ID,
+        sql: include_str!("../migrations/20261114_008_single_tick_capacity_schema.sql"),
+    },
+    MigrationDefinition {
+        id: HOP_PRICE_LIMIT_MIGRATION_ID,
+        sql: include_str!("../migrations/20261114_009_hop_price_limit_schema.sql"),
+    },
 ];
 
 const TARGET_TABLES: &[&str] = &[
@@ -71,6 +89,7 @@ const TARGET_TABLES: &[&str] = &[
     "token_test",
     "token_library_state",
     "token_admission_events",
+    "token_usdg_valuations",
     "manager_write_requests",
     "pool_scope_config",
     "v4_exchange_pools_core4",
@@ -107,6 +126,8 @@ const TARGET_TABLES: &[&str] = &[
     "manager_pipeline_events",
     "manager_events",
 ];
+
+const USDG_VALUATION_TABLES: &[&str] = &["token_usdg_valuations"];
 
 const BASE_TABLES: &[&str] = &[
     "token_core",
@@ -148,6 +169,19 @@ const CLOSED_LOOP_TABLES: &[&str] = &[
     "manager_v4_closed_loop_optimizations",
     "manager_v4_closed_loop_runtime_state",
     "manager_v4_closed_loop_skipped_tokens",
+];
+
+const SINGLE_TICK_CAPACITY_TABLES: &[&str] = &[
+    "manager_v4_closed_loops",
+    "manager_v4_reviews",
+    "manager_v4_review_broadcast_requests",
+    "manager_cow_execution_attempts",
+];
+
+const HOP_PRICE_LIMIT_TABLES: &[&str] = &[
+    "manager_v4_reviews",
+    "manager_v4_review_broadcast_requests",
+    "manager_cow_execution_attempts",
 ];
 
 const REVIEW_TABLES: &[&str] = &[
@@ -538,6 +572,9 @@ fn ensure_migration_tables_compatible(
         REVIEW_MIGRATION_ID => REVIEW_TABLES,
         BROADCAST_MIGRATION_ID => BROADCAST_TABLES,
         COMPOSITE_MIGRATION_ID => COMPOSITE_TABLES,
+        USDG_VALUATION_MIGRATION_ID => USDG_VALUATION_TABLES,
+        SINGLE_TICK_CAPACITY_MIGRATION_ID => SINGLE_TICK_CAPACITY_TABLES,
+        HOP_PRICE_LIMIT_MIGRATION_ID => HOP_PRICE_LIMIT_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {
@@ -580,6 +617,14 @@ fn required_columns(table: &str) -> &'static [&'static str] {
         ],
         "token_library_state" => &["library_key", "library_version", "metadata_checksum"],
         "token_admission_events" => &["event_id", "token_key_id", "new_status"],
+        "token_usdg_valuations" => &[
+            "token_address",
+            "verdict",
+            "has_value",
+            "usdg_amount_raw",
+            "measured_at",
+            "source",
+        ],
         "manager_write_requests" => &[
             "operation",
             "idempotency_key",

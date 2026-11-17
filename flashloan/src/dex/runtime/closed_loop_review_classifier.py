@@ -145,6 +145,25 @@ def review_row_kind(row: dict[str, Any]) -> str:
         or ""
     ).strip().lower()
     reason_text = row_failure_reason_text(row).lower()
+    # A missing best trade amount is a review error, not a "no profit"
+    # conclusion.  The review never produced a concrete amount, so the loop
+    # must fail closed instead of counting as a healthy unprofitable scan.
+    failure_kind = str(
+        evidence.get("reviewFailureKind")
+        or row.get("reviewFailureKind")
+        or row.get("errorKey")
+        or ""
+    ).strip().lower()
+    if failure_kind == "best_amount_missing":
+        return "review_failed"
+    if status == "review_failed_missing_best_amount":
+        return "review_failed"
+    if (
+        evidence.get("bestAmountMissing") is True
+        or row.get("bestAmountMissing") is True
+        or row.get("best_amount_missing") is True
+    ):
+        return "review_failed"
     if bool(evidence.get("readyForTransactionPreflight")) or state_text in {
         "ready_not_submitted",
         "ready_to_submit",

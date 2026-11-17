@@ -1,0 +1,52 @@
+{
+  "chain_id": 43113,
+  "contracts": {
+    "aave_liquidation_data_provider": "",
+    "aave_v3_data_provider": "",
+    "aave_v3_pool": "",
+    "owner": "",
+    "unified_executor": "",
+    "usdc": "0x5425890298aed601595a70ab815c96711a31bc65"
+  },
+  "data_files": {
+    "pool_discovery": "runtime/evidence/avalanche-testnet/pool_discovery/latest.json"
+  },
+  "display_name": "Avalanche Testnet",
+  "explorer": {
+    "url": "https://testnet.snowtrace.io"
+  },
+  "features": {
+    "dex_arbitrage": {
+      "default_market_id": "dex-arbitrage-43113-uniswap-v3",
+      "legacy_default_market_id": "avalanche-testnet-dex-shadow",
+      "protocol": "uniswap_v3"
+    }
+  },
+  "flash_loan": {
+    "candidate_protocols": [
+      "uniswap_v3",
+      "traderjoe_v2"
+    ],
+    "default_protocols": [
+      "uniswap_v3"
+    ],
+    "supported_protocol_count": 2
+  },
+  "native_symbol": "AVAX",
+  "network": "avalanche-testnet",
+  "processing_handlers": {
+    "dex_pool_candidates": "intent_trade.chains.avalanche_testnet.dex_pool_candidates:dex_pool_candidates_payload",
+    "flash_loan_pools": "intent_trade.chains.avalanche_testnet.flash_loan_pools:flash_loan_pool_protocol_view",
+    "pool_discovery": "chain_specific_placeholder"
+  },
+  "rpc": {
+    "fallbacks": [],
+    "primary": "https://api.avax-test.network/ext/bc/C/rpc",
+    "timeout_seconds": 20
+  },
+  "schema_version": "chain-data-v1",
+  "tooling": {
+    "foundry_alias": "fuji",
+    "hardhat_network": "fuji"
+  }
+}

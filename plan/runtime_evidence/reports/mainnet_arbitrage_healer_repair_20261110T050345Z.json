@@ -1,0 +1,280 @@
+{
+  "mode": "repair",
+  "generatedAt": "2026-11-10T05:03:45Z",
+  "apply": false,
+  "dryRun": true,
+  "before": {
+    "mode": "check",
+    "generatedAt": "2026-11-10T05:03:40Z",
+    "network": "robinhood",
+    "chainId": 4663,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "source": {
+          "total": 6353,
+          "missing_decimals": 1735,
+          "missing_symbol": 0
+        },
+        "libraries": {
+          "core": {
+            "total": 4,
+            "admitted": 4,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          },
+          "stocks": {
+            "total": 194,
+            "admitted": 194,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          },
+          "test": {
+            "total": 1,
+            "admitted": 1,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          }
+        },
+        "admittedTotal": 199,
+        "libraryMissingFields": 0
+      },
+      "pools": {
+        "valid": true,
+        "scope": {
+          "enabled": 1,
+          "materialized_checksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "last_rebuilt_at": "2026-11-09T14:24:05.582330500+00:00"
+        },
+        "candidate": {
+          "eligible_pool_count": 114,
+          "candidate_token_count": 24,
+          "abnormal_pool_count": 2196,
+          "materialized_checksum": "sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687",
+          "generated_at": "2026-11-09T15:41:33.069185800+00:00"
+        },
+        "observation": {
+          "pool_count": 130,
+          "direction_count": 634,
+          "empty_direction_count": 528,
+          "abnormal_pool_count": 2002,
+          "materialized_checksum": "sha256:94c9b481ca928025ca0f40d28b51dc685347a24bf5e51c1bab4f953f370ba68d",
+          "generated_at": "2026-11-09T14:53:14.581619900+00:00"
+        },
+        "exchange": {
+          "total": 4741,
+          "missing_currencies": 0,
+          "filtered_fee": 2177
+        }
+      },
+      "closedLoops": {
+        "valid": true,
+        "library": {
+          "loop_count": 106,
+          "hop_count": 318,
+          "consumers_need_rebuild": 0,
+          "materialized_checksum": "sha256:dae667ab912d00e26286e75264aea4499f741867deaafa5588f224f6d744d34f",
+          "generated_at": "2026-11-09T15:00:28.621587600+00:00"
+        },
+        "runtime": [
+          {
+            "state": "offchain_pending",
+            "count": 45
+          },
+          {
+            "state": "execution_not_requested",
+            "count": 32
+          },
+          {
+            "state": "preflight_failed",
+            "count": 6
+          },
+          {
+            "state": "offchain_estimate",
+            "count": 5
+          }
+        ]
+      },
+      "reviews": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "reviews": 0
+        },
+        "legacy": {
+          "windowHours": 24,
+          "stats": {
+            "total": 677,
+            "withValue": 622,
+            "missingValue": 55,
+            "positive": 25,
+            "nonPositive": 597,
+            "sum": -76.44257284352295,
+            "minimum": -0.9999852586324267,
+            "maximum": 0.13386779444136465,
+            "byCurrency": {
+              "SPY": -48.502519055960946,
+              "TZ": -0.6248961797865245,
+              "USDG": -0.05999200000000004,
+              "WETH": -26.945003700826348,
+              "TSLA": -0.14992111874490083,
+              "NVDA": -0.007905194150822846,
+              "SPCX": -0.15233559405343092
+            }
+          }
+        },
+        "missingReasons": [
+          {
+            "reason": "native result has no concrete borrow-token P&L; a zero value would indicate a code/data resolution failure and is never accepted as a conclusion | official_v4:previewBestPool:eth_call: eth_call RPC re",
+            "count": 40
+          },
+          {
+            "reason": "native_task_config_unavailable; rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: <urlopen error [Errno 11001] getaddrinfo failed>; https://robinhood-mainnet.g.alchem",
+            "count": 13
+          },
+          {
+            "reason": "native result has no concrete borrow-token P&L; a zero value would indicate a code/data resolution failure and is never accepted as a conclusion | NoProfitableRoute",
+            "count": 1
+          },
+          {
+            "reason": "native_task_config_unavailable; rpc_probe_failed: Robinhood chain 4663 RPC unavailable: https://rpc.ordofi.network: <urlopen error [Errno 11002] getaddrinfo failed>; https://robinhood-mainnet.g.alchem",
+            "count": 1
+          }
+        ]
+      },
+      "broadcast": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "attempts": 0
+        },
+        "legacy": {
+          "total": 58,
+          "categories": {
+            "execution_success": 56,
+            "execution_failed": 2
+          },
+          "recent": [
+            {
+              "id": 71,
+              "attempt_key": "attempt|robinhood|4663|0xe19ef70965c24acf64b32023e3ea44d368f6c2eb9d226500279c2774371f96ec|2026-11-09T19:43:34.693354+00:00",
+              "category": "execution_success",
+              "tx_hash": "0xe19ef70965c24acf64b32023e3ea44d368f6c2eb9d226500279c2774371f96ec",
+              "created_at": "2026-11-09T19:43:34.693354+00:00",
+              "selected_profit_amount": 1.266147444e-09,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 70,
+              "attempt_key": "attempt|robinhood|4663|0xd832429746fe4df3b8fb78c3c7058dddd2c3d4961b19476df786a4c069acf254|2026-11-09T19:43:22.425971+00:00",
+              "category": "execution_success",
+              "tx_hash": "0xd832429746fe4df3b8fb78c3c7058dddd2c3d4961b19476df786a4c069acf254",
+              "created_at": "2026-11-09T19:43:22.425971+00:00",
+              "selected_profit_amount": 4.6128366085e-08,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 69,
+              "attempt_key": "attempt|robinhood|4663|0xfbaf41bf9b03388e6d3ffd7dec0ca81b4bcc19e9f5f645c53baeaedc91ef9027|2026-11-09T19:10:57.030133300+00:00",
+              "category": "execution_success",
+              "tx_hash": "0xfbaf41bf9b03388e6d3ffd7dec0ca81b4bcc19e9f5f645c53baeaedc91ef9027",
+              "created_at": "2026-11-09T19:10:57.030133300+00:00",
+              "selected_profit_amount": 1.737622559e-09,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 67,
+              "attempt_key": "attempt|robinhood|4663|0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c|2026-11-09T17:34:01.935766900+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c",
+              "created_at": "2026-11-09T17:34:01.935766900+00:00",
+              "selected_profit_amount": 1.448574583328e-06,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 68,
+              "attempt_key": "attempt|robinhood|4663|0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c|2026-11-09T17:34:01.935590+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c",
+              "created_at": "2026-11-09T17:34:01.935590+00:00",
+              "selected_profit_amount": 1.448574583328e-06,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 65,
+              "attempt_key": "attempt|robinhood|4663|0x71e8859974f20e60ef6cd27b32266bc7295a24226668bf3df4f73c457b0e803c|2026-11-09T16:03:19.762306300+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x71e8859974f20e60ef6cd27b32266bc7295a24226668bf3df4f73c457b0e803c",
+              "created_at": "2026-11-09T16:03:19.762306300+00:00",
+              "selected_profit_amount": 1.638406236e-09,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 66,
+              "attempt_key": "attempt|robinhood|4663|0xa43f626c86c0f0e8311615408b618e040b57aa20a2f7f47cc9eb50419577aa52|2026-11-09T16:03:11.711587+00:00",
+              "category": "execution_success",
+              "tx_hash": "0xa43f626c86c0f0e8311615408b618e040b57aa20a2f7f47cc9eb50419577aa52",
+              "created_at": "2026-11-09T16:03:11.711587+00:00",
+              "selected_profit_amount": 1.29842642816e-07,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 64,
+              "attempt_key": "attempt|robinhood|4663|0x1482210afa7efef1641b00c46c72f4031c806e5e79522188a137df9213bf3f86|2026-11-09T15:51:59.632004500+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x1482210afa7efef1641b00c46c72f4031c806e5e79522188a137df9213bf3f86",
+              "created_at": "2026-11-09T15:51:59.632004500+00:00",
+              "selected_profit_amount": 7.152529034e-09,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 62,
+              "attempt_key": "attempt|robinhood|4663|0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6|2026-11-09T15:50:01.379528400+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6",
+              "created_at": "2026-11-09T15:50:01.379528400+00:00",
+              "selected_profit_amount": 6.055797937e-09,
+              "selected_profit_amount_symbol": "SPY"
+            },
+            {
+              "id": 63,
+              "attempt_key": "attempt|robinhood|4663|0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6|2026-11-09T15:49:09.100753+00:00",
+              "category": "execution_success",
+              "tx_hash": "0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6",
+              "created_at": "2026-11-09T15:49:09.100753+00:00",
+              "selected_profit_amount": 6.055797937e-09,
+              "selected_profit_amount_symbol": "SPY"
+            }
+          ]
+        },
+        "positiveReviewsInWindow": 25
+      }
+    },
+    "blockers": [
+      "reviews",
+      "broadcast"
+    ],
+    "safeToAutoBroadcast": false
+  },
+  "results": [
+    {
+      "layer": "reviews",
+      "tool": "review-manager-api",
+      "mapped": 500,
+      "missingPnl": 55,
+      "result": {
+        "ok": false,
+        "status": null,
+        "body": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      }
+    },
+    {
+      "layer": "broadcast",
+      "tool": "broadcast-manager-api",
+      "skipped": true,
+      "reason": "不伪造 signer/nonce/rpc；仅审计真实 attempt，广播修复由运行时完整请求驱动。"
+    }
+  ],
+  "after": null
+}

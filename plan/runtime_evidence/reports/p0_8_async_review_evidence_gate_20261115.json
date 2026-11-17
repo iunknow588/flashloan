@@ -1,0 +1,55 @@
+{
+  "databaseInvariant": {
+    "closedLoopCount": 106,
+    "closedLoopScopeChecksum": "sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1",
+    "managerReviewCount": 0,
+    "migrationCount": 7,
+    "productionWrite": false,
+    "sizeBytes": 3507453952
+  },
+  "generatedAt": "2026-11-15T01:39:41Z",
+  "implementation": {
+    "candidateLoopKeyAuthoritative": true,
+    "completeReviewEvidenceInput": true,
+    "manualReviewAcknowledgementIsEvidence": false,
+    "materializationEndpoint": "/v1/reviews/run",
+    "requiresCompleteSignedPnl": true,
+    "snakeCaseNormalization": [
+      "run_arbitrage",
+      "signed_pnl",
+      "block_number",
+      "static_preview",
+      "reviewed_at"
+    ]
+  },
+  "mainnetReadOnly": {
+    "checkReport": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_20261115T013803Z.json",
+    "dryRunReport": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_repair_20261115T013941Z.json",
+    "productionState": "pool_scope_drift",
+    "repairStopped": null,
+    "safeToAutoBroadcast": false
+  },
+  "policy": {
+    "broadcast": false,
+    "deployment": false,
+    "managerAuthoritySwitch": false,
+    "productionApply": false,
+    "reason": "manual-review returns an asynchronous RuntimeCore transition acknowledgement; only a real runArbitrage result with complete signedPnl may enter the Review Manager"
+  },
+  "tests": {
+    "healerRepairChain": {
+      "passed": 33
+    },
+    "manualTransitionRoutes": {
+      "passed": 11
+    },
+    "rustWorkerBridgeTargeted": {
+      "deselected": 87,
+      "passed": 3
+    },
+    "toolsWorkspace": {
+      "exitCode": 0,
+      "offline": true
+    }
+  }
+}

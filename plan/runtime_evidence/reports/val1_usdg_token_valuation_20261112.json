@@ -1,0 +1,90 @@
+{
+  "batch": "VAL-1",
+  "date": "2026-11-12",
+  "feature": "coarse token valuation against canonical USDG via Uniswap Trading API /quote",
+  "crate": "flashloan/tools/token_manager",
+  "new_files": [
+    "flashloan/tools/token_manager/src/valuation.rs",
+    "flashloan/tools/token_manager/src/valuation_tests.rs",
+    "flashloan/tools/token_manager/src/valuation_cli.rs"
+  ],
+  "modified_files": [
+    "flashloan/tools/token_manager/Cargo.toml",
+    "flashloan/tools/token_manager/src/lib.rs",
+    "flashloan/tools/token_manager/src/main.rs"
+  ],
+  "dependencies_added": [
+    "reqwest.workspace",
+    "tokio.workspace"
+  ],
+  "endpoint": "https://trade-api.gateway.uniswap.org/v1/quote",
+  "auth_header": "x-api-key",
+  "api_key_env_priority": [
+    "UNISWAP_TRADING_API_KEY",
+    "UNISWAP_API_KEY",
+    "UNISWAP_TRADING_KEY"
+  ],
+  "quote_target": {
+    "symbol": "USDG",
+    "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "decimals": 6,
+    "matched_by": "address_only"
+  },
+  "chain_id": 4663,
+  "network": "robinhood",
+  "verdicts": [
+    "route_found",
+    "no_route",
+    "api_unavailable",
+    "api_error"
+  ],
+  "semantics": {
+    "route_found": "positive proof of a live USDG path",
+    "no_route": "real negative, service explicitly reported no route",
+    "api_unavailable": "unknown, request never attempted (no API key)",
+    "api_error": "unknown, transport/http/malformed failure",
+    "invariant": "absence of a quote is never reported as 'no value'"
+  },
+  "route_detail_policy": "route internals discarded; only leg count retained",
+  "arithmetic": "integer/string only, no f64 in amount conversion",
+  "production_writes": 0,
+  "gate_involvement": "none (depth/capacity/broadcast untouched)",
+  "live_probe": {
+    "raw_post_status": 401,
+    "raw_post_note": "endpoint reachable, request schema accepted, API key required",
+    "tool_without_key": {
+      "verdict": "api_unavailable",
+      "failure_kind": "missing_api_key"
+    },
+    "tool_with_bad_key": {
+      "verdict": "api_error",
+      "failure_kind": "unauthorized"
+    }
+  },
+  "cli": {
+    "command": "value-tokens",
+    "flags": [
+      "--registry",
+      "--token",
+      "--token-symbol",
+      "--token-decimals",
+      "--amount",
+      "--protocols",
+      "--limit",
+      "--quote-url",
+      "--no-api-key"
+    ]
+  },
+  "tests": {
+    "token_manager_cargo": "61 passed (50 baseline + 11 new), 0 failed",
+    "pool_manager_cargo": "56 passed (unchanged)",
+    "app_runtime_full": "2765 passed / 26 failed / 3 skipped (identical to baseline)",
+    "healer": "95 passed (unchanged)",
+    "architecture_guard": "2 pre-existing offenders, none added"
+  },
+  "line_counts": {
+    "valuation.rs": 754,
+    "valuation_tests.rs": 193,
+    "valuation_cli.rs": 170
+  }
+}

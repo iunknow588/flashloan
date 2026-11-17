@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-CHAIN_DATA_ROOT = Path(__file__).resolve().parents[2] / "chains"
+# Chain configuration is data, not Python source: it lives at
+# ``flashloan/chains`` so ``flashloan/src`` stays a pure Python package tree.
+CHAIN_DATA_ROOT = Path(__file__).resolve().parents[3] / "chains"
 _SQLITE_CACHE_TTL_SECONDS = 30.0
 _SQLITE_CACHE: dict[int, tuple[float, str | None]] = {}
 _SQLITE_CACHE_LOCK = threading.Lock()

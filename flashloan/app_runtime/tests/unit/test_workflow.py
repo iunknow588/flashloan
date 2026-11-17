@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from core.workflow import (
     EXECUTION_MODE_COW,

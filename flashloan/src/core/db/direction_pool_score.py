@@ -1,12 +1,29 @@
-"""Direction-aware static pool scoring for DEX candidate selection."""
+"""Direction-aware static pool scoring for DEX candidate selection.
+
+The **admission** decision belongs to the Rust kernel. The kernel reads the
+shared depth policy document and publishes one verdict per measured pool;
+this module only consumes that verdict and never carries a private copy of
+an admission threshold.
+
+Python therefore has no depth policy of its own. When the Rust kernel is
+unavailable, the admission question stays unresolved instead of falling back
+to a Python-local rule that could disagree with the kernel.
+"""
 
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from core.db import pool_depth_keys as _pool_depth_keys
 
 
 Q96 = 1 << 96
 DEFAULT_DECIMALS = 18
+# These two constants are retained only as call-site defaults for the
+# diagnostic helpers that report a USD and a token-base reading. They are
+# **not** admission thresholds: the admission floor lives in the shared
+# depth policy and is applied by the Rust kernel.
 DEFAULT_MIN_POOL_DEPTH_USD = 1000.0
 DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE = 1.0
 # A direction is usable as soon as one confirmed-liquidity candidate exists.
@@ -103,49 +120,171 @@ def pool_depth_usd(pool: dict[str, Any]) -> float:
     return depth_usd
 
 
+# ARCH-1a: the on-chain binding capacity is the primary recommendation sort
+# key. It is shared with the candidate builders so both surfaces observe one
+# definition. See :mod:`core.db.pool_depth_keys`.
+capacity_binding_raw = _pool_depth_keys.capacity_binding_raw
+
+
+# The Rust kernel owns the candidate admission rule and publishes its
+# verdict on every pool row it hands to Python. The verdict travels as an
+# explicit field, so Python never derives an admission from a local
+# threshold and never has to search for the right table.
+#
+# The field names are stable:
+#   * ``kernel_admitted`` / ``kernelAdmitted`` -> the verdict itself
+#   * ``kernel_admission_reason`` -> why the verdict was reached
+#   * ``kernel_depth_band`` -> the depth band the kernel derived
+ADMISSION_ADMITTED_KEYS = ("kernel_admitted", "kernelAdmitted")
+ADMISSION_REASON_KEYS = ("kernel_admission_reason", "kernelAdmissionReason")
+ADMISSION_BAND_KEYS = ("kernel_depth_band", "kernelDepthBand")
+
+
+def _first_present(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in payload and payload[key] is not None:
+            return payload[key]
+    return None
+
+
+def _decode_depth_band_document(value: Any) -> dict[str, Any]:
+    """Decode a stored depth-band document into a mapping.
+
+    The SQLite store keeps the document in a JSON column, so the value can
+    arrive as a string. A malformed or empty document is reported as an
+    empty mapping rather than raising, because a missing document is a
+    coverage gap and not a reason to abort the surrounding read.
+    """
+    if isinstance(value, dict):
+        return value
+    if value in (None, ""):
+        return {}
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return {}
+    if not isinstance(value, str):
+        return {}
+    try:
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def kernel_admission_verdict(pool: dict[str, Any]) -> dict[str, Any]:
+    """Return the admission verdict published by the Rust kernel.
+
+    The kernel owns the candidate admission rule and reads the shared depth
+    policy document. It publishes one verdict per pool row; Python consumes
+    that verdict and never derives it from a private threshold.
+
+    A pool row without a published verdict is a coverage gap of the store.
+    It is reported as unresolved instead of being admitted by a Python-local
+    rule.
+    """
+    # A pool row identifies itself with any of the stable aliases. The
+    # admission verdict is attached to the physical pool, so the lookup must
+    # accept the same alias set the rest of the store uses.
+    pool_id = str(
+        pool.get("pool_id")
+        or pool.get("poolId")
+        or pool.get("pool")
+        or pool.get("id")
+        or ""
+    ).strip()
+    if not pool_id:
+        return {"admitted": False, "reason": "missing_pool_id"}
+
+    # The verdict may sit directly on the row or inside the depth-band
+    # document the candidate surface carries. The store keeps the document
+    # as a JSON column, so the raw string form must be decoded too.
+    document = pool.get("depth_band") or pool.get("depthBand")
+    if not isinstance(document, dict):
+        document = _decode_depth_band_document(
+            pool.get("depth_band_json")
+            or pool.get("depthBandJson")
+            or document
+        )
+
+    admitted = _first_present(pool, ADMISSION_ADMITTED_KEYS)
+    if admitted is None:
+        admitted = _first_present(document, ADMISSION_ADMITTED_KEYS)
+    if admitted is None:
+        return {"admitted": False, "reason": "kernel_verdict_missing"}
+
+    reason = _first_present(pool, ADMISSION_REASON_KEYS)
+    if reason is None:
+        reason = _first_present(document, ADMISSION_REASON_KEYS)
+    band = _first_present(pool, ADMISSION_BAND_KEYS)
+    if band is None:
+        band = _first_present(document, ADMISSION_BAND_KEYS)
+    return {
+        "admitted": bool(admitted),
+        "reason": str(reason or ""),
+        "depthBand": band,
+    }
+
+
+def depth_band_document(pool: dict[str, Any]) -> dict[str, Any]:
+    """Return the depth-band document of one pool row, verdict included.
+
+    The Rust kernel publishes its admission verdict on the pool row and
+    stores it inside the depth-band document. When the row is written back to
+    SQLite the verdict must survive the round trip, otherwise a later read
+    cannot tell an admitted pool from a rejected one and the candidate
+    surface degrades into a coverage gap.
+
+    This helper is the single place that serializes the document. Every
+    writer uses it so the verdict is never dropped on the way to the store.
+    """
+    document = pool.get("depth_band") or pool.get("depthBand")
+    if not isinstance(document, dict):
+        document = _decode_depth_band_document(
+            pool.get("depth_band_json")
+            or pool.get("depthBandJson")
+            or document
+        )
+    else:
+        document = dict(document)
+
+    # The verdict may live directly on the row instead of inside the
+    # document. Promote it into the document so a single read is enough.
+    for keys, target in (
+        (ADMISSION_ADMITTED_KEYS, "kernelAdmitted"),
+        (ADMISSION_REASON_KEYS, "kernelAdmissionReason"),
+        (ADMISSION_BAND_KEYS, "kernelDepthBand"),
+        (("kernel_capacity_binding_raw", "kernelCapacityBindingRaw"), "kernelCapacityBindingRaw"),
+    ):
+        value = _first_present(pool, keys)
+        if value is None:
+            value = _first_present(document, keys)
+        if value is not None and target not in document:
+            document[target] = value
+
+    return document
+
+
 def has_confirmed_liquidity(
     pool: dict[str, Any],
     *,
     min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
 ) -> bool:
-    """Confirm a physical pool has positive on-chain liquidity evidence.
+    """Return the kernel-owned admission verdict of one physical pool.
 
-    Depth is a two-sided market fact. Direction may change the score and the
-    preferred pool, but it must never change whether a pool is included, so
-    this gate deliberately has no ``token_in`` parameter.
+    The decision is published by the Rust kernel, which reads the shared
+    depth policy document. Depth is a two-sided market fact, so this gate
+    deliberately has no ``token_in`` parameter: direction may change the
+    score and the preferred pool, but it must never change whether a pool
+    is included.
 
-    Confirmed liquidity is a two-sided market fact and the candidate, YZ and
-    observation layers use the same gate. A derived USD depth is optional
-    evidence only; pools are never rejected for lacking a USD relationship.
+    The ``min_usd`` and ``fallback_token_base`` arguments are retained for
+    call-site compatibility only. They are diagnostic readings, not
+    admission thresholds, and they never decide the verdict.
     """
-    evidence_source = _text(pool.get("evidence_source") or pool.get("evidenceSource"))
-    has_liquidity = pool.get("has_liquidity")
-    if has_liquidity is None:
-        has_liquidity = pool.get("hasLiquidity")
-    # Explicit zero-liquidity evidence always wins over stale depth.  The pool
-    # metadata is kept in the raw V4 tables so a later positive snapshot makes
-    # the pool eligible again; it is only excluded from the candidate surface.
-    if has_liquidity is not None and not _truthy(has_liquidity):
-        return False
-    if evidence_source in LIVE_STATE_EVIDENCE_SOURCES and _truthy(has_liquidity):
-        raw_liquidity = _number(pool.get("liquidity"))
-        liquidity_index = _number(pool.get("liquidity_index") or pool.get("liquidityIndex"))
-        estimated_tvl_usd = _number(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd"))
-        if raw_liquidity > 0 or liquidity_index > 0 or estimated_tvl_usd > 0:
-            return True
-    depth_usd = pool_depth_usd(pool)
-    if depth_usd >= min_usd:
-        return True
-    if fallback_token_base <= 0:
-        return False
-    liquidity_index = _number(pool.get("liquidity_index") or pool.get("liquidityIndex"))
-    raw_liquidity = _number(pool.get("liquidity"))
-    if raw_liquidity > 0:
-        liquidity_index = max(liquidity_index, raw_liquidity / (10 ** DEFAULT_DECIMALS))
-    if liquidity_index >= fallback_token_base:
-        return True
-    return False
+    return kernel_admission_verdict(pool)["admitted"]
 
 
 def has_confirmed_depth(
@@ -247,10 +386,11 @@ def select_directional_pool_ids(
 ) -> list[str]:
     """Return the best directed pool ids that still have confirmed liquidity.
 
-    Order is the current static direction score, so the first id is the
-    replacement for the stored primary pool when the original recommendation
-    has lost liquidity.  The caller decides whether to keep the pool id as a
-    backup; this helper never returns an id that fails the liquidity gate.
+    ARCH-1a: the order is the on-chain capacity key, not the static
+    direction score. The first id is the replacement for the stored primary
+    pool when the original recommendation has lost liquidity. The caller
+    decides whether to keep the pool id as a backup; this helper never
+    returns an id that fails the liquidity gate.
 
     Pool inclusion is deliberately direction-independent.  A physical V4 pool
     either exists as a two-sided market or it does not; direction may change
@@ -286,11 +426,15 @@ def select_directional_pool_ids(
         if score <= 0:
             continue
         scored_pools.append((score, pool))
+    # ARCH-1a: the recommendation order is decided by the on-chain capacity
+    # evidence (binding capacity DESC, realised price impact ASC). The
+    # directional score only breaks ties between equally deep pools, and the
+    # pool id closes the order so the result is deterministic.
     scored_pools.sort(
-        key=lambda item: (
-            -item[0],
-            _number(item[1].get("fee")),
+        key=lambda item: _pool_depth_keys.pool_depth_sort_key(
+            item[1],
             _pool_id(item[1]),
+            direction_score=item[0],
         )
     )
     for _, pool in scored_pools:
@@ -311,7 +455,10 @@ __all__ = [
     "DEFAULT_MIN_POOL_DEPTH_USD",
     "MIN_DIRECTION_CANDIDATE_POOLS",
     "MAX_DIRECTION_CANDIDATE_POOLS",
+    "capacity_binding_raw",
+    "depth_band_document",
     "has_confirmed_depth",
+    "kernel_admission_verdict",
     "has_confirmed_liquidity",
     "pool_depth_usd",
     "score_pool_by_direction",

@@ -107,6 +107,24 @@ impl NormalizedTokenMetadata {
             blocked_reason: None,
         }
     }
+
+    /// Builds the write that records a *withdrawal* from a library.
+    ///
+    /// The economic gate removes a membership by taking it away from the
+    /// classification. That alone is not enough: the row that is already
+    /// in the library table would simply stay there, still `admitted`,
+    /// and the database would keep advertising a token the gate has just
+    /// rejected.
+    ///
+    /// A withdrawal is therefore written as a `blocked` row with the
+    /// reason attached. The row stays in the table — so the decision is
+    /// auditable and a later refresh can reverse it — but it no longer
+    /// counts as an admitted member, and the reason says why.
+    pub fn to_blocked_token_write(&self, reason: &str) -> TokenWrite {
+        let mut write = self.to_token_write(AdmissionStatus::Blocked);
+        write.blocked_reason = Some(reason.to_owned());
+        write
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]

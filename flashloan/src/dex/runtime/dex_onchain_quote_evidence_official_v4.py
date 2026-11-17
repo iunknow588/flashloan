@@ -209,6 +209,63 @@ def _env_official_v4_address(field: str, chain_id: int | None = None) -> str | N
     return None
 
 
+def official_v4_address(field: str, chain_id: int | None = None) -> str | None:
+    """Resolve an official V4 contract for a chain.
+
+    Precedence: environment override -> ``chain.json`` -> deployment manifest.
+    The chain file owns the address; environment variables only override it
+    for a specific deployment or drill.
+    """
+
+    network = _official_v4_network(chain_id)
+    env_names = _official_v4_env_names(field, network)
+    for env_name in env_names:
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
+    return _chain_data_official_v4_address(field, chain_id) or _manifest_official_v4_address(
+        field, chain_id
+    )
+
+
+def _official_v4_network(chain_id: int | None = None) -> str:
+    resolved = _official_v4_chain_id(chain_id)
+    if resolved is None:
+        return ""
+    try:
+        from core.chain_data_registry import chain_data_by_chain_id
+
+        row = chain_data_by_chain_id(int(resolved)) or {}
+        return str(row.get("network") or "").strip().lower()
+    except Exception:
+        return ""
+
+
+_OFFICIAL_V4_ENV_PREFIX = {
+    "robinhood": "ROBINHOOD_MAINNET",
+    "robinhood-testnet": "ROBINHOOD_TESTNET",
+}
+
+
+def _official_v4_env_names(field: str, network: str) -> tuple[str, ...]:
+    """Environment override names for an official V4 contract.
+
+    The generic name keeps its historical precedence so existing operator
+    overrides keep working; the chain-scoped name is the more specific
+    override and wins over the generic one.
+    """
+
+    suffix = "ARB" if field == "arb" else "COMPOSER"
+    generic = f"OFFICIAL_V4_{suffix}_ADDRESS"
+    prefix = _OFFICIAL_V4_ENV_PREFIX.get(str(network or "").strip().lower())
+    if not prefix:
+        return (generic,)
+    scoped = f"{prefix}_OFFICIAL_V4_{suffix}_ADDRESS"
+    if scoped == generic:
+        return (generic,)
+    return (generic, scoped)
+
+
 def _official_v4_chain_id(chain_id: int | None = None) -> int | None:
     if chain_id is not None:
         return int(chain_id)
@@ -285,21 +342,11 @@ def _manifest_official_v4_address(field: str, chain_id: int | None = None) -> st
 
 
 def _official_v4_arb_address(chain_id: int | None = None) -> str | None:
-    chain_id = _official_v4_chain_id(chain_id)
-    return (
-        _env_official_v4_address("arb", chain_id)
-        or _chain_data_official_v4_address("arb", chain_id)
-        or _manifest_official_v4_address("arb", chain_id)
-    )
+    return official_v4_address("arb", chain_id)
 
 
 def _official_v4_composer_address(chain_id: int | None = None) -> str | None:
-    chain_id = _official_v4_chain_id(chain_id)
-    return (
-        _env_official_v4_address("composer", chain_id)
-        or _chain_data_official_v4_address("composer", chain_id)
-        or _manifest_official_v4_address("composer", chain_id)
-    )
+    return official_v4_address("composer", chain_id)
 
 
 def _official_v4_arb_candidate_route(

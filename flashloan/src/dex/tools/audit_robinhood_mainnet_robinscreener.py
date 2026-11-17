@@ -20,6 +20,7 @@ SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_v4_exchange import (  # noqa: E402
     load_v4_exchange_pools,
@@ -274,7 +275,7 @@ def main() -> int:
             fee = int(screener.get("fee"))
         except (TypeError, ValueError):
             continue
-        if 0 < fee <= 3000 and screener["hooks"] == ZERO_ADDRESS:
+        if 0 < fee <= MAX_CANDIDATE_FIXED_FEE and screener["hooks"] == ZERO_ADDRESS:
             normal_eligible += 1
 
     for pool_id in set(sqlite_liquidity_by_id) & set(screener_rows and {row["poolId"] for row in screener_rows}):

@@ -1,0 +1,1702 @@
+{
+  "applied": false,
+  "chainId": 4663,
+  "classification": {
+    "duplicateSymbolGroups": 16,
+    "issues": 0,
+    "tokens": 4618,
+    "unclassified": 4384
+  },
+  "economicGate": {
+    "evidence": {
+      "dustExtensionCount": 0,
+      "measuredExtensionCount": 0,
+      "measuredStockCount": 0,
+      "minimumEconomicPositionUsdg": "10",
+      "minimumEconomicPositionUsdgRaw": 10000000,
+      "minimumPoolDepthUsdg": "10",
+      "minimumPoolDepthUsdgRaw": 10000000,
+      "unknownStockCount": 0,
+      "unmeasuredExtensionCount": 0,
+      "unvaluableStockCount": 0,
+      "usdgDecimals": 6,
+      "valuedStockCount": 0
+    },
+    "excludedExtensionCount": 0,
+    "excludedExtensionHops": [],
+    "excludedStockCount": 0,
+    "excludedStockTokens": [],
+    "pendingStockCount": 194,
+    "pendingStockTokens": [
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x03bc731ffb162cdd7b98d3c6542bfc291126075d",
+        "tokenSymbol": "FLY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80",
+        "tokenSymbol": "JNJ",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x0594134df3f171a354d9c85ebd65b7a6148f6d09",
+        "tokenSymbol": "VTI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+        "tokenSymbol": "AMC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+        "tokenSymbol": "RDDT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x072f979c2cac8e1391b0162a87fee094bf8744a0",
+        "tokenSymbol": "SMH",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x0b5fb4031cae9163db10b169ee72685f0edc8545",
+        "tokenSymbol": "TTD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+        "tokenSymbol": "NOW",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x0e6e67ba88e7b5d9b67636a215c76779b948de79",
+        "tokenSymbol": "UMC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x0f17206447090e464c277571124dd2688e48aea9",
+        "tokenSymbol": "QCOM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+        "tokenSymbol": "NET",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenSymbol": "SPY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993",
+        "tokenSymbol": "KSS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+        "tokenSymbol": "AMZN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x141eea040c2250eec0314e336975e81f85f6585e",
+        "tokenSymbol": "AXTI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x156e175dd063a8ce274c50654ef40e0032b3fbcf",
+        "tokenSymbol": "AVGO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x15cd20759ce7f3285c29a319de2d1a2e098c6f43",
+        "tokenSymbol": "XLK",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+        "tokenSymbol": "ASTS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+        "tokenSymbol": "GME",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1c690498150252222c275a5ced69d3a6b1f52d5e",
+        "tokenSymbol": "EWT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+        "tokenSymbol": "P",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+        "tokenSymbol": "DJT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x1eebee7f74517e0279dfb09d25b0407beec3fdd6",
+        "tokenSymbol": "SMR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x232b8ed6377be97813853b0ac104c4cda8378d1b",
+        "tokenSymbol": "ADBE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x237c16d66590f67b886d978acd362eaead8b18c7",
+        "tokenSymbol": "POWL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x25c288e6d899b9bc30160965ad9644c67e73be0c",
+        "tokenSymbol": "F",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x26dcbfb34fc83cabd6990f449674efdc6097ff85",
+        "tokenSymbol": "VSAT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+        "tokenSymbol": "TER",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+        "tokenSymbol": "DDOG",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x282e87451e10fa6679bc7d76c69be44cd3fc777c",
+        "tokenSymbol": "FLNC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x284358abc07f9359f19f4b5b4ac91901be2597ba",
+        "tokenSymbol": "RGTI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x285b231728c7e4333799183df1094d775246a535",
+        "tokenSymbol": "SLS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x28babd556b60e53663b8615036479a29c2cdd1bf",
+        "tokenSymbol": "ANET",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x2d427692e928fa156ec22acfabafa0447c5805b7",
+        "tokenSymbol": "GLXY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "tokenSymbol": "GOOGL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x2f62fc9fabb470c690f141c28340ed832bb27020",
+        "tokenSymbol": "BND",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e",
+        "tokenSymbol": "ABCL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "tokenSymbol": "TSLA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x329fcaceb9ad6f9580dd5f643fed0646900d043c",
+        "tokenSymbol": "LMT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd",
+        "tokenSymbol": "WULF",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x36046893810a7e7fce501229d57dc3fc8c8716d0",
+        "tokenSymbol": "AMAT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x373c06c4f7bde527d7dae4ba169e42b55e393ced",
+        "tokenSymbol": "AUR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x39ec44bee4f6a116c6f9b8de566848a985c53c60",
+        "tokenSymbol": "ELF",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2",
+        "tokenSymbol": "RKLB",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x3fb8976980d486084b2eb4a404bd12e72823958f",
+        "tokenSymbol": "FTNT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x408c14038a04f7bd235329e26d2bf569ee20e250",
+        "tokenSymbol": "NU",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x40e7a279850e443f582059ae5dc1c3b6563e6395",
+        "tokenSymbol": "OUST",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f",
+        "tokenSymbol": "SLV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4189f0c66ebbb0bfef1c31f763131361ef32f77c",
+        "tokenSymbol": "PR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x41f4267525a8aff329540ef24fd83d9044758b33",
+        "tokenSymbol": "FIG",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x43b07d15ce533bec5476d70c22a78a1b2b662155",
+        "tokenSymbol": "MRNA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x44c4f142009036cf477ed2d09932051843137cf1",
+        "tokenSymbol": "ZM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x44f6d488021f8233b9416294d1fe9b1fee28382d",
+        "tokenSymbol": "CIEN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x47f93d52cbec7c6d2cfc080e154002370a60daea",
+        "tokenSymbol": "ASML",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x48961813349333209994750ffa89b3c5c22ec969",
+        "tokenSymbol": "MXL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x48d60243c66437c6ac3c2495be94747aed5dfe25",
+        "tokenSymbol": "LHX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x48e39e56acdba37b09020c0b734a613c9a2f100a",
+        "tokenSymbol": "BB",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "tokenSymbol": "SPCX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4d21483a44bf67a86b77e3da301411880797d452",
+        "tokenSymbol": "BA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b",
+        "tokenSymbol": "CRDO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4e62068525ab11fe768e29dfd00ef909b9803016",
+        "tokenSymbol": "LULU",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x4ea005168d7f09a7a0ba9d1def21a479950e44c2",
+        "tokenSymbol": "COST",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e",
+        "tokenSymbol": "AAOI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x52d50d0280ad1054b43f052bd70a49a212a1b128",
+        "tokenSymbol": "MPWR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x558378e000d634a36593e338ebacdd6207640efe",
+        "tokenSymbol": "IONQ",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x561e2a49212b7ccf47f2744ccb83e200722fadbc",
+        "tokenSymbol": "VST",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x56d23bee5f41a7120170b0c603dae30128e460e9",
+        "tokenSymbol": "INTU",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x57b0030166db0c31690d1a5aa167e2e26e2c29a4",
+        "tokenSymbol": "LRCX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+        "tokenSymbol": "TSM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4",
+        "tokenSymbol": "QUBT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+        "tokenSymbol": "HPE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x5b97476b922f3305131b8f0b9d333172e87f4aae",
+        "tokenSymbol": "TEAM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x5c90450bbb4273d7b2f17cf6917aeb237a569679",
+        "tokenSymbol": "CBRS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x5e81213613b6b86eab4c6c50d718d34359459786",
+        "tokenSymbol": "TTWO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+        "tokenSymbol": "CRWV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x5f604fba1162193a4388a5dfa56f556f3e133cc2",
+        "tokenSymbol": "AEHR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x6006ed4b2f94110851ff7509d97d034f0eed9226",
+        "tokenSymbol": "VICR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x62200915e7deab1ec7f79fb246dadbb80eacddd0",
+        "tokenSymbol": "CLOV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x62fd0668e10d8b72339be2dcf7643001688ff13b",
+        "tokenSymbol": "MRVL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+        "tokenSymbol": "COIN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+        "tokenSymbol": "GE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x63d5a3b6939a33f1e75d8bcd85759858239600db",
+        "tokenSymbol": "CTSH",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54",
+        "tokenSymbol": "SOUN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "tokenSymbol": "PFE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc",
+        "tokenSymbol": "ALAB",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x756bc80af765c82da966a788858d65adf14f3793",
+        "tokenSymbol": "RUN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38",
+        "tokenSymbol": "SOXX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x77e655e37f4d913fb9540e0d541d824171a60e81",
+        "tokenSymbol": "SIMO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6",
+        "tokenSymbol": "GLW",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf",
+        "tokenSymbol": "IBRX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7",
+        "tokenSymbol": "ZS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc",
+        "tokenSymbol": "EWY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x7fd06a4d81ccfa3f351394e144d5191874c31313",
+        "tokenSymbol": "KTOS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x8005d266423c7ea827372c9c864491e5786600ea",
+        "tokenSymbol": "LLY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x822cc93ffd030293e9842c30bbd678f530701867",
+        "tokenSymbol": "BE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x82da4646242e1d962e96e932269dc644c94a9caa",
+        "tokenSymbol": "WDAY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+        "tokenSymbol": "SKHY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "tokenSymbol": "AMD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+        "tokenSymbol": "PLTR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x89776d4cd68193597a2fc132cfac1fde36ccea8a",
+        "tokenSymbol": "TSEM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774",
+        "tokenSymbol": "OKLO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+        "tokenSymbol": "CELH",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c",
+        "tokenSymbol": "LITE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef",
+        "tokenSymbol": "ONTO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x92ef19e82bd8ff36661de838d5eae7e5cef0effe",
+        "tokenSymbol": "RDW",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x92f9f459f1a9a5ad266b182be7bffd1c6c666894",
+        "tokenSymbol": "COHR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x92fd66527192e3e61d4ddd13322aa222de86f9b5",
+        "tokenSymbol": "SGOV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x93dbb1d2dc5d63f4abacff30485273f538df68ac",
+        "tokenSymbol": "FIX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd",
+        "tokenSymbol": "DELL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9",
+        "tokenSymbol": "GEV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x95052ddcd5dc25641657424a8cf04834997e1730",
+        "tokenSymbol": "SATS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9651342cea770ae9a2969ba2a52611523146aef9",
+        "tokenSymbol": "CCL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+        "tokenSymbol": "KLAC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+        "tokenSymbol": "IBM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+        "tokenSymbol": "SOFI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x99d9d8663545151603863c5acbd6fc3218899009",
+        "tokenSymbol": "AMBA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd",
+        "tokenSymbol": "PWR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9b23573b156b52565012f5ce02cdf60afbaa70be",
+        "tokenSymbol": "PENG",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9d9c6684f596f66a64c030b93a886d51fd4d7931",
+        "tokenSymbol": "NBIS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e",
+        "tokenSymbol": "WYFI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc",
+        "tokenSymbol": "FISV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa249baf1063af884807c1e1400aef7784836917e",
+        "tokenSymbol": "APP",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+        "tokenSymbol": "USO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa48f22a46c0f1c46ca7d111cb6c137c271987180",
+        "tokenSymbol": "FICO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa4f319104089fe321dc8093c6e707d4fe190a988",
+        "tokenSymbol": "CVNA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa5d4968421ba94814be3b136b15cf422101ac1a3",
+        "tokenSymbol": "LUNR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289",
+        "tokenSymbol": "XNDU",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xaa4d64474c172010ab57719cb9951e6142a100d3",
+        "tokenSymbol": "PL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xacef2e09adb47ad6abebad9ff06689e60615c2b6",
+        "tokenSymbol": "INDA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+        "tokenSymbol": "BABA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xad622320e520de39e72d41ef07438c3fd3354875",
+        "tokenSymbol": "SPMO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xae517a2903e68bd929dfd15be875f8369d53e94a",
+        "tokenSymbol": "CEG",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xaea445c5f3db1a462998ccc422a875a361ee5d99",
+        "tokenSymbol": "HWM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "tokenSymbol": "AAPL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb039597ed45cba7b6e2fb9e8be51802969cee5be",
+        "tokenSymbol": "PANW",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb0992820e760d836549ba69bc7598b4af75dee03",
+        "tokenSymbol": "ORCL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d",
+        "tokenSymbol": "TE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+        "tokenSymbol": "RIVN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb1cc0ec7db69cf43539119814df40071b9d61793",
+        "tokenSymbol": "TEM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb334c5ce741b80b5b671f47f5c269cb193fe8e24",
+        "tokenSymbol": "JOBY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb853bc83a753342a4f8320ea680b4b1e84118d21",
+        "tokenSymbol": "INFQ",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb8dbf92f9741c9ac1c32115e78581f23509916fd",
+        "tokenSymbol": "APLD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xb90a19ff0af67f7779aff50a882a9cff42446400",
+        "tokenSymbol": "SNDK",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xba0cab75495255d0cb58e22b648bfed4ecd1f47e",
+        "tokenSymbol": "SNOW",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xbbd09f72b025360fee5c928053dca6248d35be54",
+        "tokenSymbol": "ON",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8",
+        "tokenSymbol": "SHY",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xbe6702d7b70315376dc48a3293f24f0982f86386",
+        "tokenSymbol": "NVTS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xbef75684c43c4ea7bd18dd532a2244674ee8b926",
+        "tokenSymbol": "NNE",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xbf449977089c718c004a66c554b26b94ef3ad4de",
+        "tokenSymbol": "CLS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc01aa1fecec0605b13bc84874ff7256c0f5f562a",
+        "tokenSymbol": "SMCI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd",
+        "tokenSymbol": "DOCN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "tokenSymbol": "META",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc27dbd474af5181c5a8777903690d8d262d12648",
+        "tokenSymbol": "AXON",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc583c60aef9dc401da72cec1b404743a93cea1cc",
+        "tokenSymbol": "QBTS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc6cbad1016b38b797610c25e1dc7d95988b1f362",
+        "tokenSymbol": "MOD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+        "tokenSymbol": "INTC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc93f4d80e268ab922e871bd169156c3cc41894e6",
+        "tokenSymbol": "MTSI",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+        "tokenSymbol": "GLD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xcbb95bbf36099d34da091dc6fa6f49efa257cee3",
+        "tokenSymbol": "CLSK",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+        "tokenSymbol": "HIMS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xcef9027c7d6985b85f0ba431125073529a947a68",
+        "tokenSymbol": "BULL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xcf364ea52787e289de6f32077834056e3e70d6a8",
+        "tokenSymbol": "UNH",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xcf6b2d875361be807eafa57458c80f28521f9333",
+        "tokenSymbol": "POET",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "tokenSymbol": "NVDA",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+        "tokenSymbol": "QQQ",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xd63abb2c13d7a8421a8017a712802053568e3c1d",
+        "tokenSymbol": "SCHD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xd917b029c761d264c6a312bbbcda868658ef86a6",
+        "tokenSymbol": "USAR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xd95b44124e475743a7589e68f3d74008a5536d44",
+        "tokenSymbol": "CRM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b",
+        "tokenSymbol": "AMKR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xddf2266b79abf0b48898959b0ed6e6adf512be74",
+        "tokenSymbol": "MDB",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "tokenSymbol": "CRCL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+        "tokenSymbol": "NFLX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+        "tokenSymbol": "MSFT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931",
+        "tokenSymbol": "CRWD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xeaf2512dfc1beac608f8794b3793cd4e02894aa6",
+        "tokenSymbol": "JBL",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d",
+        "tokenSymbol": "FUTU",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d",
+        "tokenSymbol": "HII",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xec262a75e413fafd0df80480274532c79d42da09",
+        "tokenSymbol": "MSTR",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf0ab0c93be6f41369d302e55db1a96b3c430212d",
+        "tokenSymbol": "IREN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8",
+        "tokenSymbol": "RBLX",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf1953dab6fad537488d5a022361ffaa8b4c95ec6",
+        "tokenSymbol": "INOD",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+        "tokenSymbol": "UPS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf52597345a8edf418bc4071b4a35112472277d3e",
+        "tokenSymbol": "WDC",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf53f66751b1eff985311b693531e3290f600c410",
+        "tokenSymbol": "SHOP",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf543967eebb6f1917992ef0e68de63ab07a5a0da",
+        "tokenSymbol": "CSCO",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf6290b5e7c26502e2da514c31509849718ea76a5",
+        "tokenSymbol": "AVAV",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf6589f11bc40b669e584073f428b05562f568733",
+        "tokenSymbol": "SNAP",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf7181b63fdb858558a74ba96bc42732684cd7965",
+        "tokenSymbol": "NAVN",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+        "tokenSymbol": "XOM",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xfa78c12e6488814a0262e4e802749a4a737d5fb7",
+        "tokenSymbol": "VRT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612",
+        "tokenSymbol": "AEIS",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda",
+        "tokenSymbol": "PATH",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xfde6b5d9bb419b10c23268c74e369abff39c0460",
+        "tokenSymbol": "RCAT",
+        "verdict": "not_measured"
+      },
+      {
+        "reason": "no USDG valuation has been measured for this token yet",
+        "tokenAddress": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "tokenSymbol": "MU",
+        "verdict": "not_measured"
+      }
+    ],
+    "policy": {
+      "minimumEconomicPositionUsdgRaw": 10000000,
+      "minimumPoolDepthUsdgRaw": 10000000
+    }
+  },
+  "libraries": [
+    {
+      "admittedCount": 4,
+      "blockedCount": 0,
+      "candidateOnlyCount": 0,
+      "chainId": 4663,
+      "events": 0,
+      "inserted": 0,
+      "library": "core",
+      "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "network": "robinhood",
+      "pendingReviewCount": 0,
+      "sourceCheckpoint": "sha256:a229572e1ff6509871f9f4393146a6bbbfa2cc770c60ef3e2fb6394d2f26b17a",
+      "tokenCount": 4,
+      "unchanged": 4,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 1
+    },
+    {
+      "admittedCount": 194,
+      "blockedCount": 0,
+      "candidateOnlyCount": 0,
+      "chainId": 4663,
+      "events": 0,
+      "inserted": 0,
+      "library": "stocks",
+      "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "network": "robinhood",
+      "pendingReviewCount": 0,
+      "sourceCheckpoint": "sha256:a229572e1ff6509871f9f4393146a6bbbfa2cc770c60ef3e2fb6394d2f26b17a",
+      "tokenCount": 194,
+      "unchanged": 0,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 1
+    },
+    {
+      "admittedCount": 1,
+      "blockedCount": 0,
+      "candidateOnlyCount": 0,
+      "chainId": 4663,
+      "events": 0,
+      "inserted": 0,
+      "library": "test",
+      "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+      "network": "robinhood",
+      "pendingReviewCount": 0,
+      "sourceCheckpoint": "sha256:a229572e1ff6509871f9f4393146a6bbbfa2cc770c60ef3e2fb6394d2f26b17a",
+      "tokenCount": 1,
+      "unchanged": 1,
+      "updated": 0,
+      "versionAfter": 1,
+      "versionBefore": 1
+    },
+    {
+      "admittedCount": 0,
+      "blockedCount": 0,
+      "candidateOnlyCount": 233,
+      "chainId": 4663,
+      "events": 91,
+      "inserted": 71,
+      "library": "extension",
+      "metadataChecksum": "sha256:02318ffc29def7eab91e9a1e927d6a3681cf823202e682c83f66a7471c1b27fd",
+      "network": "robinhood",
+      "pendingReviewCount": 0,
+      "sourceCheckpoint": "sha256:a229572e1ff6509871f9f4393146a6bbbfa2cc770c60ef3e2fb6394d2f26b17a",
+      "tokenCount": 233,
+      "unchanged": 142,
+      "updated": 20,
+      "versionAfter": 2,
+      "versionBefore": 1
+    }
+  ],
+  "migrationReceipt": {
+    "libraries": [
+      {
+        "currentTarget": {
+          "identityMismatchTokenKeyIds": [],
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "missingTokenKeyIds": [],
+          "statusDistribution": {
+            "admitted": 4
+          },
+          "tokenCount": 4,
+          "unexpectedTokenKeyIds": []
+        },
+        "library": "core",
+        "planned": {
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "statusDistribution": {
+            "admitted": 4,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 4
+        },
+        "projectedConsistentWithSource": true,
+        "projectedTarget": {
+          "metadataChecksum": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+          "statusDistribution": {
+            "admitted": 4,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 4
+        }
+      },
+      {
+        "currentTarget": {
+          "identityMismatchTokenKeyIds": [],
+          "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+          "missingTokenKeyIds": [],
+          "statusDistribution": {
+            "admitted": 194
+          },
+          "tokenCount": 194,
+          "unexpectedTokenKeyIds": [
+            "robinhood:4663:0x03bc731ffb162cdd7b98d3c6542bfc291126075d",
+            "robinhood:4663:0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80",
+            "robinhood:4663:0x0594134df3f171a354d9c85ebd65b7a6148f6d09",
+            "robinhood:4663:0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+            "robinhood:4663:0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+            "robinhood:4663:0x072f979c2cac8e1391b0162a87fee094bf8744a0",
+            "robinhood:4663:0x0b5fb4031cae9163db10b169ee72685f0edc8545",
+            "robinhood:4663:0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+            "robinhood:4663:0x0e6e67ba88e7b5d9b67636a215c76779b948de79",
+            "robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9",
+            "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+            "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+            "robinhood:4663:0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993",
+            "robinhood:4663:0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+            "robinhood:4663:0x141eea040c2250eec0314e336975e81f85f6585e",
+            "robinhood:4663:0x156e175dd063a8ce274c50654ef40e0032b3fbcf",
+            "robinhood:4663:0x15cd20759ce7f3285c29a319de2d1a2e098c6f43",
+            "robinhood:4663:0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+            "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+            "robinhood:4663:0x1c690498150252222c275a5ced69d3a6b1f52d5e",
+            "robinhood:4663:0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+            "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+            "robinhood:4663:0x1eebee7f74517e0279dfb09d25b0407beec3fdd6",
+            "robinhood:4663:0x232b8ed6377be97813853b0ac104c4cda8378d1b",
+            "robinhood:4663:0x237c16d66590f67b886d978acd362eaead8b18c7",
+            "robinhood:4663:0x25c288e6d899b9bc30160965ad9644c67e73be0c",
+            "robinhood:4663:0x26dcbfb34fc83cabd6990f449674efdc6097ff85",
+            "robinhood:4663:0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+            "robinhood:4663:0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+            "robinhood:4663:0x282e87451e10fa6679bc7d76c69be44cd3fc777c",
+            "robinhood:4663:0x284358abc07f9359f19f4b5b4ac91901be2597ba",
+            "robinhood:4663:0x285b231728c7e4333799183df1094d775246a535",
+            "robinhood:4663:0x28babd556b60e53663b8615036479a29c2cdd1bf",
+            "robinhood:4663:0x2d427692e928fa156ec22acfabafa0447c5805b7",
+            "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+            "robinhood:4663:0x2f62fc9fabb470c690f141c28340ed832bb27020",
+            "robinhood:4663:0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e",
+            "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+            "robinhood:4663:0x329fcaceb9ad6f9580dd5f643fed0646900d043c",
+            "robinhood:4663:0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd",
+            "robinhood:4663:0x36046893810a7e7fce501229d57dc3fc8c8716d0",
+            "robinhood:4663:0x373c06c4f7bde527d7dae4ba169e42b55e393ced",
+            "robinhood:4663:0x39ec44bee4f6a116c6f9b8de566848a985c53c60",
+            "robinhood:4663:0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2",
+            "robinhood:4663:0x3fb8976980d486084b2eb4a404bd12e72823958f",
+            "robinhood:4663:0x408c14038a04f7bd235329e26d2bf569ee20e250",
+            "robinhood:4663:0x40e7a279850e443f582059ae5dc1c3b6563e6395",
+            "robinhood:4663:0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f",
+            "robinhood:4663:0x4189f0c66ebbb0bfef1c31f763131361ef32f77c",
+            "robinhood:4663:0x41f4267525a8aff329540ef24fd83d9044758b33",
+            "robinhood:4663:0x43b07d15ce533bec5476d70c22a78a1b2b662155",
+            "robinhood:4663:0x44c4f142009036cf477ed2d09932051843137cf1",
+            "robinhood:4663:0x44f6d488021f8233b9416294d1fe9b1fee28382d",
+            "robinhood:4663:0x47f93d52cbec7c6d2cfc080e154002370a60daea",
+            "robinhood:4663:0x48961813349333209994750ffa89b3c5c22ec969",
+            "robinhood:4663:0x48d60243c66437c6ac3c2495be94747aed5dfe25",
+            "robinhood:4663:0x48e39e56acdba37b09020c0b734a613c9a2f100a",
+            "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+            "robinhood:4663:0x4d21483a44bf67a86b77e3da301411880797d452",
+            "robinhood:4663:0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b",
+            "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016",
+            "robinhood:4663:0x4ea005168d7f09a7a0ba9d1def21a479950e44c2",
+            "robinhood:4663:0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e",
+            "robinhood:4663:0x52d50d0280ad1054b43f052bd70a49a212a1b128",
+            "robinhood:4663:0x558378e000d634a36593e338ebacdd6207640efe",
+            "robinhood:4663:0x561e2a49212b7ccf47f2744ccb83e200722fadbc",
+            "robinhood:4663:0x56d23bee5f41a7120170b0c603dae30128e460e9",
+            "robinhood:4663:0x57b0030166db0c31690d1a5aa167e2e26e2c29a4",
+            "robinhood:4663:0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+            "robinhood:4663:0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4",
+            "robinhood:4663:0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+            "robinhood:4663:0x5b97476b922f3305131b8f0b9d333172e87f4aae",
+            "robinhood:4663:0x5c90450bbb4273d7b2f17cf6917aeb237a569679",
+            "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+            "robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+            "robinhood:4663:0x5f604fba1162193a4388a5dfa56f556f3e133cc2",
+            "robinhood:4663:0x6006ed4b2f94110851ff7509d97d034f0eed9226",
+            "robinhood:4663:0x62200915e7deab1ec7f79fb246dadbb80eacddd0",
+            "robinhood:4663:0x62fd0668e10d8b72339be2dcf7643001688ff13b",
+            "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+            "robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+            "robinhood:4663:0x63d5a3b6939a33f1e75d8bcd85759858239600db",
+            "robinhood:4663:0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54",
+            "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+            "robinhood:4663:0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc",
+            "robinhood:4663:0x756bc80af765c82da966a788858d65adf14f3793",
+            "robinhood:4663:0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38",
+            "robinhood:4663:0x77e655e37f4d913fb9540e0d541d824171a60e81",
+            "robinhood:4663:0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6",
+            "robinhood:4663:0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf",
+            "robinhood:4663:0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7",
+            "robinhood:4663:0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc",
+            "robinhood:4663:0x7fd06a4d81ccfa3f351394e144d5191874c31313",
+            "robinhood:4663:0x8005d266423c7ea827372c9c864491e5786600ea",
+            "robinhood:4663:0x822cc93ffd030293e9842c30bbd678f530701867",
+            "robinhood:4663:0x82da4646242e1d962e96e932269dc644c94a9caa",
+            "robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+            "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+            "robinhood:4663:0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+            "robinhood:4663:0x89776d4cd68193597a2fc132cfac1fde36ccea8a",
+            "robinhood:4663:0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774",
+            "robinhood:4663:0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+            "robinhood:4663:0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c",
+            "robinhood:4663:0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef",
+            "robinhood:4663:0x92ef19e82bd8ff36661de838d5eae7e5cef0effe",
+            "robinhood:4663:0x92f9f459f1a9a5ad266b182be7bffd1c6c666894",
+            "robinhood:4663:0x92fd66527192e3e61d4ddd13322aa222de86f9b5",
+            "robinhood:4663:0x93dbb1d2dc5d63f4abacff30485273f538df68ac",
+            "robinhood:4663:0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd",
+            "robinhood:4663:0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9",
+            "robinhood:4663:0x95052ddcd5dc25641657424a8cf04834997e1730",
+            "robinhood:4663:0x9651342cea770ae9a2969ba2a52611523146aef9",
+            "robinhood:4663:0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+            "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+            "robinhood:4663:0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+            "robinhood:4663:0x99d9d8663545151603863c5acbd6fc3218899009",
+            "robinhood:4663:0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd",
+            "robinhood:4663:0x9b23573b156b52565012f5ce02cdf60afbaa70be",
+            "robinhood:4663:0x9d9c6684f596f66a64c030b93a886d51fd4d7931",
+            "robinhood:4663:0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e",
+            "robinhood:4663:0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc",
+            "robinhood:4663:0xa249baf1063af884807c1e1400aef7784836917e",
+            "robinhood:4663:0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+            "robinhood:4663:0xa48f22a46c0f1c46ca7d111cb6c137c271987180",
+            "robinhood:4663:0xa4f319104089fe321dc8093c6e707d4fe190a988",
+            "robinhood:4663:0xa5d4968421ba94814be3b136b15cf422101ac1a3",
+            "robinhood:4663:0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289",
+            "robinhood:4663:0xaa4d64474c172010ab57719cb9951e6142a100d3",
+            "robinhood:4663:0xacef2e09adb47ad6abebad9ff06689e60615c2b6",
+            "robinhood:4663:0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+            "robinhood:4663:0xad622320e520de39e72d41ef07438c3fd3354875",
+            "robinhood:4663:0xae517a2903e68bd929dfd15be875f8369d53e94a",
+            "robinhood:4663:0xaea445c5f3db1a462998ccc422a875a361ee5d99",
+            "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+            "robinhood:4663:0xb039597ed45cba7b6e2fb9e8be51802969cee5be",
+            "robinhood:4663:0xb0992820e760d836549ba69bc7598b4af75dee03",
+            "robinhood:4663:0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d",
+            "robinhood:4663:0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+            "robinhood:4663:0xb1cc0ec7db69cf43539119814df40071b9d61793",
+            "robinhood:4663:0xb334c5ce741b80b5b671f47f5c269cb193fe8e24",
+            "robinhood:4663:0xb853bc83a753342a4f8320ea680b4b1e84118d21",
+            "robinhood:4663:0xb8dbf92f9741c9ac1c32115e78581f23509916fd",
+            "robinhood:4663:0xb90a19ff0af67f7779aff50a882a9cff42446400",
+            "robinhood:4663:0xba0cab75495255d0cb58e22b648bfed4ecd1f47e",
+            "robinhood:4663:0xbbd09f72b025360fee5c928053dca6248d35be54",
+            "robinhood:4663:0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8",
+            "robinhood:4663:0xbe6702d7b70315376dc48a3293f24f0982f86386",
+            "robinhood:4663:0xbef75684c43c4ea7bd18dd532a2244674ee8b926",
+            "robinhood:4663:0xbf449977089c718c004a66c554b26b94ef3ad4de",
+            "robinhood:4663:0xc01aa1fecec0605b13bc84874ff7256c0f5f562a",
+            "robinhood:4663:0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd",
+            "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+            "robinhood:4663:0xc27dbd474af5181c5a8777903690d8d262d12648",
+            "robinhood:4663:0xc583c60aef9dc401da72cec1b404743a93cea1cc",
+            "robinhood:4663:0xc6cbad1016b38b797610c25e1dc7d95988b1f362",
+            "robinhood:4663:0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+            "robinhood:4663:0xc93f4d80e268ab922e871bd169156c3cc41894e6",
+            "robinhood:4663:0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+            "robinhood:4663:0xcbb95bbf36099d34da091dc6fa6f49efa257cee3",
+            "robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+            "robinhood:4663:0xcef9027c7d6985b85f0ba431125073529a947a68",
+            "robinhood:4663:0xcf364ea52787e289de6f32077834056e3e70d6a8",
+            "robinhood:4663:0xcf6b2d875361be807eafa57458c80f28521f9333",
+            "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+            "robinhood:4663:0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+            "robinhood:4663:0xd63abb2c13d7a8421a8017a712802053568e3c1d",
+            "robinhood:4663:0xd917b029c761d264c6a312bbbcda868658ef86a6",
+            "robinhood:4663:0xd95b44124e475743a7589e68f3d74008a5536d44",
+            "robinhood:4663:0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b",
+            "robinhood:4663:0xddf2266b79abf0b48898959b0ed6e6adf512be74",
+            "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+            "robinhood:4663:0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+            "robinhood:4663:0xe93237c50d904957cf27e7b1133b510c669c2e74",
+            "robinhood:4663:0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931",
+            "robinhood:4663:0xeaf2512dfc1beac608f8794b3793cd4e02894aa6",
+            "robinhood:4663:0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d",
+            "robinhood:4663:0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d",
+            "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+            "robinhood:4663:0xf0ab0c93be6f41369d302e55db1a96b3c430212d",
+            "robinhood:4663:0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8",
+            "robinhood:4663:0xf1953dab6fad537488d5a022361ffaa8b4c95ec6",
+            "robinhood:4663:0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+            "robinhood:4663:0xf52597345a8edf418bc4071b4a35112472277d3e",
+            "robinhood:4663:0xf53f66751b1eff985311b693531e3290f600c410",
+            "robinhood:4663:0xf543967eebb6f1917992ef0e68de63ab07a5a0da",
+            "robinhood:4663:0xf6290b5e7c26502e2da514c31509849718ea76a5",
+            "robinhood:4663:0xf6589f11bc40b669e584073f428b05562f568733",
+            "robinhood:4663:0xf7181b63fdb858558a74ba96bc42732684cd7965",
+            "robinhood:4663:0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+            "robinhood:4663:0xfa78c12e6488814a0262e4e802749a4a737d5fb7",
+            "robinhood:4663:0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612",
+            "robinhood:4663:0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda",
+            "robinhood:4663:0xfde6b5d9bb419b10c23268c74e369abff39c0460",
+            "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+          ]
+        },
+        "library": "stocks",
+        "planned": {
+          "metadataChecksum": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "statusDistribution": {
+            "admitted": 0,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 0
+        },
+        "projectedConsistentWithSource": false,
+        "projectedTarget": {
+          "metadataChecksum": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+          "statusDistribution": {
+            "admitted": 194,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 194
+        }
+      },
+      {
+        "currentTarget": {
+          "identityMismatchTokenKeyIds": [],
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "missingTokenKeyIds": [],
+          "statusDistribution": {
+            "admitted": 1
+          },
+          "tokenCount": 1,
+          "unexpectedTokenKeyIds": []
+        },
+        "library": "test",
+        "planned": {
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "statusDistribution": {
+            "admitted": 1,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 1
+        },
+        "projectedConsistentWithSource": true,
+        "projectedTarget": {
+          "metadataChecksum": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b",
+          "statusDistribution": {
+            "admitted": 1,
+            "blocked": 0,
+            "candidate_only": 0,
+            "pending_review": 0
+          },
+          "tokenCount": 1
+        }
+      },
+      {
+        "currentTarget": {
+          "identityMismatchTokenKeyIds": [],
+          "metadataChecksum": "sha256:20425ff1c9a289f3cab07b9f62190051aa836d8775bf37cdbc5b3355e0be1c4f",
+          "missingTokenKeyIds": [
+            "robinhood:4663:0x01725ae97af327922b40afcc6bfa1c75d95e7afd",
+            "robinhood:4663:0x0428e5ee5bd01f8b88cdef12ca29e52680fd2431",
+            "robinhood:4663:0x06c2ed6bfa4260f4322c0c59beacf878176a6b7e",
+            "robinhood:4663:0x098e9f2c512e7723c7ec55eaec8488d7a1e7c63b",
+            "robinhood:4663:0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+            "robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9",
+            "robinhood:4663:0x110e9a4a0753cd6d5bed2c20176db972bba1b5f0",
+            "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+            "robinhood:4663:0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+            "robinhood:4663:0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+            "robinhood:4663:0x1c03ced29e2ca7e063f6fd61e0a8c6aeb1c696a7",
+            "robinhood:4663:0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+            "robinhood:4663:0x212990ca1af09f768b5817129f74a8a579bb1ed0",
+            "robinhood:4663:0x2131f3b5da9adf17cd8123a7b7d3a457a50d5c96",
+            "robinhood:4663:0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+            "robinhood:4663:0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+            "robinhood:4663:0x2c8da977c47cf0bd262d3e38edf5cc65fe0978a4",
+            "robinhood:4663:0x2fc2d122631fbc0681dd27e68fca6dfde2338ea7",
+            "robinhood:4663:0x41f4267525a8aff329540ef24fd83d9044758b33",
+            "robinhood:4663:0x46210bc18919e162743f7f48d7cadd4d416e0345",
+            "robinhood:4663:0x4821f878aafddfb909d66718305ba089f2a3f6f4",
+            "robinhood:4663:0x4a61706f211eabad31cd142610a385e04f848295",
+            "robinhood:4663:0x4cb4b70385af5deb1ad72449159a653cf99d3f24",
+            "robinhood:4663:0x4f1e4b19b28de94156da48532c25e79306afc758",
+            "robinhood:4663:0x50fb76693dc43497837b15373a1622f69bdee03c",
+            "robinhood:4663:0x5656229d171a64c2b378392b3f3538ebc48335f0",
+            "robinhood:4663:0x5737725ec3e8310ef70485896ddb4bd27ed2d3f0",
+            "robinhood:4663:0x588239704d5cb2dbb8db1ccfc57c42df391f45f4",
+            "robinhood:4663:0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+            "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+            "robinhood:4663:0x5ed466082e190cb4adac62136a2fdb1b63a060a3",
+            "robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+            "robinhood:4663:0x61054b6ea37a76a5847e2a1a089c16bcb7fd2dea",
+            "robinhood:4663:0x61062297a984755edbe84ee36601ccf86ebc50b3",
+            "robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+            "robinhood:4663:0x690a9f9596965d49437c4ac4df9a56ed61f5abe8",
+            "robinhood:4663:0x6aa177a902edd49e6b2b01e060e0594aedc5ce21",
+            "robinhood:4663:0x6d1766b9dbca19ff6437cb4fe4763cb24a96e490",
+            "robinhood:4663:0x6df1d7ad52f7702d09b059e34f152d6d2ccbc776",
+            "robinhood:4663:0x746644da151e9b7de5345690440b078a0ca5073f",
+            "robinhood:4663:0x822cc93ffd030293e9842c30bbd678f530701867",
+            "robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+            "robinhood:4663:0x883b387022947209d5bc8ef64664846d7b0a7915",
+            "robinhood:4663:0x886171bd2fa8a77aa2132aeb213cb2090374a733",
+            "robinhood:4663:0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+            "robinhood:4663:0x94641b97010608c3827fb058074889f19868ff33",
+            "robinhood:4663:0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+            "robinhood:4663:0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+            "robinhood:4663:0xa0d872d3e2395079a2aef5c04d5361c2a26a9dd8",
+            "robinhood:4663:0xa249baf1063af884807c1e1400aef7784836917e",
+            "robinhood:4663:0xae517a2903e68bd929dfd15be875f8369d53e94a",
+            "robinhood:4663:0xb53293403d8c98f5a7186a58f9caa34eefb74e63",
+            "robinhood:4663:0xbdd145492de42e1e022b2d7f9b17599c325f2dea",
+            "robinhood:4663:0xc406938756478f9401ef30a2b2337f3e7a8a0b03",
+            "robinhood:4663:0xc52736d7ad88efecdada4759596d305d235dbaa2",
+            "robinhood:4663:0xca9c78dd337a67f6e0077f65f5e9218719d30edf",
+            "robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+            "robinhood:4663:0xcd37c06bfaec7d1db90f0b2112bdd6c8e291f144",
+            "robinhood:4663:0xce9976a1bd5ac404d079822e861871bb5f1fed73",
+            "robinhood:4663:0xd2e00809caf0c07b0c34bf797d08f37ba9d99929",
+            "robinhood:4663:0xd40273c15ad87c6e2bacfceef5b8ea1646712dea",
+            "robinhood:4663:0xd6470223588ba5f6a60776f6c335a47a10f30b19",
+            "robinhood:4663:0xd6d7eeb3c4ab94b6572a73427901aaa2437811c5",
+            "robinhood:4663:0xd95b44124e475743a7589e68f3d74008a5536d44",
+            "robinhood:4663:0xde3ee6a289d4eed5b524eebdaa7fba727cd518e3",
+            "robinhood:4663:0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+            "robinhood:4663:0xe45e1562d342aa45dca7ae00f12637ffde1573f5",
+            "robinhood:4663:0xe6ff513a7491f21ec8c6045163aff805f0377644",
+            "robinhood:4663:0xeab4f8a83dfb03c794b9061347f4501006b72fff",
+            "robinhood:4663:0xedbf91223639800bcd5756815caf908df3b890be",
+            "robinhood:4663:0xfd55b575ba8a9f12e131e676070913e5db5acc2a"
+          ],
+          "statusDistribution": {
+            "candidate_only": 162
+          },
+          "tokenCount": 162,
+          "unexpectedTokenKeyIds": []
+        },
+        "library": "extension",
+        "planned": {
+          "metadataChecksum": "sha256:02318ffc29def7eab91e9a1e927d6a3681cf823202e682c83f66a7471c1b27fd",
+          "statusDistribution": {
+            "admitted": 0,
+            "blocked": 0,
+            "candidate_only": 233,
+            "pending_review": 0
+          },
+          "tokenCount": 233
+        },
+        "projectedConsistentWithSource": true,
+        "projectedTarget": {
+          "metadataChecksum": "sha256:02318ffc29def7eab91e9a1e927d6a3681cf823202e682c83f66a7471c1b27fd",
+          "statusDistribution": {
+            "admitted": 0,
+            "blocked": 0,
+            "candidate_only": 233,
+            "pending_review": 0
+          },
+          "tokenCount": 233
+        }
+      }
+    ],
+    "source": {
+      "chainTokenRows": 6353,
+      "normalizedAcceptedRows": 4816,
+      "normalizedRejectedRows": 1735,
+      "poolCurrencyReferences": 9482,
+      "poolLiquidityEvidenceRows": 4669,
+      "stockRegistryRows": 194
+    },
+    "valid": false
+  },
+  "mode": "dry_run",
+  "network": "robinhood",
+  "normalization": {
+    "accepted": 4816,
+    "rejected": 1735
+  },
+  "quickCheck": "ok",
+  "registry": "flashloan\\src\\chains\\robinhood\\robinhood_stock_tokens.json",
+  "sourceCheckpoint": "sha256:a229572e1ff6509871f9f4393146a6bbbfa2cc770c60ef3e2fb6394d2f26b17a",
+  "sourceDatabase": ".tmp_dbverify\\local_store_4663.sqlite3",
+  "targetDatabase": ".tmp_dbverify\\local_store_4663.sqlite3"
+}

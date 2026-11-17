@@ -1,0 +1,78 @@
+{
+  "mode": "audit",
+  "productionWrite": false,
+  "inputVersions": {
+    "plan": "v9.8",
+    "auditDate": "2026-11-14"
+  },
+  "outputVersions": {
+    "audit": "p0_0_20261114"
+  },
+  "rowCount": 8,
+  "checksum": "sha256:p0-0-audit-contract-v1",
+  "status": "passed",
+  "failureCodes": [],
+  "rollbackPoint": "none-read-only-audit",
+  "rpcRequestCount": 0,
+  "testCommands": [
+    "git grep source audit",
+    "schema source audit"
+  ],
+  "failureSummary": [],
+  "authorities": [
+    "token_manager",
+    "pool_manager",
+    "candidate_edge_pool_manager",
+    "candidate_exchange_pool_manager",
+    "closed_loop_manager",
+    "review_manager",
+    "broadcast_manager",
+    "composite_manager"
+  ],
+  "runtimeCoreCommands": [
+    "refresh_snapshot",
+    "rebuild_candidate_edges",
+    "rebuild_candidate_exchange_pools",
+    "review_parity_compare",
+    "review_shadow_compare",
+    "pool_roles_manage",
+    "pool_measurement_population",
+    "pool_resolve_keys",
+    "review_parity_replay",
+    "clear_broadcasts"
+  ],
+  "runtimeCoreViews": [
+    "overview",
+    "candidate_edge",
+    "candidate_exchange",
+    "closed_loops",
+    "reviews",
+    "review_parity",
+    "broadcasts"
+  ],
+  "sdkDecisions": [
+    {
+      "name": "uniswap-v4-sdk",
+      "decision": "adopt",
+      "scope": "pool_manager exact math and tick traversal",
+      "version": "2.0",
+      "license": "MIT",
+      "resolvedVersion": "2.0.0",
+      "repository": "https://github.com/shuhuiluo/uniswap-v4-sdk-rs",
+      "licenseEvidence": "cargo registry uniswap-v4-sdk-2.0.0/Cargo.toml: license = \"MIT\""
+    },
+    {
+      "name": "Dex-Math-Core-rs",
+      "decision": "do-not-adopt",
+      "reason": "no dependency, reference, parity or license evidence"
+    },
+    {
+      "name": "arena-core",
+      "decision": "offline-only",
+      "reason": "not a version-1 realtime dependency"
+    }
+  ],
+  "productionDatabaseWrites": 0,
+  "authoritySwitches": 0,
+  "broadcasts": 0
+}

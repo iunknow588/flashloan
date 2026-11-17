@@ -1,0 +1,109 @@
+{
+  "schema": "d5_d6_implementation_evidence",
+  "version": "1.0",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "generated_at_local": "2026-11-12T06:10:21.595066",
+  "scope": "D5 (depth payload propagation to candidate table) + D6 (candidate balances carry amounts, not token addresses)",
+  "authority": "controlled-replay",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "isolation": "process",
+    "architecture": "x86_64",
+    "id": "dev-workstation"
+  },
+  "production_writes": 0,
+  "locked_decisions": [
+    "Zero USD dependency for depth/execution decisions",
+    "Capacity criterion = on-chain price-impact capacity, token-denominated, epsilon=10bps",
+    "estimated_tvl_usd = tie-breaker/observation only; never delist token pairs by TVL",
+    "best_amount_ladder_incomplete fail-closed must not be relaxed",
+    "capacityGate.verdict=unknown != failure (blocks only with DEX_V4_CAPACITY_GATE_REQUIRE_MEASURED=1)",
+    "No production writes without explicit authorization",
+    "Do not stop/restart daemon or run.py; no commit; no branch"
+  ],
+  "defects": [
+    {
+      "id": "D5",
+      "severity": "P0",
+      "title": "depth --apply never populates the candidate table",
+      "root_cause": "write_depth_snapshot() only UPDATEs v4_exchange_pool_liquidity_snapshots; dex_candidate_pools is written solely by upsert_eligible_pool_rows(), reached only from refresh_pair()/refresh_key(), never from refresh_depth().",
+      "why_fatal": "The sizing path reads the CANDIDATE table (core/db/builders.py:688 and :823 -> balances: _json_loads(pool.get('balances_json'))), consumed by dex_quote_evidence_size.py:172 _liquidity_cap_raw(). A fully populated snapshot table has no effect.",
+      "pre_fix_measurement": {
+        "snapshot_balances_non_empty": "94/4669",
+        "candidate_balances_non_empty": "0/47",
+        "candidate_pools_with_measured_snapshot": "47/47"
+      },
+      "fix": "New pool_manager/src/lib.rs::propagate_balances_to_candidate_pools() runs inside refresh_depth() when options.apply is set, UPDATEing dex_candidate_pools.balances_json from the snapshot via a correlated subquery. Rows without a measured snapshot are left untouched.",
+      "post_fix_measurement": {
+        "candidateBalancesPropagated": 47,
+        "candidate_balances_non_empty": "47/47"
+      }
+    },
+    {
+      "id": "D6",
+      "severity": "P0",
+      "latent": true,
+      "title": "candidate balances_json carries token addresses instead of amounts",
+      "root_cause": "upsert_eligible_pool_rows wrote \"token0\": pool.token0 / \"token1\": pool.token1, which come from v4_exchange_pools.token0/.token1 and are therefore 0x addresses.",
+      "why_fatal": "The consumer _pool_borrow_side_amount -> _positive_decimal_or_none -> _decimal RAISES ValueError('invalid decimal amount') for a 0x string instead of returning None; rust_closed_loop.py:3509 calls _liquidity_cap_raw() with no try/except, so the review loop would abort on an uncaught exception.",
+      "latent_reason": "The candidate balances_json was still {} before D5, so the exception was never reachable. Fixing propagation alone would have exposed it, so both must ship together.",
+      "fix": "token0/token1 now carry the measured snapshot amounts; the address identity moves to explicit token0Address/token1Address keys; with no measured snapshot the values are Value::Null so the sizing path degrades safely to its None fallback.",
+      "post_fix_measurement": {
+        "candidate_rows_with_0x_prefixed_token0_or_token1": 0
+      }
+    }
+  ],
+  "acceptance_criterion_correction": {
+    "w6_4_original": "_liquidity_cap_raw() returns non-None",
+    "problem": "The original criterion was checked against the SNAPSHOT table, but the sizing path reads the CANDIDATE table.",
+    "corrected": "_liquidity_cap_raw() must return non-None when evaluated against the candidate table (dex_candidate_pools), which is the table the sizing path actually reads.",
+    "revalidated_on_rehearsal_db": true
+  },
+  "end_to_end_validation": {
+    "db": "%TEMP%\\w6_rehearsal5.sqlite3 (copy of the production DB; production itself untouched)",
+    "candidate_rows": 47,
+    "pools_built_by__v4_pool_candidate": 47,
+    "pools_skipped_for_missing_symbol": 0,
+    "built_pools_with_non_empty_balances": 16,
+    "liquidity_cap_raw_non_none_symbols": "12/12",
+    "examples": {
+      "ETH": 57479700579778347008,
+      "CRCL": 17427328119809081344,
+      "META": 67742082464148712,
+      "GLXY": 4022223916297905664,
+      "GOOGL": 28137893675527200768
+    },
+    "cap_reason": "liquidity_cap_pool_reserve_50pct"
+  },
+  "changed_files": [
+    {
+      "path": "flashloan/tools/pool_manager/src/lib.rs",
+      "sha256": "7d1dcb22148d1c0693a7426a1d126d1292a61751e71541bdce57289142e11db0",
+      "change": "D5: propagate_balances_to_candidate_pools() + refresh_depth() wiring; D6: RawEligiblePool.snapshot_balances_json + balances_json amount semantics"
+    }
+  ],
+  "regression": {
+    "cargo_test_pool_manager": "56 passed (4 new: D5 x2, D6 x2)",
+    "pytest_healer": "95 passed",
+    "pytest_capacity_pool_index_d4_quote_evidence_worker_bridge": "186 passed",
+    "cargo_build_release_rs_src": "success",
+    "deployed_binary_matches_source": true,
+    "source_digest": "2b53c9b44b50c5f6d2e97b453d3abfab6c3e59ae8ee43d9412749345c081904d"
+  },
+  "production_unchanged_verification": {
+    "method": "read-only sqlite connection with mode=ro",
+    "snapshot_rows": 4669,
+    "snapshot_balances_non_empty": 0,
+    "candidate_balances_non_empty": 0,
+    "capacity_raw_column_present": false,
+    "cow_execution_attempts": 0,
+    "v4_closed_loops": 88,
+    "matches_d4_baseline_item_by_item": true
+  },
+  "known_gaps": [
+    "market_observation_liquidity_snapshots.balances_json remains {} - that table is written by the observation pipeline and is not a depth --apply propagation target. The current sizing path reads the candidate table and is unaffected. If the sizing path is ever repointed at the observation table, a separate batch is required.",
+    "D6 changes the semantics of balances['token0'] from address to amount. Only the sizing path was found to consume it in this session's audit; any other consumer interpreting that key as an address must be re-audited.",
+    "W6 production rollout still requires explicit authorization; this batch only rehearsed on a copy."
+  ]
+}

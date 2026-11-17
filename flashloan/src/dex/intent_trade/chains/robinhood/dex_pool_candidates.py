@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.chain_data_registry import chain_data_file_path
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
@@ -48,7 +49,7 @@ MAINNET_REPRESENTATIVE_CANDIDATE_LIMIT = 5
 _MAINNET_ETH_ALIASES = {_ZERO_ADDRESS, _WETH_ADDRESS}
 MAINNET_V4_DYNAMIC_FEE_FLAG = 8388608
 MAINNET_V4_SPECIAL_FEE_THRESHOLD = 100_000
-MAINNET_V4_MAX_OBSERVATION_FIXED_FEE = 3000
+MAINNET_V4_MAX_OBSERVATION_FIXED_FEE = MAX_CANDIDATE_FIXED_FEE
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:

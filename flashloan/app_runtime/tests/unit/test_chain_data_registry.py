@@ -215,7 +215,7 @@ def test_chain_data_file_path_resolves_from_chain_owner_file():
     assert v4_path is not None
     assert v4_path.as_posix().endswith("flashloan/src/runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json")
     assert allowlist_path is not None
-    assert allowlist_path.as_posix().endswith("flashloan/src/chains/robinhood-testnet/v4_token_allowlist.json")
+    assert allowlist_path.as_posix().endswith("flashloan/chains/robinhood-testnet/v4_token_allowlist.json")
 
 
 def test_chain_data_audit_enforces_robinhood_testnet_isolation():

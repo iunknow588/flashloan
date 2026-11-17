@@ -60,9 +60,18 @@ def _auto_execute_skip_reason(attempt: dict[str, Any], *, chain_id: int | None) 
         return "missing_token_net_profit"
     if net_profit_amount <= 0:
         return "not_profitable"
-    from dex.runtime.dex_opportunity_helpers import _evidence_review_consistent
+    from dex.runtime.dex_opportunity_helpers import (
+        _evidence_review_consistent,
+        _offchain_gas_skip_reason,
+    )
 
     if not _evidence_review_consistent(evidence):
+        # Surface the concrete off-chain gas refusal before the generic
+        # review-inconsistency reason.  The contract intentionally ignores
+        # gas; this gate exists only on the broadcast side.
+        gas_reason = _offchain_gas_skip_reason(evidence)
+        if gas_reason:
+            return gas_reason
         return "chain_review_inconsistent"
     return None
 

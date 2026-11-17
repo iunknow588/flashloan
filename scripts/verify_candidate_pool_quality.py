@@ -3,7 +3,7 @@
 
 The candidate surface includes the YC, Y-Z and ZC legs, not only the first and
 third recommended pools.  A pool is eligible only when it is a fixed-fee
-``0 < fee <= 3000`` pool with no dynamic/special fee, no hook, valid token
+``0 < fee <= 30000`` pool with no dynamic/special fee, no hook, valid token
 addresses and either confirmed depth or live PoolManager liquidity evidence.
 The pool manager tool owns the candidate surface; this script is the read-only
 verification/reporting companion and never performs another pool scan.
@@ -30,7 +30,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STORE = REPO_ROOT / "flashloan" / "db" / "local_store_4663.sqlite3"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-MAX_CANDIDATE_FIXED_FEE = 3000
+MAX_CANDIDATE_FIXED_FEE = 30000
 CONFIRMED_DEPTH_STATUSES = {"deep", "liquid", "live_liquid", "unpriced"}
 LIVE_STATE_EVIDENCE_SOURCES = {
     "pool_manager_extsload_live_state_batch",

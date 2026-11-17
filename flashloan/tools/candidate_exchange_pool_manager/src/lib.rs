@@ -3239,17 +3239,18 @@ mod tests {
     }
 
     #[test]
-    fn rebuilds_all_candidate_exchange_directions_without_usd_depth_gate() {
+    fn rebuilds_candidate_exchange_directions_with_core_and_stocks_pools_only() {
         let (_directory, database) = database();
         let dry = materialize_candidate_exchanges(&database, NETWORK, CHAIN_ID, false).unwrap();
         assert_eq!(dry.anchor_count, 1);
         assert_eq!(dry.token_count, 4);
         assert_eq!(dry.direction_count, 12);
-        assert_eq!(dry.pool_count, 2);
-        assert_eq!(dry.abnormal_pool_count, 3);
-        assert_eq!(dry.abnormal_direction_count, 6);
-        assert_eq!(dry.empty_direction_count, 8);
-        assert_eq!(dry.library_versions["extension"], 4);
+        assert_eq!(dry.pool_count, 1);
+        assert_eq!(dry.abnormal_pool_count, 0);
+        assert_eq!(dry.abnormal_direction_count, 0);
+        assert_eq!(dry.empty_direction_count, 10);
+        assert_eq!(dry.library_versions["stocks"], 2);
+        assert!(!dry.library_versions.contains_key("extension"));
         assert!(dry.consumers_need_rebuild);
 
         let connection = Connection::open(&database).unwrap();
@@ -3265,7 +3266,7 @@ mod tests {
 
         let applied = materialize_candidate_exchanges(&database, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(applied.materialized_checksum, dry.materialized_checksum);
-        assert_eq!(applied.changed_rows, 28);
+        assert_eq!(applied.changed_rows, 14);
         let repeated = materialize_candidate_exchanges(&database, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(repeated.changed_rows, 0);
         assert!(!repeated.consumers_need_rebuild);
@@ -3298,10 +3299,10 @@ mod tests {
             .iter()
             .any(|row| row.token_symbol == "TB" && row.token_address == EXT_B));
         assert_eq!(snapshot.yz_pairs.len(), 12);
-        assert_eq!(snapshot.pools.len(), 2);
-        assert_eq!(snapshot.abnormal_yz_pairs.len(), 6);
-        assert_eq!(snapshot.abnormal_pools.len(), 3);
-        assert_eq!(snapshot.liquidity_snapshots.len(), 5);
+        assert_eq!(snapshot.pools.len(), 1);
+        assert!(snapshot.abnormal_yz_pairs.is_empty());
+        assert!(snapshot.abnormal_pools.is_empty());
+        assert_eq!(snapshot.liquidity_snapshots.len(), 1);
         let non_core_yz = snapshot
             .yz_pairs
             .iter()
@@ -3310,8 +3311,8 @@ mod tests {
                     && row.token_y_key_id == token_key_id(EXT_A)
             })
             .unwrap();
-        assert!(non_core_yz.has_direct_swap_pool);
-        assert_eq!(non_core_yz.direct_swap_pool_count, 1);
+        assert!(!non_core_yz.has_direct_swap_pool);
+        assert_eq!(non_core_yz.direct_swap_pool_count, 0);
 
         let connection = Connection::open(database).unwrap();
         let marker: String = connection
@@ -3424,11 +3425,16 @@ mod tests {
         assert_eq!(before, after);
         assert!(comparison.enabled);
         assert_eq!(comparison.yz_pairs.field_mismatch_count, 0);
-        assert_eq!(comparison.pools.manager_only_count, 1);
-        assert_eq!(comparison.cause_counts["legacyUsdDepthGateRemoved"], 1);
+        assert_eq!(comparison.pools.manager_only_count, 0);
+        assert_eq!(
+            comparison
+                .cause_counts
+                .get("legacyUsdDepthGateRemoved")
+                .copied()
+                .unwrap_or_default(),
+            0
+        );
         assert!(comparison.ready_for_cutover);
-        assert_eq!(comparison.differences.len(), 1);
-        assert_eq!(comparison.differences[0].category, "pools");
-        assert_eq!(comparison.differences[0].cause, "legacyUsdDepthGateRemoved");
+        assert!(comparison.differences.is_empty());
     }
 }

@@ -1,0 +1,550 @@
+{
+  "mode": "repair",
+  "generatedAt": "2026-11-11T01:42:33Z",
+  "apply": false,
+  "dryRun": true,
+  "before": {
+    "mode": "check",
+    "generatedAt": "2026-11-11T01:42:29Z",
+    "network": "robinhood",
+    "chainId": 4663,
+    "database": "flashloan\\db\\local_store_4663.sqlite3",
+    "observationStartedAt": "2026-11-10T19:57:50Z",
+    "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+    "successCriteria": {
+      "continuousFreshReviews": true,
+      "broadcastOnlyFromFreshProfitableReview": true,
+      "terminalTransactionRecords": true,
+      "expectedAndGasAdjustedPnlAvailable": true
+    },
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "source": {
+          "total": 6353,
+          "missing_decimals": 1735,
+          "missing_symbol": 0
+        },
+        "libraries": {
+          "core": {
+            "total": 4,
+            "admitted": 4,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          },
+          "stocks": {
+            "total": 194,
+            "admitted": 194,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          },
+          "test": {
+            "total": 1,
+            "admitted": 1,
+            "missing_decimals": 0,
+            "missing_symbol": 0
+          }
+        },
+        "admittedTotal": 199,
+        "libraryMissingFields": 0,
+        "officialFundingAddresses": {
+          "ETH": "0x0000000000000000000000000000000000000000",
+          "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "TZ": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+        },
+        "fundingAddressMismatches": [],
+        "counterfeitFundingAdmissions": [],
+        "stockProvenanceInvalid": []
+      },
+      "pools": {
+        "valid": false,
+        "scope": {
+          "enabled": 1,
+          "materialized_checksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+          "last_rebuilt_at": "2026-11-09T14:24:05.582330500+00:00"
+        },
+        "candidate": {
+          "eligible_pool_count": 114,
+          "candidate_token_count": 24,
+          "abnormal_pool_count": 2196,
+          "materialized_checksum": "sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687",
+          "generated_at": "2026-11-09T15:41:33.069185800+00:00"
+        },
+        "observation": {
+          "pool_count": 130,
+          "direction_count": 634,
+          "empty_direction_count": 528,
+          "abnormal_pool_count": 2002,
+          "materialized_checksum": "sha256:94c9b481ca928025ca0f40d28b51dc685347a24bf5e51c1bab4f953f370ba68d",
+          "generated_at": "2026-11-09T14:53:14.581619900+00:00"
+        },
+        "exchange": {
+          "total": 4741,
+          "missing_currencies": 0,
+          "filtered_fee": 2177
+        },
+        "depth": {
+          "valid": false,
+          "code": "pool_depth_insufficient",
+          "minTvlUsd": 100000.0,
+          "candidatePoolCount": 227,
+          "adequateDepthPoolCount": 31,
+          "insufficientDepthPoolCount": 196,
+          "thinPoolCount": 132,
+          "unpricedPoolCount": 64,
+          "reason": "candidate pools below the minimum depth band can only produce dust-sized best trade amounts whose profit never covers gas",
+          "byDepthStatus": [
+            {
+              "depthStatus": "deep",
+              "poolCount": 12,
+              "minTvlUsd": 1850470.5873978185,
+              "maxTvlUsd": 719342039.814781,
+              "avgTvlUsd": 123972380.80406372
+            },
+            {
+              "depthStatus": "liquid",
+              "poolCount": 19,
+              "minTvlUsd": 102428.29539217969,
+              "maxTvlUsd": 897589.286346843,
+              "avgTvlUsd": 350750.68530922075
+            },
+            {
+              "depthStatus": "thin",
+              "poolCount": 132,
+              "minTvlUsd": 0.119194674717275,
+              "maxTvlUsd": 39943.09574751593,
+              "avgTvlUsd": 7954.638783457329
+            },
+            {
+              "depthStatus": "unpriced",
+              "poolCount": 64,
+              "minTvlUsd": null,
+              "maxTvlUsd": null,
+              "avgTvlUsd": null
+            }
+          ]
+        },
+        "bestAmount": {
+          "code": "best_amount_too_small",
+          "valid": false,
+          "confirmedCount": 25,
+          "belowGasCount": 6,
+          "gasEstimateEth": 6.2e-06,
+          "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+          "bySymbol": {
+            "ETH": {
+              "count": 5,
+              "min": 4.76837158203e-07,
+              "median": 9.53674316406e-07,
+              "max": 0.00048828125
+            },
+            "USDE": {
+              "count": 7,
+              "min": 0.0009765625,
+              "median": 0.001953125,
+              "max": 0.001953125
+            },
+            "USDG": {
+              "count": 12,
+              "min": 3e-05,
+              "median": 0.007812,
+              "max": 0.125
+            },
+            "WETH": {
+              "count": 1,
+              "min": 0.0001220703125,
+              "median": 0.0001220703125,
+              "max": 0.0001220703125
+            }
+          },
+          "belowGasSamples": [
+            {
+              "reviewId": 63633,
+              "symbol": "WETH",
+              "bestAmount": 0.0001220703125,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -6.199950298022e-06
+            },
+            {
+              "reviewId": 63215,
+              "symbol": "ETH",
+              "bestAmount": 9.53674316406e-07,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -6.197153946634e-06
+            },
+            {
+              "reviewId": 63195,
+              "symbol": "ETH",
+              "bestAmount": 9.53674316406e-07,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -6.1964054756739995e-06
+            },
+            {
+              "reviewId": 62891,
+              "symbol": "ETH",
+              "bestAmount": 4.76837158203e-07,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -6.199693877394e-06
+            },
+            {
+              "reviewId": 62890,
+              "symbol": "ETH",
+              "bestAmount": 0.00048828125,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -5.918328825182e-06
+            },
+            {
+              "reviewId": 62719,
+              "symbol": "ETH",
+              "bestAmount": 6.103515625e-05,
+              "reason": "expected_loss_after_gas_before_broadcast",
+              "gasEstimateEth": 6.2e-06,
+              "netAfterGas": -6.199084669204e-06
+            }
+          ]
+        }
+      },
+      "closedLoops": {
+        "valid": true,
+        "library": {
+          "loop_count": 106,
+          "hop_count": 318,
+          "consumers_need_rebuild": 0,
+          "materialized_checksum": "sha256:dae667ab912d00e26286e75264aea4499f741867deaafa5588f224f6d744d34f",
+          "generated_at": "2026-11-09T15:00:28.621587600+00:00"
+        },
+        "runtime": [
+          {
+            "state": "execution_not_requested",
+            "count": 58
+          },
+          {
+            "state": "offchain_pending",
+            "count": 10
+          },
+          {
+            "state": "offchain_estimate",
+            "count": 10
+          },
+          {
+            "state": "preflight_failed",
+            "count": 6
+          },
+          {
+            "state": "execution_failed",
+            "count": 4
+          }
+        ]
+      },
+      "reviews": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "reviews": 0
+        },
+        "legacy": {
+          "windowHours": 24,
+          "stats": {
+            "total": 1356,
+            "withValue": 1286,
+            "missingValue": 70,
+            "positive": 0,
+            "positiveAmount": 101,
+            "nonPositive": 1286,
+            "sum": -167.7598806758911,
+            "minimum": -0.999984627621383,
+            "maximum": 0.1990836190672352,
+            "byCurrency": {
+              "SPY": -88.43037465530372,
+              "TZ": -1.5205807041472048,
+              "ETH": -2.777453892658926,
+              "WETH": -66.86875899513664,
+              "USDG": -4.889376450347817,
+              "USDE": -3.273335978296602
+            }
+          },
+          "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+          "currentLoopMatched": 546,
+          "staleOrUnmatched": 810,
+          "currentDistinctLoops": 58,
+          "matchedMissingPnl": 70,
+          "unmatchedMissingPnl": 0,
+          "bestAmountMissing": 1331,
+          "bestAmountMissingCurrentLoop": 521,
+          "bestAmountConfirmed": 25
+        },
+        "bestAmount": {
+          "code": "best_amount_missing",
+          "missing": 1331,
+          "missingCurrentLoop": 521,
+          "total": 1356,
+          "confirmed": 25,
+          "retryable": false,
+          "failClosed": true,
+          "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+          "reasons": [
+            {
+              "reason": "route_unprofitable: best amount unresolved",
+              "count": 1261
+            },
+            {
+              "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+              "count": 70
+            }
+          ],
+          "samples": [
+            {
+              "reviewId": 63971,
+              "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+              "currentLoop": true,
+              "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+              "status": "review_failed",
+              "reviewFailureKind": "quote_unavailable",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "USDG"
+            },
+            {
+              "reviewId": 63967,
+              "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "SPY"
+            },
+            {
+              "reviewId": 63968,
+              "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "TZ"
+            },
+            {
+              "reviewId": 63963,
+              "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "SPY"
+            },
+            {
+              "reviewId": 63957,
+              "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+              "currentLoop": true,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "ETH"
+            },
+            {
+              "reviewId": 63969,
+              "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "TZ"
+            },
+            {
+              "reviewId": 63974,
+              "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+              "currentLoop": true,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "WETH"
+            },
+            {
+              "reviewId": 63959,
+              "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "SPY"
+            },
+            {
+              "reviewId": 63976,
+              "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+              "currentLoop": true,
+              "reason": "quote_unavailable: previewBestPool unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282a1 | previewBestPoolDetailed unavailable | execution reverted | revertData=0x5f9d614200000000000000000000000000000000000000000000000000000000026282",
+              "status": "review_failed",
+              "reviewFailureKind": "quote_unavailable",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "WETH"
+            },
+            {
+              "reviewId": 63960,
+              "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+              "currentLoop": false,
+              "reason": "route_unprofitable: best amount unresolved",
+              "status": "route_unprofitable",
+              "reviewFailureKind": "",
+              "initialProbeAmount": 1.0,
+              "requestedSymbol": "SPY"
+            }
+          ]
+        },
+        "missingReasons": [
+          {
+            "reason": "native result has no concrete borrow-token P&L; a zero value would indicate a code/data resolution failure and is never accepted as a conclusion; preview unavailable: previewBestPool unavailable | exe",
+            "count": 70
+          }
+        ],
+        "missingClassifications": [
+          {
+            "code": "other",
+            "retryable": false,
+            "currentLoop": true,
+            "count": 70,
+            "sampleReviewIds": [
+              63971,
+              63976,
+              63954,
+              63935,
+              63903
+            ]
+          }
+        ]
+      },
+      "broadcast": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "attempts": 0
+        },
+        "legacy": {
+          "total": 0,
+          "categories": {},
+          "latestAttemptAt": null,
+          "recent": []
+        },
+        "profitAnalysis": {
+          "expectedByCurrency": {},
+          "gasCostEthTotal": 0.0,
+          "gasCostObservedAttempts": 0,
+          "expectedEthOrWethNetAfterGas": 0.0,
+          "expectedEthOrWethNetObservedAttempts": 0,
+          "realizedByCurrency": {},
+          "realizedNetAfterGasByCurrency": {},
+          "realizedPnlObservedAttempts": 0,
+          "realizedPnlMissingAttempts": 0,
+          "realizedPnlMissingReasons": {},
+          "realizedPnlAvailable": false,
+          "source": "contract_preview_plus_confirmed_receipt_gas"
+        },
+        "outcomes": {
+          "success": 0,
+          "failed": 0,
+          "pending": 0,
+          "other": 0
+        },
+        "historicalPositiveReviewsInWindow": 0,
+        "automaticBroadcastCandidates": 0,
+        "automaticBroadcastPolicy": "fresh_positive_review_only"
+      }
+    },
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "transactionProduction": {
+      "state": "upstream_invalid",
+      "healthy": false,
+      "reason": "token_pool_or_closed_loop_invalid",
+      "latestReviewAt": "2026-11-11T00:55:46.681305100+00:00",
+      "reviewAgeSeconds": 2802.318695,
+      "reviewFreshnessThresholdSeconds": 600,
+      "executablePositiveReviews": 0,
+      "transactionRecords": 0,
+      "latestAttemptAt": null,
+      "bestAmountMissing": 1331
+    },
+    "safeToAutoBroadcast": false
+  },
+  "results": [
+    {
+      "layer": "pools",
+      "tool": "pool-manager",
+      "action": "repair-pool-depth",
+      "apply": false,
+      "dryRun": true,
+      "steps": [
+        {
+          "step": "audit",
+          "result": {
+            "ok": true,
+            "returncode": 0,
+            "stdout": "f53e56df8f1a63757e606b362994b68a2361\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa8e30c826d073a69ae75abfe124434a70dc06c201b51527ceb07606da7f9714b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8.76359642314178,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xa8e30c826d073a69ae75abfe124434a70dc06c201b51527ceb07606da7f9714b\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xbc732a1a0baabce2574ec2bca24fccad8e2c38a061a37cefc17a2fd12809394f\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xbc732a1a0baabce2574ec2bca24fccad8e2c38a061a37cefc17a2fd12809394f\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd1aeea40e4def63338b6ae30e541f9207329585d58ccd57b9e4228f82b872388\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":2255.6489812181235,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xd1aeea40e4def63338b6ae30e541f9207329585d58ccd57b9e4228f82b872388\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd3103ec8abfbacaf05c8f7fd516bf7f982dfa868751ddc297e5a4293f277910e\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":5628.93914538931,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xd3103ec8abfbacaf05c8f7fd516bf7f982dfa868751ddc297e5a4293f277910e\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd313d79d9d6a714e7bdf02fc42a2c27ede7e51928ffd605126fe9e1192630cf8\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":13162.09927776582,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xd313d79d9d6a714e7bdf02fc42a2c27ede7e51928ffd605126fe9e1192630cf8\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":250,\"hasLiquidity\":true,\"poolId\":\"0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe77cc864a0284f3dc420e504dd565e5d6f965cc86f5b4fa145b00b9ccabc3cd7\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xe77cc864a0284f3dc420e504dd565e5d6f965cc86f5b4fa145b00b9ccabc3cd7\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe96ca5e76935cbbe102a169221022fb85e2697a3fef89639ba4298b8962ba35a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":1810.3141631415544,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":1000,\"hasLiquidity\":true,\"poolId\":\"0xe96ca5e76935cbbe102a169221022fb85e2697a3fef89639ba4298b8962ba35a\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":350,\"hasLiquidity\":true,\"poolId\":\"0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":39943.09574751593,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":1800,\"hasLiquidity\":true,\"poolId\":\"0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xefcec38281d4cccaf9c9d7da02aff071d3b94d54fa50bb14b8e6b8e74529a16b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8733.398400758526,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":83,\"hasLiquidity\":true,\"poolId\":\"0xefcec38281d4cccaf9c9d7da02aff071d3b94d54fa50bb14b8e6b8e74529a16b\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xf46834e792c7368b27bbdbafa99f2ef95946ddae0708d83d77769d8ec6164dcf\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xf46834e792c7368b27bbdbafa99f2ef95946ddae0708d83d77769d8ec6164dcf\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xfa1a9d85b8916b037b53bf166a6c92af13f2bdedd42f342fe20dc46721db3f3a\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":300,\"hasLiquidity\":true,\"poolId\":\"0xfa1a9d85b8916b037b53bf166a6c92af13f2bdedd42f342fe20dc46721db3f3a\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xfcfae8fa0bd6da961bcf5d990f27690932deac4f093e99bf3e871691c6586593\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xfcfae8fa0bd6da961bcf5d990f27690932deac4f093e99bf3e871691c6586593\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true}}}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "step": "cleanup",
+          "ineligiblePoolCount": 0,
+          "affectedClosedLoopCount": null,
+          "result": {
+            "ok": true,
+            "returncode": 0,
+            "stdout": "f53e56df8f1a63757e606b362994b68a2361\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa8e30c826d073a69ae75abfe124434a70dc06c201b51527ceb07606da7f9714b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8.76359642314178,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xa8e30c826d073a69ae75abfe124434a70dc06c201b51527ceb07606da7f9714b\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xbc732a1a0baabce2574ec2bca24fccad8e2c38a061a37cefc17a2fd12809394f\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xbc732a1a0baabce2574ec2bca24fccad8e2c38a061a37cefc17a2fd12809394f\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd1aeea40e4def63338b6ae30e541f9207329585d58ccd57b9e4228f82b872388\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":2255.6489812181235,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xd1aeea40e4def63338b6ae30e541f9207329585d58ccd57b9e4228f82b872388\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd3103ec8abfbacaf05c8f7fd516bf7f982dfa868751ddc297e5a4293f277910e\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":5628.93914538931,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xd3103ec8abfbacaf05c8f7fd516bf7f982dfa868751ddc297e5a4293f277910e\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xd313d79d9d6a714e7bdf02fc42a2c27ede7e51928ffd605126fe9e1192630cf8\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":13162.09927776582,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xd313d79d9d6a714e7bdf02fc42a2c27ede7e51928ffd605126fe9e1192630cf8\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":250,\"hasLiquidity\":true,\"poolId\":\"0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe77cc864a0284f3dc420e504dd565e5d6f965cc86f5b4fa145b00b9ccabc3cd7\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xe77cc864a0284f3dc420e504dd565e5d6f965cc86f5b4fa145b00b9ccabc3cd7\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe96ca5e76935cbbe102a169221022fb85e2697a3fef89639ba4298b8962ba35a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":1810.3141631415544,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":1000,\"hasLiquidity\":true,\"poolId\":\"0xe96ca5e76935cbbe102a169221022fb85e2697a3fef89639ba4298b8962ba35a\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":350,\"hasLiquidity\":true,\"poolId\":\"0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":39943.09574751593,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":1800,\"hasLiquidity\":true,\"poolId\":\"0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xefcec38281d4cccaf9c9d7da02aff071d3b94d54fa50bb14b8e6b8e74529a16b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8733.398400758526,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":83,\"hasLiquidity\":true,\"poolId\":\"0xefcec38281d4cccaf9c9d7da02aff071d3b94d54fa50bb14b8e6b8e74529a16b\",\"reasons\":[\"depth_thin\",\"tvl_below_min_candidate_depth\"],\"specialFee\":false,\"usableForObservation\":true},\"0xf46834e792c7368b27bbdbafa99f2ef95946ddae0708d83d77769d8ec6164dcf\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xf46834e792c7368b27bbdbafa99f2ef95946ddae0708d83d77769d8ec6164dcf\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xfa1a9d85b8916b037b53bf166a6c92af13f2bdedd42f342fe20dc46721db3f3a\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":300,\"hasLiquidity\":true,\"poolId\":\"0xfa1a9d85b8916b037b53bf166a6c92af13f2bdedd42f342fe20dc46721db3f3a\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true},\"0xfcfae8fa0bd6da961bcf5d990f27690932deac4f093e99bf3e871691c6586593\":{\"depthRank\":null,\"depthStatus\":\"unpriced\",\"dynamicFee\":false,\"estimatedTvlUsd\":null,\"evidenceSource\":\"pool_manager_extsload_live_state_batch_rust\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xfcfae8fa0bd6da961bcf5d990f27690932deac4f093e99bf3e871691c6586593\",\"reasons\":[\"depth_unpriced\"],\"specialFee\":false,\"usableForObservation\":true}}}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "step": "refresh-key",
+          "keyCount": 0,
+          "results": []
+        }
+      ],
+      "policy": "candidate pools must keep enough on-chain depth to support a best trade amount whose profit covers gas"
+    },
+    {
+      "layer": "pools",
+      "tool": "pool-manager",
+      "result": {
+        "ok": true,
+        "returncode": 0,
+        "stdout": "{\"activePoolCount\":93,\"apply\":false,\"chainId\":4663,\"changedRows\":0,\"consumersNeedRebuild\":false,\"deletedRows\":0,\"dryRun\":true,\"eligiblePoolCount\":2022,\"filterMode\":\"edge_any\",\"insertedRows\":0,\"isolatedPoolCount\":1929,\"libraryChecksums\":{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\"},\"libraryKeys\":[\"core\"],\"libraryVersions\":{\"core\":1},\"materializedChecksum\":\"sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926\",\"network\":\"robinhood\",\"poolTable\":\"v4_exchange_pools_core4\",\"scopeKey\":\"core4\",\"skipReasonCounts\":{\"no_core_anchor\":51,\"token_not_admitted\":2668},\"skippedPoolCount\":2719,\"sourcePoolCount\":4741,\"statusCounts\":{\"active\":93,\"blocked\":897,\"invalid\":1032},\"updatedRows\":0}\n",
+        "stderr": ""
+      }
+    },
+    {
+      "layer": "reviews",
+      "tool": "review-manager-api",
+      "mapped": 28,
+      "staleOrUnmatchedSkipped": 293,
+      "duplicateLoopReviewsCollapsed": 179,
+      "missingPnl": 4,
+      "result": {
+        "ok": true,
+        "status": 200,
+        "body": "{\"ok\":true,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-11T01:42:33.112103600+00:00\",\"chainId\":4663,\"requestId\":\"healer-d5b3d8ef327644f0900801006b5f30b6\",\"data\":{\"network\":\"robinhood\",\"chainId\":4663,\"protocol\":\"uniswap_v4\",\"scopeKey\":\"core4\",\"apply\":false,\"dryRun\":true,\"closedLoopVersion\":1,\"closedLoopChecksum\":\"sha256:dae667ab912d00e26286e75264aea4499f741867deaafa5588f224f6d744d34f\",\"candidateEdgeVersion\":1,\"candidateEdgeChecksum\":\"sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687\",\"observationVersion\":1,\"observationChecksum\":\"sha256:94c9b481ca928025ca0f40d28b51dc685347a24bf5e51c1bab4f953f370ba68d\",\"poolScopeChecksum\":\"sha256:8ceb9e0209b2f94b0208dbf35aa3b406fbdfaae4b0a50a0218a1c9f14e0bdfc1\",\"libraryVersions\":{\"core\":1,\"extension\":1,\"stocks\":1,\"test\":1},\"libraryChecksums\":{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"extension\":\"sha256:20425ff1c9a289f3cab07b9f62190051aa836d8775bf37cdbc5b3355e0be1c4f\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\",\"test\":\"sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b\"},\"loopCount\":106,\"reviewedCount\":28,\"completedCount\":0,\"dataIncompleteCount\":82,\"notExecutableCount\":24,\"failedCount\":0,\"broadcastRequestCount\":0,\"changedRows\":216,\"reviewVersion\":1,\"materializedChecksum\":\"sha256:1b0d852b532d7df2446e4fe0422fa0ef1270637ceb8c3c21d7a96df84f72a14b\",\"consumersNeedRebuild\":true,\"idempotentReplay\":false},\"error\":null}"
+      }
+    },
+    {
+      "layer": "broadcast",
+      "tool": "broadcast-manager-api",
+      "skipped": true,
+      "reason": "不伪造 signer/nonce/rpc；仅审计真实 attempt，广播修复由运行时完整请求驱动。"
+    }
+  ],
+  "after": null
+}

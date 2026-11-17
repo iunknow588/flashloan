@@ -10,6 +10,27 @@ from core.db.storage_business_io import execute, query
 from core.db.storage_dex_surface_snapshot import clear_dex_surface_snapshots
 
 
+_IS_NEWER_SNAPSHOT_SQL = """
+(
+  (
+    excluded.liquidity_block_number IS NOT NULL
+    AND (
+      v4_exchange_pool_liquidity_snapshots.liquidity_block_number IS NULL
+      OR excluded.liquidity_block_number >= v4_exchange_pool_liquidity_snapshots.liquidity_block_number
+    )
+  )
+  OR
+  (
+    excluded.liquidity_block_number IS NULL
+    AND v4_exchange_pool_liquidity_snapshots.liquidity_block_number IS NULL
+    AND excluded.observed_at IS NOT NULL
+    AND v4_exchange_pool_liquidity_snapshots.observed_at IS NOT NULL
+    AND excluded.observed_at >= v4_exchange_pool_liquidity_snapshots.observed_at
+  )
+)
+"""
+
+
 def _stamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -35,6 +56,14 @@ def _text(value: Any) -> str:
     return str(value or "").strip().lower()
 
 
+def _first_present(*values: Any) -> Any:
+    """Return the first value that is not None/empty while preserving 0/bool."""
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _int_none(value: Any) -> int | None:
     if value is None or value == "":
         return None
@@ -58,8 +87,48 @@ def _has_liquidity_tri(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, str):
-        return 1 if value.strip().lower() in {"1", "true", "yes"} else 0
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes"}:
+            return 1
+        if normalized in {"0", "false", "no"}:
+            return 0
+        return None
     return 1 if bool(value) else 0
+
+
+def _normalized_liquidity_fields(
+    *,
+    has_liquidity: int | None,
+    liquidity: Any,
+    liquidity_index: float | None,
+    estimated_tvl_usd: float | None,
+    depth_status: Any,
+) -> tuple[int | None, float | None, Any]:
+    """Keep positive raw liquidity authoritative over derived display fields.
+
+    The V4 PoolManager liquidity word is the primary on-chain evidence.  Older
+    import paths occasionally wrote a positive raw word together with a zero
+    derived index or a stale ``no_liquidity`` label.  Normalize those
+    contradictions at the storage boundary so every downstream candidate and
+    token-manager gate sees the same fact.
+    """
+    raw_liquidity = _float_none(liquidity)
+    if has_liquidity != 1 or raw_liquidity is None or raw_liquidity <= 0:
+        return has_liquidity, liquidity_index, depth_status
+    normalized_index = liquidity_index
+    if normalized_index is None or normalized_index <= 0:
+        normalized_index = raw_liquidity / 1e18
+    normalized_status = str(depth_status or "").strip()
+    if normalized_status.lower() in {
+        "",
+        "no_liquidity",
+        "empty",
+        "liquidity_read_failed",
+        "liquidity_math_failed",
+        "live_liquidity_unavailable",
+    }:
+        normalized_status = "unpriced" if not estimated_tvl_usd or estimated_tvl_usd <= 0 else "liquid"
+    return has_liquidity, normalized_index, normalized_status
 
 
 def clear_v4_exchange_evidence(
@@ -292,10 +361,16 @@ def upsert_v4_exchange_pools(
         token1 = _text(pool.get("token1") or pool.get("currency1"))
         if not pool_id or not token0 or not token1:
             continue
-        fee = _int_none(pool.get("fee"))
+        fee = _int_none(_first_present(pool.get("fee")))
         dynamic_fee = _bool(fee is not None and fee & 8388608)
         special_fee = _bool(fee is None or fee == 0 or dynamic_fee or (fee or 0) > 100_000)
         fee_label = "dynamic" if dynamic_fee else ("special" if special_fee else fee)
+        pool_key = _first_present(pool.get("pool_key"), pool.get("poolKey"))
+        pool_manager = _text(pool.get("pool_manager") or pool.get("poolManager"))
+        tick_spacing = _int_none(
+            _first_present(pool.get("tick_spacing"), pool.get("tickSpacing"))
+        )
+        hooks = _text(pool.get("hooks"))
         rows.append(
             (
                 network,
@@ -303,16 +378,16 @@ def upsert_v4_exchange_pools(
                 protocol,
                 pool_id,
                 pool.get("pool_identity_mode") or "v4_pool_id",
-                _text(pool.get("pool_manager")),
-                _json_dumps(pool.get("pool_key") or pool.get("poolKey") or {}),
+                pool_manager or None,
+                _json_dumps(pool_key) if pool_key is not None else None,
                 token0,
                 token1,
                 fee,
                 fee_label,
                 dynamic_fee,
                 special_fee,
-                _int_none(pool.get("tick_spacing") or pool.get("tickSpacing")),
-                _text(pool.get("hooks")),
+                tick_spacing,
+                hooks or None,
                 f"{token0}:{token1}",
                 now,
                 now,
@@ -330,19 +405,83 @@ def upsert_v4_exchange_pools(
             created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
-            pool_identity_mode = excluded.pool_identity_mode,
-            pool_manager = excluded.pool_manager,
-            pool_key_json = excluded.pool_key_json,
-            token0 = excluded.token0,
-            token1 = excluded.token1,
-            fee = excluded.fee,
-            fee_label = excluded.fee_label,
-            dynamic_fee = excluded.dynamic_fee,
-            special_fee = excluded.special_fee,
-            tick_spacing = excluded.tick_spacing,
-            hooks = excluded.hooks,
-            address_pair = excluded.address_pair,
-            updated_at = excluded.updated_at
+            pool_identity_mode = CASE
+                WHEN excluded.pool_identity_mode IS NULL
+                     OR excluded.pool_identity_mode = ''
+                THEN v4_exchange_pools.pool_identity_mode
+                ELSE excluded.pool_identity_mode
+            END,
+            pool_manager = CASE
+                WHEN excluded.pool_manager IS NULL OR excluded.pool_manager = ''
+                THEN v4_exchange_pools.pool_manager
+                ELSE excluded.pool_manager
+            END,
+            pool_key_json = CASE
+                WHEN excluded.pool_key_json IS NULL
+                     OR excluded.pool_key_json = ''
+                     OR excluded.pool_key_json = 'null'
+                     OR excluded.pool_key_json = '{}'
+                THEN v4_exchange_pools.pool_key_json
+                ELSE excluded.pool_key_json
+            END,
+            token0 = CASE
+                WHEN excluded.token0 IS NULL OR excluded.token0 = ''
+                THEN v4_exchange_pools.token0
+                ELSE excluded.token0
+            END,
+            token1 = CASE
+                WHEN excluded.token1 IS NULL OR excluded.token1 = ''
+                THEN v4_exchange_pools.token1
+                ELSE excluded.token1
+            END,
+            fee = CASE
+                WHEN excluded.fee IS NULL
+                THEN v4_exchange_pools.fee
+                ELSE excluded.fee
+            END,
+            fee_label = CASE
+                WHEN excluded.fee IS NULL
+                THEN v4_exchange_pools.fee_label
+                ELSE excluded.fee_label
+            END,
+            dynamic_fee = CASE
+                WHEN excluded.fee IS NULL
+                THEN v4_exchange_pools.dynamic_fee
+                ELSE excluded.dynamic_fee
+            END,
+            special_fee = CASE
+                WHEN excluded.fee IS NULL
+                THEN v4_exchange_pools.special_fee
+                ELSE excluded.special_fee
+            END,
+            tick_spacing = CASE
+                WHEN excluded.tick_spacing IS NULL
+                THEN v4_exchange_pools.tick_spacing
+                ELSE excluded.tick_spacing
+            END,
+            hooks = CASE
+                WHEN excluded.hooks IS NULL OR excluded.hooks = ''
+                THEN v4_exchange_pools.hooks
+                ELSE excluded.hooks
+            END,
+            address_pair = CASE
+                WHEN excluded.address_pair IS NULL OR excluded.address_pair = ''
+                THEN v4_exchange_pools.address_pair
+                ELSE excluded.address_pair
+            END,
+            updated_at = CASE
+                WHEN (
+                    COALESCE(excluded.pool_manager, '') = COALESCE(v4_exchange_pools.pool_manager, '')
+                    AND COALESCE(excluded.pool_key_json, '') = COALESCE(v4_exchange_pools.pool_key_json, '')
+                    AND excluded.token0 = v4_exchange_pools.token0
+                    AND excluded.token1 = v4_exchange_pools.token1
+                    AND COALESCE(excluded.fee, -1) = COALESCE(v4_exchange_pools.fee, -1)
+                    AND COALESCE(excluded.tick_spacing, -1) = COALESCE(v4_exchange_pools.tick_spacing, -1)
+                    AND COALESCE(excluded.hooks, '') = COALESCE(v4_exchange_pools.hooks, '')
+                )
+                THEN v4_exchange_pools.updated_at
+                ELSE excluded.updated_at
+            END
         """,
         rows,
     )
@@ -362,163 +501,23 @@ def upsert_v4_liquidity_snapshots(
     protocol: str,
     rows: list[dict[str, Any]],
 ) -> int:
-    now = _stamp()
-    params = []
-    for row in rows:
-        pool_id = _text(row.get("pool_id") or row.get("poolId") or row.get("pool"))
-        if not pool_id:
-            continue
-        raw_has_liquidity = row.get("has_liquidity")
-        if raw_has_liquidity is None:
-            raw_has_liquidity = row.get("hasLiquidity")
-        raw_swap_active = row.get("recent_swap_active")
-        if raw_swap_active is None:
-            raw_swap_active = row.get("recentSwapActive")
-        params.append(
-            (
-                network,
-                chain_id,
-                protocol,
-                pool_id,
-                _has_liquidity_tri(raw_has_liquidity),
-                row.get("liquidity") or "",
-                _float_none(row.get("liquidity_index") or row.get("liquidityIndex")),
-                _float_none(row.get("estimated_tvl_usd") or row.get("estimatedTvlUsd") or row.get("tvl_usd")),
-                _json_dumps(row.get("balances") or row.get("balances_json") or {}),
-                row.get("depth_status") or row.get("depthStatus") or "",
-                _json_dumps(row.get("depth_band") or row.get("depthBand") or {}),
-                _float_none(row.get("depth_score_usd") or row.get("depthScoreUsd")),
-                row.get("sqrt_price_x96") or row.get("sqrtPriceX96") or "",
-                _float_none(row.get("price")),
-                _int_none(row.get("tick")),
-                row.get("liquidity_read_at") or row.get("liquidityReadAt") or None,
-                _int_none(row.get("liquidity_block_number") or row.get("liquidityBlockNumber")),
-                (1 if bool(raw_swap_active) else 0) if raw_swap_active is not None else None,
-                row.get("observed_at") or now,
-                row.get("refreshed_at") or now,
-                str(
-                    row.get("evidence_source")
-                    or row.get("liquidity_source")
-                    or row.get("liquiditySource")
-                    or row.get("source")
-                    or ""
-                ).strip() or None,
-            )
-        )
-    if not params:
-        return 0
-    return execute_many_upsert(
-        database_url,
-        """
-        INSERT INTO v4_exchange_pool_liquidity_snapshots (
-            network, chain_id, protocol, pool_id, has_liquidity, liquidity,
-            liquidity_index, estimated_tvl_usd, balances_json, depth_status,
-            depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
-            liquidity_read_at, liquidity_block_number, recent_swap_active,
-            observed_at, refreshed_at, evidence_source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
-            has_liquidity = CASE
-                WHEN excluded.has_liquidity IS NULL
-                THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
-                ELSE excluded.has_liquidity
-            END,
-            liquidity = CASE
-                WHEN excluded.has_liquidity = 0 AND (
-                    (excluded.evidence_source IS NOT NULL AND excluded.evidence_source <> '')
-                    OR excluded.liquidity_block_number IS NOT NULL
-                )
-                THEN ''
-                WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity
-                ELSE excluded.liquidity
-            END,
-            liquidity_index = CASE
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity_index
-                ELSE COALESCE(
-                    excluded.liquidity_index,
-                    v4_exchange_pool_liquidity_snapshots.liquidity_index
-                )
-            END,
-            estimated_tvl_usd = CASE
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
-                ELSE COALESCE(
-                    excluded.estimated_tvl_usd,
-                    v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
-                )
-            END,
-            balances_json = COALESCE(
-                excluded.balances_json,
-                v4_exchange_pool_liquidity_snapshots.balances_json
-            ),
-            depth_status = CASE
-                WHEN excluded.depth_status IS NULL OR excluded.depth_status = ''
-                THEN v4_exchange_pool_liquidity_snapshots.depth_status
-                ELSE excluded.depth_status
-            END,
-            depth_band_json = COALESCE(
-                excluded.depth_band_json,
-                v4_exchange_pool_liquidity_snapshots.depth_band_json
-            ),
-            depth_score_usd = COALESCE(
-                excluded.depth_score_usd,
-                v4_exchange_pool_liquidity_snapshots.depth_score_usd
-            ),
-            sqrt_price_x96 = CASE
-                WHEN excluded.sqrt_price_x96 IS NULL OR excluded.sqrt_price_x96 = ''
-                THEN v4_exchange_pool_liquidity_snapshots.sqrt_price_x96
-                ELSE excluded.sqrt_price_x96
-            END,
-            price = COALESCE(excluded.price, v4_exchange_pool_liquidity_snapshots.price),
-            tick = COALESCE(excluded.tick, v4_exchange_pool_liquidity_snapshots.tick),
-            liquidity_read_at = COALESCE(
-                excluded.liquidity_read_at,
-                v4_exchange_pool_liquidity_snapshots.liquidity_read_at
-            ),
-            liquidity_block_number = COALESCE(
-                excluded.liquidity_block_number,
-                v4_exchange_pool_liquidity_snapshots.liquidity_block_number
-            ),
-            recent_swap_active = CASE
-                WHEN excluded.recent_swap_active IS NULL
-                THEN v4_exchange_pool_liquidity_snapshots.recent_swap_active
-                ELSE excluded.recent_swap_active
-            END,
-            observed_at = COALESCE(
-                excluded.observed_at,
-                v4_exchange_pool_liquidity_snapshots.observed_at
-            ),
-            refreshed_at = excluded.refreshed_at,
-            evidence_source = COALESCE(
-                excluded.evidence_source,
-                v4_exchange_pool_liquidity_snapshots.evidence_source
-            )
-        """,
-        params,
+    """Write measured V4 liquidity snapshots.
+
+    The implementation lives in
+    :mod:`core.db.storage_v4_liquidity_snapshots`; it is re-exported here so
+    existing import sites keep working.
+    """
+    from core.db.storage_v4_liquidity_snapshots import (
+        upsert_v4_liquidity_snapshots as _upsert,
     )
 
+    return _upsert(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        rows=rows,
+    )
 
 def load_v4_exchange_pools(
     database_url: str,

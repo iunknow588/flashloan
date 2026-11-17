@@ -1,0 +1,132 @@
+{
+  "reportId": "borrow_token_composition_and_dust_economics_20261112",
+  "generatedAt": "2026-11-11T20:09:09Z",
+  "title": "Borrow-token composition and dust-pool economics: why a USD-denominated dust filter is not evaluable on Robinhood Chain",
+  "driver": "User proposal: filter pools whose capacity USD value cannot cover Gas (MIN_PROFIT_THRESHOLD_USD), and hard-blacklist dust pools",
+  "verdict": {
+    "economicReasoningAccepted": true,
+    "usdPriceDependencyAccepted": false,
+    "summary": "The economic argument is accepted and is now encoded as D4-d (token-denominated economic floor) and D4-e (dust blacklist scoped to economic infeasibility only). The proposed USD conversion is rejected because 86 of 88 production closed loops borrow stock tokens (SPY/GOOGL/SPCX/CRCL/MU), which have no reliable on-chain USD price, and because the user previously locked the depth criterion to be token-denominated with zero USD dependency."
+  },
+  "borrowTokenComposition": {
+    "source": "production DB v4_closed_loop_hops joined with chain_tokens (read-only)",
+    "totalLoops": 88,
+    "totalHops": 264,
+    "mix": {
+      "ETH": {
+        "count": 38,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "native"
+      },
+      "SPY": {
+        "count": 30,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "erc20"
+      },
+      "GOOGL": {
+        "count": 6,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "erc20"
+      },
+      "WETH": {
+        "count": 4,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "wrapped_native"
+      },
+      "SPCX": {
+        "count": 2,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "erc20"
+      },
+      "CRCL": {
+        "count": 2,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "erc20"
+      },
+      "MU": {
+        "count": 2,
+        "decimals": 18,
+        "stable": 0,
+        "kind": "erc20"
+      },
+      "TZ": {
+        "count": 2,
+        "decimals": 18,
+        "stable": 1,
+        "kind": "erc20"
+      }
+    },
+    "stockTokenLoops": 42,
+    "stockTokenShare": 0.477,
+    "nonStableNonEthLoops": 42,
+    "conclusion": "42 of 88 loops (47.7%) borrow stock tokens, and 86 of 88 (97.7%) borrow a token that is neither ETH nor a USD stablecoin. A USD value for the binding capacity therefore cannot be computed from any on-chain source for the large majority of the active book."
+  },
+  "candidatePoolDecimals": {
+    "source": "rehearsal copy DB, 94 candidate pools with measured capacity",
+    "decimalsPairs": {
+      "18_6": 33,
+      "18_18": 31,
+      "6_18": 30
+    },
+    "unresolvedDecimals": 0,
+    "note": "6-decimal pools are the canonical USDG 0x5fc5360d0400a0fd4f2af552add042d716f1d168; pricing and stable-coin detection must be by address, not symbol"
+  },
+  "dustClassification": {
+    "bindingCapacityPercentilesHumanUnits": {
+      "p10": 0.0,
+      "p25": 1.09e-07,
+      "p50": 0.000253,
+      "p75": 0.0496,
+      "p90": 2.69,
+      "p100": 99.9186
+    },
+    "bands": {
+      "deep": 19,
+      "medium": 11,
+      "shallow": 6,
+      "dust": 58
+    },
+    "zeroBindingCapacityPools": 15,
+    "currentProbeWindow": {
+      "range": [
+        0.001,
+        1.0
+      ],
+      "inside": 25,
+      "below": 58,
+      "above": 11,
+      "total": 94
+    },
+    "currentBindingFloor": {
+      "value": 0.001,
+      "source": "flashloan/config/depth_policy.json minCandidateBindingCapacity",
+      "problem": "calibrated on the smallest position the system ever attempted, not on economic feasibility"
+    }
+  },
+  "acceptedRevisions": {
+    "D4-d": {
+      "name": "token-denominated economic floor as an admission gate",
+      "formula": "cap_path = min(binding_capacity[hop]); required_amt = gas_profit / unit_profit; if cap_path < required_amt -> reject path before the 24-step search",
+      "reuse": "same structure as existing capacity_covers_amount() / required_amount_for_profit(), promoted from post-check to admission gate",
+      "limitation": "unit_profit is currently only obtainable from the on-chain eth_call preview, so the static floor must use a conservative unit-profit assumption until ARCH-2 (off-chain 3-hop simulator) lands"
+    },
+    "D4-e": {
+      "name": "scoped dust blacklist",
+      "scope": "pools whose capacity cannot cover Gas are removed from the review/broadcast path as dust_unprofitable, but remain in the candidate set for human observation",
+      "explicitlyForbidden": "blacklisting a pool solely because its USD value is low; that would require the forbidden USD price source"
+    },
+    "hardConstraintRespected": "D4-e removes POOLS on capacity-and-Gas grounds, never TOKEN PAIRS on TVL grounds"
+  },
+  "constraintsRespected": [
+    "no production write was performed",
+    "production DB was opened read-only via file:...?mode=ro",
+    "daemon and run.py (PID 30304) were not stopped or restarted",
+    "the zero-USD dependency decision remains in force"
+  ]
+}

@@ -15,6 +15,12 @@ use token_manager::{read_library_state, LibraryKey, TokenLibraryState, TokenQuer
 mod overview;
 pub use overview::*;
 
+mod recompute_latency;
+pub use recompute_latency::{
+    measure_recompute_latency, recompute_latency_checksum, RecomputeCheckpoint,
+    RecomputeLatencyReport, RecomputeRunMeasurement, RecomputeVersionBoundary,
+};
+
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
 const PIPELINE_KEY: &str = "core4";
 const SCOPE_KEY: &str = "core4";
@@ -1605,13 +1611,6 @@ fn assess_upstream(snapshot: &UpstreamSnapshot) -> UpstreamAssessment {
                 .as_deref(),
             &mut issues,
         );
-        check_option_value(
-            "candidate_exchange",
-            "poolScopeChecksum",
-            scope_checksum,
-            snapshot.candidate_exchange.pool_scope_checksum.as_deref(),
-            &mut issues,
-        );
         check_library_map(
             "candidate_exchange",
             &snapshot.candidate_exchange.library_versions,
@@ -1655,10 +1654,16 @@ fn assess_upstream(snapshot: &UpstreamSnapshot) -> UpstreamAssessment {
             snapshot.closed_loop.observation_checksum.as_deref(),
             &mut issues,
         );
+        // The closed loop lives in the `core4` scope, so its pool-scope checksum must be
+        // compared against the checksum owned by the `core4` pool-scope configuration.
+        // `candidate_exchange` intentionally carries the `candidate_exchange` scope
+        // checksum, which is derived from a different pool table and a different
+        // selection mode, so comparing against it can never succeed and would pin the
+        // assessment to a permanent false positive.
         check_option_value(
             "closed_loop",
             "poolScopeChecksum",
-            scope_checksum,
+            snapshot.candidate_edge.pool_scope_checksum.as_deref(),
             snapshot.closed_loop.pool_scope_checksum.as_deref(),
             &mut issues,
         );
@@ -2939,5 +2944,148 @@ mod tests {
                 .unwrap_err(),
             super::CompositeError::StepAlreadyFinal { .. }
         ));
+    }
+
+    /// Regression guard for the cross-scope pool-scope checksum comparison.
+    ///
+    /// The closed loop lives in the `core4` scope, so its published
+    /// `poolScopeChecksum` must be compared against the `core4` checksum owned by
+    /// the candidate-edge layer. The `candidate_exchange` layer intentionally
+    /// publishes the `candidate_exchange` scope checksum, which is derived from a
+    /// different pool table and a different selection mode. Comparing the closed
+    /// loop against it can never succeed and permanently reported a false
+    /// inconsistency, which in turn blocked every pipeline refresh.
+    #[test]
+    fn closed_loop_pool_scope_checksum_is_compared_against_the_core4_scope() {
+        use super::{
+            assess_upstream, BroadcastRef, CandidateEdgeRef, CandidateExchangeRef, ClosedLoopRef,
+            PoolScopeRef, ReviewRef, TokenLibraryRef, UpstreamSnapshot,
+        };
+        use std::collections::BTreeMap;
+
+        const CORE4_SCOPE: &str = "sha256:core4-scope";
+        const CANDIDATE_EXCHANGE_SCOPE: &str = "sha256:candidate-exchange-scope";
+
+        fn enabled_libraries() -> BTreeMap<String, TokenLibraryRef> {
+            ["core", "stocks", "extension", "test"]
+                .into_iter()
+                .map(|library| {
+                    (
+                        library.to_owned(),
+                        TokenLibraryRef {
+                            enabled: true,
+                            version: 1,
+                            checksum: format!("sha256:{library}"),
+                            token_count: 1,
+                            admitted_count: 1,
+                        },
+                    )
+                })
+                .collect()
+        }
+
+        fn snapshot_with_scope_checksums(
+            candidate_edge_scope: Option<&str>,
+            candidate_exchange_scope: Option<&str>,
+            closed_loop_scope: Option<&str>,
+        ) -> UpstreamSnapshot {
+            UpstreamSnapshot {
+                token_libraries: enabled_libraries(),
+                pool_scope: PoolScopeRef {
+                    enabled: true,
+                    materialized_checksum: Some(CORE4_SCOPE.to_owned()),
+                    live_checksum: CORE4_SCOPE.to_owned(),
+                    library_versions: BTreeMap::new(),
+                    library_checksums: BTreeMap::new(),
+                    active_pool_count: 14,
+                },
+                candidate_edge: CandidateEdgeRef {
+                    enabled: true,
+                    version: 2,
+                    checksum: Some("sha256:edge".to_owned()),
+                    pool_scope_checksum: candidate_edge_scope.map(str::to_owned),
+                    library_versions: BTreeMap::new(),
+                    library_checksums: BTreeMap::new(),
+                    anchor_count: 1,
+                    pool_count: 14,
+                },
+                candidate_exchange: CandidateExchangeRef {
+                    enabled: true,
+                    version: 2,
+                    checksum: Some("sha256:exchange".to_owned()),
+                    candidate_edge_version: Some(2),
+                    candidate_edge_checksum: Some("sha256:edge".to_owned()),
+                    pool_scope_checksum: candidate_exchange_scope.map(str::to_owned),
+                    library_versions: BTreeMap::new(),
+                    library_checksums: BTreeMap::new(),
+                    direction_count: 20,
+                    pool_count: 5,
+                },
+                closed_loop: ClosedLoopRef {
+                    enabled: true,
+                    version: 2,
+                    checksum: Some("sha256:loop".to_owned()),
+                    candidate_edge_version: Some(2),
+                    candidate_edge_checksum: Some("sha256:edge".to_owned()),
+                    observation_version: Some(2),
+                    observation_checksum: Some("sha256:exchange".to_owned()),
+                    pool_scope_checksum: closed_loop_scope.map(str::to_owned),
+                    loop_count: 8,
+                    consumers_need_rebuild: false,
+                },
+                review: ReviewRef {
+                    enabled: false,
+                    version: 0,
+                    checksum: None,
+                    closed_loop_version: None,
+                    closed_loop_checksum: None,
+                    completed_count: 0,
+                    data_incomplete_count: 0,
+                    broadcast_request_count: 0,
+                },
+                broadcast: BroadcastRef {
+                    enabled: false,
+                    version: 0,
+                    checksum: None,
+                    review_version: None,
+                    review_checksum: None,
+                    closed_loop_version: None,
+                    closed_loop_checksum: None,
+                    pending_count: 0,
+                    success_count: 0,
+                    failed_count: 0,
+                    terminal_count: 0,
+                },
+            }
+        }
+
+        // The closed loop publishes the `core4` checksum, matching the candidate edge.
+        // The `candidate_exchange` scope checksum is intentionally different and must
+        // not be treated as the expected value.
+        let assessment = assess_upstream(&snapshot_with_scope_checksums(
+            Some(CORE4_SCOPE),
+            Some(CANDIDATE_EXCHANGE_SCOPE),
+            Some(CORE4_SCOPE),
+        ));
+        assert!(
+            assessment.consistent,
+            "unexpected issues: {:?}",
+            assessment.issues
+        );
+
+        // A genuine `core4` drift between the candidate edge and the closed loop
+        // must still be reported.
+        let drifted = assess_upstream(&snapshot_with_scope_checksums(
+            Some(CORE4_SCOPE),
+            Some(CANDIDATE_EXCHANGE_SCOPE),
+            Some("sha256:stale-core4-scope"),
+        ));
+        assert!(!drifted.consistent);
+        assert!(drifted.issues.iter().any(|issue| {
+            issue.component == "closed_loop"
+                && issue.field == "poolScopeChecksum"
+                && issue.expected == CORE4_SCOPE
+                && issue.actual == "sha256:stale-core4-scope"
+        }));
     }
 }

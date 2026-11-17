@@ -1,0 +1,216 @@
+{
+  "chainGateEvidence": {
+    "compositeManager": {
+      "chainId4663": "network=robinhood，chainId=4663，行为与改动前一致",
+      "chainId46630": "通过链门禁，进入 core4 scope 预检",
+      "unknownChainId1": "拒绝：unsupported chain-id: 1"
+    },
+    "tokenManager": {
+      "mainnetRegistry": "chainId=4663, evaluatedCount=194",
+      "testnetRegistry": "chainId=46630, evaluatedCount=5"
+    }
+  },
+  "codeFixes": [
+    {
+      "file": "flashloan/tools/composite_manager/src/main.rs",
+      "fix": "新增 network_for_chain_id()，由 chain id 推导 network scope；未知 chain id 显式拒绝而非猜测",
+      "issue": "CLI 硬编码 chain_id != 4663 且 network 固定为 \"robinhood\"，测试网 46630 被直接拒绝",
+      "tests": "6 项新增 CLI 回归测试"
+    },
+    {
+      "file": "flashloan/tools/token_manager/src/main.rs",
+      "fix": "新增 ChainScope（--network / --chain-id，默认主网）；读取、写库、迁移回执全部按 scope 参数化",
+      "issue": "materialize-libraries 的 network/chain_id 固定为主网，读写目标库、迁移回执都按主网 scope 计算",
+      "tests": "tools workspace 全量 510 passed"
+    },
+    {
+      "file": "flashloan/tools/token_manager/src/main.rs",
+      "fix": "回执函数显式接收 network/chain_id 参数",
+      "issue": "build_library_migration_receipt 内部硬编码 ROBINHOOD_NETWORK/ROBINHOOD_CHAIN_ID，测试网运行时按主网 scope 计算 planned_metadata_checksum，导致 'invalid token ... belongs to robinhood-testnet:46630, not robinhood:4663'",
+      "tests": "tools workspace 全量 510 passed"
+    },
+    {
+      "file": "flashloan/tools/token_manager/src/sources.rs",
+      "fix": "拆出 core4_allowlist(network, chain_id)，mainnet_core4_allowlist() 保持为薄封装",
+      "issue": "core4 allowlist 固定主网 network/chain_id，测试网无法生成 core 库",
+      "tests": "tools workspace 全量 510 passed"
+    },
+    {
+      "file": "flashloan/tools/token_manager/src/classification.rs",
+      "fix": "测试网 policy 使用 core4_allowlist 的 4 个核心地址",
+      "issue": "ClassificationPolicy::testnet_test_policy() 的 core_addresses 为空，测试网 4 个 core4 代币全部落入 extension 库，core4 scope 物化为空",
+      "tests": "tools workspace 全量 510 passed"
+    },
+    {
+      "file": "flashloan/tools/token_manager/src/valuation_cli.rs",
+      "fix": "新增 chain_scope()：优先 --network/--chain-id，否则从 registry 自身声明的 network/chain_id 推导；ValuationConfig 同步 with_chain_id",
+      "issue": "value-tokens 读 registry 与报价请求的 chain id 固定主网",
+      "tests": "tools workspace 全量 510 passed"
+    }
+  ],
+  "evidencePaths": {
+    "priorRoundtripReport": "plan/runtime_evidence/reports/testnet_review_roundtrip_20261115.json",
+    "testnetToolchainDir": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain"
+  },
+  "generatedAt": "2026-11-15T04:50:00Z",
+  "generatedAtLocal": "2026-11-15 12:50 Asia/Shanghai",
+  "mainnetRegression": {
+    "compositeManagerDryRun": {
+      "chainId": 4663,
+      "consumersNeedRebuild": true,
+      "network": "robinhood"
+    },
+    "mainnetDatabaseIntegrityCheck": "ok",
+    "mainnetDatabaseSha256": "38E70544746041AABF0F1287FC383AEACB169219D377E4A08FEDA7045A85E8E1",
+    "mainnetDatabaseSha256Note": "与 2026-11-15 09:10 记录的 285CE72A... 不同；差异来自 11:44 主网只读 runtime 的 v4_closed_loop_runtime_state 写入（updated_at=2026-11-15T03:44:26Z），早于本次会话，本次会话全程只读。",
+    "testnetDatabaseIntegrityCheck": "ok",
+    "tokenManagerDryRun": {
+      "chainId": 4663,
+      "network": "robinhood"
+    }
+  },
+  "objective": "去除 manager 工具链对 chain 4663 的硬编码，打通测试网（46630）Manager 全工具链",
+  "regression": {
+    "cargoTestWorkspace": {
+      "command": "cargo test --offline --workspace (flashloan/tools)",
+      "result": "全部通过，0 failed",
+      "totalSuites": 28,
+      "totalTests": 510
+    },
+    "newTests": [
+      "composite_manager: network_is_derived_from_the_chain_id",
+      "composite_manager: an_unknown_chain_id_is_rejected_instead_of_guessed",
+      "composite_manager: the_testnet_chain_id_is_not_rejected_as_an_unsupported_chain",
+      "composite_manager: an_unknown_chain_id_is_rejected_by_the_command",
+      "composite_manager: the_chain_id_flag_is_required",
+      "composite_manager: flag_reads_the_value_after_the_name"
+    ],
+    "rustCore": {
+      "command": "cargo test --offline (flashloan/rs-src)",
+      "result": "127 passed / 0 failed"
+    }
+  },
+  "remainingGaps": [
+    "测试网股票代币缺少 USDG 估值：Uniswap Trading API 不服务 chain 46630，5 只股票停留在 pending:not_measured。",
+    "因此 candidate_exchange / core4 scope 内 0 个可用池，composite-manager 闭环物化无法进行；这是数据缺口，不是工具链缺口。",
+    "测试网 Manager 页面仍可能 503（manager_pipeline_runs 已物化，但上游 library 数据不足）。",
+    "composite_manager 的 release 二进制尚未替换锁定版本；本轮只做 debug 构建与回归。"
+  ],
+  "report": "testnet_manager_toolchain_scope_parameterization",
+  "safetyBoundary": {
+    "authoritySwitched": false,
+    "broadcastEnabled": false,
+    "contractDeployed": false,
+    "mainnetDatabaseMtime": "2026-11-15 11:44:27",
+    "mainnetDatabaseMtimeNote": "早于本次会话（会话开始约 12:00）；主网库仅由上一轮主网只读 runtime 的复核状态写入。",
+    "mainnetDatabaseSha256UnchangedDuringSession": true,
+    "mainnetDatabaseWritten": false,
+    "onchainTransactionSubmitted": false,
+    "productionWrite": false,
+    "testnetDatabaseUsed": "副本 flashloan/db/local_store_46630.sqlite3 的拷贝，原库未写"
+  },
+  "testnetToolchainRun": {
+    "chainId": 46630,
+    "database": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/local_store_46630_manager_chain.sqlite3",
+    "network": "robinhood-testnet",
+    "step1_managerDbMigrate": {
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/01_manager_db_migrate.json",
+      "latestMigrationId": "20261114_009_hop_price_limit_schema",
+      "migrationsApplied": 10,
+      "note": "10 个迁移全部为纯 DDL（INSERT/UPDATE/DELETE 计数均为 0），不写入任何业务行",
+      "ok": true,
+      "tool": "manager-db migrate"
+    },
+    "step2_tokenManagerMaterialize": {
+      "chainId": 46630,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/02_token_manager_materialize.json",
+      "migrationReceiptValid": true,
+      "network": "robinhood-testnet",
+      "ok": true,
+      "tokenCore": {
+        "admissionStatus": "admitted",
+        "count": 4,
+        "symbols": [
+          "ETH",
+          "USDE",
+          "USDG",
+          "WETH"
+        ]
+      },
+      "tokenExtension": {
+        "admissionStatus": "candidate_only",
+        "count": 6,
+        "symbols": [
+          "AMD",
+          "AMZN",
+          "ETH",
+          "NFLX",
+          "PLTR",
+          "TSLA"
+        ]
+      },
+      "tokenStocks": {
+        "count": 0,
+        "reason": "5 只测试网股票代币缺少 USDG 估值，全部为 pending:not_measured"
+      },
+      "tokenTest": {
+        "count": 0
+      },
+      "tool": "token-manager materialize-libraries --network robinhood-testnet --apply"
+    },
+    "step3_poolScopeCore4": {
+      "chainId": 46630,
+      "consumersNeedRebuild": false,
+      "eligiblePoolCount": 0,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/03_pool_scope_core4.json",
+      "insertedRows": 0,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "network": "robinhood-testnet",
+      "ok": true,
+      "skipReasonCounts": {
+        "token_not_admitted": 12312
+      },
+      "skippedPoolCount": 12312,
+      "sourcePoolCount": 12312,
+      "tool": "pool-manager materialize-scope --chain-id 46630 --scope core4 --apply"
+    },
+    "step4_poolScopeCandidateExchange": {
+      "chainId": 46630,
+      "consumersNeedRebuild": false,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/04_pool_scope_candidate_exchange.json",
+      "insertedRows": 0,
+      "network": "robinhood-testnet",
+      "ok": true,
+      "skipReasonCounts": {
+        "token_not_admitted": 12312
+      },
+      "sourcePoolCount": 12312,
+      "tool": "pool-manager materialize-scope --chain-id 46630 --scope candidate_exchange --apply"
+    },
+    "step5_compositeManagerDryRun": {
+      "chainGatePassed": true,
+      "error": "candidate edge scope core4 has not been materialized",
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/05_composite_manager_dryrun.json",
+      "failClosed": true,
+      "interpretation": "chain 硬编码已解除（46630 通过链门禁并进入 scope 预检）；失败原因是 scope 内 0 个可用池，属于数据问题而非工具链问题。",
+      "ok": false,
+      "tool": "composite-manager materialize-arbitrage --chain-id 46630"
+    },
+    "step6_tokenValuation": {
+      "chainId": 46630,
+      "evaluatedCount": 5,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manager_toolchain/06_token_valuation_testnet.json",
+      "failureDetail": "Trading API returned HTTP 400",
+      "interpretation": "Uniswap Trading API 不服务测试网 chain 46630。5 只股票代币被判为 api_error（unknown），不是 no_route 假阴性，经济门禁因此 fail-closed 地把股票留在 pending，未误判为负值。",
+      "noRouteCount": 0,
+      "ok": true,
+      "routeFoundCount": 0,
+      "tool": "token-manager value-tokens --registry <testnet registry>",
+      "verdict": "api_error"
+    }
+  },
+  "version": "1.0"
+}

@@ -1,0 +1,99 @@
+{
+    "mode":  "contract_freeze",
+    "productionWrite":  false,
+    "inputVersions":  {
+                          "plan":  "v9.8",
+                          "contractDate":  "2026-11-14"
+                      },
+    "outputVersions":  {
+                           "scopeRolesContract":  "p0_7_20261114"
+                       },
+    "rowCount":  4,
+    "checksum":  "sha256:p0-7-scope-roles-evidence-v1",
+    "status":  "passed",
+    "failureCodes":  [
+
+                     ],
+    "rollbackPoint":  "none-read-only-contract",
+    "rpcRequestCount":  0,
+    "testCommands":  [
+                         "schema source audit",
+                         "manager source audit"
+                     ],
+    "failureSummary":  [
+
+                       ],
+    "version1":  {
+                     "multiHop":  true,
+                     "singleTickEveryHop":  true,
+                     "crossTickAllowedInCandidates":  false,
+                     "crossTickAllowedInReview":  false,
+                     "crossTickAllowedInBroadcast":  false,
+                     "fixedFeeMinimumExclusive":  0,
+                     "fixedFeeMaximumInclusive":  30000
+                 },
+    "roles":  [
+                  {
+                      "role":  "candidate",
+                      "authority":  "candidate_edge_pool_manager",
+                      "tables":  [
+                                     "manager_dex_candidate_pool_recommendations"
+                                 ],
+                      "selection":  "top-5-per-direction",
+                      "cleanup":  false
+                  },
+                  {
+                      "role":  "recommendation",
+                      "authority":  "candidate_edge_pool_manager",
+                      "tables":  [
+                                     "manager_dex_candidate_pool_recommendations"
+                                 ],
+                      "selection":  "top-1-per-direction",
+                      "cleanup":  false
+                  },
+                  {
+                      "role":  "backup",
+                      "authority":  "pool_manager",
+                      "tables":  [
+                                     "pool_role_assignment",
+                                     "pool_trade_activity"
+                                 ],
+                      "selection":  "traded-within-3-days",
+                      "cleanup":  true
+                  },
+                  {
+                      "role":  "yz_observation",
+                      "authority":  "candidate_exchange_pool_manager",
+                      "tables":  [
+                                     "manager_market_observation_yz_pairs",
+                                     "manager_market_observation_intermediate_pools"
+                                 ],
+                      "selection":  "manager-owned-observation",
+                      "cleanup":  false
+                  }
+              ],
+    "evidenceSchema":  {
+                           "required":  [
+                                            "mode",
+                                            "productionWrite",
+                                            "inputVersions",
+                                            "outputVersions",
+                                            "rowCount",
+                                            "checksum",
+                                            "status",
+                                            "failureCodes",
+                                            "rollbackPoint",
+                                            "rpcRequestCount",
+                                            "testCommands",
+                                            "failureSummary"
+                                        ],
+                           "statusValues":  [
+                                                "passed",
+                                                "blocked",
+                                                "failed"
+                                            ]
+                       },
+    "productionDatabaseWrites":  0,
+    "authoritySwitches":  0,
+    "broadcasts":  0
+}

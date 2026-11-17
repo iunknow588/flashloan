@@ -1,0 +1,119 @@
+{
+  "authority": "code_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "pool_manager exact state-transition ratio evidence + review_manager diagnostics",
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-15T05:14:07+08:00",
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractCalldataExpanded": false,
+    "contractDeployed": false,
+    "productionDatabaseWritten": false,
+    "reviewBroadcastSchemaExpanded": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "ratioContract": {
+    "changedLiquidity": {
+      "denominator": "expectedCapacityRaw",
+      "numerator": "exactCurrentCapacityRaw"
+    },
+    "serialization": "decimal strings without JSON numeric precision loss",
+    "token0": {
+      "denominator": "abs(boundarySqrtPriceX96 - expectedSqrtPriceX96) * currentSqrtPriceX96",
+      "numerator": "abs(boundarySqrtPriceX96 - currentSqrtPriceX96) * expectedSqrtPriceX96"
+    },
+    "token1": {
+      "denominator": "abs(boundarySqrtPriceX96 - expectedSqrtPriceX96)",
+      "numerator": "abs(boundarySqrtPriceX96 - currentSqrtPriceX96)"
+    }
+  },
+  "rollbackAvailable": true,
+  "rollbackPoint": "remove capacity ratio fields and the extended per-hop transition diagnostic projection",
+  "rpcRequestCount": 0,
+  "samples": [
+    {
+      "capacityRatioDenominator": "11906724377139650639031592550400000000000000000000000000",
+      "capacityRatioNumerator": "11906724377139650639031592550400000000000000000000000000",
+      "currentAmountOutRaw": "1000778646484",
+      "expectedAmountOutRaw": "1000778646484",
+      "kind": "unchanged",
+      "name": "unchanged",
+      "reason": "same_input_output_unchanged"
+    },
+    {
+      "capacityRatioDenominator": "11899224377139650639031592550400000000000000000000000000",
+      "capacityRatioNumerator": "7937816251426433759354395033600000000000000000000000000",
+      "currentAmountOutRaw": "999518270366",
+      "expectedAmountOutRaw": "1000778646484",
+      "kind": "adverse",
+      "name": "adverse_exact_output",
+      "reason": "adverse_price_move"
+    },
+    {
+      "capacityRatioDenominator": "11914224377139650639031592550400000000000000000000000000",
+      "capacityRatioNumerator": "15875632502852867518708790067200000000000000000000000000",
+      "currentAmountOutRaw": "1002039816759",
+      "expectedAmountOutRaw": "1000778646484",
+      "kind": "favorable",
+      "name": "favorable_token0",
+      "reason": "favorable_price_move"
+    },
+    {
+      "capacityRatioDenominator": "88029451933307601877824497",
+      "capacityRatioNumerator": "138029451933307601877824497",
+      "currentAmountOutRaw": "994487876074",
+      "expectedAmountOutRaw": "993235422523",
+      "kind": "favorable",
+      "name": "favorable_token1",
+      "reason": "favorable_price_move"
+    },
+    {
+      "capacityRatioDenominator": "18953746130763647",
+      "capacityRatioNumerator": "50511506011541711",
+      "currentAmountOutRaw": "1002039866836",
+      "expectedAmountOutRaw": "1000778646484",
+      "kind": "favorable",
+      "name": "liquidity_changed",
+      "reason": "favorable_price_move"
+    },
+    {
+      "capacityRatioDenominator": null,
+      "capacityRatioNumerator": null,
+      "currentAmountOutRaw": null,
+      "expectedAmountOutRaw": null,
+      "kind": "fatal",
+      "name": "crossed_tick",
+      "reason": "tick_range_changed"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "pool_manager state_transition tests",
+      "result": "9 passed / 0 failed",
+      "target": "flashloan/tools/pool_manager"
+    },
+    {
+      "name": "review_manager state_transition_gate tests",
+      "result": "5 passed / 0 failed",
+      "target": "flashloan/tools/review_manager"
+    },
+    {
+      "name": "tools offline workspace",
+      "result": "exit code 0",
+      "target": "flashloan/tools"
+    },
+    {
+      "name": "p0_8_state_transition_probe",
+      "result": "6 cases passed",
+      "target": "pool_manager example"
+    }
+  ],
+  "title": "P0-8 exact transition ratio evidence"
+}

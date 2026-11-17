@@ -1,0 +1,276 @@
+{
+  "mode": "check",
+  "generatedAt": "2026-11-16T13:33:31Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "observationStartedAt": "2026-11-10T19:57:50Z",
+  "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+  "successCriteria": {
+    "continuousFreshReviews": true,
+    "broadcastOnlyFromFreshProfitableReview": true,
+    "terminalTransactionRecords": true,
+    "expectedAndGasAdjustedPnlAvailable": true
+  },
+  "layers": {
+    "tokens": {
+      "valid": true,
+      "source": {
+        "total": 6353,
+        "missing_decimals": 1735,
+        "missing_symbol": 0
+      },
+      "libraries": {
+        "core": {
+          "total": 4,
+          "admitted": 4,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "stocks": {
+          "total": 194,
+          "admitted": 194,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "extension": {
+          "total": 162,
+          "admitted": 0,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "test": {
+          "total": 1,
+          "admitted": 1,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        }
+      },
+      "admittedTotal": 199,
+      "libraryMissingFields": 0,
+      "officialFundingAddresses": {
+        "ETH": "0x0000000000000000000000000000000000000000",
+        "WETH": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "TZ": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      },
+      "fundingAddressMismatches": [],
+      "counterfeitFundingAdmissions": [],
+      "stockProvenanceInvalid": []
+    },
+    "pools": {
+      "valid": true,
+      "scope": {
+        "enabled": 1,
+        "materialized_checksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+        "last_rebuilt_at": "2026-11-11T01:56:05.794713300+00:00"
+      },
+      "candidate": {
+        "eligible_pool_count": 114,
+        "candidate_token_count": 24,
+        "abnormal_pool_count": 2196,
+        "materialized_checksum": "sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687",
+        "generated_at": "2026-11-11T01:56:33.814611700+00:00"
+      },
+      "observation": {
+        "pool_count": 130,
+        "direction_count": 634,
+        "empty_direction_count": 528,
+        "abnormal_pool_count": 2002,
+        "materialized_checksum": "sha256:94c9b481ca928025ca0f40d28b51dc685347a24bf5e51c1bab4f953f370ba68d",
+        "generated_at": "2026-11-09T14:53:14.581619900+00:00"
+      },
+      "exchange": {
+        "total": 4741,
+        "missing_currencies": 0,
+        "filtered_fee": 2177
+      },
+      "depth": {
+        "valid": true,
+        "code": null,
+        "minTvlUsd": 100000.0,
+        "maxTvlUsd": 1000000000.0,
+        "candidatePoolCount": 16,
+        "uniquePoolCount": 16,
+        "candidatePoolRows": 47,
+        "badReadingCount": 0,
+        "adequateDepthPoolCount": 16,
+        "insufficientDepthPoolCount": 0,
+        "thinPoolCount": 0,
+        "unpricedPoolCount": 0,
+        "reason": "candidate pools below the minimum depth band can only produce dust-sized best trade amounts whose profit never covers gas",
+        "byDepthStatus": [
+          {
+            "depthStatus": "deep",
+            "poolCount": 6,
+            "adequatePoolCount": 6,
+            "badReadingCount": 0,
+            "minTvlUsd": 1850470.5873978185,
+            "maxTvlUsd": 719342039.814781,
+            "avgTvlUsd": 123972380.80406372
+          },
+          {
+            "depthStatus": "liquid",
+            "poolCount": 10,
+            "adequatePoolCount": 10,
+            "badReadingCount": 0,
+            "minTvlUsd": 102428.29539217969,
+            "maxTvlUsd": 897589.286346843,
+            "avgTvlUsd": 348650.51129228686
+          }
+        ]
+      },
+      "bestAmount": {
+        "code": null,
+        "valid": true,
+        "confirmedCount": 0,
+        "belowGasCount": 0,
+        "tooSmallCount": 0,
+        "insufficientCount": 0,
+        "gasEstimateEth": 6.2e-06,
+        "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+        "bySymbol": {},
+        "belowGasSamples": [],
+        "tooSmallSamples": []
+      }
+    },
+    "closedLoops": {
+      "valid": true,
+      "library": {
+        "loop_count": 106,
+        "hop_count": 318,
+        "consumers_need_rebuild": 0,
+        "materialized_checksum": "sha256:dae667ab912d00e26286e75264aea4499f741867deaafa5588f224f6d744d34f",
+        "generated_at": "2026-11-09T15:00:28.621587600+00:00"
+      },
+      "runtime": [
+        {
+          "state": "execution_not_requested",
+          "count": 58
+        },
+        {
+          "state": "offchain_pending",
+          "count": 10
+        },
+        {
+          "state": "offchain_estimate",
+          "count": 10
+        },
+        {
+          "state": "preflight_failed",
+          "count": 6
+        },
+        {
+          "state": "execution_failed",
+          "count": 4
+        }
+      ]
+    },
+    "reviews": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "reviews": 0
+      },
+      "legacy": {
+        "windowHours": 24,
+        "stats": {
+          "total": 0,
+          "withValue": 0,
+          "missingValue": 0,
+          "positive": 0,
+          "positiveAmount": 0,
+          "positiveEstimateOnly": 0,
+          "estimatedProfitOnlyCount": 0,
+          "confirmedSum": 0.0,
+          "nonPositive": 0,
+          "sum": 0,
+          "minimum": null,
+          "maximum": null,
+          "byCurrency": {}
+        },
+        "latestReviewAt": null,
+        "currentLoopMatched": 0,
+        "staleOrUnmatched": 0,
+        "currentDistinctLoops": 0,
+        "matchedMissingPnl": 0,
+        "unmatchedMissingPnl": 0,
+        "bestAmountMissing": 0,
+        "bestAmountMissingCurrentLoop": 0,
+        "bestAmountLadderIncomplete": 0,
+        "bestAmountLadderIncompleteCurrentLoop": 0,
+        "bestAmountConfirmed": 0
+      },
+      "bestAmount": {
+        "code": "best_amount_missing",
+        "missing": 0,
+        "missingCurrentLoop": 0,
+        "ladderIncomplete": 0,
+        "ladderIncompleteCurrentLoop": 0,
+        "total": 0,
+        "confirmed": 0,
+        "retryable": false,
+        "failClosed": true,
+        "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+        "reasons": [],
+        "samples": []
+      },
+      "missingReasons": [],
+      "missingClassifications": []
+    },
+    "broadcast": {
+      "valid": false,
+      "manager": {
+        "libraryStateRows": 0,
+        "attempts": 0
+      },
+      "legacy": {
+        "total": 0,
+        "categories": {},
+        "latestAttemptAt": null,
+        "recent": []
+      },
+      "profitAnalysis": {
+        "expectedByCurrency": {},
+        "gasCostEthTotal": 0.0,
+        "gasCostObservedAttempts": 0,
+        "expectedEthOrWethNetAfterGas": 0.0,
+        "expectedEthOrWethNetObservedAttempts": 0,
+        "realizedByCurrency": {},
+        "realizedNetAfterGasByCurrency": {},
+        "realizedPnlObservedAttempts": 0,
+        "realizedPnlMissingAttempts": 0,
+        "realizedPnlMissingReasons": {},
+        "realizedPnlAvailable": false,
+        "source": "contract_preview_plus_confirmed_receipt_gas"
+      },
+      "outcomes": {
+        "success": 0,
+        "failed": 0,
+        "pending": 0,
+        "other": 0
+      },
+      "historicalPositiveReviewsInWindow": 0,
+      "automaticBroadcastCandidates": 0,
+      "automaticBroadcastPolicy": "fresh_positive_review_only"
+    }
+  },
+  "blockers": [
+    "reviews",
+    "broadcast"
+  ],
+  "transactionProduction": {
+    "state": "review_stalled",
+    "healthy": false,
+    "reason": "no_fresh_review_within_threshold",
+    "latestReviewAt": null,
+    "reviewAgeSeconds": null,
+    "reviewFreshnessThresholdSeconds": 600,
+    "executablePositiveReviews": 0,
+    "transactionRecords": 0,
+    "latestAttemptAt": null,
+    "bestAmountMissing": 0
+  },
+  "safeToAutoBroadcast": false
+}

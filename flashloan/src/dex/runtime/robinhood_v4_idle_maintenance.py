@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.db.database_path import absolute_database_path
 from core.db.direction_pool_score import (
     MAX_DIRECTION_CANDIDATE_POOLS,
@@ -109,9 +110,9 @@ def _robinhood_scope_allowed(network: str, chain_id: int) -> bool:
 # Single source of truth for the YC/ZC candidate-eligible pool scope.  The
 # CLI completeness guard and the maintenance workers must agree on this
 # filter so generic unknown pools never force a full block-0 rescan.
-_CANDIDATE_ELIGIBLE_WHERE_SQL = """
+_CANDIDATE_ELIGIBLE_WHERE_SQL = f"""
     p.network = ? AND p.chain_id = ? AND p.protocol = ?
-    AND p.fee > 0 AND p.fee <= 3000 AND (p.fee & 8388608) = 0
+    AND p.fee > 0 AND p.fee <= {MAX_CANDIDATE_FIXED_FEE} AND (p.fee & 8388608) = 0
     AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = ?)
 """
 
@@ -544,7 +545,7 @@ def _usable_candidate_pool(row: dict[str, Any]) -> bool:
         fee = int(fee)
     except (TypeError, ValueError):
         return False
-    if fee <= 0 or fee > 3000 or bool(fee & 8388608):
+    if fee <= 0 or fee > MAX_CANDIDATE_FIXED_FEE or bool(fee & 8388608):
         return False
     hooks = _text(row.get("hooks"))
     return hooks in {"", ZERO_ADDRESS}
@@ -808,7 +809,7 @@ def _non_eligible_unknown_liquidity_count(
         WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
           AND (l.pool_id IS NULL OR l.has_liquidity IS NULL)
           AND NOT (
-            p.fee > 0 AND p.fee <= 3000 AND (p.fee & 8388608) = 0
+            p.fee > 0 AND p.fee <= {MAX_CANDIDATE_FIXED_FEE} AND (p.fee & 8388608) = 0
             AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = ?)
             {token_condition}
           )

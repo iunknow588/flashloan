@@ -18,6 +18,7 @@ from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
     V4_CUSTOM_ERROR_SELECTORS,
     V4_POOL_MANAGER_EXTSLOAD_ABI,
     V4_POOLS_SLOT,
+    V4_STATE_LIQUIDITY_WORD_OFFSET,
     V4_QUOTER_ABI,
     chain_row,
     normalize_address,
@@ -41,6 +42,7 @@ _POOL_ROWS_CACHE: dict[tuple[str, int, str], list[dict[str, Any]]] = {}
 _POOL_ROWS_CACHE_LOCK = threading.Lock()
 
 _V4_POOLS_SLOT = V4_POOLS_SLOT
+_V4_STATE_LIQUIDITY_WORD_OFFSET = V4_STATE_LIQUIDITY_WORD_OFFSET
 _V4_POOL_MANAGER_EXTSLOAD_ABI = V4_POOL_MANAGER_EXTSLOAD_ABI
 _V4_CUSTOM_ERROR_SELECTORS = V4_CUSTOM_ERROR_SELECTORS
 _V4_QUOTER_ABI = V4_QUOTER_ABI
@@ -222,7 +224,9 @@ def _read_live_pool_state_with_w3(
 
     throttle_rpc_call(rpc_url)
     slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
-    liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+    liquidity_slot = (
+        int.from_bytes(state_slot, "big") + _V4_STATE_LIQUIDITY_WORD_OFFSET
+    ).to_bytes(32, "big")
     throttle_rpc_call(rpc_url)
     liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
     slot0_value = int.from_bytes(bytes(slot0_raw), "big")
@@ -283,7 +287,9 @@ def _batch_read_live_pool_states(
         normalized_id = _normalize_pool_id(pool_id)
         pool_id_bytes = bytes.fromhex(normalized_id[2:])
         state_slot = keccak(pool_id_bytes + _V4_POOLS_SLOT)
-        liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+        liquidity_slot = (
+        int.from_bytes(state_slot, "big") + _V4_STATE_LIQUIDITY_WORD_OFFSET
+    ).to_bytes(32, "big")
         for slot, kind in ((state_slot, "slot0"), (liquidity_slot, "liquidity")):
             request_id = next_id
             next_id += 1

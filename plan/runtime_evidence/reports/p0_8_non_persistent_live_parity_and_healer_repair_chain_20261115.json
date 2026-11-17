@@ -1,0 +1,198 @@
+{
+  "defectsFoundAndFixed": [
+    {
+      "detail": "the review-time pool id was lowercased while the request pool ids and the live snapshot kept the original case, so a live route was silently dropped and reported as not_comparable",
+      "fix": "pool ids are normalized to lower case on every side (request extraction, live snapshot map, review-time map, build_hops lookup)",
+      "id": "pool-id-case-mismatch",
+      "regressionTest": "the_pool_id_is_matched_regardless_of_its_case",
+      "severity": "blocking"
+    },
+    {
+      "detail": "pool_manager::depth used an unchecked U256 -> u128 cast, so a chain value above 128 bits panicked and aborted the process that asked for a measurement",
+      "fix": "to_u128_checked reports the overflow as an error; the measurement never panics",
+      "id": "u256-to-u128-panic",
+      "regressionTest": "an_amount_that_does_not_fit_in_128_bits_is_an_error_and_not_a_panic",
+      "severity": "blocking"
+    },
+    {
+      "detail": "a missing live snapshot table aborted the whole parity replay, even though the review-time state alone carries a complete route",
+      "fix": "the live snapshot is only a fallback; an unreadable snapshot degrades to the review-time state",
+      "id": "missing-live-snapshot-aborted-replay",
+      "regressionTest": "a_live_payload_replay_survives_a_missing_live_snapshot",
+      "severity": "blocking"
+    },
+    {
+      "detail": "the healer hard-coded the broadcast layer as skipped, so a failed broadcast was never diagnosed or repaired",
+      "fix": "BROADCAST_FAILURE_CLASSES classifies the failure and repair_broadcast_failures drives the broadcast manager",
+      "id": "broadcast-repair-missing",
+      "regressionTest": "test_a_failed_broadcast_is_finalized_by_the_broadcast_manager",
+      "severity": "blocking"
+    },
+    {
+      "detail": "the missing-profit repair was a single pass, so a review could stay without an explicit value forever",
+      "fix": "converge_reviews drives a bounded loop and reports a stall instead of a success",
+      "id": "review-convergence-missing",
+      "regressionTest": "test_the_convergence_reports_a_stall_instead_of_a_success",
+      "severity": "blocking"
+    },
+    {
+      "detail": "the classifier matched snake_case markers against prose, so 'out of gas' was reported as unknown",
+      "fix": "spaces, dashes and underscores are collapsed to one separator before the match",
+      "id": "broadcast-classifier-separator-mismatch",
+      "regressionTest": "test_a_rejected_transaction_is_a_defect",
+      "severity": "major"
+    }
+  ],
+  "generatedAt": "2026-11-15T00:17:15Z",
+  "healerMainnetCheck": {
+    "layers": {
+      "L0_tooling": {
+        "sourceSync": true,
+        "valid": true
+      },
+      "L1_tokens": {
+        "admitted": 199,
+        "missing": 0,
+        "valid": true
+      },
+      "L2_pools": {
+        "drift": "manager_v4_closed_loop_library_state",
+        "eligible": 114,
+        "observation": 130,
+        "valid": false
+      },
+      "L3_loops": {
+        "loops": 106,
+        "valid": true
+      },
+      "L4_reviews": {
+        "code": "review_library_not_materialized",
+        "legacy": 2,
+        "total": 0,
+        "valid": false
+      },
+      "L5_broadcast": {
+        "epochLegacy": 0,
+        "manager": 0,
+        "valid": false
+      }
+    },
+    "mode": "check",
+    "productionStateAfter": "pool_scope_drift",
+    "productionStateBefore": "tooling_deployment_gap",
+    "readOnly": true,
+    "safeToAutoBroadcast": false
+  },
+  "healerRepairDryRun": {
+    "apply": false,
+    "broadcastRepair": {
+      "candidateCount": 0,
+      "failureClasses": {}
+    },
+    "chain": [
+      "tooling.command-support",
+      "reviewIndexes",
+      "depthSchema",
+      "poolDepth",
+      "databaseBaseline.migration",
+      "tokens",
+      "pools.materialize.core4",
+      "pools.materialize.candidate_exchange",
+      "broadcast.repair-broadcast-failures"
+    ],
+    "mode": "repair",
+    "stopped": null
+  },
+  "mainnetReadOnlyVerification": {
+    "authoritySwitched": false,
+    "broadcastInvoked": false,
+    "contractDeployed": false,
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "liveParityResult": {
+      "persisted": false,
+      "reason": "off-chain and chain agree",
+      "reviewTimeStateUsed": true,
+      "state": "match"
+    },
+    "releaseBinaryReplaced": false,
+    "sha256": "6262553a4ffc16030dddcc071c724fc07a5facd2e380a54f83345069ae97f56a",
+    "sha256After": "6262553a4ffc16030dddcc071c724fc07a5facd2e380a54f83345069ae97f56a",
+    "sha256Before": "6262553a4ffc16030dddcc071c724fc07a5facd2e380a54f83345069ae97f56a",
+    "sizeBytes": 3507453952,
+    "unchanged": true
+  },
+  "nonPersistentLiveParity": {
+    "cli": {
+      "computesUniswapArithmetic": false,
+      "namesManagerTable": false,
+      "opensDatabase": false,
+      "path": "scripts/p0_8_live_parity_replay.py"
+    },
+    "implemented": true,
+    "reviewManager": {
+      "failClosedWithoutReviewTimeState": true,
+      "functions": [
+        "parity_request_from_review_payload",
+        "evaluate_route_parity_with_review_time_state",
+        "extract_review_time_pool_states"
+      ]
+    },
+    "runtimeCoreCommand": {
+      "name": "review_parity_replay_payload",
+      "outputs": [
+        "reviewTimeStateUsed",
+        "reviewTimePoolCount"
+      ],
+      "persisted": false,
+      "readOnly": true
+    },
+    "rustWorker": {
+      "function": "live_review_parity_payload",
+      "persisted": false,
+      "sameRpcAsReview": true,
+      "source": "pool_manager_live_read_during_review",
+      "storage": "WorkerState.last_parity_payload (memory only)"
+    }
+  },
+  "notAuthorized": [
+    "production database write",
+    "broadcast",
+    "authority switch",
+    "mainnet bounded executor deployment",
+    "replacing the locked release binary"
+  ],
+  "principles": {
+    "cleanup": "manager API only, never a direct delete",
+    "reviewSubmissionBroadcast": "regenerable transient data, never a long-term statistic",
+    "schemaExpansion": "no long-term schema for transient data",
+    "tokenPoolFacts": "the only durable authority"
+  },
+  "regression": {
+    "newPythonTests": 30,
+    "poolManagerTests": 133,
+    "pythonUnitBaselineFailed": 94,
+    "pythonUnitFailed": 94,
+    "pythonUnitPassed": 2346,
+    "regressions": 0,
+    "reviewManagerParityTests": 56,
+    "rsSrcTests": 127,
+    "toolsWorkspace": "all suites pass"
+  },
+  "schema": "p0-8-runtime-evidence-v1",
+  "task": "P0-8 non-persistent live parity input and mainnet self-healing orchestrator repair chain",
+  "toolingGate": {
+    "after": {
+      "problems": [],
+      "sourceDigest": "3575b7a76c59103eec89513e7d7118eeeabae78bdd4920b5a0d81471052252f5",
+      "valid": true
+    },
+    "before": {
+      "problems": [
+        "source_digest_mismatch",
+        "binary_digest_mismatch"
+      ],
+      "valid": false
+    },
+    "command": "scripts/verify_pool_manager_binary_matches_source.py"
+  }
+}

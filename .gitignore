@@ -82,11 +82,13 @@ data_info/_build/
 flashloan/rs-src/target/
 flashloan/tools/**/target/
 flashloan/tools/target/
-runtime/external/rh-flash-toolkit/
+# Vendored third-party toolkits live outside the repository.
+runtime/
+runtime/external/
 logs/archive_root_*/
 logs/*.log
 logs/**/*.log
-logs/plan/runtime_evidence/history/*.jsonl
+plan/runtime_evidence/history/*.jsonl
 pytest_tmp_*/
 flashloan/.pytest_tmp/
 flashloan/src/runtime/evidence/chain_archive/
@@ -131,3 +133,35 @@ flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/shards-observ
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/overview.json
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/shards-overview/
 flashloan/src/runtime/market_observation/robinhood/4663/uniswap_v4/intermediate_pool_files/
+.tmp_fileio_selftest/
+
+# --- 2026-11-18 临时文件清理：禁止再次堆积 ---
+# Rust 验证用编译缓存（可由 cargo 重建）
+flashloan/tools/.cargo-verify-target/
+# 迁移前旧计划树（2026-11-14 已迁移到 plan/）
+logs/plan/
+# 脚本抓取临时文件
+plan/runtime_evidence/reports/_tmp_*.txt
+plan/runtime_evidence/reports/_tmp_*
+# 数据库快照与大文件不入库（只保留保留清单与结构化报告）
+plan/runtime_evidence/backups/*.sqlite3
+plan/runtime_evidence/backups/*.sqlite3-wal
+plan/runtime_evidence/backups/*.sqlite3-shm
+plan/back/*.sqlite3
+plan/back/*.sqlite3-wal
+plan/back/*.sqlite3-shm
+plan/back/**/*.sqlite3
+plan/back/**/*.sqlite3-wal
+plan/back/**/*.sqlite3-shm
+
+# pytest 临时基目录（部分目录由沙箱账号创建，当前用户无删除权限，故忽略）
+.tmp_pytest_base/
+trash_pytest_*/
+flashloan/.pytest_tmp/
+
+# 运行时归档与大体积观测流：超过 GitHub 单文件 100MB 硬限制，不得提交
+plan/runtime_evidence/archives/
+plan/runtime_evidence/diagnostics/mainnet_self_healing_orchestrator/*.jsonl
+plan/runtime_evidence/diagnostics/mainnet_quote_routes_after_rebuild_*.json
+plan/runtime_evidence/diagnostics/mainnet_overview_*.json
+plan/runtime_evidence/reports/arch2b_parity_replay_*_rust.json

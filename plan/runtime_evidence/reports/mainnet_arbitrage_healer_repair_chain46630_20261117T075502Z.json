@@ -1,0 +1,1324 @@
+{
+  "mode": "repair",
+  "generatedAt": "2026-11-17T07:55:01Z",
+  "apply": true,
+  "dryRun": false,
+  "before": {
+    "mode": "check",
+    "generatedAt": "2026-11-17T07:54:59Z",
+    "network": "robinhood-testnet",
+    "chainId": 46630,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "observationStartedAt": "2026-01-01T00:00:00Z",
+    "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+    "successCriteria": {
+      "continuousFreshReviews": true,
+      "broadcastOnlyFromFreshProfitableReview": true,
+      "terminalTransactionRecords": true,
+      "expectedAndGasAdjustedPnlAvailable": true
+    },
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "source": {
+          "total": 38,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "libraries": {
+          "core": {
+            "total": 5,
+            "admitted": 4,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "stocks": {
+            "total": 5,
+            "admitted": 5,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "extension": {
+            "total": 9,
+            "admitted": 0,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "test": {
+            "total": 1,
+            "admitted": 1,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          }
+        },
+        "admittedTotal": 10,
+        "libraryMissingFields": 0,
+        "missingLibraryTables": [],
+        "officialFundingAddresses": {
+          "TZ": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "TA": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "TB": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "ETH": "0x0000000000000000000000000000000000000000",
+          "AMD": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "AMZN": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "NFLX": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "PLTR": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "TSLA": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "WETH": "0x7943e237c7f95da44e0301572d358911207852fa",
+          "0X33E419": "0x33e4191705c386532ba27cbf171db86919200b94",
+          "BONK": "0xc865c16d62821123af3075fe7ed0582cbd537b7a",
+          "1000X": "0x1bb88a7eeefeda21673d4177804050a042d3e6e9",
+          "BPEPE": "0x2f3b25c2ad43313347b475d761bbf0bb489021b9",
+          "AETH": "0xc16a60868bb741a4f18d07c594dda40aa3c04870",
+          "USDC": "0x58cf1f9aa413ad044109ae6ecac2aa473218b554",
+          "USDT": "0x80134df477dec046b8f4656ce75e1ebb18718896",
+          "TUSD": "0x4f3b01ad7ac6d1639069ce7cfb1116bfc0152896",
+          "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "WBTC": "0xaf10804164f5f28935ee616afe6f9ceaf437ff2b",
+          "LINK": "0x99bd8f31d42db7f50b82ac6b04a026b804615eeb",
+          "AAVE": "0xf675ca0e424fba17bc9995d83992786d82944cca",
+          "UNI": "0x2925eac44ccef1f91a2660dfbabb7f3239ba2d6e",
+          "ARB": "0x6e96923114362874bdf128ff27e8fb2f5e63f95d",
+          "OP": "0x3a1b75cc948e61eafd12724986ecf0d050442fc1",
+          "DOGE": "0x2353a261a9498113b18014af68f7d35a49f79999",
+          "SHIB": "0x020b43ee82662e433b7f3d9d05d45a2b6723e41f",
+          "PEPE": "0xd69947ba2ebdc38f3414797945c737c9f3c4f031",
+          "SOL": "0x22cad1d1ad43f2fa2db4c36955e5c52e68e1d401",
+          "BNB": "0x250c0133efba678b0394292b47428150e56efa02",
+          "CRV": "0xabc9de3769ccf242dad0822199025c5ffc5a89db",
+          "MKR": "0x1ff5dc0b6ab7227218afa6c0109929d2d293a25c",
+          "FRAX": "0x3bfadb358fdbfa63a3fad9c267759a462af2ce0f",
+          "GRT": "0xf6ba2550914178692064569027c5afa9fdfcbf18",
+          "LDO": "0xab1c6d1883c7455c7028b078b3236ebdfdffff1a",
+          "SUSHI": "0x653b47e7e4b763558588a2eeaba943c674cfb015",
+          "POL": "0xe0aa675ddd6e73b5bf01e7ff82b226c805fb2c6b",
+          "1INCH": "0xa2217348a757e5df5e3dc1fe7a3f97a98be46f02"
+        },
+        "fundingAddressMismatches": [],
+        "counterfeitFundingAdmissions": [],
+        "stockProvenanceInvalid": [],
+        "defects": [],
+        "defectCount": 0,
+        "defectKinds": [],
+        "resolvableTargets": [],
+        "unresolvableDefectCount": 0
+      },
+      "pools": {
+        "valid": false,
+        "scope": {
+          "enabled": 1,
+          "materialized_checksum": "sha256:0e3e34197028d36bc667913dd940ad0e93458009aae4d34d8cbbb50f72a02998",
+          "last_rebuilt_at": "2026-11-17T01:33:18.512720600+00:00"
+        },
+        "candidate": {
+          "eligible_pool_count": 20,
+          "candidate_token_count": 7,
+          "abnormal_pool_count": 0,
+          "materialized_checksum": "sha256:cb784440f3d69dc165ebe2c077c9a358ed5a2cbb8f2033ccb0bc9da30dc9ca3d",
+          "generated_at": "2026-11-17T03:06:54.668558900+00:00"
+        },
+        "observation": {
+          "pool_count": 8,
+          "direction_count": 32,
+          "empty_direction_count": 22,
+          "abnormal_pool_count": 1,
+          "materialized_checksum": "sha256:aa7b01455fb932fc907d6fd7afe0a6830d0b211ef185d26c00e6a0b31fa7edeb",
+          "generated_at": "2026-11-15T06:20:57.646142500+00:00"
+        },
+        "exchange": {
+          "total": 36,
+          "missing_currencies": 0,
+          "filtered_fee": 0
+        },
+        "depth": {
+          "valid": false,
+          "code": "pool_depth_insufficient",
+          "classification": "pool_depth_insufficient",
+          "repairPath": "replace_shallow_pool",
+          "badReadingCount": 0,
+          "badReadingPoolCount": 0,
+          "unmeasuredPoolCount": 0,
+          "thinPoolIdCount": 18,
+          "adequatePoolIdCount": 7,
+          "candidatePoolIdCount": 25,
+          "minTvlUsd": 100000.0,
+          "maxTvlUsd": 1000000000.0,
+          "candidatePoolCount": 25,
+          "uniquePoolCount": 25,
+          "candidatePoolRows": 48,
+          "adequateDepthPoolCount": 7,
+          "insufficientDepthPoolCount": 18,
+          "thinPoolCount": 18,
+          "unpricedPoolCount": 0,
+          "depthCriterion": "pool_manager_capacity_verdict",
+          "adequateDepthStatuses": [
+            "deep",
+            "liquid",
+            "medium"
+          ],
+          "reason": "candidate pools whose capacity verdict is below the adequate band can only produce dust-sized best trade amounts whose profit never covers gas",
+          "byDepthStatus": [
+            {
+              "depthStatus": "deep",
+              "poolCount": 4,
+              "adequatePoolCount": 4,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 436391.2343266291,
+              "avgTvlUsd": 124683.2098076083
+            },
+            {
+              "depthStatus": "medium",
+              "poolCount": 3,
+              "adequatePoolCount": 3,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 0.0,
+              "avgTvlUsd": 0.0
+            },
+            {
+              "depthStatus": "thin",
+              "poolCount": 18,
+              "adequatePoolCount": 0,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 20237.408889773746,
+              "avgTvlUsd": 1129.3892516876863
+            }
+          ]
+        },
+        "bestAmount": {
+          "code": null,
+          "valid": true,
+          "confirmedCount": 0,
+          "belowGasCount": 0,
+          "tooSmallCount": 0,
+          "insufficientCount": 0,
+          "gasEstimateEth": 6.2e-06,
+          "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+          "bySymbol": {},
+          "belowGasSamples": [],
+          "tooSmallSamples": []
+        },
+        "binarySupport": {
+          "available": true,
+          "binary": "flashloan\\tools\\target\\release\\pool-manager.exe",
+          "binaryModifiedAt": "2026-11-17T07:46:06.790834Z",
+          "requiredCommands": [
+            "audit",
+            "baseline-audit",
+            "cleanup",
+            "materialize-scope",
+            "ensure-indexes",
+            "ensure-depth-schema",
+            "depth"
+          ],
+          "missingCommands": [],
+          "complete": true,
+          "reason": null
+        }
+      },
+      "closedLoops": {
+        "valid": true,
+        "library": {
+          "loop_count": 10,
+          "hop_count": 30,
+          "consumers_need_rebuild": 0,
+          "materialized_checksum": "sha256:7b0f48cf263dae872e956c87d6964584cd379427784f75c0862954a3405465c0",
+          "generated_at": "2026-11-17T03:06:44.149758900+00:00"
+        },
+        "runtime": [
+          {
+            "state": "execution_not_requested",
+            "count": 14
+          }
+        ]
+      },
+      "reviews": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 1,
+          "reviews": 8
+        },
+        "legacy": {
+          "windowHours": 24,
+          "stats": {
+            "total": 8,
+            "withValue": 8,
+            "missingValue": 0,
+            "positive": 0,
+            "positiveAmount": 2,
+            "positiveEstimateOnly": 0,
+            "estimatedProfitOnlyCount": 0,
+            "confirmedSum": 0.0,
+            "nonPositive": 6,
+            "sum": -188.9699772040584,
+            "minimum": -31.9985121558824,
+            "maximum": 0.009443745501743933,
+            "byCurrency": {
+              "PLTR": -62.45072626097837,
+              "ETH": -31.998503134430983,
+              "TSLA": -94.52074780864906
+            }
+          },
+          "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+          "currentLoopMatched": 8,
+          "staleOrUnmatched": 0,
+          "currentDistinctLoops": 8,
+          "matchedMissingPnl": 0,
+          "unmatchedMissingPnl": 0,
+          "bestAmountMissing": 8,
+          "bestAmountMissingCurrentLoop": 8,
+          "bestAmountLadderIncomplete": 8,
+          "bestAmountLadderIncompleteCurrentLoop": 8,
+          "bestAmountConfirmed": 0
+        },
+        "bestAmount": {
+          "code": "best_amount_missing",
+          "missing": 8,
+          "missingCurrentLoop": 8,
+          "ladderIncomplete": 8,
+          "ladderIncompleteCurrentLoop": 8,
+          "total": 8,
+          "confirmed": 0,
+          "retryable": false,
+          "failClosed": true,
+          "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+          "reasons": [
+            {
+              "reason": "best amount unresolved",
+              "count": 8
+            }
+          ],
+          "samples": [
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            }
+          ]
+        },
+        "missingReasons": [],
+        "missingClassifications": []
+      },
+      "broadcast": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "attempts": 0
+        },
+        "legacy": {
+          "total": 0,
+          "categories": {},
+          "latestAttemptAt": null,
+          "recent": []
+        },
+        "profitAnalysis": {
+          "expectedByCurrency": {},
+          "gasCostEthTotal": 0.0,
+          "gasCostObservedAttempts": 0,
+          "expectedEthOrWethNetAfterGas": 0.0,
+          "expectedEthOrWethNetObservedAttempts": 0,
+          "realizedByCurrency": {},
+          "realizedNetAfterGasByCurrency": {},
+          "realizedPnlObservedAttempts": 0,
+          "realizedPnlMissingAttempts": 0,
+          "realizedPnlMissingReasons": {},
+          "realizedPnlAvailable": false,
+          "source": "contract_preview_plus_confirmed_receipt_gas"
+        },
+        "outcomes": {
+          "success": 0,
+          "failed": 0,
+          "pending": 0,
+          "other": 0
+        },
+        "historicalPositiveReviewsInWindow": 0,
+        "automaticBroadcastCandidates": 0,
+        "automaticBroadcastPolicy": "fresh_positive_review_only"
+      },
+      "cascadeMatrix": {
+        "fundingTokens": {
+          "expected": 5,
+          "symbols": [
+            "ETH",
+            "TZ",
+            "USDE",
+            "USDG",
+            "WETH"
+          ],
+          "valid": 5,
+          "invalid": [],
+          "invalidCount": 0,
+          "counterfeitAdmitted": [],
+          "counterfeitAdmittedCount": 0,
+          "complete": true
+        },
+        "candidateTokens": {
+          "admitted": 10,
+          "byLibrary": {
+            "token_core": 4,
+            "token_stocks": 5,
+            "token_extension": 0,
+            "token_test": 1
+          },
+          "symbols": [
+            "AMD",
+            "AMZN",
+            "ETH",
+            "NFLX",
+            "PLTR",
+            "TSLA",
+            "TZ",
+            "USDE",
+            "USDG",
+            "WETH"
+          ],
+          "symbolCount": 10,
+          "fundingSymbolCount": 5,
+          "nonFundingSymbolCount": 5,
+          "missingDecimals": []
+        },
+        "candidatePools": {
+          "total": 25,
+          "distinctPoolCount": 25,
+          "byDepthStatus": {
+            "deep": 4,
+            "medium": 3,
+            "thin": 18
+          }
+        },
+        "closedLoops": {
+          "total": 10,
+          "exactThreeHops": 10,
+          "notExactThreeHops": 0,
+          "hopsTotal": 30,
+          "hopsInCandidateScope": 30,
+          "hopsMissingFromCandidateScope": 0,
+          "loopsWithMissingHop": 0,
+          "allHopsInScope": true,
+          "allExactThreeHops": true
+        }
+      }
+    },
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "transactionProduction": {
+      "state": "upstream_invalid",
+      "healthy": false,
+      "reason": "token_pool_or_closed_loop_invalid",
+      "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+      "reviewAgeSeconds": 137874.200139,
+      "reviewFreshnessThresholdSeconds": 600,
+      "executablePositiveReviews": 0,
+      "transactionRecords": 0,
+      "latestAttemptAt": null,
+      "bestAmountMissing": 8
+    },
+    "safeToAutoBroadcast": false
+  },
+  "results": [
+    {
+      "layer": "reviewIndexes",
+      "tool": "pool-manager",
+      "command": "flashloan\\tools\\target\\release\\pool-manager.exe ensure-indexes --store E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3 --chain-id 46630 --apply",
+      "skipped": false,
+      "reason": null,
+      "result": {
+        "ok": true,
+        "returncode": 0,
+        "stdout": "{\"chainId\":46630,\"indexes\":[{\"exists\":true,\"name\":\"idx_cow_execution_reviews_scope_created_v2\"},{\"exists\":true,\"name\":\"idx_cow_execution_reviews_scope_profit_source_created\"}],\"profitSourceQueryPlan\":[\"SEARCH cow_execution_reviews USING COVERING INDEX idx_cow_execution_reviews_scope_profit_source_created (network=? AND chain_id=? AND selected_profit_source=? AND created_at>?)\"],\"profitSourceQueryPlanUsesIndex\":true,\"reviewWindowQueryPlan\":[\"SEARCH cow_execution_reviews USING COVERING INDEX idx_cow_execution_reviews_scope_created_v2 (network=? AND chain_id=? AND created_at>?)\"],\"store\":\"E:\\\\2026OPC澶ц禌\\\\flashLoan\\\\flashloan\\\\db\\\\local_store_46630.sqlite3\"}\n",
+        "stdoutTruncated": false,
+        "stderr": ""
+      }
+    },
+    {
+      "layer": "pools",
+      "tool": "pool-manager",
+      "action": "repair-pool-depth",
+      "apply": true,
+      "dryRun": false,
+      "steps": [
+        {
+          "step": "audit",
+          "result": {
+            "ok": true,
+            "returncode": 0,
+            "stdout": "{\"affectedClosedLoopCount\":36,\"affectedClosedLoopKeys\":[\"0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93\",\"0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0\",\"0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0x7943e237c7f95da44e0301572d358911207852fa:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x7943e237c7f95da44e0301572d358911207852fa\",\"0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93\",\"0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000\",\"0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0\",\"0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x7943e237c7f95da44e0301572d358911207852fa:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x7943e237c7f95da44e0301572d358911207852fa:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x7943e237c7f95da44e0301572d358911207852fa\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x7943e237c7f95da44e0301572d358911207852fa:0x0000000000000000000000000000000000000000\"],\"affectedRecommendationCount\":28,\"candidateTotal\":48,\"chainId\":46630,\"eligibleTotal\":30,\"ineligiblePoolIds\":[\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\",\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\",\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\",\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\",\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\",\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\",\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\",\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\",\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\",\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\",\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\",\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\",\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\",\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\",\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\",\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\",\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\",\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\"],\"ineligibleTotal\":18,\"network\":\"robinhood-testnet\",\"reasonsByPool\":{\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":7.383599400251307,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8.97752142393576,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":4.464228863604979,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.3201902008828261,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":4.880112673072182,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.00004811837142228831,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.6345095160334601,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":5.940903177597036,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.020890512885695645,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.06030539574012297,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.06022204266684875,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":51.83973286648224,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":5555,\"hasLiquidity\":true,\"poolId\":\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":20237.408889773746,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":7.015154931279385,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0002214818017159861,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true}}}\n",
+            "stdoutTruncated": false,
+            "stderr": ""
+          }
+        },
+        {
+          "step": "cleanup",
+          "ineligiblePoolCount": 18,
+          "affectedClosedLoopCount": 36,
+          "result": {
+            "ok": true,
+            "returncode": 0,
+            "stdout": "{\"affectedClosedLoopCount\":36,\"affectedClosedLoopKeys\":[\"0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93\",\"0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0\",\"0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0x7943e237c7f95da44e0301572d358911207852fa:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x7943e237c7f95da44e0301572d358911207852fa\",\"0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93\",\"0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000\",\"0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0\",\"0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0x7943e237c7f95da44e0301572d358911207852fa:0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e\",\"0x7943e237c7f95da44e0301572d358911207852fa:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x0000000000000000000000000000000000000000:0x7943e237c7f95da44e0301572d358911207852fa\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d:0x0000000000000000000000000000000000000000\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02\",\"0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x7943e237c7f95da44e0301572d358911207852fa:0x0000000000000000000000000000000000000000\"],\"affectedRecommendationCount\":28,\"candidateTotal\":48,\"chainId\":46630,\"eligibleTotal\":30,\"ineligiblePoolIds\":[\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\",\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\",\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\",\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\",\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\",\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\",\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\",\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\",\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\",\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\",\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\",\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\",\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\",\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\",\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\",\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\",\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\",\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\"],\"ineligibleTotal\":18,\"network\":\"robinhood-testnet\",\"reasonsByPool\":{\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":7.383599400251307,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":8.97752142393576,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":4.464228863604979,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.3201902008828261,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x8ebeabbf04e434e24f72464327d1c24a29ea9dd9bebbfac8d04ee57368824822\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":4.880112673072182,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.00004811837142228831,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":2500,\"hasLiquidity\":true,\"poolId\":\"0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.6345095160334601,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":5.940903177597036,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.020890512885695645,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.06030539574012297,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.06022204266684875,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":10000,\"hasLiquidity\":true,\"poolId\":\"0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":51.83973286648224,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":5555,\"hasLiquidity\":true,\"poolId\":\"0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xbe52e5204dfcb2bbf4e03c992e6c986cbc660f4f0c3584127b1c7023e6cae4e7\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":20237.408889773746,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b\",\"reasons\":[\"depth_thin\"],\"specialFee\":false,\"usableForObservation\":true},\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":7.015154931279385,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":3000,\"hasLiquidity\":true,\"poolId\":\"0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true},\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\":{\"depthRank\":1,\"depthStatus\":\"thin\",\"dynamicFee\":false,\"estimatedTvlUsd\":0.0002214818017159861,\"evidenceSource\":\"pool_manager_extsload_live_state_batch\",\"fee\":500,\"hasLiquidity\":true,\"poolId\":\"0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a\",\"reasons\":[\"depth_thin\",\"tvl_below_reference_band\"],\"specialFee\":false,\"usableForObservation\":true}}}\n",
+            "stdoutTruncated": false,
+            "stderr": ""
+          }
+        },
+        {
+          "step": "refresh-key",
+          "keyCount": 1,
+          "results": [
+            {
+              "keyId": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+              "result": {
+                "ok": true,
+                "returncode": 0,
+                "stdout": "{\"affectedClosedLoopKeys\":[],\"apply\":true,\"base\":\"0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4\",\"chainId\":46630,\"consumersNeedRebuild\":0,\"deletedRows\":0,\"eligiblePoolCount\":0,\"eligiblePoolIds\":[],\"existingPoolCount\":0,\"inserted\":0,\"keyId\":\"0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8\",\"limit\":50,\"missingPoolCount\":0,\"missingPoolIds\":[],\"network\":\"robinhood-testnet\",\"pairKey\":\"0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8\",\"poolGroup\":\"core4\",\"quote\":\"0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8\",\"ready\":false,\"stalePoolCount\":0,\"stalePoolIds\":[]}\n",
+                "stdoutTruncated": false,
+                "stderr": ""
+              }
+            }
+          ]
+        },
+        {
+          "step": "replacement-assessment",
+          "status": "replacement_available",
+          "reason": "depth-qualified pools outside the current candidate set can replace shallow pools",
+          "code": null,
+          "depthCriterion": "pool_manager_capacity_verdict",
+          "adequateDepthStatuses": [
+            "deep",
+            "liquid",
+            "medium"
+          ],
+          "depthQualifiedPairCount": 7,
+          "replacementKeyCount": 1,
+          "keys": [
+            "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+          ]
+        }
+      ],
+      "replacement": {
+        "status": "replacement_available",
+        "reason": "depth-qualified pools outside the current candidate set can replace shallow pools",
+        "code": null,
+        "depthCriterion": "pool_manager_capacity_verdict",
+        "adequateDepthStatuses": [
+          "deep",
+          "liquid",
+          "medium"
+        ],
+        "depthQualifiedPairCount": 7,
+        "replacementKeyCount": 1,
+        "keys": [
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        ]
+      },
+      "policy": "candidate pools must keep enough on-chain depth to support a best trade amount whose profit covers gas"
+    },
+    {
+      "layer": "databaseBaseline",
+      "tool": "pool-manager",
+      "result": {
+        "chainId": 46630,
+        "closedLoops": {
+          "completeThreeHopLoopCount": 10,
+          "hopCount": 30,
+          "incompleteLoopCount": 0,
+          "invalidHopPoolReferenceCount": 4,
+          "loopCount": 10
+        },
+        "extension": {
+          "admitted": 0,
+          "anchoredToCoreOrStocks": 7,
+          "candidateOnly": 9,
+          "total": 9,
+          "unanchored": 2,
+          "unanchoredTokens": [
+            {
+              "admissionStatus": "candidate_only",
+              "tokenAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "tokenKeyId": "robinhood-testnet:46630:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "tokenSymbol": "TB",
+              "v4CurrencyKey": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+            },
+            {
+              "admissionStatus": "candidate_only",
+              "tokenAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+              "tokenKeyId": "robinhood-testnet:46630:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+              "tokenSymbol": "TA",
+              "v4CurrencyKey": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+            }
+          ]
+        },
+        "issues": [
+          "extension_library_contains_unanchored_tokens",
+          "closed_loop_hop_pool_reference_invalid"
+        ],
+        "migrations": {
+          "appliedCount": 10,
+          "appliedMigrations": [
+            "20261103_001_manager_schema",
+            "20261104_001_candidate_edge_schema",
+            "20261104_002_candidate_exchange_schema",
+            "20261104_003_closed_loop_schema",
+            "20261104_004_review_schema",
+            "20261104_005_broadcast_schema",
+            "20261104_006_composite_schema",
+            "20261112_007_usdg_valuation_schema",
+            "20261114_008_single_tick_capacity_schema",
+            "20261114_009_hop_price_limit_schema"
+          ],
+          "latestExpectedApplied": true,
+          "latestExpectedMigration": "20261114_009_hop_price_limit_schema",
+          "ledger": "schema_migrations",
+          "missingMigrations": [],
+          "unknownMigrationCount": 0
+        },
+        "network": "robinhood-testnet",
+        "pools": {
+          "candidatePairCount": 8,
+          "candidatePairMissingTop1DirectionCount": 0,
+          "candidatePoolCount": 18,
+          "candidatePoolInvalidReferenceCount": 0,
+          "candidateScopeActiveCount": 19,
+          "candidateScopeActiveInvalidFeeOrHookCount": 0,
+          "candidateScopeActiveMissingStateCount": 0,
+          "candidateScopeConfiguredLibraries": [
+            "core",
+            "stocks"
+          ],
+          "candidateScopeOutOfPolicyPoolCount": 0,
+          "candidateScopePolicyMatches": true,
+          "candidateScopePoolCount": 20,
+          "coreScopeConfiguredLibraries": [
+            "core",
+            "stocks"
+          ],
+          "coreScopePolicyMatches": true,
+          "observationDirectDirectionCount": 10,
+          "observationDirectionCount": 32,
+          "observationEmptyDirectionCount": 22,
+          "observationInvalidPoolReferenceCount": 0,
+          "observationPoolCount": 8,
+          "recommendationCount": 40,
+          "recommendationInvalidPoolReferenceCount": 0,
+          "sourcePoolCount": 36,
+          "top1RecommendationCount": 16
+        },
+        "tokenLibraries": [
+          {
+            "admitted": 4,
+            "libraryKey": "core",
+            "missingAddress": 0,
+            "missingDecimals": 0,
+            "missingName": 0,
+            "missingSymbol": 0,
+            "stateAdmittedCount": 4,
+            "stateMatchesRows": true,
+            "stateTokenCount": 5,
+            "total": 5
+          },
+          {
+            "admitted": 5,
+            "libraryKey": "stocks",
+            "missingAddress": 0,
+            "missingDecimals": 0,
+            "missingName": 0,
+            "missingSymbol": 0,
+            "stateAdmittedCount": 5,
+            "stateMatchesRows": true,
+            "stateTokenCount": 5,
+            "total": 5
+          },
+          {
+            "admitted": 0,
+            "libraryKey": "extension",
+            "missingAddress": 0,
+            "missingDecimals": 0,
+            "missingName": 0,
+            "missingSymbol": 0,
+            "stateAdmittedCount": 0,
+            "stateMatchesRows": true,
+            "stateTokenCount": 9,
+            "total": 9
+          },
+          {
+            "admitted": 1,
+            "libraryKey": "test",
+            "missingAddress": 0,
+            "missingDecimals": 0,
+            "missingName": 0,
+            "missingSymbol": 0,
+            "stateAdmittedCount": 1,
+            "stateMatchesRows": true,
+            "stateTokenCount": 1,
+            "total": 1
+          }
+        ],
+        "valid": false,
+        "command": [
+          "flashloan\\tools\\target\\release\\pool-manager.exe",
+          "baseline-audit",
+          "--store",
+          "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+          "--chain-id",
+          "46630"
+        ],
+        "missingMigrationCount": 0,
+        "missingMigrations": []
+      }
+    },
+    {
+      "layer": "pools",
+      "tool": "pool-manager",
+      "result": {
+        "ok": true,
+        "returncode": 0,
+        "stdout": "{\"activePoolCount\":18,\"apply\":true,\"chainId\":46630,\"changedRows\":18,\"consumersNeedRebuild\":true,\"deletedRows\":0,\"dryRun\":false,\"eligiblePoolCount\":18,\"filterMode\":\"edge_any\",\"insertedRows\":0,\"isolatedPoolCount\":0,\"libraryChecksums\":{\"core\":\"sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086\",\"stocks\":\"sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3\"},\"libraryKeys\":[\"core\",\"stocks\"],\"libraryVersions\":{\"core\":3,\"stocks\":1},\"materializedChecksum\":\"sha256:90fde7eef551d86a8ec54a409b52fb3b92339a818737cd52a15cfbc47fcce4d6\",\"network\":\"robinhood-testnet\",\"poolTable\":\"v4_exchange_pools_core4\",\"scopeKey\":\"core4\",\"skipReasonCounts\":{\"no_core_anchor\":6,\"token_not_admitted\":12},\"skippedPoolCount\":18,\"sourcePoolCount\":36,\"statusCounts\":{\"active\":18},\"updatedRows\":18}\n",
+        "stdoutTruncated": false,
+        "stderr": ""
+      }
+    },
+    {
+      "layer": "reviews",
+      "tool": "review-manager-api",
+      "mapped": 8,
+      "staleOrUnmatchedSkipped": 0,
+      "duplicateLoopReviewsCollapsed": 0,
+      "missingPnl": 0,
+      "expectedUpstream": {
+        "closedLoopVersion": 5,
+        "closedLoopChecksum": "sha256:7b0f48cf263dae872e956c87d6964584cd379427784f75c0862954a3405465c0",
+        "candidateEdgeVersion": 3,
+        "candidateEdgeChecksum": "sha256:cb784440f3d69dc165ebe2c077c9a358ed5a2cbb8f2033ccb0bc9da30dc9ca3d",
+        "observationVersion": 3,
+        "observationChecksum": "sha256:aa7b01455fb932fc907d6fd7afe0a6830d0b211ef185d26c00e6a0b31fa7edeb",
+        "poolScopeChecksum": "sha256:0e3e34197028d36bc667913dd940ad0e93458009aae4d34d8cbbb50f72a02998"
+      },
+      "result": {
+        "ok": false,
+        "status": null,
+        "body": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      }
+    },
+    {
+      "layer": "broadcast",
+      "tool": "broadcast-manager-api",
+      "delegated": true,
+      "skipped": false,
+      "actor": "runtime-broadcast-path",
+      "repairEndpoint": "POST /v1/broadcasts/finalize",
+      "reason": "广播交易由真实运行时从正净收益复核驱动；编排器只审计真实 attempt 并对失败尝试做终态化，不伪造 signer/nonce/rpc。"
+    }
+  ],
+  "after": {
+    "mode": "check",
+    "generatedAt": "2026-11-17T07:55:02Z",
+    "network": "robinhood-testnet",
+    "chainId": 46630,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "observationStartedAt": "2026-01-01T00:00:00Z",
+    "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
+    "successCriteria": {
+      "continuousFreshReviews": true,
+      "broadcastOnlyFromFreshProfitableReview": true,
+      "terminalTransactionRecords": true,
+      "expectedAndGasAdjustedPnlAvailable": true
+    },
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "source": {
+          "total": 38,
+          "missing_decimals": 0,
+          "missing_symbol": 0
+        },
+        "libraries": {
+          "core": {
+            "total": 5,
+            "admitted": 4,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "stocks": {
+            "total": 5,
+            "admitted": 5,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "extension": {
+            "total": 9,
+            "admitted": 0,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          },
+          "test": {
+            "total": 1,
+            "admitted": 1,
+            "missing_decimals": 0,
+            "missing_symbol": 0,
+            "tablePresent": true
+          }
+        },
+        "admittedTotal": 10,
+        "libraryMissingFields": 0,
+        "missingLibraryTables": [],
+        "officialFundingAddresses": {
+          "TZ": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "TA": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "TB": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "ETH": "0x0000000000000000000000000000000000000000",
+          "AMD": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "AMZN": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "NFLX": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "PLTR": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "TSLA": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "WETH": "0x7943e237c7f95da44e0301572d358911207852fa",
+          "0X33E419": "0x33e4191705c386532ba27cbf171db86919200b94",
+          "BONK": "0xc865c16d62821123af3075fe7ed0582cbd537b7a",
+          "1000X": "0x1bb88a7eeefeda21673d4177804050a042d3e6e9",
+          "BPEPE": "0x2f3b25c2ad43313347b475d761bbf0bb489021b9",
+          "AETH": "0xc16a60868bb741a4f18d07c594dda40aa3c04870",
+          "USDC": "0x58cf1f9aa413ad044109ae6ecac2aa473218b554",
+          "USDT": "0x80134df477dec046b8f4656ce75e1ebb18718896",
+          "TUSD": "0x4f3b01ad7ac6d1639069ce7cfb1116bfc0152896",
+          "USDE": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "WBTC": "0xaf10804164f5f28935ee616afe6f9ceaf437ff2b",
+          "LINK": "0x99bd8f31d42db7f50b82ac6b04a026b804615eeb",
+          "AAVE": "0xf675ca0e424fba17bc9995d83992786d82944cca",
+          "UNI": "0x2925eac44ccef1f91a2660dfbabb7f3239ba2d6e",
+          "ARB": "0x6e96923114362874bdf128ff27e8fb2f5e63f95d",
+          "OP": "0x3a1b75cc948e61eafd12724986ecf0d050442fc1",
+          "DOGE": "0x2353a261a9498113b18014af68f7d35a49f79999",
+          "SHIB": "0x020b43ee82662e433b7f3d9d05d45a2b6723e41f",
+          "PEPE": "0xd69947ba2ebdc38f3414797945c737c9f3c4f031",
+          "SOL": "0x22cad1d1ad43f2fa2db4c36955e5c52e68e1d401",
+          "BNB": "0x250c0133efba678b0394292b47428150e56efa02",
+          "CRV": "0xabc9de3769ccf242dad0822199025c5ffc5a89db",
+          "MKR": "0x1ff5dc0b6ab7227218afa6c0109929d2d293a25c",
+          "FRAX": "0x3bfadb358fdbfa63a3fad9c267759a462af2ce0f",
+          "GRT": "0xf6ba2550914178692064569027c5afa9fdfcbf18",
+          "LDO": "0xab1c6d1883c7455c7028b078b3236ebdfdffff1a",
+          "SUSHI": "0x653b47e7e4b763558588a2eeaba943c674cfb015",
+          "POL": "0xe0aa675ddd6e73b5bf01e7ff82b226c805fb2c6b",
+          "1INCH": "0xa2217348a757e5df5e3dc1fe7a3f97a98be46f02"
+        },
+        "fundingAddressMismatches": [],
+        "counterfeitFundingAdmissions": [],
+        "stockProvenanceInvalid": [],
+        "defects": [],
+        "defectCount": 0,
+        "defectKinds": [],
+        "resolvableTargets": [],
+        "unresolvableDefectCount": 0
+      },
+      "pools": {
+        "valid": false,
+        "scope": {
+          "enabled": 1,
+          "materialized_checksum": "sha256:90fde7eef551d86a8ec54a409b52fb3b92339a818737cd52a15cfbc47fcce4d6",
+          "last_rebuilt_at": "2026-11-17T07:54:59.341282600+00:00"
+        },
+        "candidate": {
+          "eligible_pool_count": 20,
+          "candidate_token_count": 7,
+          "abnormal_pool_count": 0,
+          "materialized_checksum": "sha256:cb784440f3d69dc165ebe2c077c9a358ed5a2cbb8f2033ccb0bc9da30dc9ca3d",
+          "generated_at": "2026-11-17T03:06:54.668558900+00:00"
+        },
+        "observation": {
+          "pool_count": 8,
+          "direction_count": 32,
+          "empty_direction_count": 22,
+          "abnormal_pool_count": 1,
+          "materialized_checksum": "sha256:aa7b01455fb932fc907d6fd7afe0a6830d0b211ef185d26c00e6a0b31fa7edeb",
+          "generated_at": "2026-11-15T06:20:57.646142500+00:00"
+        },
+        "exchange": {
+          "total": 36,
+          "missing_currencies": 0,
+          "filtered_fee": 0
+        },
+        "depth": {
+          "valid": false,
+          "code": "pool_depth_insufficient",
+          "classification": "pool_depth_insufficient",
+          "repairPath": "replace_shallow_pool",
+          "badReadingCount": 0,
+          "badReadingPoolCount": 0,
+          "unmeasuredPoolCount": 0,
+          "thinPoolIdCount": 18,
+          "adequatePoolIdCount": 7,
+          "candidatePoolIdCount": 25,
+          "minTvlUsd": 100000.0,
+          "maxTvlUsd": 1000000000.0,
+          "candidatePoolCount": 25,
+          "uniquePoolCount": 25,
+          "candidatePoolRows": 48,
+          "adequateDepthPoolCount": 7,
+          "insufficientDepthPoolCount": 18,
+          "thinPoolCount": 18,
+          "unpricedPoolCount": 0,
+          "depthCriterion": "pool_manager_capacity_verdict",
+          "adequateDepthStatuses": [
+            "deep",
+            "liquid",
+            "medium"
+          ],
+          "reason": "candidate pools whose capacity verdict is below the adequate band can only produce dust-sized best trade amounts whose profit never covers gas",
+          "byDepthStatus": [
+            {
+              "depthStatus": "deep",
+              "poolCount": 4,
+              "adequatePoolCount": 4,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 436391.2343266291,
+              "avgTvlUsd": 124683.2098076083
+            },
+            {
+              "depthStatus": "medium",
+              "poolCount": 3,
+              "adequatePoolCount": 3,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 0.0,
+              "avgTvlUsd": 0.0
+            },
+            {
+              "depthStatus": "thin",
+              "poolCount": 18,
+              "adequatePoolCount": 0,
+              "badReadingCount": 0,
+              "minTvlUsd": 0.0,
+              "maxTvlUsd": 20237.408889773746,
+              "avgTvlUsd": 1129.3892516876863
+            }
+          ]
+        },
+        "bestAmount": {
+          "code": null,
+          "valid": true,
+          "confirmedCount": 0,
+          "belowGasCount": 0,
+          "tooSmallCount": 0,
+          "insufficientCount": 0,
+          "gasEstimateEth": 6.2e-06,
+          "reason": "confirmed best trade amounts cannot cover the gas estimate; the selected pools are too shallow for a meaningful position",
+          "bySymbol": {},
+          "belowGasSamples": [],
+          "tooSmallSamples": []
+        },
+        "binarySupport": {
+          "available": true,
+          "binary": "flashloan\\tools\\target\\release\\pool-manager.exe",
+          "binaryModifiedAt": "2026-11-17T07:46:06.790834Z",
+          "requiredCommands": [
+            "audit",
+            "baseline-audit",
+            "cleanup",
+            "materialize-scope",
+            "ensure-indexes",
+            "ensure-depth-schema",
+            "depth"
+          ],
+          "missingCommands": [],
+          "complete": true,
+          "reason": null
+        }
+      },
+      "closedLoops": {
+        "valid": true,
+        "library": {
+          "loop_count": 10,
+          "hop_count": 30,
+          "consumers_need_rebuild": 0,
+          "materialized_checksum": "sha256:7b0f48cf263dae872e956c87d6964584cd379427784f75c0862954a3405465c0",
+          "generated_at": "2026-11-17T03:06:44.149758900+00:00"
+        },
+        "runtime": [
+          {
+            "state": "execution_not_requested",
+            "count": 14
+          }
+        ]
+      },
+      "reviews": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 1,
+          "reviews": 8
+        },
+        "legacy": {
+          "windowHours": 24,
+          "stats": {
+            "total": 8,
+            "withValue": 8,
+            "missingValue": 0,
+            "positive": 0,
+            "positiveAmount": 2,
+            "positiveEstimateOnly": 0,
+            "estimatedProfitOnlyCount": 0,
+            "confirmedSum": 0.0,
+            "nonPositive": 6,
+            "sum": -188.9699772040584,
+            "minimum": -31.9985121558824,
+            "maximum": 0.009443745501743933,
+            "byCurrency": {
+              "PLTR": -62.45072626097837,
+              "ETH": -31.998503134430983,
+              "TSLA": -94.52074780864906
+            }
+          },
+          "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+          "currentLoopMatched": 8,
+          "staleOrUnmatched": 0,
+          "currentDistinctLoops": 8,
+          "matchedMissingPnl": 0,
+          "unmatchedMissingPnl": 0,
+          "bestAmountMissing": 8,
+          "bestAmountMissingCurrentLoop": 8,
+          "bestAmountLadderIncomplete": 8,
+          "bestAmountLadderIncompleteCurrentLoop": 8,
+          "bestAmountConfirmed": 0
+        },
+        "bestAmount": {
+          "code": "best_amount_missing",
+          "missing": 8,
+          "missingCurrentLoop": 8,
+          "ladderIncomplete": 8,
+          "ladderIncompleteCurrentLoop": 8,
+          "total": 8,
+          "confirmed": 0,
+          "retryable": false,
+          "failClosed": true,
+          "reason": "every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution",
+          "reasons": [
+            {
+              "reason": "best amount unresolved",
+              "count": 8
+            }
+          ],
+          "samples": [
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            },
+            {
+              "reviewId": null,
+              "loopKey": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currentLoop": true,
+              "reason": "best amount unresolved",
+              "status": "",
+              "reviewFailureKind": "",
+              "initialProbeAmount": null,
+              "requestedSymbol": null,
+              "ladderIncomplete": true,
+              "probeCount": 0
+            }
+          ]
+        },
+        "missingReasons": [],
+        "missingClassifications": []
+      },
+      "broadcast": {
+        "valid": false,
+        "manager": {
+          "libraryStateRows": 0,
+          "attempts": 0
+        },
+        "legacy": {
+          "total": 0,
+          "categories": {},
+          "latestAttemptAt": null,
+          "recent": []
+        },
+        "profitAnalysis": {
+          "expectedByCurrency": {},
+          "gasCostEthTotal": 0.0,
+          "gasCostObservedAttempts": 0,
+          "expectedEthOrWethNetAfterGas": 0.0,
+          "expectedEthOrWethNetObservedAttempts": 0,
+          "realizedByCurrency": {},
+          "realizedNetAfterGasByCurrency": {},
+          "realizedPnlObservedAttempts": 0,
+          "realizedPnlMissingAttempts": 0,
+          "realizedPnlMissingReasons": {},
+          "realizedPnlAvailable": false,
+          "source": "contract_preview_plus_confirmed_receipt_gas"
+        },
+        "outcomes": {
+          "success": 0,
+          "failed": 0,
+          "pending": 0,
+          "other": 0
+        },
+        "historicalPositiveReviewsInWindow": 0,
+        "automaticBroadcastCandidates": 0,
+        "automaticBroadcastPolicy": "fresh_positive_review_only"
+      },
+      "cascadeMatrix": {
+        "fundingTokens": {
+          "expected": 5,
+          "symbols": [
+            "ETH",
+            "TZ",
+            "USDE",
+            "USDG",
+            "WETH"
+          ],
+          "valid": 5,
+          "invalid": [],
+          "invalidCount": 0,
+          "counterfeitAdmitted": [],
+          "counterfeitAdmittedCount": 0,
+          "complete": true
+        },
+        "candidateTokens": {
+          "admitted": 10,
+          "byLibrary": {
+            "token_core": 4,
+            "token_stocks": 5,
+            "token_extension": 0,
+            "token_test": 1
+          },
+          "symbols": [
+            "AMD",
+            "AMZN",
+            "ETH",
+            "NFLX",
+            "PLTR",
+            "TSLA",
+            "TZ",
+            "USDE",
+            "USDG",
+            "WETH"
+          ],
+          "symbolCount": 10,
+          "fundingSymbolCount": 5,
+          "nonFundingSymbolCount": 5,
+          "missingDecimals": []
+        },
+        "candidatePools": {
+          "total": 25,
+          "distinctPoolCount": 25,
+          "byDepthStatus": {
+            "deep": 4,
+            "medium": 3,
+            "thin": 18
+          }
+        },
+        "closedLoops": {
+          "total": 10,
+          "exactThreeHops": 10,
+          "notExactThreeHops": 0,
+          "hopsTotal": 30,
+          "hopsInCandidateScope": 30,
+          "hopsMissingFromCandidateScope": 0,
+          "loopsWithMissingHop": 0,
+          "allHopsInScope": true,
+          "allExactThreeHops": true
+        }
+      }
+    },
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "transactionProduction": {
+      "state": "upstream_invalid",
+      "healthy": false,
+      "reason": "token_pool_or_closed_loop_invalid",
+      "latestReviewAt": "2026-11-15T17:37:04.799861+00:00",
+      "reviewAgeSeconds": 137877.200139,
+      "reviewFreshnessThresholdSeconds": 600,
+      "executablePositiveReviews": 0,
+      "transactionRecords": 0,
+      "latestAttemptAt": null,
+      "bestAmountMissing": 8
+    },
+    "safeToAutoBroadcast": false
+  }
+}

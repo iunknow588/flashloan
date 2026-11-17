@@ -1,0 +1,175 @@
+runtime env: profile=v4_dex dex_only=true active=4663/robinhood kv=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3 dex_default=4663
+chain runtime active: chain_id=4663 network=robinhood database=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3
+non-DEX background disabled by runtime profile v4_dex
+V4 maintenance workers running: ['v4_broadcast_execution_worker', 'v4_candidate_yc_zc_worker', 'v4_closed_loop_worker', 'v4_dex_overview_worker', 'v4_market_observation_worker', 'v4_onchain_review_worker', 'v4_pool_liquidity_worker']
+BNB shared market collector disabled by FLASHLOAN_BNB_SHARED_DATABASE
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.0.0.1:5000
+Press CTRL+C to quit
+127.0.0.1 - - [11/Nov/2026 08:00:40] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:00:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:01:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:01:14] "POST /api/dex/closed-loop-groups/weth|nvda|usdg/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:01:17] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:01:19] "POST /api/dex/closed-loop-groups/usdg|spy|eth/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:01:20] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:01:22] "POST /api/dex/closed-loop-groups/eth|usde|usdg/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:03:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:03:36] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:04:11] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:04:20] "POST /api/dex/closed-loop-groups/weth|eth|usdg/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:04:24] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:04:33] "POST /api/dex/closed-loop-groups/usdg|spy|googl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:04:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:04:45] "POST /api/dex/closed-loop-groups/eth|usdg|aapl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:05:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:06:54] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:06:56] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:07:28] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:07:39] "POST /api/dex/closed-loop-groups/weth|spcx|usdg/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:07:42] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:07:49] "POST /api/dex/closed-loop-groups/usdg|spy|tsla/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:07:51] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:07:58] "POST /api/dex/closed-loop-groups/eth|spy|meta/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:10:06] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:10:08] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:10:40] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:10:48] "POST /api/dex/closed-loop-groups/usdg|eth|weth/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:10:52] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:10:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:10:58] "POST /api/dex/closed-loop-groups/usdg|spy|coin/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:11:02] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:13:12] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:13:13] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:13:50] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:14:02] "POST /api/dex/closed-loop-groups/weth|nvda|usdg/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:14:07] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:14:17] "POST /api/dex/closed-loop-groups/usdg|spy|aapl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:14:20] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:15:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:16:29] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:16:32] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:17:20] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:17:24] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:17:35] "POST /api/dex/closed-loop-groups/usdg|spy|meta/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:17:38] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:17:49] "POST /api/dex/closed-loop-groups/weth|usdg|nvda/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:20:01] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:20:02] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:20:44] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:20:50] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:20:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:21:00] "POST /api/dex/closed-loop-groups/usdg|spy|nvda/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:21:02] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:23:16] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:23:21] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:24:39] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:24:47] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+native closed-loop pool metadata not ready; skipping 0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x1b0e319c6a659f002271b69db8a7df2f911c153e:0x0000000000000000000000000000000000000000 until candidates exist: {"routeSymbols": ["USDG", "GME", "ETH", "USDG"], "reason": "pool_manager_refresh_required", "kind": "pool_manager_refresh_required", "retryable": true, "routeAddresses": ["0x5fc5360d0400a0fd4f2af552add042d716f1d168", "0x1b0e319c6a659f002271b69db8a7df2f911c153e", "0x0000000000000000000000000000000000000000", "0x5fc5360d0400a0fd4f2af552add042d716f1d168"], "keyIds": ["0x1b0e319c6a659f002271b69db8a7df2f911c153e:0x5fc5360d0400a0fd4f2af552add042d716f1d168", "0x0000000000000000000000000000000000000000:0x1b0e319c6a659f002271b69db8a7df2f911c153e", "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168"], "missingEdges": [{"index": 0, "from": "0x1b0e319c6a659f002271b69db8a7df2f911c153e", "to": "0x5fc5360d0400a0fd4f2af552add042d716f1d168", "keyId": "0x1b0e319c6a659f002271b69db8a7df2f911c153e:0x5fc5360d0400a0fd4f2af552add042d716f1d168"}, {"index": 1, "from": "0x0000000000000000000000000000000000000000", "to": "0x1b0e319c6a659f002271b69db8a7df2f911c153e", "keyId": "0x0000000000000000000000000000000000000000:0x1b0e319c6a659f002271b69db8a7df2f911c153e"}], "requestedAt": "2026-11-11T00:24:53.293535Z", "refreshCause": "candidate_pool_key_missing"}
+127.0.0.1 - - [11/Nov/2026 08:24:54] "POST /api/dex/closed-loop-groups/usdg|gme|eth/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:24:58] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 503 -
+127.0.0.1 - - [11/Nov/2026 08:25:11] "POST /api/dex/closed-loop-groups/eth|spy|aapl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [11/Nov/2026 08:25:32] "GET /api/dex/closed-loop-groups HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-mainnet.g.alchemy.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'rpc.mainnet.chain.robinhood.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [11/Nov/2026 08:27:32] "GET /healthz HTTP/1.1" 200 -

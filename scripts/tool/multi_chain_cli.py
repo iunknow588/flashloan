@@ -31,7 +31,7 @@ from chain_config import (
 ROOT = Path(__file__).resolve().parents[2]
 TOOL_DIR = Path(__file__).resolve().parent
 
-TEST_TOKEN_TOOL_DIR = ROOT / "test-token_create" / "scripts" / "tool"
+TEST_TOKEN_TOOL_DIR = ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool"
 if str(TEST_TOKEN_TOOL_DIR) not in sys.path:
     sys.path.insert(0, str(TEST_TOKEN_TOOL_DIR))
 
@@ -141,7 +141,7 @@ def run_testnet_menu(chain_id: int, *, rpc_url: str | None = None, choice: int |
         raise SystemExit(f"testnet V4 tool menu requires chain 46630; got {chain_id}")
     cfg = chain_config(chain_id, rpc_url_override=rpc_url)
     env = set_chain_env(chain_id, rpc_url_override=rpc_url)
-    args = _python([str(ROOT / "test-token_create" / "scripts" / "tool" / "manual_official_v4_menu.py")])
+    args = _python([str(ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool" / "manual_official_v4_menu.py")])
     args += ["--chain", str(chain_id), "--rpc-url", cfg["rpc_url"]]
     if choice is not None:
         args += ["--choice", str(choice)]

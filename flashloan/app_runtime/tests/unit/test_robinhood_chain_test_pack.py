@@ -278,10 +278,56 @@ def test_build_robinhood_chain_test_plan_falls_back_to_quote_hops_when_live_evid
     assert plan["preflightSpec"]["routeHops"][0]["amountInRaw"] == "1000000000"
     assert plan["preflightSpec"]["routeHops"][-1]["amountOutRaw"] == "7611915561"
     assert plan["preflightSpec"]["repaymentConstraint"]["borrowAmountRaw"] == "1000000000"
-    assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == "1000500000"
+    # The production route borrows straight from the Uniswap V4 PoolManager,
+    # which charges no flash-loan fee: the chain asks the principal back.
+    # The one-wei minimum profit is a separate constraint.
+    assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == "1000000000"
     assert plan["evidence"]["allHopsQuoted"] is True
     assert plan["evidence"]["finalOutputSymbol"] == "USDG"
     assert audit["ok"] is True
+
+def test_the_repayment_constraint_uses_the_chain_fee_and_not_the_preflight_margin():
+    """The chain charges no flash-loan fee, so the repayment must not add one.
+
+    The production route borrows straight from the Uniswap V4 PoolManager,
+    which charges no fee: the contract only asks for `amount + minProfit`
+    back, and `minProfit` is a one-wei profit guard. The off-chain preflight
+    keeps a margin of its own for gas, slippage and state drift, but that
+    margin must never inflate the amount the chain is asked to repay.
+
+    The recorded chain settlements confirm the fee is zero: every reviewed
+    route on chain 4663 settled with `requiredRepay == amount + 1`.
+    """
+    attempt = deepcopy(_sample_attempt())
+    attempt["quote"]["hops"] = deepcopy(attempt["quote"]["live_onchain_evidence"]["hops"])
+    attempt["quote"]["live_onchain_evidence"]["hops"] = []
+    attempt["quote"]["live_onchain_evidence"]["validation"]["allHopsQuoted"] = False
+    attempt["quote"]["live_onchain_evidence"]["costModel"] = {}
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    repayment = plan["preflightSpec"]["repaymentConstraint"]
+    assert repayment["borrowAmountRaw"] == "1000000000"
+    assert repayment["repayAmountRaw"] == "1000000000"
+    assert repayment["flashLoanFeeBps"] == 0.0
+    # The minimum profit is a separate constraint from the fee.
+    assert repayment["minProfitRaw"] == "6000000"
+
+
+def test_a_fee_recorded_in_the_evidence_is_authoritative():
+    """A recorded fee is the chain's own setting and must be honoured.
+
+    The flash-loan fee is an owner-mutable on-chain parameter, so evidence
+    that states it speaks for the adapter that was configured. The default
+    only applies when nothing states one.
+    """
+    attempt = deepcopy(_sample_attempt())
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    repayment = plan["preflightSpec"]["repaymentConstraint"]
+    assert repayment["flashLoanFeeBps"] == 5.0
+    assert repayment["repayAmountRaw"] == "1000500000"
+
 
 def test_robinhood_chain_test_plan_records_latest_snapshot_size_gate_block(tmp_path, monkeypatch):
     snapshot_path = tmp_path / "snapshot.json"
@@ -863,7 +909,16 @@ def test_native_aggregate_preview_cannot_become_live_ready_chain_test_package(
                 "profitRaw": "0x0493e0",
                 "ok": True,
                 "profitable": True,
-            }
+            },
+            # The amount ladder must actually expand before a best amount can
+            # be confirmed.  One probe row means the ladder never searched,
+            # which fails closed as ``review_failed_missing_best_amount``.
+            {
+                "amountRaw": "0x0f4240",
+                "profitRaw": "0x0493e0",
+                "ok": True,
+                "profitable": True,
+            },
         ],
     }
     attempt = rust_closed_loop.build_native_worker_attempt(

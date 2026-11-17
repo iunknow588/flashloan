@@ -290,6 +290,23 @@ pub struct BroadcastClearRequest {
     pub request_id: String,
     pub idempotency_key: String,
     pub apply: bool,
+    pub record_store: BroadcastRecordStore,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BroadcastRecordStore {
+    Manager,
+    Legacy,
+}
+
+impl BroadcastRecordStore {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Manager => "manager",
+            Self::Legacy => "legacy",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -340,6 +357,20 @@ pub struct AttemptRow {
     pub created_at: String,
     pub updated_at: String,
     pub terminal_at: Option<String>,
+    /// The folded single-tick capacity of the loop, in anchor-token raw
+    /// units.
+    ///
+    /// The bound is copied from the review request. It is the last durable
+    /// proof that the amount that was broadcast was inside the capacity the
+    /// review proved, so an operator can verify it after the fact.
+    pub single_tick_capacity_anchor_raw: Option<u128>,
+    /// The hop whose folded capacity is the smallest.
+    pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The price limit of each hop, in route order.
+    ///
+    /// A broadcast attempt without all three limits is refused: the
+    /// executor must not fall back to the global V4 price bound.
+    pub hop_sqrt_price_limits: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -394,6 +425,7 @@ pub struct BroadcastClearResult {
     pub chain_id: i64,
     pub protocol: String,
     pub scope_key: String,
+    pub record_store: String,
     pub apply: bool,
     pub dry_run: bool,
     pub cleared_attempts: usize,
@@ -602,36 +634,48 @@ fn clear_impl(
         }
 
         let result = prepare_clear_result(&transaction, request)?;
-        transaction.execute(
-            "DELETE FROM manager_broadcast_attempt_diagnostics
-             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
-            params![
-                request.network,
-                request.chain_id,
-                NETWORK_PROTOCOL,
-                BROADCAST_SCOPE_KEY
-            ],
-        )?;
-        transaction.execute(
-            "DELETE FROM manager_cow_execution_attempts
-             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
-            params![
-                request.network,
-                request.chain_id,
-                NETWORK_PROTOCOL,
-                BROADCAST_SCOPE_KEY
-            ],
-        )?;
-        transaction.execute(
-            "DELETE FROM manager_broadcast_library_state
-             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
-            params![
-                request.network,
-                request.chain_id,
-                NETWORK_PROTOCOL,
-                BROADCAST_SCOPE_KEY
-            ],
-        )?;
+        match request.record_store {
+            BroadcastRecordStore::Manager => {
+                transaction.execute(
+                    "DELETE FROM manager_broadcast_attempt_diagnostics
+                     WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+                    params![
+                        request.network,
+                        request.chain_id,
+                        NETWORK_PROTOCOL,
+                        BROADCAST_SCOPE_KEY
+                    ],
+                )?;
+                transaction.execute(
+                    "DELETE FROM manager_cow_execution_attempts
+                     WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+                    params![
+                        request.network,
+                        request.chain_id,
+                        NETWORK_PROTOCOL,
+                        BROADCAST_SCOPE_KEY
+                    ],
+                )?;
+                transaction.execute(
+                    "DELETE FROM manager_broadcast_library_state
+                     WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+                    params![
+                        request.network,
+                        request.chain_id,
+                        NETWORK_PROTOCOL,
+                        BROADCAST_SCOPE_KEY
+                    ],
+                )?;
+            }
+            BroadcastRecordStore::Legacy => {
+                if sqlite_table_exists(&transaction, "cow_execution_attempts")? {
+                    transaction.execute(
+                        "DELETE FROM cow_execution_attempts WHERE network = ?1 AND chain_id = ?2",
+                        params![request.network, request.chain_id],
+                    )?;
+                }
+            }
+        }
         persist_clear_write(&transaction, request, &request_digest, &result)?;
         transaction.commit()?;
         return Ok((result, false));
@@ -645,37 +689,59 @@ fn prepare_clear_result(
     connection: &Connection,
     request: &BroadcastClearRequest,
 ) -> Result<BroadcastClearResult, BroadcastError> {
-    let pending_attempts = count_scoped_rows(
-        connection,
-        "manager_cow_execution_attempts",
-        &request.network,
-        request.chain_id,
-        Some("status = 'pending'"),
-    )?;
+    let (pending_attempts, cleared_attempts, cleared_diagnostics) = match request.record_store {
+        BroadcastRecordStore::Manager => (
+            count_scoped_rows(
+                connection,
+                "manager_cow_execution_attempts",
+                &request.network,
+                request.chain_id,
+                Some("status = 'pending'"),
+            )?,
+            count_scoped_rows(
+                connection,
+                "manager_cow_execution_attempts",
+                &request.network,
+                request.chain_id,
+                None,
+            )?,
+            count_scoped_rows(
+                connection,
+                "manager_broadcast_attempt_diagnostics",
+                &request.network,
+                request.chain_id,
+                None,
+            )?,
+        ),
+        BroadcastRecordStore::Legacy => {
+            if !sqlite_table_exists(connection, "cow_execution_attempts")? {
+                (0, 0, 0)
+            } else {
+                let pending = count_legacy_attempt_rows(
+                    connection, &request.network, request.chain_id,
+                    Some("category NOT LIKE '%success%' AND category NOT LIKE '%failed%' AND category NOT LIKE '%failure%' AND category NOT LIKE '%revert%'"),
+                )?;
+                let total = count_legacy_attempt_rows(
+                    connection,
+                    &request.network,
+                    request.chain_id,
+                    None,
+                )?;
+                (pending, total, 0)
+            }
+        }
+    };
     if pending_attempts > 0 {
         return Err(BroadcastError::InvalidRequest(
             "cannot clear broadcast records while pending attempts exist".to_owned(),
         ));
     }
-    let cleared_attempts = count_scoped_rows(
-        connection,
-        "manager_cow_execution_attempts",
-        &request.network,
-        request.chain_id,
-        None,
-    )?;
-    let cleared_diagnostics = count_scoped_rows(
-        connection,
-        "manager_broadcast_attempt_diagnostics",
-        &request.network,
-        request.chain_id,
-        None,
-    )?;
     Ok(BroadcastClearResult {
         network: request.network.clone(),
         chain_id: request.chain_id,
         protocol: NETWORK_PROTOCOL.to_owned(),
         scope_key: BROADCAST_SCOPE_KEY.to_owned(),
+        record_store: request.record_store.as_str().to_owned(),
         apply: request.apply,
         dry_run: !request.apply,
         cleared_attempts,
@@ -1372,6 +1438,21 @@ fn build_attempt_rows(
                 request_status: format!("non_positive_pnl:{}", request.signed_pnl.amount),
             });
         }
+        // Version 1 executes inside one tick range per hop. The request
+        // must therefore carry all three price limits the review proved.
+        // Without them the executor would have to use the global V4 price
+        // bound, so the attempt is refused instead of created.
+        if request.hop_sqrt_price_limits.len() != 3
+            || request
+                .hop_sqrt_price_limits
+                .iter()
+                .any(|value| value.trim().is_empty())
+        {
+            return Err(BroadcastError::InvalidRequest(format!(
+                "confirmed request {} has no complete per-hop price limits",
+                request.loop_key
+            )));
+        }
         let attempt_id = attempt_id_for(attempt, review.review_version)?;
         if !seen_ids.insert(attempt_id.clone()) {
             return Err(BroadcastError::DuplicateAttemptInput(attempt_id));
@@ -1414,6 +1495,11 @@ fn build_attempt_rows(
             created_at: now.to_owned(),
             updated_at: now.to_owned(),
             terminal_at: None,
+            single_tick_capacity_anchor_raw: request.single_tick_capacity_anchor_raw,
+            single_tick_capacity_binding_pool_id: request
+                .single_tick_capacity_binding_pool_id
+                .clone(),
+            hop_sqrt_price_limits: request.hop_sqrt_price_limits.clone(),
         });
     }
     rows.sort_by(|left, right| left.attempt_id.cmp(&right.attempt_id));
@@ -1727,7 +1813,8 @@ fn clear_request_digest(request: &BroadcastClearRequest) -> Result<String, Broad
         "network": request.network,
         "chainId": request.chain_id,
         "operation": request.operation,
-        "apply": request.apply
+        "apply": request.apply,
+        "recordStore": request.record_store
     });
     Ok(checksum_bytes(&serde_json::to_vec(&payload)?))
 }
@@ -1752,6 +1839,32 @@ fn count_scoped_rows(
         |row| row.get(0),
     )?;
     Ok(usize_from_i64(count))
+}
+
+fn sqlite_table_exists(connection: &Connection, table: &str) -> Result<bool, BroadcastError> {
+    Ok(connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+        [table],
+        |row| row.get::<_, i64>(0),
+    )? != 0)
+}
+
+fn count_legacy_attempt_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    predicate: Option<&str>,
+) -> Result<usize, BroadcastError> {
+    let sql = format!(
+        "SELECT COUNT(*) FROM cow_execution_attempts WHERE network=?1 AND chain_id=?2{}",
+        predicate
+            .map(|value| format!(" AND ({value})"))
+            .unwrap_or_default(),
+    );
+    Ok(
+        connection.query_row(&sql, params![network, chain_id], |row| row.get::<_, i64>(0))?
+            as usize,
+    )
 }
 
 #[derive(Default)]
@@ -1934,7 +2047,10 @@ fn read_attempts(
                 signer_address, nonce, gas_limit, gas_price_wei,
                 max_fee_per_gas_wei, max_priority_fee_per_gas_wei, rpc_url,
                 rpc_name, tx_hash, status, status_reason, receipt_json,
-                evidence_json, created_at, updated_at, terminal_at
+                evidence_json, created_at, updated_at, terminal_at,
+                single_tick_capacity_anchor_raw,
+                single_tick_capacity_binding_pool_id,
+                hop_sqrt_price_limits_json
          FROM manager_cow_execution_attempts
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR attempt_id = ?5)
@@ -1991,6 +2107,16 @@ fn read_attempts(
                 created_at: row.get(31)?,
                 updated_at: row.get(32)?,
                 terminal_at: row.get(33)?,
+                single_tick_capacity_anchor_raw: row
+                    .get::<_, Option<String>>(34)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
+                single_tick_capacity_binding_pool_id: row
+                    .get::<_, Option<String>>(35)?
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
+                hop_sqrt_price_limits: parse_optional_json_column(
+                    row.get::<_, Option<String>>(36)?,
+                )?,
             })
         },
     )?;
@@ -2071,12 +2197,15 @@ fn insert_attempt(
              signed_pnl_source, signer_address, nonce, gas_limit,
              gas_price_wei, max_fee_per_gas_wei, max_priority_fee_per_gas_wei,
              rpc_url, rpc_name, tx_hash, status, status_reason, receipt_json,
-             evidence_json, created_at, updated_at, terminal_at
+             evidence_json, created_at, updated_at, terminal_at,
+             single_tick_capacity_anchor_raw,
+             single_tick_capacity_binding_pool_id,
+             hop_sqrt_price_limits_json
          ) VALUES (
              ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
              ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
              ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,
-             ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38
+             ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41
          )",
         params![
             network,
@@ -2116,7 +2245,11 @@ fn insert_attempt(
             serde_json::to_string(&row.evidence)?,
             row.created_at,
             row.updated_at,
-            row.terminal_at
+            row.terminal_at,
+            row.single_tick_capacity_anchor_raw
+                .map(|value| value.to_string()),
+            row.single_tick_capacity_binding_pool_id.clone(),
+            serde_json::to_string(&row.hop_sqrt_price_limits)?,
         ],
     )?;
     Ok(())
@@ -2327,7 +2460,8 @@ fn persist_clear_write(
         "chainId": request.chain_id,
         "operation": request.operation,
         "requestId": request.request_id,
-        "apply": request.apply
+        "apply": request.apply,
+        "recordStore": request.record_store
     });
     let response_json = serde_json::to_string(&PersistedClearWrite {
         request_id: request.request_id.clone(),
@@ -2377,6 +2511,22 @@ fn insert_write_request(
         ],
     )?;
     Ok(())
+}
+
+fn parse_optional_json_column<T>(value: Option<String>) -> Result<T, rusqlite::Error>
+where
+    T: serde::de::DeserializeOwned + Default,
+{
+    match value {
+        Some(value) => serde_json::from_str(&value).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                value.len(),
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        }),
+        None => Ok(T::default()),
+    }
 }
 
 fn parse_json_column<T>(value: String) -> Result<T, rusqlite::Error>
@@ -2437,8 +2587,8 @@ mod tests {
         finalize_broadcast_attempts_write, read_broadcast_snapshot, read_broadcast_snapshot_page,
         submit_broadcasts, submit_broadcasts_write, AttemptCreateInput, AttemptFinalizeInput,
         BroadcastClearRequest, BroadcastDiagnosticInput, BroadcastDiagnosticType, BroadcastError,
-        BroadcastFinalizeRequest, BroadcastSubmitRequest, BroadcastTerminalStatus,
-        ExpectedUpstream,
+        BroadcastFinalizeRequest, BroadcastRecordStore, BroadcastSubmitRequest,
+        BroadcastTerminalStatus, ExpectedUpstream,
     };
     use rusqlite::{params, Connection};
 
@@ -2482,7 +2632,8 @@ mod tests {
                     path_symbols_json, pool_path_key, pool_ids_json,
                     signed_pnl_raw, signed_pnl_amount, signed_pnl_currency,
                     signed_pnl_address, signed_pnl_unit, signed_pnl_source,
-                    request_status, request_reason, created_at, updated_at
+                    request_status, request_reason,
+                    hop_sqrt_price_limits_json, created_at, updated_at
                  ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 7,
                            'sha256:closed-loop',
                            'robinhood:4663:0x1111111111111111111111111111111111111111',
@@ -2493,7 +2644,9 @@ mod tests {
                            '12.5 USDG', 12.5, 'USDG',
                            '0x1111111111111111111111111111111111111111',
                            'token', 'runArbitrage', 'generated',
-                           'positive executable signed PnL', 'fixture', 'fixture')",
+                           'positive executable signed PnL',
+                            '[\"100\",\"200\",\"300\"]',
+                            'fixture', 'fixture')",
                 params![NETWORK, CHAIN_ID, LOOP_KEY],
             )
             .unwrap();
@@ -2670,6 +2823,7 @@ mod tests {
                 request_id: "clear-pending".to_owned(),
                 idempotency_key: "clear-pending".to_owned(),
                 apply: true,
+                record_store: BroadcastRecordStore::Manager,
             },
         );
         assert!(matches!(
@@ -2694,6 +2848,7 @@ mod tests {
                 request_id: "clear-dry".to_owned(),
                 idempotency_key: "clear-dry".to_owned(),
                 apply: false,
+                record_store: BroadcastRecordStore::Manager,
             },
         )
         .unwrap();
@@ -2717,6 +2872,7 @@ mod tests {
                 request_id: "clear-apply".to_owned(),
                 idempotency_key: "clear-apply".to_owned(),
                 apply: true,
+                record_store: BroadcastRecordStore::Manager,
             },
         )
         .unwrap();
@@ -2733,6 +2889,7 @@ mod tests {
                 request_id: "clear-replay".to_owned(),
                 idempotency_key: "clear-apply".to_owned(),
                 apply: true,
+                record_store: BroadcastRecordStore::Manager,
             },
         )
         .unwrap();
@@ -2862,6 +3019,36 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    /// A request without all three price limits is refused. Version 1
+    /// executes inside one tick range per hop, so a payload that cannot
+    /// carry its own limits must never become a broadcast attempt.
+    #[test]
+    fn a_request_without_hop_price_limits_is_refused() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_review_broadcast_requests
+                     SET hop_sqrt_price_limits_json = '[\"100\"]'
+                     WHERE network = ?1 AND chain_id = ?2",
+                    params![NETWORK, CHAIN_ID],
+                )
+                .unwrap();
+        }
+        let error = submit_broadcasts(&path, NETWORK, CHAIN_ID, vec![attempt(None, 7)], true)
+            .expect_err("a request without three price limits must be refused");
+        match error {
+            BroadcastError::InvalidRequest(message) => {
+                assert!(
+                    message.contains("per-hop price limits"),
+                    "unexpected reason: {message}"
+                );
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 
     #[test]

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_PATH = SRC_ROOT / "runtime" / "state" / "latest_extremes.json"
 DEFAULT_OUTPUT_PATH = SRC_ROOT / "runtime" / "state" / "latest_unified_data_simulation.json"
 

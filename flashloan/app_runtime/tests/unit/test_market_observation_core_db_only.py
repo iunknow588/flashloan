@@ -20,24 +20,33 @@ TZ = "0x0000000000000000000000000000000000000001"
 TB = "0x0000000000000000000000000000000000000002"
 
 
-def _real_runtime_database() -> str | None:
+def _real_runtime_database(chain_id: int, network: str) -> str | None:
+    """Return the authoritative per-chain SQLite path for one runtime scope.
+
+    The runtime uses one SQLite file per chain since the chain-scoped
+    database migration.  The old cross-chain ``src/runtime/local_store.sqlite3``
+    no longer exists, and pointing ``FLASHLOAN_KV_PATH`` at a single file can
+    no longer cover both the mainnet and testnet assertions in the same test.
+    The chain registry is therefore the only source of truth here.
+    """
     import os
     from pathlib import Path
 
+    from core.db.chain_database_context import chain_database_path
+
     env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
     if env_path:
-        candidate = Path(env_path)
+        override = Path(env_path).expanduser()
+        if override.is_dir():
+            candidate = override / f"local_store_{int(chain_id)}.sqlite3"
+        else:
+            candidate = override
     else:
-        candidate = (
-            Path(__file__).resolve().parents[3]
-            / "src"
-            / "runtime"
-            / "local_store.sqlite3"
-        )
+        candidate = chain_database_path(int(chain_id), network)
     if not candidate.exists():
         return None
     try:
-        candidate.resolve(strict=True)
+        candidate = candidate.resolve(strict=True)
     except OSError:
         return None
     return str(candidate)
@@ -64,6 +73,10 @@ def _pool(pool_id, token0, token1, *, liquid=True):
         "liquidity_index": 1000.0 if liquid else 0.0,
         "estimated_tvl_usd": 2000.0 if liquid else 0.0,
         "depth_status": "live_liquid" if liquid else "no_liquidity",
+        # The Rust kernel published the admission verdict for this pool.
+        "kernel_admitted": bool(liquid),
+        "kernel_admission_reason": "admitted" if liquid else "explicit_zero_liquidity",
+        "kernel_depth_band": "deep" if liquid else "dust",
         "sqrt_price_x96": "0",
         "tick": 0,
         "balances_json": json.dumps({"tvlUsd": 2000.0}) if liquid else "{}",
@@ -394,12 +407,13 @@ def test_real_runtime_db_directed_closed_loop_contract():
     import sqlite3
     from pathlib import Path
 
-    db = _real_runtime_database()
-    if db is None:
+    mainnet_db = _real_runtime_database(4663, "robinhood")
+    testnet_db = _real_runtime_database(46630, "robinhood-testnet")
+    if mainnet_db is None or testnet_db is None:
         import pytest
 
-        pytest.skip("real runtime sqlite database is not present")
-    con = sqlite3.connect(f"file:{Path(db).as_posix()}?mode=ro", uri=True)
+        pytest.skip("real runtime per-chain sqlite database is not present")
+    con = sqlite3.connect(f"file:{Path(mainnet_db).as_posix()}?mode=ro", uri=True)
     cur = con.cursor()
     try:
         mainnet_rows = cur.execute(
@@ -456,6 +470,14 @@ def test_real_runtime_db_directed_closed_loop_contract():
         ).fetchone()[0]
         assert liquid_hops == len(hop_rows)
 
+    finally:
+        con.close()
+
+    # The testnet scope lives in its own per-chain SQLite file, so it is
+    # queried through a second read-only connection.
+    con = sqlite3.connect(f"file:{Path(testnet_db).as_posix()}?mode=ro", uri=True)
+    cur = con.cursor()
+    try:
         testnet_rows = cur.execute(
             """
             SELECT loop_key, anchor_symbol, path_symbols_json

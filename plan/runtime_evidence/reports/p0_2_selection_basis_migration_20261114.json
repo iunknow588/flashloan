@@ -1,0 +1,177 @@
+{
+  "mode": "copy_materialize",
+  "productionWrite": false,
+  "inputVersions": {
+    "candidateVersion": 1,
+    "materializedChecksum": "sha256:5730db873fd83896e52bf5e4a8b4d576f91652692a33f0d4cae47ed3d6783687",
+    "poolScopeChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+    "libraryVersions": {
+      "core": 1,
+      "extension": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "selectionBasis": [
+      "direction_static_snapshot_then_fee_pool_id"
+    ]
+  },
+  "outputVersions": {
+    "candidateVersion": 2,
+    "materializedChecksum": "sha256:c2530bbec0bd8052db55c73017f39a70a42e858514acf8a2f057e54c82aa8a25",
+    "poolScopeChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+    "libraryVersions": {
+      "core": 1,
+      "extension": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "selectionBasis": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+  },
+  "rowCount": 242,
+  "checksum": "sha256:c2530bbec0bd8052db55c73017f39a70a42e858514acf8a2f057e54c82aa8a25",
+  "status": "passed",
+  "failureCodes": [],
+  "rollbackPoint": "E:\\2026OPC大赛\\flashLoan\\.pytest_tmp\\p0_2_selection_basis_20261114\\local_store_4663_p0_2_copy.sqlite3",
+  "rpcRequestCount": 0,
+  "testCommands": [
+    "cargo test --locked -p candidate-edge-pool-manager",
+    "cargo build --locked -p manager-api",
+    "GET /v1/candidate-edge-pools?chainId=4663&limit=1000",
+    "POST /v1/candidate-edge-pools/rebuild dryRun=true on database copy",
+    "POST /v1/candidate-edge-pools/rebuild dryRun=false twice on database copy"
+  ],
+  "failureSummary": [
+    "app_runtime unit suite has pre-existing failures unrelated to this label migration; no failure references the migrated label or candidate manager.",
+    "architecture guard has one pre-existing line-count failure in resolve_robinhood_testnet_token_metadata.py."
+  ],
+  "sourceDatabase": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "copyDatabase": "E:\\2026OPC大赛\\flashLoan\\.pytest_tmp\\p0_2_selection_basis_20261114\\local_store_4663_p0_2_copy.sqlite3",
+  "sourceDatabaseBytes": 3507453952,
+  "copyDatabaseBytes": 3507453952,
+  "baseline": {
+    "recommendationCount": 200,
+    "poolPairCount": 42,
+    "selectionBasisCounts": {},
+    "observedLabels": [
+      "direction_static_snapshot_then_fee_pool_id"
+    ]
+  },
+  "dryRun": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4",
+    "apply": false,
+    "dryRun": true,
+    "poolScopeChecksum": "sha256:5434a25ce3bd4cfa17484f50d33a4a9280e74b5332042266dac541cf940f9926",
+    "libraryVersions": {
+      "core": 1,
+      "extension": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "libraryChecksums": {
+      "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "extension": "sha256:20425ff1c9a289f3cab07b9f62190051aa836d8775bf37cdbc5b3355e0be1c4f",
+      "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+    },
+    "sourcePoolCount": 2022,
+    "eligiblePoolCount": 114,
+    "abnormalPoolCount": 2196,
+    "anchorTokenCount": 4,
+    "candidateTokenCount": 24,
+    "recommendationCount": 200,
+    "skipReasonCounts": {
+      "invalid_pool_key": 11
+    },
+    "changedRows": 2904,
+    "candidateVersion": 2,
+    "materializedChecksum": "sha256:c2530bbec0bd8052db55c73017f39a70a42e858514acf8a2f057e54c82aa8a25",
+    "consumersNeedRebuild": true,
+    "idempotentReplay": false
+  },
+  "firstApply": {
+    "changedRows": 2904,
+    "candidateVersion": 2,
+    "materializedChecksum": "sha256:c2530bbec0bd8052db55c73017f39a70a42e858514acf8a2f057e54c82aa8a25",
+    "consumersNeedRebuild": true
+  },
+  "secondApply": {
+    "changedRows": 0,
+    "candidateVersion": 2,
+    "materializedChecksum": "sha256:c2530bbec0bd8052db55c73017f39a70a42e858514acf8a2f057e54c82aa8a25",
+    "consumersNeedRebuild": false
+  },
+  "validation": {
+    "directionCount": 84,
+    "recommendationCount": 200,
+    "poolPairCount": 42,
+    "top1ChangedCount": 10,
+    "top5ChangedCount": 14,
+    "directionAsymmetricPairCount": 24,
+    "noPriceTop1Count": 0,
+    "recommendationLabelCounts": {
+      "direction_single_tick_exact_output_then_tick_fee_pool_id": 200
+    },
+    "poolPairLabelCounts": {
+      "direction_single_tick_exact_output_then_tick_fee_pool_id": 42
+    },
+    "repeatedSnapshotsEqual": true,
+    "dryRunMatchesApplyChecksum": true,
+    "repeatedApplyChecksumEqual": true
+  },
+  "rawEvidence": [
+    ".pytest_tmp/p0_2_selection_basis_20261114/before.json",
+    ".pytest_tmp/p0_2_selection_basis_20261114/dry_run.json",
+    ".pytest_tmp/p0_2_selection_basis_20261114/apply_1.json",
+    ".pytest_tmp/p0_2_selection_basis_20261114/after_1.json",
+    ".pytest_tmp/p0_2_selection_basis_20261114/apply_2.json",
+    ".pytest_tmp/p0_2_selection_basis_20261114/after_2.json"
+  ],
+  "productionDatabaseWrites": 0,
+  "authoritySwitches": 0,
+  "broadcasts": 0,
+  "regression": {
+    "candidateEdgePoolManager": {
+      "command": "cargo test --locked -p candidate-edge-pool-manager",
+      "result": "passed",
+      "passed": 14,
+      "failed": 0
+    },
+    "managerApi": {
+      "command": "cargo test --locked -p manager-api",
+      "result": "passed",
+      "passed": 23,
+      "failed": 0
+    },
+    "runtimeCore": {
+      "command": "cargo test --locked --manifest-path flashloan/rs-src/Cargo.toml runtime_core",
+      "result": "passed",
+      "passed": 12,
+      "failed": 0
+    },
+    "affectedPython": {
+      "command": "pytest test_manager_page_compare.py test_manager_api_client.py test_direction_pool_model.py test_direction_schema_migration.py",
+      "result": "passed",
+      "passed": 86,
+      "failed": 0
+    },
+    "architectureGuards": {
+      "command": "pytest flashloan/app_runtime/tests/unit/test_architecture_guards.py -q",
+      "result": "failed-existing-baseline",
+      "passed": 50,
+      "failed": 1,
+      "failure": "resolve_robinhood_testnet_token_metadata.py exceeds 1000 lines; file was already modified before this task and is unrelated to selection_basis"
+    },
+    "appRuntimeUnitSuite": {
+      "command": "pytest flashloan/app_runtime/tests/unit -q with 11 pre-existing collection-error files ignored",
+      "result": "failed-existing-baseline",
+      "passed": 2315,
+      "failed": 93,
+      "skipped": 3,
+      "relatedFailureCount": 0,
+      "note": "No failure references selection_basis, candidate_edge_pool_manager, or manager_candidate_payload. 11 collection errors are pre-existing module-migration errors."
+    }
+  }
+}

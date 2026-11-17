@@ -1,0 +1,82 @@
+{
+  "authority": "code_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "worker executor batch request completeness validation",
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-15T00:00:00Z",
+  "integrityContract": {
+    "acceptedCondition": "buildFailures.isEmpty && gatedRouteCount == eligibleRouteCount && eligibleRouteCount == requests.length && requests.length > 0",
+    "buildFailureFields": [
+      "routeIndex",
+      "routeSymbols",
+      "routeAddresses",
+      "error"
+    ],
+    "directBroadcastFailClosed": true,
+    "executionQueueFailClosed": true,
+    "newPayloadFields": [
+      "executorBatchGatedRouteCount",
+      "executorBatchBuildFailureCount",
+      "executorBatchBuildFailures"
+    ],
+    "oldRisk": "executorBatchEligibleRouteCount was derived only from successfully built requests, so a gated profitable route could be silently omitted while the remaining partial batch still passed its count check"
+  },
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "reviewBroadcastSchemaExpanded": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "rollbackAvailable": true,
+  "rollbackPoint": "revert Result-based executor request collection, batch failure evidence fields, and shared completeness validator",
+  "rpcRequestCount": 0,
+  "rustChanges": {
+    "failureCodes": [
+      "executor_request_missing_selected_keys",
+      "executor_request_pool_manager_unavailable",
+      "executor_request_build_failed:<detail>",
+      "executor_request_reviewed_minimum_output_unavailable"
+    ],
+    "files": [
+      "flashloan/rs-src/src/worker_pool.rs"
+    ],
+    "persistencePolicy": "No long-term review/submission/broadcast schema expansion; completeness evidence is regenerated in the current worker payload.",
+    "routeClassification": {
+      "Err(reason)": "route passed execution gates but executor request construction failed; block the complete batch",
+      "Ok(None)": "route is not profitable or did not pass all execution gates; exclude it from the gated set",
+      "Ok(Some(request))": "route passed all execution gates and produced a bounded request"
+    }
+  },
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "flashloan-rs offline suite",
+      "result": "122 passed / 0 failed",
+      "target": "flashloan/rs-src"
+    },
+    {
+      "name": "tools offline workspace",
+      "result": "exit code 0",
+      "target": "flashloan/tools"
+    },
+    {
+      "name": "executor_batch_validator_rejects_partial_requests_after_build_failure",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    },
+    {
+      "name": "executor_batch_queue_requires_nonempty_matching_eligible_requests",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    }
+  ],
+  "title": "P0-8 batch request completeness fail-closed"
+}

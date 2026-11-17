@@ -1075,6 +1075,16 @@ def db_closed_loop_sequences(
         def _anchor_candidate_pool(pool_id: str) -> dict[str, Any] | None:
             normalized_id = str(pool_id or "").strip().lower()
             pool = anchor_pool_by_id.get(normalized_id)
+            if pool is None:
+                # A closed loop may reference a pool that is shared with another
+                # anchor (the bridge leg is the usual case).  The candidate and
+                # observation surfaces are anchor scoped, so such a pool is
+                # only recorded under the anchor that discovered it.  The
+                # exchange tables are chain scoped and own every pool of the
+                # market, so fall back to them instead of dropping the hop.
+                # Without this fallback a single missing anchor-scoped row
+                # silently removes the whole three-hop route.
+                pool = exchange_pool_by_id.get(normalized_id)
             if pool is not None:
                 merged = dict(pool)
                 liquidity = observation_liquidity_by_anchor.get(anchor_symbol, {}).get(normalized_id)

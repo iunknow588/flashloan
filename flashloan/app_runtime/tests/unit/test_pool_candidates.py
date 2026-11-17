@@ -87,6 +87,10 @@ def _pool(pool_id: str, token0_symbol: str, token1_symbol: str, token0: str, tok
         "balances": {"token0": token0_amount, "token1": token1_amount, "tvlUsd": tvl_usd},
         "market": {"priceNative": price_native, "priceUsd": "1"},
         "depthBand": {"level": "deep", "label": "deep"},
+        # The Rust kernel published the admission verdict for this pool.
+        "kernelAdmitted": True,
+        "kernelAdmissionReason": "admitted",
+        "kernelDepthBand": "deep",
     }
 
 
@@ -100,21 +104,24 @@ def test_robinhood_testnet_candidate_pagination_defaults_to_20_rows(monkeypatch)
         assert quality == "all"
 
 
-def test_candidate_fixed_fee_above_3000_is_skipped_at_storage_stage():
-    assert _candidate_fixed_fee_too_high(3001) is True
-    assert _candidate_fixed_fee_too_high(10000) is True
+def test_candidate_fixed_fee_above_the_shared_ceiling_is_skipped_at_storage_stage():
+    # The ceiling was raised from 3000 (0.30%) to 30000 (3.00%) on
+    # 2026-11-13 so that more pools can enter the observation scope.
+    assert MAX_USABLE_CANDIDATE_FIXED_FEE == 30000
+    assert _candidate_fixed_fee_too_high(30001) is True
+    assert _candidate_fixed_fee_too_high(10000) is False
     assert _candidate_fixed_fee_too_high(3000) is False
     assert _candidate_fixed_fee_too_high(2500) is False
     assert _candidate_fixed_fee_too_high(100001) is True
     assert _candidate_fixed_fee_too_high(8388608) is True
 
 
-def test_candidate_builder_sql_caps_fixed_fee_at_3000():
+def test_candidate_builder_sql_caps_fixed_fee_at_the_shared_ceiling():
     candidate_sql = _fixed_fee_no_hook_sql(max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
     observation_sql = _fixed_fee_no_hook_sql(max_fixed_fee=MAX_USABLE_CANDIDATE_FIXED_FEE)
-    assert "p.fee <= 3000" in candidate_sql
+    assert "p.fee <= 30000" in candidate_sql
     assert "p.fee <= 100000" not in candidate_sql
-    assert "p.fee <= 3000" in observation_sql
+    assert "p.fee <= 30000" in observation_sql
     assert "p.fee <= 100000" not in observation_sql
 
 
@@ -247,10 +254,14 @@ def test_page_candidate_pool_row_enforces_fixed_fee_upper_bound():
             anchor_symbol="ETH",
         )
 
+    # The shared candidate ceiling was raised from 3000 to 30000 on
+    # 2026-11-13, so a 1.00% pool is now a normal candidate.
     assert row(3000)["quality"] == "pass"
-    assert row(3001)["quality"] == "rejected"
-    assert row(10861)["quality"] == "rejected"
-    assert row(10861, usable=False)["quality"] == "rejected"
+    assert row(10000)["quality"] == "pass"
+    assert row(10861)["quality"] == "pass"
+    assert row(30000)["quality"] == "pass"
+    assert row(30001)["quality"] == "rejected"
+    assert row(30001, usable=False)["quality"] == "rejected"
     assert row(3000, usable=True)["quality"] == "pass"
     assert row(3000, usable=False)["quality"] == "rejected"
 
@@ -564,7 +575,9 @@ def test_mark_v4_shared_yc_zc_sets_separates_normal_and_abnormal_pools():
         "pool": "0x" + "b2" * 32,
         "counterAddress": token_b,
         "counterSymbol": "TOKEN-B",
-        "fee": 5000,
+        # Above the shared candidate ceiling (30000), so the pool is not a
+        # normal candidate and lands in the abnormal bucket.
+        "fee": 30001,
     }
 
     groups = robinhood_dex_pool_candidates._mark_v4_shared_yc_zc_sets(
@@ -596,13 +609,13 @@ def test_market_observation_pool_usable_is_static_liquidity_stays_overview_gate(
     assert robinhood_market_observation._observation_pool_usable(pool) is True
     assert robinhood_market_observation._pool_usable_for_observation(pool) is True
     assert robinhood_market_observation._pool_liquidity_qualified(pool) is False
-    assert robinhood_market_observation._observation_pool_usable({**pool, "fee": 3001}) is False
+    assert robinhood_market_observation._observation_pool_usable({**pool, "fee": 30001}) is False
 
 
 def test_import_existing_json_filters_observation_pools_by_fixed_fee_no_hook():
     allowed = {"fee": 3000, "hooks": "0x0000000000000000000000000000000000000000"}
     assert import_existing_json._observation_pool_allowed(allowed) is True
-    assert import_existing_json._observation_pool_allowed({**allowed, "fee": 3001}) is False
+    assert import_existing_json._observation_pool_allowed({**allowed, "fee": 30001}) is False
     assert import_existing_json._observation_pool_allowed({**allowed, "fee": 100001}) is False
     assert import_existing_json._observation_pool_allowed({**allowed, "fee": 8388608}) is False
     assert import_existing_json._observation_pool_allowed({**allowed, "hooks": "0x1"}) is False
@@ -634,6 +647,12 @@ def test_build_loops_requires_all_three_hops_to_have_pools():
             "token0": token0,
             "token1": token1,
             "liquidity_index": 1.0,
+            # The Rust kernel publishes the admission verdict on every pool
+            # row it hands to Python. The verdict travels with the row, so a
+            # fixture pool carries it too.
+            "kernel_admitted": True,
+            "kernel_admission_reason": "fixture_admitted",
+            "kernel_depth_band": "deep",
         }
 
     candidates = {"tokens": [{"token_address": y}, {"token_address": z}]}
@@ -676,6 +695,9 @@ def test_find_pool_for_hop_keeps_mirror_direction_symmetry():
     mirror direction has no pool, even when one-token capacity differs."""
     anchor = "0x" + "1" * 40
     counter = "0x" + "2" * 40
+    # The Rust kernel owns the admission verdict. A thin pool is rejected by
+    # the kernel and a deep pool is admitted by it, so the fixture publishes
+    # the verdict it expects the kernel to have published.
     pool = {
         "pool_id": "pool-dir-thin",
         "token0": anchor,
@@ -686,6 +708,9 @@ def test_find_pool_for_hop_keeps_mirror_direction_symmetry():
         "estimated_tvl_usd": 0,
         "liquidity": "100000000000000000",
         "sqrt_price_x96": "1",
+        "kernel_admitted": False,
+        "kernel_admission_reason": "below_shared_admission_floor",
+        "kernel_depth_band": "shallow",
     }
 
     forward = import_existing_json._find_pool_for_hop(
@@ -704,6 +729,9 @@ def test_find_pool_for_hop_keeps_mirror_direction_symmetry():
     deep = dict(pool)
     deep["liquidity_index"] = 1000.0
     deep["estimated_tvl_usd"] = 1_000_000
+    deep["kernel_admitted"] = True
+    deep["kernel_admission_reason"] = "within_shared_admission_floor"
+    deep["kernel_depth_band"] = "deep"
     forward = import_existing_json._find_pool_for_hop(
         {"pool-dir-thin": deep},
         anchor,
@@ -737,6 +765,11 @@ def test_build_loops_keeps_two_directions_symmetric_when_depth_is_thin():
             "estimated_tvl_usd": 0,
             "liquidity": "100000000000000000",
             "sqrt_price_x96": "1",
+            # The Rust kernel rejects a thin pool. The fixture publishes the
+            # verdict the kernel publishes for such a pool.
+            "kernel_admitted": False,
+            "kernel_admission_reason": "below_shared_admission_floor",
+            "kernel_depth_band": "shallow",
         }
 
     candidates = {"tokens": [{"token_address": y}, {"token_address": z}]}
@@ -852,7 +885,8 @@ def test_mainnet_associated_observation_rows_attach_non_normal_pools():
         for index, (fee, hooks) in enumerate(
             (
                 (3000, "0x" + "1" * 40),
-                (3001, "0x0000000000000000000000000000000000000000"),
+                (10000, "0x0000000000000000000000000000000000000000"),
+                (30001, "0x0000000000000000000000000000000000000000"),
                 (8388608, "0x0000000000000000000000000000000000000000"),
             ),
             start=1,
@@ -868,8 +902,10 @@ def test_mainnet_associated_observation_rows_attach_non_normal_pools():
     for row in pair_rows:
         assert row["hasDirectSwapPool"] is False
         assert row["hasNonNormalSwapPool"] is True
-        assert row["nonNormalSwapPoolCount"] == 3
-        assert len(row["nonNormalSwapPools"]) == 3
+        # The caller passes the non-normal pools in explicitly, so every one
+        # of them counts towards the surface regardless of the ceiling.
+        assert row["nonNormalSwapPoolCount"] == 4
+        assert len(row["nonNormalSwapPools"]) == 4
         assert row["observationEmptyReason"] == "仅存在非正常 Y-Z 交易池"
 
 
@@ -935,6 +971,12 @@ def test_static_quote_routes_keeps_unlabelled_closed_loops_and_exposes_liquid_re
         return {
             "pool": pool_id,
             "poolId": pool_id,
+            # The Rust kernel publishes the admission verdict on every pool
+            # row. A fixture pool carries the same verdict so the consumer
+            # never has to fall back to a local rule.
+            "kernel_admitted": True,
+            "kernel_admission_reason": "fixture_admitted",
+            "kernel_depth_band": "deep",
             "poolKey": {
                 "currency0": "0x" + "1" * 40,
                 "currency1": "0x" + "2" * 40,

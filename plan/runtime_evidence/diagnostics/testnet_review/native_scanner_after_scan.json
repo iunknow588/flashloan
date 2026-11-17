@@ -1,0 +1,441 @@
+﻿{
+    "chain_selection":  {
+                            "canonical_market_id":  "dex-arbitrage-46630-uniswap-v4",
+                            "capabilities":  {
+                                                 "dex_arbitrage":  true,
+                                                 "execution":  true,
+                                                 "liquidation":  false,
+                                                 "observation":  true,
+                                                 "robinhood_shadow":  false,
+                                                 "shadow":  false
+                                             },
+                            "chain_default":  false,
+                            "chain_id":  46630,
+                            "chain_key":  "chain:46630",
+                            "display_name":  "Robinhood Testnet DEX Arbitrage",
+                            "enabled":  true,
+                            "feature":  "dex_arbitrage",
+                            "global_chain_id":  "chain:46630",
+                            "is_default":  true,
+                            "legacy_market_id":  "robinhood-testnet-dex-paused",
+                            "market_id":  "dex-arbitrage-46630-uniswap-v4",
+                            "market_type":  "native_chain",
+                            "native_symbol":  "ETH",
+                            "network":  "robinhood-testnet",
+                            "observation_only":  false,
+                            "protocol":  "uniswap_v4",
+                            "protocol_id":  "uniswap_v4",
+                            "protocol_supported":  true
+                        },
+    "dex_strategy":  "closed_loop_routes",
+    "ok":  true,
+    "scanner":  {
+                    "auto_broadcast_count":  969,
+                    "auto_execute_callback_configured":  false,
+                    "auto_execute_cooldown_seconds":  600.0,
+                    "auto_execute_count":  969,
+                    "auto_execute_enabled":  false,
+                    "auto_execute_log_count":  0,
+                    "chain_id":  46630,
+                    "closed_loop_review_count":  516623,
+                    "closed_loop_review_queue":  {
+                                                     "backpressure":  0,
+                                                     "claimed":  0,
+                                                     "completed":  0,
+                                                     "done":  0,
+                                                     "error":  0,
+                                                     "executionBackend":  "rust",
+                                                     "failed":  0,
+                                                     "fallback_only":  true,
+                                                     "last_supervisor_watch":  {
+                                                                                   "broadcast":  {
+                                                                                                     "enabled":  false,
+                                                                                                     "stallDetected":  false
+                                                                                                 },
+                                                                                   "loopStateSummary":  {
+                                                                                                            "available":  true,
+                                                                                                            "broadcastFailedLoops":  0,
+                                                                                                            "broadcastLoops":  0,
+                                                                                                            "broadcastSuccessLoops":  0,
+                                                                                                            "cycleTerminals":  0,
+                                                                                                            "executionFailedTotal":  0,
+                                                                                                            "executionNotRequested":  0,
+                                                                                                            "executionSuccessTotal":  0,
+                                                                                                            "loops":  {
+                                                                                                                          "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333":  {
+                                                                                                                                                                                                                                                                   "executionFailedCount":  0,
+                                                                                                                                                                                                                                                                   "executionSuccessCount":  0,
+                                                                                                                                                                                                                                                                   "generation":  26,
+                                                                                                                                                                                                                                                                   "lastError":  "review_failed:native_task_config_unavailable; {\"reason\": \"native_task_config_unavailable\"}",
+                                                                                                                                                                                                                                                                   "loopKey":  "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+                                                                                                                                                                                                                                                                   "reviewOutcome":  null,
+                                                                                                                                                                                                                                                                   "state":  "preflight_failed",
+                                                                                                                                                                                                                                                                   "submissionFailedCount":  0,
+                                                                                                                                                                                                                                                                   "submissionSuccessCount":  0
+                                                                                                                                                                                                                                                               }
+                                                                                                                      },
+                                                                                                            "missingBroadcast":  0,
+                                                                                                            "reviewDeferredLoops":  0,
+                                                                                                            "reviewFailedLoops":  0,
+                                                                                                            "reviewMissingLoops":  1,
+                                                                                                            "reviewSuccessLoops":  0,
+                                                                                                            "states":  {
+                                                                                                                           "preflight_failed":  1
+                                                                                                                       },
+                                                                                                            "submissionFailedTotal":  0,
+                                                                                                            "submissionSuccessTotal":  0,
+                                                                                                            "terminalExecution":  0,
+                                                                                                            "total":  1
+                                                                                                        },
+                                                                                   "restarted":  false,
+                                                                                   "review":  {
+                                                                                                  "enabled":  false,
+                                                                                                  "stallDetected":  false
+                                                                                              },
+                                                                                   "stallDetected":  false,
+                                                                                   "stuckExecutionRecovered":  {
+                                                                                                                   "broadcastReclaimed":  0,
+                                                                                                                   "error":  null,
+                                                                                                                   "failed":  0,
+                                                                                                                   "recovered":  0,
+                                                                                                                   "reviewOnlyClosed":  0,
+                                                                                                                   "reviewReclaimed":  0
+                                                                                                               },
+                                                                                   "watchedAt":  "2026-11-15T02:48:17.492939+00:00"
+                                                                               },
+                                                     "loopStateSummary":  {
+                                                                              "available":  true,
+                                                                              "broadcastFailedLoops":  0,
+                                                                              "broadcastLoops":  0,
+                                                                              "broadcastSuccessLoops":  0,
+                                                                              "cycleTerminals":  0,
+                                                                              "executionFailedTotal":  0,
+                                                                              "executionNotRequested":  0,
+                                                                              "executionSuccessTotal":  0,
+                                                                              "loops":  {
+                                                                                            "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333":  {
+                                                                                                                                                                                                                                     "executionFailedCount":  0,
+                                                                                                                                                                                                                                     "executionSuccessCount":  0,
+                                                                                                                                                                                                                                     "generation":  26,
+                                                                                                                                                                                                                                     "lastError":  "review_failed:native_task_config_unavailable; {\"reason\": \"native_task_config_unavailable\"}",
+                                                                                                                                                                                                                                     "loopKey":  "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+                                                                                                                                                                                                                                     "reviewOutcome":  null,
+                                                                                                                                                                                                                                     "state":  "preflight_failed",
+                                                                                                                                                                                                                                     "submissionFailedCount":  0,
+                                                                                                                                                                                                                                     "submissionSuccessCount":  0
+                                                                                                                                                                                                                                 }
+                                                                                        },
+                                                                              "missingBroadcast":  0,
+                                                                              "reviewDeferredLoops":  0,
+                                                                              "reviewFailedLoops":  0,
+                                                                              "reviewMissingLoops":  1,
+                                                                              "reviewSuccessLoops":  0,
+                                                                              "states":  {
+                                                                                             "preflight_failed":  1
+                                                                                         },
+                                                                              "submissionFailedTotal":  0,
+                                                                              "submissionSuccessTotal":  0,
+                                                                              "terminalExecution":  0,
+                                                                              "total":  1
+                                                                          },
+                                                     "queued":  2,
+                                                     "requeued":  0,
+                                                     "running":  0,
+                                                     "skipped":  0,
+                                                     "stalled":  0,
+                                                     "stalled_total":  0,
+                                                     "stuckExecutionRecovered":  0,
+                                                     "total":  2
+                                                 },
+                    "closed_loop_rust_workers":  {
+                                                     "active":  0,
+                                                     "activeConcurrency":  0,
+                                                     "binanceCollector":  {
+                                                                              "collectedCount":  0,
+                                                                              "enabled":  false,
+                                                                              "failedCount":  0,
+                                                                              "inProgress":  false,
+                                                                              "intervalSeconds":  300,
+                                                                              "lastCompletedAt":  null,
+                                                                              "lastError":  null,
+                                                                              "lastStartedAt":  null,
+                                                                              "lastStatus":  null,
+                                                                              "running":  false
+                                                                          },
+                                                     "completed":  0,
+                                                     "concurrencyLimit":  16,
+                                                     "contextCache":  {
+                                                                          "scopeCount":  0,
+                                                                          "scopeTtlSeconds":  300,
+                                                                          "scopes":  [
+
+                                                                                     ]
+                                                                      },
+                                                     "createdTotal":  0,
+                                                     "enabled":  true,
+                                                     "engine":  "rust_native_closed_loop",
+                                                     "executionBackend":  "rust",
+                                                     "executionQueue":  {
+                                                                            "activeExecutions":  0,
+                                                                            "done":  0,
+                                                                            "enabled":  true,
+                                                                            "error":  0,
+                                                                            "queued":  0,
+                                                                            "recent":  [
+
+                                                                                       ],
+                                                                            "running":  0,
+                                                                            "skipped":  0,
+                                                                            "waiting":  0,
+                                                                            "workers":  2
+                                                                        },
+                                                     "idleExits":  0,
+                                                     "maintenance":  {
+                                                                         "completedCount":  0,
+                                                                         "failedCount":  0,
+                                                                         "immediateReviewTriggerCount":  0,
+                                                                         "inProgress":  true,
+                                                                         "lastCompletedAt":  null,
+                                                                         "lastError":  null,
+                                                                         "lastImmediateReviewTriggeredAt":  null,
+                                                                         "lastImmediateReviewWokenGroups":  null,
+                                                                         "lastStartedAt":  "2026-11-15T02:43:43.246120500+00:00",
+                                                                         "lastStatus":  null,
+                                                                         "queuedCount":  0,
+                                                                         "registeredScopes":  [
+                                                                                                  "robinhood-testnet|46630|uniswap_v4"
+                                                                                              ],
+                                                                         "resultSummary":  null
+                                                                     },
+                                                     "maintenanceWorkers":  {
+                                                                                "database":  "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+                                                                                "databases":  [
+                                                                                                  "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3"
+                                                                                              ],
+                                                                                "manager":  "v4_maintenance_workers",
+                                                                                "started":  true,
+                                                                                "state":  {
+                                                                                              "v4_broadcast_execution_worker":  {
+                                                                                                                                    "elapsedSeconds":  0.015999999988707714,
+                                                                                                                                    "lastStartedAt":  "2026-11-15T02:48:18.414886Z",
+                                                                                                                                    "ok":  true,
+                                                                                                                                    "phase":  "blocked_upstream",
+                                                                                                                                    "worker":  "v4_broadcast_execution_worker"
+                                                                                                                                },
+                                                                                              "v4_candidate_yc_zc_worker":  {
+                                                                                                                                "elapsedSeconds":  97.0,
+                                                                                                                                "lastStartedAt":  "2026-11-15T02:44:20.327239Z",
+                                                                                                                                "ok":  true,
+                                                                                                                                "phase":  "blocked_upstream",
+                                                                                                                                "worker":  "v4_candidate_yc_zc_worker"
+                                                                                                                            },
+                                                                                              "v4_closed_loop_worker":  {
+                                                                                                                            "elapsedSeconds":  97.01600000000326,
+                                                                                                                            "lastStartedAt":  "2026-11-15T02:44:20.346239Z",
+                                                                                                                            "ok":  true,
+                                                                                                                            "phase":  "blocked_upstream",
+                                                                                                                            "worker":  "v4_closed_loop_worker"
+                                                                                                                        },
+                                                                                              "v4_dex_overview_worker":  {
+                                                                                                                             "elapsedSeconds":  97.01600000000326,
+                                                                                                                             "lastStartedAt":  "2026-11-15T02:44:20.342241Z",
+                                                                                                                             "ok":  true,
+                                                                                                                             "phase":  "blocked_upstream",
+                                                                                                                             "snapshotSummary":  {
+
+                                                                                                                                                 },
+                                                                                                                             "worker":  "v4_dex_overview_worker"
+                                                                                                                         },
+                                                                                              "v4_market_observation_worker":  {
+                                                                                                                                   "elapsedSeconds":  97.0,
+                                                                                                                                   "lastStartedAt":  "2026-11-15T02:44:20.332240Z",
+                                                                                                                                   "ok":  true,
+                                                                                                                                   "phase":  "blocked_upstream",
+                                                                                                                                   "worker":  "v4_market_observation_worker"
+                                                                                                                               },
+                                                                                              "v4_onchain_review_worker":  {
+                                                                                                                               "elapsedSeconds":  0.01600000000325963,
+                                                                                                                               "lastStartedAt":  "2026-11-15T02:48:20.462322Z",
+                                                                                                                               "ok":  true,
+                                                                                                                               "phase":  "blocked_upstream",
+                                                                                                                               "worker":  "v4_onchain_review_worker"
+                                                                                                                           },
+                                                                                              "v4_pool_liquidity_worker":  {
+                                                                                                                               "elapsedSeconds":  96.98399999999674,
+                                                                                                                               "lastStartedAt":  "2026-11-15T02:44:20.313241Z",
+                                                                                                                               "missingAfter":  426,
+                                                                                                                               "missingBefore":  917,
+                                                                                                                               "mode":  "pool_liquidity_worker",
+                                                                                                                               "ok":  true,
+                                                                                                                               "phase":  "incremental",
+                                                                                                                               "poolCount":  1164,
+                                                                                                                               "refreshErrors":  [
+
+                                                                                                                                                 ],
+                                                                                                                               "refreshOk":  true,
+                                                                                                                               "remainingPoolCount":  392,
+                                                                                                                               "scannedPoolCount":  772,
+                                                                                                                               "scopedPoolCount":  1164
+                                                                                                                           }
+                                                                                          },
+                                                                                "workers":  [
+                                                                                                "v4_broadcast_execution_worker",
+                                                                                                "v4_candidate_yc_zc_worker",
+                                                                                                "v4_closed_loop_worker",
+                                                                                                "v4_dex_overview_worker",
+                                                                                                "v4_market_observation_worker",
+                                                                                                "v4_onchain_review_worker",
+                                                                                                "v4_pool_liquidity_worker"
+                                                                                            ]
+                                                                            },
+                                                     "maxWorkers":  0,
+                                                     "pendingTasks":  0,
+                                                     "residentWorkers":  0,
+                                                     "reviewQueue":  {
+                                                                         "claimed":  0,
+                                                                         "completed":  0,
+                                                                         "enabled":  true,
+                                                                         "failed":  0,
+                                                                         "isolated":  {
+                                                                                          "available":  false,
+                                                                                          "reason":  "native_isolated_count_not_exposed"
+                                                                                      },
+                                                                         "mainThreadRunning":  true,
+                                                                         "running":  0,
+                                                                         "skipped":  {
+                                                                                         "available":  false,
+                                                                                         "reason":  "native_skipped_count_not_exposed"
+                                                                                     }
+                                                                     },
+                                                     "runningGroups":  0,
+                                                     "summary":  {
+
+                                                                 },
+                                                     "workers":  [
+
+                                                                 ]
+                                                 },
+                    "closed_loop_scan_count":  0,
+                    "closed_loop_supervisors":  {
+                                                    "broadcast":  {
+                                                                      "mode":  "native_rust_manager",
+                                                                      "running":  false
+                                                                  },
+                                                    "broadcastStallDetected":  false,
+                                                    "enabled":  false,
+                                                    "lastSupervisorWatch":  {
+                                                                                "broadcast":  {
+                                                                                                  "enabled":  false,
+                                                                                                  "stallDetected":  false
+                                                                                              },
+                                                                                "loopStateSummary":  {
+                                                                                                         "available":  true,
+                                                                                                         "broadcastFailedLoops":  0,
+                                                                                                         "broadcastLoops":  0,
+                                                                                                         "broadcastSuccessLoops":  0,
+                                                                                                         "cycleTerminals":  0,
+                                                                                                         "executionFailedTotal":  0,
+                                                                                                         "executionNotRequested":  0,
+                                                                                                         "executionSuccessTotal":  0,
+                                                                                                         "loops":  {
+                                                                                                                       "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333":  {
+                                                                                                                                                                                                                                                                "executionFailedCount":  0,
+                                                                                                                                                                                                                                                                "executionSuccessCount":  0,
+                                                                                                                                                                                                                                                                "generation":  26,
+                                                                                                                                                                                                                                                                "lastError":  "review_failed:native_task_config_unavailable; {\"reason\": \"native_task_config_unavailable\"}",
+                                                                                                                                                                                                                                                                "loopKey":  "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+                                                                                                                                                                                                                                                                "reviewOutcome":  null,
+                                                                                                                                                                                                                                                                "state":  "preflight_failed",
+                                                                                                                                                                                                                                                                "submissionFailedCount":  0,
+                                                                                                                                                                                                                                                                "submissionSuccessCount":  0
+                                                                                                                                                                                                                                                            }
+                                                                                                                   },
+                                                                                                         "missingBroadcast":  0,
+                                                                                                         "reviewDeferredLoops":  0,
+                                                                                                         "reviewFailedLoops":  0,
+                                                                                                         "reviewMissingLoops":  1,
+                                                                                                         "reviewSuccessLoops":  0,
+                                                                                                         "states":  {
+                                                                                                                        "preflight_failed":  1
+                                                                                                                    },
+                                                                                                         "submissionFailedTotal":  0,
+                                                                                                         "submissionSuccessTotal":  0,
+                                                                                                         "terminalExecution":  0,
+                                                                                                         "total":  1
+                                                                                                     },
+                                                                                "restarted":  false,
+                                                                                "review":  {
+                                                                                               "enabled":  false,
+                                                                                               "stallDetected":  false
+                                                                                           },
+                                                                                "stallDetected":  false,
+                                                                                "stuckExecutionRecovered":  {
+                                                                                                                "broadcastReclaimed":  0,
+                                                                                                                "error":  null,
+                                                                                                                "failed":  0,
+                                                                                                                "recovered":  0,
+                                                                                                                "reviewOnlyClosed":  0,
+                                                                                                                "reviewReclaimed":  0
+                                                                                                            },
+                                                                                "watchedAt":  "2026-11-15T02:48:17.492939+00:00"
+                                                                            },
+                                                    "pythonFallbackEnabled":  false,
+                                                    "review":  {
+                                                                   "mode":  "native_rust",
+                                                                   "running":  false
+                                                               },
+                                                    "reviewStallDetected":  false
+                                                },
+                    "evidence_workers":  1,
+                    "execution_backend":  "rust",
+                    "interval_seconds":  60.0,
+                    "last_auto_execute_at":  "2026-10-31T22:18:04.083741+00:00",
+                    "last_duration_ms":  242922,
+                    "last_error":  null,
+                    "last_error_stack":  null,
+                    "last_recording":  {
+                                           "attempted_record_count":  6,
+                                           "candidate_count":  6,
+                                           "error":  null,
+                                           "ids":  [
+                                                       78,
+                                                       79,
+                                                       80,
+                                                       81,
+                                                       82,
+                                                       83
+                                                   ],
+                                           "log_paths":  [
+
+                                                         ],
+                                           "recorded":  6,
+                                           "source":  "sqlite"
+                                       },
+                    "last_scan_finished_at":  "2026-11-15T02:46:46.292929+00:00",
+                    "last_scan_started_at":  "2026-11-15T02:46:47.676224+00:00",
+                    "max_onchain_evidence_routes":  5,
+                    "max_recordable_routes":  null,
+                    "periodic_scan_enabled":  true,
+                    "queued_scan_count":  0,
+                    "record_cooldown_seconds":  60.0,
+                    "recorded_attempt_count":  513847,
+                    "running":  true,
+                    "scan_count":  1119,
+                    "session_stats":  {
+                                          "auto_executed_count":  68,
+                                          "executed_count":  68,
+                                          "positive_profit_amount":  0.0,
+                                          "positive_profit_count":  0,
+                                          "reset_at":  "2026-10-22T23:14:41.390944+00:00"
+                                      },
+                    "snapshot_updated_at":  "2026-11-15T02:46:46.292929+00:00",
+                    "testnet_max_onchain_evidence_routes":  10,
+                    "watched_chain_keys":  [
+                                               "46630|protocols:uniswap_v4"
+                                           ]
+                },
+    "snapshot":  {
+                     "summary":  null,
+                     "updated_at":  null
+                 }
+}

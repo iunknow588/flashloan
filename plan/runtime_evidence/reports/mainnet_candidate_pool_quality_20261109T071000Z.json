@@ -1,0 +1,16 @@
+﻿{
+  "generatedAt": "2026-11-08T23:22:31.774103Z",
+  "mode": "read-only",
+  "store": "flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "candidateTotal": 782,
+  "eligibleTotal": 782,
+  "ineligibleTotal": 0,
+  "ineligiblePoolIds": [],
+  "reasonsByPool": {},
+  "affectedClosedLoopCount": 0,
+  "affectedClosedLoopKeys": [],
+  "affectedRecommendationCount": 0,
+  "cleanup": {}
+}

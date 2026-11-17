@@ -1,0 +1,291 @@
+{
+  "fixes": [
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "artifact": "flashloan/tools/composite_manager/src/lib.rs",
+      "fixId": "FIX-R19-01",
+      "regressionTest": "closed_loop_pool_scope_checksum_is_compared_against_the_core4_scope",
+      "regressionTestEvidence": "The test asserts consistent=true when edge=core4, exchange=candidate_exchange and closed_loop=core4, and consistent=false when closed_loop is a stale core4 checksum. Reverting the fix makes the test fail; restoring it makes the test pass.",
+      "resolution": "Compare snapshot.closed_loop.pool_scope_checksum against snapshot.candidate_edge.pool_scope_checksum, which is also core4 scoped. This matches the documented contract in closed_loop_manager::closed_loop_pool_scope_checksum.",
+      "rootCause": "assess_upstream() compared snapshot.closed_loop.pool_scope_checksum with snapshot.candidate_exchange.pool_scope_checksum. closed_loop belongs to the core4 scope (filter_mode edge_any, checksum sha256:335f0bbf05c03ec6a3d780d6e4b462abf3fdcff992baea98d8332c7349c041e9) while candidate_exchange belongs to a different scope (filter_mode both_end, checksum sha256:aae839c344abc67c73ab387147a6d715bd2703db57a7e13426509f5b6c34f5dc). The two can never be equal, so every assessment raised a permanent false positive and CompositeError::UpstreamInconsistent blocked the entire pipeline refresh.",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "title": "composite_manager compared closed_loop pool scope checksum against the candidate_exchange scope"
+    },
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "artifact": "flashloan/db/local_store_46630.sqlite3 (testnet)",
+      "fixId": "FIX-R19-02",
+      "resolution": "Dry-run then apply POST /v1/closed-loops/rebuild on the testnet database: changedRows=0, consumersNeedRebuild=false, closedLoopVersion=2, checksum unchanged. This is a data-state convergence on the testnet database only; no production write was performed.",
+      "rootCause": "consumersNeedRebuild is a sticky transient flag: materialize sets checksum_changed and only a subsequent no-change idempotent materialize clears it. The flag remained set from an earlier materialize, so the assessment still reported closed_loop.consumersNeedRebuild even though the underlying data was already consistent.",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "title": "Stale consumersNeedRebuild flag blocked the pipeline consistency verdict"
+    }
+  ],
+  "gates": [
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "command": "cargo test --locked --workspace",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-01",
+      "name": "cargo test --locked --workspace (flashloan/tools)",
+      "note": "Baseline 519 passed / 0 failed at round 18; +1 = new FIX-R19-01 regression test.",
+      "passed": 520,
+      "status": "pass",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "flashloan/tools"
+    },
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "command": "cargo test --locked",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-02",
+      "name": "cargo test --locked (flashloan/rs-src)",
+      "passed": 127,
+      "status": "pass",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "flashloan/rs-src"
+    },
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "command": "cargo build --release --locked",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-03",
+      "name": "cargo build --release --locked (flashloan/rs-src)",
+      "note": "flashloan_rs.dll rebuilt; 14920704 bytes at 2026-11-16T07:25:19+08:00.",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "flashloan/rs-src"
+    },
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "command": "cargo test --locked -p composite-manager",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-04",
+      "name": "cargo test --locked -p composite-manager (FIX-R19-01 regression)",
+      "note": "Scoped re-run of the crate owning FIX-R19-01; includes closed_loop_pool_scope_checksum_is_compared_against_the_core4_scope.",
+      "passed": 18,
+      "status": "pass",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "flashloan/tools"
+    },
+    {
+      "acceptanceIds": [
+        "AC-152"
+      ],
+      "command": "pytest flashloan/app_runtime/tests/unit --continue-on-collection-errors -p no:cacheprovider",
+      "exitCode": 1,
+      "failed": 93,
+      "gateId": "GATE-05",
+      "name": "pytest flashloan/app_runtime/tests/unit",
+      "note": "2381 passed / 93 failed / 3 skipped / 11 errors. Failure set identical in cardinality and strictly a subset of the round 18 set: 0 new failures, 4 newly fixed. 93 failures + 11 collect errors are pre-existing environment issues (flashloan/src/runtime shadowing bot/runtime and dex/runtime; CWD-relative path resolution).",
+      "passed": 2381,
+      "status": "pass_with_known_baseline",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "acceptanceIds": [
+        "AC-153"
+      ],
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-06",
+      "name": "mainnet_arbitrage_healer --mode check",
+      "note": "productionState=review_stalled; blockers=reviews,broadcast; safeToAutoBroadcast=false; production DB size and mtime unchanged before and after.",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-097"
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "acceptanceIds": [
+        "AC-150"
+      ],
+      "command": "python scripts/verify_pool_manager_binary_matches_source.py",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-07",
+      "name": "verify_pool_manager_binary_matches_source.py",
+      "note": "valid=True; sourceDigest=71fc08ce3457e9c4b8c60126a6d2ce463c079de7819a0b3b4baac348057ac2e9; command set unchanged (18 commands).",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-094"
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "acceptanceIds": [
+        "AC-164"
+      ],
+      "command": "python scripts/measure_robinhood_api_status.py --base-url http://127.0.0.1:5093 --network robinhood-testnet --chain-id 46630 --protocol uniswap_v4 --market-id dex-arbitrage-46630-uniswap-v4 --status-samples 20 --concurrency 4 --timeout 30",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-08",
+      "name": "testnet Manager page HTTP status probe (official measure_robinhood_api_status.py)",
+      "note": "health=OK status=OK submission=OK p95=854.73ms allPassed=True blockers=[]. Requires MANAGER_UI_DATA_SOURCE=manager; the legacy source is deliberately fail-closed with 409 MANAGER_UI_DATA_SOURCE_LEGACY.",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-035"
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "acceptanceIds": [
+        "AC-163"
+      ],
+      "command": "POST /v1/pipeline/refresh (dryRun=true)",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-09",
+      "name": "manager pipeline refresh consistency (testnet 46630, post FIX-R19-01)",
+      "note": "ok=True consistent=True issues=[]; before FIX-R19-01 this was blocked by CompositeError::UpstreamInconsistent.",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-100"
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "acceptanceIds": [
+        "AC-157"
+      ],
+      "command": "plan activity document format audit",
+      "exitCode": 0,
+      "failed": null,
+      "gateId": "GATE-10",
+      "name": "file format audit (UTF-8 no BOM / LF / no U+FFFD / trailing newline)",
+      "passed": null,
+      "status": "pass",
+      "taskIds": [
+        "TASK-098"
+      ],
+      "workingDirectory": "plan"
+    }
+  ],
+  "generatedAt": "2026-11-15T23:52:51Z",
+  "generatedAtLocal": "2026-11-16T07:45:00+08:00",
+  "notCompleted": [
+    {
+      "id": "AC-155",
+      "reason": "No SDK upgrade parity / performance / license / rollback difference report exists under plan/."
+    },
+    {
+      "id": "TASK-087/088/089",
+      "reason": "Release manager-api.exe redeploy, guardian restart and health/page verification require a maintenance window. The binary was rebuilt in this round but not deployed into the production guardian flow."
+    },
+    {
+      "id": "AC-147/148",
+      "reason": "Same as TASK-087/088/089; requires a maintenance window."
+    },
+    {
+      "id": "TASK-024..027",
+      "reason": "Mainnet scope / closed-loop / review materialisation requires explicit production write authorisation. Mainnet manager_v4_reviews remains 0."
+    },
+    {
+      "id": "AC-022/023/024",
+      "reason": "Mainnet review materialisation, broadcast repair and continuous PnL observation require explicit production write authorisation."
+    },
+    {
+      "id": "AC-158..AC-162",
+      "reason": "Production write final confirmation is gated behind explicit authorisation."
+    },
+    {
+      "id": "TASK-036",
+      "reason": "Per-hop amountOutMinimum requires a new ABI; the mainnet Executor has only 25 bytes of code space left."
+    },
+    {
+      "id": "AC-006..AC-010",
+      "reason": "Mainnet on-chain wiring is blocked by the mainnet Executor code-space limit."
+    },
+    {
+      "id": "P0-9/P1/P2-P4/P5-P7/P8-P10",
+      "reason": "Not started."
+    }
+  ],
+  "round": 19,
+  "safety": {
+    "broadcastManagerAuthority": "legacy",
+    "broadcastSent": false,
+    "broadcastWritesEnabled": false,
+    "contractDeployed": false,
+    "mainnetReviewsCount": 0,
+    "networkSwitched": false,
+    "note": "The mainnet healer reports review_stalled because manager_v4_reviews is 0. The mainnet must not be described as producing arbitrage broadcast transactions.",
+    "productionBlockers": [
+      "reviews",
+      "broadcast"
+    ],
+    "productionDatabaseMtimeUnchanged": true,
+    "productionDatabasePath": "flashloan/db/local_store_4663.sqlite3",
+    "productionDatabaseSizeBytes": 3507453952,
+    "productionDatabaseSizeUnchanged": true,
+    "productionDatabaseWritten": false,
+    "productionState": "review_stalled",
+    "safeToAutoBroadcast": false,
+    "testnetBroadcastRequests": 0,
+    "testnetClosedLoopHops": 24,
+    "testnetClosedLoops": 8,
+    "testnetReviews": 8
+  },
+  "schema": "RegressionGates",
+  "schemaVersion": "1.1",
+  "summary": {
+    "baselineFailureCount": 97,
+    "baselineFailureIdSetSha256": "b8d8918051c037cb3c9bd6a2ca33a21f6f874d9a068c76a8d963499541a20c98",
+    "broadcastSent": false,
+    "contractDeployed": false,
+    "currentFailureCount": 93,
+    "failureIdSetSha256": "c637677225400f63bb0b68f058bdf1920b04fa0f508875d8289bfba050d0b591",
+    "failureSetComparisonMethod": "Set comparison of the sorted FAILED node-id lists. The round 18 baseline log is UTF-16LE (PowerShell redirect output) and must be decoded as utf-16-le before parsing. The round 18 evidence recorded two different hashes under two different normalisation schemes: b8d8918051c037cb3c9bd6a2ca33a21f6f874d9a068c76a8d963499541a20c98 is sha256 of the newline-joined sorted 97-id baseline set, while da1e23e02485fb78c790064eeca1fb446ba257a76fa8b9ffa563a3f18d73521a was produced by a different normalisation that is not reproducible from the raw id list. The authoritative conclusion for round 19 is therefore the set comparison (0 new / 4 fixed), not the hash comparison.",
+    "gatesExecuted": 10,
+    "gatesFailed": 0,
+    "gatesPassed": 10,
+    "newFailureIds": [],
+    "newFailuresIntroduced": 0,
+    "newlyFixed": [
+      "flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_active_source_files_stay_under_1000_lines",
+      "flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_repo_root_keeps_only_intended_config_files",
+      "flashloan/app_runtime/tests/unit/test_dex_route_test.py::test_official_route_addresses_resolves_canonical_weth_without_duplicate_ambiguity",
+      "flashloan/app_runtime/tests/unit/test_storage_cow_execution_review.py::test_review_route_identity_resolves_native_weth_eth_and_observed_symbol"
+    ],
+    "productionDatabaseWritten": false,
+    "verdict": "pass"
+  }
+}

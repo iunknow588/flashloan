@@ -282,6 +282,9 @@ def _execution_requested(attempt: dict[str, Any]) -> bool:
     )
     if explicit:
         return True
+    auto = attempt.get("auto_execute") if isinstance(attempt.get("auto_execute"), dict) else {}
+    if bool(auto.get("skipped")) and not bool(auto.get("attempted")):
+        return False
     status = _evidence_status(attempt)
     if status not in {"live_verified", "profitable_amount_found"}:
         return False

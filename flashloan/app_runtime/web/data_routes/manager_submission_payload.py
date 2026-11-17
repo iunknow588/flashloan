@@ -41,6 +41,7 @@ from .manager_page_compare_common import (
     _shadow_gate,
 )
 from .manager_submission_execution_payload import (
+    review_clear_manager_payload,
     submission_clear_manager_payload,
     submission_detail_manager_payload,
     submission_execution_manager_payload,

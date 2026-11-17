@@ -53,8 +53,17 @@ contract MockV4PoolManager {
     uint256 public scriptedSwapCursor;
     uint256[] public scriptedNativeSwapAmounts;
     uint256 public scriptedNativeSwapCursor;
+    mapping(bytes32 => uint256) public mockExtsloadValues;
 
     receive() external payable {}
+
+    function setMockExtsloadValue(bytes32 slot, uint256 value) external {
+        mockExtsloadValues[slot] = value;
+    }
+
+    function extsload(bytes32 slot) external view returns (bytes32 value) {
+        return bytes32(mockExtsloadValues[slot]);
+    }
 
     /// @notice 设置下一次 swap 时的脚本化 ERC20 转出，用于模拟交易结果。
     function setTransferOnNextSwap(address token, uint256 amount) external {

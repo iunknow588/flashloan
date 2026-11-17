@@ -15,7 +15,7 @@
   "feature": "dex_arbitrage",
   "sourceContract": "RobinhoodPausedFlashLoanExecutor",
   "executorContract": "RobinhoodPausedFlashLoanExecutor",
-  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood/chain.json",
+  "sourceChainConfig": "../../../flashloan/chains/robinhood/chain.json",
   "mode": "mainnet_read_only_deferred_deploy",
   "broadcastEnabled": true,
   "readyForPausedDeploy": false,
@@ -35,7 +35,7 @@
     "v3SwapRouter"
   ],
   "deploymentGate": "blocked_until_fork_staticcall_pass",
-  "source_chain_config": "../../../../flashloan/src/chains/robinhood/chain.json",
+  "source_chain_config": "../../../flashloan/chains/robinhood/chain.json",
   "explorerUrl": "https://explorer.mainnet.chain.robinhood.com",
   "defaultFlashSourceKind": 4,
   "defaultPermit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",

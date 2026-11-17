@@ -388,7 +388,153 @@ def submission_clear_manager_payload(
     }
 
 
+def review_clear_manager_payload(
+    *,
+    chain_id: int | None,
+    dry_run: bool,
+    request_id: str | None,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Clear regenerable review records through the request-bound RuntimeCore.
+
+    Review rows are runtime observations, not long-lived facts. Clearing them
+    never touches the token or pool catalogs.
+    """
+
+    if chain_id is None:
+        return _shadow_error(
+            "MANAGER_CHAIN_ID_REQUIRED",
+            "review clear requires a selected chain id",
+            data_source="manager",
+            upstream_status=400,
+        )
+    if not str(request_id or "").strip():
+        return _shadow_error(
+            "MANAGER_REQUEST_ID_REQUIRED",
+            "review clear requires a request id",
+            data_source="manager",
+            upstream_status=400,
+        )
+    if not str(idempotency_key or "").strip():
+        return _shadow_error(
+            "MANAGER_IDEMPOTENCY_KEY_REQUIRED",
+            "review clear requires an idempotency key",
+            data_source="manager",
+            upstream_status=400,
+        )
+    if not has_app_context():
+        return _shadow_error(
+            "RUNTIME_CORE_UNAVAILABLE",
+            "chain runtime is not bound to this request",
+            data_source="manager",
+            upstream_status=503,
+        )
+    from flask import g
+
+    try:
+        chain_runtime = getattr(g, "chain_runtime", None)
+    except RuntimeError:
+        chain_runtime = None
+    if chain_runtime is None:
+        return _shadow_error(
+            "RUNTIME_CORE_UNAVAILABLE",
+            "chain runtime is not bound to this request",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if not hasattr(chain_runtime, "execute_command"):
+        return _shadow_error(
+            "RUNTIME_CORE_COMMAND_UNAVAILABLE",
+            "chain runtime does not expose RuntimeCore commands",
+            data_source="manager",
+            upstream_status=503,
+        )
+    try:
+        envelope = chain_runtime.execute_command(
+            "clear_reviews",
+            request_id=str(request_id).strip(),
+            idempotency_key=str(idempotency_key).strip(),
+            dry_run=bool(dry_run),
+        )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        return _shadow_error(
+            "RUNTIME_CORE_COMMAND_FAILED",
+            f"RuntimeCore clear_reviews command failed: {str(exc)[:500]}",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if not isinstance(envelope, dict):
+        return _shadow_error(
+            "RUNTIME_CORE_INVALID_RESPONSE",
+            "RuntimeCore clear_reviews command must return an object",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if envelope.get("ok") is False:
+        return _shadow_error(
+            str(envelope.get("code") or "RUNTIME_CORE_COMMAND_FAILED"),
+            str(envelope.get("detail") or "RuntimeCore clear_reviews command failed"),
+            data_source="manager",
+            upstream_status=(
+                envelope.get("upstreamStatus")
+                if isinstance(envelope.get("upstreamStatus"), int)
+                else 503
+            ),
+        )
+    if envelope.get("command") != "clear_reviews":
+        return _shadow_error(
+            "RUNTIME_CORE_INVALID_RESPONSE",
+            "RuntimeCore returned an unexpected clear command",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if envelope.get("dataSource") != "rust_runtime_core":
+        return _shadow_error(
+            "RUNTIME_CORE_INVALID_RESPONSE",
+            "RuntimeCore clear command has an unexpected dataSource",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if _int_or_none(envelope.get("chainId")) != int(chain_id):
+        return _shadow_error(
+            "RUNTIME_CORE_SCOPE_MISMATCH",
+            "RuntimeCore clear command chainId does not match the requested chain",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if not isinstance(envelope.get("dryRun"), bool):
+        return _shadow_error(
+            "RUNTIME_CORE_INVALID_RESPONSE",
+            "RuntimeCore clear command must include a Boolean dryRun",
+            data_source="manager",
+            upstream_status=503,
+        )
+    if not isinstance(envelope.get("idempotentReplay"), bool):
+        return _shadow_error(
+            "RUNTIME_CORE_INVALID_RESPONSE",
+            "RuntimeCore clear command must include Boolean idempotentReplay",
+            data_source="manager",
+            upstream_status=503,
+        )
+    return {
+        "ok": True,
+        "source": "manager",
+        "dataSource": "manager",
+        "runtimeDataSource": envelope.get("dataSource"),
+        "managerEnvelopeVersion": envelope.get("version"),
+        "recordKind": "review",
+        "cleared": _int_or_none(envelope.get("clearedReviews")) or 0,
+        "remaining": _int_or_none(envelope.get("remainingReviews")) or 0,
+        "clearedDiagnostics": _int_or_none(envelope.get("clearedDiagnostics")) or 0,
+        "remainingDiagnostics": _int_or_none(envelope.get("remainingDiagnostics")) or 0,
+        "dryRun": bool(envelope.get("dryRun")),
+        "idempotentReplay": bool(envelope.get("idempotentReplay")),
+        "managerResult": envelope,
+    }
+
+
 __all__ = [
+    "review_clear_manager_payload",
     "submission_clear_manager_payload",
     "submission_detail_manager_payload",
     "submission_execution_manager_payload",

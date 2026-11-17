@@ -1,4 +1,4 @@
-use manager_contracts::{normalize_address, V4PoolKey, V4_DYNAMIC_FEE_FLAG, V4_MAX_FEE};
+use manager_contracts::{normalize_address, V4PoolKey, V4_MAX_FEE};
 use rusqlite::{params, params_from_iter, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,10 +13,9 @@ const CORE4_POOL_TABLE: &str = "v4_exchange_pools_core4";
 const CANDIDATE_EXCHANGE_POOL_TABLE: &str = "v4_exchange_pools_candidate_exchange";
 const PROTOCOL: &str = "uniswap_v4";
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
-const MAX_CANDIDATE_FIXED_FEE: i64 = 3_000;
+use crate::depth_config::MAX_CANDIDATE_FIXED_FEE;
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
-const ALL_TOKEN_LIBRARY_KEYS: &[&str] = &["core", "stocks", "extension", "test"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ScopeDefinition {
@@ -30,14 +29,14 @@ const CORE4_SCOPE: ScopeDefinition = ScopeDefinition {
     key: CORE4_SCOPE_KEY,
     pool_table: CORE4_POOL_TABLE,
     filter_mode: "edge_any",
-    library_keys: &["core"],
+    library_keys: &["core", "stocks"],
 };
 
 const CANDIDATE_EXCHANGE_SCOPE: ScopeDefinition = ScopeDefinition {
     key: CANDIDATE_EXCHANGE_SCOPE_KEY,
     pool_table: CANDIDATE_EXCHANGE_POOL_TABLE,
     filter_mode: "both_end",
-    library_keys: &["core", "stocks", "extension", "test"],
+    library_keys: &["core", "stocks"],
 };
 
 fn scope_definition(scope_key: &str) -> Option<ScopeDefinition> {
@@ -186,6 +185,7 @@ struct PersistedScopeWrite {
 struct TokenDescriptor {
     token_key_id: String,
     v4_currency_key: String,
+    library_key: String,
 }
 
 type LibraryState = (BTreeMap<String, i64>, BTreeMap<String, String>);
@@ -365,15 +365,25 @@ fn materialize_scope_on_connection(
     if scope.filter_mode == "edge_any" && anchors.is_empty() {
         return Err(ScopeError::NoAdmittedAnchorTokens);
     }
-    let admitted_tokens =
-        read_admitted_tokens(connection, network, chain_id, ALL_TOKEN_LIBRARY_KEYS)?;
+    let admitted_tokens = read_admitted_tokens(connection, network, chain_id)?;
     let raw_pools = read_raw_pools(connection, network, chain_id)?;
+    let allowed_libraries = scope
+        .library_keys
+        .iter()
+        .map(|library_key| (*library_key).to_owned())
+        .collect::<BTreeSet<_>>();
 
     let mut desired_by_id = BTreeMap::<String, CanonicalScopeRow>::new();
     let mut skipped = 0_usize;
     let mut skip_reason_counts = BTreeMap::<String, usize>::new();
     for raw in &raw_pools {
-        let row = match materialize_raw_pool(raw, &anchors, &admitted_tokens, scope.filter_mode)? {
+        let row = match materialize_raw_pool(
+            raw,
+            &anchors,
+            &admitted_tokens,
+            &allowed_libraries,
+            scope.filter_mode,
+        )? {
             MaterializedPool::Emitted(row) => *row,
             MaterializedPool::Skipped(reason) => {
                 skipped += 1;
@@ -609,32 +619,21 @@ fn read_admitted_tokens(
     connection: &Connection,
     network: &str,
     chain_id: i64,
-    library_keys: &[&str],
 ) -> Result<BTreeMap<String, TokenDescriptor>, ScopeError> {
-    let placeholders = library_keys
-        .iter()
-        .map(|_| "?")
-        .collect::<Vec<_>>()
-        .join(",");
-    let sql = format!(
-        "SELECT v4_currency_key, token_key_id, library_key
-         FROM token_library_catalog
-         WHERE network = ?1 AND chain_id = ?2 AND admission_status = 'admitted'
-           AND library_key IN ({placeholders})
-         ORDER BY v4_currency_key,
-                  CASE library_key
-                      WHEN 'core' THEN 0
-                      WHEN 'stocks' THEN 1
-                      WHEN 'extension' THEN 2
-                      WHEN 'test' THEN 3
-                      ELSE 4
-                  END,
-                  token_key_id"
-    );
+    let sql = "SELECT v4_currency_key, token_key_id, library_key
+               FROM token_library_catalog
+               WHERE network = ?1 AND chain_id = ?2 AND admission_status = 'admitted'
+               ORDER BY v4_currency_key,
+                        CASE library_key
+                            WHEN 'core' THEN 0
+                            WHEN 'stocks' THEN 1
+                            WHEN 'extension' THEN 2
+                            WHEN 'test' THEN 3
+                            ELSE 4
+                        END,
+                        token_key_id";
     let mut statement = connection.prepare(&sql)?;
-    let mut query_params = vec![network.to_owned(), chain_id.to_string()];
-    query_params.extend(library_keys.iter().map(|key| (*key).to_owned()));
-    let rows = statement.query_map(params_from_iter(query_params), |row| {
+    let rows = statement.query_map(params![network, chain_id], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
@@ -644,7 +643,7 @@ fn read_admitted_tokens(
     let mut tokens = BTreeMap::<String, TokenDescriptor>::new();
     let mut conflicts = BTreeSet::new();
     for row in rows {
-        let (v4_currency_key, token_key_id, _) = row?;
+        let (v4_currency_key, token_key_id, library_key) = row?;
         if conflicts.contains(&v4_currency_key) {
             continue;
         }
@@ -660,6 +659,7 @@ fn read_admitted_tokens(
                     TokenDescriptor {
                         token_key_id,
                         v4_currency_key,
+                        library_key,
                     },
                 );
             }
@@ -841,10 +841,38 @@ fn persist_scope_write_request(
     Ok(())
 }
 
+/// Whether the measured depth verdict of a pool admits it into a scope.
+///
+/// The scope table is the **input** of the candidate rebuild: the runtime
+/// rebuilds `dex_candidate_pools` from it. A scope that still holds a pool
+/// whose depth verdict is `thin` therefore re-introduces that pool on every
+/// refresh, and the shallow-pool cleanup is undone as soon as the runtime
+/// writes the candidate set again.
+///
+/// The criterion is the pool manager's own verdict, exactly the one the
+/// audit and the healer read. It is deliberately not a USD band: the USD
+/// valuation cannot express tradable value inside the arbitrage
+/// environment, and a band on the chain's own quote asset rejects every
+/// pool of a chain whose quote is not the USD.
+///
+/// A pool with **no** verdict is not rejected here. The verdict is a
+/// measurement; a store that never measured it is a coverage gap of that
+/// store, not a defect of the pool, and rejecting every unmeasured pool
+/// would empty the scope of a chain that has not run a depth pass yet.
+pub fn depth_verdict_admits_pool(depth_status: Option<&str>) -> bool {
+    match depth_status.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+        Some("deep") | Some("liquid") | Some("medium") => true,
+        // An absent verdict is a coverage gap, not a rejection.
+        None | Some("") => true,
+        Some(_) => false,
+    }
+}
+
 fn materialize_raw_pool(
     raw: &RawPool,
     anchors: &BTreeSet<String>,
     tokens: &BTreeMap<String, TokenDescriptor>,
+    allowed_libraries: &BTreeSet<String>,
     filter_mode: &str,
 ) -> Result<MaterializedPool, ScopeError> {
     let token0 = match normalize_address(&raw.token0) {
@@ -858,6 +886,11 @@ fn materialize_raw_pool(
     let (Some(descriptor0), Some(descriptor1)) = (tokens.get(&token0), tokens.get(&token1)) else {
         return Ok(MaterializedPool::Skipped("token_not_admitted"));
     };
+    if !allowed_libraries.contains(&descriptor0.library_key)
+        || !allowed_libraries.contains(&descriptor1.library_key)
+    {
+        return Ok(MaterializedPool::Skipped("token_library_out_of_scope"));
+    }
     match filter_mode {
         "edge_any" => {
             if !anchors.contains(&descriptor0.token_key_id)
@@ -912,6 +945,14 @@ fn materialize_raw_pool(
         return Ok(MaterializedPool::Skipped("invalid_pool_id"));
     }
     let pool_manager = normalize_address(&raw.pool_manager).unwrap_or_default();
+    // The depth verdict is the admission criterion of the scope itself.
+    // A pool that cannot carry a position must never enter the scope,
+    // because the scope is what the candidate rebuild reads, so a shallow
+    // pool that reached this table would come back on every refresh.
+    if !depth_verdict_admits_pool(raw.depth_status.as_deref()) {
+        return Ok(MaterializedPool::Skipped("depth_ineligible"));
+    }
+
     let mut quality_reasons = Vec::new();
     if pool_manager.is_empty() {
         quality_reasons.push("missing_pool_manager");
@@ -919,7 +960,7 @@ fn materialize_raw_pool(
     if fee == 0 || raw.fee > MAX_CANDIDATE_FIXED_FEE {
         quality_reasons.push("fee_not_fixed_candidate_range");
     }
-    if raw.dynamic_fee != 0 || fee & V4_DYNAMIC_FEE_FLAG != 0 {
+    if crate::depth::is_dynamic_fee_pool(i64::from(fee), raw.dynamic_fee) {
         quality_reasons.push("dynamic_fee");
     }
     if raw.special_fee != 0 || fee > V4_MAX_FEE.min(manager_contracts::V4_SPECIAL_FEE_THRESHOLD) {
@@ -1250,8 +1291,8 @@ fn count_statuses(rows: &[CanonicalScopeRow]) -> BTreeMap<String, usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        materialize_scope, materialize_scope_write, read_scope_status, ScopeError,
-        ScopeWriteRequest,
+        depth_verdict_admits_pool, materialize_scope, materialize_scope_write, read_scope_status,
+        ScopeError, ScopeWriteRequest,
     };
     use manager_contracts::V4PoolKey;
     use rusqlite::{params, Connection};
@@ -1611,16 +1652,19 @@ mod tests {
         drop(connection);
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core"]);
+        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
         assert_eq!(dry.filter_mode, "edge_any");
         assert_eq!(dry.source_pool_count, 10);
-        assert_eq!(dry.eligible_pool_count, 7);
-        assert_eq!(dry.skipped_pool_count, 3);
-        assert_eq!(dry.skip_reason_counts.get("no_core_anchor"), Some(&1));
+        assert_eq!(dry.eligible_pool_count, 5);
+        assert_eq!(dry.skipped_pool_count, 5);
         assert_eq!(dry.skip_reason_counts.get("token_not_admitted"), Some(&1));
+        assert_eq!(
+            dry.skip_reason_counts.get("token_library_out_of_scope"),
+            Some(&3)
+        );
         assert_eq!(dry.skip_reason_counts.get("invalid_pool_key"), Some(&1));
-        assert_eq!(dry.active_pool_count, 3);
-        assert_eq!(dry.status_counts.get("invalid"), Some(&2));
+        assert_eq!(dry.active_pool_count, 2);
+        assert_eq!(dry.status_counts.get("invalid"), Some(&1));
         assert_eq!(dry.status_counts.get("blocked"), Some(&1));
         assert_eq!(dry.status_counts.get("identity_mismatch"), Some(&1));
         let connection = Connection::open(&database).unwrap();
@@ -1634,7 +1678,7 @@ mod tests {
 
         let applied = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
         assert_eq!(applied.materialized_checksum, dry.materialized_checksum);
-        assert_eq!(applied.changed_rows, 7);
+        assert_eq!(applied.changed_rows, 5);
         let repeated = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
         assert_eq!(repeated.changed_rows, 0);
         assert!(!repeated.consumers_need_rebuild);
@@ -1642,8 +1686,8 @@ mod tests {
 
         let status = read_scope_status(&database, NETWORK, CHAIN_ID, "core4").unwrap();
         assert!(status.enabled);
-        assert_eq!(status.pool_count, 7);
-        assert_eq!(status.active_pool_count, 3);
+        assert_eq!(status.pool_count, 5);
+        assert_eq!(status.active_pool_count, 2);
         assert_eq!(status.checksum_matches_config, Some(true));
         assert_eq!(status.library_versions["core"], 7);
 
@@ -1661,7 +1705,7 @@ mod tests {
             config,
             (
                 "v4_exchange_pools_core4".to_owned(),
-                "[\"core\"]".to_owned(),
+                "[\"core\",\"stocks\"]".to_owned(),
                 "edge_any".to_owned()
             )
         );
@@ -1692,7 +1736,7 @@ mod tests {
     }
 
     #[test]
-    fn candidate_exchange_scope_includes_pools_with_two_non_core_admitted_tokens() {
+    fn candidate_exchange_scope_admits_only_core_and_stocks_tokens() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         seed_pools(&connection);
@@ -1700,24 +1744,25 @@ mod tests {
 
         let dry =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", false).unwrap();
-        assert_eq!(
-            dry.library_keys,
-            vec!["core", "stocks", "extension", "test"]
-        );
+        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
         assert_eq!(dry.filter_mode, "both_end");
         assert_eq!(dry.pool_table, "v4_exchange_pools_candidate_exchange");
         assert_eq!(dry.source_pool_count, 10);
-        assert_eq!(dry.eligible_pool_count, 8);
-        assert_eq!(dry.skipped_pool_count, 2);
+        assert_eq!(dry.eligible_pool_count, 5);
+        assert_eq!(dry.skipped_pool_count, 5);
         assert_eq!(dry.skip_reason_counts.get("token_not_admitted"), Some(&1));
+        assert_eq!(
+            dry.skip_reason_counts.get("token_library_out_of_scope"),
+            Some(&3)
+        );
         assert_eq!(dry.skip_reason_counts.get("invalid_pool_key"), Some(&1));
-        assert_eq!(dry.active_pool_count, 4);
+        assert_eq!(dry.active_pool_count, 2);
 
         let applied =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", true).unwrap();
         assert_eq!(applied.materialized_checksum, dry.materialized_checksum);
         let connection = Connection::open(&database).unwrap();
-        let non_core_pair: i64 = connection
+        let extension_pair: i64 = connection
             .query_row(
                 "SELECT COUNT(*)
                  FROM v4_exchange_pools_candidate_exchange
@@ -1731,7 +1776,21 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(non_core_pair, 1);
+        assert_eq!(extension_pair, 0);
+        let out_of_scope_tokens: i64 = connection
+            .query_row(
+                "SELECT COUNT(*)
+                 FROM v4_exchange_pools_candidate_exchange
+                 WHERE token0_key_id IN (?1, ?2)
+                    OR token1_key_id IN (?1, ?2)",
+                params![
+                    format!("{NETWORK}:{CHAIN_ID}:{EXTENSION}"),
+                    format!("{NETWORK}:{CHAIN_ID}:{TEST_TZ}")
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(out_of_scope_tokens, 0);
         let core_table_count: i64 = connection
             .query_row("SELECT COUNT(*) FROM v4_exchange_pools_core4", [], |row| {
                 row.get(0)
@@ -1767,7 +1826,7 @@ mod tests {
         };
         let first = materialize_scope_write(&database, request.clone()).unwrap();
         assert!(!first.idempotent_replay);
-        assert_eq!(first.result.changed_rows, 7);
+        assert_eq!(first.result.changed_rows, 5);
 
         let replay = materialize_scope_write(
             &database,
@@ -1869,5 +1928,27 @@ mod tests {
         assert_eq!(pool_count, 0);
         assert_eq!(config_count, 0);
         assert_eq!(request_count, 0);
+    }
+
+    #[test]
+    fn the_depth_verdict_decides_whether_a_pool_enters_a_scope() {
+        // The verdict that can carry a position is admitted.
+        assert!(depth_verdict_admits_pool(Some("deep")));
+        assert!(depth_verdict_admits_pool(Some("liquid")));
+        assert!(depth_verdict_admits_pool(Some("medium")));
+        // The verdict that cannot carry a position is rejected, so the scope
+        // never hands a shallow pool back to the candidate rebuild.
+        assert!(!depth_verdict_admits_pool(Some("thin")));
+        assert!(!depth_verdict_admits_pool(Some("shallow")));
+        assert!(!depth_verdict_admits_pool(Some("dust")));
+        assert!(!depth_verdict_admits_pool(Some("unpriced")));
+        assert!(!depth_verdict_admits_pool(Some("no_liquidity")));
+        // The verdict is case- and whitespace-insensitive.
+        assert!(depth_verdict_admits_pool(Some("  DEEP ")));
+        assert!(!depth_verdict_admits_pool(Some("Thin")));
+        // A missing verdict is a coverage gap of the store, not a defect of
+        // the pool, so it is not a rejection.
+        assert!(depth_verdict_admits_pool(None));
+        assert!(depth_verdict_admits_pool(Some("")));
     }
 }

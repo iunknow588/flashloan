@@ -1,0 +1,2047 @@
+{
+  "bridge": "arch2b_offchain_parity_replay",
+  "chainId": 4663,
+  "network": "robinhood",
+  "protocol": "uniswap_v4",
+  "tolerance": 1e-09,
+  "flashFeeBps": 5,
+  "database": "arch2b_replica.sqlite3",
+  "routeCount": 54,
+  "comparableCount": 54,
+  "matchCount": 34,
+  "executableMismatchCount": 20,
+  "amountMismatchCount": 0,
+  "notComparableCount": 0,
+  "deviationCount": 20,
+  "stateCounts": {
+    "executable_mismatch": 20,
+    "match": 34
+  },
+  "skippedReasons": {},
+  "poolStateAge": {
+    "measuredCount": 54,
+    "minSeconds": 160576.838211,
+    "maxSeconds": 164823.983201,
+    "medianSeconds": 162668.07895
+  },
+  "deviationPoolStateAge": {
+    "count": 20,
+    "minSeconds": 160609.359983,
+    "maxSeconds": 164818.771583
+  },
+  "attributionCounts": {
+    "stale_local_state": 20,
+    "unknown_no_chain_live_state": 34
+  },
+  "attributionNote": "stale_local_state: the chain's live arithmetic reproduces the chain's own reported profit while the off-chain figure differs from the chain's live figure, so the off-chain side ran on a pool state the chain had already moved past. offchain_arithmetic: the off-chain figure also differs from the chain's live figure, so the computation itself is under suspicion and must be repaired.",
+  "stateAgeNote": "The pool state the off-chain side used is the latest snapshot in the local store. When it trails the chain-side review, a deviation reflects a state the chain had already moved past, not a simulator defect.",
+  "gate": {
+    "rule": "deviationCount must be 0 before the chain-side preview may be closed",
+    "deviationCount": 20,
+    "executableMismatchCount": 20,
+    "amountMismatchCount": 0,
+    "passed": false,
+    "enforced": false,
+    "deviationWithStaleState": 20
+  },
+  "results": [
+    {
+      "attemptId": 63969,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:55:29.230559300+00:00",
+      "createdAt": "2026-11-11T00:55:29.230559300+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164818.771583,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63963,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:55:34.442177900+00:00",
+      "createdAt": "2026-11-11T00:55:34.442177900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164823.983201,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63958,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:55:09.456683100+00:00",
+      "createdAt": "2026-11-11T00:55:09.456683100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164798.997707,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63949,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:53:38.874941700+00:00",
+      "createdAt": "2026-11-11T00:53:38.874941700+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164708.415965,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63943,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:53:07.408436900+00:00",
+      "createdAt": "2026-11-11T00:53:07.408436900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164676.94946,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63938,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:53:44.369890400+00:00",
+      "createdAt": "2026-11-11T00:53:44.369890400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164713.910914,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63932,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:50:42.531921900+00:00",
+      "createdAt": "2026-11-11T00:50:42.531921900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164532.072945,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63926,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:50:16.560013700+00:00",
+      "createdAt": "2026-11-11T00:50:16.560013700+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164506.101037,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63921,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:50:53.588775500+00:00",
+      "createdAt": "2026-11-11T00:50:53.588775500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164543.129799,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63916,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:48:16.533515200+00:00",
+      "createdAt": "2026-11-11T00:48:16.533515200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164386.074539,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63910,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:48:51.504395100+00:00",
+      "createdAt": "2026-11-11T00:48:51.504395100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 164421.045419,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63896,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:38:07.371027300+00:00",
+      "createdAt": "2026-11-11T00:38:07.371027300+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163776.912051,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63890,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:37:49.978848800+00:00",
+      "createdAt": "2026-11-11T00:37:49.978848800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163759.519872,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63885,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:37:50.175002500+00:00",
+      "createdAt": "2026-11-11T00:37:50.175002500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163759.716026,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63878,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:35:42.289091900+00:00",
+      "createdAt": "2026-11-11T00:35:42.289091900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163631.830115,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63872,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:34:59.075584+00:00",
+      "createdAt": "2026-11-11T00:34:59.075584+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163588.616608,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63867,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:35:25.072609700+00:00",
+      "createdAt": "2026-11-11T00:35:25.072609700+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163614.613633,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63861,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:32:47.402600300+00:00",
+      "createdAt": "2026-11-11T00:32:47.402600300+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163456.943624,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63855,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:33:03.241114+00:00",
+      "createdAt": "2026-11-11T00:33:03.241114+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163472.782138,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63850,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:32:33.273620700+00:00",
+      "createdAt": "2026-11-11T00:32:33.273620700+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163442.814644,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63845,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:29:55.289890500+00:00",
+      "createdAt": "2026-11-11T00:29:55.289890500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163284.830914,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63839,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:30:36.606645100+00:00",
+      "createdAt": "2026-11-11T00:30:36.606645100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 163326.147669,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63820,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:22:32.828075400+00:00",
+      "createdAt": "2026-11-11T00:22:32.828075400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162842.369099,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63814,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:22:35.173488200+00:00",
+      "createdAt": "2026-11-11T00:22:35.173488200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162844.714512,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63809,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:22:06.748002800+00:00",
+      "createdAt": "2026-11-11T00:22:06.748002800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162816.289026,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63793,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:19:38.537926100+00:00",
+      "createdAt": "2026-11-11T00:19:38.537926100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162668.07895,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63787,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:19:40.400398800+00:00",
+      "createdAt": "2026-11-11T00:19:40.400398800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162669.941422,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63782,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:19:07.393776800+00:00",
+      "createdAt": "2026-11-11T00:19:07.393776800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162636.9348,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63768,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:16:44.430450400+00:00",
+      "createdAt": "2026-11-11T00:16:44.430450400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162493.971474,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63762,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:16:49.088333300+00:00",
+      "createdAt": "2026-11-11T00:16:49.088333300+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162498.629357,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63757,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:16:16.259993200+00:00",
+      "createdAt": "2026-11-11T00:16:16.259993200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162465.801017,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63744,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:13:52.038213400+00:00",
+      "createdAt": "2026-11-11T00:13:52.038213400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162321.579237,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63738,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:13:59.059678100+00:00",
+      "createdAt": "2026-11-11T00:13:59.059678100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162328.600702,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63733,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:13:26.409005800+00:00",
+      "createdAt": "2026-11-11T00:13:26.409005800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162295.950029,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63720,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:10:56.561384800+00:00",
+      "createdAt": "2026-11-11T00:10:56.561384800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162146.102408,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63714,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:11:04.378848900+00:00",
+      "createdAt": "2026-11-11T00:11:04.378848900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162153.919872,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63709,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:10:36.033494100+00:00",
+      "createdAt": "2026-11-11T00:10:36.033494100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162125.574518,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63698,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:09:05.051016600+00:00",
+      "createdAt": "2026-11-11T00:09:05.051016600+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162034.59204,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63692,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:08:38.977892100+00:00",
+      "createdAt": "2026-11-11T00:08:38.977892100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162008.518916,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63687,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:09:07.080844200+00:00",
+      "createdAt": "2026-11-11T00:09:07.080844200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 162036.621868,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63678,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:06:40.188626100+00:00",
+      "createdAt": "2026-11-11T00:06:40.188626100+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161889.72965,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63672,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:06:46.518515300+00:00",
+      "createdAt": "2026-11-11T00:06:46.518515300+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161896.059539,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63667,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:06:15.384851+00:00",
+      "createdAt": "2026-11-11T00:06:15.384851+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161864.925875,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63659,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:03:49.800720800+00:00",
+      "createdAt": "2026-11-11T00:03:49.800720800+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161719.341744,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63653,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-11T00:04:21.408542200+00:00",
+      "createdAt": "2026-11-11T00:04:21.408542200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161750.949566,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63648,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-11T00:04:20.243652500+00:00",
+      "createdAt": "2026-11-11T00:04:20.243652500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161749.784676,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63643,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-11T00:02:25.133509900+00:00",
+      "createdAt": "2026-11-11T00:02:25.133509900+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161634.674533,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63627,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-10T23:57:48.188048200+00:00",
+      "createdAt": "2026-11-10T23:57:48.188048200+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161357.729072,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63621,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-10T23:57:22.776416500+00:00",
+      "createdAt": "2026-11-10T23:57:22.776416500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161332.31744,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63616,
+      "attemptKey": "attempt|robinhood|4663|225f24f985fd603dff938d357baba5c2|2026-11-10T23:57:51.886563400+00:00",
+      "createdAt": "2026-11-10T23:57:51.886563400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "0xed80cb489e051246f95fbe9e507d04120faac8742e4c20eae69d6738d7b36d6f",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161361.427587,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-30334038593180074",
+      "onchainProfitRaw": "-30334038593180124",
+      "profitRelativeDelta": 1.6483133245317785e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63611,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-10T23:55:22.159475400+00:00",
+      "createdAt": "2026-11-10T23:55:22.159475400+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161211.700499,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63605,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-10T23:55:57.438503600+00:00",
+      "createdAt": "2026-11-10T23:55:57.438503600+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 161246.979527,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63587,
+      "attemptKey": "attempt|robinhood|4663|600d3e78bbead95c512566a98b4d9fdc|2026-11-10T23:45:19.818959+00:00",
+      "createdAt": "2026-11-10T23:45:19.818959+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "poolIds": [
+        "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+        "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+        "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 160609.359983,
+      "chainLiveAmountOutRaw": "999988254255605011",
+      "chainLiveRequiredRepayRaw": "1000000000000000001",
+      "state": "executable_mismatch",
+      "offchainProfitRaw": "991238141191385",
+      "onchainProfitRaw": "-11745744394990",
+      "profitRelativeDelta": 1.0118495686423774,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": "-11745744394990",
+        "chainLiveRelativeDelta": 1.0118495686423774,
+        "chainLiveReproducesChainProfit": true,
+        "offchainMatchesChainLive": false,
+        "attribution": "stale_local_state",
+        "tolerance": 1e-09
+      }
+    },
+    {
+      "attemptId": 63581,
+      "attemptKey": "attempt|robinhood|4663|410dc844f05acfd6cf2bb31afdc880e6|2026-11-10T23:44:47.297187500+00:00",
+      "createdAt": "2026-11-10T23:44:47.297187500+00:00",
+      "category": "not_executable",
+      "borrowAddress": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "poolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+      ],
+      "amountRaw": "1000000000000000000",
+      "flashFeeBps": 5,
+      "stateReadAt": "2026-11-09T03:08:30.458976Z",
+      "stateAgeSeconds": 160576.838211,
+      "chainLiveAmountOutRaw": null,
+      "chainLiveRequiredRepayRaw": null,
+      "state": "match",
+      "offchainProfitRaw": "-2521188483589557",
+      "onchainProfitRaw": "-2521188483589564",
+      "profitRelativeDelta": 2.7764683384693592e-15,
+      "skippedReason": "",
+      "detail": {
+        "chainLiveSignedProfitRaw": null,
+        "chainLiveRelativeDelta": null,
+        "chainLiveReproducesChainProfit": null,
+        "offchainMatchesChainLive": null,
+        "attribution": "unknown_no_chain_live_state",
+        "tolerance": 1e-09
+      }
+    }
+  ]
+}

@@ -430,6 +430,9 @@ def test_select_binance_market_extremes_ignores_24h_rankings(tmp_path):
 def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
     monkeypatch.setenv("COW_NETWORK", "avalanche")
     monkeypatch.setenv("COW_CHAIN_ID", "43114")
+    # The operator ``.env`` may select a different CoW quote network; pin it
+    # so the assertion below does not depend on the local configuration.
+    monkeypatch.setenv("COW_REALTIME_QUOTE_NETWORK", "avalanche")
     monkeypatch.setenv("COW_OWNER_SEPOLIA", "0x" + "9" * 40)
     monkeypatch.setenv("COW_OWNER_AVALANCHE", "0x" + "8" * 40)
     market_state = {

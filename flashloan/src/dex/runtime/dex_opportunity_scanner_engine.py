@@ -27,6 +27,7 @@ from dex.runtime.dex_opportunity_scanner_flow import DexOpportunityScannerFlowMi
 from dex.runtime.dex_opportunity_scanner_lifecycle import DexOpportunityScannerLifecycleMixin
 from dex.runtime.dex_opportunity_scanner_recording import DexOpportunityScannerRecordingMixin
 from dex.runtime.dex_opportunity_scanner_state import DexOpportunityScannerStateMixin
+from dex.runtime.dex_opportunity_scanner_versions import DexOpportunityScannerVersionMixin
 from dex.runtime.rust_closed_loop import get_native_pool, native_closed_loop_enabled
 QuotePayloadProvider = Callable[..., dict[str, Any]]
 RecordAttempts = Callable[[list[dict[str, Any]]], dict[str, Any]]
@@ -44,6 +45,7 @@ class DexOpportunityScanner(
     DexOpportunityScannerRecordingMixin,
     DexOpportunityScannerFlowMixin,
     DexOpportunityReviewEngineMixin,
+    DexOpportunityScannerVersionMixin,
 ):
         def __init__(
             self,
@@ -107,6 +109,14 @@ class DexOpportunityScanner(
             self._scan_lock = threading.Lock()
             self._watched: dict[str, tuple[int | None, tuple[str, ...]]] = {}
             self._queued_scans: deque[tuple[int | None, tuple[str, ...]]] = deque()
+            # ARCH-1: the pool-state version fingerprint per chain scope. It
+            # is what lets the scanner recompute when the chain moved instead
+            # of waiting for the next fixed tick.
+            self._pool_state_fingerprints: dict[str, str] = {}
+            self._pool_state_last_checked_at: dict[str, float] = {}
+            # A read failure must be visible. Silently treating it as "the
+            # state did not change" would make a broken trigger look idle.
+            self._pool_state_errors: dict[str, str | None] = {}
             self._last_periodic_scan_at: dict[str, float] = {}
             self._snapshots: dict[str, dict[str, Any]] = {}
             self._recorded_signatures: dict[tuple[Any, ...], float] = {}

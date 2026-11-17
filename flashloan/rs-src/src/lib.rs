@@ -4,7 +4,9 @@ use serde_json::Value;
 
 mod binance_market;
 mod business_builder;
+mod closed_loop_identity;
 mod config;
+mod depth_verdict;
 mod evidence;
 mod execution;
 mod hyperrpc;
@@ -47,6 +49,55 @@ fn default_database_path() -> String {
 
 fn as_py_error(message: String) -> PyErr {
     PyRuntimeError::new_err(message)
+}
+
+/// Publish the kernel-owned candidate admission policy and the per-pool
+/// admission verdicts for one chain.
+///
+/// Python consumes this payload to display the current system state. The
+/// thresholds live in the shared policy document and are read by the Rust
+/// kernel, so no consumer may carry a private copy of them.
+#[pyfunction]
+#[pyo3(signature = (database_path, network, chain_id, protocol))]
+fn candidate_admission_verdicts(
+    py: Python<'_>,
+    database_path: Option<String>,
+    network: String,
+    chain_id: i64,
+    protocol: String,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    let floor = depth_verdict::shared_admission_floor().map_err(as_py_error)?;
+    let mut connection = rusqlite::Connection::open(&path)
+        .map_err(|error| as_py_error(format!("cannot open candidate admission store: {error}")))?;
+    let rows = business_builder::read_pool_admission_inputs(
+        &mut connection,
+        &network,
+        chain_id,
+        &protocol,
+    )
+    .map_err(as_py_error)?;
+    let verdicts = depth_verdict::admission_verdicts(&rows).map_err(as_py_error)?;
+    let payload = serde_json::json!({
+        "network": network,
+        "chainId": chain_id,
+        "protocol": protocol,
+        "minCandidateBindingCapacity": floor,
+        "verdicts": verdicts
+            .iter()
+            .map(|(pool_id, verdict)| {
+                serde_json::json!({
+                    "poolId": pool_id,
+                    "admitted": verdict.admitted,
+                    "depthStatus": verdict.depth_status,
+                    "capacityBindingRaw": verdict.capacity_binding_raw,
+                    "depthBand": verdict.depth_band,
+                    "reason": verdict.reason,
+                })
+            })
+            .collect::<Vec<_>>(),
+    });
+    Ok(json_result_to_py(py, payload))
 }
 
 #[pyfunction]
@@ -398,7 +449,13 @@ fn runtime_core_command(
             }
         }
     }
-    match core.execute_command(&command, &request_id, &idempotency_key, dry_run) {
+    match core.execute_command_with_options(
+        &command,
+        &request_id,
+        &idempotency_key,
+        dry_run,
+        options_json.as_deref(),
+    ) {
         Ok(result) => Ok(json_result_to_py(py, result)),
         Err(error) => Ok(json_result_to_py(
             py,
@@ -1172,6 +1229,7 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(update_v4_scan_state, module)?)?;
     module.add_function(wrap_pyfunction!(merge_v4_pool_index, module)?)?;
     module.add_function(wrap_pyfunction!(build_v4_anchor_data, module)?)?;
+    module.add_function(wrap_pyfunction!(candidate_admission_verdicts, module)?)?;
     module.add_function(wrap_pyfunction!(import_v4_evidence, module)?)?;
     module.add_function(wrap_pyfunction!(prune_v4_evidence, module)?)?;
     module.add_function(wrap_pyfunction!(initialize_topic, module)?)?;

@@ -1,0 +1,118 @@
+{
+  "activeDocuments": [
+    {
+      "checkedItems": 87,
+      "completedItems": 0,
+      "file": "未完成任务清单_20261113.md",
+      "format": {
+        "bytes": 17373,
+        "crlfCount": 0,
+        "hasBom": false,
+        "sha256": "sha256:9f785ab14a63813d48a8831d0e8d5325841fa7814ff986e08a201b5f9cb89be8",
+        "utf8": true
+      },
+      "passed": true
+    },
+    {
+      "checkedItems": 140,
+      "completedItems": 0,
+      "file": "主网编排器审查修复_check_list_20261113.md",
+      "format": {
+        "bytes": 16306,
+        "crlfCount": 0,
+        "hasBom": false,
+        "sha256": "sha256:2f68b91ea810dfc4792e1797827be88e58e4b2c2892b5e06325a639379c181b9",
+        "utf8": true
+      },
+      "passed": true
+    },
+    {
+      "checkedItems": 0,
+      "completedItems": 0,
+      "file": "README.md",
+      "format": {
+        "bytes": 13806,
+        "crlfCount": 0,
+        "hasBom": false,
+        "sha256": "sha256:38c44e6d849452edf0a70c1e5658ab39e0759a1e24d36fc8712b1e40dbacc0ce",
+        "utf8": true
+      },
+      "passed": true
+    },
+    {
+      "checkedItems": 0,
+      "completedItems": 0,
+      "file": "开发计划_20261113.md",
+      "format": {
+        "bytes": 35075,
+        "crlfCount": 0,
+        "hasBom": false,
+        "sha256": "sha256:3b7984564568c21ef8baed12476c2662b5b1b13f75cf1f386d07810b17ea07d6",
+        "utf8": true
+      },
+      "passed": true
+    }
+  ],
+  "archivedCompletedItems": 20,
+  "authority": "plan_docs_only_no_code_change_no_deploy_no_broadcast",
+  "completedItemRemoval": {
+    "checklist": 12,
+    "todo": 8
+  },
+  "failed": false,
+  "frozenSnapshots": {
+    "back/冻结归档_主网编排器审查修复_check_list_20261114_v9.12.md": {
+      "bytes": 16102,
+      "crlfCount": 0,
+      "hasBom": false,
+      "sha256": "sha256:d19f50c8f79dc34a2b989c3189d39d8bee314ab1f658f0b5549e3c3ae3dd692c",
+      "utf8": true
+    },
+    "back/冻结归档_未完成任务清单_20261114_v9.12.md": {
+      "bytes": 16983,
+      "crlfCount": 0,
+      "hasBom": false,
+      "sha256": "sha256:4409022e5ce86cbd116fe7038a4afed4f09459f64ca45923cd94e0f87e0dbc25",
+      "utf8": true
+    }
+  },
+  "generatedAt": "2026-11-15T00:00:00Z",
+  "indexFile": "back/已完成任务归档索引_20261114_v9.8.md",
+  "indexRowsPresent": {
+    "P0-8a": true,
+    "P0-8b": true,
+    "P0-8c": true
+  },
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "sourceCodeChanged": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "regression": {
+    "cargoFmtRsSrc": "clean",
+    "cargoFmtTools": "clean",
+    "contractMainnetExecutorSuite": "29 passing",
+    "contractTestnetExecutorSuite": "27 passing",
+    "rsSrcSuite": "116 passed; 0 failed",
+    "toolsWorkspaceSuite": "exit 0"
+  },
+  "remainingGates": [
+    "主网 bounded executor 部署与批次入口接线（需显式授权）",
+    "复核侧构造 executorRequest（token/amount/swapTargets/swapCalldatas/finalToken/minProfit/gasReserve）",
+    "主网 live parity 与同源数学精确链上三态分类",
+    "批次广播在生产开启前的端到端回放",
+    "amountOutMinimum 利润锁与链上比例 calldata 尚未实现"
+  ],
+  "rollbackAvailable": true,
+  "rollbackPoint": "回滚为把 plan/back/冻结归档_*_20261114_v9.12.md 快照中的 [x] 条目恢复到活动文档，并删除归档索引 P0-8b/P0-8c 两行",
+  "rpcRequestCount": 0,
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "title": "归档纪律收口：活动文档清理遗留完成项并登记归档索引"
+}

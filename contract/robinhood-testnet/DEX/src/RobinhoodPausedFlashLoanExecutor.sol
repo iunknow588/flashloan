@@ -46,6 +46,10 @@ interface IV4PoolManagerRobinhood {
     function settle() external payable returns (uint256 paid);
 }
 
+interface IV4PoolManagerExtsloadRobinhood {
+    function extsload(bytes32 slot) external view returns (bytes32 value);
+}
+
 interface IV4PoolManagerSwapRobinhood {
     struct PoolKey {
         address currency0;
@@ -87,6 +91,9 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     error ApproveFailed();
     error TransferFailed();
     error RouterCallFailed(bytes4 selector);
+    error InvalidSqrtPriceLimit();
+    error V4PoolStateUnavailable();
+    error V4PriceLimitWrongDirection();
     error Reentrancy();
 
     uint8 public constant FLASH_SOURCE_NONE = 0;
@@ -104,6 +111,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     uint160 private constant V4_MIN_SQRT_PRICE_LIMIT = 4295128740;
     uint160 private constant V4_MAX_SQRT_PRICE_LIMIT = 1461446703485210103287273052203988822378723970341;
     uint256 public constant MAX_ROUTE_HOPS = 8;
+    uint256 public constant MAX_BATCH_REQUESTS = 16;
 
     uint8 private constant FLASH_EXECUTION_NONE = 0;
     uint8 private constant FLASH_EXECUTION_SINGLE_CALL = 1;
@@ -174,6 +182,13 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint160 sqrtPriceLimitX96;
     }
 
+    struct V4PoolStateSnapshot {
+        uint160 sqrtPriceX96;
+        int24 tick;
+        uint128 liquidity;
+        uint160 sqrtPriceLimitX96;
+    }
+
     /// @notice V3/V4 混合路由单跳，adapterKind 决定使用 V3 或 V4 结构。
     struct MixedRouteHop {
         uint8 adapterKind;
@@ -210,7 +225,20 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bytes[] swapCalldatas;
         address finalToken;
         uint256 minProfit;
-        uint256 gasReserve;
+        /// The reviewed minimum incremental output of the route, in the
+        /// borrowed token's raw units.
+        ///
+        /// This field used to be named `gasReserve` and was never enforced by
+        /// the V4 accounting path: gas is a sunk on-chain cost, so the balance
+        /// decision was made from `minProfit` alone and the field was only
+        /// echoed into the profit-guard event. It now carries the route's
+        /// reviewed output floor, which is the bound the path was missing.
+        /// The ABI layout is unchanged, so the broadcaster stays compatible.
+        ///
+        /// Uniswap V4's native `swap` carries no output-floor argument, so a
+        /// route that fills worse than the review proved can only be caught
+        /// after the fact. Zero disables the floor.
+        uint256 minAmountOut;
     }
 
     /// @notice V4 Flash Accounting 请求，额外提供每跳原生 ETH value。
@@ -222,7 +250,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256[] swapValues;
         address finalToken;
         uint256 minProfit;
-        uint256 gasReserve;
+        uint256 minAmountOut;
     }
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -259,13 +287,15 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256 balance,
         uint256 requiredRepay,
         uint256 minProfit,
-        uint256 gasReserve,
+        uint256 minAmountOut,
         uint256 requiredBalance,
         uint256 profitAfterRepay
     );
     event RobinhoodV4FlashAccountingRequested(address indexed token, uint256 amount, address indexed poolManager, uint256 hopCount);
     event RobinhoodV4FlashAccountingBorrowed(address indexed token, uint256 amount, uint256 balanceAfterTake);
     event RobinhoodV4FlashAccountingSettled(address indexed token, uint256 requiredRepay, uint256 paid);
+    event RobinhoodV4FlashBatchItemResult(uint256 indexed itemIndex, bool success, bytes4 failureSelector);
+    event RobinhoodV4FlashBatchCompleted(uint256 requestCount, uint256 successCount, uint256 failureCount);
 
     /// @notice 仅 owner 可操作的管理权限。
     address public owner;
@@ -300,6 +330,11 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         locked = true;
         _;
         locked = false;
+    }
+
+    modifier onlySelf() {
+        if (msg.sender != address(this)) revert BadFlashCallback();
+        _;
     }
 
     constructor(address initialOwner) {
@@ -405,14 +440,17 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     }
 
     /// @notice 只读预览一笔 flash loan 至少需要偿还的本息和守卫余额。
-    function previewRequiredBalance(uint256 amount, uint16 feeBps, uint256 minProfit, uint256 gasReserve)
+    function previewRequiredBalance(uint256 amount, uint16 feeBps, uint256 minProfit, uint256 /* gasReserve */)
         external
         view
         returns (uint256 requiredRepay, uint256 requiredBalance)
     {
         RepaymentGuard memory guard = repaymentGuard;
         requiredRepay = _requiredRepay(amount, feeBps);
-        requiredBalance = requiredRepay + _max(minProfit, guard.minProfit) + _max(gasReserve, guard.gasReserve);
+        // Gas is a sunk cost on-chain: it is paid whether the trade executes or
+        // reverts, so it must not influence the repayment decision. Only the
+        // closed-loop profit plus flash-loan fee decides execution.
+        requiredBalance = requiredRepay + _max(minProfit, guard.minProfit);
     }
 
     /// @notice 为指定 token 设置 Permit2 授权，使 Universal Router 可拉取代币。
@@ -485,6 +523,34 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     }
 
     /// @notice 构建直接调用 PoolManager::swap 的多跳 calldata，绕过 Universal Router 嵌套 unlock 限制。
+    /// @notice Reads the current V4 pool state and validates a bounded exact-input route.
+    function validateV4PoolManagerBoundedRoute(
+        V4ExactInputSingle[] calldata swaps,
+        uint160[] calldata sqrtPriceLimitsX96
+    ) external view returns (V4PoolStateSnapshot[] memory snapshots) {
+        UniswapV4Adapter memory adapter = uniswapV4Adapter;
+        if (!adapter.enabled || adapter.poolManager == address(0)) revert V4AdapterMissing();
+        uint256 hopCount = swaps.length;
+        if (hopCount == 0 || hopCount > MAX_ROUTE_HOPS || sqrtPriceLimitsX96.length != hopCount) {
+            revert InvalidRequest();
+        }
+        snapshots = new V4PoolStateSnapshot[](hopCount);
+        for (uint256 i = 0; i < hopCount; i++) {
+            _validateV4ExactInputSingle(swaps[i], block.timestamp + 1);
+            _validateV4CurrentTickPriceLimit(sqrtPriceLimitsX96[i]);
+            V4PoolStateSnapshot memory snapshot = _readV4PoolState(adapter.poolManager, swaps[i].poolKey);
+            uint160 currentPrice = snapshot.sqrtPriceX96;
+            uint160 priceLimit = sqrtPriceLimitsX96[i];
+            if (swaps[i].zeroForOne) {
+                if (priceLimit >= currentPrice) revert V4PriceLimitWrongDirection();
+            } else if (priceLimit <= currentPrice) {
+                revert V4PriceLimitWrongDirection();
+            }
+            snapshot.sqrtPriceLimitX96 = priceLimit;
+            snapshots[i] = snapshot;
+        }
+    }
+
     function buildV4PoolManagerExactInputRouteCalldata(V4ExactInputSingle[] calldata swaps, uint256 deadline)
         external
         view
@@ -512,6 +578,42 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
             calldatas[i] = data;
         }
     }
+
+    /// @notice Builds a direct PoolManager route with a per-hop current-tick
+    /// price limit. The limit must be a real tick boundary; the global V4
+    /// bounds are refused because they are not a single-tick proof.
+    function buildV4PoolManagerBoundedExactInputRouteCalldata(
+        V4ExactInputSingle[] calldata swaps,
+        uint160[] calldata sqrtPriceLimitsX96,
+        uint256 deadline
+    ) external view returns (address[] memory targets, bytes[] memory calldatas, address initialToken, address finalToken) {
+        UniswapV4Adapter memory adapter = uniswapV4Adapter;
+        if (!adapter.enabled || adapter.poolManager == address(0)) revert V4AdapterMissing();
+        uint256 hopCount = swaps.length;
+        if (hopCount == 0 || hopCount > MAX_ROUTE_HOPS || sqrtPriceLimitsX96.length != hopCount) {
+            revert InvalidRequest();
+        }
+
+        targets = new address[](hopCount);
+        calldatas = new bytes[](hopCount);
+        for (uint256 i = 0; i < hopCount; i++) {
+            _validateV4ExactInputSingle(swaps[i], deadline);
+            _validateV4CurrentTickPriceLimit(sqrtPriceLimitsX96[i]);
+            address tokenIn = _currencyIn(swaps[i]);
+            address tokenOut = _currencyOut(swaps[i]);
+            if (i == 0) {
+                initialToken = tokenIn;
+            } else if (_currencyOut(swaps[i - 1]) != tokenIn) {
+                revert InvalidRequest();
+            }
+            if (i == hopCount - 1) finalToken = tokenOut;
+            (, bytes memory data) =
+                _buildV4PoolManagerExactInputSingle(adapter.poolManager, swaps[i], sqrtPriceLimitsX96[i]);
+            targets[i] = adapter.poolManager;
+            calldatas[i] = data;
+        }
+    }
+
 
     /// @notice 构建 V3/V4 混合路由 calldata，用于兼容包含 V3 hop 的路由。
     function buildV3V4MixedRouteCalldata(MixedRouteHop[] calldata hops, uint256 deadline)
@@ -596,6 +698,47 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         nonReentrantEntry
         returns (bytes memory result)
     {
+        result = _requestV4FlashLoan(request);
+    }
+
+    function requestV4FlashLoanBatch(V4FlashAccountingRequest[] calldata requests)
+        external
+        onlyOwner
+        whenNotPaused
+        nonReentrantEntry
+    {
+        uint256 requestCount = requests.length;
+        if (requestCount == 0 || requestCount > MAX_BATCH_REQUESTS) revert InvalidRequest();
+        uint256 successCount = 0;
+        for (uint256 i = 0; i < requestCount; i++) {
+            try this.executeV4FlashLoanBatchItem(requests[i]) {
+                successCount++;
+                emit RobinhoodV4FlashBatchItemResult(i, true, bytes4(0));
+            } catch (bytes memory reason) {
+                bytes4 selector = _revertSelector(reason);
+                emit RobinhoodV4FlashBatchItemResult(i, false, selector);
+            }
+        }
+        emit RobinhoodV4FlashBatchCompleted(requestCount, successCount, requestCount - successCount);
+    }
+
+    function executeV4FlashLoanBatchItem(V4FlashAccountingRequest calldata request)
+        external
+        onlySelf
+    {
+        uint256 balanceBefore = _currencyBalance(request.token);
+        _requestV4FlashLoan(request);
+        uint256 balanceAfter = _currencyBalance(request.token);
+        uint256 requiredBalanceAfter = balanceBefore + _max(request.minProfit, repaymentGuard.minProfit);
+        if (balanceAfter < requiredBalanceAfter) {
+            revert BadFlashRepayment(balanceAfter, requiredBalanceAfter);
+        }
+    }
+
+    function _requestV4FlashLoan(V4FlashAccountingRequest calldata request)
+        private
+        returns (bytes memory result)
+    {
         FlashSourceAdapter memory source = flashSourceAdapter;
         UniswapV4Adapter memory adapter = uniswapV4Adapter;
         if (
@@ -608,6 +751,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
         if (!adapter.enabled || adapter.poolManager == address(0)) revert V4AdapterMissing();
         _validateV4FlashAccountingRequest(request);
+        _validateV4DirectRouteState(request.swapTargets, request.swapCalldatas, adapter.poolManager);
 
         bytes memory callbackData = abi.encode(request);
         activeFlashExecutionKind = FLASH_EXECUTION_V4_ACCOUNTING;
@@ -691,7 +835,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
                 valueRequest.swapValues,
                 valueRequest.finalToken,
                 valueRequest.minProfit,
-                valueRequest.gasReserve,
+                valueRequest.minAmountOut,
                 source,
                 adapter
             );
@@ -708,7 +852,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
             swapValues,
             request.finalToken,
             request.minProfit,
-            request.gasReserve,
+            request.minAmountOut,
             source,
             adapter
         );
@@ -723,7 +867,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256[] memory swapValues,
         address,
         uint256 minProfit,
-        uint256 gasReserve,
+        uint256 minAmountOut,
         FlashSourceAdapter memory source,
         UniswapV4Adapter memory adapter
     ) private returns (bytes memory) {
@@ -746,17 +890,24 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
 
         uint256 requiredRepay = _requiredRepay(amount, source.feeBps);
-        uint256 requiredBalance = requiredRepay + _max(minProfit, repaymentGuard.minProfit)
-            + _max(gasReserve, repaymentGuard.gasReserve);
+        uint256 requiredBalance = requiredRepay + _max(minProfit, repaymentGuard.minProfit);
         if (source.feeBps > repaymentGuard.maxFlashFeeBps) revert InvalidRequest();
         uint256 balance = _currencyBalance(tokenAddress);
+        // The reviewed minimum incremental output of the route. The executor
+        // may already hold the borrowed token, so comparing the floor with the
+        // total balance would let old funds subsidise a worse-than-reviewed
+        // fill. The route must add the reviewed amount on top of balanceBefore.
+        uint256 requiredReviewedBalance = balanceBefore + minAmountOut;
+        if (minAmountOut != 0 && balance < requiredReviewedBalance) {
+            revert BadFlashRepayment(balance, requiredReviewedBalance);
+        }
         uint256 profitAfterRepay = balance > requiredRepay ? balance - requiredRepay : 0;
         emit RobinhoodProfitGuardChecked(
             tokenAddress,
             balance,
             requiredRepay,
             _max(minProfit, repaymentGuard.minProfit),
-            _max(gasReserve, repaymentGuard.gasReserve),
+            minAmountOut,
             requiredBalance,
             profitAfterRepay
         );
@@ -826,6 +977,42 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     }
 
     /// @notice 校验 V4 exact-input-single 参数是否合法。
+    function _readV4PoolState(address poolManager, PoolKey memory key)
+        private
+        view
+        returns (V4PoolStateSnapshot memory snapshot)
+    {
+        bytes32 poolId = keccak256(abi.encode(key));
+        bytes32 stateSlot = keccak256(abi.encodePacked(poolId, uint256(6)));
+        bytes32 liquiditySlot = bytes32(uint256(stateSlot) + 3);
+        (bool stateOk, bytes memory stateData) = address(poolManager).staticcall(
+            abi.encodeWithSignature("extsload(bytes32)", stateSlot)
+        );
+        (bool liquidityOk, bytes memory liquidityData) = address(poolManager).staticcall(
+            abi.encodeWithSignature("extsload(bytes32)", liquiditySlot)
+        );
+        if (!stateOk || stateData.length < 32 || !liquidityOk || liquidityData.length < 32) {
+            revert V4PoolStateUnavailable();
+        }
+        uint256 slot0 = uint256(bytes32(stateData));
+        uint160 sqrtPriceX96 = uint160(slot0);
+        int24 tick = int24(int256(slot0 >> 160));
+        uint128 liquidity = uint128(uint256(bytes32(liquidityData)));
+        if (sqrtPriceX96 == 0 || liquidity == 0) revert V4PoolStateUnavailable();
+        snapshot = V4PoolStateSnapshot({
+            sqrtPriceX96: sqrtPriceX96,
+            tick: tick,
+            liquidity: liquidity,
+            sqrtPriceLimitX96: 0
+        });
+    }
+
+    function _validateV4CurrentTickPriceLimit(uint160 sqrtPriceLimitX96) private pure {
+        if (sqrtPriceLimitX96 <= V4_MIN_SQRT_PRICE_LIMIT || sqrtPriceLimitX96 >= V4_MAX_SQRT_PRICE_LIMIT) {
+            revert InvalidSqrtPriceLimit();
+        }
+    }
+
     function _validateV4ExactInputSingle(V4ExactInputSingle calldata swap, uint256 deadline) private view {
         if (deadline <= block.timestamp || swap.amountIn == 0 || swap.amountOutMinimum == 0) revert InvalidRequest();
         if (swap.poolKey.currency0 == swap.poolKey.currency1) revert InvalidRequest();
@@ -865,10 +1052,19 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         pure
         returns (address target, bytes memory data)
     {
+        uint160 sqrtPriceLimitX96 = swap.zeroForOne ? V4_MIN_SQRT_PRICE_LIMIT : V4_MAX_SQRT_PRICE_LIMIT;
+        return _buildV4PoolManagerExactInputSingle(poolManager, swap, sqrtPriceLimitX96);
+    }
+
+    function _buildV4PoolManagerExactInputSingle(
+        address poolManager,
+        V4ExactInputSingle calldata swap,
+        uint160 sqrtPriceLimitX96
+    ) private pure returns (address target, bytes memory data) {
         IV4PoolManagerSwapRobinhood.SwapParams memory params = IV4PoolManagerSwapRobinhood.SwapParams({
             zeroForOne: swap.zeroForOne,
             amountSpecified: -int256(uint256(swap.amountIn)),
-            sqrtPriceLimitX96: swap.zeroForOne ? V4_MIN_SQRT_PRICE_LIMIT : V4_MAX_SQRT_PRICE_LIMIT
+            sqrtPriceLimitX96: sqrtPriceLimitX96
         });
         target = poolManager;
         data = abi.encodeWithSelector(
@@ -965,7 +1161,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
             _executeSwap(request.swapTarget, request.swapCalldata, 0, 0);
         }
 
-        _enforceRepayment(request.token, request.amount, request.minProfit, request.gasReserve, source);
+        _enforceRepayment(request.token, request.amount, request.minProfit, source);
     }
 
     /// @notice 处理 Morpho 顺序路由回调：按序执行所有 swap 后强制还款。
@@ -980,7 +1176,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         for (uint256 i = 0; i < request.swapTargets.length; i++) {
             _executeSwap(request.swapTargets[i], request.swapCalldatas[i], 0, i + 1);
         }
-        _enforceRepayment(request.token, request.amount, request.minProfit, request.gasReserve, source);
+        _enforceRepayment(request.token, request.amount, request.minProfit, source);
     }
 
     /// @notice memory 版本的顺序路由校验，用于 callback 内解码后的再次校验。
@@ -994,6 +1190,31 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     }
 
     /// @notice 校验 V4 Flash Accounting 请求结构。
+    function _validateV4DirectRouteState(
+        address[] memory swapTargets,
+        bytes[] memory swapCalldatas,
+        address poolManager
+    ) private view {
+        uint256 hopCount = swapTargets.length;
+        if (hopCount == 0) return;
+        if (hopCount > MAX_ROUTE_HOPS || swapCalldatas.length != hopCount) revert InvalidRequest();
+        if (swapTargets[0] != poolManager) return;
+        for (uint256 i = 0; i < hopCount; i++) {
+            if (swapTargets[i] != poolManager) revert InvalidRequest();
+            (PoolKey memory key, IV4PoolManagerSwapRobinhood.SwapParams memory params,) =
+                _decodeV4PoolManagerSwap(swapCalldatas[i]);
+            _validateV4CurrentTickPriceLimit(params.sqrtPriceLimitX96);
+            V4PoolStateSnapshot memory snapshot = _readV4PoolState(poolManager, key);
+            uint160 currentPrice = snapshot.sqrtPriceX96;
+            uint160 priceLimit = params.sqrtPriceLimitX96;
+            if (params.zeroForOne) {
+                if (priceLimit >= currentPrice) revert V4PriceLimitWrongDirection();
+            } else if (priceLimit <= currentPrice) {
+                revert V4PriceLimitWrongDirection();
+            }
+        }
+    }
+
     function _validateV4FlashAccountingRequest(V4FlashAccountingRequest calldata request) private view {
         if (request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -1125,13 +1346,11 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         address token,
         uint256 amount,
         uint256 minProfit,
-        uint256 gasReserve,
         FlashSourceAdapter memory source
     ) private {
         if (source.feeBps > repaymentGuard.maxFlashFeeBps) revert InvalidRequest();
         uint256 requiredRepay = _requiredRepay(amount, source.feeBps);
-        uint256 requiredBalance = requiredRepay + _max(minProfit, repaymentGuard.minProfit)
-            + _max(gasReserve, repaymentGuard.gasReserve);
+        uint256 requiredBalance = requiredRepay + _max(minProfit, repaymentGuard.minProfit);
         uint256 balance = IERC20RobinhoodMinimal(token).balanceOf(address(this));
         uint256 profitAfterRepay = balance > requiredRepay ? balance - requiredRepay : 0;
         emit RobinhoodProfitGuardChecked(
@@ -1139,7 +1358,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
             balance,
             requiredRepay,
             _max(minProfit, repaymentGuard.minProfit),
-            _max(gasReserve, repaymentGuard.gasReserve),
+            0,
             requiredBalance,
             profitAfterRepay
         );

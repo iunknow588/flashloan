@@ -8,8 +8,11 @@ from typing import Any
 from core.market_identity import canonical_market_id, normalize_feature
 
 
+# Chain configuration is data, not Python source: it lives at
+# ``flashloan/chains`` so ``flashloan/src`` stays a pure Python package tree.
 SRC_ROOT = Path(__file__).resolve().parents[1]
-CHAIN_DATA_ROOT = SRC_ROOT / "chains"
+FLASHLOAN_ROOT = Path(__file__).resolve().parents[2]
+CHAIN_DATA_ROOT = FLASHLOAN_ROOT / "chains"
 CHAIN_REGISTRY_FILE = "registry.json"
 DEX_CANDIDATE_PROTOCOLS = {
     "balancer_v2",
@@ -526,11 +529,94 @@ def processing_flow_for_chain(chain_id: int, flow: str, *, root: Path | None = N
     return _as_dict(flows.get(flow))
 
 
+def chain_value(
+    network: str | None,
+    path: str,
+    *env_names: str,
+    default: str = "",
+    root: Path | None = None,
+) -> str:
+    """Resolve a chain-scoped setting with a single, documented precedence.
+
+    Precedence is always ``env override`` -> ``chain.json`` -> ``default``.
+    Chain-owned values live in ``flashloan/chains/<network>/chain.json``;
+    environment variables only exist as an operational override on top of
+    that, so a chain can never be configured from two unrelated places.
+    """
+
+    for name in env_names:
+        value = _text(os.getenv(name, ""))
+        if value:
+            return value
+
+    row = chain_data_by_network(network, root=root) if network else None
+    value = _chain_path_lookup(row, path)
+    return value or _text(default)
+
+
+def chain_path_value(
+    network: str | None,
+    path: str,
+    *,
+    root: Path | None = None,
+) -> Any:
+    """Read a nested value out of a chain's ``chain.json`` without env override."""
+
+    row = chain_data_by_network(network, root=root) if network else None
+    return _chain_path_lookup_value(row, path)
+
+
+def _chain_path_lookup_value(row: dict[str, Any] | None, path: str) -> Any:
+    if not row:
+        return None
+    current: Any = row
+    for part in str(path or "").split("."):
+        if not part:
+            continue
+        if isinstance(current, dict):
+            current = current.get(part)
+            continue
+        return None
+    return current
+
+
+def _chain_path_lookup(row: dict[str, Any] | None, path: str) -> str:
+    value = _chain_path_lookup_value(row, path)
+    if isinstance(value, list):
+        return ",".join(_text(item) for item in value if _text(item))
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return _text(value)
+
+
+def chain_flag(
+    network: str | None,
+    path: str,
+    *env_names: str,
+    default: bool = False,
+    root: Path | None = None,
+) -> bool:
+    """Resolve a boolean chain-scoped gate (for example a broadcast switch)."""
+
+    raw = chain_value(network, path, *env_names, root=root)
+    if not raw:
+        return bool(default)
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return bool(default)
+
+
 from core.chain_data_audit import chain_data_audit
 
 
 __all__ = [
     "chain_data_audit",
+    "chain_flag",
+    "chain_path_value",
+    "chain_value",
     "chain_contracts",
     "chain_config_summary",
     "chain_data_by_chain_id",

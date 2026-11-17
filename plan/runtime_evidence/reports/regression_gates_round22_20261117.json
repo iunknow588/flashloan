@@ -1,0 +1,355 @@
+{
+  "schemaVersion": "regression-gates-v1",
+  "round": 22,
+  "generatedAt": "2026-11-17T05:20:00Z",
+  "scope": "主网自愈编排器（scripts/mainnet_arbitrage_healer.py）缺陷清除轮",
+  "premise": {
+    "perChainSqlite": true,
+    "chainDatabases": {
+      "robinhood": {
+        "chainId": 4663,
+        "file": "flashloan/db/local_store_4663.sqlite3",
+        "bytes": 3507453952
+      },
+      "robinhood-testnet": {
+        "chainId": 46630,
+        "file": "flashloan/db/local_store_46630.sqlite3",
+        "bytes": 870842368
+      }
+    },
+    "productionDbUnchanged": true,
+    "orchestratorChainAgnostic": true
+  },
+  "evidence": [
+    "plan/runtime_evidence/reports/regression_gates_round22_20261117.json",
+    "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261116T211427Z.json",
+    "plan/back/已完成任务归档_20261117_第22轮_编排器缺陷清除.md"
+  ],
+  "fixes": [
+    {
+      "fixId": "FIX-R22-01",
+      "title": "编排器源码语法错误：pool_depth_replacement_report 丢失 return 语句",
+      "class": "syntax-defect",
+      "severity": "critical",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "pool_depth_replacement_report"
+      ],
+      "rootCause": "对函数体做行区间拼接时，return { 语句被 splice 吞掉，剩余字典字面量成为游离表达式，模块 import 即抛 SyntaxError，整个编排器无法启动。",
+      "fix": "重新插入 return {，并补回被吞掉的 status 与 reason 两个返回键，使报告同时携带状态、原因与错误码。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-190",
+        "AC-191"
+      ],
+      "verification": [
+        "GATE-R22-01",
+        "GATE-R22-02"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-02",
+      "title": "Manager 复核库的 best-amount 证据完全不可见，叠加 5 倍常量与 3 倍函数重复定义",
+      "class": "production-defect",
+      "severity": "critical",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "review_payloads",
+        "_best_amount_calculation",
+        "_live_onchain_evidence",
+        "_probe_rows",
+        "best_amount_state",
+        "best_amount_audit"
+      ],
+      "rootCause": "manager_v4_reviews 根本没有 payload_json 列，它把证据放在 static_preview_json / run_arbitrage_json；而 best_amount_state 只读 payload_json，因此每一条 Manager 复核都被判成 best_amount_missing，复核层永远无法收敛。同一个文件里还存在 5 份常量块、3 份 best_amount_state 与 best_amount_failure_reason、2 份 materialize_reviews，后者把正确的实现整段遮蔽。",
+      "fix": "新增 review_payloads 及三个解析辅助函数，统一从 payload_json / static_preview_json / run_arbitrage_json 中解析计算块与链上证据；best_amount_state 与 best_amount_audit 改用同一解析路径；删除全部重复定义，仅保留正确实现。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-190",
+        "AC-193",
+        "AC-197"
+      ],
+      "verification": [
+        "GATE-R22-01",
+        "GATE-R22-03",
+        "GATE-R22-04"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-03",
+      "title": "Manager 复核缺失原因被抹平为通用 evidence_missing",
+      "class": "production-defect",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "audit_reviews",
+        "review_evidence"
+      ],
+      "rootCause": "audit_reviews 与 review_evidence 直接读取 legacy 专有列 selected_profit_missing_reason；Manager 复核把原因写在 review_status / review_reason，因此上游真实失败原因被丢弃，运营侧只能看到 evidence_missing。",
+      "fix": "两处统一改用已有的 review_missing_reason(row)，该函数已同时兼容 legacy 列与 Manager 列。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-193",
+        "AC-194"
+      ],
+      "verification": [
+        "GATE-R22-05"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-04",
+      "title": "pool-manager 能力探测是死代码，且遇到不可执行二进制会直接崩溃编排器",
+      "class": "production-defect",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "pool_manager_command_support",
+        "audit_pools",
+        "build_report"
+      ],
+      "rootCause": "pool_manager_command_support 从未被调用，因此部署了旧二进制的场景仍会静默空跑；即使被调用，它只捕获 FileNotFoundError 与 TimeoutExpired，截断或架构不符的二进制抛 OSError 会让整个编排器崩溃；缺失二进制分支也没有返回 complete 键，调用方读到 None 而非 False。",
+      "fix": "把探测接入 audit_pools 并经 build_report 贯穿 tools 参数（repair/watch/check 三条路径全部覆盖）；补捕获 OSError；所有分支统一返回 complete 布尔键；不完整的能力集现在会真实阻断池层而不是静默空跑。",
+      "taskIds": [
+        "TASK-129"
+      ],
+      "acceptanceIds": [
+        "AC-195",
+        "AC-196"
+      ],
+      "verification": [
+        "GATE-R22-06",
+        "GATE-R22-07"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-05",
+      "title": "测试文件存在 7 个同名重复方法，其中 6 个互相遮蔽",
+      "class": "test-defect",
+      "severity": "major",
+      "surface": "scripts/tests/test_mainnet_arbitrage_healer.py",
+      "symbols": [
+        "test_api_post_treats_connection_reset_as_transport_failure",
+        "test_token_audit_requires_exact_funding_addresses_and_stock_provenance"
+      ],
+      "rootCause": "复制粘贴产生 6 份完全相同的 api_post 用例与 2 份完全相同的 token_audit 用例，Python 只保留最后一份，等于 6 个用例从未真正执行，掩盖了真实回归。",
+      "fix": "删除重复定义，保留唯一实现；重复用例改为语义不同的独立用例。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-190"
+      ],
+      "verification": [
+        "GATE-R22-01",
+        "GATE-R22-08"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-06",
+      "title": "测试文件语法错误与错误 INSERT 列数",
+      "class": "test-defect",
+      "severity": "critical",
+      "surface": "scripts/tests/test_mainnet_arbitrage_healer.py",
+      "symbols": [
+        "test_historical_positive_rereview_includes_not_executable_estimate"
+      ],
+      "rootCause": "try 块结构被破坏导致整个测试文件无法解析；修正后仍有一处 INSERT 提供的值数量与列数不符。",
+      "fix": "修复 try 块缩进与占位符数量，测试文件恢复可解析。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-190"
+      ],
+      "verification": [
+        "GATE-R22-01"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-07",
+      "title": "pnl_snapshot 日志行含畸形表达式 {() .get('production') if False else ...}",
+      "class": "production-defect",
+      "severity": "minor",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "append_pnl_snapshot"
+      ],
+      "rootCause": "一行被破坏的 f-string 表达式，遗留了恒假分支与非法属性访问写法；虽然当前求值结果碰巧正确，但表达式本身是无效代码。",
+      "fix": "改写为直接读取 (snapshot.get('production') or {}).get('state')。",
+      "taskIds": [
+        "TASK-130"
+      ],
+      "acceptanceIds": [
+        "AC-199"
+      ],
+      "verification": [
+        "GATE-R22-09"
+      ]
+    },
+    {
+      "fixId": "FIX-R22-08",
+      "title": "broadcast 修复门禁与计划的 INV-5 不一致",
+      "class": "acceptance-defect",
+      "severity": "minor",
+      "surface": "flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py",
+      "symbols": [
+        "test_a_failed_broadcast_names_the_repair_action"
+      ],
+      "rootCause": "用例构造的复核统计缺少 positive 键，而编排器按 INV-5（广播只在正净收益复核上触发）要求 positive > 0 才允许修复广播。用例失败并非实现错误，而是用例没有表达计划约束。",
+      "fix": "补齐 positive 统计并新增两条用例，分别锁定 INV-4（复核层不健全时不得修广播）与 INV-5（无正净收益时不得修广播）。",
+      "taskIds": [
+        "TASK-127"
+      ],
+      "acceptanceIds": [
+        "AC-190",
+        "AC-198"
+      ],
+      "verification": [
+        "GATE-R22-02",
+        "GATE-R22-10"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gateId": "GATE-R22-01",
+      "command": "python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q -p no:cacheprovider",
+      "expected": "49 passed",
+      "actual": "49 passed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-02",
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q -p no:cacheprovider",
+      "expected": "35 passed",
+      "actual": "35 passed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-03",
+      "command": "python -m pytest flashloan/app_runtime/tests/unit -p no:cacheprovider -q",
+      "expected": ">=2624 passed, 0 failed",
+      "actual": "2626 passed, 3 skipped, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-04",
+      "command": "python -m pytest flashloan/app_runtime/tests/functional flashloan/app_runtime/tests/integration scripts/tests -p no:cacheprovider -q",
+      "expected": ">=448 passed, 0 failed",
+      "actual": "458 passed, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-05",
+      "command": "git status --short -- flashloan/db",
+      "expected": "no production database writes",
+      "actual": "local_store_4663.sqlite3 = 3507453952 bytes, local_store_46630.sqlite3 = 870842368 bytes (unchanged)",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-06",
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check --database flashloan/db/local_store_4663.sqlite3 --window-hours 24",
+      "expected": "read-only report without crash",
+      "actual": "exit 0, report written, pools.binarySupport.complete = true, missingCommands = []",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-07",
+      "command": "python -m compileall scripts/mainnet_arbitrage_healer.py scripts/tests/",
+      "expected": "exit 0",
+      "actual": "exit 0",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-08",
+      "command": "cd flashloan/tools && cargo test --locked --workspace",
+      "expected": "0 failed",
+      "actual": "522 passed, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-09",
+      "command": "cd flashloan/rs-src && cargo test --locked",
+      "expected": "0 failed",
+      "actual": "127 passed, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R22-10",
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check ... (per-chain guard)",
+      "expected": "per-chain sqlite isolation enforced",
+      "actual": "assert_chain_database rejects any file that is not the registered per-chain file; robinhood=local_store_4663.sqlite3, robinhood-testnet=local_store_46630.sqlite3",
+      "result": "pass"
+    }
+  ],
+  "liveState": {
+    "readOnly": true,
+    "network": "robinhood",
+    "chainId": 4663,
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "admitted": 199,
+        "missing": 0
+      },
+      "pools": {
+        "valid": false,
+        "code": "pool_depth_insufficient",
+        "uniquePools": 862,
+        "adequate": 21,
+        "insufficient": 841,
+        "thin": 216,
+        "unpriced": 331,
+        "badReadings": 311
+      },
+      "closedLoops": {
+        "valid": true,
+        "loops": 106
+      },
+      "reviews": {
+        "valid": false,
+        "total": 69,
+        "valued": 69,
+        "missingValue": 0,
+        "positive": 0,
+        "bestAmountMissing": 69,
+        "ladderIncomplete": 29
+      },
+      "broadcast": {
+        "valid": false,
+        "managerAttempts": 0
+      }
+    },
+    "productionState": "upstream_invalid",
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "safeToAutoBroadcast": false,
+    "note": "本轮只清除缺陷，未对生产库执行任何写入；池层深度不足仍是上游阻塞点，需由池管理工具修复。"
+  },
+  "notClaimed": [
+    "尚未产生套利广播交易",
+    "尚未满足稳定广播判据",
+    "生产库写入尚未解锁（前提依赖未解除）"
+  ],
+  "summary": {
+    "fixesApplied": 8,
+    "gatesPassed": 10,
+    "gatesFailed": 0,
+    "unitTests": "2626 passed, 3 skipped",
+    "functionalIntegrationScripts": "458 passed",
+    "rustTools": "522 passed",
+    "rustRsSrc": "127 passed",
+    "healerTests": "49 + 35 passed",
+    "productionDbBytesChanged": false
+  }
+}

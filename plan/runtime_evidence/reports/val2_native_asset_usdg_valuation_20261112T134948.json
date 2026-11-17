@@ -1,0 +1,67 @@
+{
+  "apiKeyConfigured": true,
+  "chainId": 4663,
+  "evaluatedCount": 1,
+  "noRouteCount": 0,
+  "nominalAmount": "1",
+  "observedAt": "2026-11-12T05:49:51.280527300+00:00",
+  "protocols": [
+    "V4"
+  ],
+  "quoteEndpoint": "https://trade-api.gateway.uniswap.org/v1/quote",
+  "quoteTarget": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "report": {
+    "evaluated_count": 1,
+    "no_route_count": 0,
+    "nominal_amount": "1",
+    "observed_at": "2026-11-12T05:49:51.280527300+00:00",
+    "protocols": [
+      "V4"
+    ],
+    "requested_count": 1,
+    "route_found_count": 1,
+    "source": "uniswap_trading_api_quote",
+    "tokens": [
+      {
+        "has_value": true,
+        "input_amount_raw": "1000000000000000000",
+        "observed_at": "2026-11-12T05:49:51.280445+00:00",
+        "price_impact": "0.02",
+        "protocols": [
+          "V4"
+        ],
+        "source": "uniswap_trading_api_quote",
+        "token_address": "0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH",
+        "usdg_amount_decimal": "2044.237986",
+        "usdg_amount_raw": "2044237986",
+        "verdict": "route_found"
+      }
+    ],
+    "unknown_count": 0
+  },
+  "requestedCount": 1,
+  "routeFoundCount": 1,
+  "source": "uniswap_trading_api_quote",
+  "tokens": [
+    {
+      "has_value": true,
+      "input_amount_raw": "1000000000000000000",
+      "observed_at": "2026-11-12T05:49:51.280445+00:00",
+      "price_impact": "0.02",
+      "protocols": [
+        "V4"
+      ],
+      "source": "uniswap_trading_api_quote",
+      "token_address": "0x0000000000000000000000000000000000000000",
+      "token_symbol": "ETH",
+      "usdg_amount_decimal": "2044.237986",
+      "usdg_amount_raw": "2044237986",
+      "verdict": "route_found"
+    }
+  ],
+  "unknownCount": 0,
+  "verdictCounts": {
+    "route_found": 1
+  }
+}

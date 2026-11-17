@@ -3,12 +3,16 @@ from __future__ import annotations
 import logging
 import json
 import os
+import time
 from typing import Any
 
 from core.broadcast_failure_audit import append_broadcast_failure_audit
 from core.market_identity import canonical_market_id
 from dex.runtime.closed_loop_identity import (
+    canonical_directed_cycle_key,
+    directed_cycle_rotations,
     directed_symbol_key_from_symbols,
+    physical_loop_key_from_addresses,
     physical_loop_key_from_route,
     worker_group_key_from_route,
 )
@@ -24,6 +28,34 @@ from dex.runtime.rust_closed_loop import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _directed_loop_config(
+    config_by_loop_key: dict[str, dict[str, Any]],
+    loop_key: str,
+) -> dict[str, Any] | None:
+    """Rotation-aware route config lookup for one directed cycle.
+
+    A task-config route may carry a different rotation anchor than the
+    scanner route (for example "usdg|eth|spy" vs "eth|spy|usdg").  All
+    rotations of the same directed cycle are the same closed loop; the
+    reverse direction never shares rotations, so direction independence is
+    preserved.
+    """
+    exact = config_by_loop_key.get(loop_key)
+    if exact is not None:
+        return exact
+    for rotation in directed_cycle_rotations(loop_key, separator=":"):
+        if rotation in config_by_loop_key:
+            return config_by_loop_key[rotation]
+    return None
+
+
+def _has_directed_loop_config(
+    config_by_loop_key: dict[str, dict[str, Any]],
+    loop_key: str,
+) -> bool:
+    return _directed_loop_config(config_by_loop_key, loop_key) is not None
 
 
 def _is_broadcast_failure_result(result: dict[str, Any]) -> bool:
@@ -123,6 +155,187 @@ def _closed_loop_transition_detail(error: str) -> str:
     }.get(error, "闭环状态切换失败")
 
 
+def _native_manager_overview_route_payload(
+    *,
+    chain_id: int,
+    protocols: list[str],
+    anchor: str | None = None,
+) -> dict[str, Any] | None:
+    """Build a closed-loop refresh payload from the RuntimeCore manager overview.
+
+    ``/api/dex/quote-routes`` already reads this same overview, which is the
+    only inventory guaranteed to include every materialized manager loop.
+    Static observation snapshots can lag behind the manager library, so the
+    mainnet refresh path must not depend on them.  Returns None when the
+    request has no RuntimeCore binding so callers can fall back to the static
+    facade without changing testnet or old-chain behavior.
+    """
+    try:
+        from flask import has_app_context, g
+    except Exception:
+        return None
+    if not has_app_context():
+        return None
+    try:
+        chain_runtime = getattr(g, "chain_runtime", None)
+    except Exception:
+        return None
+    if chain_runtime is None or not hasattr(chain_runtime, "manager_view"):
+        return None
+    try:
+        envelope = chain_runtime.manager_view("overview", 1000)
+    except Exception as exc:
+        logger.warning(
+            "native refresh manager overview unavailable for chain %s: %s",
+            chain_id,
+            str(exc)[:300],
+        )
+        return None
+    if not isinstance(envelope, dict) or envelope.get("ok") is False:
+        return None
+    if (
+        envelope.get("dataSource") != "rust_runtime_core"
+        or envelope.get("view") != "overview"
+    ):
+        return None
+    runtime_core = (
+        envelope.get("runtimeCore")
+        if isinstance(envelope.get("runtimeCore"), dict)
+        else {}
+    )
+    try:
+        if int(runtime_core.get("chainId")) != int(chain_id):
+            return None
+    except (TypeError, ValueError):
+        return None
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        return None
+    paths = data.get("arbitragePaths")
+    if not isinstance(paths, list):
+        return None
+    anchor_filter = str(anchor or "").strip().upper()
+    routes: list[dict[str, Any]] = []
+    for path in paths:
+        if not isinstance(path, dict):
+            continue
+        route_symbols = [
+            str(item or "").strip()
+            for item in (path.get("routeSymbols") or [])
+            if str(item or "").strip()
+        ]
+        if len(route_symbols) != 4 or route_symbols[0].upper() != route_symbols[-1].upper():
+            continue
+        if anchor_filter:
+            overview_route = (
+                path.get("overviewRoute")
+                if isinstance(path.get("overviewRoute"), dict)
+                else {}
+            )
+            path_anchor = str(
+                overview_route.get("anchorBorrowSymbol")
+                or route_symbols[0]
+            ).strip().upper()
+            if path_anchor != anchor_filter:
+                continue
+        route = dict(path)
+        route["routeSymbols"] = route_symbols
+        route["routeAddresses"] = [
+            str(item or "").strip()
+            for item in (path.get("routeAddresses") or [])
+            if str(item or "").strip()
+        ]
+        route.setdefault("protocol", "uniswap_v4")
+        route.setdefault("chainId", int(chain_id))
+        routes.append(route)
+    return {
+        "ok": True,
+        "mode": "native_manager_overview_refresh",
+        "chain_id": int(chain_id),
+        "source": "manager_overview",
+        "routes": routes,
+    }
+
+
+def _native_manager_closed_loop_route_payload(
+    *,
+    chain_id: int,
+    anchor: str | None,
+) -> dict[str, Any] | None:
+    """Build refresh routes from the lightweight closed-loop Manager view."""
+    try:
+        from flask import has_app_context, g
+    except Exception:
+        return None
+    if not has_app_context():
+        return None
+    try:
+        chain_runtime = getattr(g, "chain_runtime", None)
+    except Exception:
+        return None
+    if chain_runtime is None or not hasattr(chain_runtime, "manager_view"):
+        return None
+    try:
+        started_at = time.monotonic()
+        envelope = chain_runtime.manager_view("closed_loops", 1000)
+        logger.info(
+            "native refresh closed-loop view loaded for chain %s in %.3fs",
+            chain_id,
+            time.monotonic() - started_at,
+        )
+    except Exception as exc:
+        logger.warning(
+            "native refresh closed-loop view unavailable for chain %s: %s",
+            chain_id,
+            str(exc)[:300],
+        )
+        return None
+    if not isinstance(envelope, dict) or envelope.get("ok") is False:
+        return None
+    if (
+        envelope.get("dataSource") != "rust_runtime_core"
+        or envelope.get("view") != "closed_loops"
+    ):
+        return None
+    runtime_core = envelope.get("runtimeCore") if isinstance(envelope.get("runtimeCore"), dict) else {}
+    try:
+        if int(runtime_core.get("chainId")) != int(chain_id):
+            return None
+    except (TypeError, ValueError):
+        return None
+    data = envelope.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("loops"), list):
+        return None
+    anchor_filter = str(anchor or "").strip().upper()
+    routes: list[dict[str, Any]] = []
+    for loop in data["loops"]:
+        if not isinstance(loop, dict):
+            continue
+        route_symbols = [str(item or "").strip().upper() for item in (loop.get("pathSymbols") or []) if str(item or "").strip()]
+        route_addresses = [str(item or "").strip().lower() for item in (loop.get("pathAddresses") or []) if str(item or "").strip()]
+        if len(route_symbols) != 4 or route_symbols[0] != route_symbols[-1] or len(route_addresses) != 4:
+            continue
+        if anchor_filter and route_symbols[0] != anchor_filter:
+            continue
+        pool_ids = [str(item or "").strip() for item in (loop.get("poolIds") or []) if str(item or "").strip()]
+        routes.append({
+            **loop,
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "poolIds": pool_ids,
+            "poolPathKey": loop.get("poolPathKey") or "|".join(pool_ids),
+            "protocol": "uniswap_v4",
+            "chainId": int(chain_id),
+        })
+    return {
+        "ok": True,
+        "mode": "native_manager_closed_loop_refresh",
+        "chain_id": int(chain_id),
+        "source": "manager_closed_loops",
+        "routes": routes,
+    }
+
+
 class DexOpportunityNativeRustMixin:
     def _native_database_url(self, chain_id: int | None = None) -> str | None:
         """Resolve the worker pool database from the active chain scope.
@@ -149,6 +362,86 @@ class DexOpportunityNativeRustMixin:
             return chain_runtime_registry().current().database_url
         except Exception:
             return database_path_for_chain(None)
+
+    def _closed_loop_database_url(
+        self,
+        chain_id: int | None = None,
+        network: str | None = None,
+    ) -> str | None:
+        """Resolve the one database every closed-loop step must share.
+
+        The closed-loop consumer resolves its target through
+        `closed_loop_consumer.resolve_runtime_database`, while
+        `complete_loop` and the error isolation probe use the database this
+        method returns.  When the two resolvers disagree, the claim is written
+        into one file and the completion into another, so the loop is stranded
+        in `preflight_running` forever and never reaches `preflight_failed`.
+
+        The resolver must also follow the chain that is actually being
+        processed.  The process default chain is the mainnet chain, so a
+        testnet scan that fell back to the default would write its closed-loop
+        rows into the mainnet database.
+
+        A scanner instance may pin `_native_database_url` explicitly; such a
+        deliberate injection keeps winning, because the consumer resolver
+        honours a non-empty database argument unchanged.
+        """
+        from dex.runtime import closed_loop_consumer
+
+        selected = self._native_database_url(chain_id)
+        if self._has_pinned_native_database():
+            # A deliberate per-scanner pin wins over every other resolver,
+            # because the consumer resolver honours a non-empty database
+            # argument unchanged.
+            return selected
+        resolved = closed_loop_consumer.resolve_runtime_database(None)
+        if not resolved:
+            # The consumer resolver is authoritative: a ``None`` answer means
+            # this scope has no database, and every closed-loop step must
+            # skip instead of falling back to another chain's store.
+            return None
+        if chain_id is not None:
+            scoped = self._chain_scoped_database_url(chain_id, network)
+            if scoped and str(scoped).strip() != str(resolved).strip():
+                # The process default chain is the mainnet chain, so a
+                # testnet scan must never write into the mainnet store.
+                # The scoped path goes through the consumer resolver so a
+                # caller that pinned a database stays in control.
+                scoped = closed_loop_consumer.resolve_runtime_database(scoped)
+                if not scoped:
+                    return None
+                return scoped
+        if selected and str(selected).strip() != str(resolved).strip():
+            logger.warning(
+                "closed-loop database mismatch; resolved target %s wins "
+                "over the chain runtime binding %s",
+                resolved,
+                selected,
+            )
+        return resolved
+
+    def _chain_scoped_database_url(
+        self,
+        chain_id: int,
+        network: str | None = None,
+    ) -> str | None:
+        """Return the SQLite file that belongs to one chain."""
+        try:
+            from core.db.chain_database_context import chain_database_path
+
+            return str(chain_database_path(int(chain_id), network).resolve())
+        except Exception:
+            return None
+
+    def _has_pinned_native_database(self) -> bool:
+        """Return True when the scanner pins its closed-loop database.
+
+        A scanner instance may override `_native_database_url` to point the
+        closed-loop tables at a specific file.  That is an explicit injection
+        and must keep working; only the chain-runtime derived value is allowed
+        to be reconciled against the chain-scoped resolver.
+        """
+        return "_native_database_url" in getattr(self, "__dict__", {})
 
     def _native_chain_id(self) -> int | None:
         """Return the active chain id through the single runtime registry."""
@@ -182,6 +475,15 @@ class DexOpportunityNativeRustMixin:
             self._native_recorder_lock = lock
         return lock
 
+    def _native_submission_lock_object(self) -> Any:
+        lock = getattr(self, "_native_submission_lock", None)
+        if lock is None:
+            import threading
+
+            lock = threading.Lock()
+            self._native_submission_lock = lock
+        return lock
+
     def _enqueue_closed_loop_groups_from_payload(
         self,
         payload: dict[str, Any],
@@ -193,11 +495,12 @@ class DexOpportunityNativeRustMixin:
             if not self.auto_execute_enabled:
                 return
         if self._native_rust_closed_loop and self.auto_execute_enabled:
-            self._submit_native_closed_loop_groups(
-                payload=payload,
-                chain_id=chain_id,
-                protocols=list(protocols or []),
-            )
+            with self._native_submission_lock_object():
+                self._submit_native_closed_loop_groups(
+                    payload=payload,
+                    chain_id=chain_id,
+                    protocols=list(protocols or []),
+                )
             return
         seen: set[str] = set()
         for route in payload.get("routes") or []:
@@ -222,7 +525,10 @@ class DexOpportunityNativeRustMixin:
 
     def _native_group_busy(self, group_key: str, chain_id: int | None = None) -> bool:
         try:
-            status = native_worker_status(chain_id=chain_id)
+            status = native_worker_status(
+                chain_id=chain_id,
+                include_payloads=False,
+            )
         except Exception:
             return False
         workers = status.get("workers") if isinstance(status.get("workers"), list) else []
@@ -256,6 +562,8 @@ class DexOpportunityNativeRustMixin:
         for worker in workers:
             if not isinstance(worker, dict):
                 continue
+            if worker.get("thread_live") is False:
+                continue
             if str(worker.get("state") or "").strip().lower() == "stopped":
                 continue
             key = str(worker.get("group_key") or "").strip().lower()
@@ -264,7 +572,7 @@ class DexOpportunityNativeRustMixin:
         return resident
 
     def _native_worker_group_count(self, chain_id: int | None = None) -> int:
-        """Count every spawned group thread, including stopped resident ones."""
+        """Count currently live group threads for bounded active capacity."""
         try:
             status = native_worker_status(
                 include_payloads=False,
@@ -278,6 +586,7 @@ class DexOpportunityNativeRustMixin:
                 str(worker.get("group_key") or "").strip().lower()
                 for worker in workers
                 if isinstance(worker, dict)
+                and worker.get("thread_live") is not False
                 and str(worker.get("group_key") or "").strip()
             }
         )
@@ -288,9 +597,23 @@ class DexOpportunityNativeRustMixin:
         payload: dict[str, Any],
         chain_id: int | None,
         protocols: list[str],
-    ) -> None:
+        preferred_group_key: str | None = None,
+        allow_capacity_override: bool = False,
+    ) -> dict[str, Any]:
+        submission: dict[str, Any] = {
+            "ok": False,
+            "mode": "native_closed_loop_group_submit",
+            "groupsDiscovered": 0,
+            "groupsConsidered": 0,
+            "submittedGroupKeys": [],
+            "existingGroupKeys": [],
+            "skipped": [],
+            "failures": [],
+            "capacity": {},
+        }
         if chain_id is None:
-            return
+            submission["error"] = "chain_id_required"
+            return submission
         groups: dict[str, list[tuple[dict[str, Any], str]]] = {}
 
         def _pair_key(route: dict[str, Any]) -> tuple[str, str] | None:
@@ -345,13 +668,25 @@ class DexOpportunityNativeRustMixin:
                 route["routeSymbols"] = symbols
             else:
                 return None
-            loop_key = physical_loop_key_from_route(route)
+            # The **physical route key** identifies the route the runtime
+            # groups and de-duplicates. It is deliberately not the
+            # closed-loop identity: that one is published by the closed-loop
+            # Manager and reaches the runtime through the kernel result, so
+            # a review is always filed under the loop the Manager knows.
+            physical_route_key = (
+                physical_loop_key_from_addresses(addresses)
+                or physical_loop_key_from_route(route)
+            )
             worker_group_key = worker_group_key_from_route(route)
-            if not loop_key or not worker_group_key:
+            if not physical_route_key or not worker_group_key:
                 return None
-            route["loopKey"] = loop_key
-            return worker_group_key, loop_key
+            route["physicalRouteKey"] = physical_route_key
+            return worker_group_key, physical_route_key
 
+        # The folded single-tick capacity and the identity of the loop are
+        # **not** assembled here. They are held by the runtime's in-memory
+        # object, and the kernel applies them to the route when it reviews
+        # it. Python only forwards the route.
         for route in payload.get("routes") or []:
             if not isinstance(route, dict) or not _route_is_closed_loop_quad(route):
                 continue
@@ -360,6 +695,13 @@ class DexOpportunityNativeRustMixin:
                 continue
             worker_group_key, loop_key = key
             groups.setdefault(worker_group_key, []).append((route, loop_key))
+        submission["groupsDiscovered"] = len(groups)
+        preferred = str(preferred_group_key or "").strip().lower()
+        if preferred and preferred not in groups:
+            submission["error"] = "closed_loop_group_not_found"
+            return submission
+        if preferred:
+            groups = {preferred: groups[preferred]}
         try:
             batch_limit = max(
                 1,
@@ -389,18 +731,53 @@ class DexOpportunityNativeRustMixin:
             batch_limit,
             max(0, total_group_limit - worker_group_count),
         )
+        capacity = {
+            "workerGroupCount": worker_group_count,
+            "totalGroupLimit": total_group_limit,
+            "batchLimit": batch_limit,
+            "overrideUsed": False,
+        }
+        if (
+            preferred
+            and preferred not in resident_keys
+            and batch_limit < 1
+            and allow_capacity_override
+        ):
+            batch_limit = 1
+            capacity["overrideUsed"] = True
+        submission["capacity"] = capacity
         newly_submitted = 0
         for group_key, route_entries in groups.items():
             normalized = str(group_key or "").strip().lower()
             if not normalized or normalized in resident_keys:
+                if normalized:
+                    submission["existingGroupKeys"].append(normalized)
                 continue
             if newly_submitted >= batch_limit:
+                submission["skipped"].append(
+                    {
+                        "groupKey": normalized,
+                        "reason": "resident_group_capacity_exhausted",
+                    }
+                )
                 continue
+            submission["groupsConsidered"] += 1
             routes = [route for route, _loop_key in route_entries]
+            build_started_at = time.monotonic()
+            logger.info(
+                "native closed-loop config build starting for %s with %s route(s)",
+                normalized,
+                len(routes),
+            )
             resolved_group_key, task_config, failed = build_group_task_config(
                 chain_id=chain_id,
                 protocols=protocols,
                 routes=routes,
+            )
+            logger.info(
+                "native closed-loop config build finished for %s in %.3fs",
+                normalized,
+                time.monotonic() - build_started_at,
             )
             from dex.runtime import closed_loop_consumer
             from dex.runtime.closed_loop_state_machine import (
@@ -415,9 +792,7 @@ class DexOpportunityNativeRustMixin:
                 else "uniswap_v4"
             )
             network = _network_for_chain_id(chain_id)
-            database = self._native_database_url(chain_id)
-            if not database:
-                database = closed_loop_consumer.resolve_runtime_database(None)
+            database = self._closed_loop_database_url(chain_id, network)
             market_id = _canonical_market_id(chain_id, protocol)
 
             def _record_config_failure(
@@ -436,6 +811,7 @@ class DexOpportunityNativeRustMixin:
                     in failure_reason
                     or failure_reason == "pool_manager_refresh_required"
                     or "pool_manager_refresh_required" in failure_reason
+                    or failure_reason.startswith("rpc_probe_failed")
                 )
                 failure_detail = json.dumps(
                     detail,
@@ -534,6 +910,13 @@ class DexOpportunityNativeRustMixin:
                 reason = str(
                     failure.get("reason") or "native_task_config_unavailable"
                 )
+                submission["failures"].append(
+                    {
+                        "groupKey": normalized,
+                        "reason": reason,
+                        "detail": failure or {"reason": reason},
+                    }
+                )
                 for route, loop_key in route_entries:
                     _record_config_failure(
                         route=route,
@@ -571,7 +954,10 @@ class DexOpportunityNativeRustMixin:
                     route.get("routeSymbols")
                 )
                 failure = failed_by_directed_key.get(directed_key or "")
-                if failure and loop_key not in config_by_loop_key:
+                has_config = _has_directed_loop_config(
+                    config_by_loop_key, loop_key
+                )
+                if failure and not has_config:
                     _record_config_failure(
                         route=route,
                         loop_key=loop_key,
@@ -581,7 +967,16 @@ class DexOpportunityNativeRustMixin:
                         ),
                         detail=failure,
                     )
-                elif loop_key not in config_by_loop_key:
+                elif not has_config:
+                    logger.info(
+                        "native closed-loop direction %s missing route config; "
+                        "scanner key rotations=%s available config keys=%s",
+                        loop_key,
+                        sorted(
+                            directed_cycle_rotations(loop_key, separator=":")
+                        ),
+                        sorted(config_by_loop_key),
+                    )
                     _record_config_failure(
                         route=route,
                         loop_key=loop_key,
@@ -593,8 +988,19 @@ class DexOpportunityNativeRustMixin:
 
             claimed_entries: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
             for route, loop_key in route_entries:
-                route_config = config_by_loop_key.get(loop_key)
+                route_config = _directed_loop_config(
+                    config_by_loop_key, loop_key
+                )
                 if not route_config:
+                    logger.info(
+                        "native closed-loop direction %s has no matching "
+                        "route config; scanner key=%s available config keys=%s",
+                        loop_key,
+                        canonical_directed_cycle_key(
+                            loop_key, separator=":"
+                        ),
+                        sorted(config_by_loop_key),
+                    )
                     continue
                 if scope_error_isolation_active(
                     database,
@@ -617,14 +1023,38 @@ class DexOpportunityNativeRustMixin:
                     loop_key=loop_key,
                 )
                 if claimed is None:
+                    from dex.runtime.closed_loop_state_machine import (
+                        load_loop_state as _load_loop_state,
+                    )
+
+                    existing_row = None
+                    try:
+                        existing_row = _load_loop_state(
+                            database,
+                            network=network,
+                            chain_id=chain_id,
+                            protocol=protocol,
+                            market_id=market_id,
+                            loop_key=loop_key,
+                        )
+                    except Exception:
+                        pass
                     logger.info(
-                        "native closed-loop direction %s is not claimable in this cycle; skipping submit",
+                        "native closed-loop direction %s is not claimable in "
+                        "this cycle; existing runtime row=%s",
                         loop_key,
+                        existing_row or {},
                     )
                     continue
                 claimed_entries.append((route, loop_key, route_config))
 
             if not claimed_entries:
+                submission["skipped"].append(
+                    {
+                        "groupKey": normalized,
+                        "reason": "no_claimable_directions",
+                    }
+                )
                 continue
             try:
                 claimed_task_config = dict(task_config)
@@ -635,6 +1065,8 @@ class DexOpportunityNativeRustMixin:
                 self._native_template_map()[resolved_group_key] = [
                     route for route, _loop_key, _route_config in claimed_entries
                 ]
+                submit_started_at = time.monotonic()
+                logger.info("native closed-loop worker submit starting for %s", resolved_group_key)
                 submit_group(
                     group_key=resolved_group_key,
                     chain_id=chain_id,
@@ -642,13 +1074,28 @@ class DexOpportunityNativeRustMixin:
                     task_config=claimed_task_config,
                     mode="deep" if self.auto_execute_enabled else "scan",
                 )
+                logger.info(
+                    "native closed-loop worker submit finished for %s in %.3fs",
+                    resolved_group_key,
+                    time.monotonic() - submit_started_at,
+                )
                 newly_submitted += 1
                 logger.info(
                     "submitted native closed-loop group %s with %s direction(s)",
                     resolved_group_key,
                     len(claimed_entries),
                 )
+                submission["submittedGroupKeys"].append(
+                    str(resolved_group_key or normalized).strip().lower()
+                )
             except Exception as exc:
+                submission["failures"].append(
+                    {
+                        "groupKey": normalized,
+                        "reason": "native_closed_loop_submit_failed",
+                        "detail": str(exc)[:1000],
+                    }
+                )
                 for _route, loop_key, _route_config in claimed_entries:
                     try:
                         closed_loop_consumer.release_review_after_submit_failure(
@@ -671,8 +1118,39 @@ class DexOpportunityNativeRustMixin:
                     exc,
                     exc_info=True,
                 )
+        submission["ok"] = bool(
+            submission["submittedGroupKeys"] or submission["existingGroupKeys"]
+        )
+        return submission
 
     def _refresh_native_closed_loop_group(
+        self,
+        *,
+        group_key: str,
+        chain_id: int | None,
+        protocols: list[str],
+    ) -> dict[str, Any]:
+        lock = self._native_submission_lock_object()
+        if not lock.acquire(blocking=False):
+            return {
+                "ok": False,
+                "mode": "native_closed_loop_group_refresh",
+                "chain_id": chain_id,
+                "group_key": str(group_key or ""),
+                "error": "closed_loop_submission_busy",
+                "detail": "后台扫描正在提交闭环；本轮不重复 refresh，稍后重试",
+                "retryable": True,
+            }
+        try:
+            return self._refresh_native_closed_loop_group_locked(
+                group_key=group_key,
+                chain_id=chain_id,
+                protocols=protocols,
+            )
+        finally:
+            lock.release()
+
+    def _refresh_native_closed_loop_group_locked(
         self,
         *,
         group_key: str,
@@ -702,14 +1180,29 @@ class DexOpportunityNativeRustMixin:
         anchor = (raw_anchor.split("|")[0] if "|" in raw_anchor else raw_anchor) or None
         from dex.runtime.dex_opportunity_route_runner import _quote_routes_payload_from_facade
 
-        # Static observation only supplies loop topology/pool identity; the Rust
-        # worker still re-quotes live via previewBestPoolDetailed eth_call.
-        payload = _quote_routes_payload_from_facade(
+        logger.info("native closed-loop refresh starting for %s", group_key)
+        payload = _native_manager_closed_loop_route_payload(
             chain_id=chain_id,
-            protocols=list(protocols),
-            use_static_observation=True,
             anchor=anchor,
         )
+        if payload is None or not payload.get("routes"):
+            payload = _native_manager_overview_route_payload(
+                chain_id=chain_id,
+                protocols=list(protocols),
+                anchor=anchor,
+            )
+        if payload is None:
+            # Static observation only supplies loop topology/pool identity; the
+            # Rust worker still re-quotes live via previewBestPoolDetailed
+            # eth_call.  Mainnet refresh prefers the RuntimeCore manager
+            # overview so loop libraries that are not yet in the static
+            # observation snapshot can still be submitted.
+            payload = _quote_routes_payload_from_facade(
+                chain_id=chain_id,
+                protocols=list(protocols),
+                use_static_observation=True,
+                anchor=anchor,
+            )
         routes = payload.get("routes") or []
         if anchor:
             routes = [
@@ -735,25 +1228,62 @@ class DexOpportunityNativeRustMixin:
                 "group_key": str(group_key or ""),
                 "error": "closed_loop_group_not_found",
             }
-        self._submit_native_closed_loop_groups(
-            payload={"routes": routes},
+        logger.info(
+            "native closed-loop refresh submitting %s route(s) for %s",
+            len(routes),
+            group_key,
+        )
+        submission = self._submit_native_closed_loop_groups(
+            payload={**payload, "routes": routes},
             chain_id=chain_id,
             protocols=protocols,
+            preferred_group_key=str(group_key or "").strip().lower(),
+            allow_capacity_override=True,
         )
-        status = native_worker_status(chain_id=chain_id)
+        logger.info("native closed-loop refresh submission finished for %s", group_key)
+        if not isinstance(submission, dict):
+            submission = {}
+        status = native_worker_status(
+            chain_id=chain_id,
+            include_payloads=False,
+        )
         workers = [
             worker
             for worker in (status.get("workers") if isinstance(status.get("workers"), list) else [])
             if isinstance(worker, dict)
             and str(worker.get("group_key") or "").lower() == str(group_key or "").lower()
         ]
+        if not workers:
+            failure = (
+                submission.get("failures")[0]
+                if isinstance(submission.get("failures"), list)
+                and submission.get("failures")
+                else {}
+            )
+            error = (
+                str(failure.get("reason") or "").strip()
+                or str(submission.get("error") or "").strip()
+                or "closed_loop_group_worker_not_started"
+            )
+            return {
+                "ok": False,
+                "mode": "native_closed_loop_group_refresh",
+                "chain_id": chain_id,
+                "group_key": str(group_key or ""),
+                "accepted": False,
+                "error": error,
+                "detail": failure.get("detail") or failure or None,
+                "submission": submission,
+                "worker": None,
+            }
         return {
             "ok": True,
             "mode": "native_closed_loop_group_refresh",
             "chain_id": chain_id,
             "group_key": str(group_key or ""),
             "accepted": True,
-            "worker": workers[0] if workers else None,
+            "submission": submission,
+            "worker": workers[0],
         }
 
     def _manual_native_closed_loop_review(
@@ -788,8 +1318,7 @@ class DexOpportunityNativeRustMixin:
                 "mode": "native_closed_loop_group_manual_review",
                 "error": "closed_loop_route_unsupported",
             }
-        middle = sorted([symbols[1], symbols[2]])
-        group_key = f"{symbols[0].lower()}|{middle[0].lower()}|{middle[1].lower()}"
+        group_key = "|".join(symbol.lower() for symbol in symbols[:3])
         from dex.runtime.rust_closed_loop import wake_waiting_closed_loop_group
 
         try:
@@ -848,8 +1377,7 @@ class DexOpportunityNativeRustMixin:
                 "mode": "native_closed_loop_group_manual_broadcast",
                 "error": "closed_loop_route_unsupported",
             }
-        middle = sorted([symbols[1], symbols[2]])
-        group_key = f"{symbols[0].lower()}|{middle[0].lower()}|{middle[1].lower()}"
+        group_key = "|".join(symbol.lower() for symbol in symbols[:3])
         from dex.runtime.rust_closed_loop import wake_waiting_broadcast
 
         try:
@@ -926,7 +1454,6 @@ class DexOpportunityNativeRustMixin:
     def _record_native_worker_results(self) -> dict[str, Any]:
         if not (
             getattr(self, "_native_rust_closed_loop", False)
-            and self.auto_execute_enabled
             and self.record_opportunities
         ):
             return {"recorded": 0, "source": "native_rust_disabled", "error": None}

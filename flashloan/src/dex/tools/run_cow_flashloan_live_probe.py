@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 NODE_ADAPTER_ROOT = SRC_ROOT / "cow_flashloan" / "node_adapter"
 LATEST_EXTREMES_PATH = SRC_ROOT / "runtime" / "state" / "latest_extremes.json"
 DEFAULT_OUTPUT_PATH = SRC_ROOT / "runtime" / "logs" / "cow-flashloans-probe-live-avalanche.json"

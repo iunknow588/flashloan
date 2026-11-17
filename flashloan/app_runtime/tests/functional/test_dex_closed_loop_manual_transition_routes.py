@@ -62,6 +62,22 @@ class _FakeRuntime:
         return dict(self._result)
 
 
+class _FakeNativeScanner:
+    _native_rust_closed_loop = True
+
+    def __init__(self) -> None:
+        self.refresh_calls: list[dict[str, Any]] = []
+
+    def _refresh_native_closed_loop_group(self, **kwargs: Any) -> dict[str, Any]:
+        self.refresh_calls.append(kwargs)
+        return {
+            "ok": True,
+            "mode": "native_closed_loop_group_refresh",
+            "accepted": True,
+            "group_key": kwargs["group_key"],
+        }
+
+
 def _review_headers() -> dict[str, str]:
     return {
         "X-Request-Id": "review-request",
@@ -75,6 +91,34 @@ def _review_body(*, dry_run: bool = False) -> dict[str, Any]:
         "routeAddresses": ["0xa", "0xb", "0xc"],
         "dryRun": dry_run,
     }
+
+
+def test_native_refresh_uses_manager_group_without_legacy_observation_lookup(monkeypatch) -> None:
+    scanner = _FakeNativeScanner()
+    app = _install_test_app(monkeypatch)
+    monkeypatch.setattr(dex_surfaces, "get_dex_opportunity_scanner", lambda chain_id: scanner)
+    monkeypatch.setattr(
+        dex_surface_routes_ops,
+        "_closed_loop_groups_for_refresh",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("native refresh must not consult legacy observation groups")
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/dex/closed-loop-groups/USDG/refresh",
+        json={"mode": "deep"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["group_key"] == "USDG"
+    assert scanner.refresh_calls == [
+        {
+            "group_key": "USDG",
+            "chain_id": 46630,
+            "protocols": ["uniswap_v4"],
+        }
+    ]
 
 
 def test_manual_transition_routes_require_write_contract(monkeypatch) -> None:

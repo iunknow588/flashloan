@@ -16,8 +16,13 @@ use tiny_keccak::{Hasher, Keccak};
 use crate::config::parse_u64_hexish;
 use crate::json_result_to_py;
 
+/// The deployed quoter takes the canonical Uniswap V4 nested struct.
+///
+/// The flat form has a different selector and reverts with empty data on
+/// the deployed contract, so the nested struct is the only form that reaches
+/// the quoter. The Python production adapter uses the same nested ABI.
 const V4_QUOTE_SIGNATURE: &str =
-    "quoteExactInputSingle((address,address,uint24,int24,address),bool,uint128,bytes)";
+    "quoteExactInputSingle(((address,address,uint24,int24,address),bool,uint128,bytes))";
 const V4_PREVIEW_AMOUNT_SIGNATURE: &str =
     "previewArbitrageBestAmount(address,(address,address,uint24,int24,address)[3][],bool[3][],uint256,uint256,bool)";
 const V4_PREVIEW_POOL_SIGNATURE: &str =
@@ -28,6 +33,10 @@ const V4_RUN_ARBITRAGE_SIGNATURE: &str =
     "runArbitrage(address,(address,address,uint24,int24,address)[3],bool[3],uint256,uint256)";
 const V4_RUN_BEST_SIGNATURE: &str =
     "runArbitrageBestPoolsWithSelectedAmount(address,(address,address,uint24,int24,address)[],bool[],(address,address,uint24,int24,address)[],bool[],(address,address,uint24,int24,address)[],bool[],uint256,uint256)";
+const V4_FLASH_BATCH_SIGNATURE: &str =
+    "requestV4FlashLoanBatch((address,uint256,address[],bytes[],address,uint256,uint256)[])";
+const V4_POOL_MANAGER_SWAP_SIGNATURE: &str =
+    "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)";
 const MAX_U256: &str =
     "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 const DEFAULT_QUOTE_GAS: u64 = 30_000_000;
@@ -305,13 +314,26 @@ fn build_v4_quote_calldata_inner(request: &Value) -> Result<String, String> {
         decode_hex(&hook_data_raw)?
     };
 
+    // The deployed quoter takes one nested struct argument, so the ABI
+    // layout has two levels:
+    //
+    // * the outer argument is a dynamic tuple, so the head carries one
+    //   offset that points at the tuple body;
+    // * the tuple body holds the static `PoolKey`, the `bool`, the
+    //   `uint128` and the offset of the dynamic `bytes` member, which is
+    //   relative to the start of the tuple body.
+    let mut body = quote_pool_key_from_value(request)?;
+    body.extend_from_slice(&word_bool(zero_for_one));
+    body.extend_from_slice(&word_uint(&amount_in_raw)?);
+    // The `bytes` offset is relative to the start of the tuple body.
+    let hook_data_offset = BigUint::from(body.len() + 32);
+    body.extend_from_slice(&word_uint(&hook_data_offset)?);
+    body.extend_from_slice(&encode_bytes_tail(&hook_data));
+
     let mut head = function_selector(V4_QUOTE_SIGNATURE);
-    head.extend_from_slice(&quote_pool_key_from_value(request)?);
-    head.extend_from_slice(&word_bool(zero_for_one));
-    head.extend_from_slice(&word_uint(&amount_in_raw)?);
-    let hook_data_offset = BigUint::from((head.len() - 4) + 32);
-    head.extend_from_slice(&word_uint(&hook_data_offset)?);
-    head.extend_from_slice(&encode_bytes_tail(&hook_data));
+    // The outer tuple is dynamic, so the head carries the offset of its body.
+    head.extend_from_slice(&word_uint(&BigUint::from(32u32))?);
+    head.extend_from_slice(&body);
     Ok(as_hex(&head))
 }
 
@@ -420,6 +442,280 @@ fn encode_bool_array(values: &[Value]) -> Result<Vec<u8>, String> {
         ));
     }
     Ok(output)
+}
+
+fn encode_address_array(values: &[Value]) -> Result<Vec<u8>, String> {
+    let mut output = word_uint(&BigUint::from(values.len()))?;
+    for value in values {
+        output.extend_from_slice(&word_address(
+            value
+                .as_str()
+                .ok_or_else(|| "address array value must be a string".to_string())?,
+        )?);
+    }
+    Ok(output)
+}
+
+fn encode_bytes_array(values: &[Value]) -> Result<Vec<u8>, String> {
+    let mut output = word_uint(&BigUint::from(values.len()))?;
+    let mut tail = Vec::new();
+    let head_size = values.len() * 32;
+    for value in values {
+        let bytes = decode_hex(
+            value
+                .as_str()
+                .ok_or_else(|| "bytes array value must be a hex string".to_string())?,
+        )?;
+        output.extend_from_slice(&word_uint(&BigUint::from(head_size + tail.len()))?);
+        tail.extend_from_slice(&encode_bytes_tail(&bytes));
+    }
+    output.extend_from_slice(&tail);
+    Ok(output)
+}
+
+fn word_negative_uint(value: &BigUint) -> Result<Vec<u8>, String> {
+    if value.is_zero() {
+        return Err("exact-input V4 swap amount must be positive".to_string());
+    }
+    let modulus = BigUint::from(1u8) << 256usize;
+    let int256_max = (BigUint::from(1u8) << 255usize) - BigUint::from(1u8);
+    if value > &int256_max {
+        return Err(format!(
+            "exact-input V4 swap amount exceeds int256: {value}"
+        ));
+    }
+    word_uint(&(&modulus - value))
+}
+
+fn build_v4_pool_manager_swap_calldata(
+    key: &Value,
+    zero_for_one: bool,
+    amount_in: &BigUint,
+    sqrt_price_limit_x96: &BigUint,
+) -> Result<String, String> {
+    let uint160_max = (BigUint::from(1u8) << 160usize) - BigUint::from(1u8);
+    if sqrt_price_limit_x96.is_zero() || sqrt_price_limit_x96 > &uint160_max {
+        return Err(format!(
+            "V4 sqrtPriceLimitX96 is outside uint160: {sqrt_price_limit_x96}"
+        ));
+    }
+    let mut params = word_bool(zero_for_one);
+    params.extend_from_slice(&word_negative_uint(amount_in)?);
+    params.extend_from_slice(&word_uint(sqrt_price_limit_x96)?);
+    let calldata = abi_encode_call(
+        V4_POOL_MANAGER_SWAP_SIGNATURE,
+        vec![
+            AbiArg::Static(encode_pool_key_value(key)?),
+            AbiArg::Static(params),
+            AbiArg::Dynamic(encode_bytes_tail(&[])),
+        ],
+    )?;
+    Ok(as_hex(&calldata))
+}
+
+fn route_currency(key: &Value, zero_for_one: bool, input: bool) -> Result<String, String> {
+    let field = if zero_for_one == input {
+        "currency0"
+    } else {
+        "currency1"
+    };
+    key.get(field)
+        .and_then(Value::as_str)
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| format!("selected V4 pool key {field} is required"))
+}
+
+pub(crate) fn build_v4_flash_executor_request(
+    route_payload: &Value,
+    route_config: &Value,
+    pool_manager: &str,
+) -> Result<Value, String> {
+    let selected_keys = route_payload
+        .get("selectedKeys")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "reviewed route has no selectedKeys".to_string())?;
+    let selected_directions = route_payload
+        .get("selectedDirections")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "reviewed route has no selectedDirections".to_string())?;
+    let hop_limits = route_config
+        .get("hopSqrtPriceLimits")
+        .or_else(|| route_payload.get("hopSqrtPriceLimits"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| "reviewed route has no hopSqrtPriceLimits".to_string())?;
+    if selected_keys.len() != 3 || selected_directions.len() != 3 || hop_limits.len() != 3 {
+        return Err(
+            "reviewed executor route must carry exactly three keys, directions, and price limits"
+                .to_string(),
+        );
+    }
+
+    let token = route_config
+        .get("token")
+        .or_else(|| route_payload.get("token"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| "reviewed executor route token is required".to_string())?
+        .to_ascii_lowercase();
+    let selected_amount = parse_big_uint(
+        route_payload
+            .get("selectedAmountRaw")
+            .ok_or_else(|| "reviewed route selectedAmountRaw is required".to_string())?,
+    )?;
+    let out_tb = parse_big_uint(
+        route_payload
+            .get("outTb")
+            .ok_or_else(|| "reviewed route outTb is required".to_string())?,
+    )?;
+    let out_ta = parse_big_uint(
+        route_payload
+            .get("outTa")
+            .ok_or_else(|| "reviewed route outTa is required".to_string())?,
+    )?;
+    let out_tz = parse_big_uint(
+        route_payload
+            .get("outTz")
+            .ok_or_else(|| "reviewed route outTz is required".to_string())?,
+    )?;
+    let min_profit = parse_big_uint(
+        route_config
+            .get("minProfitRaw")
+            .or_else(|| route_payload.get("minProfitRaw"))
+            .ok_or_else(|| "reviewed executor route minProfitRaw is required".to_string())?,
+    )?;
+    if selected_amount.is_zero() || out_tb.is_zero() || out_ta.is_zero() || out_tz.is_zero() {
+        return Err("reviewed executor route amounts must be positive".to_string());
+    }
+
+    let directions = selected_directions
+        .iter()
+        .map(|value| {
+            value
+                .as_bool()
+                .ok_or_else(|| "reviewed route direction must be a boolean".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let first_input = route_currency(&selected_keys[0], directions[0], true)?;
+    let first_output = route_currency(&selected_keys[0], directions[0], false)?;
+    let second_input = route_currency(&selected_keys[1], directions[1], true)?;
+    let second_output = route_currency(&selected_keys[1], directions[1], false)?;
+    let third_input = route_currency(&selected_keys[2], directions[2], true)?;
+    let third_output = route_currency(&selected_keys[2], directions[2], false)?;
+    if first_input != token
+        || first_output != second_input
+        || second_output != third_input
+        || third_output != token
+    {
+        return Err("reviewed executor route is not a closed three-hop token path".to_string());
+    }
+
+    let amounts = [&selected_amount, &out_tb, &out_ta];
+    let mut swap_calldatas = Vec::with_capacity(3);
+    for index in 0..3 {
+        let limit = parse_big_uint(&hop_limits[index])?;
+        swap_calldatas.push(build_v4_pool_manager_swap_calldata(
+            &selected_keys[index],
+            directions[index],
+            amounts[index],
+            &limit,
+        )?);
+    }
+    let manager = pool_manager.trim().to_ascii_lowercase();
+    word_address(&manager)?;
+    Ok(json!({
+        "token": token,
+        "amount": format!("0x{:x}", selected_amount),
+        "swapTargets": [manager.clone(), manager.clone(), manager],
+        "swapCalldatas": swap_calldatas,
+        "finalToken": third_output,
+        "minProfit": format!("0x{:x}", min_profit),
+        "minAmountOut": format!("0x{:x}", out_tz),
+    }))
+}
+
+fn encode_v4_flash_batch_request(request: &Value) -> Result<Vec<u8>, String> {
+    let token = request
+        .get("token")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "executor batch request token is required".to_string())?;
+    let amount = parse_big_uint(
+        request
+            .get("amount")
+            .ok_or_else(|| "executor batch request amount is required".to_string())?,
+    )?;
+    let swap_targets = request
+        .get("swapTargets")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "executor batch request swapTargets is required".to_string())?;
+    let swap_calldatas = request
+        .get("swapCalldatas")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "executor batch request swapCalldatas is required".to_string())?;
+    if swap_targets.len() != swap_calldatas.len() {
+        return Err("executor batch request swapTargets/swapCalldatas length mismatch".to_string());
+    }
+    let final_token = request
+        .get("finalToken")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "executor batch request finalToken is required".to_string())?;
+    let min_profit = parse_big_uint(
+        request
+            .get("minProfit")
+            .ok_or_else(|| "executor batch request minProfit is required".to_string())?,
+    )?;
+    // The reviewed minimum output of the route. The contract field was
+    // renamed from `gasReserve` to `minAmountOut`; the ABI layout is
+    // unchanged, so the encoded word is identical.
+    let min_amount_out = parse_big_uint(
+        request
+            .get("minAmountOut")
+            .or_else(|| request.get("gasReserve"))
+            .ok_or_else(|| "executor batch request minAmountOut is required".to_string())?,
+    )?;
+
+    let targets_tail = encode_address_array(swap_targets)?;
+    let calldatas_tail = encode_bytes_array(swap_calldatas)?;
+    let tuple_head_size = 7 * 32;
+    let mut output = Vec::new();
+    output.extend_from_slice(&word_address(token)?);
+    output.extend_from_slice(&word_uint(&amount)?);
+    output.extend_from_slice(&word_uint(&BigUint::from(tuple_head_size))?);
+    output.extend_from_slice(&word_uint(&BigUint::from(
+        tuple_head_size + targets_tail.len(),
+    ))?);
+    output.extend_from_slice(&word_address(final_token)?);
+    output.extend_from_slice(&word_uint(&min_profit)?);
+    output.extend_from_slice(&word_uint(&min_amount_out)?);
+    output.extend_from_slice(&targets_tail);
+    output.extend_from_slice(&calldatas_tail);
+    Ok(output)
+}
+
+fn encode_v4_flash_batch_request_array(requests: &[Value]) -> Result<Vec<u8>, String> {
+    if requests.is_empty() || requests.len() > 16 {
+        return Err(format!(
+            "executor batch request count must be between 1 and 16, got {}",
+            requests.len()
+        ));
+    }
+    let mut output = word_uint(&BigUint::from(requests.len()))?;
+    let mut tail = Vec::new();
+    let head_size = requests.len() * 32;
+    for request in requests {
+        output.extend_from_slice(&word_uint(&BigUint::from(head_size + tail.len()))?);
+        tail.extend_from_slice(&encode_v4_flash_batch_request(request)?);
+    }
+    output.extend_from_slice(&tail);
+    Ok(output)
+}
+
+pub(crate) fn build_v4_flash_batch_calldata(requests: &[Value]) -> Result<String, String> {
+    let calldata = abi_encode_call(
+        V4_FLASH_BATCH_SIGNATURE,
+        vec![AbiArg::Dynamic(encode_v4_flash_batch_request_array(
+            requests,
+        )?)],
+    )?;
+    Ok(as_hex(&calldata))
 }
 
 fn encode_bool_triple(values: &[Value]) -> Result<Vec<u8>, String> {
@@ -1059,6 +1355,16 @@ fn rpc_error_evidence(
     })
 }
 
+/// The maximum number of JSON-RPC requests in one batch.
+///
+/// The public endpoint allows 15 requests per second. One batch of this
+/// size answers in well under a second, and the batches are separated by a
+/// pause, so a refresh never bursts past the node budget.
+const V4_POOL_STATE_BATCH_SIZE: usize = 50;
+
+/// The maximum request rate against the node, in requests per second.
+const V4_POOL_STATE_REQUESTS_PER_SECOND: f64 = 8.0;
+
 fn v4_pool_state_slots(pool_id: &str) -> Result<([u8; 32], [u8; 32]), String> {
     let normalized = pool_id.trim().to_lowercase();
     if !normalized.starts_with("0x") || normalized.len() != 66 {
@@ -1076,6 +1382,7 @@ fn v4_pool_state_slots(pool_id: &str) -> Result<([u8; 32], [u8; 32]), String> {
     slot_seed.push(6);
     let state_slot = keccak256(&slot_seed);
     let mut liquidity_slot = state_slot;
+    // `liquidity` is the fourth word of `Pool.State`, i.e. `state_slot + 3`.
     let mut carry = 3u16;
     for byte in liquidity_slot.iter_mut().rev() {
         let value = u16::from(*byte) + carry;
@@ -1207,9 +1514,19 @@ pub(crate) fn read_v4_pool_states_impl(
         return Ok(json!({"ok": true, "states": {}, "errors": []}));
     }
     let timeout = timeout_seconds.max(5).min(120);
-    let rows = execute_rpc(timeout, |runtime, client| {
-        runtime.block_on(json_rpc_batch(client, rpc_url, requests.clone(), timeout))
-    })?;
+    // The requests travel in bounded batches with a pause between them, so
+    // a full refresh never bursts past the request budget of the node. The
+    // free trial of the endpoint allows 15 requests per second.
+    let mut rows = Vec::with_capacity(requests.len());
+    for chunk in requests.chunks(V4_POOL_STATE_BATCH_SIZE) {
+        let chunk_rows = execute_rpc(timeout, |runtime, client| {
+            runtime.block_on(json_rpc_batch(client, rpc_url, chunk.to_vec(), timeout))
+        })?;
+        rows.extend(chunk_rows);
+        std::thread::sleep(std::time::Duration::from_millis(
+            ((1000.0 / V4_POOL_STATE_REQUESTS_PER_SECOND).max(1.0) as u64) * chunk.len() as u64 / 2,
+        ));
+    }
     let mut states = serde_json::Map::new();
     let mut errors = Vec::new();
     for (id, pool_id, kind, slot) in id_map {
@@ -1336,6 +1653,23 @@ where
     block(runtime, &client)
 }
 
+/// Decodes the V4 quoter answer into `(amountOut, gasEstimate)`.
+///
+/// The deployed quoter answers `quoteExactInputSingle` with two full ABI
+/// words: `(uint256 amountOut, uint256 gasEstimate)`. The golden vector used
+/// by the unit test was taken from a live `eth_call`: word 0 was `0x47c8f`
+/// (294031) and word 1 was `0xa764` (42852).
+fn decode_v4_quote_words(raw: &str) -> Result<(BigUint, BigUint), String> {
+    if raw.len() < 128 {
+        return Err("quote eth_call returned a short result".to_string());
+    }
+    let amount_out = BigUint::parse_bytes(&raw[..64].as_bytes(), 16)
+        .ok_or_else(|| "quote amountOut decode failed".to_string())?;
+    let gas_estimate = BigUint::parse_bytes(&raw[64..128].as_bytes(), 16)
+        .ok_or_else(|| "quote gasEstimate decode failed".to_string())?;
+    Ok((amount_out, gas_estimate))
+}
+
 fn quote_v4_exact_input_single_inner(
     request: &Value,
     rpc_url: &str,
@@ -1378,10 +1712,7 @@ fn quote_v4_exact_input_single_inner(
                         "quote eth_call returned short result: {result_hex}"
                     ));
                 }
-                let amount_out = BigUint::parse_bytes(&raw[..64].as_bytes(), 16)
-                    .ok_or_else(|| "quote amountOut decode failed".to_string())?;
-                let gas_estimate = BigUint::parse_bytes(&raw[64..128].as_bytes(), 16)
-                    .ok_or_else(|| "quote gasEstimate decode failed".to_string())?;
+                let (amount_out, gas_estimate) = decode_v4_quote_words(&raw)?;
                 return Ok(json!({
                     "ok": true,
                     "amountOutRaw": format!("0x{:x}", amount_out),
@@ -1454,6 +1785,38 @@ fn arbitrage_not_profitable_values(revert_data: Option<&str>) -> Option<(BigUint
     let received = BigUint::parse_bytes(raw[8..72].as_bytes(), 16)?;
     let required = BigUint::parse_bytes(raw[72..136].as_bytes(), 16)?;
     Some((received, required))
+}
+
+/// The measured signed loss of the last probe row that carries one.
+///
+/// The amount ladder prices every size it tries. Each probe that reached the
+/// contract comes back either with a positive profit or with the
+/// `ArbitrageNotProfitable(received, required)` revert, which decodes into an
+/// exact signed loss. That loss is a **measurement**, not a missing value, and
+/// it is the number the review has to publish so the review can state the
+/// concrete loss it observed instead of failing closed on a missing PnL.
+///
+/// The rows are scanned from the back so the **largest** priced size wins:
+/// the ladder halves the size as it searches downwards, so the last row is the
+/// smallest size it tried. The loss of the smallest size is the one that
+/// bounds the route, because a route that does not pay even at the smallest
+/// executable size never pays at all.
+fn measured_probe_loss_raw(attempts: &[Value]) -> Value {
+    for row in attempts.iter().rev() {
+        let Some(profit) = row.get("profitRaw") else {
+            continue;
+        };
+        if profit.is_null() {
+            continue;
+        }
+        if let Some(text) = profit.as_str() {
+            if text.trim().is_empty() {
+                continue;
+            }
+        }
+        return profit.clone();
+    }
+    Value::Null
 }
 
 fn attach_arbitrage_not_profitable(payload: &mut Value) {
@@ -1638,6 +2001,7 @@ fn v4_no_profit_payload(
     run_review: Option<Value>,
     initial_amount_raw: &BigUint,
     min_profit_raw: &BigUint,
+    ladder: Option<Value>,
 ) -> Value {
     let mut payload = json!({
         "method": "previewBestPool+previewArbitrageBestAmount",
@@ -1650,11 +2014,27 @@ fn v4_no_profit_payload(
         "selectedProfitRaw": "0x0",
         "reportedNetProfitRaw": Value::Null,
     });
+    // The amount ladder is the authority on the best trade amount.  The
+    // marker below is therefore only correct while the ladder has NOT run.
+    //
+    // The previous code set it unconditionally, so a payload that carried a
+    // real, measured probe ladder (17 concrete sizes, each with the signed
+    // profit the contract returned) still announced that the best amount was
+    // **missing**.  That self-contradictory payload made the reviewer
+    // withdraw the best amount and fail closed, so a route that was simply
+    // unprofitable at every size was reported as an unmeasured amount.  The
+    // orchestrator then chased a measurement that had never been broken.
+    //
+    // The marker is cleared below as soon as the ladder contributed at least
+    // one usable probe record.
+    payload["bestAmountMissing"] = json!(true);
+    payload["bestAmountConfirmed"] = json!(false);
+    payload["bestAmount"] = Value::Null;
     let mut numeric_values_unavailable = pool_preview
         .get("numericValuesUnavailable")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    if let Some(detailed) = detailed_preview {
+    if let Some(detailed) = detailed_preview.as_ref() {
         payload["poolPreviewDetailed"] = detailed.clone();
         numeric_values_unavailable = numeric_values_unavailable
             || detailed
@@ -1691,13 +2071,210 @@ fn v4_no_profit_payload(
         payload["status"] = json!("quote_unavailable");
         payload["reviewFailureKind"] = json!("quote_unavailable");
     }
-    if let Some(run) = run_review {
-        payload["runArbitrage"] = run.clone();
-        if let Some(profit_raw) = run.get("reportedNetProfitRaw") {
+    if let Some(run) = run_review.as_ref() {
+        // The run evidence is decoded **here**, in the kernel, so the measured
+        // signed loss reaches every consumer. The decoder is idempotent: it
+        // only fills the fields when the revert data actually carries them.
+        let mut run_payload = run.clone();
+        attach_arbitrage_not_profitable(&mut run_payload);
+        payload["runArbitrage"] = run_payload.clone();
+        if let Some(profit_raw) = run_payload.get("reportedNetProfitRaw") {
             payload["reportedNetProfitRaw"] = profit_raw.clone();
         }
-        if let Some(arbitrage) = run.get("arbitrageNotProfitable") {
+        if let Some(arbitrage) = run_payload.get("arbitrageNotProfitable") {
             payload["arbitrageNotProfitable"] = arbitrage.clone();
+        }
+    }
+    // The amount ladder never ran on this path, so the review has to carry the
+    // **probe record of the pool preview itself** as its concrete evidence.
+    //
+    // The preview is a real measurement of the route at a real size: the
+    // detailed preview returns the signed ``netProductDelta`` of that size,
+    // and the arbitrage run returns the ``ArbitrageNotProfitable(received,
+    // required)`` pair, which is the signed borrow-token loss for that size.
+    // Both are concrete numbers, so the review can state the exact loss it
+    // measured instead of reporting "no amount" and failing closed.
+    //
+    // The previous payload carried no ``attempts`` key at all, so the review
+    // reached the reviewer with an empty probe ladder. The reviewer then
+    // concluded that the ladder never ran and withdrew the best trade amount,
+    // which turned a **measured negative result** into a **missing
+    // measurement**. The record below closes that gap: the probe ladder
+    // carries the measured size and the measured signed profit.
+    let probe_amount_raw = format!("0x{:x}", initial_amount_raw);
+    let mut probe_profit_raw: Option<String> = None;
+    let mut probe_error: Option<String> = None;
+    let mut probe_revert_data: Option<String> = None;
+    if let Some(detailed) = detailed_preview.as_ref() {
+        if let Some(delta) = detailed.get("netProductDeltaRaw") {
+            if !delta.is_null() {
+                probe_profit_raw = Some(delta.as_str().unwrap_or_default().to_owned());
+            }
+        }
+    }
+    if let Some(run) = run_review.as_ref() {
+        if probe_profit_raw.is_none() {
+            if let Some(delta) = run.get("reportedNetProfitRaw") {
+                if !delta.is_null() {
+                    probe_profit_raw = Some(delta.as_str().unwrap_or_default().to_owned());
+                }
+            }
+        }
+        if let Some(error) = run.get("error") {
+            if !error.is_null() {
+                probe_error = Some(error.as_str().unwrap_or_default().to_owned());
+            }
+        }
+        if let Some(revert) = run.get("revertData") {
+            if !revert.is_null() {
+                probe_revert_data = Some(revert.as_str().unwrap_or_default().to_owned());
+            }
+        }
+    }
+    if probe_error.is_none() {
+        probe_error = pool_preview
+            .get("error")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .filter(|text| !text.is_empty());
+    }
+    // The **amount ladder** is the preferred source of the probe record: it
+    // measured the route at every size it tried, so it carries several
+    // concrete probe rows with the signed profit of each size. The
+    // synthetic single probe below is only the fallback for the case where
+    // the ladder could not run at all.
+    //
+    // The reviewer treats a ladder with fewer than two probe rows as an
+    // **incomplete ladder** and withdraws the best trade amount, so a
+    // single synthetic row would be indistinguishable from "the ladder
+    // never ran". The ladder result therefore wins whenever it carries at
+    // least one usable row.
+    let mut merged_attempts: Vec<Value> = Vec::new();
+    let mut merged_attempted_count: Option<String> = None;
+    if let Some(ladder_payload) = ladder.as_ref() {
+        if let Some(rows) = ladder_payload.get("attempts").and_then(Value::as_array) {
+            merged_attempts = rows.clone();
+        }
+        if let Some(count) = ladder_payload
+            .get("attemptedCount")
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
+        {
+            merged_attempted_count = Some(count.to_owned());
+        }
+        if let Some(status) = ladder_payload.get("status").and_then(Value::as_str) {
+            payload["ladderStatus"] = json!(status);
+        }
+        if let Some(error) = ladder_payload.get("error").and_then(Value::as_str) {
+            if !error.is_empty() && payload.get("error").is_none() {
+                payload["error"] = json!(error);
+            }
+        }
+    }
+    if merged_attempts.is_empty() {
+        merged_attempts = vec![json!({
+            "amountRaw": probe_amount_raw,
+            "ok": false,
+            "profitable": false,
+            "profitRaw": probe_profit_raw.clone().map(Value::String).unwrap_or(Value::Null),
+            "routeIndex": Value::Null,
+            "attemptedCount": "0x1",
+            "error": probe_error.clone().map(Value::String).unwrap_or(Value::Null),
+            "revertData": probe_revert_data.clone().map(Value::String).unwrap_or(Value::Null),
+            "probeBasis": "preview_best_pool_detailed",
+        })];
+        merged_attempted_count = Some("0x1".to_owned());
+    }
+    payload["attempts"] = Value::Array(merged_attempts.clone());
+    payload["attemptedCount"] = json!(merged_attempted_count.unwrap_or_else(|| {
+        format!("0x{:x}", merged_attempts.len())
+    }));
+
+    // The ladder is the authority on the best trade amount.  When it ran and
+    // produced concrete probe records, the best amount is **measured**, not
+    // missing: the route was priced at every size the ladder tried.
+    //
+    // There are two distinct outcomes and they must stay distinct:
+    //
+    // * the ladder found a profitable size -> the best amount is that size
+    //   and it is confirmed;
+    // * the ladder found no profitable size -> the best amount is ``0``,
+    //   the measurement is confirmed, and the review states that the route
+    //   is unprofitable at every size it tried.
+    //
+    // Collapsing the second case into "missing" turned a market conclusion
+    // into a measurement gap, which sent the orchestrator after a review
+    // tool to repair a measurement that was never broken.
+    let measured_probes = merged_attempts
+        .iter()
+        .filter(|row| row.get("amountRaw").and_then(Value::as_str).is_some())
+        .count();
+    if measured_probes > 0 {
+        // The ladder ran. The best amount is no longer missing.
+        payload["bestAmountMissing"] = json!(false);
+        payload["bestAmountMeasured"] = json!(true);
+        // A probe row is only profitable when the probe says so. The ``ok``
+        // flag means "the probe reached the contract", which is **also** true
+        // for a probe that measured a loss: the contract answered with the
+        // `ArbitrageNotProfitable` verdict, so the probe succeeded and the
+        // route still did not pay. Treating ``ok`` as profitability turned a
+        // measured loss into a "profitable" probe and published its size as
+        // the best trade amount.
+        let profitable = merged_attempts
+            .iter()
+            .find(|row| row.get("profitable").and_then(Value::as_bool) == Some(true));
+        match profitable {
+            Some(row) => {
+                let amount_raw = row
+                    .get("amountRaw")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                if !amount_raw.is_empty() {
+                    payload["bestAmount"] = json!(amount_raw);
+                    payload["bestAmountConfirmed"] = json!(true);
+                    payload["bestAmountSelectionBasis"] = json!("native_rust_ladder_profitable_probe");
+                }
+            }
+            None => {
+                // Every size the ladder tried was rejected. The best amount
+                // is a concrete zero: there is no size at which the route
+                // pays. The measurement itself is complete.
+                payload["bestAmount"] = json!("0x0");
+                payload["bestAmountConfirmed"] = json!(true);
+                payload["bestAmountSelectionBasis"] =
+                    json!("native_rust_ladder_no_profitable_size_measured");
+                payload["bestAmountZeroReason"] = json!(format!(
+                    "the amount ladder measured {} size(s) and none of them was profitable",
+                    measured_probes
+                ));
+            }
+        }
+    }
+    // The failure classification is added here. The specific failure kind
+    // (quote_unavailable, rpc_busy, ...) keeps precedence when one is
+    // already present.
+    //
+    // The kind is no longer ``best_amount_missing``: the amount **was**
+    // measured, it simply was not profitable. Reporting it as a missing
+    // amount sent the orchestrator after the review tool to repair a
+    // measurement that was never broken.
+    if payload.get("reviewFailureKind").is_none() {
+        payload["reviewFailureKind"] = json!("no_profitable_route");
+        if payload.get("bestAmountMeasured").and_then(Value::as_bool) == Some(true) {
+            payload["reviewFailureReasons"] = json!([
+                "the amount ladder measured every size it tried and none of them was profitable",
+            ]);
+            payload["reviewFailureDetail"] = json!(
+                "the best trade amount is a measured zero: the route pays at no size the ladder tried"
+            );
+        } else {
+            payload["reviewFailureReasons"] = json!([
+                "previewBestPool did not resolve a profitable route; the measured probe is recorded",
+            ]);
+            payload["reviewFailureDetail"] = json!(
+                "no concrete best trade amount: the pool preview rejected the route before the amount ladder ran"
+            );
         }
     }
     payload
@@ -1731,6 +2308,7 @@ fn v4_attempt_no_profit_detailed(
             None,
             initial_amount_raw,
             min_profit_raw,
+            None,
         ));
     }
     let entry_index =
@@ -1799,6 +2377,37 @@ fn v4_attempt_no_profit_detailed(
         timeout_seconds,
     )
     .ok();
+    // The pool preview rejected the route, but the **amount ladder must still
+    // run** on that route.
+    //
+    // The preview selects the route and measures the size the contract could
+    // not profit at. It does not search for the size the route *is* profitable
+    // at, and a route that is unprofitable at the initial size can be
+    // profitable at a smaller one. Skipping the ladder therefore left the
+    // review without any probe record at all, which the reviewer read as a
+    // **missing measurement** rather than as the measured loss it actually
+    // was. Running the ladder here produces the real probe ladder with the
+    // signed profit of every size it tried.
+    //
+    // The ladder is the same mechanism the profitable path uses, so a route
+    // that turns out to be profitable at some size is reported as such, and a
+    // route that is unprofitable at every size reports the concrete signed
+    // loss of the last size it tried.
+    let mut ladder_config = config.clone();
+    ladder_config["token"] = json!(token);
+    ladder_config["keysets"] = json!([selected_keys]);
+    ladder_config["directionsets"] = json!([selected_directions]);
+    ladder_config["initialAmountRaw"] = json!(format!("0x{:x}", initial_amount_raw));
+    ladder_config["minProfitRaw"] = json!(format!("0x{:x}", min_profit_raw));
+    ladder_config["searchMode"] = json!(search_mode);
+    let ladder = official_v4_adaptive_best_amount_single_route_inner(
+        &ladder_config,
+        rpc_url,
+        arb_address,
+        call_from,
+        timeout_seconds,
+    )
+    .ok();
     Ok(v4_no_profit_payload(
         search_mode,
         pool_preview,
@@ -1806,6 +2415,7 @@ fn v4_attempt_no_profit_detailed(
         run_review,
         initial_amount_raw,
         min_profit_raw,
+        ladder,
     ))
 }
 
@@ -1823,12 +2433,18 @@ fn run_arbitrage_inner(
             let out_ta = decode_u256_word(&result_hex, 1)?;
             let out_tz = decode_u256_word(&result_hex, 2)?;
             let profit = decode_u256_word(&result_hex, 3)?;
+            // The contract accepted the route, so the route is executable.
+            // The executable flag and the signed profit are published here,
+            // in the kernel, so every consumer reads the same conclusion and
+            // no other layer has to derive it.
             Ok(json!({
                 "ok": true,
+                "executable": true,
                 "outTb": format!("0x{:x}", out_tb),
                 "outTa": format!("0x{:x}", out_ta),
                 "outTz": format!("0x{:x}", out_tz),
                 "profit": format!("0x{:x}", profit),
+                "reportedNetProfitRaw": format!("0x{:x}", profit),
             }))
         }
         Err((message, revert)) => {
@@ -1836,6 +2452,10 @@ fn run_arbitrage_inner(
                 let revert_data = revert.unwrap_or_default();
                 let mut payload = json!({
                     "ok": false,
+                    // The contract answered with a measured verdict, so the
+                    // call itself succeeded. The route is not profitable at
+                    // this size, but the measurement is concrete.
+                    "executable": true,
                     "noProfitableRoute": true,
                     "error": "NoProfitableRoute",
                     "rawError": redact_rpc_text(&message),
@@ -2055,7 +2675,41 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
     call_from: Option<&str>,
     timeout_seconds: u64,
 ) -> Result<Value, String> {
-    let initial_amount_raw = parse_big_uint(
+    // D4-e: the token-denominated economic floor short-circuits the ladder.
+    //
+    // A route whose tightest measured capacity cannot carry the amount needed
+    // to cover Gas can never be profitable at any size the pool can absorb.
+    // Probing it would burn up to max_steps on-chain calls to reach a
+    // conclusion that is already known, so the ladder returns immediately
+    // without a single probe.
+    //
+    // The threshold is expressed in the borrow token's own raw units. No USD
+    // quote participates: 86 of 88 production loops borrow a token that is
+    // neither ETH nor a USD stablecoin, so a USD valuation could not be
+    // computed for the active book at all.
+    if let Some(gate) = config.get("economicFloorGate").and_then(Value::as_object) {
+        if gate.get("blocked").and_then(Value::as_bool) == Some(true) {
+            return Ok(json!({
+                "method": "previewArbitrageBestAmount",
+                "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
+                "initialAmountRaw": config.get("initialAmountRaw").cloned().unwrap_or(Value::Null),
+                "minProfitRaw": config.get("minProfitRaw").cloned().unwrap_or(Value::Null),
+                "status": "economically_infeasible",
+                "selectedAmountRaw": "0x0",
+                "selectedProfitRaw": "0x0",
+                "selectedRouteIndex": "0x0",
+                "attemptedCount": "0x0",
+                "attempts": [],
+                "economicFloorGate": gate.clone(),
+                "error": gate
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("dust_unprofitable"),
+            }));
+        }
+    }
+
+    let requested_initial_amount_raw = parse_big_uint(
         config
             .get("initialAmountRaw")
             .ok_or_else(|| "initialAmountRaw is required".to_string())?,
@@ -2070,10 +2724,98 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         .map(parse_big_uint)
         .transpose()?
         .unwrap_or_else(BigUint::zero);
-    let max_probe_raw = config
-        .get("maxProbeAmountRaw")
+    // The authoritative bound is the **folded single-tick capacity** that
+    // the closed-loop Manager published for this route. `maxProbeAmountRaw`
+    // is accepted as a compatibility fallback for a caller that has not
+    // published the fold yet, but the fold always wins when both are
+    // present: the generic probe maximum is not a single-tick bound and may
+    // be larger than the tick range allows.
+    // A **missing** capacity is not an error: it is the blocked case the
+    // ladder reports below. A JSON ``null`` therefore means "no capacity was
+    // published", exactly like an absent key, and must not turn into a
+    // parse failure that hides the real reason.
+    let folded_capacity_raw = config
+        .get("singleTickCapacityRaw")
+        .filter(|value| !value.is_null())
         .map(parse_big_uint)
         .transpose()?;
+    let max_probe_raw = config
+        .get("maxProbeAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    let (capacity_limit_raw, capacity_basis) = match folded_capacity_raw
+        .as_ref()
+        .filter(|value| !value.is_zero())
+    {
+        Some(capacity) => (Some(capacity.clone()), "folded_single_tick_capacity"),
+        None => (
+            max_probe_raw
+                .as_ref()
+                .filter(|value| !value.is_zero())
+                .cloned(),
+            "max_probe_amount_fallback",
+        ),
+    };
+    let Some(capacity_limit_raw) = capacity_limit_raw.as_ref() else {
+        // The route has no published capacity, so the ladder is **blocked**
+        // before it probes anything. Nothing was measured, and the record
+        // must say so: an empty ``attempts`` array with ``attemptedCount``
+        // zero is the honest answer here.
+        //
+        // The reviewer distinguishes this blocked ladder from a ladder
+        // that ran and found nothing, through the explicit status below.
+        // The status is what tells the orchestrator that the route was
+        // blocked by a **missing published capacity** and not by a
+        // **missing measurement**, so the right tool is called: the closed
+        // loop manager (which publishes the capacity), not the review
+        // manager (which cannot repair a missing capacity).
+        return Ok(json!({
+            "method": "previewArbitrageBestAmount",
+            "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
+            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "initialAmountRaw": "0x0",
+            "minProfitRaw": format!("0x{:x}", min_profit_raw),
+            "status": "single_tick_capacity_unavailable",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_capacity_unavailable",
+            "repairTarget": "closed_loop_manager",
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            "error": "single_tick_capacity_unavailable",
+        }));
+    };
+    if min_probe_raw > *capacity_limit_raw {
+        // The published capacity is smaller than the smallest size the
+        // ladder is allowed to probe. The route is blocked before it probes
+        // anything, so the record carries the concrete capacity that
+        // blocked it and nothing else.
+        return Ok(json!({
+            "method": "previewArbitrageBestAmount",
+            "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
+            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "initialAmountRaw": "0x0",
+            "minProfitRaw": format!("0x{:x}", min_profit_raw),
+            "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+            "singleTickCapacityBasis": capacity_basis,
+            "status": "single_tick_capacity_below_min_probe",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_capacity_below_min_probe",
+            "repairTarget": "closed_loop_manager",
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            "error": "single_tick_capacity_below_min_probe",
+        }));
+    }
+    let initial_amount_raw = requested_initial_amount_raw
+        .clone()
+        .min(capacity_limit_raw.clone());
     let max_steps = config
         .get("maxProbeAttempts")
         .and_then(Value::as_u64)
@@ -2086,8 +2828,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         .to_string();
 
     if search_mode == "inner_single_call" {
+        let mut bounded_config = config.clone();
+        bounded_config["initialAmountRaw"] = json!(format!("0x{:x}", initial_amount_raw));
         let single = preview_arbitrage_best_amount_inner(
-            config,
+            &bounded_config,
             rpc_url,
             arb_address,
             call_from,
@@ -2118,7 +2862,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": search_mode,
+            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
             "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
+            "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+            "singleTickCapacityBasis": capacity_basis,
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "status": if ok { "profitable_amount_found" } else { "not_profitable_after_costs" },
             "selectedAmountRaw": single.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
@@ -2126,6 +2873,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "selectedRouteIndex": single.get("selectedRouteIndex").cloned().unwrap_or(Value::Null),
             "attemptedCount": single.get("attemptedCount").cloned().unwrap_or(Value::Null),
             "attempts": attempts,
+            // The measured signed loss of the size that was priced. Without it
+            // the ladder reports "no profit" without ever saying **how much**
+            // was lost, and the review cannot publish a concrete PnL.
+            "reportedNetProfitRaw": measured_probe_loss_raw(&attempts),
         }));
     }
 
@@ -2148,7 +2899,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             return Ok(json!({
                 "method": "previewArbitrageBestAmount",
                 "searchMode": search_mode,
+                "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
                 "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
+                "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+            "singleTickCapacityBasis": capacity_basis,
                 "minProfitRaw": format!("0x{:x}", min_profit_raw),
                 "status": "preflight_failed",
                 "selectedAmountRaw": "0x0",
@@ -2156,6 +2910,7 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
                 "selectedRouteIndex": "0x0",
                 "attemptedCount": format!("0x{:x}", total_attempted),
                 "attempts": attempts,
+                "reportedNetProfitRaw": measured_probe_loss_raw(&attempts),
                 "error": error,
             }));
         }
@@ -2237,6 +2992,20 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             has_upper_amount = upper_amount > BigUint::zero() && upper_amount > selected_amount;
         }
     } else {
+        // D4-b: the first probe reverted, so the search must continue in BOTH
+        // directions.
+        //
+        // The previous code only searched downward from the initial amount
+        // (halving towards min_probe_raw). A revert at the start therefore
+        // terminated the search and every size ABOVE the start was
+        // unreachable, even when the pool could carry a profitable position
+        // larger than the start. The downward search is kept, and an upward
+        // search towards max_probe_raw is added.
+        //
+        // The two searches are interleaved by probe budget: the ladder stops
+        // after max_steps attempts, so the upward search is attempted first
+        // while attempts remain, because a larger position is the case the
+        // old code could never reach.
         upper_amount = initial_amount_raw.clone();
         let mut candidate = bounded_half(&initial_amount_raw, &min_probe_raw);
         while attempts.len() < max_steps && candidate > BigUint::zero() {
@@ -2275,13 +3044,67 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             }
             candidate = next;
         }
+
+        // D4-b: search upward as well. The ladder now climbs from the
+        // capacity-informed start towards max_probe_raw, so a position larger
+        // than the start becomes reachable even when the first probe reverted.
+        if selected_amount == BigUint::zero() {
+            let mut upward = bounded_double(&initial_amount_raw, max_probe_raw.as_ref());
+            while attempts.len() < max_steps
+                && upward > initial_amount_raw
+                && upward > BigUint::zero()
+            {
+                let payload = official_v4_probe_one(
+                    config,
+                    rpc_url,
+                    arb_address,
+                    call_from,
+                    timeout_seconds,
+                    &upward,
+                    true,
+                    &mut attempts,
+                    &mut total_attempted,
+                )?;
+                if payload.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+                    selected_amount = upward.clone();
+                    selected_profit = payload
+                        .get("selectedProfitRaw")
+                        .and_then(Value::as_str)
+                        .and_then(|value| BigUint::parse_bytes(strip_0x(value).as_bytes(), 16))
+                        .unwrap_or_else(BigUint::zero);
+                    selected_route_index = payload
+                        .get("selectedRouteIndex")
+                        .and_then(Value::as_str)
+                        .and_then(|value| BigUint::parse_bytes(strip_0x(value).as_bytes(), 16))
+                        .unwrap_or_else(BigUint::zero);
+                    base_amount = upward.clone();
+                    lower_amount = bounded_half(&upward, &min_probe_raw);
+                    // The amount above the profitable point is unknown; the
+                    // refinement loop uses the configured ceiling.
+                    has_upper_amount = true;
+                    upper_amount = bounded_double(&upward, max_probe_raw.as_ref());
+                    break;
+                }
+                // The upward probe reverted, so this size is too large. Keep
+                // halving back down towards the start instead of doubling
+                // further away from a reachable size.
+                let next = bounded_half(&upward, &min_probe_raw);
+                if next >= upward || next <= initial_amount_raw {
+                    break;
+                }
+                upward = next;
+            }
+        }
     }
 
     if selected_amount == BigUint::zero() {
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": search_mode,
+            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
             "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
+            "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+            "singleTickCapacityBasis": capacity_basis,
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "status": "not_profitable_after_costs",
             "selectedAmountRaw": "0x0",
@@ -2289,6 +3112,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "selectedRouteIndex": "0x0",
             "attemptedCount": format!("0x{:x}", total_attempted),
             "attempts": attempts,
+            // The measured signed loss of the last size the ladder priced.
+            // The probes already carry it; publishing it here keeps the
+            // ladder's own conclusion instead of dropping it.
+            "reportedNetProfitRaw": measured_probe_loss_raw(&attempts),
         }));
     }
 
@@ -2422,7 +3249,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
     Ok(json!({
         "method": "previewArbitrageBestAmount",
         "searchMode": search_mode,
+        "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
         "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
+        "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+            "singleTickCapacityBasis": capacity_basis,
         "minProfitRaw": format!("0x{:x}", min_profit_raw),
         "status": "profitable_amount_found",
         "selectedAmountRaw": format!("0x{:x}", selected_amount),
@@ -3046,6 +3876,124 @@ fn estimate_official_v4_gas(
     parse_u64_hexish(text)
 }
 
+fn broadcast_calldata_inner(
+    config: &Value,
+    calldata: String,
+    rpc_url: &str,
+    contract_address: &str,
+    private_key: &str,
+    chain_id: u64,
+    relay_urls: Option<&str>,
+    timeout_seconds: u64,
+) -> Result<Value, String> {
+    let signer = resolve_private_key_hex_inner(private_key)?;
+    let nonce = rpc_quantity_u64(
+        rpc_url,
+        "eth_getTransactionCount",
+        json!([signer.to_lowercase(), "pending"]),
+        timeout_seconds,
+    )?;
+    let gas_limit = if let Some(raw) = config.get("gasLimitRaw").and_then(Value::as_str) {
+        parse_u64_hexish(raw)?
+    } else if let Some(raw) = config.get("gasLimit").and_then(Value::as_u64) {
+        raw
+    } else {
+        estimate_official_v4_gas(
+            rpc_url,
+            &signer,
+            contract_address,
+            &calldata,
+            timeout_seconds,
+        )?
+        .max(300_000)
+    };
+    let max_priority_fee = if let Some(raw) = config
+        .get("maxPriorityFeePerGasRaw")
+        .and_then(Value::as_str)
+    {
+        parse_u64_hexish(raw)?
+    } else if let Some(raw) = config.get("maxPriorityFeePerGas").and_then(Value::as_u64) {
+        raw
+    } else {
+        rpc_quantity_u64(
+            rpc_url,
+            "eth_maxPriorityFeePerGas",
+            json!([]),
+            timeout_seconds,
+        )
+        .unwrap_or(1_000_000_000u64)
+    };
+    let max_fee = if let Some(raw) = config.get("maxFeePerGasRaw").and_then(Value::as_str) {
+        parse_u64_hexish(raw)?
+    } else if let Some(raw) = config.get("maxFeePerGas").and_then(Value::as_u64) {
+        raw
+    } else {
+        let gas_price = rpc_quantity_u64(rpc_url, "eth_gasPrice", json!([]), timeout_seconds)?;
+        gas_price
+            .saturating_mul(2)
+            .saturating_add(max_priority_fee)
+            .max(max_priority_fee)
+    };
+
+    let transaction = json!({
+        "type": 2,
+        "chainId": chain_id,
+        "nonce": nonce,
+        "maxPriorityFeePerGas": format!("0x{max_priority_fee:x}"),
+        "maxFeePerGas": format!("0x{max_fee:x}"),
+        "gas": format!("0x{gas_limit:x}"),
+        "to": contract_address.to_lowercase(),
+        "value": 0,
+        "data": calldata,
+    });
+    let signed = sign_typed_transaction_inner(&transaction, private_key)?;
+    let raw = signed
+        .get("raw")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "signed transaction has no raw payload".to_string())?
+        .to_string();
+    let mut submit_config = config.clone();
+    submit_config["rpc_url"] = json!(rpc_url);
+    submit_config["timeout_seconds"] = json!(timeout_seconds);
+    let submitted = submit_v4_route_inner(&submit_config, &raw, relay_urls)?;
+    let tx_hash = submitted
+        .get("tx_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    if tx_hash.is_empty() {
+        return Ok(json!({
+            "ok": false,
+            "broadcast": submitted,
+            "status": "broadcast_not_accepted",
+            "txHash": Value::Null,
+            "error": submitted.get("error").cloned().unwrap_or_else(|| json!("broadcast_not_accepted")),
+            "rawError": submitted.get("rawError").cloned().unwrap_or(Value::Null),
+            "revertData": submitted.get("revertData").cloned().unwrap_or_else(|| json!("")),
+            "revertSelector": submitted.get("revertSelector").cloned().unwrap_or_else(|| json!("")),
+            "rpcMethod": submitted.get("rpcMethod").cloned().unwrap_or_else(|| json!("eth_sendRawTransaction")),
+            "broadcastChannel": submitted.get("broadcast_channel").cloned().unwrap_or_else(|| json!("not_broadcast")),
+            "relayErrors": submitted.get("relay_errors").cloned().unwrap_or_else(|| json!([])),
+            "submitted": false,
+        }));
+    }
+    let receipt =
+        load_v4_receipt_inner(&vec![rpc_url.to_string()], &tx_hash, true, timeout_seconds)
+            .unwrap_or_else(|error| json!({"status": "receipt_pending", "error": error}));
+    Ok(json!({
+        "ok": true,
+        "txHash": tx_hash,
+        "signer": signer,
+        "calldata": calldata,
+        "nonce": nonce,
+        "gasLimit": gas_limit,
+        "maxPriorityFeePerGas": format!("0x{max_priority_fee:x}"),
+        "maxFeePerGas": format!("0x{max_fee:x}"),
+        "broadcast": submitted,
+        "receipt": receipt,
+    }))
+}
+
 pub(crate) fn broadcast_v4_best_pools_inner(
     config: &Value,
     selected_amount_raw: &BigUint,
@@ -3168,6 +4116,41 @@ pub(crate) fn broadcast_v4_best_pools_inner(
         "broadcast": submitted,
         "receipt": receipt,
     }))
+}
+
+pub(crate) fn broadcast_v4_flash_batch_inner(
+    config: &Value,
+    requests: &[Value],
+    rpc_url: &str,
+    executor_address: &str,
+    private_key: &str,
+    chain_id: u64,
+    relay_urls: Option<&str>,
+    timeout_seconds: u64,
+) -> Result<Value, String> {
+    if rpc_url.trim().is_empty() {
+        return Err("V4 executor batch broadcast RPC URL is empty".to_string());
+    }
+    if executor_address.trim().is_empty() {
+        return Err("V4 executor batch address is empty".to_string());
+    }
+    if private_key.trim().is_empty() {
+        return Err("V4 executor batch signer is not configured".to_string());
+    }
+    let calldata = build_v4_flash_batch_calldata(requests)?;
+    let mut result = broadcast_calldata_inner(
+        config,
+        calldata,
+        rpc_url,
+        executor_address,
+        private_key,
+        chain_id,
+        relay_urls,
+        timeout_seconds,
+    )?;
+    result["batchRequestCount"] = json!(requests.len());
+    result["broadcastMode"] = json!("bounded_v4_flash_batch");
+    Ok(result)
 }
 
 fn parse_json(raw: &str, label: &str) -> Result<Value, PyErr> {
@@ -3442,6 +4425,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_v4_quote_words_decode_keeps_the_amount_and_the_gas_apart() {
+        // Golden vector from a live `eth_call` against the deployed quoter:
+        // word 0 = 0x47c8f (294031), word 1 = 0xa764 (42852).
+        let raw = format!("{:064x}{:064x}", 294031u64, 42852u64);
+        let (amount_out, gas_estimate) = decode_v4_quote_words(&raw).expect("decodes");
+        assert_eq!(amount_out, BigUint::from(294031u64));
+        assert_eq!(gas_estimate, BigUint::from(42852u64));
+    }
+
+    #[test]
+    fn a_short_v4_quote_answer_is_rejected() {
+        let error = decode_v4_quote_words("00").expect_err("short answer");
+        assert_eq!(error, "quote eth_call returned a short result");
+    }
+
+    #[test]
     fn big_integer_parse_uses_hex_prefix_and_decimal_otherwise() {
         assert_eq!(
             parse_big_uint(&json!("1000000000000000000")).unwrap(),
@@ -3559,9 +4558,12 @@ mod tests {
             "amountInRaw": 1000000,
             "hookData": "0xabcdef",
         });
+        // The deployed quoter takes the nested struct ABI. The flat form has
+        // the selector `0x6501a3ce` and reverts with empty data, so the
+        // golden vector below is the nested one produced by `eth_abi`.
         assert_eq!(
             build_v4_quote_calldata_inner(&request).unwrap(),
-            "0x6501a3ce000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000003abcdef0000000000000000000000000000000000000000000000000000000000"
+            "0xaa9d21cb0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000003abcdef0000000000000000000000000000000000000000000000000000000000"
         );
     }
 
@@ -3661,6 +4663,7 @@ mod tests {
             None,
             &BigUint::from(1u32),
             &BigUint::from(2u32),
+            None,
         );
         assert_eq!(payload["status"], json!("quote_unavailable"));
         assert_eq!(payload["reviewFailureKind"], json!("quote_unavailable"));
@@ -3701,6 +4704,7 @@ mod tests {
             None,
             &BigUint::from(0xde0b6b3a7640000u64),
             &BigUint::from(1u32),
+            None,
         );
         assert_eq!(payload["status"], json!("quote_unavailable"));
         assert_eq!(payload["reviewFailureKind"], json!("quote_unavailable"));
@@ -3887,6 +4891,155 @@ mod tests {
     }
 
     #[test]
+    fn v4_flash_batch_calldata_matches_ethers_vector() {
+        let request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": 1000,
+            "swapTargets": [],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": 7,
+            "gasReserve": 0
+        });
+        assert_eq!(
+            build_v4_flash_batch_calldata(&[request]).unwrap(),
+            "0x5f957efb000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn v4_flash_batch_calldata_carries_the_reviewed_minimum_output() {
+        // The reviewed minimum output of the route travels in the request's
+        // `gasReserve` field, which the contract reads as the route's output
+        // floor. The encoded word must therefore carry the floor verbatim.
+        let request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": 1000,
+            "swapTargets": [],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": 7,
+            "gasReserve": 4242
+        });
+        let calldata = build_v4_flash_batch_calldata(&[request]).unwrap();
+        let hex = calldata.trim_start_matches("0x");
+        // The floor is the seventh word of the request tuple, right after the
+        // minimum profit. It must be present verbatim.
+        let floor_word = format!("{:064x}", 4242u64);
+        assert!(
+            hex.contains(&floor_word),
+            "the reviewed minimum output must be encoded in the request"
+        );
+        // The word must sit directly after the minimum profit (7).
+        let profit_word = format!("{:064x}", 7u64);
+        let profit_at = hex.find(&profit_word).expect("minimum profit word");
+        assert_eq!(
+            profit_at + profit_word.len(),
+            hex.find(&floor_word).unwrap()
+        );
+    }
+
+    #[test]
+    fn reviewed_route_builds_bounded_pool_manager_executor_request() {
+        let token_a = "0x1111111111111111111111111111111111111111";
+        let token_b = "0x2222222222222222222222222222222222222222";
+        let token_c = "0x3333333333333333333333333333333333333333";
+        let manager = "0x4444444444444444444444444444444444444444";
+        let keys = vec![
+            sample_pool_key(token_a, token_b, 3_000, 60),
+            sample_pool_key(token_b, token_c, 500, 10),
+            sample_pool_key(token_a, token_c, 1_000, 20),
+        ];
+        let route_payload = json!({
+            "selectedKeys": keys,
+            "selectedDirections": [true, true, false],
+            "selectedAmountRaw": "0x64",
+            "outTb": "0x5a",
+            "outTa": "0x50",
+            "outTz": "0x6e",
+        });
+        let route_config = json!({
+            "token": token_a,
+            "minProfitRaw": "0x05",
+            "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+        });
+        let request =
+            build_v4_flash_executor_request(&route_payload, &route_config, manager).unwrap();
+        assert_eq!(request["token"], json!(token_a));
+        assert_eq!(request["amount"], json!("0x64"));
+        assert_eq!(request["finalToken"], json!(token_a));
+        assert_eq!(request["minProfit"], json!("0x5"));
+        assert_eq!(request["minAmountOut"], json!("0x6e"));
+        assert_eq!(request["swapTargets"], json!([manager, manager, manager]));
+        let calldatas = request["swapCalldatas"].as_array().unwrap();
+        assert_eq!(calldatas.len(), 3);
+        let selector = as_hex(&function_selector(V4_POOL_MANAGER_SWAP_SIGNATURE));
+        assert!(calldatas.iter().all(|value| {
+            value
+                .as_str()
+                .map(|calldata| calldata.starts_with(&selector))
+                .unwrap_or(false)
+        }));
+    }
+
+    #[test]
+    fn executor_request_rejects_a_non_closed_reviewed_route() {
+        let route_payload = json!({
+            "selectedKeys": [
+                sample_pool_key(
+                    "0x1111111111111111111111111111111111111111",
+                    "0x2222222222222222222222222222222222222222",
+                    3_000,
+                    60,
+                ),
+                sample_pool_key(
+                    "0x2222222222222222222222222222222222222222",
+                    "0x3333333333333333333333333333333333333333",
+                    500,
+                    10,
+                ),
+                sample_pool_key(
+                    "0x3333333333333333333333333333333333333333",
+                    "0x4444444444444444444444444444444444444444",
+                    1_000,
+                    20,
+                ),
+            ],
+            "selectedDirections": [true, true, true],
+            "selectedAmountRaw": "0x64",
+            "outTb": "0x5a",
+            "outTa": "0x50",
+            "outTz": "0x6e",
+        });
+        let route_config = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "minProfitRaw": "0x05",
+            "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+        });
+        assert!(build_v4_flash_executor_request(
+            &route_payload,
+            &route_config,
+            "0x5555555555555555555555555555555555555555",
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn v4_flash_batch_calldata_enforces_bounds_and_parallel_arrays() {
+        assert!(build_v4_flash_batch_calldata(&[]).is_err());
+        let request = json!({
+            "token": "0x1111111111111111111111111111111111111111",
+            "amount": 1,
+            "swapTargets": ["0x2222222222222222222222222222222222222222"],
+            "swapCalldatas": [],
+            "finalToken": "0x1111111111111111111111111111111111111111",
+            "minProfit": 0,
+            "gasReserve": 0
+        });
+        assert!(build_v4_flash_batch_calldata(&[request]).is_err());
+    }
+
+    #[test]
     fn v4_pool_state_slots_match_python_keccak_layout() {
         let (state_slot, liquidity_slot) = v4_pool_state_slots(
             "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3896,6 +5049,9 @@ mod tests {
             hex_encode(state_slot),
             "f9f9cffb27053c60d6c9552447b6a4fc873604745eef4fed26c3644421245fcf"
         );
+        // `liquidity` is the fourth word of the `Pool.State` struct, so the
+        // liquidity slot is `state_slot + 3`. The `+1` word is
+        // `feeGrowthGlobal0X128`, which is not a liquidity number.
         assert_eq!(
             hex_encode(liquidity_slot),
             "f9f9cffb27053c60d6c9552447b6a4fc873604745eef4fed26c3644421245fd2"
@@ -3923,5 +5079,447 @@ mod tests {
             liquidity.to_string(),
             "24019931782654479773885266406948344338"
         );
+    }
+
+    /// D4-e: the economic floor must short-circuit the ladder before a single
+    /// on-chain probe is spent on a route that can never cover Gas.
+    #[test]
+    fn d4_economic_floor_short_circuits_the_ladder_without_probing() {
+        let config = json!({
+            "initialAmountRaw": "0xde0b6b3a7640000",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0xde0b6b3a7640000",
+            "maxProbeAttempts": 24,
+            "economicFloorGate": {
+                "verdict": "dust_unprofitable",
+                "blocked": true,
+                "reason": "capacity_cannot_cover_gas",
+                "measured": true,
+                "capacityRaw": 1000,
+                "requiredRaw": 6200000,
+                "basis": "token_denominated_economic_floor"
+            }
+        });
+
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the economic floor returns a verdict rather than an error");
+
+        assert_eq!(
+            result.get("status").and_then(Value::as_str),
+            Some("economically_infeasible")
+        );
+        // No probe may have been attempted.
+        let attempts = result
+            .get("attempts")
+            .and_then(Value::as_array)
+            .expect("attempts is an array");
+        assert!(attempts.is_empty(), "the economic floor must not probe");
+        assert_eq!(
+            result.get("attemptedCount").and_then(Value::as_str),
+            Some("0x0")
+        );
+        assert_eq!(
+            result.get("error").and_then(Value::as_str),
+            Some("capacity_cannot_cover_gas")
+        );
+    }
+
+    /// D4-e: a route that is NOT blocked must not be short-circuited. The
+    /// ladder then fails normally (the unreachable RPC makes every probe
+    /// fail), which proves the gate only fires on a real block.
+    #[test]
+    fn d4_economic_floor_does_not_block_a_feasible_route() {
+        let config = json!({
+            "initialAmountRaw": "0x1",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x2",
+            "maxProbeAttempts": 4,
+            "economicFloorGate": {
+                "verdict": "pass",
+                "blocked": false,
+                "reason": null
+            }
+        });
+
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        );
+
+        // The call may fail because the RPC is unreachable, but it must NOT
+        // report the economic short-circuit.
+        if let Ok(payload) = result {
+            assert_ne!(
+                payload.get("status").and_then(Value::as_str),
+                Some("economically_infeasible")
+            );
+        }
+    }
+
+    #[test]
+    fn p0_8_missing_single_tick_capacity_blocks_without_probing() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("missing capacity returns a fail-closed verdict");
+        assert_eq!(
+            result.get("status").and_then(Value::as_str),
+            Some("single_tick_capacity_unavailable")
+        );
+        assert_eq!(
+            result.get("attemptedCount").and_then(Value::as_str),
+            Some("0x0")
+        );
+        assert!(result
+            .get("attempts")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty));
+    }
+
+    #[test]
+    fn p0_8_initial_probe_is_clamped_to_the_single_tick_capacity() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x32",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result
+                .get("requestedInitialAmountRaw")
+                .and_then(Value::as_str),
+            Some("0x64")
+        );
+        assert_eq!(
+            result.get("initialAmountRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+        assert_eq!(
+            result.get("singleTickCapacityRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+    }
+
+    /// The folded single-tick capacity is the authoritative bound.
+    ///
+    /// The generic probe maximum is not a single-tick bound: it can be
+    /// larger than the tick range allows. When both are present the fold
+    /// wins, so the ladder can never probe past the boundary the version
+    /// forbids.
+    #[test]
+    fn p0_8_the_folded_capacity_wins_over_the_generic_probe_maximum() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x1000",
+            "singleTickCapacityRaw": "0x32",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result.get("singleTickCapacityRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+        assert_eq!(
+            result
+                .get("singleTickCapacityBasis")
+                .and_then(Value::as_str),
+            Some("folded_single_tick_capacity")
+        );
+        assert_eq!(
+            result.get("initialAmountRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+    }
+
+    /// A caller that has not published the fold yet keeps working through
+    /// the compatibility fallback, and the evidence says so.
+    #[test]
+    fn p0_8_the_generic_probe_maximum_is_reported_as_a_fallback() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x32",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result
+                .get("singleTickCapacityBasis")
+                .and_then(Value::as_str),
+            Some("max_probe_amount_fallback")
+        );
+    }
+
+    /// D4-b: the bounded helpers used by the ladder must keep the upward
+    /// search inside the configured ceiling and never collapse to zero.
+    #[test]
+    fn d4_bounded_double_stays_within_the_probe_ceiling() {
+        let max_amount = BigUint::from(1000u32);
+        assert_eq!(
+            bounded_double(&BigUint::from(400u32), Some(&max_amount)),
+            BigUint::from(800u32)
+        );
+        // A doubled amount beyond the ceiling is clamped, never exceeded.
+        assert_eq!(
+            bounded_double(&BigUint::from(800u32), Some(&max_amount)),
+            max_amount
+        );
+    }
+
+    /// D4-b: the upward search must be able to reach a size above the start,
+    /// which is exactly what the old downward-only failure branch could not
+    /// do. The bounded helpers make that reachable while staying inside the
+    /// probe window.
+    #[test]
+    fn d4_upward_search_can_reach_sizes_above_the_start() {
+        let start = BigUint::from(1000u32);
+        let max_probe = BigUint::from(64_000u32);
+        let mut upward = bounded_double(&start, Some(&max_probe));
+        let mut seen_above_start = false;
+        while upward > start && upward <= max_probe {
+            if upward > start {
+                seen_above_start = true;
+                break;
+            }
+            let next = bounded_double(&upward, Some(&max_probe));
+            if next <= upward {
+                break;
+            }
+            upward = next;
+        }
+        assert!(
+            seen_above_start,
+            "the upward search must reach above the start"
+        );
+    }
+
+    /// The no-profit payload must carry the **real** probe ladder when the
+    /// ladder ran. The reviewer treats a ladder with fewer than two probe
+    /// rows as incomplete, so the synthetic single probe must never
+    /// override a ladder that actually measured several sizes.
+    #[test]
+    fn the_no_profit_payload_prefers_the_measured_ladder_attempts() {
+        let ladder = json!({
+            "status": "not_profitable_after_costs",
+            "attemptedCount": "0x3",
+            "attempts": [
+                {"amountRaw": "0x1", "ok": true, "profitable": false, "profitRaw": "-0x2"},
+                {"amountRaw": "0x2", "ok": true, "profitable": false, "profitRaw": "-0x1"},
+                {"amountRaw": "0x4", "ok": true, "profitable": false, "profitRaw": "-0x1"},
+            ],
+        });
+        let payload = v4_no_profit_payload(
+            "inner_single_call",
+            json!({"ok": false, "error": "NoProfitableRoute"}),
+            None,
+            None,
+            &BigUint::from(1u32),
+            &BigUint::from(1u32),
+            Some(ladder),
+        );
+        let attempts = payload["attempts"].as_array().expect("attempts array");
+        assert_eq!(attempts.len(), 3, "the measured ladder must win");
+        assert_eq!(payload["attemptedCount"], json!("0x3"));
+        assert_eq!(payload["ladderStatus"], json!("not_profitable_after_costs"));
+        assert_eq!(attempts[0]["amountRaw"], json!("0x1"));
+    }
+
+    /// A ladder that ran and priced every size it tried is a **measured**
+    /// result, not a missing measurement. The payload must say so, because
+    /// the reviewer otherwise withdraws the best amount and the orchestrator
+    /// chases a review repair for a measurement that was never broken.
+    #[test]
+    fn the_no_profit_payload_reports_a_measured_ladder_as_confirmed() {
+        let ladder = json!({
+            "status": "not_profitable_after_costs",
+            "attemptedCount": "0x3",
+            "attempts": [
+                {"amountRaw": "0x1", "ok": true, "profitable": false, "profitRaw": "-0x2"},
+                {"amountRaw": "0x2", "ok": true, "profitable": false, "profitRaw": "-0x1"},
+                {"amountRaw": "0x4", "ok": true, "profitable": false, "profitRaw": "-0x1"},
+            ],
+        });
+        let payload = v4_no_profit_payload(
+            "inner_single_call",
+            json!({"ok": false, "error": "NoProfitableRoute"}),
+            None,
+            None,
+            &BigUint::from(1u32),
+            &BigUint::from(1u32),
+            Some(ladder),
+        );
+        assert_eq!(
+            payload["bestAmountMissing"], json!(false),
+            "a measured ladder must never be reported as a missing amount"
+        );
+        assert_eq!(payload["bestAmountMeasured"], json!(true));
+        assert_eq!(payload["bestAmountConfirmed"], json!(true));
+        assert_eq!(payload["bestAmount"], json!("0x0"));
+        assert_eq!(
+            payload["bestAmountSelectionBasis"],
+            json!("native_rust_ladder_no_profitable_size_measured")
+        );
+        assert!(payload["bestAmountZeroReason"]
+            .as_str()
+            .expect("zero reason")
+            .contains("3 size(s)"));
+        assert_eq!(payload["reviewFailureKind"], json!("no_profitable_route"));
+    }
+
+    /// The measured signed loss of the `ArbitrageNotProfitable` revert must
+    /// reach the payload. Without it every review was filed as
+    /// `data_incomplete`, because the Review Manager saw no signed PnL.
+    #[test]
+    fn the_no_profit_payload_publishes_the_measured_signed_loss() {
+        // ArbitrageNotProfitable(received=100, required=130) -> loss of -30.
+        let revert_data = format!(
+            "0x16301234{:064x}{:064x}",
+            100u128, 130u128
+        );
+        let run_review = json!({
+            "ok": false,
+            "executable": true,
+            "noProfitableRoute": true,
+            "error": "NoProfitableRoute",
+            "revertData": revert_data,
+            "revertSelector": "0x16301234",
+        });
+        let payload = v4_no_profit_payload(
+            "inner_single_call",
+            json!({"ok": false, "error": "NoProfitableRoute"}),
+            None,
+            Some(run_review),
+            &BigUint::from(1u32),
+            &BigUint::from(1u32),
+            None,
+        );
+        assert_eq!(
+            payload["reportedNetProfitRaw"], json!("-0x1e"),
+            "the measured signed loss must be published"
+        );
+        assert!(payload["arbitrageNotProfitable"].is_object());
+        assert_eq!(
+            payload["runArbitrage"]["reportedNetProfitRaw"],
+            json!("-0x1e"),
+            "the nested run evidence must carry the loss as well"
+        );
+    }
+
+    /// The ladder must publish the measured loss of the size it priced. The
+    /// probes already carry it; dropping it at the ladder boundary is what
+    /// left every review without a concrete PnL.
+    #[test]
+    fn the_measured_probe_loss_is_promoted_out_of_the_probe_rows() {
+        let attempts = vec![
+            json!({"amountRaw": "0x1", "ok": true, "profitable": false, "profitRaw": "-0x2"}),
+            json!({"amountRaw": "0x2", "ok": true, "profitable": false, "profitRaw": "-0x1"}),
+        ];
+        assert_eq!(measured_probe_loss_raw(&attempts), json!("-0x1"));
+        // A row without a measured profit contributes nothing.
+        let without = vec![json!({"amountRaw": "0x1", "ok": true, "profitRaw": Value::Null})];
+        assert!(measured_probe_loss_raw(&without).is_null());
+        assert!(measured_probe_loss_raw(&[]).is_null());
+    }
+
+    /// Without a ladder the payload still has to carry a concrete probe
+    /// record. An empty ladder is read as "the measurement never ran",
+    /// which is a different (and wrong) conclusion.
+    #[test]
+    fn the_no_profit_payload_falls_back_to_one_measured_probe() {
+        let payload = v4_no_profit_payload(
+            "inner_single_call",
+            json!({"ok": false, "error": "NoProfitableRoute"}),
+            None,
+            None,
+            &BigUint::from(7u32),
+            &BigUint::from(1u32),
+            None,
+        );
+        let attempts = payload["attempts"].as_array().expect("attempts array");
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0]["amountRaw"], json!("0x7"));
+        assert_eq!(payload["attemptedCount"], json!("0x1"));
+    }
+
+    /// A route without a published capacity is **blocked** before it probes
+    /// anything. The record must say that explicitly, so the orchestrator
+    /// calls the closed-loop manager (which publishes the capacity) rather
+    /// than the review manager (which cannot repair a missing capacity).
+    #[test]
+    fn a_route_without_capacity_is_marked_as_a_blocked_ladder() {
+        let mut config = json!({
+            "token": "0x0000000000000000000000000000000000000000",
+            "keys": [],
+            "directions": [],
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAttempts": 4,
+        });
+        config["singleTickCapacityRaw"] = Value::Null;
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the ladder reports the blocked route");
+        assert_eq!(result["status"], json!("single_tick_capacity_unavailable"));
+        assert_eq!(result["ladderBlocked"], json!(true));
+        assert_eq!(
+            result["ladderBlockedReason"],
+            json!("single_tick_capacity_unavailable")
+        );
+        assert_eq!(result["repairTarget"], json!("closed_loop_manager"));
+        assert_eq!(result["attemptedCount"], json!("0x0"));
+        assert!(result["attempts"].as_array().is_some_and(Vec::is_empty));
     }
 }

@@ -1,0 +1,398 @@
+{
+    "chain_selection":  {
+                            "canonical_market_id":  "dex-arbitrage-46630-uniswap-v4",
+                            "capabilities":  {
+                                                 "dex_arbitrage":  true,
+                                                 "execution":  true,
+                                                 "liquidation":  false,
+                                                 "observation":  true,
+                                                 "robinhood_shadow":  false,
+                                                 "shadow":  false
+                                             },
+                            "chain_default":  false,
+                            "chain_id":  46630,
+                            "chain_key":  "chain:46630",
+                            "display_name":  "Robinhood Testnet DEX Arbitrage",
+                            "enabled":  true,
+                            "feature":  "dex_arbitrage",
+                            "global_chain_id":  "chain:46630",
+                            "is_default":  true,
+                            "legacy_market_id":  "robinhood-testnet-dex-paused",
+                            "market_id":  "dex-arbitrage-46630-uniswap-v4",
+                            "market_type":  "native_chain",
+                            "native_symbol":  "ETH",
+                            "network":  "robinhood-testnet",
+                            "observation_only":  false,
+                            "protocol":  "uniswap_v4",
+                            "protocol_id":  "uniswap_v4",
+                            "protocol_supported":  true
+                        },
+    "dataSource":  "legacy",
+    "dex_strategy":  "closed_loop_routes",
+    "mode":  "",
+    "ok":  true,
+    "scanner":  {
+                    "auto_broadcast_count":  969,
+                    "auto_execute_callback_configured":  false,
+                    "auto_execute_cooldown_seconds":  600.0,
+                    "auto_execute_count":  969,
+                    "auto_execute_enabled":  false,
+                    "auto_execute_log_count":  0,
+                    "chain_id":  46630,
+                    "closed_loop_review_count":  516623,
+                    "closed_loop_review_queue":  {
+                                                     "backpressure":  0,
+                                                     "claimed":  0,
+                                                     "completed":  0,
+                                                     "done":  0,
+                                                     "error":  0,
+                                                     "executionBackend":  "python",
+                                                     "failed":  0,
+                                                     "fallback_only":  false,
+                                                     "last_supervisor_watch":  {
+                                                                                   "broadcast":  {
+                                                                                                     "enabled":  false,
+                                                                                                     "stallDetected":  false
+                                                                                                 },
+                                                                                   "loopStateSummary":  {
+                                                                                                            "available":  false
+                                                                                                        },
+                                                                                   "restarted":  false,
+                                                                                   "review":  {
+                                                                                                  "enabled":  true,
+                                                                                                  "reason":  null,
+                                                                                                  "restarted":  false,
+                                                                                                  "stallDetected":  false
+                                                                                              },
+                                                                                   "stallDetected":  false,
+                                                                                   "stuckExecutionRecovered":  {
+                                                                                                                   "failed":  0,
+                                                                                                                   "recovered":  0,
+                                                                                                                   "reviewOnlyClosed":  0
+                                                                                                               },
+                                                                                   "watchedAt":  "2026-11-15T01:56:36.172919+00:00"
+                                                                               },
+                                                     "loopStateSummary":  {
+                                                                              "available":  false
+                                                                          },
+                                                     "queued":  0,
+                                                     "requeued":  0,
+                                                     "running":  0,
+                                                     "skipped":  0,
+                                                     "stalled":  0,
+                                                     "stalled_total":  0,
+                                                     "stuckExecutionRecovered":  0,
+                                                     "total":  0
+                                                 },
+                    "closed_loop_rust_workers":  {
+                                                     "enabled":  false,
+                                                     "engine":  "python_fallback",
+                                                     "executionBackend":  "python",
+                                                     "summary":  {
+
+                                                                 },
+                                                     "workers":  [
+
+                                                                 ]
+                                                 },
+                    "closed_loop_scan_count":  0,
+                    "closed_loop_supervisors":  {
+                                                    "broadcast":  {
+                                                                      "mode":  "disabled",
+                                                                      "running":  false
+                                                                  },
+                                                    "broadcastStallDetected":  false,
+                                                    "enabled":  true,
+                                                    "lastSupervisorWatch":  {
+                                                                                "broadcast":  {
+                                                                                                  "enabled":  false,
+                                                                                                  "stallDetected":  false
+                                                                                              },
+                                                                                "loopStateSummary":  {
+                                                                                                         "available":  false
+                                                                                                     },
+                                                                                "restarted":  false,
+                                                                                "review":  {
+                                                                                               "enabled":  true,
+                                                                                               "reason":  null,
+                                                                                               "restarted":  false,
+                                                                                               "stallDetected":  false
+                                                                                           },
+                                                                                "stallDetected":  false,
+                                                                                "stuckExecutionRecovered":  {
+                                                                                                                "failed":  0,
+                                                                                                                "recovered":  0,
+                                                                                                                "reviewOnlyClosed":  0
+                                                                                                            },
+                                                                                "watchedAt":  "2026-11-15T01:56:36.172919+00:00"
+                                                                            },
+                                                    "pythonFallbackEnabled":  true,
+                                                    "review":  {
+                                                                   "heartbeatAgeSeconds":  0.2340000000112923,
+                                                                   "lastHeartbeatAtMonotonic":  125316.578,
+                                                                   "lastProgressAtMonotonic":  125226.984,
+                                                                   "lastStallAtMonotonic":  null,
+                                                                   "progressAgeSeconds":  89.82800000000861,
+                                                                   "queue":  {
+                                                                                 "backpressure":  0,
+                                                                                 "claimed":  0,
+                                                                                 "completed":  0,
+                                                                                 "done":  0,
+                                                                                 "error":  0,
+                                                                                 "failed":  0,
+                                                                                 "queued":  0,
+                                                                                 "requeued":  0,
+                                                                                 "running":  0,
+                                                                                 "skipped":  0,
+                                                                                 "stalled":  0,
+                                                                                 "stalled_total":  0,
+                                                                                 "total":  0
+                                                                             },
+                                                                   "restartCount":  0,
+                                                                   "running":  true,
+                                                                   "runningWorkers":  0,
+                                                                   "staleQueue":  {
+                                                                                      "now":  1794707826.9136457,
+                                                                                      "oldestQueuedAgeSeconds":  null,
+                                                                                      "staleQueued":  [
+
+                                                                                                      ],
+                                                                                      "staleQueuedCount":  0,
+                                                                                      "staleRunning":  [
+
+                                                                                                       ],
+                                                                                      "staleRunningCount":  0
+                                                                                  },
+                                                                   "stallDetected":  false,
+                                                                   "stallEvents":  0,
+                                                                   "stallReason":  null,
+                                                                   "stallSeconds":  60.0,
+                                                                   "supervisorErrors":  0,
+                                                                   "workerCount":  16
+                                                               },
+                                                    "reviewStallDetected":  false
+                                                },
+                    "evidence_workers":  1,
+                    "execution_backend":  "python",
+                    "interval_seconds":  60.0,
+                    "last_auto_execute_at":  "2026-10-31T22:18:04.083741+00:00",
+                    "last_duration_ms":  23836,
+                    "last_error":  null,
+                    "last_error_stack":  null,
+                    "last_recording":  {
+                                           "candidate_count":  0,
+                                           "error":  null,
+                                           "recorded":  0,
+                                           "source":  "empty"
+                                       },
+                    "last_scan_finished_at":  "2026-11-15T01:57:06.504558+00:00",
+                    "last_scan_started_at":  "2026-11-15T01:56:42.667686+00:00",
+                    "max_onchain_evidence_routes":  5,
+                    "max_recordable_routes":  null,
+                    "periodic_scan_enabled":  true,
+                    "queued_scan_count":  0,
+                    "record_cooldown_seconds":  60.0,
+                    "recorded_attempt_count":  513823,
+                    "running":  true,
+                    "scan_count":  1106,
+                    "session_stats":  {
+                                          "auto_executed_count":  68,
+                                          "executed_count":  68,
+                                          "positive_profit_amount":  0.0,
+                                          "positive_profit_count":  0,
+                                          "reset_at":  "2026-10-22T23:14:41.390944+00:00"
+                                      },
+                    "snapshot_updated_at":  "2026-11-15T01:57:06.503560+00:00",
+                    "testnet_max_onchain_evidence_routes":  10,
+                    "watched_chain_keys":  [
+                                               "46630|protocols:uniswap_v4"
+                                           ]
+                },
+    "snapshot":  {
+                     "chain_id":  46630,
+                     "error":  null,
+                     "errorStack":  null,
+                     "payload":  {
+                                     "chain_id":  46630,
+                                     "dexSettlement":  {
+
+                                                       },
+                                     "marketObservation":  {
+                                                               "chainSpecificObservationPairs":  [
+
+                                                                                                 ],
+                                                               "summary":  {
+                                                                               "anchorBorrowSymbols":  [
+
+                                                                                                       ],
+                                                                               "candidateObservationGroupCount":  0,
+                                                                               "candidateObservationSequenceCount":  0,
+                                                                               "chainSpecificObservationSequenceCount":  0,
+                                                                               "closedLoopAnchorCount":  0,
+                                                                               "closedLoopAnchorSymbols":  [
+
+                                                                                                           ],
+                                                                               "closedLoopRouteCount":  0,
+                                                                               "closedLoopSequenceCount":  0,
+                                                                               "directPairCount":  0,
+                                                                               "fundAnchorPairObservationAssociatedObservationPoolCount":  0,
+                                                                               "fundAnchorPairObservationAssociatedObservationTokenCount":  0,
+                                                                               "fundAnchorPairObservationAssociatedPairCount":  0,
+                                                                               "fundAnchorPairObservationRouteCount":  0,
+                                                                               "observationAnchorCount":  0,
+                                                                               "observationAnchorSymbols":  [
+
+                                                                                                            ],
+                                                                               "observationSequenceCount":  0
+                                                                           }
+                                                           },
+                                     "marketObservationSource":  "sqlite_db",
+                                     "marketObservationSourceStage":  "sqlite_db",
+                                     "mode":  "dex_quote_routes",
+                                     "poolIndexVersion":  {
+                                                              "chainId":  46630,
+                                                              "network":  "robinhood-testnet",
+                                                              "path":  "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+                                                              "source":  "sqlite_db"
+                                                          },
+                                     "poolStaticTable":  {
+
+                                                         },
+                                     "referencedTable":  "ob_table",
+                                     "routeFrameworkSource":  "market_observation",
+                                     "routes":  [
+
+                                                ],
+                                     "selected_protocols":  [
+                                                                "uniswap_v4"
+                                                            ],
+                                     "summary":  {
+                                                     "anchorBorrowSymbols":  [
+
+                                                                             ],
+                                                     "anchorFilter":  null,
+                                                     "arbitragePathCount":  0,
+                                                     "autoExecutableClosedLoopCount":  0,
+                                                     "bestExecutableBorrowNetProfitUsd":  null,
+                                                     "bestExecutableBorrowNotionalUsd":  null,
+                                                     "bestNetProfitUsd":  null,
+                                                     "bestObservedBorrowNetProfitUsd":  null,
+                                                     "bestObservedBorrowNotionalUsd":  null,
+                                                     "bestObservedNetProfitUsd":  null,
+                                                     "bestTokenBasisBorrowNotionalUsd":  null,
+                                                     "bestTokenBasisInputSymbol":  null,
+                                                     "bestTokenBasisNetProfitAmount":  null,
+                                                     "bestTokenBasisNetReturnBps":  null,
+                                                     "bestTokenBasisProfitAmount":  null,
+                                                     "bestTokenBasisProfitBasis":  null,
+                                                     "bridgePathCount":  0,
+                                                     "bridgeRouteCount":  0,
+                                                     "candidateObservationGroupCount":  0,
+                                                     "candidateObservationSequenceCount":  0,
+                                                     "candidatePathCount":  0,
+                                                     "candidateRouteCount":  0,
+                                                     "chainReviewEligiblePathCount":  0,
+                                                     "chainSpecificObservationPairCount":  0,
+                                                     "chainSpecificObservationSequenceCount":  0,
+                                                     "chainSubmissionCandidateCount":  0,
+                                                     "closedLoopAnchorCount":  0,
+                                                     "closedLoopAnchorSymbols":  [
+
+                                                                                 ],
+                                                     "closedLoopRouteCount":  0,
+                                                     "closedLoopSequenceCount":  0,
+                                                     "completeStaticQuoteCount":  0,
+                                                     "diagnosticOnlyPathCount":  0,
+                                                     "directPairCount":  0,
+                                                     "fundAnchorPairObservationAssociatedObservationPoolCount":  0,
+                                                     "fundAnchorPairObservationAssociatedObservationTokenCount":  0,
+                                                     "fundAnchorPairObservationAssociatedPairCount":  0,
+                                                     "fundAnchorPairObservationRouteCount":  0,
+                                                     "hopCandidateCombinationCount":  0,
+                                                     "hopCandidatePoolCount":  0,
+                                                     "hopCandidateRouteCount":  0,
+                                                     "liveQuoterRequiredCount":  0,
+                                                     "liveRouteLimit":  0,
+                                                     "marketObservationRouteCount":  0,
+                                                     "marketObservationSequenceCount":  0,
+                                                     "nonStableChainSubmissionCandidateCount":  0,
+                                                     "observationAnchorCount":  0,
+                                                     "observationAnchorSymbols":  [
+
+                                                                                  ],
+                                                     "observationSequenceCount":  0,
+                                                     "overviewBestExecutableNetProfitUsd":  null,
+                                                     "overviewBestObservedNetProfitUsd":  null,
+                                                     "overviewBestTokenBasisNetReturnBps":  null,
+                                                     "overviewChainSubmissionCandidateCount":  0,
+                                                     "overviewExecutableCandidateCount":  0,
+                                                     "overviewLiveQuoterRequiredCount":  0,
+                                                     "overviewNonStableChainSubmissionCandidateCount":  0,
+                                                     "overviewPathGroupCount":  0,
+                                                     "overviewProbeCompleteCount":  0,
+                                                     "overviewProbeNotionalUsd":  1000.0,
+                                                     "overviewProfitableRouteCount":  0,
+                                                     "overviewSdkAdapterRequiredCount":  0,
+                                                     "overviewTokenBasisProfitableRouteCount":  0,
+                                                     "overviewTokenBasisRouteCount":  0,
+                                                     "pathSource":  "market_observation",
+                                                     "probeBestOnly":  true,
+                                                     "probeNotionalUsd":  1000.0,
+                                                     "profitableRouteCount":  0,
+                                                     "routeCount":  0,
+                                                     "sdkAdapterRequiredCount":  0,
+                                                     "unfilteredRouteCount":  0,
+                                                     "uniswapxFallbackFailureCount":  0,
+                                                     "uniswapxFallbackQuoteRequiredCount":  0,
+                                                     "uniswapxFallbackRouteCount":  0,
+                                                     "uniswapxQuoteableRouteCount":  0,
+                                                     "watchPairCount":  0
+                                                 },
+                                     "tableSource":  "dex_table"
+                                 },
+                     "recording":  {
+                                       "candidate_count":  0,
+                                       "error":  null,
+                                       "recorded":  0,
+                                       "source":  "empty"
+                                   },
+                     "summary":  {
+                                     "auto_executable_closed_loop_count":  0,
+                                     "best_live_net_profit_usd":  null,
+                                     "best_net_profit_usd":  null,
+                                     "best_observed_net_profit_usd":  null,
+                                     "chain_submission_candidate_count":  0,
+                                     "complete_static_quote_count":  0,
+                                     "executable_candidate_count":  0,
+                                     "live_profitable_route_count":  0,
+                                     "live_quoter_required_count":  0,
+                                     "live_verified_route_count":  0,
+                                     "non_stable_chain_submission_candidate_count":  0,
+                                     "onchain_evidence_deferred_route_count":  0,
+                                     "onchain_evidence_failed_route_count":  0,
+                                     "onchain_evidence_reviewed_route_count":  0,
+                                     "profitable_route_count":  0,
+                                     "route_count":  0,
+                                     "sdk_adapter_required_count":  0,
+                                     "static_live_quoter_required_count":  0,
+                                     "static_sdk_adapter_required_count":  0,
+                                     "uniswapx_quoteable_route_count":  0
+                                 },
+                     "trigger_context":  {
+                                             "available":  true,
+                                             "blockNumber":  153438257,
+                                             "blockTimestamp":  1794707812,
+                                             "chainId":  46630,
+                                             "confirmations":  2,
+                                             "error":  null,
+                                             "evidencePath":  null,
+                                             "headBlockNumber":  153438259,
+                                             "network":  "robinhood-testnet",
+                                             "observedAt":  "2026-11-15T01:56:42.667686+00:00",
+                                             "rpcUrl":  "https://robinhood-sepolia-rpc.publicnode.com",
+                                             "source":  "scan_trigger_chain_head_confirmed",
+                                             "triggerBlockNumber":  153438257
+                                         },
+                     "updated_at":  "2026-11-15T01:57:06.503560+00:00"
+                 }
+}

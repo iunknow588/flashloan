@@ -55,6 +55,79 @@ def _pool(pool_id: str, **overrides: object) -> dict:
     return row
 
 
+def test_testnet_live_state_reads_liquidity_from_pool_state_offset_3():
+    """The V4 ``Pool.State`` layout puts ``liquidity`` in the fourth word.
+
+    Reading ``state_slot + 1`` returns ``feeGrowthGlobal0X128`` instead, which
+    made empty pools look deep and routed them into arbitrage scans, where the
+    on-chain swap reverted with ``SwapNotResolved()``.
+    """
+    calls: list[bytes] = []
+
+    class FakeExtsload:
+        def __init__(self, slot: bytes):
+            self.slot = slot
+
+        def call(self, **kwargs):
+            calls.append(bytes(self.slot))
+            if len(calls) == 1:
+                return b"\x00" * 31 + b"\x02"
+            return b"\x00" * 31 + b"\x09"
+
+    class FakeFunctions:
+        extsload = FakeExtsload
+
+    class FakeEth:
+        def contract(self, **kwargs):
+            return type("FakeContract", (), {"functions": FakeFunctions()})()
+
+    class FakeW3:
+        eth = FakeEth()
+
+    state = v4_quote_adapter._read_live_pool_state_with_w3(
+        w3=FakeW3(),
+        rpc_url="rpc",
+        pool_manager="0x" + "4" * 40,
+        pool_id="0x" + "1" * 64,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+
+    assert len(calls) == 2
+    expected_liquidity_slot = (int.from_bytes(calls[0], "big") + 3).to_bytes(32, "big")
+    assert calls[1] == expected_liquidity_slot
+    assert state["liquidity"] == "9"
+
+
+def test_testnet_batch_read_uses_the_same_liquidity_slot_offset():
+    """The batch precheck must read the same word as the single-pool path."""
+    from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
+        V4_STATE_LIQUIDITY_WORD_OFFSET,
+    )
+
+    assert V4_STATE_LIQUIDITY_WORD_OFFSET == 3
+
+    source = (
+        Path(v4_quote_adapter.__file__).read_text(encoding="utf-8")
+    )
+    assert "_V4_STATE_LIQUIDITY_WORD_OFFSET" in source
+    assert 'int.from_bytes(state_slot, "big") + 1' not in source
+
+
+def test_shared_liquidity_word_offset_matches_the_rust_pool_state_layout():
+    """Rust reads ``state_slot + 3``; Python must not drift away from it."""
+    from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
+        V4_STATE_LIQUIDITY_WORD_OFFSET,
+    )
+
+    repo_root = Path(__file__).resolve().parents[4]
+    rust = (repo_root / "flashloan" / "rs-src" / "src" / "execution.rs").read_text(
+        encoding="utf-8"
+    )
+    assert "`liquidity` is the fourth word of `Pool.State`" in rust
+    assert V4_STATE_LIQUIDITY_WORD_OFFSET == 3
+
+
 def test_apply_extsload_liquidity_marks_real_depth_and_preserves_unknown_errors(monkeypatch):
     liquid_id = "0x" + "aa" * 32
     zero_id = "0x" + "bb" * 32
@@ -568,3 +641,95 @@ def test_mainnet_enrich_pool_liquidity_flips_only_on_explicit_zero(monkeypatch):
     assert pools[0]["depthStatus"] == "no_liquidity"
     assert activity["liquidityMarkedPoolCount"] == 0
     assert activity["liquidityPoolIds"] == []
+
+
+# --- DEP-TN: stock-to-stock pools get a structural depth verdict ------------
+#
+# The testnet venue quotes every pair against ETH. A pool whose two sides are
+# both stock tokens therefore has no USD route, so the old TVL-first
+# classification marked it ``unpriced`` and excluded it from the observation
+# pool. That starved the closed-loop builder of its middle hop and left the
+# review evidence incomplete.
+#
+# The depth verdict is structural: it comes from the pool's own on-chain
+# price-impact capacity, which needs no external price feed at all.
+
+
+def test_stock_to_stock_pool_is_priced_by_capacity_not_by_usd_tvl():
+    pool = {
+        "token0": "0x" + "aa" * 20,
+        "token1": "0x" + "bb" * 20,
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+    }
+    state = {
+        "sqrtPriceX96": str(2**96),
+        "liquidity": str(10**18),
+        "lpFee": 3000,
+        "tick": 0,
+        "protocolFee": 0,
+    }
+
+    metrics = testnet_liquidity._liquidity_reserve_metrics(pool, state)
+    depth = testnet_liquidity._liquidity_depth_status(metrics)
+
+    # Neither side is ETH, so there is no USD route at all.
+    assert metrics["estimatedTvlUsd"] is None
+    # The structural capacity is nevertheless fully determined.
+    assert metrics["capacityRaw"] is not None
+    assert metrics["capacityRaw"] > 0
+    assert metrics["capacityBindingRaw"] is not None
+    assert metrics["capacityBindingRaw"] > 0
+    assert metrics["capacityBand"] in {"shallow", "medium", "deep"}
+    # And the verdict is therefore a real band, never ``unpriced``.
+    assert depth["label"] != "unpriced"
+    assert depth["label"] in {"thin", "medium", "deep"}
+    assert depth["level"] == depth["label"]
+    assert depth["reason"] == "capacity_within_10bps_limit"
+
+
+def test_stock_to_stock_depth_matches_the_mainnet_band_labels():
+    """The testnet and the mainnet must classify the same state identically."""
+    pool = {
+        "token0": "0x" + "aa" * 20,
+        "token1": "0x" + "bb" * 20,
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+    }
+    state = {
+        "sqrtPriceX96": str(2**96),
+        "liquidity": str(10**18),
+        "lpFee": 3000,
+        "tick": 0,
+        "protocolFee": 0,
+    }
+
+    testnet_metrics = testnet_liquidity._liquidity_reserve_metrics(pool, state)
+    testnet_depth = testnet_liquidity._liquidity_depth_status(testnet_metrics)
+
+    mainnet_metrics = mainnet_pool_index._liquidity_reserve_metrics(pool, state)
+    mainnet_depth = mainnet_pool_index._liquidity_depth_status(mainnet_metrics)
+
+    assert testnet_depth["label"] == mainnet_depth["label"]
+    assert testnet_depth["capacityBand"] == mainnet_depth["capacityBand"]
+
+
+def test_a_pool_without_measurable_capacity_stays_unpriced():
+    """Unknown capacity is unknown, not shallow: the verdict must say so."""
+    pool = {
+        "token0": "0x" + "aa" * 20,
+        "token1": "0x" + "bb" * 20,
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+    }
+    metrics = {
+        "liquidityIndex": 1.0,
+        "estimatedTvlUsd": None,
+        "capacityRaw": None,
+        "capacityBindingRaw": None,
+    }
+
+    depth = testnet_liquidity._liquidity_depth_status(metrics)
+
+    assert depth["label"] == "unpriced"
+    assert depth["reason"] == "liquidity_present_but_no_capacity"

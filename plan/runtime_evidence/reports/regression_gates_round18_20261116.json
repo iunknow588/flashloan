@@ -1,0 +1,301 @@
+{
+  "fixes": [
+    {
+      "acceptanceIds": [
+        "AC-156"
+      ],
+      "artifact": "p0_8_tasks.patch",
+      "fixId": "FIX-R18-01",
+      "resolution": "Deleted the file directly. The manager-provided cleanup interfaces are for business data; this was a workspace artifact, not business data.",
+      "rootCause": "A previously applied patch file was left in the repository root; the repo-root guard only allows an explicit allowlist and generated suffixes.",
+      "taskIds": [
+        "TASK-098"
+      ],
+      "title": "Remove stray repo-root patch artifact"
+    },
+    {
+      "acceptanceIds": [
+        "AC-156"
+      ],
+      "artifact": "flashloan/src/dex/tools/resolve_robinhood_testnet_token_metadata.py",
+      "fixId": "FIX-R18-02",
+      "lineCounts": {
+        "after": 824,
+        "before": 1165,
+        "extractedModule": 383
+      },
+      "newArtifact": "flashloan/src/dex/tools/robinhood_testnet_token_metadata_rpc.py",
+      "resolution": "Extracted the JSON-RPC metadata read path into flashloan/src/dex/tools/robinhood_testnet_token_metadata_rpc.py (383 lines) and left the persistence path in the original module (824 lines). All previously public names remain importable from the original module.",
+      "rootCause": "The module had grown to 1165 lines, exceeding the 1000-line active-source guard limit.",
+      "taskIds": [
+        "TASK-098"
+      ],
+      "title": "Split oversized token-metadata resolver to satisfy the active-source line budget"
+    },
+    {
+      "acceptanceIds": [
+        "AC-152"
+      ],
+      "artifact": "flashloan/src/core/route_symbol_identity.py",
+      "fixId": "FIX-R18-03",
+      "relatedFiles": [
+        "flashloan/src/core/route_symbol_identity.py",
+        "flashloan/app_runtime/tests/unit/test_storage_cow_execution_review.py"
+      ],
+      "resolution": "Placeholder spellings are now derived from the chain-owned token registry as forward-only aliases. Aliases resolve stale route symbols to their real address, while the reverse address lookup still returns exactly one authoritative symbol (TSLA). The static allowlist keeps its one-address-one-symbol invariant.",
+      "rootCause": "Round 17 removed the stale 0XC9F9C8 alias from the testnet token allowlist so that one address carries exactly one authoritative symbol. That left routes still carrying the factory placeholder symbol unable to resolve to an address.",
+      "taskIds": [
+        "TASK-095"
+      ],
+      "title": "Repair stale factory-placeholder route identity without duplicating a token address"
+    }
+  ],
+  "gates": [
+    {
+      "acceptanceIds": [
+        "AC-154"
+      ],
+      "command": "cargo test --locked --workspace",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-01",
+      "name": "cargo test --locked --workspace (flashloan/tools)",
+      "passed": 519,
+      "status": "pass",
+      "taskIds": [
+        "TASK-092"
+      ],
+      "workingDirectory": "flashloan/tools"
+    },
+    {
+      "acceptanceIds": [
+        "AC-154"
+      ],
+      "command": "cargo test --locked",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-02",
+      "name": "rs-src cargo test --locked",
+      "passed": 127,
+      "status": "pass",
+      "taskIds": [
+        "TASK-093"
+      ],
+      "workingDirectory": "flashloan/rs-src"
+    },
+    {
+      "acceptanceIds": [
+        "AC-154"
+      ],
+      "artifact": {
+        "path": "flashloan/rs-src/target/release/flashloan_rs.dll",
+        "sha256": "1536da25f4bee496912a2ba70732932e590357c050f28bf244d20e9d1082ef4e",
+        "sizeBytes": 14920704
+      },
+      "command": "cargo build --release --locked",
+      "exitCode": 0,
+      "gateId": "GATE-03",
+      "name": "rs-src release DLL build",
+      "status": "pass",
+      "taskIds": [
+        "TASK-093"
+      ],
+      "workingDirectory": "flashloan/rs-src"
+    },
+    {
+      "acceptanceIds": [
+        "AC-149",
+        "AC-151",
+        "AC-156"
+      ],
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-04",
+      "name": "healer + capacity + pool-index + extsload + binary-source-match + architecture guards",
+      "passed": 213,
+      "status": "pass",
+      "taskIds": [
+        "TASK-094"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-152"
+      ],
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-05",
+      "name": "cleanup interface regression (cleanup_local_runtime_artifacts + rs_execution_bridge + rust_closed_loop_worker_bridge)",
+      "passed": 110,
+      "status": "pass",
+      "taskIds": [
+        "TASK-096"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-152"
+      ],
+      "baseline": {
+        "errors": 11,
+        "failed": 97,
+        "failureIdSetSha256": "b8d8918051c037cb3c9bd6a2ca33a21f6f874d9a068c76a8d963499541a20c98",
+        "passed": 2377,
+        "skipped": 3
+      },
+      "command": "pytest flashloan/app_runtime/tests/unit -q --continue-on-collection-errors",
+      "errors": 11,
+      "exitCode": 1,
+      "failed": 93,
+      "failureIdSetSha256": "da1e23e02485fb78c790064eeca1fb446ba257a76fa8b9ffa563a3f18d73521a",
+      "gateId": "GATE-06",
+      "name": "pytest flashloan/app_runtime/tests/unit (existing failure set must not grow)",
+      "newFailuresIntroduced": 0,
+      "newlyFixed": [
+        "flashloan/app_runtime/tests/unit/test_route_symbol_identity.py::test_testnet_allowlist_never_maps_one_address_to_two_symbols",
+        "flashloan/app_runtime/tests/unit/test_route_symbol_identity.py::test_testnet_stock_tokens_resolve_to_their_authoritative_symbol"
+      ],
+      "passed": 2381,
+      "skipped": 3,
+      "status": "pass",
+      "statusReason": "Existing failure set strictly shrank; zero new failures.",
+      "taskIds": [
+        "TASK-095"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-153"
+      ],
+      "blockers": [
+        "reviews",
+        "broadcast"
+      ],
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check",
+      "exitCode": 0,
+      "gateId": "GATE-07",
+      "name": "mainnet_arbitrage_healer --mode check must stay read-only",
+      "productionDatabase": {
+        "path": "flashloan/db/local_store_4663.sqlite3",
+        "sizeBytesAfter": 3507453952,
+        "sizeBytesBefore": 3507453952,
+        "unchanged": true
+      },
+      "productionState": "review_stalled",
+      "report": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261115T193336Z.json",
+      "safeToAutoBroadcast": false,
+      "status": "pass",
+      "taskIds": [
+        "TASK-097"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-157"
+      ],
+      "exitCode": 0,
+      "gateId": "GATE-08",
+      "name": "UTF-8 no BOM / LF / sorted-keys JSON for this round's files",
+      "status": "pass",
+      "taskIds": [
+        "TASK-098"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-150"
+      ],
+      "command": "python scripts/verify_pool_manager_binary_matches_source.py",
+      "exitCode": 0,
+      "gateId": "GATE-09",
+      "name": "verify_pool_manager_binary_matches_source.py",
+      "sourceDigest": "71fc08ce3457e9c4b8c60126a6d2ce463c079de7819a0b3b4baac348057ac2e9",
+      "status": "pass",
+      "taskIds": [
+        "TASK-094"
+      ],
+      "valid": true
+    }
+  ],
+  "generatedAt": "2026-11-15T19:36:00Z",
+  "generatedAtLocal": "2026-11-16T03:36:00+08:00",
+  "notCompleted": [
+    {
+      "acceptanceIds": [],
+      "item": "Testnet manager page HTTP status re-verification (non-503) was not re-run in round 18.",
+      "state": "open",
+      "taskIds": [
+        "TASK-035"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-155"
+      ],
+      "item": "SDK upgrade parity / performance / license / rollback difference report is still not generated.",
+      "state": "open",
+      "taskIds": []
+    },
+    {
+      "acceptanceIds": [
+        "AC-147",
+        "AC-148"
+      ],
+      "item": "Release manager-api.exe redeploy plus daemon restart and health/page verification require a maintenance window.",
+      "state": "open",
+      "taskIds": [
+        "TASK-087",
+        "TASK-088",
+        "TASK-089"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-022",
+        "AC-023",
+        "AC-024"
+      ],
+      "item": "Mainnet production scope rematerialization, review materialization, broadcast repair and sustained PnL observation require explicit production-write authorization.",
+      "state": "blocked",
+      "taskIds": [
+        "TASK-024",
+        "TASK-025",
+        "TASK-026",
+        "TASK-027"
+      ]
+    },
+    {
+      "acceptanceIds": [],
+      "item": "Per-hop amountOutMinimum still needs a new ABI; the mainnet executor has only 25 bytes of EIP-170 headroom left.",
+      "state": "open",
+      "taskIds": [
+        "TASK-036"
+      ]
+    }
+  ],
+  "round": 18,
+  "safety": {
+    "broadcastManagerAuthority": "legacy",
+    "broadcastWritesEnabled": false,
+    "chainTransactionSent": false,
+    "contractDeployed": false,
+    "networkChanged": false,
+    "productionDatabaseWritten": false
+  },
+  "schema": "flashloan.regression-gates",
+  "schemaVersion": 1,
+  "summary": {
+    "baselineFailureCount": 97,
+    "broadcastSent": false,
+    "contractDeployed": false,
+    "currentErrorCount": 11,
+    "currentFailureCount": 93,
+    "failureIdSetSha256": "da1e23e02485fb78c790064eeca1fb446ba257a76fa8b9ffa563a3f18d73521a",
+    "gatesExecuted": 9,
+    "gatesFailed": 0,
+    "gatesPassed": 9,
+    "newFailuresIntroduced": 0,
+    "productionDatabaseWritten": false,
+    "verdict": "pass"
+  }
+}

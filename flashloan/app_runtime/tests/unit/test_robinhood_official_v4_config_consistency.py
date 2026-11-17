@@ -3,8 +3,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-TESTNET_MANIFEST = REPO_ROOT / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
-TESTNET_CHAIN_JSON = REPO_ROOT / "flashloan" / "src" / "chains" / "robinhood-testnet" / "chain.json"
+TESTNET_MANIFEST = REPO_ROOT / "flashloan" / "tools" / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
+TESTNET_CHAIN_JSON = REPO_ROOT / "flashloan" / "chains" / "robinhood-testnet" / "chain.json"
 TESTNET_CONTRACT_MANIFEST = (
     REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "testnet-v4-amm" / "manifest.json"
 )
@@ -67,7 +67,7 @@ def test_testnet_contract_manifest_matches_authoritative_manifest():
 def test_testnet_arb_live_script_only_uses_canonical_address():
     script = (
         REPO_ROOT
-        / "test-token_create"
+        / "flashloan" / "tools" / "test-token_create"
         / "scripts"
         / "tool"
         / "testnet-v4-official-arb-live.js"

@@ -11,6 +11,25 @@ use std::str::FromStr;
 const PROTOCOL: &str = "uniswap_v4";
 const SCOPE_KEY: &str = "core4";
 const MAX_RECOMMENDATIONS_PER_HOP: usize = 5;
+/// The stable wire label for the version 1 directional ranking.
+///
+/// Candidates are ranked by normalized single-tick exact output first,
+/// then by the directional tick ordering, fee and pool id. The label is a
+/// public compatibility contract: pool pairs, recommendations, manager
+/// views and materialized checksums must all report the same value.
+pub const SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID: &str =
+    "direction_single_tick_exact_output_then_tick_fee_pool_id";
+/// The reference trade is this fraction of the pool's own single-tick
+/// capacity.
+///
+/// The reference trade has to stay inside the tick range, otherwise the
+/// quote saturates at the range boundary. The capacity IS the range
+/// boundary, so a fraction of it is the only size guaranteed to be inside
+/// for every pool that takes part in a comparison.
+///
+/// The fraction is a power of ten so the division is exact in integer
+/// arithmetic and the reference size is reproducible.
+const REFERENCE_TRADE_CAPACITY_FRACTION: u128 = 16;
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
@@ -429,6 +448,10 @@ struct DesiredCandidateData {
 struct Recommendation {
     pool_id: String,
     score: f64,
+    /// The tick ordering rank of the pool for the ranked direction.
+    tick_rank: Option<i64>,
+    /// The exact output of the reference single-tick swap, in decimal units.
+    exact_output: Option<f64>,
     fee: i64,
 }
 
@@ -751,7 +774,7 @@ fn read_candidate_input(
         return Err(CandidateEdgeError::MissingCoreLibraryState);
     }
 
-    let (pool_scope_checksum, enabled): (String, bool) = connection
+    let pool_scope = connection
         .query_row(
             "SELECT materialized_checksum, enabled
              FROM pool_scope_config
@@ -759,10 +782,31 @@ fn read_candidate_input(
             params![network, chain_id, SCOPE_KEY],
             |row| Ok((row.get(0)?, row.get::<_, i64>(1)? != 0)),
         )
-        .optional()?
-        .ok_or(CandidateEdgeError::MissingPoolScope)?;
+        .optional()?;
+    let Some((pool_scope_checksum, enabled)): Option<(String, bool)> = pool_scope else {
+        let visible_scope_count: i64 =
+            connection.query_row("SELECT COUNT(*) FROM pool_scope_config", [], |row| {
+                row.get(0)
+            })?;
+        let scoped_row_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pool_scope_config
+             WHERE network = ?1 AND chain_id = ?2 AND scope_key = ?3",
+            params![network, chain_id, SCOPE_KEY],
+            |row| row.get(0),
+        )?;
+        return Err(CandidateEdgeError::InvalidStoredPool(format!(
+            "core4 scope lookup returned no row for network={network} chain_id={chain_id}; visible_scope_count={visible_scope_count}; scoped_row_count={scoped_row_count}"
+        )));
+    };
     if !enabled {
-        return Err(CandidateEdgeError::MissingPoolScope);
+        let database_path: String = connection.query_row(
+            "SELECT file FROM pragma_database_list WHERE name = 'main'",
+            [],
+            |row| row.get(0),
+        )?;
+        return Err(CandidateEdgeError::InvalidStoredPool(format!(
+            "core4 scope is disabled in {database_path}; checksum={pool_scope_checksum}"
+        )));
     }
 
     let mut catalog = BTreeMap::<String, CatalogToken>::new();
@@ -991,7 +1035,9 @@ fn build_candidate_rows(
                 third_primary_pool_id: third_ids.first().cloned(),
                 first_backup_pool_ids: first_ids.iter().skip(1).cloned().collect(),
                 third_backup_pool_ids: third_ids.iter().skip(1).cloned().collect(),
-                selection_basis: "direction_static_snapshot_then_fee_pool_id".to_owned(),
+                selection_basis:
+                    SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID
+                        .to_owned(),
             });
 
             let first_recommended = first_recommendations
@@ -1045,7 +1091,9 @@ fn build_candidate_rows(
                         pool_id: recommendation.pool_id.clone(),
                         depth_score: recommendation.score,
                         fee: recommendation.fee,
-                        selection_basis: "direction_static_snapshot_then_fee_pool_id".to_owned(),
+                        selection_basis:
+                            SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID
+                                .to_owned(),
                     });
                 }
             }
@@ -1098,7 +1146,21 @@ fn build_candidate_rows(
             }
         }
     }
-    desired.anchor_count = input.anchors.len();
+    // The anchor count has to describe the rows that were actually
+    // written, not the number of anchors the catalog could have offered.
+    //
+    // An anchor only becomes a row when it has a pool against a candidate
+    // token. On the mainnet every core anchor has one, so the two counts
+    // coincide. On a chain where only one core asset has a pool -- the
+    // testnet, where USDG, USDE and WETH have no pool at all -- they do
+    // not, and a state that claims the catalog's anchor count no longer
+    // matches the rows a reader can actually see.
+    desired.anchor_count = desired
+        .anchor_tokens
+        .iter()
+        .map(|row| row.anchor_token_key_id.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
     desired.candidate_token_count = candidate_token_ids.len();
     desired.anchor_tokens.sort_by(|left, right| {
         (&left.anchor_token_key_id, &left.token_key_id)
@@ -1162,19 +1224,263 @@ fn recommend_direction(
         .map(|pool| Recommendation {
             pool_id: pool.pool_id.clone(),
             score: directional_score(pool, token_in_key_id, token_out_key_id, catalog),
+            // The direction the pool is priced in, expressed as the tick
+            // ordering: a rising tick means the token1 leg gets cheaper in
+            // token0 terms. See `tick_ordering_rank`.
+            tick_rank: tick_ordering_rank(pool, token_in_key_id),
+            // The exact output the pool would produce for the reference
+            // trade, in decimal-normalised output units. This is the
+            // quantity the arbiter actually executes, so it is the ranking
+            // key that matches the decision.
+            exact_output: exact_directional_output(pool, token_in_key_id, catalog),
             fee: pool.fee,
         })
         .collect::<Vec<_>>();
+    // The price ordering of two pools of the SAME token pair is exactly the
+    // ordering of their ticks: the tick is the log-price of the pool, so it
+    // is a strictly monotone function of the price. Within one tick range
+    // the liquidity is constant, which is the regime the first arbitrage
+    // version prices in, so the tick comparison is an EXACT comparison and
+    // not an approximation.
+    //
+    // The tick alone is not the whole answer, because the fee decides how
+    // much of the input reaches the curve. The old ranking used the
+    // floating-point rate multiplied by the fee complement, which is the
+    // MARGINAL rate and therefore only correct to first order. The ranking
+    // now uses the exact single-tick swap output, which is what the
+    // arbiter actually executes.
+    //
+    // The exact output is compared on decimal-normalised units, so pools
+    // with different token decimals stay comparable.
     recommendations.sort_by(|left, right| {
-        right
-            .score
-            .partial_cmp(&left.score)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| left.fee.cmp(&right.fee))
-            .then_with(|| left.pool_id.cmp(&right.pool_id))
+        // The exact output is the strongest signal: it is the amount the
+        // arbiter would really receive.
+        match (left.exact_output, right.exact_output) {
+            (Some(left_output), Some(right_output)) => right_output
+                .partial_cmp(&left_output)
+                .unwrap_or(Ordering::Equal)
+                // Two pools can share a tick and still differ in price: the
+                // tick is a coarse bucket on the log-price scale, so two
+                // pools whose prices differ by less than one tick unit land
+                // in the same bucket. The tick orders the buckets exactly,
+                // and the exact output breaks the tie inside a bucket.
+                .then_with(|| {
+                    right
+                        .tick_rank
+                        .partial_cmp(&left.tick_rank)
+                        .unwrap_or(Ordering::Equal)
+                })
+                .then_with(|| left.fee.cmp(&right.fee))
+                .then_with(|| left.pool_id.cmp(&right.pool_id)),
+            _ => match (left.tick_rank, right.tick_rank) {
+                (Some(left_rank), Some(right_rank)) => right_rank
+                    .cmp(&left_rank)
+                    .then_with(|| {
+                        right
+                            .score
+                            .partial_cmp(&left.score)
+                            .unwrap_or(Ordering::Equal)
+                    })
+                    .then_with(|| left.fee.cmp(&right.fee))
+                    .then_with(|| left.pool_id.cmp(&right.pool_id)),
+                _ => right
+                    .score
+                    .partial_cmp(&left.score)
+                    .unwrap_or(Ordering::Equal)
+                    .then_with(|| left.fee.cmp(&right.fee))
+                    .then_with(|| left.pool_id.cmp(&right.pool_id)),
+            },
+        }
     });
     recommendations.truncate(MAX_RECOMMENDATIONS_PER_HOP);
     recommendations
+}
+
+/// The tick ordering of a pool for one direction, or `None` when the pool
+/// carries no usable tick.
+///
+/// The tick is the pool's own log-price coordinate. For a token0 -> token1
+/// swap a HIGHER tick means more token1 per token0, so the higher tick is
+/// the better price and the rank is the tick itself. For a token1 -> token0
+/// swap the direction is reversed, so the rank is the negated tick: the
+/// higher the rank, the better the price.
+///
+/// The two directions therefore rank the same pool set in opposite orders,
+/// which is what lets the YC and ZC legs pick different pools.
+fn tick_ordering_rank(pool: &ScopePool, token_in_key_id: &str) -> Option<i64> {
+    let tick = pool.tick?;
+    if tick == 0 && pool.sqrt_price_x96.is_none() {
+        // A zero tick with no price at all carries no information.
+        return None;
+    }
+    if token_in_key_id == pool.token0_key_id {
+        Some(tick)
+    } else if token_in_key_id == pool.token1_key_id {
+        Some(tick.checked_neg()?)
+    } else {
+        None
+    }
+}
+
+/// The exact output of the reference single-tick swap, in decimal-normalised
+/// output units.
+///
+/// The reference trade is one whole unit of the input token, so the output
+/// is directly comparable between pools of the same pair and between
+/// directions: the number is "how many output tokens do I get for one input
+/// token".
+///
+/// The swap is priced with the Uniswap SDK arithmetic inside the current
+/// tick range, which is exactly the regime the first arbitrage version
+/// executes in. A pool that cannot be priced (no price, no liquidity, a
+/// tick range that cannot be located) returns `None` and keeps the
+/// floating-point fallback ranking.
+fn exact_directional_output(
+    pool: &ScopePool,
+    token_in_key_id: &str,
+    catalog: &BTreeMap<String, CatalogToken>,
+) -> Option<f64> {
+    let sqrt_price_x96 = parse_u128(pool.sqrt_price_x96.as_deref()?)?;
+    if sqrt_price_x96 == 0 {
+        return None;
+    }
+    let liquidity = parse_u128(pool.liquidity.as_deref()?)?;
+    if liquidity == 0 {
+        return None;
+    }
+    let tick = pool.tick? as i32;
+    let tick_spacing = pool.tick_spacing as i32;
+    if tick_spacing <= 0 {
+        return None;
+    }
+    let zero_for_one = if token_in_key_id == pool.token0_key_id {
+        true
+    } else if token_in_key_id == pool.token1_key_id {
+        false
+    } else {
+        return None;
+    };
+    let token_in = catalog.get(token_in_key_id)?;
+    let token_out = if zero_for_one {
+        catalog.get(&pool.token1_key_id)?
+    } else {
+        catalog.get(&pool.token0_key_id)?
+    };
+    if pool.fee <= 0 || pool.fee >= 1_000_000 {
+        return None;
+    }
+    // The reference trade has to stay INSIDE the tick range, otherwise the
+    // quote saturates at the range boundary and stops discriminating
+    // between pools. A fixed reference size does not work: most pools in
+    // the library are far too shallow to absorb one whole token inside a
+    // single tick range.
+    //
+    // The reference trade is therefore a small fraction of the pool's OWN
+    // tick-range capacity. That keeps every reference trade inside the
+    // range by construction, and it makes the trade size proportional to
+    // the pool's depth, so a deep pool and a shallow pool are both quoted
+    // at a price they can actually deliver.
+    let reference = reference_trade_raw(
+        sqrt_price_x96,
+        liquidity,
+        pool.fee as u32,
+        tick_spacing,
+        tick,
+        zero_for_one,
+    )?;
+    if reference == 0 {
+        return None;
+    }
+    let quote = pool_manager::depth::single_tick_swap_amount_out(
+        sqrt_price_x96,
+        liquidity,
+        pool.fee as u32,
+        tick_spacing,
+        tick,
+        reference,
+        zero_for_one,
+    )
+    .ok()?;
+    if quote.amount_out_raw == 0 {
+        return None;
+    }
+    // The output is normalised to decimal units, so pools with different
+    // output decimals stay comparable.
+    let output = quote.amount_out_raw as f64 / 10f64.powi(token_out.token_decimals.min(38) as i32);
+    // The rate is the output per unit of input, with the input normalised
+    // the same way. A larger rate means a better pool.
+    let input = reference as f64 / 10f64.powi(token_in.token_decimals.min(38) as i32);
+    if input <= 0.0 || !output.is_finite() {
+        return None;
+    }
+    let rate = output / input;
+    if rate.is_finite() && rate > 0.0 {
+        Some(rate)
+    } else {
+        None
+    }
+}
+
+/// The reference trade size for the ranking: a small fraction of the
+/// pool's own single-tick capacity.
+///
+/// The fraction is deliberately small. The reference trade exists to
+/// compare two pools of the same pair at the SAME size, so it has to be
+/// inside the tick range of every pool that takes part in the comparison.
+/// A fraction of the capacity is the only size that is guaranteed to be,
+/// because the capacity IS the boundary of the range.
+///
+/// The fraction is small enough that the price barely moves, so the quote
+/// stays close to the marginal rate, but it is large enough that the fee
+/// is still visible: the fee is taken off the input before the curve is
+/// walked, so the quote carries the fee's real effect rather than a first
+/// order approximation of it.
+fn reference_trade_raw(
+    sqrt_price_x96: u128,
+    liquidity: u128,
+    fee_pips: u32,
+    tick_spacing: i32,
+    tick: i32,
+    zero_for_one: bool,
+) -> Option<u128> {
+    let quote = pool_manager::depth::single_tick_swap_amount_out(
+        sqrt_price_x96,
+        liquidity,
+        fee_pips,
+        tick_spacing,
+        tick,
+        1,
+        zero_for_one,
+    )
+    .ok()?;
+    // `max_amount_in_raw` is the largest input that still stays inside the
+    // tick range, so it is exactly the capacity of the range.
+    let capacity = quote.max_amount_in_raw;
+    if capacity == 0 {
+        return None;
+    }
+    let reference = capacity / REFERENCE_TRADE_CAPACITY_FRACTION;
+    if reference == 0 {
+        return None;
+    }
+    Some(reference)
+}
+
+/// Parses an unsigned integer that may be stored in decimal or in `0x`
+/// hexadecimal form.
+fn parse_u128(value: &str) -> Option<u128> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(hex) = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+    {
+        u128::from_str_radix(hex, 16).ok()
+    } else {
+        value.parse::<u128>().ok()
+    }
 }
 
 fn directional_score(
@@ -2749,7 +3055,9 @@ fn usize_from_i64(value: i64) -> usize {
 mod tests {
     use super::{
         compare_candidate_edges, materialize_candidate_edges, materialize_candidate_edges_write,
-        read_candidate_snapshot, CandidateEdgeError, CandidateEdgeWriteRequest, ExpectedUpstream,
+        read_candidate_snapshot, CandidateEdgeError, CandidateEdgeSnapshot,
+        CandidateEdgeWriteRequest, ExpectedUpstream,
+        SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
     };
     use rusqlite::{params, Connection};
 
@@ -2871,6 +3179,16 @@ mod tests {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// The square-root price of a pool at the given tick.
+    ///
+    /// The price of a pool at tick T is 1.0001^T, so the square-root price
+    /// is 1.0001^(T/2). The helper keeps the test fixtures consistent: a
+    /// pool at tick T carries the price that tick means.
+    fn sqrt_price_at_tick(tick: i32) -> String {
+        let value = 1.0001f64.powf(f64::from(tick) / 2.0) * 2f64.powi(96);
+        format!("{}", value as u128)
+    }
+
     fn insert_scope_pool(
         connection: &Connection,
         pool_id: &str,
@@ -2880,6 +3198,30 @@ mod tests {
         fee: i64,
         sqrt_price_x96: Option<&str>,
         liquidity_index: Option<f64>,
+    ) {
+        insert_scope_pool_with_tick(
+            connection,
+            pool_id,
+            token0,
+            token1,
+            status,
+            fee,
+            sqrt_price_x96,
+            liquidity_index,
+            0,
+        );
+    }
+
+    fn insert_scope_pool_with_tick(
+        connection: &Connection,
+        pool_id: &str,
+        token0: &str,
+        token1: &str,
+        status: &str,
+        fee: i64,
+        sqrt_price_x96: Option<&str>,
+        liquidity_index: Option<f64>,
+        tick: i64,
     ) {
         connection
             .execute(
@@ -2892,9 +3234,9 @@ mod tests {
                     evidence_source, source_block_number, source_tx_hash,
                     pool_status, materialized_at, updated_at
                  ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, '{}', ?5, ?6, ?7,
-                           ?8, ?9, 0, 0, 10, ?10, ?11, 0, '1000000000000000',
-                           ?12, NULL, 'thin', '2026-11-04T00:00:00Z', 100,
-                           'fixture', 100, NULL, ?13,
+                           ?8, ?9, 0, 0, 10, ?10, ?11, ?12, '1000000000000000',
+                           ?13, NULL, 'thin', '2026-11-04T00:00:00Z', 100,
+                           'fixture', 100, NULL, ?14,
                            '2026-11-04T00:00:00Z',
                            '2026-11-04T00:00:00Z')",
                 params![
@@ -2909,6 +3251,7 @@ mod tests {
                     fee,
                     ZERO_HOOK,
                     sqrt_price_x96,
+                    tick,
                     liquidity_index,
                     status
                 ],
@@ -3270,6 +3613,422 @@ mod tests {
         assert_eq!(yz_rows, 0);
         assert_eq!(loop_rows, 0);
         assert_eq!(legacy_marker, "legacy-only");
+    }
+
+    #[test]
+    fn the_two_directions_rank_the_same_pools_in_opposite_tick_order() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Three pools of the SAME token pair. Within one pair the tick is a
+        // strictly monotone function of the price, so the price ordering and
+        // the tick ordering are the same ordering.
+        //
+        // Each pool carries a price that is CONSISTENT with its tick, the
+        // way a real pool state does: the price of a pool at tick T is
+        // 1.0001^T, so a pool at tick 0 sits at price 1 and a pool at tick
+        // 600 sits at 1.0001^600.
+        for (pool_id, tick, sqrt_price_x96) in [
+            (
+                "pool-usdg-ta-low",
+                -600_i64,
+                "76886731765546488761136709632",
+            ),
+            ("pool-usdg-ta-mid", 0_i64, "79228162514264337593543950336"),
+            (
+                "pool-usdg-ta-high",
+                600_i64,
+                "81640896826355879421667180544",
+            ),
+        ] {
+            insert_scope_pool_with_tick(
+                &connection,
+                pool_id,
+                USDG,
+                TA,
+                "active",
+                500,
+                Some(sqrt_price_x96),
+                Some(0.25),
+                tick,
+            );
+        }
+        drop(connection);
+
+        let result = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(result.recommendation_count, 6);
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+
+        // USDG is the token0 of every pool, so the first hop is token0 ->
+        // token1, where a HIGHER tick is the better price.
+        let first: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "first")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(
+            first,
+            vec!["pool-usdg-ta-high", "pool-usdg-ta-mid", "pool-usdg-ta-low"],
+            "the first hop must rank by descending tick: {first:?}"
+        );
+
+        // The third hop is token1 -> token0, where a LOWER tick is the
+        // better price, so the order is reversed.
+        let third: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "third")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(
+            third,
+            vec!["pool-usdg-ta-low", "pool-usdg-ta-mid", "pool-usdg-ta-high"],
+            "the third hop must rank by ascending tick: {third:?}"
+        );
+    }
+
+    #[test]
+    fn the_tick_ordering_beats_the_float_rate_when_the_rates_are_nearly_equal() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Two pools whose rates differ far below the resolution of the
+        // floating point path. The tick ordering separates them exactly.
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-lower",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            -1,
+        );
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-higher",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            1,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let first: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "first")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(first[0], "pool-usdg-ta-higher", "{first:?}");
+    }
+
+    #[test]
+    fn a_pool_without_a_price_never_outranks_a_pool_with_one() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // The pool WITHOUT a price has a low tick and a low fee, so the
+        // floating-point fallback used to score it at the fee complement
+        // (close to 1.0) and it won the recommendation even though it
+        // carries no price at all.
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-no-price",
+            USDG,
+            TA,
+            "active",
+            500,
+            None,
+            Some(0.25),
+            -600,
+        );
+        // The pool WITH a price has a higher tick and a higher fee, so its
+        // marginal rate is lower than the priceless pool's fallback score.
+        let priced = sqrt_price_at_tick(600);
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-priced",
+            USDG,
+            TA,
+            "active",
+            3_000,
+            Some(&priced),
+            Some(0.25),
+            600,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let first: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "first")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(
+            first[0], "pool-usdg-ta-priced",
+            "a pool without a price must never win the recommendation: {first:?}"
+        );
+    }
+
+    #[test]
+    fn the_exact_output_ranking_beats_the_marginal_rate_ranking() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Two pools of the same pair:
+        //
+        // * the first has the BETTER price but a much higher fee;
+        // * the second has the WORSE price but a much lower fee.
+        //
+        // The marginal rate (price x fee complement) prefers the first pool.
+        // The exact single-tick output for one whole input token prefers the
+        // second pool, because the fee is taken off the input before the
+        // curve is walked, so a high fee costs more than the marginal rate
+        // suggests once the trade is large enough to move the price.
+        //
+        // The arbiter executes the exact output, so the ranking has to
+        // follow the exact output.
+        let low_fee_high_price = sqrt_price_at_tick(0);
+        let high_fee_low_price = sqrt_price_at_tick(-600);
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-cheap-fee",
+            USDG,
+            TA,
+            "active",
+            100,
+            Some(&low_fee_high_price),
+            Some(0.25),
+            0,
+        );
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-dear-fee",
+            USDG,
+            TA,
+            "active",
+            20_000,
+            Some(&high_fee_low_price),
+            Some(0.25),
+            -600,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let first: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "first")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(first.len(), 2, "{first:?}");
+        // The exact output decides, not the marginal rate.
+        assert_eq!(
+            first[0], "pool-usdg-ta-cheap-fee",
+            "the exact single-tick output must decide the ranking: {first:?}"
+        );
+    }
+
+    #[test]
+    fn two_pools_with_the_same_tick_are_ordered_by_their_price() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Two pools whose prices differ by less than one tick unit land in
+        // the SAME tick bucket. The tick orders the buckets; the price
+        // breaks the tie inside a bucket.
+        //
+        // The higher price is the one with the LARGER sqrt price, and for
+        // a token0 -> token1 swap the larger sqrt price is the better rate.
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-same-tick-lower-price",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            42,
+        );
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-same-tick-higher-price",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950337"),
+            Some(0.25),
+            42,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let first: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .filter(|row| row.hop == "first")
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(
+            first[0], "pool-usdg-ta-same-tick-higher-price",
+            "the higher price must win inside one tick bucket: {first:?}"
+        );
+    }
+
+    #[test]
+    fn the_recommendation_basis_records_the_single_tick_exact_output_ordering() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            120,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert!(!snapshot.recommendations.is_empty(), "{snapshot:#?}");
+        for row in &snapshot.recommendations {
+            assert_eq!(
+                row.selection_basis,
+                SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                "{row:?}"
+            );
+        }
+        for row in &snapshot.pool_pairs {
+            assert_eq!(
+                row.selection_basis,
+                SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                "{row:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_selection_basis_is_a_single_label_without_legacy_values() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            120,
+        );
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-second",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950337"),
+            Some(0.25),
+            120,
+        );
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let labels = snapshot
+            .recommendations
+            .iter()
+            .map(|row| row.selection_basis.as_str())
+            .chain(
+                snapshot
+                    .pool_pairs
+                    .iter()
+                    .map(|row| row.selection_basis.as_str()),
+            )
+            .collect::<Vec<_>>();
+        assert!(!labels.is_empty(), "{snapshot:#?}");
+        for label in &labels {
+            assert_eq!(
+                *label, SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                "the pool pairs and the recommendations must report one label: {labels:?}"
+            );
+            assert_ne!(
+                *label, "direction_tick_ordering_then_fee_pool_id",
+                "the legacy label must not be produced any more: {labels:?}"
+            );
+            assert_ne!(
+                *label, "direction_static_snapshot_then_fee_pool_id",
+                "the legacy label must not be produced any more: {labels:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_repeated_materialization_is_deterministic() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950336"),
+            Some(0.25),
+            120,
+        );
+        insert_scope_pool_with_tick(
+            &connection,
+            "pool-usdg-ta-second",
+            USDG,
+            TA,
+            "active",
+            500,
+            Some("79228162514264337593543950337"),
+            Some(0.25),
+            120,
+        );
+        drop(connection);
+
+        let first = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let first_snapshot =
+            read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let second = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let second_snapshot =
+            read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+
+        assert_eq!(
+            first.materialized_checksum, second.materialized_checksum,
+            "the materialized checksum must be reproducible: {first:#?} {second:#?}"
+        );
+        let ranking = |snapshot: &CandidateEdgeSnapshot| {
+            snapshot
+                .recommendations
+                .iter()
+                .map(|row| (row.hop.clone(), row.rank, row.pool_id.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ranking(&first_snapshot),
+            ranking(&second_snapshot),
+            "the ranking must be reproducible"
+        );
     }
 
     #[test]

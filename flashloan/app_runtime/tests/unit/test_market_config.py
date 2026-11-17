@@ -90,13 +90,19 @@ def test_default_market_comes_from_chain_manager(monkeypatch):
 
     market = liquidation_market_config()
 
-    assert market.market_id == CANONICAL_ROBINHOOD_TESTNET_BOT
-    assert market.legacy_market_id == LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID
-    assert market.chain_id == 46630
-    assert market.protocol == "morpho_blue"
+    # The registry names the mainnet chain as the default scope
+    # (``flashloan/chains/registry.json`` -> ``defaults.default_chain_ids``),
+    # so the liquidation default is the mainnet Aave market.
+    assert market.market_id == CANONICAL_ROBINHOOD_BOT
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_BOT_MARKET_ID
+    assert market.chain_id == 4663
+    assert market.protocol == "aave_v3"
     assert market.evm_compatible is True
+    # The mainnet liquidation market is still a shadow market: the liquidation
+    # executor is not live, so the profile stays observation only.
     assert market.protocol_supported is False
     assert market.observation_only is True
+    assert market.market_type == MARKET_TYPE_SHADOW_CHAIN
     assert market.rpc_urls
 
 

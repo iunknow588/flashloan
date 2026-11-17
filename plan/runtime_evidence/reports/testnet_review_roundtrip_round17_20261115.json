@@ -1,0 +1,245 @@
+{
+  "additionalRootCausesFixed": [
+    {
+      "fix": "Rebuilt flashloan/tools/target/debug/manager-api.exe from the current Rust sources before rerunning the rebuild chain",
+      "id": "DEP-TN-5",
+      "title": "Stale manager-api binary embedded the pre-fix candidate_edge_pool_manager, so the anchor count stayed at the catalog size (4) while only one anchor had rows"
+    },
+    {
+      "fix": "Match reviews to loops on the rotation-invariant canonical cycle key; the Manager loop_key is always the ETH-anchored one",
+      "id": "DEP-TN-6",
+      "title": "The legacy review table stores a review under the route order the scanner discovered (a rotation of the same directed cycle) while the Manager library stores every loop ETH-anchored, so the pair-string match failed for the TSLA routes"
+    }
+  ],
+  "authority": {
+    "broadcast": "legacy",
+    "candidate": "manager",
+    "candidateExchange": "manager",
+    "closedLoop": "manager",
+    "composite": "legacy",
+    "review": "manager",
+    "token": "manager"
+  },
+  "dataRepair": {
+    "emptyPoolResidueCount": 0,
+    "emptyPoolsStillPresent": [],
+    "materializedScopes": [
+      "candidate_exchange",
+      "core4"
+    ],
+    "poolsMarked": 4207,
+    "poolsScanned": 12312,
+    "refreshCommand": "refresh_robinhood_v4_live.py --network robinhood-testnet --chain-id 46630 --batch-liquidity --skip-index",
+    "staleRowsAfterMaterialize": 0,
+    "zeroLiquidityPoolsCleaned": 8105
+  },
+  "generatedAt": "2026-11-15T17:40:00+00:00",
+  "limitations": [
+    "All eight reviews are not_executable: the testnet price feed yields no execution-confirmed positive net product delta, so no broadcast request was produced. The chain is structurally complete but no profitable route exists at the sampled prices.",
+    "Four of the eight reviews report their profit in the middle-hop token (PLTR/TSLA) rather than the anchor token; the unit is carried by signed_pnl_currency and is not normalised across routes.",
+    "The runtime scanner additionally discovers routes over factory-deployed tokens whose ERC20 symbol is the 0X-address placeholder. Those are correctly reported as UNRESOLVED and are not part of the Manager closed-loop library.",
+    "The mainnet database (local_store_4663.sqlite3) was not written and no mainnet refresh was executed."
+  ],
+  "ok": true,
+  "reviewCoverage": {
+    "dataIncomplete": 0,
+    "negativePnl": 6,
+    "notExecutable": 8,
+    "positivePnl": 2,
+    "total": 8,
+    "withExplicitPnl": 8
+  },
+  "reviews": [
+    {
+      "path_text": "ETH -> AMD -> AMZN -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": 9.021451416139e-06,
+      "signed_pnl_currency": "ETH",
+      "signed_pnl_raw": "0x8347868324b",
+      "signed_pnl_source": "native_rust_contract_preview"
+    },
+    {
+      "path_text": "ETH -> AMD -> TSLA -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -31.95370921259135,
+      "signed_pnl_currency": "TSLA",
+      "signed_pnl_raw": "-0x1bb72613b18a260f0",
+      "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+    },
+    {
+      "path_text": "ETH -> AMZN -> AMD -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -31.9985121558824,
+      "signed_pnl_currency": "ETH",
+      "signed_pnl_raw": "-0x1bc118d453863a900",
+      "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+    },
+    {
+      "path_text": "ETH -> AMZN -> TSLA -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": 0.009443745501743933,
+      "signed_pnl_currency": "TSLA",
+      "signed_pnl_raw": "0x218d0957fb0b3d",
+      "signed_pnl_source": "native_rust_contract_preview"
+    },
+    {
+      "path_text": "ETH -> NFLX -> PLTR -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -30.46186781155058,
+      "signed_pnl_currency": "PLTR",
+      "signed_pnl_raw": "-0x1a6be4b617660cd20",
+      "signed_pnl_source": "native_rust_contract_preview"
+    },
+    {
+      "path_text": "ETH -> PLTR -> NFLX -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -31.988858449427788,
+      "signed_pnl_currency": "PLTR",
+      "signed_pnl_raw": "-0x1bbef4146886570e0",
+      "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+    },
+    {
+      "path_text": "ETH -> TSLA -> AMD -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -31.981943447861685,
+      "signed_pnl_currency": "TSLA",
+      "signed_pnl_raw": "-0x1bbd6b01e446d6b08",
+      "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+    },
+    {
+      "path_text": "ETH -> TSLA -> AMZN -> ETH",
+      "review_reason": "runArbitrage returned executable=false",
+      "review_status": "not_executable",
+      "signed_pnl_amount": -30.59453889369777,
+      "signed_pnl_currency": "TSLA",
+      "signed_pnl_raw": "-0x1a895a306e9ba6210",
+      "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+    }
+  ],
+  "rootCauseFixed": {
+    "files": [
+      "flashloan/src/dex/intent_trade/chains/robinhood_common/v4_quote_core.py",
+      "flashloan/src/dex/intent_trade/chains/robinhood_testnet/v4_quote_adapter.py",
+      "flashloan/src/dex/intent_trade/chains/robinhood/v4_quote_adapter.py"
+    ],
+    "id": "DEP-TN-4",
+    "layout": {
+      "word0": "slot0 (sqrtPriceX96/tick/fees)",
+      "word1": "feeGrowthGlobal0X128",
+      "word2": "feeGrowthGlobal1X128",
+      "word3": "liquidity"
+    },
+    "liveVerification": {
+      "dbMatchedCorrectWordPlus3": 0,
+      "dbMatchedOldBugWordPlus1": 17,
+      "poolsCompared": 24,
+      "trueZeroLiquidityPools": 4
+    },
+    "sharedConstant": "V4_STATE_LIQUIDITY_WORD_OFFSET = 3",
+    "testsAdded": [
+      "flashloan/app_runtime/tests/unit/test_robinhood_testnet_extsload_liquidity.py::test_testnet_live_state_reads_liquidity_from_pool_state_offset_3",
+      "flashloan/app_runtime/tests/unit/test_robinhood_testnet_extsload_liquidity.py::test_testnet_batch_read_uses_the_same_liquidity_slot_offset",
+      "flashloan/app_runtime/tests/unit/test_robinhood_testnet_extsload_liquidity.py::test_shared_liquidity_word_offset_matches_the_rust_pool_state_layout"
+    ],
+    "title": "Uniswap V4 Pool.State liquidity slot offset was read at word+1 (feeGrowthGlobal0X128) instead of word+3 (liquidity)"
+  },
+  "round": 17,
+  "safety": {
+    "broadcastRequestRows": 0,
+    "broadcastWritesEnabled": false,
+    "chainTransactionsSent": 0,
+    "contractsDeployed": 0,
+    "mainnetDatabaseWritten": false,
+    "note": "Broadcast authority stays legacy; no on-chain transaction was produced or submitted in this round."
+  },
+  "scope": {
+    "chainId": 46630,
+    "network": "robinhood-testnet",
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4"
+  },
+  "tableCounts": {
+    "dex_candidate_pools": 1076,
+    "manager_v4_closed_loop_hops": 24,
+    "manager_v4_closed_loop_optimizations": 30,
+    "manager_v4_closed_loops": 8,
+    "manager_v4_review_broadcast_requests": 0,
+    "manager_v4_review_diagnostics": 8,
+    "manager_v4_reviews": 8,
+    "v4_exchange_pool_liquidity_snapshots": 4207,
+    "v4_exchange_pools": 4207,
+    "v4_exchange_pools_candidate_exchange": 20,
+    "v4_exchange_pools_core4": 14
+  },
+  "verification": {
+    "closedLoopTerminalState": "execution_not_requested",
+    "closedLoopTerminalStateReason": "broadcast authority is legacy; no transaction was requested",
+    "managerApiRebuildChain": [
+      "candidate-edge OK",
+      "candidate-exchange OK",
+      "closed-loops OK"
+    ],
+    "reviewMaterialization": {
+      "broadcastRequestCount": 0,
+      "dataIncompleteCount": 0,
+      "failedCount": 0,
+      "notExecutableCount": 8,
+      "reviewVersion": 3,
+      "reviewedCount": 8
+    }
+  },
+  "versionChain": {
+    "candidateEdge": {
+      "abnormal_pool_count": 0,
+      "anchor_token_count": 1,
+      "candidate_token_count": 5,
+      "candidate_version": 2,
+      "eligible_pool_count": 14,
+      "materialized_checksum": "sha256:e0fdc535dc067b8480818b9d0ec2d7846fc6cee6f8d2f852af8476509b767b78",
+      "recommendation_count": 28
+    },
+    "closedLoop": {
+      "candidate_edge_version": 2,
+      "closed_loop_version": 2,
+      "hop_count": 24,
+      "loop_count": 8,
+      "materialized_checksum": "sha256:d4badfafcb1c04c32c044c099c085f500c6243ddcbd64591a93c7647176bb855",
+      "observation_version": 2,
+      "optimization_count": 30
+    },
+    "consistent": true,
+    "marketObservation": {
+      "abnormal_direction_count": 2,
+      "abnormal_pool_count": 1,
+      "anchor_count": 1,
+      "candidate_edge_version": 2,
+      "direction_count": 20,
+      "empty_direction_count": 12,
+      "materialized_checksum": "sha256:41c8bee0475df4c431caffd448547625bcc85b1503e4e566af8314ff687e0904",
+      "observation_version": 2,
+      "pool_count": 5,
+      "token_count": 5
+    },
+    "review": {
+      "broadcast_request_count": 0,
+      "candidate_edge_version": 2,
+      "closed_loop_version": 2,
+      "completed_count": 0,
+      "data_incomplete_count": 0,
+      "failed_count": 0,
+      "loop_count": 8,
+      "materialized_checksum": "sha256:cd25881a7ca7f6c4523a7bf85e48998aab86fff1bd77d3b4b2f2aa4b285ce979",
+      "not_executable_count": 8,
+      "observation_version": 2,
+      "review_version": 3,
+      "reviewed_count": 8
+    }
+  }
+}

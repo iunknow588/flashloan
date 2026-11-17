@@ -1,0 +1,162 @@
+{
+  "generatedAt": "2026-11-11T17:31:24Z",
+  "batch": "v4 W1-W5",
+  "sourceConsistency": {
+    "script": "scripts/verify_pool_manager_binary_matches_source.py",
+    "exitCode": 0,
+    "valid": true,
+    "sourceDigest": "e3b14452e2a4d1e1535ec130995855bbf5acd6444f08093414d998098186869b",
+    "binarySha256": "f9aba193a9cce7131706cb63e46de06698bc089323ee42268b50ad9ca133b990",
+    "sourceCommandSet": [
+      "add-pair",
+      "audit",
+      "cleanup",
+      "depth",
+      "ensure-depth-schema",
+      "ensure-indexes",
+      "materialize-scope",
+      "rebuild-scope",
+      "refresh-key",
+      "refresh-pair",
+      "scope",
+      "scope-status",
+      "update-pair"
+    ],
+    "binaryCommandSet": [
+      "add-pair",
+      "audit",
+      "cleanup",
+      "depth",
+      "ensure-depth-schema",
+      "ensure-indexes",
+      "materialize-scope",
+      "rebuild-scope",
+      "refresh-key",
+      "refresh-pair",
+      "scope",
+      "scope-status",
+      "update-pair"
+    ],
+    "problems": [],
+    "stampPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\tools\\target\\debug\\pool-manager.source-stamp.json"
+  },
+  "regression": {
+    "pytest_healer": {
+      "command": "pytest scripts/tests/test_mainnet_arbitrage_healer.py -q",
+      "result": "95 passed"
+    },
+    "pytest_binary_checker": {
+      "command": "pytest scripts/tests/test_verify_pool_manager_binary_matches_source.py -q",
+      "result": "11 passed"
+    },
+    "pytest_capacity_pool_index_merged": {
+      "result": "157 passed"
+    },
+    "pytest_merged_11_files": {
+      "result": "379 passed"
+    },
+    "cargo_pool_manager": {
+      "command": "cargo test --manifest-path flashloan/tools/pool_manager/Cargo.toml",
+      "result": "50 passed"
+    },
+    "cargo_closed_loop_manager": {
+      "command": "cargo test --manifest-path flashloan/tools/closed_loop_manager/Cargo.toml",
+      "result": "10 passed"
+    },
+    "cargo_build_release_rs_src": {
+      "command": "cargo build --release --manifest-path flashloan/rs-src/Cargo.toml",
+      "result": "success (1m57s)"
+    },
+    "knownPreExistingFailures": [
+      "test_verify_closed_loop_runtime_identity_isolation.py (5 failures, pre-existing, not fixed)"
+    ]
+  },
+  "productionReadOnly": {
+    "command": "python scripts/mainnet_arbitrage_healer.py --mode check",
+    "timestamp": "2026-11-11T17:22:51Z",
+    "durationSeconds": 31.5,
+    "productionState": "pool_scope_drift",
+    "toolingValid": true,
+    "sourceSyncValid": true,
+    "blockers": [
+      "pools:pool_scope_drift",
+      "reviews:best_amount_missing",
+      "broadcast:layer_invalid"
+    ],
+    "secondaryBlockerCodes": [
+      "pools:pool_depth_snapshot_stale"
+    ],
+    "safeToAutoBroadcast": false,
+    "reportPath": "E:\\2026OPC大赛\\flashLoan\\logs\\plan\\runtime_evidence\\reports\\mainnet_arbitrage_healer_check_20261111T172252Z.json",
+    "noProductionWrite": true
+  },
+  "capacityBandRedefinition": {
+    "basis": "binding_side_capacity = min(cap0/10**dec0, cap1/10**dec1)",
+    "bandsTokenUnits": {
+      "deep": 0.1,
+      "medium": 0.01,
+      "shallow": 0.001,
+      "dust": "<0.001"
+    },
+    "candidatePoolCount": 94,
+    "measuredDistribution": {
+      "deep": 19,
+      "medium": 11,
+      "shallow": 6,
+      "dust": 58,
+      "poolCount": 94
+    },
+    "decimalsCoverage": "186/186 candidate pool tokens (100%)",
+    "zeroCapacitySidePools": 15,
+    "oldBandIssue": "raw-unit thresholds compared 6-decimal USDG with 18-decimal tokens; 93/94 classified deep",
+    "measurementSource": "pool-manager depth --dry-run --depth-scope candidate (94 pools, 13.05s, 0 errors); independently recomputed from capacityBindingRaw",
+    "bindingCapacityPercentiles": {
+      "p0": 0.0,
+      "p10": 0.0,
+      "p30": 1.18017e-06,
+      "p50": 0.000253368,
+      "p70": 0.0171121,
+      "p90": 2.68524,
+      "p100": 99.9186
+    },
+    "poolsWithUnresolvedDecimals": 0,
+    "calibrationRecordedIn": "flashloan/config/depth_policy.json -> _bandCalibration.measuredOnCandidatePools"
+  },
+  "concurrencySemantics": {
+    "rustMaxWorkers": 16,
+    "workerPoolClamp": [
+      1,
+      32
+    ],
+    "healerCandidateLimit": "per-round repair request submission budget; NOT concurrency",
+    "reportFields": [
+      "scanRequestCount",
+      "scanReviewCount",
+      "scanPoolCount",
+      "workerConcurrency",
+      "workerConcurrencyConfigured",
+      "workerConcurrencyLimit",
+      "candidateLimitPerRound"
+    ]
+  },
+  "deploymentDefectFoundAndFixed": {
+    "found": [
+      "binary_is_behind_source",
+      "source_stamp_missing"
+    ],
+    "rootCause": "deployed pool-manager.exe predated the source (usage line omitted update-pair/rebuild-scope/scope aliases)",
+    "fix": [
+      "rebuilt pool-manager",
+      "deployed to flashloan/tools/target/debug/pool-manager.exe",
+      "advertised all aliases in the source usage line",
+      "wrote source stamp"
+    ],
+    "beforeProductionState": "tooling_deployment_gap",
+    "afterProductionState": "pool_scope_drift"
+  },
+  "remainingBatches": {
+    "W6": "production rollout - requires explicit write authorization",
+    "W7": "closed-loop rebuild - requires downtime window",
+    "W8": "manager authority + observation handover - requires downtime window"
+  }
+}

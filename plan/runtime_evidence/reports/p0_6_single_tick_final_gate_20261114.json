@@ -1,0 +1,396 @@
+{
+  "authoritySwitches": 0,
+  "broadcasts": 0,
+  "checksum": "sha256:45d0fefdd61718d8974e7656a73b104732590ce51b9f8339dfa8bdeab818eeee",
+  "failureCodes": [
+    "cross_tick_blocked",
+    "pool_state_version_drift",
+    "single_tick_unprovable"
+  ],
+  "failureSummary": [
+    "The cross-tick samples are blocked at the final review stage: the review status becomes not_executable and no broadcast request is written.",
+    "The middle hop of the closed loop is judged as well, so the Y-Z hop is covered and not only the two ends of the route.",
+    "The pool state version drift and the unprovable tick spacing are blocked as well, because the gate fails closed on a missing measurement.",
+    "The single-tick samples keep their original profit, gas and fee semantics: the review is completed and the broadcast request is written."
+  ],
+  "gate": {
+    "actualInputRule": "hop 1 uses the borrowed principal, hop n+1 uses the output of hop n",
+    "emits": [
+      "initializedTick",
+      "nextTick",
+      "nextTickDistance",
+      "amountInRaw",
+      "amountOutRaw",
+      "maxAmountInRaw",
+      "headroomRaw",
+      "boundConclusion"
+    ],
+    "module": "flashloan/tools/review_manager/src/single_tick.rs",
+    "pricedWith": "pool_manager::depth::single_tick_swap_amount_out",
+    "wiredInto": "flashloan/tools/review_manager/src/lib.rs::build_review_rows"
+  },
+  "inputVersions": {
+    "arbiterVersion": "single_tick",
+    "poolStateVersion": "block:100",
+    "reviewManagerStateVersion": "p0_6",
+    "routes": [
+      "YC",
+      "Y-Z",
+      "ZC",
+      "closed_loop"
+    ],
+    "schema": "p0_6_single_tick_final_gate/1",
+    "tool": "review_manager::single_tick"
+  },
+  "mode": "read_only",
+  "outputVersions": {
+    "broadcastEligible": "single_tick_only",
+    "gate": "per_hop_single_tick_final_review",
+    "schema": "p0_6_single_tick_final_gate/1",
+    "tool": "review_manager::single_tick"
+  },
+  "productionDatabaseWrites": 0,
+  "productionWrite": false,
+  "rollbackPoint": "none-read-only-no-production-write",
+  "rowCount": 11,
+  "rows": [
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        "993989209585376"
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "inside_tick_range"
+      ],
+      "executable": true,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        60
+      ],
+      "reason": null,
+      "sample": "yc_single_tick"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        "993989209585376"
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "inside_tick_range"
+      ],
+      "executable": true,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        60
+      ],
+      "reason": null,
+      "sample": "yz_single_tick"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        "993989209585376"
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "inside_tick_range"
+      ],
+      "executable": true,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        60
+      ],
+      "reason": null,
+      "sample": "zc_single_tick"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101,
+        993989209585376
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        "993989209585376",
+        "990997421100408"
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "inside_tick_range",
+        "inside_tick_range"
+      ],
+      "executable": true,
+      "hop_count": 3,
+      "initialized_ticks": [
+        0,
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        60,
+        60
+      ],
+      "reason": null,
+      "sample": "closed_loop_single_tick"
+    },
+    {
+      "actual_inputs": [
+        10000000000000000000,
+        0
+      ],
+      "actual_outputs": [
+        null,
+        null
+      ],
+      "conclusions": [
+        "crosses_next_tick",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        0
+      ],
+      "reason": "hop_1_failed:hop_crosses_next_tick",
+      "sample": "yc_cross_tick"
+    },
+    {
+      "actual_inputs": [
+        10000000000000000000,
+        0
+      ],
+      "actual_outputs": [
+        null,
+        null
+      ],
+      "conclusions": [
+        "crosses_next_tick",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        0
+      ],
+      "reason": "hop_1_failed:hop_crosses_next_tick",
+      "sample": "yz_cross_tick"
+    },
+    {
+      "actual_inputs": [
+        10000000000000000000,
+        0
+      ],
+      "actual_outputs": [
+        null,
+        null
+      ],
+      "conclusions": [
+        "crosses_next_tick",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 2,
+      "initialized_ticks": [
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        0
+      ],
+      "reason": "hop_1_failed:hop_crosses_next_tick",
+      "sample": "zc_cross_tick"
+    },
+    {
+      "actual_inputs": [
+        10000000000000000000,
+        0,
+        0
+      ],
+      "actual_outputs": [
+        null,
+        null,
+        null
+      ],
+      "conclusions": [
+        "crosses_next_tick",
+        "unprovable",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 3,
+      "initialized_ticks": [
+        0,
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        0,
+        0
+      ],
+      "reason": "hop_1_failed:hop_crosses_next_tick",
+      "sample": "closed_loop_cross_tick"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101,
+        0
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        null,
+        null
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "crosses_next_tick",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 3,
+      "initialized_ticks": [
+        0,
+        30,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        90,
+        0
+      ],
+      "reason": "hop_2_failed:hop_crosses_next_tick",
+      "sample": "closed_loop_middle_hop_cross"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101,
+        993989209585376
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        "993989209585376",
+        "990997421100408"
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "inside_tick_range",
+        "inside_tick_range"
+      ],
+      "executable": false,
+      "hop_count": 3,
+      "initialized_ticks": [
+        0,
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        60,
+        60
+      ],
+      "reason": "pool_state_version_drift",
+      "sample": "closed_loop_state_drift"
+    },
+    {
+      "actual_inputs": [
+        1000000000000000,
+        996990060009101,
+        0
+      ],
+      "actual_outputs": [
+        "996990060009101",
+        null,
+        null
+      ],
+      "conclusions": [
+        "inside_tick_range",
+        "unprovable",
+        "unprovable"
+      ],
+      "executable": false,
+      "hop_count": 3,
+      "initialized_ticks": [
+        0,
+        0,
+        0
+      ],
+      "next_tick_distances": [
+        60,
+        0,
+        0
+      ],
+      "reason": "hop_2_failed:tick_spacing_unknown",
+      "sample": "closed_loop_unprovable"
+    }
+  ],
+  "rpcRequestCount": 0,
+  "samples": {
+    "blockedCount": 7,
+    "crossTickBlocked": [
+      "yc_cross_tick",
+      "yz_cross_tick",
+      "zc_cross_tick",
+      "closed_loop_cross_tick"
+    ],
+    "passedCount": 4,
+    "singleTickPassed": [
+      "yc_single_tick",
+      "yz_single_tick",
+      "zc_single_tick",
+      "closed_loop_single_tick"
+    ]
+  },
+  "status": "passed",
+  "testCommands": [
+    "cargo test --locked -p review-manager single_tick",
+    "cargo test --locked -p review-manager",
+    "cargo test --locked -p pool-manager -p review-manager -p candidate-edge-pool-manager -p manager-api",
+    "cargo test --locked --workspace",
+    "cargo test --locked --manifest-path flashloan/rs-src/Cargo.toml runtime_core",
+    "cargo build --release --locked",
+    "python -m pytest app_runtime/tests/unit/test_v4_shadow_comparison.py app_runtime/tests/unit/test_arch2b_offchain_parity_replay.py app_runtime/tests/unit/test_pool_roles.py app_runtime/tests/unit/test_v4_offchain_parity_bridge.py app_runtime/tests/unit/test_token_authority.py -q"
+  ]
+}

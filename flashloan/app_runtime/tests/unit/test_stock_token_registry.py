@@ -210,6 +210,31 @@ def test_v4_index_token_rows_use_official_stock_symbols():
     assert by_address[aapl]["token_decimals"] == 18
 
 
+def test_v4_index_token_rows_use_explicit_unresolved_instead_of_fake_placeholders():
+    unknown = "0x" + "7" * 40
+    index = {
+        "pools": [
+            {
+                "poolId": "0x" + "bb" * 32,
+                "token0": unknown,
+                "token1": unknown,
+                "token0Symbol": "0X77777777",
+                "token0Decimals": None,
+            }
+        ]
+    }
+    rows = _token_rows_from_v4_index(
+        index,
+        anchor_symbols=("ETH", "WETH", "USDG", "USDE", "TZ"),
+        stable_symbols={"USDG", "USDE", "TZ"},
+        apply_stock_metadata=False,
+    )
+    assert len(rows) == 1
+    assert rows[0]["token_address"] == unknown
+    assert rows[0]["token_symbol"] == f"UNRESOLVED:{unknown[:10]}"
+    assert rows[0]["token_decimals"] is None
+
+
 def test_seed_chain_token_symbols_migrates_stock_rows(tmp_path):
     database = str(tmp_path / "stock_seed.sqlite3")
     ensure_database_schema(database)

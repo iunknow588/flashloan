@@ -26,23 +26,32 @@ def _chain_row() -> dict[str, Any]:
     return row if isinstance(row, dict) else {}
 
 
-def _chain_rpc_urls() -> tuple[str, ...]:
+def _chain_rpc_urls(*extra_keys: str) -> tuple[str, ...]:
     row = _chain_row()
     rpc = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+    values: list[str] = []
     if rpc:
-        primary = str(rpc.get("primary") or "").strip()
-        fallbacks = rpc.get("fallbacks") or []
-        values = [primary, *(str(url).strip() for url in fallbacks if str(url).strip())]
+        for key in ("primary", "alchemy", *extra_keys):
+            value = str(rpc.get(key) or "").strip()
+            if value and value not in values:
+                values.append(value)
+        for key in ("overrides", "fallbacks"):
+            raw = rpc.get(key)
+            items = raw if isinstance(raw, list) else ([raw] if raw else [])
+            for item in items:
+                value = str(item).strip()
+                if value and value not in values:
+                    values.append(value)
     else:
-        values = row.get("rpc_urls") or row.get("officialRpcUrls") or [
+        values = list(row.get("rpc_urls") or row.get("officialRpcUrls") or [
             row.get("rpc_url"),
             row.get("officialRpc"),
-        ]
+        ])
     return tuple(dict.fromkeys(str(url).strip() for url in values if str(url).strip()))
 
 
 DEFAULT_RPC_URLS = _chain_rpc_urls()
-DEFAULT_LOG_RPC_URLS = _chain_rpc_urls()
+DEFAULT_LOG_RPC_URLS = _chain_rpc_urls("log_fallbacks")
 DEFAULT_WSS_RPC_URLS: tuple[str, ...] = ()
 
 

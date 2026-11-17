@@ -1,0 +1,117 @@
+{
+  "reportId": "probe_ladder_sizing_rootcause_20261112",
+  "generatedAt": "2026-11-11T19:48:38Z",
+  "title": "Probe-ladder sizing root cause: fixed 1-token start plus downward-only search cannot reach profitable sizes",
+  "defectId": "D4",
+  "severity": "critical",
+  "status": "open",
+  "summary": "The recommended 'move computation off-chain and go low-latency' direction addresses a latency problem that the system does not currently have. The measured blocker is a sizing-domain defect: the review ladder always starts at exactly 1.0 borrow token and, when that probe is not profitable, searches only DOWNWARD. Measured binding-side capacity of the 94 candidate pools has a median of 0.000253 token, so the ladder start exceeds median pool capacity by roughly 4000x and no ladder can ever reach a profitable size.",
+  "evidence": {
+    "probeLadderDirection": {
+      "rustSource": "flashloan/rs-src/src/execution.rs:2072 official_v4_adaptive_best_amount_single_route_inner",
+      "initialProbe": "official_v4_probe_one(config, ..., &initial_amount_raw, ...)",
+      "onInitialFailureBranch": "upper_amount = initial_amount_raw; candidate = bounded_half(initial_amount_raw, min_probe_raw); loop only halves the candidate. There is NO upward branch in the failure path.",
+      "onInitialSuccessBranch": "doubles upward to max_probe_raw, then binary-refines (this branch works)",
+      "conclusion": "a profitable size larger than the initial probe is unreachable whenever the initial probe itself reverts"
+    },
+    "initialAmountDerivation": {
+      "pythonSource": "flashloan/src/dex/runtime/rust_closed_loop.py:3377",
+      "code": "initial_amount_raw = max(1, int(Decimal(10) ** int(borrow_decimals)))  # exactly 1.0 token",
+      "minProbeAmountRaw": "0.001 token (rust_closed_loop.py:3378)",
+      "maxProbeAmountRaw": "cap_raw from _liquidity_cap_raw, only an UPPER bound, never the start (rust_closed_loop.py:3387)",
+      "conclusion": "the ladder start is a hardcoded constant, completely independent of measured pool capacity"
+    },
+    "productionReviewSample": {
+      "window": "last 6 hours, network=robinhood",
+      "rows": 345,
+      "probeRecordsLengthHistogram": {
+        "0": 276,
+        "1": 10,
+        "11": 59
+      },
+      "firstProbeAmountHistogram": {
+        "0xde0b6b3a7640000 (=1.0 token)": 56,
+        "0xf4240 (=100000 raw)": 13
+      },
+      "firstProbeOutcomeHistogram": {
+        "NoProfitableRoute": 59,
+        "live_verified": 10
+      },
+      "interpretation": "the 59 ladders that actually ran all started at 1.0 token and all failed with NoProfitableRoute; the 276 zero-length probeRecords are reviews that never reached the ladder at all"
+    },
+    "capacityDistribution": {
+      "source": "rehearsal copy DB %TEMP%\\w6_rehearsal3.sqlite3, 94 candidate pools with measured capacity",
+      "unit": "binding-side, decimals-normalised human token units",
+      "percentiles": {
+        "p10": 0.0,
+        "p25": 1.09e-07,
+        "p50": 0.000253,
+        "p75": 0.0496,
+        "p90": 2.69,
+        "max": 99.9
+      },
+      "bands": {
+        "deep": 19,
+        "medium": 11,
+        "shallow": 6,
+        "dust": 58
+      },
+      "probeWindowAnalysis": {
+        "window": "[0.001, 1.0] token (current ladder domain)",
+        "belowFloor": 58,
+        "insideWindow": 25,
+        "aboveStart": 11,
+        "conclusion": "58 of 94 pools are BELOW the ladder floor; only 11 can absorb more than the 1-token start"
+      },
+      "capacityInformedStartAnalysis": {
+        "start=cap*1.0": 36,
+        "start=cap*0.5": 34,
+        "start=cap*0.25": 33,
+        "start=cap*0.1": 30,
+        "conclusion": "a capacity-informed start would make 30-36 pools probeable instead of 25, and would let the ladder climb upward from a reachable point"
+      }
+    },
+    "premisesChecked": {
+      "noHook": "CONFIRMED - 47/47 candidate pools, 114/114 manager pools, 264/264 closed-loop hops carry zero hooks",
+      "pureIntegerMath": "ALREADY TRUE - v4_pool_capacity.py uses integer division only; Rust f64 appears solely in business_builder.rs ranking and a RPC throttle interval, never in profit math",
+      "tickCacheWouldHelp": "NO - capacity derives from (sqrtPriceX96, liquidity, fee) only; no tickLiquidityNet or tickBitmap exists anywhere in the codebase",
+      "offChain3HopMath": "PARTIAL - v4_pool_capacity.py already implements full tick-math capacity, swap_amount_out and price_impact_bps; dex_quote_evidence_pool.py has _spot_amount_out_raw and _annotate_hop_price_impact, but no full 3-hop off-chain route simulator exists",
+      "onChainRecompute": "CONFIRMED - preview_arbitrage_best_amount_inner eth_calls OfficialV4FlashArb.previewArbitrageBestAmount, whose internal MAX_AMOUNT_SEARCH_STEPS=24 loops call _probeAmount -> real runArbitrage swaps",
+      "productionBroadcastVolume": "ZERO - cow_execution_attempts has 0 rows and manager_v4_review_broadcast_requests has 0 rows, so gas figures and MEV exposure cannot be validated from production data"
+    }
+  },
+  "conclusion": {
+    "adjustmentNeeded": true,
+    "butNotWhereAssumed": "the dominant defect is the ladder's starting amount and search direction, not on-chain recompute latency or off-chain quoting. Advice item 7 (drop the off-chain Quoter and blind-send) is unsafe to apply before the sizing fix, because the fallback cap of 64 tokens would then be used as the execution size on a pool whose median capacity is 0.000253 token.",
+    "primaryFix": {
+      "name": "capacity-informed, bidirectional probe ladder",
+      "changes": [
+        "derive initial_amount_raw from the measured binding-side capacity of the path's tightest hop instead of the hardcoded 1.0 token",
+        "clamp the start into [min_probe_amount_raw, max_probe_amount_raw] and into the capacity of every hop on the path",
+        "make the failure branch search UPWARD as well, mirroring the success branch, so a revert at the start does not terminate the search",
+        "keep the existing fail-closed 'best_amount_ladder_incomplete' gate unchanged; the ladder must become complete by data repair, never by relaxing the gate"
+      ]
+    },
+    "rejectedAdvice": [
+      "item 1 tick cache - unnecessary, capacity does not depend on tick data",
+      "item 7 blind-send without off-chain equivalence - unsafe before the sizing fix and before off-chain 3-hop parity",
+      "item 9 hardcoded gasLimit 500000 - no production gasUsed data exists; 3-hop flash loan gas is unmeasured",
+      "item 6 tighten slippage now - the bottleneck is zero executable trades, not slippage; the 'no MEV on Robinhood' premise is unverified"
+    ]
+  },
+  "recommendedOrder": [
+    "P0  W6 production depth rollout - unlocks every measurement",
+    "P0' D4 capacity-informed bidirectional ladder - restores any chance of a profitable best amount",
+    "P1  version-triggered re-evaluation instead of dead-wait",
+    "P2  off-chain 3-hop simulator + parity regression vs on-chain preview (only then does blind-send become viable)",
+    "P3  WSS incremental state feed and on-chain fallback amount array",
+    "P4  slippage policy unification, after the MEV model is verified",
+    "P5  deployment and network latency work (direct sequencer, gas policy), after real broadcast gas data exists"
+  ],
+  "constraintsRespected": [
+    "no production write was performed by this analysis",
+    "production DB was opened read-only via file:...?mode=ro",
+    "capacity measurements come from the rehearsal copy, not from production",
+    "daemon and run.py (PID 30304) were not stopped or restarted"
+  ]
+}

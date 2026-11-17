@@ -9,6 +9,7 @@ for _MOVED in (
     _SRC_ROOT / "bot" / "runtime",
     _SRC_ROOT / "dex" / "runtime",
     _SRC_ROOT / "market" / "runtime",
+    _SRC_ROOT / "core",
 ):
     if _MOVED.is_dir() and str(_MOVED) not in __path__:
         __path__.append(str(_MOVED))

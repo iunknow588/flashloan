@@ -12,6 +12,11 @@ path = "src/lib.rs"
 chrono.workspace = true
 hex.workspace = true
 manager-contracts = { path = "../manager_contracts" }
+# The pool manager owns the on-chain pricing arithmetic (the Uniswap SDK's
+# `compute_swap_step`). The candidate edge pool manager ranks the candidate
+# pools by the exact single-tick output that pool would produce, so it needs
+# the same arithmetic and must not carry a second copy of it.
+pool-manager = { path = "../pool_manager" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -38,8 +38,26 @@ from dex.runtime.closed_loop_identity import (  # noqa: E402
     directed_symbol_key_from_symbols,
     normalize_physical_loop_key,
     physical_loop_key_from_addresses,
-    worker_group_key_from_symbols,
 )
+
+
+def _unordered_yz_group_key(symbols: Any) -> str | None:
+    """Return the direction independent ``anchor|Y|Z`` group key.
+
+    The ``yzGroup*`` coverage counters describe the *worker group*, not the
+    durable state machine.  One group covers both directions of the same
+    triangle, because a single resident worker serves ``A -> B -> C`` and
+    ``A -> C -> B``.  The durable identity keeps the direction, so the
+    counters have to use the unordered form to compare a group against the
+    runtime rows that serve it.
+    """
+
+    parts = [str(part or "").strip().lower() for part in symbols or [] if str(part or "").strip()]
+    if len(parts) == 4 and parts[0] == parts[-1]:
+        parts = parts[:3]
+    if len(parts) != 3 or len(set(parts)) != 3:
+        return None
+    return "|".join((parts[0], *sorted(parts[1:3])))
 
 
 SCHEMA = "closed-loop-runtime-identity-migration-v1"
@@ -344,8 +362,22 @@ def _coverage_from_rows(
         for record in runtime_records
         if record.get("auditPhysicalKey")
     }
-    closed_groups = {record["groupKey"] for record in closed_records}
-    runtime_groups = {record["groupKey"] for record in runtime_records}
+    closed_groups = {
+        key
+        for key in (
+            _unordered_yz_group_key(record.get("symbols"))
+            for record in closed_records
+        )
+        if key
+    }
+    runtime_groups = {
+        key
+        for key in (
+            _unordered_yz_group_key(record.get("symbols"))
+            for record in runtime_records
+        )
+        if key
+    }
     return {
         "directedClosed": len(closed_directed),
         "directedRuntime": len(runtime_directed),
@@ -490,7 +522,7 @@ def _closed_record(
     if symbol_error:
         findings.append(f"symbol_path_{symbol_error}")
     directed_key = directed_symbol_key_from_symbols(symbols)
-    group_key = worker_group_key_from_symbols(symbols)
+    group_key = _unordered_yz_group_key(symbols)
     if directed_key is None:
         findings.append("unresolved_directed_symbol")
     if group_key is None:
@@ -519,7 +551,7 @@ def _runtime_record(row: dict[str, Any]) -> tuple[dict[str, Any] | None, list[st
         findings.append("runtime_already_uses_physical_key")
     symbols = [part.strip() for part in raw_key.split("|") if part.strip()]
     directed_key = directed_symbol_key_from_symbols(symbols)
-    group_key = worker_group_key_from_symbols(symbols)
+    group_key = _unordered_yz_group_key(symbols)
     if directed_key is None:
         findings.append("unresolved_runtime_directed_symbol")
     if group_key is None:
@@ -657,9 +689,10 @@ def _build_plan(
                     ),
                     "physicalKey": normalize_physical_loop_key(row.get("loop_key")),
                     "auditPhysicalKey": _audit_compact_key(row.get("loop_key")),
-                    "groupKey": worker_group_key_from_symbols(
+                    "groupKey": _unordered_yz_group_key(
                         _decode_path(row.get("path_symbols_json"))[0]
                     ),
+                    "symbols": _decode_path(row.get("path_symbols_json"))[0],
                 }
                 for row in closed_scope
             ],
@@ -670,9 +703,10 @@ def _build_plan(
                     ),
                     "physicalKey": normalize_physical_loop_key(row.get("loop_key")),
                     "auditPhysicalKey": _audit_compact_key(row.get("loop_key")),
-                    "groupKey": worker_group_key_from_symbols(
+                    "groupKey": _unordered_yz_group_key(
                         str(row.get("loop_key") or "").split("|")
                     ),
+                    "symbols": str(row.get("loop_key") or "").split("|"),
                 }
                 for row in runtime_scope
             ],

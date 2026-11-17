@@ -1,11 +1,173 @@
 {
   "actualProfitBasis": "swaps_before_gas",
-  "authoritativeCandidatePoolCount": 612,
+  "authoritativeCandidatePoolCount": 183,
   "candidatePoolSource": "dex_candidate_pools",
   "chainId": 4663,
-  "chainTokenDecimalsCount": 4485,
-  "conclusion": "37 unique success receipts decodable, 0 missing receipt/swap evidence; 37 positive before gas, 0 negative before gas; 13 show expected-vs-actual net profit difference.",
+  "chainTokenDecimalsCount": 4618,
+  "conclusion": "41 unique success receipts decodable, 27 missing receipt/swap evidence; 41 positive before gas, 0 negative before gas; 19 show expected-vs-actual net profit difference.",
   "items": [
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "6.1640762367E-8",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.00000611637512",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "inputHuman": "0.000090836172697653",
+          "inputRaw": "90836172697653",
+          "inputSymbol": "AAPL",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.00004242815745771",
+          "outputRaw": "42428157457710",
+          "outputSymbol": "SPY",
+          "poolId": "0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.00004242815745771",
+          "inputRaw": "42428157457710",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000015318508324543",
+          "outputRaw": "15318508324543",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> AAPL -> SPY -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69c14c9",
+        "blockNumberInt": 110892233,
+        "effectiveGasPrice": "0x13812a0",
+        "effectiveGasPriceInt": 20452000,
+        "gasUsed": "0x49034",
+        "gasUsedInt": 299060,
+        "status": 1,
+        "txHash": "0x71937d71bfb5636a87cf0ee220c17c01b2d59da8e035d088402c8f8534fdcb5a"
+      },
+      "routeSymbols": [
+        "ETH",
+        "AAPL",
+        "SPY",
+        "ETH"
+      ],
+      "txHash": "0x71937d71bfb5636a87cf0ee220c17c01b2d59da8e035d088402c8f8534fdcb5a",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-15258789062500",
+          "amount1": "90836172697653",
+          "decodable": false,
+          "poolId": "0x7458bf9fb741da112910cd1ff786d5ee95bcb729fc3dcda258e8bc0956f3d5ef",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "2.8154556622E-8",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.000006067635726",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "0.00006360639925839",
+          "inputRaw": "63606399258390",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000042315357485545",
+          "outputRaw": "42315357485545",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.000042315357485545",
+          "inputRaw": "42315357485545",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000015286943619122",
+          "outputRaw": "15286943619122",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> AMD -> SPY -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69c0e13",
+        "blockNumberInt": 110890515,
+        "effectiveGasPrice": "0x1326d50",
+        "effectiveGasPriceInt": 20082000,
+        "gasUsed": "0x49c3f",
+        "gasUsedInt": 302143,
+        "status": 1,
+        "txHash": "0x2de21ac4fac07b285dd38895b3cb650b3057649cdd9cacc5330f7419e21e4db3"
+      },
+      "routeSymbols": [
+        "ETH",
+        "AMD",
+        "SPY",
+        "ETH"
+      ],
+      "txHash": "0x2de21ac4fac07b285dd38895b3cb650b3057649cdd9cacc5330f7419e21e4db3",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-15258789062500",
+          "amount1": "63606399258390",
+          "decodable": false,
+          "poolId": "0x1a6d5579d20159a8e16b9ef7d41d7aedffb4198283f091427ec8f4cda8b30e9e",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
     {
       "actualNetProfit": "2.634359918E-8",
       "actualNetProfitAfterGas": "-0.00000604425018082",
@@ -1775,6 +1937,573 @@
       "unmatchedSwaps": []
     },
     {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "3.826480275E-9",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.000005267250858",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "inputHuman": "0.002003693368262109",
+          "inputRaw": "2003693368262109",
+          "inputSymbol": "0x5d3a1Ff2",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.002002",
+          "outputRaw": "2002",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.002002",
+          "inputRaw": "2002",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "9.57500796681E-7",
+          "outputRaw": "957500796681",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDE -> USDG -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69be2ae",
+        "blockNumberInt": 110879406,
+        "effectiveGasPrice": "0x1320f90",
+        "effectiveGasPriceInt": 20058000,
+        "gasUsed": "0x401c9",
+        "gasUsedInt": 262601,
+        "status": 1,
+        "txHash": "0x634849c49594d4e5e28e57b968e6231275fd5d9bdf8117dc1dd85438fcb65bb1"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDE",
+        "USDG",
+        "ETH"
+      ],
+      "txHash": "0x634849c49594d4e5e28e57b968e6231275fd5d9bdf8117dc1dd85438fcb65bb1",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-953674316406",
+          "amount1": "2003693368262109",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "5.013509965E-8",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.000005542666536",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "inputHuman": "0.008086927897370374",
+          "inputRaw": "8086927897370374",
+          "inputSymbol": "0x5d3a1Ff2",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.008081",
+          "outputRaw": "8081",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.008081",
+          "inputRaw": "8081",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000003864832365275",
+          "outputRaw": "3864832365275",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDE -> USDG -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69bada6",
+        "blockNumberInt": 110865830,
+        "effectiveGasPrice": "0x1337ec0",
+        "effectiveGasPriceInt": 20152000,
+        "gasUsed": "0x43263",
+        "gasUsedInt": 275043,
+        "status": 1,
+        "txHash": "0xf68a1b2645c5e7271daf5dbc93495f3e7984ff717e3c949487db0bc43342365e"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDE",
+        "USDG",
+        "ETH"
+      ],
+      "txHash": "0xf68a1b2645c5e7271daf5dbc93495f3e7984ff717e3c949487db0bc43342365e",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3814697265625",
+          "amount1": "8086927897370374",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "4.709150944E-9",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.00000550168",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "inputHuman": "0.00799231427712654",
+          "inputRaw": "7992314277126540",
+          "inputSymbol": "0x5d3a1Ff2",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.007986",
+          "outputRaw": "7986",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.007986",
+          "inputRaw": "7986",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000003819406416569",
+          "outputRaw": "3819406416569",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDE -> USDG -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69bab0d",
+        "blockNumberInt": 110865165,
+        "effectiveGasPrice": "0x1312d00",
+        "effectiveGasPriceInt": 20000000,
+        "gasUsed": "0x4328c",
+        "gasUsedInt": 275084,
+        "status": 1,
+        "txHash": "0xba97dc2850bc0b3b8aa38a44589162b577635f6d89bb09b1e78ec9b68f042698"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDE",
+        "USDG",
+        "ETH"
+      ],
+      "txHash": "0xba97dc2850bc0b3b8aa38a44589162b577635f6d89bb09b1e78ec9b68f042698",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3814697265625",
+          "amount1": "7992314277126540",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "2.4756415E-10",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.0000052989408",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "2.38418579101E-7",
+          "inputRaw": "238418579101",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.000495",
+          "outputRaw": "495",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.000495",
+          "inputRaw": "495",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputHuman": "0.00049429118175013",
+          "outputRaw": "494291181750130",
+          "outputSymbol": "0x5d3a1Ff2",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDG -> USDE -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d07fe",
+        "blockNumberInt": 110954494,
+        "effectiveGasPrice": "0x1399170",
+        "effectiveGasPriceInt": 20550000,
+        "gasUsed": "0x3ef40",
+        "gasUsedInt": 257856,
+        "status": 1,
+        "txHash": "0xbc3fb43893110f2b552e799eb4b3e6656f98e77a724f0e064f18a16e87a526c7"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDG",
+        "USDE",
+        "ETH"
+      ],
+      "txHash": "0xbc3fb43893110f2b552e799eb4b3e6656f98e77a724f0e064f18a16e87a526c7",
+      "unmatchedSwaps": [
+        {
+          "amount0": "238666143251",
+          "amount1": "-494291181750130",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "5.615804424E-9",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.000005327809008",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000001907348632812",
+          "inputRaw": "1907348632812",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.003954",
+          "outputRaw": "3954",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.003954",
+          "inputRaw": "3954",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputHuman": "0.003955330043456911",
+          "outputRaw": "3955330043456911",
+          "outputSymbol": "0x5d3a1Ff2",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDG -> USDE -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d0580",
+        "blockNumberInt": 110953856,
+        "effectiveGasPrice": "0x133fbc0",
+        "effectiveGasPriceInt": 20184000,
+        "gasUsed": "0x4071a",
+        "gasUsedInt": 263962,
+        "status": 1,
+        "txHash": "0x2f4cc834ff04fdf9cd886d2f25bc0209d9a44da885af449cdd4ad62b86fbb0a9"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDG",
+        "USDE",
+        "ETH"
+      ],
+      "txHash": "0x2f4cc834ff04fdf9cd886d2f25bc0209d9a44da885af449cdd4ad62b86fbb0a9",
+      "unmatchedSwaps": [
+        {
+          "amount0": "1914392074092",
+          "amount1": "-3955330043456911",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "8.755868972E-9",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.000005400790864",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000001907348632812",
+          "inputRaw": "1907348632812",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.003989",
+          "outputRaw": "3989",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.003989",
+          "inputRaw": "3989",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputHuman": "0.003990259847525228",
+          "outputRaw": "3990259847525228",
+          "outputSymbol": "0x5d3a1Ff2",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> USDG -> USDE -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69bd9c2",
+        "blockNumberInt": 110877122,
+        "effectiveGasPrice": "0x131e880",
+        "effectiveGasPriceInt": 20048000,
+        "gasUsed": "0x41c51",
+        "gasUsedInt": 269393,
+        "status": 1,
+        "txHash": "0x992d0a1e457a6202bcacb7a908384c29ed5c2d667d0930c2f73948fa7ab9ab61"
+      },
+      "routeSymbols": [
+        "ETH",
+        "USDG",
+        "USDE",
+        "ETH"
+      ],
+      "txHash": "0x992d0a1e457a6202bcacb7a908384c29ed5c2d667d0930c2f73948fa7ab9ab61",
+      "unmatchedSwaps": [
+        {
+          "amount0": "1915632541090",
+          "amount1": "-3990259847525228",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "ETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "8.877469147E-9",
+      "expectedProfitSymbol": "ETH",
+      "gasCostNative": "0.00000545121324",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000030517578125",
+          "inputRaw": "30517578125000",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.00003049097806465",
+          "outputRaw": "30490978064650",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        },
+        {
+          "decodable": false,
+          "hop": 2,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.064571",
+          "inputRaw": "64571",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000030526455594147",
+          "outputRaw": "30526455594147",
+          "outputSymbol": "ETH",
+          "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "ETH -> WETH -> USDG -> ETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x698f59f",
+        "blockNumberInt": 110687647,
+        "effectiveGasPrice": "0x1334fe0",
+        "effectiveGasPriceInt": 20140000,
+        "gasUsed": "0x4214a",
+        "gasUsedInt": 270666,
+        "status": 1,
+        "txHash": "0xa6a25f3d216ef517d323b017eeac4274fb891c1f8ea06af2a1ec6ef90eeecbb2"
+      },
+      "routeSymbols": [
+        "ETH",
+        "WETH",
+        "USDG",
+        "ETH"
+      ],
+      "txHash": "0xa6a25f3d216ef517d323b017eeac4274fb891c1f8ea06af2a1ec6ef90eeecbb2",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-30490978064650",
+          "amount1": "64571",
+          "decodable": false,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
       "actualNetProfit": "3.34432895E-9",
       "actualNetProfitAfterGas": null,
       "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
@@ -2159,6 +2888,160 @@
       "unmatchedSwaps": []
     },
     {
+      "actualNetProfit": "1.737622559E-9",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "1737622559",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "1.737622559E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.00000692393052",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.0000152587890625",
+          "inputRaw": "15258789062500",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.000084005470189482",
+          "outputRaw": "84005470189482",
+          "outputSymbol": "COIN",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.000084005470189482",
+          "inputRaw": "84005470189482",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.011516",
+          "outputRaw": "11516",
+          "outputSymbol": "USDG",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.011516",
+          "inputRaw": "11516",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000015260526685059",
+          "outputRaw": "15260526685059",
+          "outputSymbol": "SPY",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> COIN -> USDG -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x692f08a",
+        "blockNumberInt": 110293130,
+        "effectiveGasPrice": "0x131c170",
+        "effectiveGasPriceInt": 20038000,
+        "gasUsed": "0x545c4",
+        "gasUsedInt": 345540,
+        "status": 1,
+        "txHash": "0xfbaf41bf9b03388e6d3ffd7dec0ca81b4bcc19e9f5f645c53baeaedc91ef9027"
+      },
+      "routeSymbols": [
+        "SPY",
+        "COIN",
+        "USDG",
+        "SPY"
+      ],
+      "txHash": "0xfbaf41bf9b03388e6d3ffd7dec0ca81b4bcc19e9f5f645c53baeaedc91ef9027",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "0.000001428348290566",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "1428348290566",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "0.000001448574583328",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.00000691021284",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.000244140625",
+          "inputRaw": "244140625000000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.001340048719085915",
+          "outputRaw": "1340048719085915",
+          "outputSymbol": "COIN",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.001340048719085915",
+          "inputRaw": "1340048719085915",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.185165",
+          "outputRaw": "185165",
+          "outputSymbol": "USDG",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.185165",
+          "inputRaw": "185165",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000245568973290566",
+          "outputRaw": "245568973290566",
+          "outputSymbol": "SPY",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        }
+      ],
+      "netProfitDifference": "-2.0226292762E-8",
+      "pair": "SPY -> COIN -> USDG -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x6921364",
+        "blockNumberInt": 110236516,
+        "effectiveGasPrice": "0x131c940",
+        "effectiveGasPriceInt": 20040000,
+        "gasUsed": "0x542f5",
+        "gasUsedInt": 344821,
+        "status": 1,
+        "txHash": "0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c"
+      },
+      "routeSymbols": [
+        "SPY",
+        "COIN",
+        "USDG",
+        "SPY"
+      ],
+      "txHash": "0x0a039d102fd5ccaee803108d0d6dac142219debfd666a5e3b2c5e31c7408193c",
+      "unmatchedSwaps": []
+    },
+    {
       "actualNetProfit": "4.965928057E-9",
       "actualNetProfitAfterGas": null,
       "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
@@ -2237,14 +3120,179 @@
       "unmatchedSwaps": []
     },
     {
-      "actualNetProfit": "1.313957581E-9",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "1313957581",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "1.266147444E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006189364062",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.000001907348632812",
+          "inputRaw": "1907348632812",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "6.73599898045E-7",
+          "outputRaw": "673599898045",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "6.73599898045E-7",
+          "inputRaw": "673599898045",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.001438",
+          "outputRaw": "1438",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "SPY -> ETH -> USDG -> SPY",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x6933a66",
+        "blockNumberInt": 110312038,
+        "effectiveGasPrice": "0x131b1d0",
+        "effectiveGasPriceInt": 20034000,
+        "gasUsed": "0x4b6cf",
+        "gasUsedInt": 308943,
+        "status": 1,
+        "txHash": "0xe19ef70965c24acf64b32023e3ea44d368f6c2eb9d226500279c2774371f96ec"
+      },
+      "routeSymbols": [
+        "SPY",
+        "ETH",
+        "USDG",
+        "SPY"
+      ],
+      "txHash": "0xe19ef70965c24acf64b32023e3ea44d368f6c2eb9d226500279c2774371f96ec",
+      "unmatchedSwaps": [
+        {
+          "amount0": "1908614780256",
+          "amount1": "-1438",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "SPY",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "3.8460230518E-8",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006504051472",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.0000152587890625",
+          "inputRaw": "15258789062500",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000005365394721736",
+          "outputRaw": "5365394721736",
+          "outputSymbol": "ETH",
+          "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000005365394721736",
+          "inputRaw": "5365394721736",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.011439",
+          "outputRaw": "11439",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "SPY -> ETH -> USDG -> SPY",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x690f0e9",
+        "blockNumberInt": 110162153,
+        "effectiveGasPrice": "0x13bfaa0",
+        "effectiveGasPriceInt": 20708000,
+        "gasUsed": "0x4cae4",
+        "gasUsedInt": 314084,
+        "status": 1,
+        "txHash": "0x33d02d38196b659c78dc656d10fda2f76598756f4bef84dddde2c59a360feda3"
+      },
+      "routeSymbols": [
+        "SPY",
+        "ETH",
+        "USDG",
+        "SPY"
+      ],
+      "txHash": "0x33d02d38196b659c78dc656d10fda2f76598756f4bef84dddde2c59a360feda3",
+      "unmatchedSwaps": [
+        {
+          "amount0": "15297249293018",
+          "amount1": "-11439",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "SPY",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "1.313957581E-9",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.00000739417901",
@@ -2264,35 +3312,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000007514750780891",
-          "inputRaw": "7514750780891",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.002923",
-          "outputRaw": "2923",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.002923",
-          "inputRaw": "2923",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000003816011223206",
-          "outputRaw": "3816011223206",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x651aa2a",
         "blockNumberInt": 106015274,
@@ -2310,17 +3346,35 @@
         "SPY"
       ],
       "txHash": "0x5734911440a8ff9bd0a7a479d7a1457e1deed2a70f2a3347bc4ac747e3f4978a",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-7514750780891",
+          "amount1": "2923",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "3816011223206",
+          "amount1": "-2923",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "8.17686815E-10",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "817686815",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "8.17686815E-10",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.000006750102912",
@@ -2340,35 +3394,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000007616578318643",
-          "inputRaw": "7616578318643",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.002908",
-          "outputRaw": "2908",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.002908",
-          "inputRaw": "2908",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.00000381551495244",
-          "outputRaw": "3815514952440",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x64f1706",
         "blockNumberInt": 105846534,
@@ -2386,17 +3428,35 @@
         "SPY"
       ],
       "txHash": "0xc3020780ff611b62c6a97267977fcfe69d6033d7badc212c8abdec44f06f06b3",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-7616578318643",
+          "amount1": "2908",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "3815514952440",
+          "amount1": "-2908",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "1.701725927E-9",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "1701725927",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "1.701725927E-9",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.000006909670746",
@@ -2416,35 +3476,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000003790030683601",
-          "inputRaw": "3790030683601",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.00145",
-          "outputRaw": "1450",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.00145",
-          "inputRaw": "1450",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000001909050358739",
-          "outputRaw": "1909050358739",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x64ebf05",
         "blockNumberInt": 105824005,
@@ -2462,17 +3510,35 @@
         "SPY"
       ],
       "txHash": "0xc7639cc86a5d17f5ce8defc7631603288c2ba1987c948738c9a82b221274644f",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3790030683601",
+          "amount1": "1450",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "1909050358739",
+          "amount1": "-1450",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "3.293503509E-9",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "3293503509",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "3.293503509E-9",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.000006801891876",
@@ -2492,35 +3558,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000007554314767969",
-          "inputRaw": "7554314767969",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.00289",
-          "outputRaw": "2890",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.00289",
-          "inputRaw": "2890",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000003817990769134",
-          "outputRaw": "3817990769134",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x64eb0e9",
         "blockNumberInt": 105820393,
@@ -2538,17 +3592,35 @@
         "SPY"
       ],
       "txHash": "0x4dea7a2a8f374c7f5caa8e9d97322166389bc3f7b8d1d2e81034a6ac9329592b",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-7554314767969",
+          "amount1": "2890",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "3817990769134",
+          "amount1": "-2890",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "2.33198376E-10",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "233198376",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "2.33198376E-10",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.000006807499904",
@@ -2568,35 +3640,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000003770936720153",
-          "inputRaw": "3770936720153",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.001439",
-          "outputRaw": "1439",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.001439",
-          "inputRaw": "1439",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000001907581831188",
-          "outputRaw": "1907581831188",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x64e40b1",
         "blockNumberInt": 105791665,
@@ -2614,17 +3674,35 @@
         "SPY"
       ],
       "txHash": "0x24c56531b5a53b4b4b81a7e1b4188024144ac2598d08ed276904f774a4f934c0",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3770936720153",
+          "amount1": "1439",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "1907581831188",
+          "amount1": "-1439",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "5.93391895E-10",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "593391895",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "5.93391895E-10",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.000006809371582",
@@ -2644,35 +3722,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000003765808888969",
-          "inputRaw": "3765808888969",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.001436",
-          "outputRaw": "1436",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.001436",
-          "inputRaw": "1436",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000001907942024707",
-          "outputRaw": "1907942024707",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x64cf819",
         "blockNumberInt": 105707545,
@@ -2690,17 +3756,35 @@
         "SPY"
       ],
       "txHash": "0x726ea29e2c182e667b4d800f058d81b0d0c4404ba88616e8e8c7e9aab8918670",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3765808888969",
+          "amount1": "1436",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "1907942024707",
+          "amount1": "-1436",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "4.65370631E-10",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "465370631",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "4.65370631E-10",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.0000068260002",
@@ -2720,35 +3804,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000003637402543844",
-          "inputRaw": "3637402543844",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.001443",
-          "outputRaw": "1443",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.001443",
-          "inputRaw": "1443",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000001907814003443",
-          "outputRaw": "1907814003443",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x6490ecc",
         "blockNumberInt": 105451212,
@@ -2766,17 +3838,35 @@
         "SPY"
       ],
       "txHash": "0x86de2af2e2b04229925206d4d963bbf62cc56fafb06fa163c600dc361f266e92",
-      "unmatchedSwaps": []
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3637402543844",
+          "amount1": "1443",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "1907814003443",
+          "amount1": "-1443",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     },
     {
-      "actualNetProfit": "2.13754222E-10",
+      "actualNetProfit": null,
       "actualNetProfitAfterGas": null,
-      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitAfterGasUnavailableReason": null,
       "actualNetProfitBasis": "swaps_before_gas",
-      "actualNetProfitRaw": "213754222",
+      "actualNetProfitRaw": null,
       "actualProfitSymbol": "SPY",
-      "decodable": true,
-      "differenceReasons": [],
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
       "expectedNetProfit": "2.13754222E-10",
       "expectedProfitSymbol": "SPY",
       "gasCostNative": "0.00000679287474",
@@ -2796,35 +3886,23 @@
           "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 2,
           "inputCurrency": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
-          "inputHuman": "0.000007123297588526",
-          "inputRaw": "7123297588526",
-          "inputSymbol": "TSLA",
           "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "outputHuman": "0.002863",
-          "outputRaw": "2863",
-          "outputSymbol": "0x5fc5360D",
-          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+          "reason": "route_hop_swap_not_decodable"
         },
         {
-          "decodable": true,
+          "decodable": false,
           "hop": 3,
           "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
-          "inputHuman": "0.002863",
-          "inputRaw": "2863",
-          "inputSymbol": "0x5fc5360D",
           "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
-          "outputHuman": "0.000003814911019847",
-          "outputRaw": "3814911019847",
-          "outputSymbol": "SPY",
-          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2"
+          "reason": "route_hop_swap_not_decodable"
         }
       ],
-      "netProfitDifference": "0E-18",
+      "netProfitDifference": null,
       "pair": "SPY -> TSLA -> USDG -> SPY",
-      "profitStatus": "realized_positive_before_gas",
+      "profitStatus": "unavailable",
       "receipt": {
         "blockNumber": "0x63b11bb",
         "blockNumberInt": 104534459,
@@ -2842,7 +3920,1440 @@
         "SPY"
       ],
       "txHash": "0xd7e21f042139e2abf2c0b3f5fb0d278d6988cb5f60c2710dca3ad05490af76ef",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-7123297588526",
+          "amount1": "2863",
+          "decodable": false,
+          "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+          "reason": "pool_not_in_candidate_pools"
+        },
+        {
+          "amount0": "3814911019847",
+          "amount1": "-2863",
+          "decodable": false,
+          "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": "1.54576255E-9",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "1545762550",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "1.545817824E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006895722006",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "2.38418579101E-7",
+          "inputRaw": "238418579101",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.000179",
+          "outputRaw": "179",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.000179",
+          "inputRaw": "179",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "3.38483781149E-7",
+          "outputRaw": "338483781149",
+          "outputSymbol": "AMD",
+          "poolId": "0x0147d1038acac38d1a1c0082f5529d2ca5f6610a952a0ae632b6465306fa3c7d"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "3.38483781149E-7",
+          "inputRaw": "338483781149",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "2.39964341651E-7",
+          "outputRaw": "239964341651",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "-5.5274E-14",
+      "pair": "SPY -> USDG -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x69d3d82",
+        "blockNumberInt": 110968194,
+        "effectiveGasPrice": "0x13616d0",
+        "effectiveGasPriceInt": 20322000,
+        "gasUsed": "0x52d7b",
+        "gasUsedInt": 339323,
+        "status": 1,
+        "txHash": "0x50a95a1715b43279531351343566c9002857c25a8e3f87b283c65c63453562e1"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0x50a95a1715b43279531351343566c9002857c25a8e3f87b283c65c63453562e1",
       "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "7.75658388E-10",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "775658388",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "6.4477574E-10",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.0000070097904",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "2.38418579101E-7",
+          "inputRaw": "238418579101",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.000178",
+          "outputRaw": "178",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.000178",
+          "inputRaw": "178",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "3.44514205944E-7",
+          "outputRaw": "344514205944",
+          "outputSymbol": "AMD",
+          "poolId": "0x0147d1038acac38d1a1c0082f5529d2ca5f6610a952a0ae632b6465306fa3c7d"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "3.44514205944E-7",
+          "inputRaw": "344514205944",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "2.39194237489E-7",
+          "outputRaw": "239194237489",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "1.30882648E-10",
+      "pair": "SPY -> USDG -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x69d2c88",
+        "blockNumberInt": 110963848,
+        "effectiveGasPrice": "0x1360f00",
+        "effectiveGasPriceInt": 20320000,
+        "gasUsed": "0x5438a",
+        "gasUsedInt": 344970,
+        "status": 1,
+        "txHash": "0xe6eda150060eed146ec90ea101b72aaab650040c2086be4e816b5ce33d144c96"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0xe6eda150060eed146ec90ea101b72aaab650040c2086be4e816b5ce33d144c96",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "1.930687295E-9",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "1930687295",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "1.638406236E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006915525552",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "2.38418579101E-7",
+          "inputRaw": "238418579101",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.000179",
+          "outputRaw": "179",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.000179",
+          "inputRaw": "179",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "3.59469470168E-7",
+          "outputRaw": "359469470168",
+          "outputSymbol": "AMD",
+          "poolId": "0x0147d1038acac38d1a1c0082f5529d2ca5f6610a952a0ae632b6465306fa3c7d"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "3.59469470168E-7",
+          "inputRaw": "359469470168",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "2.40349266396E-7",
+          "outputRaw": "240349266396",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "2.92281059E-10",
+      "pair": "SPY -> USDG -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x69142b8",
+        "blockNumberInt": 110183096,
+        "effectiveGasPrice": "0x137a540",
+        "effectiveGasPriceInt": 20424000,
+        "gasUsed": "0x52aa6",
+        "gasUsedInt": 338598,
+        "status": 1,
+        "txHash": "0x71e8859974f20e60ef6cd27b32266bc7295a24226668bf3df4f73c457b0e803c"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0x71e8859974f20e60ef6cd27b32266bc7295a24226668bf3df4f73c457b0e803c",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "1.3434620081E-8",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "13434620081",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "1.3508161434E-8",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000007072548182",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "4.76837158203E-7",
+          "inputRaw": "476837158203",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.000357",
+          "outputRaw": "357",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.000357",
+          "inputRaw": "357",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "outputHuman": "7.50912477304E-7",
+          "outputRaw": "750912477304",
+          "outputSymbol": "AMD",
+          "poolId": "0x0147d1038acac38d1a1c0082f5529d2ca5f6610a952a0ae632b6465306fa3c7d"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "inputHuman": "7.50912477304E-7",
+          "inputRaw": "750912477304",
+          "inputSymbol": "AMD",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "4.90271778284E-7",
+          "outputRaw": "490271778284",
+          "outputSymbol": "SPY",
+          "poolId": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+        }
+      ],
+      "netProfitDifference": "-7.3541353E-11",
+      "pair": "SPY -> USDG -> AMD -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x690ecf2",
+        "blockNumberInt": 110161138,
+        "effectiveGasPrice": "0x139b0b0",
+        "effectiveGasPriceInt": 20558000,
+        "gasUsed": "0x53fdd",
+        "gasUsedInt": 344029,
+        "status": 1,
+        "txHash": "0xf6eb648712b3b4c60ce545c737904e5534aaa0e544ac07b271d69f5cca2de6b8"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "AMD",
+        "SPY"
+      ],
+      "txHash": "0xf6eb648712b3b4c60ce545c737904e5534aaa0e544ac07b271d69f5cca2de6b8",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "4.6128366085E-8",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "46128366085",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "4.6128366085E-8",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000006914002492",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.00006103515625",
+          "inputRaw": "61035156250000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.046081",
+          "outputRaw": "46081",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.046081",
+          "inputRaw": "46081",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.000333808838380425",
+          "outputRaw": "333808838380425",
+          "outputSymbol": "COIN",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.000333808838380425",
+          "inputRaw": "333808838380425",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000061081284616085",
+          "outputRaw": "61081284616085",
+          "outputSymbol": "SPY",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> USDG -> COIN -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x69339c3",
+        "blockNumberInt": 110311875,
+        "effectiveGasPrice": "0x132bb70",
+        "effectiveGasPriceInt": 20102000,
+        "gasUsed": "0x53f8a",
+        "gasUsedInt": 343946,
+        "status": 1,
+        "txHash": "0xd832429746fe4df3b8fb78c3c7058dddd2c3d4961b19476df786a4c069acf254"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "COIN",
+        "SPY"
+      ],
+      "txHash": "0xd832429746fe4df3b8fb78c3c7058dddd2c3d4961b19476df786a4c069acf254",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "1.29842642816E-7",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "129842642816",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "1.29842642816E-7",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000007007112376",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.000244140625",
+          "inputRaw": "244140625000000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.183614",
+          "outputRaw": "183614",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.183614",
+          "inputRaw": "183614",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.001319785363568105",
+          "outputRaw": "1319785363568105",
+          "outputSymbol": "COIN",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.001319785363568105",
+          "inputRaw": "1319785363568105",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000244270467642816",
+          "outputRaw": "244270467642816",
+          "outputSymbol": "SPY",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> USDG -> COIN -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x691424e",
+        "blockNumberInt": 110182990,
+        "effectiveGasPrice": "0x136da20",
+        "effectiveGasPriceInt": 20372000,
+        "gasUsed": "0x53f96",
+        "gasUsedInt": 343958,
+        "status": 1,
+        "txHash": "0xa43f626c86c0f0e8311615408b618e040b57aa20a2f7f47cc9eb50419577aa52"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "COIN",
+        "SPY"
+      ],
+      "txHash": "0xa43f626c86c0f0e8311615408b618e040b57aa20a2f7f47cc9eb50419577aa52",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "5.8184742E-9",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "5818474200",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [
+        "realized_slippage_or_fee_vs_preview"
+      ],
+      "expectedNetProfit": "7.152529034E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000007031198922",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.000030517578125",
+          "inputRaw": "30517578125000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.022926",
+          "outputRaw": "22926",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.022926",
+          "inputRaw": "22926",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.000166159005334448",
+          "outputRaw": "166159005334448",
+          "outputSymbol": "COIN",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.000166159005334448",
+          "inputRaw": "166159005334448",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.0000305233965992",
+          "outputRaw": "30523396599200",
+          "outputSymbol": "SPY",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        }
+      ],
+      "netProfitDifference": "-1.334054834E-9",
+      "pair": "SPY -> USDG -> COIN -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x6912892",
+        "blockNumberInt": 110176402,
+        "effectiveGasPrice": "0x1370130",
+        "effectiveGasPriceInt": 20382000,
+        "gasUsed": "0x5438b",
+        "gasUsedInt": 344971,
+        "status": 1,
+        "txHash": "0x1482210afa7efef1641b00c46c72f4031c806e5e79522188a137df9213bf3f86"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "COIN",
+        "SPY"
+      ],
+      "txHash": "0x1482210afa7efef1641b00c46c72f4031c806e5e79522188a137df9213bf3f86",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "6.055797937E-9",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "6055797937",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "6.055797937E-9",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.0000069902832",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.0000152587890625",
+          "inputRaw": "15258789062500",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.01145",
+          "outputRaw": "11450",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.01145",
+          "inputRaw": "11450",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.00008309659601828",
+          "outputRaw": "83096596018280",
+          "outputSymbol": "COIN",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.00008309659601828",
+          "inputRaw": "83096596018280",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000015264844860437",
+          "outputRaw": "15264844860437",
+          "outputSymbol": "SPY",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> USDG -> COIN -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x6912209",
+        "blockNumberInt": 110174729,
+        "effectiveGasPrice": "0x1360f00",
+        "effectiveGasPriceInt": 20320000,
+        "gasUsed": "0x53fca",
+        "gasUsedInt": 344010,
+        "status": 1,
+        "txHash": "0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "COIN",
+        "SPY"
+      ],
+      "txHash": "0x9fe0becdf1a067bb1df08727ec9c72485bac5d01a79de0b3942b4404155acff6",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": "0.000003856881424474",
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": "gas_is_native_token_but_profit_basis_is_not_eth",
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "3856881424474",
+      "actualProfitSymbol": "SPY",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "0.000003856881424474",
+      "expectedProfitSymbol": "SPY",
+      "gasCostNative": "0.000007049509936",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "inputHuman": "0.00048828125",
+          "inputRaw": "488281250000000",
+          "inputSymbol": "SPY",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.365981",
+          "outputRaw": "365981",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.365981",
+          "inputRaw": "365981",
+          "inputSymbol": "USDG",
+          "outputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "outputHuman": "0.002697342498384521",
+          "outputRaw": "2697342498384521",
+          "outputSymbol": "COIN",
+          "poolId": "0xe2e1a0e32205e854525e0fb1d3667a53bd3b4919f032b9bcd2a038b6b6dac314"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "inputHuman": "0.002697342498384521",
+          "inputRaw": "2697342498384521",
+          "inputSymbol": "COIN",
+          "outputCurrency": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "outputHuman": "0.000492138131424474",
+          "outputRaw": "492138131424474",
+          "outputSymbol": "SPY",
+          "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "SPY -> USDG -> COIN -> SPY",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x690eca3",
+        "blockNumberInt": 110161059,
+        "effectiveGasPrice": "0x137c480",
+        "effectiveGasPriceInt": 20432000,
+        "gasUsed": "0x543bf",
+        "gasUsedInt": 345023,
+        "status": 1,
+        "txHash": "0x5312f5efc29829fa0226bfd16a520630da53ce07d8283cf45129779f1da01417"
+      },
+      "routeSymbols": [
+        "SPY",
+        "USDG",
+        "COIN",
+        "SPY"
+      ],
+      "txHash": "0x5312f5efc29829fa0226bfd16a520630da53ce07d8283cf45129779f1da01417",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "USDE",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "0.000009664045454851",
+      "expectedProfitSymbol": "USDE",
+      "gasCostNative": "0.00000528711964",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "inputHuman": "0.001953125",
+          "inputRaw": "1953125000000000",
+          "inputSymbol": "0x5d3a1Ff2",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.001951",
+          "outputRaw": "1951",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.001951",
+          "inputRaw": "1951",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "9.41787012115E-7",
+          "outputRaw": "941787012115",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "USDE -> USDG -> ETH -> USDE",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d0675",
+        "blockNumberInt": 110954101,
+        "effectiveGasPrice": "0x133ec20",
+        "effectiveGasPriceInt": 20180000,
+        "gasUsed": "0x3ff6e",
+        "gasUsedInt": 261998,
+        "status": 1,
+        "txHash": "0x50604ffab039cb120954c2b388704d04b439b285d7d2658540435378d0d4435e"
+      },
+      "routeSymbols": [
+        "USDE",
+        "USDG",
+        "ETH",
+        "USDE"
+      ],
+      "txHash": "0x50604ffab039cb120954c2b388704d04b439b285d7d2658540435378d0d4435e",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-941787012115",
+          "amount1": "1962789045454851",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "USDE",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "0.000150831091704377",
+      "expectedProfitSymbol": "USDE",
+      "gasCostNative": "0.000006038933076",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "inputHuman": "0.0078125",
+          "inputRaw": "7812500000000000",
+          "inputSymbol": "0x5d3a1Ff2",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.007806",
+          "outputRaw": "7806",
+          "outputSymbol": "0x5fc5360D",
+          "poolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.007806",
+          "inputRaw": "7806",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000003783801022034",
+          "outputRaw": "3783801022034",
+          "outputSymbol": "ETH",
+          "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866"
+        },
+        {
+          "decodable": false,
+          "hop": 3,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "reason": "route_hop_swap_not_decodable"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "USDE -> USDG -> ETH -> USDE",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d03bc",
+        "blockNumberInt": 110953404,
+        "effectiveGasPrice": "0x136da20",
+        "effectiveGasPriceInt": 20372000,
+        "gasUsed": "0x485f1",
+        "gasUsedInt": 296433,
+        "status": 1,
+        "txHash": "0x2fbf1bd8cde5e9132ead90e0a950d52253a9e37e40793f9398127da41c409328"
+      },
+      "routeSymbols": [
+        "USDE",
+        "USDG",
+        "ETH",
+        "USDE"
+      ],
+      "txHash": "0x2fbf1bd8cde5e9132ead90e0a950d52253a9e37e40793f9398127da41c409328",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-3783801022034",
+          "amount1": "7953561000100742",
+          "decodable": false,
+          "poolId": "0x9479b312881aa3c5456abc7c2d0c5caf203aead453bfe34184dad42143a2f794",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "3.877982949E-9",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.000005859811708",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "inputHuman": "0.0000152587890625",
+          "inputRaw": "15258789062500",
+          "inputSymbol": "0x0Bd7D308",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000015253016846401",
+          "outputRaw": "15253016846401",
+          "outputSymbol": "ETH",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        },
+        {
+          "decodable": false,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "inputHuman": "0.000178879895689111",
+          "inputRaw": "178879895689111",
+          "inputSymbol": "NVDA",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000015262667045449",
+          "outputRaw": "15262667045449",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> ETH -> NVDA -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69967ba",
+        "blockNumberInt": 110716858,
+        "effectiveGasPrice": "0x1329460",
+        "effectiveGasPriceInt": 20092000,
+        "gasUsed": "0x47341",
+        "gasUsedInt": 291649,
+        "status": 1,
+        "txHash": "0x34a208edc4cd04add2f2b259627fc1aded560d30d3b65820e29d86e3049df81e"
+      },
+      "routeSymbols": [
+        "WETH",
+        "ETH",
+        "NVDA",
+        "WETH"
+      ],
+      "txHash": "0x34a208edc4cd04add2f2b259627fc1aded560d30d3b65820e29d86e3049df81e",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-15253016846401",
+          "amount1": "178879895689111",
+          "decodable": false,
+          "poolId": "0xb914b61379ad8d5f58647d75f61c9e22bb9ed8d2defaa52f8b25d9c2a073ea4d",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "9.4824812126E-8",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.000005851926432",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "inputHuman": "0.000244140625",
+          "inputRaw": "244140625000000",
+          "inputSymbol": "0x0Bd7D308",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000244048269806352",
+          "outputRaw": "244048269806352",
+          "outputSymbol": "ETH",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        },
+        {
+          "decodable": false,
+          "hop": 2,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "inputHuman": "0.002864886637055594",
+          "inputRaw": "2864886637055594",
+          "inputSymbol": "NVDA",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000244235449812126",
+          "outputRaw": "244235449812126",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> ETH -> NVDA -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x6996565",
+        "blockNumberInt": 110716261,
+        "effectiveGasPrice": "0x1322700",
+        "effectiveGasPriceInt": 20064000,
+        "gasUsed": "0x4734f",
+        "gasUsedInt": 291663,
+        "status": 1,
+        "txHash": "0x219ec1fd810d7a9d841437ea3af61ff871e046dc14dffba9261e2c233430b313"
+      },
+      "routeSymbols": [
+        "WETH",
+        "ETH",
+        "NVDA",
+        "WETH"
+      ],
+      "txHash": "0x219ec1fd810d7a9d841437ea3af61ff871e046dc14dffba9261e2c233430b313",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-244048269806352",
+          "amount1": "2864886637055594",
+          "decodable": false,
+          "poolId": "0xea83d1911a6c8d027650a79631aafd958e2880ab69a668c7781998523c2d5431",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": "8.527879366E-9",
+      "actualNetProfitAfterGas": "-0.000011580740280634",
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": "8527879366",
+      "actualProfitSymbol": "WETH",
+      "decodable": true,
+      "differenceReasons": [],
+      "expectedNetProfit": "8.527879366E-9",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.00001158926816",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "inputHuman": "0.00006103515625",
+          "inputRaw": "61035156250000",
+          "inputSymbol": "0x0Bd7D308",
+          "outputCurrency": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "outputHuman": "0.000912029060012251",
+          "outputRaw": "912029060012251",
+          "outputSymbol": "SPCX",
+          "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "inputHuman": "0.000912029060012251",
+          "inputRaw": "912029060012251",
+          "inputSymbol": "SPCX",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000061096723467687",
+          "outputRaw": "61096723467687",
+          "outputSymbol": "ETH",
+          "poolId": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000061096723467687",
+          "inputRaw": "61096723467687",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000061043684129366",
+          "outputRaw": "61043684129366",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        }
+      ],
+      "netProfitDifference": "0E-18",
+      "pair": "WETH -> SPCX -> ETH -> WETH",
+      "profitStatus": "realized_positive_before_gas",
+      "receipt": {
+        "blockNumber": "0x69c75cb",
+        "blockNumberInt": 110917067,
+        "effectiveGasPrice": "0x258bd10",
+        "effectiveGasPriceInt": 39370000,
+        "gasUsed": "0x47de0",
+        "gasUsedInt": 294368,
+        "status": 1,
+        "txHash": "0x080e1fe26790528ac45cc7098440a5c0327cab8612f617fafd6feb0fb9f4d9d1"
+      },
+      "routeSymbols": [
+        "WETH",
+        "SPCX",
+        "ETH",
+        "WETH"
+      ],
+      "txHash": "0x080e1fe26790528ac45cc7098440a5c0327cab8612f617fafd6feb0fb9f4d9d1",
+      "unmatchedSwaps": []
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "1.0829262506E-8",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.00000562552288",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.062916",
+          "inputRaw": "62916",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000030554932788132",
+          "outputRaw": "30554932788132",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000030554932788132",
+          "inputRaw": "30554932788132",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000030528407387506",
+          "outputRaw": "30528407387506",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> USDG -> ETH -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69c8b25",
+        "blockNumberInt": 110922533,
+        "effectiveGasPrice": "0x1366cc0",
+        "effectiveGasPriceInt": 20344000,
+        "gasUsed": "0x43828",
+        "gasUsedInt": 276520,
+        "status": 1,
+        "txHash": "0xf0c6fe4cbdce0c778e7dcd4851b1e7dc59af5cd5a1ff112eb43286656b4a54bb"
+      },
+      "routeSymbols": [
+        "WETH",
+        "USDG",
+        "ETH",
+        "WETH"
+      ],
+      "txHash": "0xf0c6fe4cbdce0c778e7dcd4851b1e7dc59af5cd5a1ff112eb43286656b4a54bb",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-30517578125000",
+          "amount1": "62916",
+          "decodable": false,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "4.7025689664E-8",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.000005578627712",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": false,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "inputHuman": "0.126541",
+          "inputRaw": "126541",
+          "inputSymbol": "0x5fc5360D",
+          "outputCurrency": "0x0000000000000000000000000000000000000000",
+          "outputHuman": "0.000061135254758474",
+          "outputRaw": "61135254758474",
+          "outputSymbol": "ETH",
+          "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0x0000000000000000000000000000000000000000",
+          "inputHuman": "0.000061135254758474",
+          "inputRaw": "61135254758474",
+          "inputSymbol": "ETH",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000061082181939664",
+          "outputRaw": "61082181939664",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> USDG -> ETH -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69c8099",
+        "blockNumberInt": 110919833,
+        "effectiveGasPrice": "0x133f3f0",
+        "effectiveGasPriceInt": 20182000,
+        "gasUsed": "0x437c0",
+        "gasUsedInt": 276416,
+        "status": 1,
+        "txHash": "0x11679e213fc61c9587ffcc6bb13d5adfb6031e6267b4d8564a55e0bafab2054a"
+      },
+      "routeSymbols": [
+        "WETH",
+        "USDG",
+        "ETH",
+        "WETH"
+      ],
+      "txHash": "0x11679e213fc61c9587ffcc6bb13d5adfb6031e6267b4d8564a55e0bafab2054a",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-61035156250000",
+          "amount1": "126541",
+          "decodable": false,
+          "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "2.3882216721E-8",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.00000641527381",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "inputHuman": "0.0001220703125",
+          "inputRaw": "122070312500000",
+          "inputSymbol": null,
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.253751",
+          "outputRaw": "253751",
+          "outputSymbol": null,
+          "poolId": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+        },
+        {
+          "decodable": false,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "inputHuman": "0.001472420790506057",
+          "inputRaw": "1472420790506057",
+          "inputSymbol": "NVDA",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.000122070732340939",
+          "outputRaw": "122070732340939",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> USDG -> NVDA -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d0cf0",
+        "blockNumberInt": 110955760,
+        "effectiveGasPrice": "0x1363610",
+        "effectiveGasPriceInt": 20330000,
+        "gasUsed": "0x4d0a5",
+        "gasUsedInt": 315557,
+        "status": 1,
+        "txHash": "0x438d29b61eed9596921f7520a6e916186b9b3e383cd7ff3a5ed64b87b47f163a"
+      },
+      "routeSymbols": [
+        "WETH",
+        "USDG",
+        "NVDA",
+        "WETH"
+      ],
+      "txHash": "0x438d29b61eed9596921f7520a6e916186b9b3e383cd7ff3a5ed64b87b47f163a",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-253751",
+          "amount1": "1472420790506057",
+          "decodable": false,
+          "poolId": "0x33833d86c64846f507e8e862cfc6ed33f029f3d0d679b629e51cea9ad0b25a26",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
+    },
+    {
+      "actualNetProfit": null,
+      "actualNetProfitAfterGas": null,
+      "actualNetProfitAfterGasUnavailableReason": null,
+      "actualNetProfitBasis": "swaps_before_gas",
+      "actualNetProfitRaw": null,
+      "actualProfitSymbol": "WETH",
+      "decodable": false,
+      "differenceReasons": [
+        "full_route_undecodable",
+        "actual_net_profit_missing"
+      ],
+      "expectedNetProfit": "1.409635334E-9",
+      "expectedProfitSymbol": "WETH",
+      "gasCostNative": "0.000006383604292",
+      "gasCostNativeSymbol": "ETH",
+      "hops": [
+        {
+          "decodable": true,
+          "hop": 1,
+          "inputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "inputHuman": "0.0000152587890625",
+          "inputRaw": "15258789062500",
+          "inputSymbol": null,
+          "outputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputHuman": "0.031724",
+          "outputRaw": "31724",
+          "outputSymbol": null,
+          "poolId": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+        },
+        {
+          "decodable": false,
+          "hop": 2,
+          "inputCurrency": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "outputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "reason": "route_hop_swap_not_decodable"
+        },
+        {
+          "decodable": true,
+          "hop": 3,
+          "inputCurrency": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "inputHuman": "0.000184310297695634",
+          "inputRaw": "184310297695634",
+          "inputSymbol": "NVDA",
+          "outputCurrency": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "outputHuman": "0.00001528117078936",
+          "outputRaw": "15281170789360",
+          "outputSymbol": "0x0Bd7D308",
+          "poolId": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87"
+        }
+      ],
+      "netProfitDifference": null,
+      "pair": "WETH -> USDG -> NVDA -> WETH",
+      "profitStatus": "unavailable",
+      "receipt": {
+        "blockNumber": "0x69d0abf",
+        "blockNumberInt": 110955199,
+        "effectiveGasPrice": "0x134edf0",
+        "effectiveGasPriceInt": 20246000,
+        "gasUsed": "0x4cfa6",
+        "gasUsedInt": 315302,
+        "status": 1,
+        "txHash": "0x7f473833059ddc55b5da7f38d99321dfa227b144793b9562b3e18998e68f0872"
+      },
+      "routeSymbols": [
+        "WETH",
+        "USDG",
+        "NVDA",
+        "WETH"
+      ],
+      "txHash": "0x7f473833059ddc55b5da7f38d99321dfa227b144793b9562b3e18998e68f0872",
+      "unmatchedSwaps": [
+        {
+          "amount0": "-31724",
+          "amount1": "184310297695634",
+          "decodable": false,
+          "poolId": "0x2d6ec380a3dc18dc4a2067ba6884835b49455cd79c8afa1f7625b6b2f85670a6",
+          "reason": "pool_not_in_candidate_pools"
+        }
+      ]
     }
   ],
   "network": "robinhood",
@@ -2854,13 +5365,13 @@
   "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
   "summary": {
     "actualNegativeBeforeGasCount": 0,
-    "actualPositiveBeforeGasCount": 37,
+    "actualPositiveBeforeGasCount": 41,
     "actualZeroBeforeGasCount": 0,
-    "decodableCount": 37,
+    "decodableCount": 41,
     "negativeRealizedCount": 0,
-    "nonZeroDifferenceCount": 13,
-    "undecodableCount": 0,
-    "zeroDifferenceCount": 24
+    "nonZeroDifferenceCount": 19,
+    "undecodableCount": 27,
+    "zeroDifferenceCount": 22
   },
-  "uniqueSuccessCount": 37
+  "uniqueSuccessCount": 68
 }

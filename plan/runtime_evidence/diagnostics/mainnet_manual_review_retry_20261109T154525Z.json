@@ -1,0 +1,73 @@
+{
+  "status": 503,
+  "response": {
+    "chain_selection": {
+      "canonical_market_id": "dex-arbitrage-4663-uniswap-v4",
+      "capabilities": {
+        "dex_arbitrage": true,
+        "execution": true,
+        "liquidation": false,
+        "observation": true,
+        "robinhood_shadow": false,
+        "shadow": false
+      },
+      "chain_default": true,
+      "chain_id": 4663,
+      "chain_key": "chain:4663",
+      "display_name": "Robinhood Uniswap V4",
+      "enabled": true,
+      "feature": "dex_arbitrage",
+      "global_chain_id": "chain:4663",
+      "is_default": true,
+      "legacy_market_id": "robinhood-dex-shadow",
+      "market_id": "dex-arbitrage-4663-uniswap-v4",
+      "market_type": "native_chain",
+      "native_symbol": "ETH",
+      "network": "robinhood",
+      "observation_only": false,
+      "protocol": "uniswap_v4",
+      "protocol_id": "uniswap_v4",
+      "protocol_supported": true
+    },
+    "code": "RUNTIME_CORE_NATIVE_COMMAND_FAILED",
+    "command": "manual_review",
+    "dataSource": "rust_runtime_core",
+    "detail": "RuntimeError: closed_loop_group_worker_not_running:usdg|eth|spy",
+    "dryRun": false,
+    "group_key": "usdg|eth|spy",
+    "idempotencyKey": "mainnet-review-idem-8113414b9a3b4552",
+    "mode": "native_closed_loop_group_manual_review",
+    "ok": false,
+    "requestId": "mainnet-review-f86b511ef57b40c7",
+    "routeAddresses": [
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "0x0000000000000000000000000000000000000000",
+      "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    ],
+    "routeSymbols": [
+      "USDG",
+      "ETH",
+      "SPY",
+      "USDG"
+    ],
+    "upstreamStatus": 503
+  },
+  "requestId": "mainnet-review-f86b511ef57b40c7",
+  "idempotencyKey": "mainnet-review-idem-8113414b9a3b4552",
+  "body": {
+    "routeSymbols": [
+      "USDG",
+      "ETH",
+      "SPY",
+      "USDG"
+    ],
+    "routeAddresses": [
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "0x0000000000000000000000000000000000000000",
+      "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    ],
+    "dryRun": false
+  }
+}

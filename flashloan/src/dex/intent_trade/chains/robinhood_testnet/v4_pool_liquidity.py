@@ -110,7 +110,7 @@ def _known_token_pool_ids() -> dict[str, list[str]]:
                     bucket.append(source)
 
     # Local Robinhood testnet V4 AMM manifest: tz/ta/tb and official V4 hook pools.
-    manifest_path = _workspace_root() / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
+    manifest_path = _workspace_root() / "flashloan" / "tools" / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
     manifest = _read_json(manifest_path)
     for symbol in ("tz", "ta", "tb"):
         address = str(manifest.get(symbol) or "")

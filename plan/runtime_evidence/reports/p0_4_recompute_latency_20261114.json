@@ -1,0 +1,555 @@
+{
+  "checksum": "sha256:e574feb128374e6abc7f799adced95e7424406c8739799d1a8336996b417c4dc",
+  "component": "composite_manager",
+  "durationMs": 11836,
+  "failureCodes": [],
+  "failureSummary": {
+    "failureCount": 0,
+    "failures": [],
+    "notes": [
+      "Window 1 carries an upstream version bump (candidate_edge + candidate_exchange) and is the qualifying P0-4 sample.",
+      "Window 2 is the idempotent re-run with no upstream version change; it is measured but excluded from the median."
+    ]
+  },
+  "fullChainCompleteCount": 2,
+  "generatedAt": "2026-11-14T07:15:00+08:00",
+  "inputVersion": {
+    "broadcast": 1,
+    "candidate_edge": 2,
+    "candidate_exchange": 2,
+    "closed_loop": 1,
+    "pool_scope": 0,
+    "review": 1,
+    "token_libraries.core": 1,
+    "token_libraries.extension": 1,
+    "token_libraries.stocks": 1,
+    "token_libraries.test": 1
+  },
+  "inputVersions": {
+    "broadcast": 1,
+    "candidate_edge": 2,
+    "candidate_exchange": 2,
+    "closed_loop": 1,
+    "pool_scope": 0,
+    "review": 1,
+    "token_libraries.core": 1,
+    "token_libraries.extension": 1,
+    "token_libraries.stocks": 1,
+    "token_libraries.test": 1
+  },
+  "maxTotalLatencyMs": 11836,
+  "measuredRunCount": 2,
+  "measurements": [
+    {
+      "changedVersions": [],
+      "checkpoints": [
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:35.885714200+00:00",
+          "cumulativeLatencyMs": 1421,
+          "dependencyFingerprint": "sha256:66fc810caaf1a0fe91d7312d4598568c8cb0b9956d9567c0659e59762f4b4e11",
+          "dependencyVersions": {
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:34.553476200+00:00",
+          "status": "completed",
+          "stepDurationMs": 1332,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:0:pool_scope",
+          "stepIndex": 0,
+          "stepName": "pool_scope"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:37.076436+00:00",
+          "cumulativeLatencyMs": 2612,
+          "dependencyFingerprint": "sha256:81475bf98ea4620b220b62bcc816cf275687c545373abb9db9be202223f1b058",
+          "dependencyVersions": {
+            "pool_scope": 0,
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries",
+            "pool_scope"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:36.011208900+00:00",
+          "status": "completed",
+          "stepDurationMs": 1065,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:1:candidate_edge",
+          "stepIndex": 1,
+          "stepName": "candidate_edge"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:38.929370400+00:00",
+          "cumulativeLatencyMs": 4465,
+          "dependencyFingerprint": "sha256:9ebaa3e9e2d001babd5973a121519861178126c4aada6312f82d62632e9fd8ec",
+          "dependencyVersions": {
+            "candidate_edge": 2,
+            "pool_scope": 0,
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries",
+            "pool_scope",
+            "candidate_edge"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:37.163023100+00:00",
+          "status": "completed",
+          "stepDurationMs": 1766,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:2:candidate_exchange",
+          "stepIndex": 2,
+          "stepName": "candidate_exchange"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:42.334474600+00:00",
+          "cumulativeLatencyMs": 7870,
+          "dependencyFingerprint": "sha256:8e0999d8ed4026a91cea03f39d62e11e5336e9a759df7d5039710e9703ec741c",
+          "dependencyVersions": {
+            "candidate_edge": 2,
+            "candidate_exchange": 2
+          },
+          "dependsOn": [
+            "candidate_edge",
+            "candidate_exchange"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:39.037479700+00:00",
+          "status": "completed",
+          "stepDurationMs": 3297,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:3:closed_loop",
+          "stepIndex": 3,
+          "stepName": "closed_loop"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:45.389479400+00:00",
+          "cumulativeLatencyMs": 10925,
+          "dependencyFingerprint": "sha256:8084d6ebc46bdb0b1d221763cecb35662d260175c9ba0ac20f41815b6675ddf3",
+          "dependencyVersions": {
+            "closed_loop": 1
+          },
+          "dependsOn": [
+            "closed_loop"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:42.416429300+00:00",
+          "status": "completed",
+          "stepDurationMs": 2973,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:4:review",
+          "stepIndex": 4,
+          "stepName": "review"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:46.207694800+00:00",
+          "cumulativeLatencyMs": 11743,
+          "dependencyFingerprint": "sha256:f395ca75523d732b7b9852f9500455f0f939e7c7c704d1e3a249cea9e729cc9a",
+          "dependencyVersions": {
+            "closed_loop": 1,
+            "review": 1
+          },
+          "dependsOn": [
+            "closed_loop",
+            "review"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:45.473326800+00:00",
+          "status": "completed",
+          "stepDurationMs": 734,
+          "stepId": "pipeline:c2355fe2268b7c68a720c1f9:5:broadcast",
+          "stepIndex": 5,
+          "stepName": "broadcast"
+        }
+      ],
+      "completedAt": "2026-11-13T23:12:46.207694800+00:00",
+      "createdAt": "2026-11-13T23:12:34.464077500+00:00",
+      "endVersion": {
+        "fingerprint": "sha256:66fc810caaf1a0fe91d7312d4598568c8cb0b9956d9567c0659e59762f4b4e11",
+        "versions": {
+          "candidate_edge": 2,
+          "candidate_exchange": 2,
+          "closed_loop": 1,
+          "pool_scope": 0,
+          "review": 1,
+          "token_libraries.core": 1,
+          "token_libraries.extension": 1,
+          "token_libraries.stocks": 1,
+          "token_libraries.test": 1
+        }
+      },
+      "failedStepCount": 0,
+      "failureRetryCount": 0,
+      "fullChainComplete": true,
+      "recomputeSpanMs": 11654,
+      "requestedSteps": [
+        "pool_scope",
+        "candidate_edge",
+        "candidate_exchange",
+        "closed_loop",
+        "review",
+        "broadcast"
+      ],
+      "retriedStepCount": 0,
+      "runId": "pipeline:c2355fe2268b7c68a720c1f9",
+      "startVersion": {
+        "fingerprint": "sha256:aaeb503a1176d8ae6b5ec21b07cff1bcb8b096e31d06abe2b0454ab4b12091ea",
+        "versions": {
+          "broadcast": 1,
+          "candidate_edge": 2,
+          "candidate_exchange": 2,
+          "closed_loop": 1,
+          "pool_scope": 0,
+          "review": 1,
+          "token_libraries.core": 1,
+          "token_libraries.extension": 1,
+          "token_libraries.stocks": 1,
+          "token_libraries.test": 1
+        }
+      },
+      "status": "completed",
+      "totalLatencyMs": 11743,
+      "versionChanged": false
+    },
+    {
+      "changedVersions": [
+        "candidate_edge",
+        "candidate_exchange"
+      ],
+      "checkpoints": [
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:23.954259400+00:00",
+          "cumulativeLatencyMs": 1421,
+          "dependencyFingerprint": "sha256:66fc810caaf1a0fe91d7312d4598568c8cb0b9956d9567c0659e59762f4b4e11",
+          "dependencyVersions": {
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:22.615668500+00:00",
+          "status": "completed",
+          "stepDurationMs": 1339,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:0:pool_scope",
+          "stepIndex": 0,
+          "stepName": "pool_scope"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:25.158226200+00:00",
+          "cumulativeLatencyMs": 2625,
+          "dependencyFingerprint": "sha256:81475bf98ea4620b220b62bcc816cf275687c545373abb9db9be202223f1b058",
+          "dependencyVersions": {
+            "pool_scope": 0,
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries",
+            "pool_scope"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:24.076005400+00:00",
+          "status": "completed",
+          "stepDurationMs": 1082,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:1:candidate_edge",
+          "stepIndex": 1,
+          "stepName": "candidate_edge"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:27.035744500+00:00",
+          "cumulativeLatencyMs": 4502,
+          "dependencyFingerprint": "sha256:9ebaa3e9e2d001babd5973a121519861178126c4aada6312f82d62632e9fd8ec",
+          "dependencyVersions": {
+            "candidate_edge": 2,
+            "pool_scope": 0,
+            "token_libraries.core": 1,
+            "token_libraries.extension": 1,
+            "token_libraries.stocks": 1,
+            "token_libraries.test": 1
+          },
+          "dependsOn": [
+            "token_libraries",
+            "pool_scope",
+            "candidate_edge"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:25.248717400+00:00",
+          "status": "completed",
+          "stepDurationMs": 1787,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:2:candidate_exchange",
+          "stepIndex": 2,
+          "stepName": "candidate_exchange"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:30.430647400+00:00",
+          "cumulativeLatencyMs": 7897,
+          "dependencyFingerprint": "sha256:8e0999d8ed4026a91cea03f39d62e11e5336e9a759df7d5039710e9703ec741c",
+          "dependencyVersions": {
+            "candidate_edge": 2,
+            "candidate_exchange": 2
+          },
+          "dependsOn": [
+            "candidate_edge",
+            "candidate_exchange"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:27.130318500+00:00",
+          "status": "completed",
+          "stepDurationMs": 3300,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:3:closed_loop",
+          "stepIndex": 3,
+          "stepName": "closed_loop"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:33.497604400+00:00",
+          "cumulativeLatencyMs": 10964,
+          "dependencyFingerprint": "sha256:8084d6ebc46bdb0b1d221763cecb35662d260175c9ba0ac20f41815b6675ddf3",
+          "dependencyVersions": {
+            "closed_loop": 1
+          },
+          "dependsOn": [
+            "closed_loop"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:30.527136200+00:00",
+          "status": "completed",
+          "stepDurationMs": 2970,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:4:review",
+          "stepIndex": 4,
+          "stepName": "review"
+        },
+        {
+          "attemptCount": 1,
+          "completedAt": "2026-11-13T23:12:34.369176+00:00",
+          "cumulativeLatencyMs": 11836,
+          "dependencyFingerprint": "sha256:f395ca75523d732b7b9852f9500455f0f939e7c7c704d1e3a249cea9e729cc9a",
+          "dependencyVersions": {
+            "closed_loop": 1,
+            "review": 1
+          },
+          "dependsOn": [
+            "closed_loop",
+            "review"
+          ],
+          "lastError": null,
+          "startedAt": "2026-11-13T23:12:33.616001900+00:00",
+          "status": "completed",
+          "stepDurationMs": 753,
+          "stepId": "pipeline:8cc2b42d4e7fecc77ae50c23:5:broadcast",
+          "stepIndex": 5,
+          "stepName": "broadcast"
+        }
+      ],
+      "completedAt": "2026-11-13T23:12:34.369176+00:00",
+      "createdAt": "2026-11-13T23:12:22.533933200+00:00",
+      "endVersion": {
+        "fingerprint": "sha256:66fc810caaf1a0fe91d7312d4598568c8cb0b9956d9567c0659e59762f4b4e11",
+        "versions": {
+          "candidate_edge": 2,
+          "candidate_exchange": 2,
+          "closed_loop": 1,
+          "pool_scope": 0,
+          "review": 1,
+          "token_libraries.core": 1,
+          "token_libraries.extension": 1,
+          "token_libraries.stocks": 1,
+          "token_libraries.test": 1
+        }
+      },
+      "failedStepCount": 0,
+      "failureRetryCount": 0,
+      "fullChainComplete": true,
+      "recomputeSpanMs": 11754,
+      "requestedSteps": [
+        "pool_scope",
+        "candidate_edge",
+        "candidate_exchange",
+        "closed_loop",
+        "review",
+        "broadcast"
+      ],
+      "retriedStepCount": 0,
+      "runId": "pipeline:8cc2b42d4e7fecc77ae50c23",
+      "startVersion": {
+        "fingerprint": "sha256:471e45feacaea26267532b7e0f50beafb68f42292d2cdff085d997ec75f54d70",
+        "versions": {
+          "broadcast": 1,
+          "candidate_edge": 1,
+          "candidate_exchange": 1,
+          "closed_loop": 1,
+          "pool_scope": 0,
+          "review": 1,
+          "token_libraries.core": 1,
+          "token_libraries.extension": 1,
+          "token_libraries.stocks": 1,
+          "token_libraries.test": 1
+        }
+      },
+      "status": "completed",
+      "totalLatencyMs": 11836,
+      "versionChanged": true
+    }
+  ],
+  "medianTotalLatencyMs": 11836,
+  "minTotalLatencyMs": 11836,
+  "mode": "read_only",
+  "outputVersion": {
+    "broadcast": 1,
+    "candidate_edge": 2,
+    "candidate_exchange": 2,
+    "closed_loop": 1,
+    "pool_scope": 0,
+    "review": 1,
+    "token_libraries.core": 1,
+    "token_libraries.extension": 1,
+    "token_libraries.stocks": 1,
+    "token_libraries.test": 1
+  },
+  "outputVersions": {
+    "broadcast": 1,
+    "candidate_edge": 2,
+    "candidate_exchange": 2,
+    "closed_loop": 1,
+    "pool_scope": 0,
+    "review": 1,
+    "token_libraries.core": 1,
+    "token_libraries.extension": 1,
+    "token_libraries.stocks": 1,
+    "token_libraries.test": 1
+  },
+  "productionWrite": false,
+  "rollbackAvailable": true,
+  "rollbackPoint": "none-read-only-temporary-copy",
+  "rowCount": 2,
+  "rpcRequestCount": 0,
+  "schemaVersion": "p0-4-recompute-latency/1",
+  "stage": "P0-4",
+  "status": "passed",
+  "testCommands": [
+    {
+      "command": "cargo test --locked -p composite-manager",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 17
+    },
+    {
+      "command": "cargo test --locked --workspace",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 359
+    },
+    {
+      "command": "cargo run --locked -p composite-manager --example p0_4_recompute_latency_probe",
+      "exitCode": 0,
+      "note": "read-only probe against a temporary copy database"
+    }
+  ],
+  "totalFailureRetryCount": 0,
+  "versionChangedRunCount": 1,
+  "windowRuns": [
+    {
+      "checkpoints": [
+        {
+          "simulatedCostMs": 1250,
+          "stepIndex": 0,
+          "stepName": "pool_scope"
+        },
+        {
+          "simulatedCostMs": 980,
+          "stepIndex": 1,
+          "stepName": "candidate_edge"
+        },
+        {
+          "simulatedCostMs": 1640,
+          "stepIndex": 2,
+          "stepName": "candidate_exchange"
+        },
+        {
+          "simulatedCostMs": 3210,
+          "stepIndex": 3,
+          "stepName": "closed_loop"
+        },
+        {
+          "simulatedCostMs": 2870,
+          "stepIndex": 4,
+          "stepName": "review"
+        },
+        {
+          "simulatedCostMs": 640,
+          "stepIndex": 5,
+          "stepName": "broadcast"
+        }
+      ],
+      "requestId": "window-1",
+      "runId": "pipeline:8cc2b42d4e7fecc77ae50c23",
+      "stepCount": 6,
+      "versionBumped": true,
+      "wallClockMs": 11923
+    },
+    {
+      "checkpoints": [
+        {
+          "simulatedCostMs": 1250,
+          "stepIndex": 0,
+          "stepName": "pool_scope"
+        },
+        {
+          "simulatedCostMs": 980,
+          "stepIndex": 1,
+          "stepName": "candidate_edge"
+        },
+        {
+          "simulatedCostMs": 1640,
+          "stepIndex": 2,
+          "stepName": "candidate_exchange"
+        },
+        {
+          "simulatedCostMs": 3210,
+          "stepIndex": 3,
+          "stepName": "closed_loop"
+        },
+        {
+          "simulatedCostMs": 2870,
+          "stepIndex": 4,
+          "stepName": "review"
+        },
+        {
+          "simulatedCostMs": 640,
+          "stepIndex": 5,
+          "stepName": "broadcast"
+        }
+      ],
+      "requestId": "window-2",
+      "runId": "pipeline:c2355fe2268b7c68a720c1f9",
+      "stepCount": 6,
+      "versionBumped": false,
+      "wallClockMs": 11842
+    }
+  ]
+}

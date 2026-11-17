@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MARKET_STATE = SRC_ROOT / "runtime" / "state" / "latest_extremes.json"
 DEFAULT_OUTPUT = SRC_ROOT / "runtime" / "state" / "latest_ui_chain_pair_coverage.json"
 

@@ -1,0 +1,608 @@
+{
+  "environmentBlockers": {
+    "alchemyCapacity": {
+      "classification": "账户额度耗尽，不可再用",
+      "endpoint": "https://robinhood-testnet.g.alchemy.com",
+      "httpStatus": 429,
+      "message": "Monthly capacity limit exceeded"
+    },
+    "socketExhaustion": {
+      "classification": "环境阻塞，非代码缺陷",
+      "ownedEstablishedConnections": 13970,
+      "ownerProcess": "xray.exe",
+      "symptom": "RPC 偶发 WinError 10055（套接字缓冲区耗尽）",
+      "windowsDynamicPortRange": 16384
+    },
+    "workingRpc": {
+      "fallback": "https://robinhood-sepolia-rpc.publicnode.com",
+      "observedBlockNumberLatencyMs": "1500-5300",
+      "primary": "https://rpc.testnet.chain.robinhood.com/rpc",
+      "requirement": "请求必须带 user-agent 头，否则返回 HTTP 403"
+    }
+  },
+  "evidencePaths": {
+    "diagnosticsDir": "plan/runtime_evidence/diagnostics/testnet_review",
+    "priorRoundtripReport": "plan/runtime_evidence/reports/testnet_review_roundtrip_20261115.json",
+    "priorToolchainReport": "plan/runtime_evidence/reports/testnet_manager_toolchain_20261115.json",
+    "runtimeLogs": [
+      "plan/runtime_evidence/diagnostics/testnet_review/runtime_final_20261115T110745.stderr.log",
+      "plan/runtime_evidence/diagnostics/testnet_review/runtime_final_20261115T112233.stderr.log"
+    ]
+  },
+  "generatedAt": "2026-11-15T11:40:02.947461Z",
+  "legacyReviewSample": [
+    {
+      "created_at": "2026-11-15T11:13:28.730045700+00:00",
+      "id": 386,
+      "pair": "TSLA -> WETH -> ETH -> TSLA",
+      "selected_profit_amount": 33540.80638641914,
+      "selected_profit_amount_symbol": "TSLA",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T10:17:14.140219200+00:00",
+      "id": 385,
+      "pair": "WETH -> ETH -> TSLA -> WETH",
+      "selected_profit_amount": 33540.80637899581,
+      "selected_profit_amount_symbol": "WETH",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T09:54:27.537454900+00:00",
+      "id": 384,
+      "pair": "WETH -> ETH -> TSLA -> WETH",
+      "selected_profit_amount": 33540.80637899581,
+      "selected_profit_amount_symbol": "WETH",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T09:28:23.603558+00:00",
+      "id": 383,
+      "pair": "WETH -> ETH -> UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E -> WETH",
+      "selected_profit_amount": 33540.80637899581,
+      "selected_profit_amount_symbol": "WETH",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T08:34:38.876590900+00:00",
+      "id": 372,
+      "pair": "PLTR -> NFLX -> ETH -> PLTR",
+      "selected_profit_amount": 7.975332016185115,
+      "selected_profit_amount_symbol": "PLTR",
+      "selected_profit_missing_reason": "chain review passed; closed-loop borrow-token profit is positive and automation is allowed; DEX:3006:static_reference_pending_live_review"
+    },
+    {
+      "created_at": "2026-11-15T08:34:37.660989900+00:00",
+      "id": 371,
+      "pair": "PLTR -> ETH -> NFLX -> PLTR",
+      "selected_profit_amount": -30.46186781155058,
+      "selected_profit_amount_symbol": "PLTR",
+      "selected_profit_missing_reason": "chain review failed: NoProfitableRoute() | execution reverted | NoProfitableRoute | revertData=0x1630123400000000000000000000000000000000000000000000000015588b13761f343d000000000000000000000000000000000000000000000001bc16d674ec800001 | reve"
+    },
+    {
+      "created_at": "2026-11-15T08:34:36.917823100+00:00",
+      "id": 376,
+      "pair": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E -> AMD -> ETH -> UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_amount": -9.43196622747714,
+      "selected_profit_amount_symbol": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T08:34:33.309296400+00:00",
+      "id": 375,
+      "pair": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E -> AMD -> AMZN -> UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_amount": -15.6181635995206,
+      "selected_profit_amount_symbol": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T08:34:20.531758100+00:00",
+      "id": 370,
+      "pair": "ETH -> AMZN -> AMD -> ETH",
+      "selected_profit_amount": 117.99975073973184,
+      "selected_profit_amount_symbol": "ETH",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T08:34:16.618069400+00:00",
+      "id": 373,
+      "pair": "TZ -> TA -> TB -> TZ",
+      "selected_profit_amount": -3.1011287153261597,
+      "selected_profit_amount_symbol": "TZ",
+      "selected_profit_missing_reason": "chain review failed: NoProfitableRoute() | execution reverted | NoProfitableRoute | revertData=0x16301234000000000000000000000000000000000000000000000001910d6a5214b883c3000000000000000000000000000000000000000000000001bc16d674ec800001 | reve"
+    },
+    {
+      "created_at": "2026-11-15T08:34:15.088884700+00:00",
+      "id": 378,
+      "pair": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E -> AMZN -> ETH -> UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_amount": 26.183359140620553,
+      "selected_profit_amount_symbol": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    },
+    {
+      "created_at": "2026-11-15T08:34:12.931018200+00:00",
+      "id": 377,
+      "pair": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E -> AMZN -> AMD -> UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_amount": 35.15339429358281,
+      "selected_profit_amount_symbol": "UNRESOLVED:0XC9F9C86933092BBBFFF3CCB4B105A4A94BF3BD4E",
+      "selected_profit_missing_reason": "chain review failed: SwapNotResolved() | execution reverted | revertData=0xb20c2204 | revertSelector=0xb20c2204; closed loop currently has no positive pool-token profit; automatic execution is not justified; contract detailed preview concre"
+    }
+  ],
+  "managerAuthoritativeLibrary": {
+    "closedLoopHops": 24,
+    "closedLoops": 8,
+    "reviewBroadcastRequests": 0,
+    "reviewDiagnostics": 8,
+    "reviews": [
+      {
+        "path_text": "ETH -> AMD -> AMZN -> ETH",
+        "review_reason": "runArbitrage returned executable=false",
+        "review_status": "not_executable",
+        "reviewed_at": "2026-11-15T08:34:03.700293500+00:00",
+        "signed_pnl_amount": 9.021451416139e-06,
+        "signed_pnl_currency": "ETH",
+        "signed_pnl_source": "native_rust_contract_preview"
+      },
+      {
+        "path_text": "ETH -> AMD -> TSLA -> ETH",
+        "review_reason": "runArbitrage evidence is missing",
+        "review_status": "data_incomplete",
+        "reviewed_at": "unreported",
+        "signed_pnl_amount": null,
+        "signed_pnl_currency": null,
+        "signed_pnl_source": null
+      },
+      {
+        "path_text": "ETH -> AMZN -> AMD -> ETH",
+        "review_reason": "runArbitrage returned executable=false",
+        "review_status": "not_executable",
+        "reviewed_at": "2026-11-15T08:34:20.531758100+00:00",
+        "signed_pnl_amount": 117.99975073973184,
+        "signed_pnl_currency": "ETH",
+        "signed_pnl_source": "offline_v4_sqlite_route_snapshot"
+      },
+      {
+        "path_text": "ETH -> AMZN -> TSLA -> ETH",
+        "review_reason": "runArbitrage evidence is missing",
+        "review_status": "data_incomplete",
+        "reviewed_at": "unreported",
+        "signed_pnl_amount": null,
+        "signed_pnl_currency": null,
+        "signed_pnl_source": null
+      },
+      {
+        "path_text": "ETH -> NFLX -> PLTR -> ETH",
+        "review_reason": "runArbitrage returned executable=false",
+        "review_status": "not_executable",
+        "reviewed_at": "2026-11-15T07:47:28.268891900+00:00",
+        "signed_pnl_amount": -31.999999972141637,
+        "signed_pnl_currency": "ETH",
+        "signed_pnl_source": "native_rust_contract_preview"
+      },
+      {
+        "path_text": "ETH -> PLTR -> NFLX -> ETH",
+        "review_reason": "runArbitrage returned executable=false",
+        "review_status": "not_executable",
+        "reviewed_at": "2026-11-15T07:47:27.444010800+00:00",
+        "signed_pnl_amount": 0.000548878265974414,
+        "signed_pnl_currency": "ETH",
+        "signed_pnl_source": "native_rust_contract_preview"
+      },
+      {
+        "path_text": "ETH -> TSLA -> AMD -> ETH",
+        "review_reason": "runArbitrage evidence is missing",
+        "review_status": "data_incomplete",
+        "reviewed_at": "unreported",
+        "signed_pnl_amount": null,
+        "signed_pnl_currency": null,
+        "signed_pnl_source": null
+      },
+      {
+        "path_text": "ETH -> TSLA -> AMZN -> ETH",
+        "review_reason": "runArbitrage evidence is missing",
+        "review_status": "data_incomplete",
+        "reviewed_at": "unreported",
+        "signed_pnl_amount": null,
+        "signed_pnl_currency": null,
+        "signed_pnl_source": null
+      }
+    ],
+    "reviewsWithExplicitPnl": 4
+  },
+  "middleHopDepthVerdicts": [
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 127386557334717.2,
+        "capacityRaw": 4.122211406834215e+33,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 3.80632194984308e+20,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 7.217513185781505e+17,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 7.217513185781505e+17,
+      "pool_id": "0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 2942709684217.002,
+        "capacityRaw": 2.977251711514198e+30,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": null,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 2948099528006919.5,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 2948099528006919.5,
+      "pool_id": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 107532734983.2782,
+        "capacityRaw": 1.4054887131913364e+30,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 3.2224341907145184e+17,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 388334620852864.75,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 388334620852864.75,
+      "pool_id": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 1634117968914017.5,
+        "capacityRaw": 3.659259672061911e+34,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 4.848477592792065e+21,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 7.647844079825564e+18,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 7.647844079825564e+18,
+      "pool_id": "0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 4223529302239016.0,
+        "capacityRaw": 6.780182840169791e+34,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 1.2619944070453735e+22,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 1.685462575615925e+19,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 1.685462575615925e+19,
+      "pool_id": "0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 37713650778027.19,
+        "capacityRaw": 3.904664011657658e+31,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": null,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 3.822097642123213e+16,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 3.822097642123213e+16,
+      "pool_id": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 16830518573386.998,
+        "capacityRaw": 3.275843749615712e+31,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": null,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 2.3386810319063524e+16,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 2.3386810319063524e+16,
+      "pool_id": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 913878822874997.4,
+        "capacityRaw": 6.90719107400912e+34,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 2.7115061944892884e+21,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 7.857705531809741e+18,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 7.857705531809741e+18,
+      "pool_id": "0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 1711593672.5211518,
+        "capacityRaw": 1.0644895229872079e+36,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 5116822912486597.0,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 4.2535295865117304e+16,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 4.2535295865117304e+16,
+      "pool_id": "0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 1.5292871141211116e+16,
+        "capacityRaw": 1.857767324908283e+35,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 4.580982133104784e+22,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 5.322166720326685e+19,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 5.322166720326685e+19,
+      "pool_id": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 2984439411113364.5,
+        "capacityRaw": 3.201207554332828e+33,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": null,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 3.0862890652761006e+18,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 3.0862890652761006e+18,
+      "pool_id": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b"
+    },
+    {
+      "depth_band_json": {
+        "capacityBand": "deep",
+        "capacityBindingRaw": 490439835152436.75,
+        "capacityRaw": 4.571489504655707e+33,
+        "depthBandBasis": "binding_side_decimal_normalised",
+        "depthBasis": "onchain_tick_liquidity",
+        "estimatedTvlUsd": 1.465438699872441e+21,
+        "label": "deep",
+        "level": "deep",
+        "liquidityIndex": 1.491359646245817e+18,
+        "reason": "capacity_within_10bps_limit"
+      },
+      "depth_status": "deep",
+      "has_liquidity": 1,
+      "liquidity_index": 1.491359646245817e+18,
+      "pool_id": "0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638"
+    }
+  ],
+  "objective": "打通测试网闭环复核全链路：让 stock↔stock 中间跳池可被结构化深度判据接纳、让测试网代币身份可反查、让手动复核能命中 scanner 注册的 worker 组键，并把带明确盈亏的复核物化进 Manager 权威库。",
+  "remainingGaps": [
+    "4 条含 TSLA 的闭环路线尚未产出新鲜复核（单条路线约 5-10 分钟，受 RPC 延迟限制），materialize_reviews 需要在其收敛后再执行一次，使 manager_v4_reviews 8 条全部带明确盈亏。",
+    "测试网 5 只股票代币仍缺 USDG 估值来源（Uniswap Trading API 不服务 chain 46630），该项只影响 USD 计价展示，不影响结构化深度判据与复核链路。",
+    "逐跳输出下限（amountOutMinimum）仍需新 ABI；主网 Executor 实测仅余 25 字节。"
+  ],
+  "rootCausesFixed": [
+    {
+      "file": "flashloan/src/dex/intent_trade/chains/robinhood_testnet/v4_liquidity_metrics.py",
+      "fix": "改为与主网完全一致的链上价格冲击容量判据：capacity_from_sqrt_price + binding_side_capacity + capacity_band，复用 flashloan/src/dex/intent_trade/chains/robinhood/v4_pool_capacity.py 与共享的 flashloan/config/depth_policy.json；USD 读数降级为纯展示。",
+      "id": "DEP-TN-1",
+      "issue": "测试网以 estimatedTvlUsd 作为深度主信号，但测试网唯一计价资产是 ETH，stock↔stock 池两侧都不是 ETH，因此没有任何 USD 路径，TVL 恒为 None，深度标签退化为 unpriced，该池被排除出观察池，闭环构建器缺少中间跳，复核证据永远 data_incomplete。",
+      "measured": {
+        "middleHopPoolsAfter": "4 个全部 deep，reason=capacity_within_10bps_limit",
+        "middleHopPoolsBefore": "4 个 stock↔stock 中间跳全部 unpriced",
+        "unpricedPoolsAfter": 13,
+        "unpricedPoolsBefore": 70
+      },
+      "tests": "flashloan/app_runtime/tests/unit/test_robinhood_testnet_extsload_liquidity.py 13 passed（新增 3 项）",
+      "title": "测试网深度判据误用 USD TVL，stock↔stock 池被判 unpriced"
+    },
+    {
+      "file": "flashloan/src/chains/robinhood-testnet/v4_token_allowlist.json",
+      "fix": "删除陈旧占位别名 0XC9F9C8，保留权威股票身份 TSLA；5 只测试网股票代币现在全部可反查。",
+      "id": "ID-TN-2",
+      "issue": "同一地址 0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e 同时登记了 0XC9F9C8（meme 占位别名）与 TSLA（robinhood_stock 权威身份）。core.route_symbol_identity._trusted_address_symbol_map 在发现一个地址对应两个符号时会把该地址整体丢弃，于是 trusted_symbol_from_address 返回 None，所有 TSLA 路线退化为 UNRESOLVED:0xC9F9…，worker 注册在错误的组键上。",
+      "measured": {
+        "stockTokensResolvable": [
+          "AMD",
+          "AMZN",
+          "NFLX",
+          "PLTR",
+          "TSLA"
+        ],
+        "tslaResolveAfter": "TSLA",
+        "tslaResolveBefore": null
+      },
+      "tests": "flashloan/app_runtime/tests/unit/test_route_symbol_identity.py 6 passed（新增 3 项）",
+      "title": "测试网 TSLA 代币身份因地址重复登记而不可反查"
+    },
+    {
+      "file": "flashloan/src/dex/runtime/closed_loop_identity.py, flashloan/app_runtime/web/data_routes/dex_surface_routes_ops.py",
+      "fix": "新增 resolve_registered_group_key()：按有向环旋转等价在活 worker 列表中解析真实组键（反向方向不匹配）；manual-review 与 manual-broadcast 两条路由统一使用。",
+      "id": "GRP-TN-3",
+      "issue": "闭环库按 ETH 锚定存环（ETH→AMZN→TSLA→ETH），scanner 按自己发现的路线顺序注册 resident worker（tsla|eth|amzn）。两者是同一条有向环的旋转，但 Rust worker pool 按精确字符串索引状态机，于是 manual-review 一律返回 CLOSED_LOOP_GROUP_NOT_FOUND(404)。",
+      "measured": {
+        "ethAmznTslaStatusAfter": 409,
+        "ethAmznTslaStatusBefore": 404,
+        "meaning": "组已找到，正在复核中；404 已消除"
+      },
+      "tests": "flashloan/app_runtime/tests/unit/test_closed_loop_identity.py 9 passed（新增 4 项）",
+      "title": "手动复核的组键与 worker 注册键是同一有向环的不同旋转"
+    }
+  ],
+  "runtimeState": [
+    {
+      "generation": 33,
+      "last_error": null,
+      "loop_key": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 28,
+      "last_error": null,
+      "loop_key": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x0000000000000000000000000000000000000000:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": null,
+      "loop_key": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "state": "offchain_estimate",
+      "updated_at": "2026-11-15T11:30:00Z"
+    },
+    {
+      "generation": 2,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0x7943e237c7f95da44e0301572d358911207852fa:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:29:44Z"
+    },
+    {
+      "generation": 2,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:29:43Z"
+    },
+    {
+      "generation": 2,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:29:41Z"
+    },
+    {
+      "generation": 2,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:29:41Z"
+    },
+    {
+      "generation": 2,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:29:40Z"
+    },
+    {
+      "generation": 6,
+      "last_error": "execution_not_requested",
+      "loop_key": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:0x7943e237c7f95da44e0301572d358911207852fa",
+      "state": "execution_not_requested",
+      "updated_at": "2026-11-15T11:17:15Z"
+    },
+    {
+      "generation": 26,
+      "last_error": "review_failed:native_task_config_unavailable; {\"reason\": \"native_task_config_unavailable\"}",
+      "loop_key": "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333",
+      "state": "preflight_failed",
+      "updated_at": "2026-11-15T06:06:24Z"
+    }
+  ],
+  "safetyBoundary": {
+    "authoritySwitched": false,
+    "broadcastAuthority": "legacy",
+    "broadcastWritesEnabled": false,
+    "chainTransactionsSent": false,
+    "contractsDeployed": false,
+    "mainnetDatabaseTouched": false,
+    "productionDaemonRestarted": false,
+    "releaseBinaryReplaced": false,
+    "testnetDatabase": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "testnetDatabaseBackups": [
+      "%TEMP%/tn_pre_healer.sqlite3",
+      "%TEMP%/tn_backup_before.sqlite3",
+      "%TEMP%/tn_pre_capacity_refresh.sqlite3"
+    ]
+  },
+  "version": "testnet_review_roundtrip_round16_20261115"
+}

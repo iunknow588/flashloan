@@ -114,7 +114,7 @@ def test_mainnet_observation_does_not_prefilter_yc_zc_by_symbol_or_stablecoin():
 
 
 def test_mainnet_chain_json_declares_execution_and_pool_liquidity_evidence():
-    path = SRC_ROOT / "chains" / "robinhood" / "chain.json"
+    path = SRC_ROOT.parent / "chains" / "robinhood" / "chain.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     dex_arb = payload["features"]["dex_arbitrage"]
     assert dex_arb["protocol_supported"] is True
@@ -123,7 +123,7 @@ def test_mainnet_chain_json_declares_execution_and_pool_liquidity_evidence():
 
 
 def test_mainnet_flows_declare_v4_pool_liquidity_data_key():
-    path = SRC_ROOT / "chains" / "robinhood" / "flows.json"
+    path = SRC_ROOT.parent / "chains" / "robinhood" / "flows.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     for flow in payload["flows"].values():
         if flow["handler"].endswith("dex_surfaces:dex_quote_request_flow"):

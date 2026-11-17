@@ -25,6 +25,7 @@ SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 from core.db import builders  # noqa: E402
 from core.db.database_path import absolute_database_path  # noqa: E402
 from core.db.storage_schema import ensure_database_schema  # noqa: E402
@@ -110,7 +111,7 @@ def _v4_incremental_database_state(
     """Return V4 pool/liquidity completeness for the incremental guard.
 
     Completeness is scoped to YC/ZC eligible pools (known token universe,
-    fixed fee <= 3000, no hook).  Generic unknown pools outside that scope are
+    fixed fee <= the shared candidate ceiling, no hook).  Generic unknown pools outside that scope are
     counted for reporting but never decide the scan mode; explicit
     zero-liquidity verdicts are terminal and do not force a full rescan.
     """
@@ -485,7 +486,7 @@ def _apply_live_liquidity(
             block_number=block_number,
         )
     elif batch_liquidity:
-        return _apply_batch_live_liquidity(
+        activity = _apply_batch_live_liquidity(
             index_payload=index_payload,
             w3=w3,
             rpc_url=resolved_rpc_url,
@@ -507,6 +508,10 @@ def _apply_live_liquidity(
             pool_ids=pool_ids,
             block_number=block_number,
         )
+    liquidity_scan_at = str(activity.get("liquidityScanAt") or "").strip()
+    if liquidity_scan_at:
+        index_payload["liquidityScanAt"] = liquidity_scan_at
+    index_payload["generatedBlockNumber"] = block_number
     return {
         **activity,
         "scannedPoolCount": activity.get("scannedPoolCount") or len(pools),
@@ -804,7 +809,11 @@ def _direction_backfill_plan(
             network,
             database_url=database,
         )
-        address_by_symbol = {str(k).upper(): str(v).strip().lower() for k, v in resolved.items()}
+        address_by_symbol = {
+            str(symbol).upper(): str(resolved[symbol]).strip().lower()
+            for symbol in anchor_symbols
+            if symbol in resolved and str(resolved[symbol]).strip()
+        }
 
     rows = reader(
         database,
@@ -934,10 +943,19 @@ def _dry_run_candidate_backfill_report(
     """
     from core.db.storage_business_io import query_read_only
 
+    requested_anchors = tuple(
+        str(item).strip().upper()
+        for item in (requested.get("anchors") or ())
+        if str(item).strip()
+    )
+    resolved_anchors = requested_anchors or tuple(
+        all_anchor_symbols(network, database_url=database)
+    )
     plan = _direction_backfill_plan(
         database=database,
         network=network,
         chain_id=chain_id,
+        anchors=resolved_anchors,
         reader=query_read_only,
     )
     zero = "0x0000000000000000000000000000000000000000"
@@ -952,14 +970,14 @@ def _dry_run_candidate_backfill_report(
         ),
         "confirmedLiquidityPoolCount": query_read_only(
             database,
-            """
+            f"""
             SELECT COUNT(*) AS count
             FROM v4_exchange_pools p
             LEFT JOIN v4_exchange_pool_liquidity_snapshots l
               ON l.network = p.network AND l.chain_id = p.chain_id
              AND l.protocol = p.protocol AND l.pool_id = p.pool_id
             WHERE p.network = ? AND p.chain_id = ? AND p.protocol = ?
-              AND p.fee > 0 AND p.fee <= 3000 AND (p.fee & 8388608) = 0
+              AND p.fee > 0 AND p.fee <= {MAX_CANDIDATE_FIXED_FEE} AND (p.fee & 8388608) = 0
               AND (COALESCE(p.hooks, '') = '' OR lower(p.hooks) = ?)
               AND l.has_liquidity = 1
             """,
@@ -1163,6 +1181,11 @@ def refresh_v4_live(
                 "poolIds": _pool_ids_arg(pool_ids),
                 "importPoolIds": _pool_ids_arg(import_pool_ids),
                 "batchSize": max(1, int(batch_size)),
+                "anchors": [
+                    str(item).strip().upper()
+                    for item in str(anchors or "").split(",")
+                    if str(item).strip()
+                ],
             },
         )
     ensure_database_schema(str(database))

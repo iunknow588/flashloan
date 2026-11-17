@@ -1,0 +1,132 @@
+{
+  "authoritySwitches": 0,
+  "baseline": {
+    "comparisonCount": 84,
+    "executableMismatchCount": 23,
+    "ledgerEntryCount": 60,
+    "ledgerStatusCounts": {
+      "unexplained": 60
+    },
+    "unexplainedCount": 4
+  },
+  "baselineUnexplainedResolution": [
+    {
+      "attribution": "field_observability",
+      "cause": "the deployed V4 quoter ABI returns amountOut and gasEstimate only; sqrtPriceX96 and priceImpact have no chain-side counterpart",
+      "disposition": "accepted_limit",
+      "landedFix": "new field_observability attribution branch; global tolerance unchanged",
+      "poolId": "0x03120198ab6b358ecda139c3ca4431c1a2376d023df074921741346ce82e791a"
+    },
+    {
+      "attribution": "field_observability",
+      "cause": "the deployed V4 quoter ABI returns amountOut and gasEstimate only; sqrtPriceX96 and priceImpact have no chain-side counterpart",
+      "disposition": "accepted_limit",
+      "landedFix": "new field_observability attribution branch; global tolerance unchanged",
+      "poolId": "0x02884651cc7a02d1634db213a4e848337f2ab40ff666baa7d7d12daae33a975a"
+    },
+    {
+      "attribution": "not_executable",
+      "cause": "the deployed quoter reverts with custom error 0x6190b2b for this pool and direction at every probed block, including the pinned block and the chain head; the chain verdict is stable",
+      "disposition": "explained",
+      "landedFix": "after the transport fixes the memory side uses the true live state and agrees with the chain that the swap is not executable",
+      "poolId": "0x98f19386c3dabb78ddda7a0117a668dbb858ea3363c3b88aaf8f745f738a411e"
+    },
+    {
+      "attribution": "pool_state_version",
+      "cause": "the extsload batch exceeded the node 15-per-second budget; failed reads silently fell back to the stored snapshot while still being stamped with the pinned block",
+      "disposition": "fixed",
+      "landedFix": "batch size derived from the rate limit, incomplete live reads never replace the stored measurement, and a failed pool is never stamped with a block version",
+      "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+    }
+  ],
+  "broadcastSuccessRate": {
+    "authoritativeCheck": "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_20261112T115237Z.json",
+    "broadcastTablesWithZeroRows": [
+      "cow_execution_attempts",
+      "manager_v4_review_broadcast_requests",
+      "manager_broadcast_library_state",
+      "manager_cow_execution_attempts",
+      "manager_broadcast_attempt_diagnostics"
+    ],
+    "measured": false,
+    "reason": "the task broadcast nothing and the production database holds zero rows in all five broadcast tables, so there is no broadcast-success baseline to regress against",
+    "safeToAutoBroadcast": false
+  },
+  "broadcasts": 0,
+  "checksum": "sha256:baa16bf531ba27a8aab6d7ed2d5cce8a0dea31fa8496032e7cf8a6f947ad2d36",
+  "current": {
+    "amountMismatchCount": 24,
+    "arbiterVersion": "single_tick",
+    "attributionCounts": {
+      "tick_range_gate": 6
+    },
+    "comparisonCount": 24,
+    "executableMismatchCount": 6,
+    "ledgerEntryCount": 6,
+    "ledgerStatusCounts": {
+      "explained": 6,
+      "unexplained": 0
+    },
+    "liveState": true,
+    "memoryDeviationBlockCount": 0,
+    "poolStateVersion": [
+      "block:113647275"
+    ],
+    "unexplainedCount": 0,
+    "untrustedChainCount": 0
+  },
+  "failureCodes": [],
+  "failureSummary": [],
+  "inputVersions": {
+    "baselineReport": "arch4_shadow_diff_2026-11-13T14-34-37-316978900-00-00.json",
+    "evidenceDate": "2026-11-14",
+    "phase": "p0_1_arch4_shadow_diff_attribution",
+    "plan": "v9.8"
+  },
+  "latency": {
+    "baseline84ComparisonSeconds": "160-180",
+    "currentRunSeconds": 52,
+    "degraded": false,
+    "previousSamePopulationSeconds": 61.8
+  },
+  "mode": "read_only",
+  "outputVersions": {
+    "attribution": "p0_1_20261114",
+    "attributionDocument": "plan/p0_1_arch4_shadow_diff_attribution_20261114.md",
+    "shadowDiffReport": "arch4_shadow_diff_2026-11-13T20-54-22-236091900-00-00.json"
+  },
+  "productionDatabaseWrites": 0,
+  "productionWrite": false,
+  "rollbackPoint": "none-read-only-no-production-write",
+  "rootCausesFixed": [
+    {
+      "detail": "POOL_STATE_BATCH_SIZE reduced from 50 to 8 and the inter-chunk wait now covers the whole chunk; 9 of 24 extsload calls previously failed with -32007",
+      "file": "flashloan/tools/pool_manager/src/chain.rs",
+      "id": "batch_rate_limit_burst"
+    },
+    {
+      "detail": "a partial live read no longer mixes a failed half with a stored half; V4PoolState.complete marks a pool as a measurement only when both reads succeeded",
+      "file": "flashloan/tools/pool_manager/src/parity_state.rs",
+      "id": "silent_stale_fallback"
+    },
+    {
+      "detail": "a pool whose live read failed is no longer stamped with the pinned block, and a timestamp version is no longer treated as agreeing with a block version",
+      "file": "flashloan/tools/review_manager/src/shadow.rs",
+      "id": "false_coherence_stamp"
+    }
+  ],
+  "rowCount": 6,
+  "rpcRequestCount": 49,
+  "scopeNote": {
+    "baselinePopulation": "42 pools x 2 directions = 84 comparisons",
+    "currentPopulation": "12 zero-hook pools x 2 directions = 24 comparisons",
+    "excludedPools": 30,
+    "reason": "version 1 does not execute hook callbacks, so comparing the canonical V4 arithmetic to a hooked chain quote would measure hook behaviour; the frozen v1 scope already marks non-zero-hook pools as blocked",
+    "rpcCost": "excluded pools are filtered before any live-state RPC and therefore cost zero requests"
+  },
+  "status": "passed",
+  "testCommands": [
+    "cargo test --locked -p pool-manager -p review-manager",
+    "cargo build --release --locked"
+  ]
+}

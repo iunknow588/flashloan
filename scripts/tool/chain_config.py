@@ -15,13 +15,13 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CHAIN_DATA_ROOT = ROOT / "flashloan" / "src" / "chains"
+CHAIN_DATA_ROOT = ROOT / "flashloan" / "chains"
 REGISTRY_PATH = CHAIN_DATA_ROOT / "registry.json"
 
 MANIFEST_BY_CHAIN = {
-    4663: ROOT / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json",
-    31337: ROOT / "test-token_create" / "config" / "local-v4-amm" / "manifest.json",
-    46630: ROOT / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json",
+    4663: ROOT / "flashloan" / "tools" / "test-token_create" / "config" / "mainnet-v4-amm" / "manifest.json",
+    31337: ROOT / "flashloan" / "tools" / "test-token_create" / "config" / "local-v4-amm" / "manifest.json",
+    46630: ROOT / "flashloan" / "tools" / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json",
 }
 
 HARDHAT_NETWORK_BY_CHAIN = {
@@ -127,7 +127,7 @@ def manifest_path(chain_id: int, configured: str | os.PathLike[str] | None = Non
     if env_configured:
         return Path(env_configured).expanduser().resolve()
     return MANIFEST_BY_CHAIN.get(
-        int(chain_id), ROOT / "test-token_create" / "config" / f"chain-{chain_id}" / "manifest.json"
+        int(chain_id), ROOT / "flashloan" / "tools" / "test-token_create" / "config" / f"chain-{chain_id}" / "manifest.json"
     )
 
 

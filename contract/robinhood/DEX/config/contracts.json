@@ -15,7 +15,7 @@
   "sourceContract": "RobinhoodPausedFlashLoanExecutor",
   "executorContract": "RobinhoodPausedFlashLoanExecutor",
   "network": "robinhood",
-  "sourceChainConfig": "../../../../flashloan/src/chains/robinhood/chain.json",
+  "sourceChainConfig": "../../../flashloan/chains/robinhood/chain.json",
   "mode": "mainnet_read_only_deferred_deploy",
   "deploymentFile": null,
   "requiredAdapters": [

@@ -1,0 +1,21 @@
+# GENERATED FILE. DO NOT EDIT.
+# Source: flashloan/chains/{chain}/chain.json
+
+[rpc_endpoints]
+ethereum = "https://eth.llamarpc.com"
+bnb = "https://bsc-dataseed.bnbchain.org"
+polygon = "https://polygon-rpc.com"
+robinhood = "https://rpc.mainnet.chain.robinhood.com"
+localhost = "http://127.0.0.1:8545"
+fuji = "https://api.avax-test.network/ext/bc/C/rpc"
+avalanche = "https://api.avax.network/ext/bc/C/rpc"
+robinhoodTestnet = "https://rpc.testnet.chain.robinhood.com/rpc"
+
+[etherscan]
+ethereum = { key = "dummy", url = "https://etherscan.io/api" }
+bnb = { key = "dummy", url = "https://bscscan.com/api" }
+polygon = { key = "dummy", url = "https://polygonscan.com/api" }
+robinhood = { key = "dummy", url = "https://robinhoodchain.blockscout.com/api" }
+fuji = { key = "dummy", url = "https://testnet.snowtrace.io/api" }
+avalanche = { key = "dummy", url = "https://snowtrace.io/api" }
+robinhoodTestnet = { key = "dummy", url = "https://explorer.testnet.chain.robinhood.com/api" }

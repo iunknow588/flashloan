@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from copy import deepcopy
 from decimal import Decimal
@@ -6,9 +6,12 @@ import os
 from typing import Any, Callable
 
 from dex.runtime.dex_opportunity_helpers import (
+    _capacity_gate_verdict,
     _liquidity_cap_raw,
     _network_for_chain_id,
     _now_iso,
+    _offchain_gas_estimate_eth,
+    _offchain_gas_gate_evidence,
     _pool_map,
     _structured_dex_error,
 )
@@ -586,6 +589,84 @@ class DexOpportunityFixedRefreshMixin(DexOpportunityNativeRustMixin):
         size_probe["hasUpperBound"] = has_upper_amount
         if upper_amount is not None:
             size_probe["firstFailureAmount"] = upper_amount
+        source_evidence = (
+            selected_preflight.get("live_onchain_evidence")
+            if isinstance(selected_preflight.get("live_onchain_evidence"), dict)
+            else selected_preflight.get("evidence")
+            if isinstance(selected_preflight.get("evidence"), dict)
+            else {}
+        )
+        gas_evidence = deepcopy(source_evidence)
+        gas_costs = (
+            deepcopy(gas_evidence.get("costModel"))
+            if isinstance(gas_evidence.get("costModel"), dict)
+            else {}
+        )
+        gas_costs.setdefault("netProfitAmount", selected_profit)
+        gas_costs.setdefault(
+            "netProfitAmountSymbol",
+            selected_preflight.get("selectedProfitAmountSymbol")
+            or gas_evidence.get("selectedProfitAmountSymbol")
+            or (route_symbols[0] if route_symbols else None),
+        )
+        gas_evidence["costModel"] = gas_costs
+        gas_evidence.setdefault(
+            "status",
+            selected_preflight.get("quoteStatus")
+            or selected_preflight.get("evidenceStatus")
+            or "live_verified",
+        )
+        gas_evidence.setdefault(
+            "readyForTransactionPreflight",
+            bool(selected_preflight.get("readyForTransactionPreflight")),
+        )
+        gas_evidence.setdefault("blockers", list(selected_preflight.get("blockers") or []))
+        gas_gate = _offchain_gas_gate_evidence(gas_evidence, selected_profit)
+        size_probe["offchainGasGate"] = gas_gate
+        if gas_gate.get("blocked"):
+            gas_reason = str(gas_gate.get("reason") or "expected_loss_after_gas_before_broadcast")
+            size_probe["searchStatus"] = "not_profitable_after_estimated_gas"
+            size_probe["failureReason"] = gas_reason
+            blocked_result = deepcopy(selected_preflight)
+            blocked_result["offchainGasGate"] = gas_gate
+            blocked_result["quoteStatus"] = "not_profitable_after_estimated_gas"
+            blocked_result["evidenceStatus"] = "not_profitable_after_estimated_gas"
+            blocked_result["executionTrust"] = "not_profitable_after_estimated_gas"
+            blocked_result["readyForTransactionPreflight"] = False
+            blocked_result["profitableAfterEstimatedGas"] = False
+            blocked_result["error"] = gas_reason
+            return {
+                "preflight": selected_preflight,
+                "broadcast": None,
+                "result": blocked_result,
+                "size_probe": size_probe,
+            }
+        # Capacity gate: the intended position must fit inside every hop's
+        # on-chain price-impact budget. The check is token denominated, so it
+        # never depends on a USD quote. An unknown capacity blocks automatic
+        # execution but is not reported as a market conclusion.
+        capacity_verdict = _capacity_gate_verdict(
+            selected_preflight,
+            input_symbol=str(route_symbols[0] or ""),
+        )
+        size_probe["capacityGate"] = capacity_verdict
+        if capacity_verdict.get("blocked"):
+            capacity_reason = str(capacity_verdict.get("reason") or "capacity_insufficient")
+            size_probe["searchStatus"] = "capacity_insufficient"
+            size_probe["failureReason"] = capacity_reason
+            blocked_result = deepcopy(selected_preflight)
+            blocked_result["capacityGate"] = capacity_verdict
+            blocked_result["quoteStatus"] = "capacity_insufficient"
+            blocked_result["evidenceStatus"] = "capacity_insufficient"
+            blocked_result["executionTrust"] = "capacity_insufficient"
+            blocked_result["readyForTransactionPreflight"] = False
+            blocked_result["error"] = capacity_reason
+            return {
+                "preflight": selected_preflight,
+                "broadcast": None,
+                "result": blocked_result,
+                "size_probe": size_probe,
+            }
         broadcast_amount = selected_preflight.get("bestAmount") or selected_amount
         amount_is_best = bool(selected_preflight.get("bestAmountConfirmed"))
         broadcast = run_official_v4_arb_route_test(
@@ -781,6 +862,9 @@ class DexOpportunityFixedRefreshMixin(DexOpportunityNativeRustMixin):
         source_evidence = estimate.get("evidence") if isinstance(estimate.get("evidence"), dict) else {}
         size_probe = estimate.get("sizeProbe") if isinstance(estimate.get("sizeProbe"), dict) else None
         source_costs = source_evidence.get("costModel") if isinstance(source_evidence.get("costModel"), dict) else {}
+        gas_estimate_eth, gas_estimate_source = _offchain_gas_estimate_eth(
+            source_evidence, source_costs,
+        )
         analysis = estimate.get("analysis") if isinstance(estimate.get("analysis"), dict) else {}
         source_best_amount = _first_number(
             source_costs.get("selectedBorrowInputAmount"),
@@ -943,6 +1027,10 @@ class DexOpportunityFixedRefreshMixin(DexOpportunityNativeRustMixin):
                 "requestedBorrowInputAmountRaw": source_costs.get("requestedBorrowInputAmountRaw"),
                 "bestAmountConfirmed": best_amount_confirmed,
                 "bestAmountMissing": best_amount_missing,
+                "netProfitAmountSymbol": route_symbols[0] if route_symbols else None,
+                "gasCostEth": source_costs.get("gasCostEth"),
+                "gasEstimateEth": gas_estimate_eth,
+                "gasEstimateSource": gas_estimate_source,
                 "netProfitAmount": source_net_profit,
                 "netProfitBps": source_net_bps,
                 "netProfitAmountBps": source_net_bps,
@@ -1003,6 +1091,13 @@ class DexOpportunityFixedRefreshMixin(DexOpportunityNativeRustMixin):
             "conclusion": "閾句笂鎶ヤ环宸查獙璇佸綋鍓嶉噾棰濓紝浣嗘渶浣充氦鏄撻噺鏈绠楁垚鍔燂紱澶嶆牳鏈€氳繃" if best_amount_missing else None,
             "errorStack": error_stack,
         }
+        evidence["offchainGasGate"] = _offchain_gas_gate_evidence(evidence, source_net_profit)
+        gas_blocker = evidence["offchainGasGate"].get("blocked")
+        if gas_blocker:
+            gas_reason = str(evidence["offchainGasGate"].get("reason") or "gas_gate_blocked")
+            gas_blocker_text = f"off-chain gas gate blocked broadcast: {gas_reason}"
+            if gas_blocker_text not in evidence["blockers"]:
+                evidence["blockers"].append(gas_blocker_text)
         quote = dict(route.get("quote") or {})
         quote["live_onchain_evidence"] = evidence
         enriched_analysis = dict(analysis)
@@ -1149,4 +1244,3 @@ class DexOpportunityFixedRefreshMixin(DexOpportunityNativeRustMixin):
                     "reasons": [error],
                 }
             )
-

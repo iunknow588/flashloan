@@ -1,18 +1,53 @@
 use closed_loop_manager::{
     read_closed_loop_snapshot, ClosedLoopError, ClosedLoopRow, ClosedLoopStatus,
 };
-use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
+use pool_manager::{
+    read_pool_parity_states, PoolParityState, SingleTickExecutionState,
+    DEFAULT_MAX_CAPACITY_MULTIPLIER_BPS,
+};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 
+pub mod parity;
 pub mod runtime;
+pub mod shadow;
+pub mod single_tick;
+pub mod state_transition_gate;
 
+pub use parity::{
+    build_hops, chain_fee_matches, decode_chain_live_amounts, default_protocol,
+    effective_flash_fee_bps, evaluate_route_parity, evaluate_route_parity_with_review_time_state,
+    evaluate_route_parity_with_states, extract_review_time_pool_states, flash_fee,
+    legacy_fee_residual, parity_request_from_review_payload, parse_amount, read_recorded_reviews,
+    relative_delta, replay_recorded_routes, replay_recorded_routes_with, required_repay,
+    resolve_route_pool_ids, route_newest_state_read_at, signed_offchain_profit, simulate_route,
+    state_age_seconds, state_postdates_review, EvidenceBreakdown, HopResult, HopState,
+    ParityAttribution, ParityDetail, ParityError, ParityRequest, ParityState, ParityVerdict,
+    PoolStateAge, RecordedReview, ReplayOutcome, ReplayReport, ReplaySelection,
+    ReviewTimePoolState, RouteResult, CHAIN_MIN_PROFIT_RAW, DEFAULT_FLASH_FEE_BPS,
+    DEFAULT_PROFIT_RELATIVE_TOLERANCE, LEGACY_ASSUMED_FLASH_FEE_BPS, LIQUIDITY_INDEX_SCALE,
+};
 pub use runtime::{
     ReviewPermit, ReviewRuntime, ReviewRuntimeStatus, ReviewSupervisor, ReviewSupervisorCommand,
     ReviewSupervisorStatus,
+};
+pub use shadow::{
+    run_shadow_comparison, AnomalyEntry, AnomalyLedger, AnomalyStatus, ChainCallFailure,
+    ChainQuoteResult, EthCallTrust, EthCallTrustReason, ShadowAttribution, ShadowDiff,
+    ShadowFieldDiff, ShadowHopRequest, ShadowQuote, ShadowReport, ShadowRequest, ShadowSourceTag,
+    DEFAULT_SHADOW_TOLERANCE, ROBINHOOD_V4_POOL_MANAGER,
+};
+pub use single_tick::{
+    evaluate_route_single_tick, BoundConclusion, SingleTickHopState, SingleTickHopVerdict,
+    SingleTickRouteVerdict,
+};
+pub use state_transition_gate::{
+    evaluate_route_transition, route_transition_price_limits, HopExecutionState,
+    HopTransitionVerdict, RouteTransitionVerdict, TransitionOutcome,
 };
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
@@ -20,6 +55,27 @@ const REVIEW_SCOPE_KEY: &str = "core4";
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
+
+
+
+
+
+
+
+const MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS: i64 = 120;
+const MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS: i64 = 30;
+
+fn review_is_fresh_for_automatic_broadcast(reviewed_at: &str) -> bool {
+    let Ok(reviewed_at) = chrono::DateTime::parse_from_rfc3339(reviewed_at) else {
+        return false;
+    };
+    let age = chrono::Utc::now()
+        .signed_duration_since(reviewed_at.with_timezone(&chrono::Utc))
+        .num_seconds();
+    (-MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS
+        ..=MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS)
+        .contains(&age)
+}
 
 #[derive(Debug)]
 pub enum ReviewError {
@@ -263,6 +319,30 @@ pub struct ReviewRow {
     pub run_arbitrage: serde_json::Value,
     pub signed_pnl: Option<SignedPnl>,
     pub reviewed_at: String,
+    /// The folded single-tick capacity of the loop, in anchor-token raw
+    /// units.
+    ///
+    /// The value is copied from the closed-loop row, which owns the fold.
+    /// The review uses it to prove that the **final** input amount still
+    /// fits inside the single-tick capacity, and the broadcast request
+    /// carries it so the executor can refuse an amount that was never
+    /// proven.
+    ///
+    /// The value is serialized as a decimal string: a folded capacity
+    /// routinely exceeds `u64::MAX`, and a JSON number cannot hold it.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_optional_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_optional_u128_from_string"
+    )]
+    pub single_tick_capacity_anchor_raw: Option<u128>,
+    /// The hop whose folded capacity is the smallest.
+    pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The price limit of each hop, in route order.
+    ///
+    /// The limits are the current tick boundaries the review proved. A
+    /// broadcast payload without all three limits is refused instead of
+    /// falling back to the global V4 price bound.
+    pub hop_sqrt_price_limits: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -295,6 +375,24 @@ pub struct BroadcastRequestRow {
     pub signed_pnl: SignedPnl,
     pub request_status: String,
     pub request_reason: Option<String>,
+    /// The folded single-tick capacity of the loop, in anchor-token raw
+    /// units.
+    ///
+    /// The broadcast request carries the bound that the review proved. A
+    /// payload whose amount exceeds it was never proven single-tick and
+    /// must not be broadcast.
+    ///
+    /// The value is serialized as a decimal string: a folded capacity
+    /// routinely exceeds `u64::MAX`, and a JSON number cannot hold it.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_optional_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_optional_u128_from_string"
+    )]
+    pub single_tick_capacity_anchor_raw: Option<u128>,
+    /// The hop whose folded capacity is the smallest.
+    pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The price limit of each hop, in route order.
+    pub hop_sqrt_price_limits: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -433,9 +531,78 @@ pub struct ReviewWriteOutcome {
     pub idempotent_replay: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewRecordStore {
+    Manager,
+    Legacy,
+}
+
+impl ReviewRecordStore {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Manager => "manager",
+            Self::Legacy => "legacy",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewClearRequest {
+    pub network: String,
+    pub chain_id: i64,
+    pub operation: String,
+    pub request_id: String,
+    pub idempotency_key: String,
+    pub apply: bool,
+    pub record_store: ReviewRecordStore,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewClearResult {
+    pub network: String,
+    pub chain_id: i64,
+    pub protocol: String,
+    pub scope_key: String,
+    pub record_store: String,
+    pub apply: bool,
+    pub dry_run: bool,
+    pub cleared_reviews: usize,
+    pub cleared_diagnostics: usize,
+    pub cleared_broadcast_requests: usize,
+    pub remaining_reviews: usize,
+    pub remaining_diagnostics: usize,
+    pub remaining_broadcast_requests: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewClearOutcome {
+    #[serde(flatten)]
+    pub result: ReviewClearResult,
+    pub idempotent_replay: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedReviewClearWrite {
+    request_id: String,
+    request_digest: String,
+    result: ReviewClearResult,
+}
+
 struct ReviewInput {
     closed_loop: ClosedLoopStatus,
     loops: Vec<ClosedLoopRow>,
+    /// The measured pool state of every pool the closed loops name.
+    ///
+    /// The final single-tick gate needs the pool's price, liquidity, tick
+    /// and tick spacing, and it needs them for **every** hop of the route.
+    /// The state is read once, through Pool Manager's published API, so the
+    /// gate never reads a Pool Manager table directly.
+    pool_states: BTreeMap<String, PoolParityState>,
 }
 
 #[derive(Default)]
@@ -503,6 +670,96 @@ pub fn run_reviews_write(
     Ok(ReviewWriteOutcome {
         result,
         idempotent_replay,
+    })
+}
+
+pub fn clear_review_records_write(
+    database_path: impl AsRef<Path>,
+    request: ReviewClearRequest,
+) -> Result<ReviewClearOutcome, ReviewError> {
+    validate_operation(&request.network, request.chain_id)?;
+    if request.operation.trim().is_empty() {
+        return Err(ReviewError::InvalidRequest(
+            "operation must not be empty".to_owned(),
+        ));
+    }
+    validate_identifier("request_id", &request.request_id, MAX_REQUEST_ID_LENGTH)?;
+    validate_identifier(
+        "idempotency_key",
+        &request.idempotency_key,
+        MAX_IDEMPOTENCY_KEY_LENGTH,
+    )?;
+    let request_digest = clear_request_digest(&request)?;
+    let mut connection = open_connection(database_path.as_ref(), request.apply)?;
+    connection.busy_timeout(std::time::Duration::from_secs(60))?;
+    if request.apply {
+        ensure_clear_write_ledger(&connection)?;
+    }
+    if !request.apply {
+        let result = prepare_clear_result(&connection, &request)?;
+        return Ok(ReviewClearOutcome {
+            result,
+            idempotent_replay: false,
+        });
+    }
+
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    if let Some(response_json) = find_clear_write_request(&transaction, &request)? {
+        let persisted = serde_json::from_str::<PersistedReviewClearWrite>(&response_json)?;
+        if persisted.request_digest != request_digest {
+            return Err(ReviewError::IdempotencyKeyReused {
+                idempotency_key: request.idempotency_key.clone(),
+                existing_request_id: persisted.request_id,
+                submitted_request_id: request.request_id.clone(),
+            });
+        }
+        return Ok(ReviewClearOutcome {
+            result: persisted.result,
+            idempotent_replay: true,
+        });
+    }
+    let result = prepare_clear_result(&transaction, &request)?;
+    match request.record_store {
+        ReviewRecordStore::Manager => {
+            delete_from_optional_manager_table(
+                &transaction,
+                "manager_v4_review_diagnostics",
+                &request.network,
+                request.chain_id,
+            )?;
+            delete_from_optional_manager_table(
+                &transaction,
+                "manager_v4_review_broadcast_requests",
+                &request.network,
+                request.chain_id,
+            )?;
+            delete_from_optional_manager_table(
+                &transaction,
+                "manager_v4_reviews",
+                &request.network,
+                request.chain_id,
+            )?;
+            delete_from_optional_manager_table(
+                &transaction,
+                "manager_review_library_state",
+                &request.network,
+                request.chain_id,
+            )?;
+        }
+        ReviewRecordStore::Legacy => {
+            if sqlite_table_exists(&transaction, "cow_execution_reviews")? {
+                transaction.execute(
+                    "DELETE FROM cow_execution_reviews WHERE network = ?1 AND chain_id = ?2",
+                    params![request.network, request.chain_id],
+                )?;
+            }
+        }
+    }
+    persist_clear_write(&transaction, &request, &request_digest, &result)?;
+    transaction.commit()?;
+    Ok(ReviewClearOutcome {
+        result,
+        idempotent_replay: false,
     })
 }
 
@@ -774,9 +1031,41 @@ fn read_review_input(
             actual: snapshot.loops.len(),
         });
     }
+    let pool_ids: Vec<String> = snapshot
+        .loops
+        .iter()
+        .flat_map(|row| row.pool_ids.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    // The pool state is **optional** for the review itself.
+    //
+    // A missing state does not abort the review: it makes the final
+    // single-tick gate unable to prove the route, which blocks that route
+    // and only that route. Aborting the whole review would turn a
+    // measurement gap into an outage, and the review would no longer
+    // report the routes it *can* judge.
+    let pool_states = read_pool_parity_states(
+        connection
+            .path()
+            .map(Path::new)
+            .unwrap_or_else(|| Path::new("manager.sqlite3")),
+        network,
+        chain_id,
+        NETWORK_PROTOCOL,
+        &pool_ids,
+    )
+    .map(|states| {
+        states
+            .into_iter()
+            .map(|state| (state.pool_id.clone(), state))
+            .collect()
+    })
+    .unwrap_or_default();
     Ok(ReviewInput {
         closed_loop: snapshot.status,
         loops: snapshot.loops,
+        pool_states,
     })
 }
 
@@ -803,6 +1092,286 @@ fn validate_evidence_membership(
         }
     }
     Ok(())
+}
+
+/// The three-state execution gate of one closed loop.
+///
+/// The gate compares the state the candidate ranking priced (**expected**)
+/// against the state the route would execute against (**current**) and
+/// classifies every hop as favorable, unchanged, adverse or fatal.
+///
+/// A route may only be broadcast when every hop is favorable or unchanged.
+/// An adverse hop is a market conclusion and blocks the route with the
+/// stable reason `adverse_price_move`; a fatal hop is a measurement or
+/// tick-range failure and blocks it with the stable reason of the
+/// underlying check.
+///
+/// A favorable hop does **not** prove a larger profit. It only publishes a
+/// candidate capacity, and the final single-tick gate still has to re-price
+/// every hop with the final input amount.
+fn evaluate_final_state_transition_gate(
+    input: &ReviewInput,
+    closed_loop: &ClosedLoopRow,
+    run: &RunArbitrageEvidence,
+) -> RouteTransitionVerdict {
+    let amount_in_raw = match final_input_amount_raw(run) {
+        Some(amount) if amount > 0 => amount,
+        _ => {
+            return RouteTransitionVerdict {
+                broadcast_allowed: false,
+                reason: Some("final_input_amount_unavailable".to_string()),
+                hops: Vec::new(),
+            }
+        }
+    };
+    // The expected state is the one the candidate ranking recorded. The
+    // current state is the one the Manager has stored for the same pool.
+    let Ok(run_payload) = serde_json::to_value(run) else {
+        return RouteTransitionVerdict {
+            broadcast_allowed: false,
+            reason: Some("run_arbitrage_evidence_unavailable".to_string()),
+            hops: Vec::new(),
+        };
+    };
+    let expected_states = extract_review_time_pool_states(&run_payload);
+    let expected_by_pool: BTreeMap<String, ReviewTimePoolState> = expected_states
+        .into_iter()
+        .map(|state| (state.pool_id.clone(), state))
+        .collect();
+    let Some(hops) = build_hops(
+        &closed_loop.path_addresses,
+        &input.pool_states,
+        &closed_loop.pool_ids,
+    ) else {
+        return RouteTransitionVerdict {
+            broadcast_allowed: false,
+            reason: Some("route_state_unavailable".to_string()),
+            hops: Vec::new(),
+        };
+    };
+
+    let mut execution_hops = Vec::with_capacity(hops.len());
+    for hop in hops {
+        let Some(current) = input.pool_states.get(&hop.pool_id) else {
+            return RouteTransitionVerdict {
+                broadcast_allowed: false,
+                reason: Some(format!("current_pool_state_unavailable:{}", hop.pool_id)),
+                hops: Vec::new(),
+            };
+        };
+        let Some(expected) = expected_by_pool.get(&hop.pool_id) else {
+            // The expected state is missing, so the move cannot be
+            // classified. "Cannot prove" is not "is false": the hop is
+            // fatal and the route may not be broadcast.
+            return RouteTransitionVerdict {
+                broadcast_allowed: false,
+                reason: Some(format!("expected_pool_state_unavailable:{}", hop.pool_id)),
+                hops: Vec::new(),
+            };
+        };
+        if expected.tick_spacing != current.tick_spacing {
+            return RouteTransitionVerdict {
+                broadcast_allowed: false,
+                reason: Some(format!("tick_spacing_changed:{}", hop.pool_id)),
+                hops: Vec::new(),
+            };
+        }
+        // The expected capacity of the hop is the exact single-tick bound
+        // of the expected state, so the classifier can tell an exact
+        // capacity change from a price-distance approximation.
+        let expected_capacity_raw = match pool_manager::depth::single_tick_swap_amount_out(
+            expected.sqrt_price_x96,
+            expected.liquidity,
+            hop.fee_pips,
+            expected.tick_spacing as i32,
+            expected.tick as i32,
+            amount_in_raw,
+            hop.zero_for_one,
+        ) {
+            Ok(quote) if quote.inside_tick_range => quote.max_amount_in_raw,
+            Ok(_) => {
+                return RouteTransitionVerdict {
+                    broadcast_allowed: false,
+                    reason: Some(format!("expected_amount_crosses_tick:{}", hop.pool_id)),
+                    hops: Vec::new(),
+                }
+            }
+            Err(_) => {
+                return RouteTransitionVerdict {
+                    broadcast_allowed: false,
+                    reason: Some(format!("expected_quote_unavailable:{}", hop.pool_id)),
+                    hops: Vec::new(),
+                }
+            }
+        };
+        execution_hops.push(HopExecutionState {
+            pool_id: hop.pool_id.clone(),
+            expected: SingleTickExecutionState {
+                sqrt_price_x96: expected.sqrt_price_x96,
+                liquidity: expected.liquidity,
+                tick: expected.tick as i32,
+                tick_spacing: expected.tick_spacing as i32,
+            },
+            current: SingleTickExecutionState {
+                sqrt_price_x96: current.sqrt_price_x96,
+                liquidity: current.liquidity,
+                tick: current.tick as i32,
+                tick_spacing: current.tick_spacing as i32,
+            },
+            fee_pips: hop.fee_pips,
+            zero_for_one: hop.zero_for_one,
+            amount_in_raw,
+            expected_capacity_raw,
+        });
+    }
+    evaluate_route_transition(&execution_hops, DEFAULT_MAX_CAPACITY_MULTIPLIER_BPS)
+}
+
+/// The final single-tick gate of one closed loop.
+///
+/// The gate answers the question the candidate ranking could not: with the
+/// **actual** input amount of every hop, does the route stay inside one
+/// tick range per hop?
+///
+/// The answer is fail-closed. A route that cannot be proven single-tick is
+/// not executable, and an executable route is the only one that may become
+/// a broadcast request. The gate therefore never turns a route into a
+/// broadcast request by itself; it can only take one away.
+fn evaluate_final_single_tick_gate(
+    input: &ReviewInput,
+    closed_loop: &ClosedLoopRow,
+    run: &RunArbitrageEvidence,
+) -> SingleTickRouteVerdict {
+    let amount_in_raw = match final_input_amount_raw(run) {
+        Some(amount) if amount > 0 => amount,
+        Some(_) => {
+            return SingleTickRouteVerdict {
+                executable: false,
+                reason: Some("final_input_amount_unavailable".to_string()),
+                hops: Vec::new(),
+            }
+        }
+        None => {
+            return SingleTickRouteVerdict {
+                executable: false,
+                reason: Some("final_input_amount_unavailable".to_string()),
+                hops: Vec::new(),
+            }
+        }
+    };
+    // The folded single-tick capacity is the path-level bound of the route.
+    //
+    // The per-hop gate below proves that each hop stays inside its own tick
+    // range. The folded capacity is the stronger statement: it is the
+    // smallest of the three hop capacities after every hop has been
+    // converted into the units of the anchor token, so an input above it
+    // cannot be carried by **some** hop of the route even when every
+    // individual hop would still fit on its own.
+    //
+    // A route without a published folded capacity is a coverage gap of the
+    // pool index. It is not proof that the route fits, so it is blocked
+    // here: the review may not promote an unproven route into a broadcast
+    // request.
+    let Some(capacity_anchor_raw) = closed_loop.single_tick_capacity_anchor_raw else {
+        return SingleTickRouteVerdict {
+            executable: false,
+            reason: Some("single_tick_capacity_unavailable".to_string()),
+            hops: Vec::new(),
+        };
+    };
+    if capacity_anchor_raw == 0 {
+        return SingleTickRouteVerdict {
+            executable: false,
+            reason: Some("single_tick_capacity_unusable".to_string()),
+            hops: Vec::new(),
+        };
+    }
+    if amount_in_raw > capacity_anchor_raw {
+        return SingleTickRouteVerdict {
+            executable: false,
+            reason: Some("final_input_exceeds_single_tick_capacity".to_string()),
+            hops: Vec::new(),
+        };
+    }
+    let Some(hops) = build_hops(
+        &closed_loop.path_addresses,
+        &input.pool_states,
+        &closed_loop.pool_ids,
+    ) else {
+        return SingleTickRouteVerdict {
+            executable: false,
+            reason: Some("route_state_unavailable".to_string()),
+            hops: Vec::new(),
+        };
+    };
+    let extras: Vec<SingleTickHopState> = hops
+        .iter()
+        .map(|hop| {
+            let state = input.pool_states.get(&hop.pool_id);
+            SingleTickHopState {
+                pool_id: hop.pool_id.clone(),
+                tick: state.map(|value| value.tick as i32).unwrap_or_default(),
+                tick_spacing: state
+                    .map(|value| value.tick_spacing as i32)
+                    .unwrap_or_default(),
+                pool_state_version: state.and_then(|value| value.liquidity_read_at.clone()),
+            }
+        })
+        .collect();
+    evaluate_route_single_tick(&hops, &extras, amount_in_raw)
+}
+
+/// The final input amount the chain was asked to execute with.
+///
+/// The candidate ranking prices a hop with a **search** amount, which is
+/// only a screening input. The final review has to use the amount the
+/// chain would actually be asked for, and that amount is the one the
+/// `runArbitrage` evidence carries.
+///
+/// Several spellings are accepted because the evidence is produced by the
+/// runtime, not by this module: the raw hex amount is the canonical form,
+/// and the decimal form is the fallback.
+fn final_input_amount_raw(run: &RunArbitrageEvidence) -> Option<u128> {
+    const AMOUNT_KEYS: [&str; 6] = [
+        "selectedAmountRaw",
+        "initialAmountRaw",
+        "amountInRaw",
+        "amountRaw",
+        "selectedAmount",
+        "initialAmount",
+    ];
+    for key in AMOUNT_KEYS {
+        let Some(value) = run.raw.get(key) else {
+            continue;
+        };
+        if let Some(amount) = parse_raw_amount(value) {
+            if amount > 0 {
+                return Some(amount);
+            }
+        }
+    }
+    None
+}
+
+/// Parses one raw amount, in hex, decimal or string form.
+fn parse_raw_amount(value: &serde_json::Value) -> Option<u128> {
+    match value {
+        serde_json::Value::String(text) => {
+            let text = text.trim();
+            if text.is_empty() {
+                return None;
+            }
+            if let Some(hex) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+                return u128::from_str_radix(hex, 16).ok();
+            }
+            text.parse::<u128>().ok()
+        }
+        serde_json::Value::Number(number) => number
+            .as_u64()
+            .map(|value| u128::from(value))
+            .or_else(|| number.to_string().parse::<u128>().ok()),
+        _ => None,
+    }
 }
 
 fn build_review_rows(
@@ -845,6 +1414,48 @@ fn build_review_rows(
         let signed_pnl = run_arbitrage
             .and_then(|value| value.signed_pnl.as_ref())
             .filter(|value| validate_signed_pnl(value));
+        // The final single-tick gate runs **before** the verdict is formed.
+        //
+        // The upstream `runArbitrage` evidence says the chain accepted the
+        // route; the gate says the route may be executed under the rules of
+        // version 1. A route that crosses a tick, drifts away from its pool
+        // state version, or simply cannot be proven single-tick is
+        // **not executable**, whatever the upstream evidence says, and it
+        // never becomes a broadcast request.
+        let single_tick_verdict = run_arbitrage
+            .filter(|run| run.ok && run.executable)
+            .map(|run| evaluate_final_single_tick_gate(input, closed_loop, run));
+        let single_tick_blocked = single_tick_verdict
+            .as_ref()
+            .filter(|verdict| !verdict.executable);
+        if let Some(verdict) = single_tick_blocked {
+            insert_single_tick_diagnostic(&mut diagnostics, &closed_loop.loop_key, verdict)?;
+        }
+        // The three-state execution gate runs **before** the verdict is
+        // formed, next to the single-tick gate.
+        //
+        // The single-tick gate proves that the route fits inside one tick
+        // range per hop. The transition gate proves that the market has not
+        // moved against the route since the candidate ranking priced it.
+        // Both are fail-closed: a route that cannot be proven executable may
+        // never become a broadcast request.
+        let transition_verdict = run_arbitrage
+            .filter(|run| run.ok && run.executable)
+            .map(|run| evaluate_final_state_transition_gate(input, closed_loop, run));
+        let transition_blocked = transition_verdict
+            .as_ref()
+            .filter(|verdict| !verdict.broadcast_allowed);
+        if let Some(verdict) = transition_blocked {
+            insert_transition_diagnostic(&mut diagnostics, &closed_loop.loop_key, verdict)?;
+        }
+        // The price limits are part of the execution proof, not advisory
+        // metadata. A route with fewer than three limits cannot be encoded
+        // as a bounded three-hop swap, so it must never become a broadcast
+        // request.
+        let hop_sqrt_price_limits = transition_verdict
+            .as_ref()
+            .map(route_transition_price_limits)
+            .unwrap_or_default();
         let (review_status, review_reason) = match run_arbitrage {
             None => {
                 insert_synthetic_missing_diagnostic(
@@ -868,7 +1479,31 @@ fn build_review_rows(
                     Some("signed PnL is missing or incomplete".to_owned()),
                 )
             }
-            Some(run) if run.ok && run.executable => ("completed", None),
+            Some(run) if run.ok && run.executable => {
+                match (single_tick_blocked, transition_blocked) {
+                    (Some(verdict), _) => (
+                        "not_executable",
+                        Some(format!(
+                            "single_tick_gate_failed:{}",
+                            verdict
+                                .reason
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_owned())
+                        )),
+                    ),
+                    (None, Some(verdict)) => (
+                        "not_executable",
+                        Some(format!(
+                            "state_transition_gate_failed:{}",
+                            verdict
+                                .reason
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_owned())
+                        )),
+                    ),
+                    (None, None) => ("completed", None),
+                }
+            }
             Some(run) if !run.ok => (
                 "not_executable",
                 Some("runArbitrage returned ok=false".to_owned()),
@@ -880,7 +1515,7 @@ fn build_review_rows(
         };
 
         let page_category = review_page_category(review_status, signed_pnl).to_owned();
-        let row = ReviewRow {
+        let mut row = ReviewRow {
             loop_key: closed_loop.loop_key.clone(),
             closed_loop_version: input.closed_loop.closed_loop_version,
             closed_loop_checksum: closed_loop_checksum(&input.closed_loop)?.to_owned(),
@@ -908,10 +1543,20 @@ fn build_review_rows(
             run_arbitrage: run_json,
             signed_pnl: signed_pnl.cloned(),
             reviewed_at,
+            single_tick_capacity_anchor_raw: closed_loop.single_tick_capacity_anchor_raw,
+            single_tick_capacity_binding_pool_id: closed_loop
+                .single_tick_capacity_binding_pool_id
+                .clone(),
+            hop_sqrt_price_limits: hop_sqrt_price_limits.clone(),
         };
+        let fresh_for_automatic_broadcast =
+            review_is_fresh_for_automatic_broadcast(&row.reviewed_at);
         if review_status == "completed" {
             if let Some(pnl) = &row.signed_pnl {
-                if pnl.amount > 0.0 {
+                if pnl.amount > 0.0
+                    && fresh_for_automatic_broadcast
+                    && row.hop_sqrt_price_limits.len() == 3
+                {
                     desired.broadcast_requests.push(BroadcastRequestRow {
                         loop_key: row.loop_key.clone(),
                         closed_loop_version: row.closed_loop_version,
@@ -927,6 +1572,18 @@ fn build_review_rows(
                         request_reason: Some(
                             "completed review with positive executable signed PnL".to_owned(),
                         ),
+                        single_tick_capacity_anchor_raw: row.single_tick_capacity_anchor_raw,
+                        single_tick_capacity_binding_pool_id: row
+                            .single_tick_capacity_binding_pool_id
+                            .clone(),
+                        hop_sqrt_price_limits: row.hop_sqrt_price_limits.clone(),
+                    });
+                } else if pnl.amount > 0.0 {
+                    row.review_reason = Some(if row.hop_sqrt_price_limits.len() != 3 {
+                        "positive review has no complete per-hop price limits and cannot trigger automatic broadcast"
+                                .to_owned()
+                    } else {
+                        "positive review is stale and cannot trigger automatic broadcast".to_owned()
                     });
                 }
             }
@@ -1015,6 +1672,141 @@ fn insert_diagnostic(
         });
     }
     Ok(())
+}
+
+/// Records the per-hop evidence of a failed single-tick gate.
+///
+/// The diagnostic carries the **whole** per-hop picture, not only the hop
+/// that failed: the initialized tick, the actual output, the distance to
+/// the next tick and the bound conclusion of **every** hop. A reviewer
+/// therefore sees the whole route and not just the single hop that stopped
+/// it.
+fn insert_single_tick_diagnostic(
+    diagnostics: &mut BTreeMap<String, ReviewDiagnosticRow>,
+    loop_key: &str,
+    verdict: &SingleTickRouteVerdict,
+) -> Result<(), ReviewError> {
+    let reason = verdict
+        .reason
+        .clone()
+        .unwrap_or_else(|| "unknown".to_owned());
+    insert_diagnostic(
+        diagnostics,
+        loop_key,
+        ReviewDiagnosticInput {
+            diagnostic_id: Some(format!("single-tick-gate:{loop_key}")),
+            diagnostic_type: ReviewDiagnosticType::Other,
+            diagnostic_code: Some("SingleTickGateFailed".to_owned()),
+            message: Some(format!(
+                "the route failed the final single-tick gate: {reason}"
+            )),
+            hop_index: None,
+            pool_id: None,
+            selector: None,
+            payload: serde_json::json!({
+                "reason": reason,
+                "executable": verdict.executable,
+                "hops": single_tick_hop_payload(verdict),
+            }),
+            observed_at: None,
+        },
+    )
+}
+
+/// Records the three-state transition verdict as a diagnostic.
+///
+/// The payload carries the whole picture the plan requires: the old and the
+/// new price, the price limit, the candidate capacity, the capacity basis
+/// and the stable reason code.
+fn insert_transition_diagnostic(
+    diagnostics: &mut BTreeMap<String, ReviewDiagnosticRow>,
+    loop_key: &str,
+    verdict: &RouteTransitionVerdict,
+) -> Result<(), ReviewError> {
+    let reason = verdict
+        .reason
+        .clone()
+        .unwrap_or_else(|| "unknown".to_owned());
+    insert_diagnostic(
+        diagnostics,
+        loop_key,
+        ReviewDiagnosticInput {
+            diagnostic_id: Some(format!("state-transition-gate:{loop_key}")),
+            diagnostic_type: ReviewDiagnosticType::Other,
+            diagnostic_code: Some("StateTransitionGateFailed".to_owned()),
+            message: Some(format!(
+                "the route failed the three-state execution gate: {reason}"
+            )),
+            hop_index: None,
+            pool_id: None,
+            selector: None,
+            payload: serde_json::json!({
+                "reason": reason,
+                "broadcastAllowed": verdict.broadcast_allowed,
+                "hops": transition_hop_payload(verdict),
+            }),
+            observed_at: None,
+        },
+    )
+}
+
+/// Serialises the per-hop verdicts of the transition gate.
+///
+/// The raw amounts are 128-bit values, which JSON numbers cannot carry
+/// without losing precision, so they are written as decimal **strings**.
+fn transition_hop_payload(verdict: &RouteTransitionVerdict) -> Vec<serde_json::Value> {
+    verdict
+        .hops
+        .iter()
+        .map(|hop| {
+            serde_json::json!({
+                "poolId": hop.pool_id,
+                "outcome": hop.outcome.as_str(),
+                "reason": hop.reason,
+                "broadcastAllowed": hop.broadcast_allowed,
+                "sqrtPriceLimitX96": hop.sqrt_price_limit_x96,
+                "boundarySqrtPriceX96": hop.boundary_sqrt_price_x96,
+                "expectedAmountOutRaw": hop.expected_amount_out_raw,
+                "currentAmountOutRaw": hop.current_amount_out_raw,
+                "expectedCapacityRaw": hop.expected_capacity_raw,
+                "currentCapacityRaw": hop.current_capacity_raw,
+                "candidateCapacityRaw": hop.candidate_capacity_raw,
+                "capacityBasis": hop.capacity_basis,
+                "capacityRatioNumerator": hop.capacity_ratio_numerator,
+                "capacityRatioDenominator": hop.capacity_ratio_denominator,
+                "capacityMultiplierBps": hop.capacity_multiplier_bps,
+                "expectedSqrtPriceX96": hop.expected_sqrt_price_x96,
+                "currentSqrtPriceX96": hop.current_sqrt_price_x96,
+            })
+        })
+        .collect()
+}
+
+/// Serialises the per-hop verdicts of the gate.
+///
+/// The raw amounts are 128-bit values, which JSON numbers cannot carry
+/// without losing precision, so they are written as decimal **strings**.
+/// The tick distances and the conclusions are ordinary numbers.
+fn single_tick_hop_payload(verdict: &SingleTickRouteVerdict) -> Vec<serde_json::Value> {
+    verdict
+        .hops
+        .iter()
+        .map(|hop| {
+            serde_json::json!({
+                "poolId": hop.pool_id,
+                "initializedTick": hop.initialized_tick,
+                "nextTick": hop.next_tick,
+                "nextTickDistance": hop.next_tick_distance,
+                "amountInRaw": hop.amount_in_raw.to_string(),
+                "amountOutRaw": hop.amount_out_raw.map(|value| value.to_string()),
+                "maxAmountInRaw": hop.max_amount_in_raw.map(|value| value.to_string()),
+                "headroomRaw": hop.headroom_raw.map(|value| value.to_string()),
+                "boundConclusion": hop.bound_conclusion.as_str(),
+                "ok": hop.ok,
+                "reason": hop.reason,
+            })
+        })
+        .collect()
 }
 
 fn insert_synthetic_missing_diagnostic(
@@ -1569,7 +2361,10 @@ fn read_reviews(
                 pool_ids_json, review_status, review_reason, static_preview_json,
                 run_arbitrage_json, signed_pnl_raw, signed_pnl_amount,
                 signed_pnl_currency, signed_pnl_address, signed_pnl_unit,
-                signed_pnl_source, reviewed_at
+                signed_pnl_source, reviewed_at,
+                single_tick_capacity_anchor_raw,
+                single_tick_capacity_binding_pool_id,
+                hop_sqrt_price_limits_json
          FROM manager_v4_reviews
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR loop_key = ?5)
@@ -1625,6 +2420,16 @@ fn read_reviews(
                 run_arbitrage: parse_json_value(row.get(19)?)?,
                 signed_pnl,
                 reviewed_at: row.get(26)?,
+                single_tick_capacity_anchor_raw: row
+                    .get::<_, Option<String>>(27)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
+                single_tick_capacity_binding_pool_id: row
+                    .get::<_, Option<String>>(28)?
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
+                hop_sqrt_price_limits: parse_optional_json_column(
+                    row.get::<_, Option<String>>(29)?,
+                )?,
             })
         },
     )?;
@@ -1686,7 +2491,10 @@ fn read_broadcast_requests(
                 anchor_token_key_id, path_text, path_addresses_json,
                 path_symbols_json, pool_path_key, pool_ids_json, signed_pnl_raw,
                 signed_pnl_amount, signed_pnl_currency, signed_pnl_address,
-                signed_pnl_unit, signed_pnl_source, request_status, request_reason
+                signed_pnl_unit, signed_pnl_source, request_status, request_reason,
+                single_tick_capacity_anchor_raw,
+                single_tick_capacity_binding_pool_id,
+                hop_sqrt_price_limits_json
          FROM manager_v4_review_broadcast_requests
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR loop_key = ?5)
@@ -1723,6 +2531,16 @@ fn read_broadcast_requests(
                 },
                 request_status: row.get(15)?,
                 request_reason: row.get(16)?,
+                single_tick_capacity_anchor_raw: row
+                    .get::<_, Option<String>>(17)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
+                single_tick_capacity_binding_pool_id: row
+                    .get::<_, Option<String>>(18)?
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
+                hop_sqrt_price_limits: parse_optional_json_column(
+                    row.get::<_, Option<String>>(19)?,
+                )?,
             })
         },
     )?;
@@ -1784,10 +2602,15 @@ fn replace_review_rows(
                  pool_ids_json, review_status, review_reason, static_preview_json,
                  run_arbitrage_json, signed_pnl_raw, signed_pnl_amount,
                  signed_pnl_currency, signed_pnl_address, signed_pnl_unit,
-                 signed_pnl_source, reviewed_at, created_at, updated_at
+                 signed_pnl_source, reviewed_at,
+                 single_tick_capacity_anchor_raw,
+                 single_tick_capacity_binding_pool_id,
+                 hop_sqrt_price_limits_json,
+                 created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
-                       ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?32)",
+                       ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34,
+                       ?35, ?35)",
             params![
                 network,
                 chain_id,
@@ -1820,6 +2643,10 @@ fn replace_review_rows(
                 signed_unit,
                 signed_source,
                 row.reviewed_at,
+                row.single_tick_capacity_anchor_raw
+                    .map(|value| value.to_string()),
+                row.single_tick_capacity_binding_pool_id.clone(),
+                serde_json::to_string(&row.hop_sqrt_price_limits)?,
                 now
             ],
         )?;
@@ -1859,9 +2686,12 @@ fn replace_review_rows(
                  pool_path_key, pool_ids_json, signed_pnl_raw,
                  signed_pnl_amount, signed_pnl_currency, signed_pnl_address,
                  signed_pnl_unit, signed_pnl_source, request_status,
-                 request_reason, created_at, updated_at
+                 request_reason, single_tick_capacity_anchor_raw,
+                 single_tick_capacity_binding_pool_id, hop_sqrt_price_limits_json,
+                 created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?22)",
+                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
+                       ?24, ?25, ?25)",
             params![
                 network,
                 chain_id,
@@ -1884,6 +2714,10 @@ fn replace_review_rows(
                 row.signed_pnl.source,
                 row.request_status,
                 row.request_reason,
+                row.single_tick_capacity_anchor_raw
+                    .map(|value| value.to_string()),
+                row.single_tick_capacity_binding_pool_id.clone(),
+                serde_json::to_string(&row.hop_sqrt_price_limits)?,
                 now
             ],
         )?;
@@ -2001,23 +2835,25 @@ fn persist_write_request(
         request_digest: request_digest.to_owned(),
         result: result.clone(),
     })?;
-    connection.execute(
-        "INSERT INTO manager_write_requests (
-             network, chain_id, operation, idempotency_key, request_id,
-             request_digest, request_json, response_json, created_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![
-            request.network,
-            request.chain_id,
-            request.operation,
-            request.idempotency_key,
-            request.request_id,
-            request_digest,
-            request_json.to_string(),
-            response_json,
-            chrono::Utc::now().to_rfc3339()
-        ],
-    )?;
+    if sqlite_table_exists(connection, "manager_write_requests")? {
+        connection.execute(
+            "INSERT INTO manager_write_requests (
+                 network, chain_id, operation, idempotency_key, request_id,
+                 request_digest, request_json, response_json, created_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                request.network,
+                request.chain_id,
+                request.operation,
+                request.idempotency_key,
+                request.request_id,
+                request_digest,
+                request_json.to_string(),
+                response_json,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+    }
     Ok(())
 }
 
@@ -2062,6 +2898,16 @@ where
     })
 }
 
+fn parse_optional_json_column<T>(value: Option<String>) -> Result<T, rusqlite::Error>
+where
+    T: serde::de::DeserializeOwned + Default,
+{
+    match value {
+        Some(value) => parse_json_column(value),
+        None => Ok(T::default()),
+    }
+}
+
 fn parse_json_value(value: String) -> Result<serde_json::Value, rusqlite::Error> {
     serde_json::from_str(&value).map_err(|error| {
         rusqlite::Error::FromSqlConversionFailure(
@@ -2069,6 +2915,218 @@ fn parse_json_value(value: String) -> Result<serde_json::Value, rusqlite::Error>
             rusqlite::types::Type::Text,
             Box::new(error),
         )
+    })
+}
+
+fn sqlite_table_exists(connection: &Connection, table: &str) -> Result<bool, ReviewError> {
+    let exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            params![table],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    Ok(exists > 0)
+}
+
+fn count_scoped_rows(
+    connection: &Connection,
+    table: &str,
+    network: &str,
+    chain_id: i64,
+) -> Result<usize, ReviewError> {
+    let count: i64 = connection.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM {table}
+             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4"
+        ),
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
+        |row| row.get(0),
+    )?;
+    Ok(usize_from_i64(count))
+}
+
+fn count_legacy_review_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<usize, ReviewError> {
+    if !sqlite_table_exists(connection, "cow_execution_reviews")? {
+        return Ok(0);
+    }
+    let count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM cow_execution_reviews WHERE network = ?1 AND chain_id = ?2",
+        params![network, chain_id],
+        |row| row.get(0),
+    )?;
+    Ok(usize_from_i64(count))
+}
+
+fn clear_request_digest(request: &ReviewClearRequest) -> Result<String, ReviewError> {
+    let payload = serde_json::json!({
+        "network": request.network,
+        "chainId": request.chain_id,
+        "operation": request.operation,
+        "apply": request.apply,
+        "recordStore": request.record_store.as_str()
+    });
+    Ok(checksum_bytes(&serde_json::to_vec(&payload)?))
+}
+
+fn ensure_clear_write_ledger(connection: &Connection) -> Result<(), ReviewError> {
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS manager_write_requests (
+             network TEXT NOT NULL,
+             chain_id INTEGER NOT NULL,
+             operation TEXT NOT NULL,
+             idempotency_key TEXT NOT NULL,
+             request_id TEXT NOT NULL,
+             request_digest TEXT NOT NULL,
+             request_json TEXT NOT NULL,
+             response_json TEXT NOT NULL,
+             created_at TEXT NOT NULL,
+             PRIMARY KEY (network, chain_id, operation, idempotency_key)
+         )",
+    )?;
+    Ok(())
+}
+
+fn find_clear_write_request(
+    connection: &Connection,
+    request: &ReviewClearRequest,
+) -> Result<Option<String>, ReviewError> {
+    if !sqlite_table_exists(connection, "manager_write_requests")? {
+        return Ok(None);
+    }
+    Ok(connection
+        .query_row(
+            "SELECT response_json
+             FROM manager_write_requests
+             WHERE network = ?1 AND chain_id = ?2 AND operation = ?3
+               AND idempotency_key = ?4",
+            params![
+                request.network,
+                request.chain_id,
+                request.operation,
+                request.idempotency_key
+            ],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+fn persist_clear_write(
+    connection: &Connection,
+    request: &ReviewClearRequest,
+    request_digest: &str,
+    result: &ReviewClearResult,
+) -> Result<(), ReviewError> {
+    let request_json = serde_json::json!({
+        "network": request.network,
+        "chainId": request.chain_id,
+        "operation": request.operation,
+        "requestId": request.request_id,
+        "apply": request.apply,
+        "recordStore": request.record_store.as_str()
+    });
+    let response_json = serde_json::to_string(&PersistedReviewClearWrite {
+        request_id: request.request_id.clone(),
+        request_digest: request_digest.to_owned(),
+        result: result.clone(),
+    })?;
+    connection.execute(
+        "INSERT INTO manager_write_requests (
+             network, chain_id, operation, idempotency_key, request_id,
+             request_digest, request_json, response_json, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            request.network,
+            request.chain_id,
+            request.operation,
+            request.idempotency_key,
+            request.request_id,
+            request_digest,
+            request_json.to_string(),
+            response_json,
+            chrono::Utc::now().to_rfc3339()
+        ],
+    )?;
+    Ok(())
+}
+
+fn delete_from_optional_manager_table(
+    connection: &Connection,
+    table: &str,
+    network: &str,
+    chain_id: i64,
+) -> Result<(), ReviewError> {
+    if !sqlite_table_exists(connection, table)? {
+        return Ok(());
+    }
+    connection.execute(
+        &format!(
+            "DELETE FROM {table}
+             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4"
+        ),
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
+    )?;
+    Ok(())
+}
+
+fn prepare_clear_result(
+    connection: &Connection,
+    request: &ReviewClearRequest,
+) -> Result<ReviewClearResult, ReviewError> {
+    let (cleared_reviews, cleared_diagnostics, cleared_broadcast_requests) =
+        match request.record_store {
+            ReviewRecordStore::Manager => (
+                count_scoped_rows(
+                    connection,
+                    "manager_v4_reviews",
+                    &request.network,
+                    request.chain_id,
+                )?,
+                count_scoped_rows(
+                    connection,
+                    "manager_v4_review_diagnostics",
+                    &request.network,
+                    request.chain_id,
+                )?,
+                count_scoped_rows(
+                    connection,
+                    "manager_v4_review_broadcast_requests",
+                    &request.network,
+                    request.chain_id,
+                )?,
+            ),
+            ReviewRecordStore::Legacy => (
+                count_legacy_review_rows(connection, &request.network, request.chain_id)?,
+                0,
+                0,
+            ),
+        };
+    Ok(ReviewClearResult {
+        network: request.network.clone(),
+        chain_id: request.chain_id,
+        protocol: NETWORK_PROTOCOL.to_owned(),
+        scope_key: REVIEW_SCOPE_KEY.to_owned(),
+        record_store: request.record_store.as_str().to_owned(),
+        apply: request.apply,
+        dry_run: !request.apply,
+        cleared_reviews,
+        cleared_diagnostics,
+        cleared_broadcast_requests,
+        remaining_reviews: if request.apply { 0 } else { cleared_reviews },
+        remaining_diagnostics: if request.apply {
+            0
+        } else {
+            cleared_diagnostics
+        },
+        remaining_broadcast_requests: if request.apply {
+            0
+        } else {
+            cleared_broadcast_requests
+        },
     })
 }
 
@@ -2083,9 +3141,10 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        read_review_page, read_review_snapshot, run_reviews, run_reviews_write, ExpectedUpstream,
-        ReviewDiagnosticInput, ReviewDiagnosticType, ReviewError, ReviewEvidenceInput,
-        ReviewOutcomeFilter, ReviewReadQuery, ReviewWriteRequest, RunArbitrageEvidence, SignedPnl,
+        clear_review_records_write, read_review_page, read_review_snapshot, run_reviews,
+        run_reviews_write, ExpectedUpstream, ReviewClearRequest, ReviewDiagnosticInput,
+        ReviewDiagnosticType, ReviewError, ReviewEvidenceInput, ReviewOutcomeFilter,
+        ReviewReadQuery, ReviewRecordStore, ReviewWriteRequest, RunArbitrageEvidence, SignedPnl,
     };
     use rusqlite::{params, Connection};
     use std::collections::BTreeMap;
@@ -2127,7 +3186,10 @@ mod tests {
                     hop_candidate_combination_count, recommendation_basis,
                     recommended_first_priority, candidate_edge_version,
                     candidate_edge_checksum, observation_version,
-                    observation_checksum, status, source, created_at, updated_at
+                    observation_checksum, status, source,
+                    single_tick_capacity_anchor_raw,
+                    single_tick_capacity_binding_pool_id,
+                    created_at, updated_at
                  ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'route:v1',
                            'robinhood:4663:0x1111111111111111111111111111111111111111',
                            '0x1111111111111111111111111111111111111111', 'USDG',
@@ -2138,12 +3200,102 @@ mod tests {
                            '[\"USDG\",\"AMZN\",\"TA\",\"USDG\"]', 'pool-path:1',
                            '[\"pool-a\",\"pool-yz\",\"pool-d\"]', '{}', '{\"1\":1,\"2\":1,\"3\":1}',
                            1, 'fixture', 1, 7, 'sha256:candidate-edge', 4,
-                           'sha256:observation', 'active', 'fixture', 'fixture', 'fixture')",
+                           'sha256:observation', 'active', 'fixture',
+                           '1000000000000000000000000', 'pool-yz',
+                           'fixture', 'fixture')",
                 params![NETWORK, CHAIN_ID, LOOP_KEY],
             )
             .unwrap();
+        seed_pool_states(&connection);
         drop(connection);
         (directory, path)
+    }
+
+    /// Seeds the measured pool state of the route's three pools.
+    ///
+    /// The state is the input of the final single-tick gate: without it the
+    /// gate cannot prove anything and every route would be blocked, so the
+    /// fixture has to carry a usable price, liquidity, tick and tick
+    /// spacing.
+    fn seed_pool_states(connection: &Connection) {
+        connection
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS v4_exchange_pools (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    token0 TEXT NOT NULL,
+                    token1 TEXT NOT NULL,
+                    fee INTEGER NOT NULL,
+                    dynamic_fee INTEGER NOT NULL DEFAULT 0,
+                    special_fee INTEGER NOT NULL DEFAULT 0,
+                    hooks TEXT NOT NULL DEFAULT '',
+                    tick_spacing INTEGER
+                );
+                CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    depth_status TEXT NOT NULL,
+                    liquidity TEXT,
+                    has_liquidity INTEGER,
+                    tick INTEGER,
+                    sqrt_price_x96 TEXT,
+                    liquidity_read_at TEXT,
+                    evidence_source TEXT,
+                    capacity_raw TEXT,
+                    capacity_binding_raw REAL,
+                    price_impact_bps REAL,
+                    balances_json TEXT,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                );",
+            )
+            .unwrap();
+        // The route is USDG -> AMZN -> TA -> USDG over pool-a, pool-yz and
+        // pool-d, so the pools sit between the consecutive route tokens.
+        let pools = [
+            (
+                "pool-a",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            (
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            (
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        for (pool_id, token0, token1) in pools {
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pools (
+                        network, chain_id, protocol, pool_id, token0, token1,
+                        fee, dynamic_fee, special_fee, hooks, tick_spacing
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, ?5, 3000, 0, 0, '', 60)",
+                    params![NETWORK, CHAIN_ID, pool_id, token0, token1],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                        network, chain_id, protocol, pool_id, depth_status,
+                        liquidity, has_liquidity, tick, sqrt_price_x96,
+                        liquidity_read_at, evidence_source
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, 'ok',
+                               '100000000000000000000', 1, 0,
+                               '79228162514264337593543950336',
+                               'block:100', 'fixture')",
+                    params![NETWORK, CHAIN_ID, pool_id],
+                )
+                .unwrap();
+        }
     }
 
     fn insert_review_fixture(
@@ -2298,6 +3450,25 @@ mod tests {
         }
     }
 
+    /// The review-time state of one candidate pool.
+    ///
+    /// The values match the state the fixture stores for the pool, so the
+    /// three-state gate classifies the route as unchanged.
+    fn candidate_pool_fixture(pool_id: &str, token0: &str, token1: &str) -> serde_json::Value {
+        serde_json::json!({
+            "poolId": pool_id,
+            "token0": token0,
+            "token1": token1,
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+            "sqrtPriceX96": "79228162514264337593543950336",
+            "tick": 0,
+            "liquidity": "100000000000000000000",
+            "liquidityReadAt": "block:100",
+        })
+    }
+
     fn signed_pnl(amount: f64) -> SignedPnl {
         SignedPnl {
             raw: format!("{amount} USDG"),
@@ -2324,10 +3495,45 @@ mod tests {
                 block_number: Some(100),
                 signed_pnl,
                 diagnostics,
-                raw: BTreeMap::from([(
-                    "gasEstimate".to_owned(),
-                    serde_json::Value::String("120000".to_owned()),
-                )]),
+                raw: BTreeMap::from([
+                    (
+                        "gasEstimate".to_owned(),
+                        serde_json::Value::String("120000".to_owned()),
+                    ),
+                    // The amount the chain was actually asked to execute
+                    // with. The final single-tick gate prices every hop
+                    // from this amount, so the fixture has to carry it.
+                    (
+                        "selectedAmountRaw".to_owned(),
+                        serde_json::Value::String("1000000000000000".to_owned()),
+                    ),
+                    // The candidate pools carry the state the ranking
+                    // priced. The three-state execution gate compares it
+                    // against the current state, so the fixture has to
+                    // publish it exactly like the runtime does.
+                    (
+                        "quote".to_owned(),
+                        serde_json::json!({
+                            "candidate_pools": [
+                                candidate_pool_fixture(
+                                    "pool-a",
+                                    "0x1111111111111111111111111111111111111111",
+                                    "0x2222222222222222222222222222222222222222",
+                                ),
+                                candidate_pool_fixture(
+                                    "pool-yz",
+                                    "0x2222222222222222222222222222222222222222",
+                                    "0x3333333333333333333333333333333333333333",
+                                ),
+                                candidate_pool_fixture(
+                                    "pool-d",
+                                    "0x3333333333333333333333333333333333333333",
+                                    "0x1111111111111111111111111111111111111111",
+                                ),
+                            ]
+                        }),
+                    ),
+                ]),
             }),
             diagnostics: Vec::new(),
             reviewed_at: Some("2026-11-04T00:00:00Z".to_owned()),
@@ -2490,8 +3696,437 @@ mod tests {
         assert_eq!(second_page.broadcast_requests[0].loop_key, "loop-zero");
     }
 
+    /// The final single-tick gate blocks a route whose hop crosses the
+    /// next tick, and the blocked route never reaches the broadcast
+    /// manager.
+    ///
+    /// The upstream evidence says the chain accepted the route; the gate
+    /// says the route may not be executed under the rules of version 1.
+    /// The gate is the last word, because the broadcast manager reads the
+    /// broadcast requests that the review writes.
+    /// A route whose final input amount is larger than the folded
+    /// single-tick capacity is blocked, even when every individual hop would
+    /// still fit inside its own tick range.
+    ///
+    /// The folded capacity is the stronger statement: it is the smallest of
+    /// the hop capacities after every hop has been converted into the units
+    /// of the anchor token, so an input above it cannot be carried by
+    /// **some** hop of the route.
+    #[test]
+    fn a_route_above_the_folded_capacity_is_blocked() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loops
+                     SET single_tick_capacity_anchor_raw = '1000'
+                     WHERE network = ?1 AND chain_id = ?2",
+                    params![NETWORK, CHAIN_ID],
+                )
+                .unwrap();
+        }
+        let result = run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(12.5)), true, true, Vec::new())],
+            true,
+        )
+        .unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("final_input_exceeds_single_tick_capacity"));
+        assert!(snapshot.broadcast_requests.is_empty());
+    }
+
+    /// A route without a published folded capacity is a coverage gap, not
+    /// proof that the route fits, so it is blocked.
+    #[test]
+    fn a_route_without_a_folded_capacity_is_blocked() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loops
+                     SET single_tick_capacity_anchor_raw = NULL
+                     WHERE network = ?1 AND chain_id = ?2",
+                    params![NETWORK, CHAIN_ID],
+                )
+                .unwrap();
+        }
+        let result = run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(12.5)), true, true, Vec::new())],
+            true,
+        )
+        .unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("single_tick_capacity_unavailable"));
+    }
+
+    /// The broadcast request carries the bound that the review proved.
+    #[test]
+    fn the_broadcast_request_carries_the_proved_capacity() {
+        let (_directory, path) = database();
+        let mut positive = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        positive.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![positive], true).unwrap();
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let request = &snapshot.broadcast_requests[0];
+        assert_eq!(
+            request.single_tick_capacity_anchor_raw,
+            Some(1_000_000_000_000_000_000_000_000)
+        );
+        assert_eq!(
+            request.single_tick_capacity_binding_pool_id.as_deref(),
+            Some("pool-yz")
+        );
+    }
+
+    /// The reviewed route carries the three price limits into the broadcast
+    /// request. They are the executable form of the single-tick proof: the
+    /// executor must build every swap with its own limit instead of the
+    /// global V4 price bound.
+    #[test]
+    fn the_broadcast_request_carries_the_proved_hop_price_limits() {
+        let (_directory, path) = database();
+        let mut positive = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        positive.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![positive], true).unwrap();
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let limits = &snapshot.broadcast_requests[0].hop_sqrt_price_limits;
+        assert_eq!(limits.len(), 3);
+        for limit in limits {
+            assert!(!limit.trim().is_empty());
+            assert!(limit.parse::<u128>().is_ok());
+        }
+        assert_eq!(
+            snapshot.reviews[0].hop_sqrt_price_limits, *limits,
+            "the review and the broadcast request must carry the same limits"
+        );
+    }
+
+    #[test]
+    fn a_cross_tick_route_is_blocked_at_the_review_stage() {
+        let (_directory, path) = database();
+        // A position that leaves every hop's tick range.
+        let mut crossing = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        crossing.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        // The canonical spelling of a raw amount is hexadecimal, and a hex
+        // amount also survives the JSON round trip without losing precision.
+        crossing.run_arbitrage.as_mut().unwrap().raw.insert(
+            "selectedAmountRaw".to_owned(),
+            serde_json::Value::String("0x56bc75e2d63100000".to_owned()),
+        );
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![crossing], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(
+            result.broadcast_request_count, 0,
+            "a blocked route must never become a broadcast request"
+        );
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("single_tick_gate_failed:"));
+        assert!(
+            snapshot.broadcast_requests.is_empty(),
+            "the broadcast manager must not receive a non-executable route"
+        );
+        // The diagnostic carries the whole per-hop picture.
+        let diagnostic = snapshot
+            .diagnostics
+            .iter()
+            .find(|row| row.diagnostic_code.as_deref() == Some("SingleTickGateFailed"))
+            .expect("the gate must record a diagnostic");
+        let hops = diagnostic
+            .payload
+            .get("hops")
+            .and_then(|value| value.as_array())
+            .expect("the diagnostic carries the hops");
+        // Every hop of the closed loop carries a verdict, so the
+        // diagnostic covers the middle hop as well and not only the two
+        // ends of the route.
+        assert_eq!(hops.len(), 3);
+        assert_eq!(
+            hops[1].get("poolId").and_then(|value| value.as_str()),
+            Some("pool-yz")
+        );
+        let first = &hops[0];
+        assert_eq!(
+            first.get("initializedTick").and_then(|v| v.as_i64()),
+            Some(0)
+        );
+        assert_eq!(
+            first.get("boundConclusion").and_then(|v| v.as_str()),
+            Some("crosses_next_tick")
+        );
+        assert!(first
+            .get("nextTickDistance")
+            .and_then(|v| v.as_i64())
+            .is_some());
+    }
+
+    /// A route that stays inside every hop's tick range keeps the original
+    /// profit, gas and fee semantics: it is still completed and it still
+    /// produces a broadcast request.
+    #[test]
+    fn a_single_tick_route_keeps_its_profit_gas_and_fee_semantics() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 1);
+        assert_eq!(result.not_executable_count, 0);
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert_eq!(
+            snapshot.reviews[0].signed_pnl.as_ref().unwrap().amount,
+            12.5
+        );
+        // The gas estimate travels with the evidence and is not rewritten
+        // by the gate.
+        let run = snapshot.reviews[0]
+            .run_arbitrage
+            .get("gasEstimate")
+            .and_then(|value| value.as_str());
+        assert_eq!(run, Some("120000"));
+        assert_eq!(snapshot.broadcast_requests.len(), 1);
+        assert_eq!(snapshot.broadcast_requests[0].signed_pnl.amount, 12.5);
+    }
+
+    /// A route whose pool state cannot be read cannot be proven
+    /// single-tick, so it is blocked rather than promoted. A measurement
+    /// gap fails closed; it never fails open.
+    /// A legacy-only database does not contain the Manager idempotency
+    /// ledger. Review clear must still remove the regenerable legacy rows.
+    #[test]
+    fn clear_review_records_works_without_manager_write_ledger() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("legacy.sqlite3");
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE cow_execution_reviews (
+                         id INTEGER PRIMARY KEY, network TEXT, chain_id INTEGER
+                     );
+                     INSERT INTO cow_execution_reviews(network, chain_id)
+                     VALUES ('robinhood-testnet', 46630);",
+                )
+                .unwrap();
+        }
+        let outcome = clear_review_records_write(
+            &path,
+            ReviewClearRequest {
+                network: "robinhood-testnet".to_owned(),
+                chain_id: 46630,
+                operation: "review.clear".to_owned(),
+                request_id: "clear-legacy".to_owned(),
+                idempotency_key: "clear-legacy-key".to_owned(),
+                apply: true,
+                record_store: ReviewRecordStore::Legacy,
+            },
+        )
+        .unwrap();
+        assert_eq!(outcome.result.cleared_reviews, 1);
+        assert_eq!(outcome.result.remaining_reviews, 0);
+        let connection = Connection::open(&path).unwrap();
+        let reviews: i64 = connection
+            .query_row("SELECT COUNT(*) FROM cow_execution_reviews", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(reviews, 0);
+    }
+
+    /// Clearing review records is dry-run safe and only removes the
+    /// regenerable review rows. Token and pool catalogs are left untouched.
+    #[test]
+    fn clear_review_records_is_dry_run_safe_and_preserves_catalogs() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE chain_tokens (token_key TEXT PRIMARY KEY, symbol TEXT);
+                     INSERT INTO chain_tokens(token_key, symbol) VALUES ('token-a', 'A');
+                     CREATE TABLE cow_execution_reviews (
+                         id INTEGER PRIMARY KEY, network TEXT, chain_id INTEGER
+                     );
+                     INSERT INTO cow_execution_reviews(network, chain_id)
+                     VALUES ('robinhood', 4663);",
+                )
+                .unwrap();
+        }
+        let request = ReviewClearRequest {
+            network: NETWORK.to_owned(),
+            chain_id: CHAIN_ID,
+            operation: "review.clear".to_owned(),
+            request_id: "clear-review".to_owned(),
+            idempotency_key: "clear-review-key".to_owned(),
+            apply: false,
+            record_store: ReviewRecordStore::Legacy,
+        };
+        let dry = clear_review_records_write(&path, request.clone()).unwrap();
+        assert_eq!(dry.result.cleared_reviews, 1);
+        assert_eq!(dry.result.remaining_reviews, 1);
+        {
+            let connection = Connection::open(&path).unwrap();
+            let reviews: i64 = connection
+                .query_row("SELECT COUNT(*) FROM cow_execution_reviews", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let tokens: i64 = connection
+                .query_row("SELECT COUNT(*) FROM chain_tokens", [], |row| row.get(0))
+                .unwrap();
+            let pools: i64 = connection
+                .query_row("SELECT COUNT(*) FROM v4_exchange_pools", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(reviews, 1);
+            assert_eq!(tokens, 1);
+            assert_eq!(pools, 3);
+        }
+
+        let mut apply = request;
+        apply.apply = true;
+        let cleared = clear_review_records_write(&path, apply.clone()).unwrap();
+        assert_eq!(cleared.result.cleared_reviews, 1);
+        assert_eq!(cleared.result.remaining_reviews, 0);
+        assert!(!cleared.idempotent_replay);
+        let replay = clear_review_records_write(&path, apply).unwrap();
+        assert!(replay.idempotent_replay);
+        {
+            let connection = Connection::open(&path).unwrap();
+            let reviews: i64 = connection
+                .query_row("SELECT COUNT(*) FROM cow_execution_reviews", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let tokens: i64 = connection
+                .query_row("SELECT COUNT(*) FROM chain_tokens", [], |row| row.get(0))
+                .unwrap();
+            let pools: i64 = connection
+                .query_row("SELECT COUNT(*) FROM v4_exchange_pools", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(reviews, 0);
+            assert_eq!(tokens, 1);
+            assert_eq!(pools, 3);
+        }
+    }
+
+    #[test]
+    fn a_route_without_a_usable_pool_state_is_blocked() {
+        let (directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute("DELETE FROM v4_exchange_pool_liquidity_snapshots", [])
+                .unwrap();
+        }
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        drop(directory);
+    }
+
+    /// A route whose hops are priced from two different pool state
+    /// versions describes two different markets, so it is blocked.
+    #[test]
+    fn a_drifted_pool_state_version_blocks_the_route_at_the_review_stage() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE v4_exchange_pool_liquidity_snapshots
+                     SET liquidity_read_at = 'block:101'
+                     WHERE pool_id = 'pool-d'",
+                    [],
+                )
+                .unwrap();
+        }
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+    }
+
+    /// A route whose evidence carries no actual input amount cannot be
+    /// priced, so it is blocked rather than executed on a guess.
+    #[test]
+    fn a_route_without_a_final_input_amount_is_blocked() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        fresh
+            .run_arbitrage
+            .as_mut()
+            .unwrap()
+            .raw
+            .remove("selectedAmountRaw");
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+    }
+
     #[test]
     fn positive_executable_review_generates_broadcast_request_only() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh.clone()], true).unwrap();
+        assert_eq!(result.completed_count, 1);
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert_eq!(snapshot.broadcast_requests[0].request_status, "generated");
+        assert_eq!(snapshot.broadcast_requests[0].signed_pnl.amount, 12.5);
+        assert_eq!(snapshot.broadcast_requests[0].pool_ids[1], "pool-yz");
+
+        let repeated = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(repeated.review_version, result.review_version);
+        assert_eq!(repeated.changed_rows, 0);
+        assert!(!repeated.consumers_need_rebuild);
+    }
+
+    #[test]
+    fn stale_positive_review_never_generates_automatic_broadcast_request() {
         let (_directory, path) = database();
         let result = run_reviews(
             &path,
@@ -2502,24 +4137,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.completed_count, 1);
-        assert_eq!(result.broadcast_request_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
         let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         assert_eq!(snapshot.reviews[0].review_status, "completed");
-        assert_eq!(snapshot.broadcast_requests[0].request_status, "generated");
-        assert_eq!(snapshot.broadcast_requests[0].signed_pnl.amount, 12.5);
-        assert_eq!(snapshot.broadcast_requests[0].pool_ids[1], "pool-yz");
-
-        let repeated = run_reviews(
-            &path,
-            NETWORK,
-            CHAIN_ID,
-            vec![evidence(Some(signed_pnl(12.5)), true, true, Vec::new())],
-            true,
-        )
-        .unwrap();
-        assert_eq!(repeated.review_version, result.review_version);
-        assert_eq!(repeated.changed_rows, 0);
-        assert!(!repeated.consumers_need_rebuild);
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("positive review is stale and cannot trigger automatic broadcast")
+        );
+        assert!(snapshot.broadcast_requests.is_empty());
     }
 
     #[test]
@@ -2618,5 +4243,76 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    /// The kernel publishes the review evidence. The shape it publishes has
+    /// to satisfy this DTO **exactly**, because the review is filed under
+    /// these numbers: a missing field rejects the whole review, and a
+    /// derived one publishes a profit that was never measured.
+    ///
+    /// This test pins the boundary from the JSON side, because that is
+    /// where the two layers actually meet.
+    #[test]
+    fn the_kernel_published_evidence_shape_is_accepted() {
+        let payload = serde_json::json!({
+            "loopKey": LOOP_KEY,
+            "staticPreview": {"ok": true},
+            "runArbitrage": {
+                "ok": true,
+                "executable": true,
+                "blockNumber": 100,
+                "signedPnl": {
+                    "raw": "0x8ac7230489e80000",
+                    "amount": 10.0,
+                    "currency": "ETH",
+                    "address": "0x1111111111111111111111111111111111111111",
+                    "unit": "raw",
+                    "source": "native_rust_ladder",
+                },
+                "diagnostics": [],
+            },
+            "diagnostics": [],
+            "reviewedAt": "2026-11-17T00:00:00Z",
+        });
+        let parsed: ReviewEvidenceInput =
+            serde_json::from_value(payload).expect("the kernel shape must be accepted");
+        assert_eq!(parsed.loop_key, LOOP_KEY);
+        let run = parsed.run_arbitrage.expect("the run arbitrage is required");
+        assert!(run.ok);
+        assert!(run.executable);
+        assert_eq!(run.block_number, Some(100));
+        let signed = run.signed_pnl.expect("the signed profit is required");
+        assert_eq!(signed.raw, "0x8ac7230489e80000");
+        assert_eq!(signed.amount, 10.0);
+        assert_eq!(signed.currency, "ETH");
+        assert_eq!(signed.unit, "raw");
+        assert_eq!(signed.source, "native_rust_ladder");
+        assert!(super::validate_signed_pnl(&signed));
+    }
+
+    /// A signed profit without the human amount is **not** reviewable: the
+    /// amount is what the review is judged by, so a raw-only profit cannot
+    /// be filed as a measured one.
+    #[test]
+    fn a_signed_profit_without_the_human_amount_is_not_accepted() {
+        let payload = serde_json::json!({
+            "loopKey": LOOP_KEY,
+            "runArbitrage": {
+                "ok": true,
+                "executable": true,
+                "signedPnl": {
+                    "raw": "0x8ac7230489e80000",
+                    "currency": "ETH",
+                    "address": "0x1111111111111111111111111111111111111111",
+                    "unit": "raw",
+                    "source": "native_rust_ladder",
+                },
+            },
+        });
+        let parsed: Result<ReviewEvidenceInput, _> = serde_json::from_value(payload);
+        assert!(
+            parsed.is_err(),
+            "the human amount of the signed profit is mandatory"
+        );
     }
 }

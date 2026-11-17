@@ -19,6 +19,8 @@ from typing import Any
 from core.db.storage_business_io import execute, query, query_one, transaction
 from core.market_identity import canonical_market_id_from_legacy
 from dex.runtime.closed_loop_identity import (
+    canonical_directed_cycle_key,
+    directed_cycle_rotations,
     normalize_physical_loop_key,
     worker_group_key_from_symbols,
 )
@@ -251,22 +253,32 @@ def _decode_json_array(value: Any) -> list[str]:
 def _closed_loop_identity_sets(
     rows: list[dict[str, Any]],
 ) -> tuple[set[str], set[str], set[str]]:
-    """Return exact physical and legacy diagnostic keys for current loops."""
+    """Return directed-cycle keys for current loops.
+
+    Every physical and legacy key is expanded to its three same-direction
+    rotations so a ``v4_closed_loops`` row that anchors a different token
+    (for example ETH vs USDG) still preserves the matching runtime machine
+    while the reverse direction stays distinct.
+    """
     exact: set[str] = set()
     symbol_keys: set[str] = set()
     address_keys: set[str] = set()
     for row in rows:
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if loop_key:
-            exact.add(loop_key)
+            exact.update(directed_cycle_rotations(loop_key, separator=":"))
         symbol_path = _decode_json_array(row.get("path_symbols_json"))
         symbol_key = worker_group_key_from_symbols(symbol_path)
         if symbol_key:
-            symbol_keys.add(symbol_key)
+            symbol_keys.update(
+                directed_cycle_rotations(symbol_key, separator="|")
+            )
         address_path = _decode_json_array(row.get("path_addresses_json"))
         address_key = worker_group_key_from_symbols(address_path)
         if address_key:
-            address_keys.add(address_key)
+            address_keys.update(
+                directed_cycle_rotations(address_key, separator="|")
+            )
     return exact, symbol_keys, address_keys
 
 
@@ -276,7 +288,12 @@ def _state_identity_matches(
     exact_keys: set[str],
 ) -> bool:
     normalized = normalize_physical_loop_key(loop_key)
-    return bool(normalized and normalized in exact_keys)
+    if not normalized:
+        return False
+    return any(
+        rotation in exact_keys
+        for rotation in directed_cycle_rotations(normalized, separator=":")
+    )
 
 
 def _legacy_state_identity_kind(
@@ -297,9 +314,15 @@ def _legacy_state_identity_kind(
     group_key = worker_group_key_from_symbols(parts)
     if not group_key:
         return None
-    if group_key in symbol_keys:
+    if any(
+        rotation in symbol_keys
+        for rotation in directed_cycle_rotations(group_key, separator="|")
+    ):
         return "symbol"
-    if group_key in address_keys:
+    if any(
+        rotation in address_keys
+        for rotation in directed_cycle_rotations(group_key, separator="|")
+    ):
         return "address"
     return None
 
@@ -563,6 +586,76 @@ def _identity_params(
     return (network, int(chain_id), protocol, market_id, loop_key)
 
 
+def _resolve_directed_loop_key(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    market_id: str,
+    loop_key: str,
+) -> str | None:
+    """Return the stored runtime row key for one directed cycle.
+
+    Every rotation of a directed cycle maps to one state machine: the
+    canonical rotation row when it exists, otherwise the first existing
+    rotation row.  Forward and reverse directions never share rotations, so
+    opposite state machines stay independent; same-direction rotations
+    converge on one concrete row instead of splitting state across anchor
+    variants.
+    """
+    ensure_runtime_state_table(database_url)
+    normalized = str(loop_key or "").strip().lower()
+    if not normalized:
+        return None
+    physical = normalize_physical_loop_key(normalized)
+    ordered: list[str] = []
+    seen: set[str] = set()
+    if physical:
+        canonical = canonical_directed_cycle_key(physical, separator=":")
+        candidates = [canonical, *directed_cycle_rotations(physical, separator=":"), physical]
+    else:
+        canonical = canonical_directed_cycle_key(normalized, separator="|")
+        candidates = [canonical]
+        for separator in ("|", ":"):
+            for rotation in directed_cycle_rotations(
+                normalized, separator=separator
+            ):
+                candidates.append(rotation)
+        candidates.append(normalized)
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            ordered.append(candidate)
+    placeholders = ", ".join("?" for _ in ordered)
+    rows = query(
+        database_url,
+        f"""
+        SELECT loop_key, updated_at
+        FROM {V4_CLOSED_LOOP_RUNTIME_STATE_TABLE}
+        WHERE network = ? AND chain_id = ? AND protocol = ? AND market_id = ?
+          AND loop_key IN ({placeholders})
+        """,
+        (
+            str(network).strip().lower(),
+            int(chain_id),
+            str(protocol).strip().lower(),
+            str(market_id).strip().lower(),
+            *ordered,
+        ),
+    )
+    if not rows:
+        return None
+    stored_by_key = {
+        str(row.get("loop_key") or "").strip().lower(): row for row in rows
+    }
+    for candidate in ordered:
+        if candidate in stored_by_key:
+            return candidate
+    best = max(rows, key=lambda row: str(row.get("updated_at") or ""))
+    return str(best.get("loop_key") or "").strip().lower()
+
+
 def upsert_loop_state(
     database_url: str,
     *,
@@ -581,6 +674,21 @@ def upsert_loop_state(
     if state not in CLOSED_LOOP_STATES:
         raise ValueError(f"unknown closed-loop state: {state}")
     ensure_runtime_state_table(database_url)
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=loop_key,
+    )
+    effective_key = (
+        resolved_key
+        or normalize_physical_loop_key(loop_key)
+        or str(loop_key or "").strip().lower()
+    )
+    if not effective_key:
+        raise ValueError(f"invalid closed-loop key: {loop_key}")
     now = _stamp()
     conflict_updates = [
         "state = excluded.state",
@@ -618,7 +726,7 @@ def upsert_loop_state(
             int(chain_id),
             protocol,
             market_id,
-            loop_key,
+            effective_key,
             state,
             int(generation),
             owner_thread,
@@ -633,12 +741,12 @@ def upsert_loop_state(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=effective_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=effective_key,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
         )
@@ -655,6 +763,16 @@ def load_loop_state(
     loop_key: str,
 ) -> dict[str, Any] | None:
     ensure_runtime_state_table(database_url)
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
     return query_one(
         database_url,
         f"""
@@ -670,7 +788,7 @@ def load_loop_state(
             chain_id=chain_id,
             protocol=protocol,
             market_id=market_id,
-            loop_key=loop_key,
+            loop_key=resolved_key,
         ),
     )
 
@@ -712,18 +830,30 @@ def claim_loop(
 ) -> dict[str, Any] | None:
     """Atomically claim one loop; returns the new state row on success."""
     ensure_runtime_state_table(database_url)
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
     sources = _claim_sources(operation)
     target = _claim_target(operation)
     placeholders = ", ".join("?" for _ in sources)
     now_stamp = _stamp()
-    cycle_id = f"{operation}:{loop_key}:{int(time.time())}:{os.getpid()}"
+    cycle_id = (
+        f"{operation}:{resolved_key}:{int(time.time())}:{os.getpid()}"
+    )
     lease_stamp = _lease_until(operation)
     identity = _identity_params(
         network=network,
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     params: list[Any] = [
         target,
@@ -762,12 +892,12 @@ def claim_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=resolved_key,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
         )
@@ -786,12 +916,22 @@ def enqueue_execution(
 ) -> dict[str, Any] | None:
     """Move a reviewed loop into the execution queue (index-only)."""
     ensure_runtime_state_table(database_url)
-    identity = _identity_params(
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
         network=network,
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
         loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
+    identity = _identity_params(
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=resolved_key,
     )
     params: list[Any] = [
         STATE_EXECUTION_PENDING,
@@ -824,12 +964,12 @@ def enqueue_execution(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=resolved_key,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
         )
@@ -855,12 +995,22 @@ def transition_loop_state(
     if from_state not in CLOSED_LOOP_STATES or to_state not in CLOSED_LOOP_STATES:
         raise ValueError(f"unknown closed-loop state: {from_state} -> {to_state}")
     ensure_runtime_state_table(database_url)
-    identity = _identity_params(
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
         network=network,
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
         loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
+    identity = _identity_params(
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=resolved_key,
     )
     now = _stamp()
     set_clauses = [
@@ -902,12 +1052,12 @@ def transition_loop_state(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=resolved_key,
             old_state=from_state,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
@@ -957,6 +1107,16 @@ def complete_loop(
 ) -> dict[str, Any] | None:
     """Complete a running review/broadcast; only the owner may transition."""
     ensure_runtime_state_table(database_url)
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
     if operation == "review":
         running = STATE_PREFLIGHT_RUNNING
         if outcome == "success":
@@ -982,7 +1142,7 @@ def complete_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     changed = execute(
         database_url,
@@ -1014,12 +1174,12 @@ def complete_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=resolved_key,
             old_state=running,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
@@ -1040,6 +1200,16 @@ def release_loop(
 ) -> dict[str, Any] | None:
     """Release a wedged running loop back to its pending state by owner."""
     ensure_runtime_state_table(database_url)
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
     if operation == "review":
         running = STATE_PREFLIGHT_RUNNING
         target = STATE_OFFCHAIN_ESTIMATE
@@ -1053,7 +1223,7 @@ def release_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     changed = execute(
         database_url,
@@ -1076,12 +1246,12 @@ def release_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
     if row is not None:
         _notify_state_change(
             database_url,
-            loop_key=loop_key,
+            loop_key=resolved_key,
             old_state=running,
             new_state=str(row.get("state") or ""),
             last_error=row.get("last_error"),
@@ -1112,12 +1282,22 @@ def heartbeat_loop(
     )
     if running is None:
         raise ValueError(f"unsupported closed-loop operation: {operation}")
-    identity = _identity_params(
+    resolved_key = _resolve_directed_loop_key(
+        database_url,
         network=network,
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
         loop_key=loop_key,
+    )
+    if resolved_key is None:
+        return None
+    identity = _identity_params(
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=resolved_key,
     )
     params: list[Any] = [_stamp(), _stamp(), _lease_until(operation), *identity, running, owner_thread]
     cycle_clause = ""
@@ -1144,7 +1324,7 @@ def heartbeat_loop(
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
-        loop_key=loop_key,
+        loop_key=resolved_key,
     )
 
 
@@ -2013,32 +2193,47 @@ def backfill_runtime_state_for_closed_loops(
     )
 
     current_loops: dict[tuple[str, int, str, str, str], dict[str, Any]] = {}
+    rotation_duplicates = 0
     for row in loops:
         runtime_key = _runtime_key_for_closed_loop(row)
         if not runtime_key:
             continue
         canonical_market, _ = _canonical_runtime_market_id(row.get("market_id"))
+        canonical_key = canonical_directed_cycle_key(runtime_key, separator=":")
+        if not canonical_key:
+            continue
         identity = (
             str(row.get("network") or "").strip().lower(),
             int(row.get("chain_id") or 0),
             str(row.get("protocol") or "").strip().lower(),
             canonical_market,
-            runtime_key,
+            canonical_key,
         )
         if identity in current_loops:
-            # A duplicate physical key violates the closed-loop authority and
-            # must not be collapsed into one runtime row.
-            return {
-                "ok": False,
-                "created": 0,
-                "existing": 0,
-                "runtimeStateCount": 0,
-                "runtimeGroupCount": 0,
-                "duplicateDirectedKey": 1,
-                "records": [],
-                "disposition": "duplicate_directed_closed_loop_key",
-                "generatedAt": _stamp(),
-            }
+            existing_row = current_loops[identity]
+            exact_loop_key = normalize_physical_loop_key(row.get("loop_key"))
+            existing_loop_key = normalize_physical_loop_key(
+                existing_row.get("loop_key")
+            )
+            if exact_loop_key == existing_loop_key:
+                # The same physical key repeated twice violates the
+                # closed-loop authority and must not be collapsed.
+                return {
+                    "ok": False,
+                    "created": 0,
+                    "existing": 0,
+                    "runtimeStateCount": 0,
+                    "runtimeGroupCount": 0,
+                    "duplicateDirectedKey": 1,
+                    "rotationDuplicateSkipped": rotation_duplicates,
+                    "records": [],
+                    "disposition": "duplicate_directed_closed_loop_key",
+                    "generatedAt": _stamp(),
+                }
+            # A different rotation of the same directed triangle is the same
+            # closed loop and only needs one runtime state machine.
+            rotation_duplicates += 1
+            continue
         current_loops[identity] = row
 
     state_filters: list[str] = []
@@ -2071,13 +2266,16 @@ def backfill_runtime_state_for_closed_loops(
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if not loop_key:
             continue
+        canonical_loop_key = canonical_directed_cycle_key(loop_key, separator=":")
+        if not canonical_loop_key:
+            continue
         existing_identities.add(
             (
                 str(row.get("network") or "").strip().lower(),
                 int(row.get("chain_id") or 0),
                 str(row.get("protocol") or "").strip().lower(),
                 canonical_market,
-                loop_key,
+                canonical_loop_key,
             )
         )
 
@@ -2123,6 +2321,7 @@ def backfill_runtime_state_for_closed_loops(
         "ok": True,
         "created": int(created or 0),
         "existing": len(set(current_loops) & existing_identities),
+        "rotationDuplicateSkipped": rotation_duplicates,
         "runtimeStateCount": len(current_loops),
         "runtimeGroupCount": len(current_loops),
         "duplicateDirectedKey": 0,
@@ -2369,13 +2568,28 @@ def reset_loop_for_new_cycle(
 ) -> dict[str, Any]:
     """Start a fresh cycle without reusing an old queue index."""
     ensure_runtime_state_table(database_url)
-    return upsert_loop_state(
+    resolved_key = _resolve_directed_loop_key(
         database_url,
         network=network,
         chain_id=chain_id,
         protocol=protocol,
         market_id=market_id,
         loop_key=loop_key,
+    )
+    effective_key = (
+        resolved_key
+        or normalize_physical_loop_key(loop_key)
+        or str(loop_key or "").strip().lower()
+    )
+    if not effective_key:
+        raise ValueError(f"invalid closed-loop key: {loop_key}")
+    return upsert_loop_state(
+        database_url,
+        network=network,
+        chain_id=chain_id,
+        protocol=protocol,
+        market_id=market_id,
+        loop_key=effective_key,
         state=STATE_OFFCHAIN_ESTIMATE,
         generation=int(generation),
         owner_thread=None,

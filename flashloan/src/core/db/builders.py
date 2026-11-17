@@ -7,7 +7,8 @@ requests; initialisation/refresh scripts call :func:`build_all_anchor_data`.
 Rules kept here:
 
 - YC/ZC is a single shared set for V4; UI can display ``ZC/YC``.
-- Candidate YC/ZC and market observation both use fixed fee <= 3000 plus no
+- Candidate YC/ZC and market observation both use a fixed fee at or below
+  the shared candidate ceiling plus no
   hook.  Depth/price are dynamic fields refreshed separately and are not
   static membership filters; DEX overview applies liquidity later.
 - Market observation must keep every ``N*(N-1)`` direction, including no-pool rows.
@@ -22,6 +23,16 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
+from core.db.builders_candidate_abnormal import _candidate_abnormal_rows
+from core.db.builders_pool_helpers import (
+    _float,
+    _has_depth,
+    _int,
+    _json_loads,
+    _pool_id,
+    _pools_for_token_pair,
+    _text,
+)
 from core.db.database_path import absolute_database_path
 from core.db.direction_integrity import (
     direction_symmetry_violations as _direction_symmetry_violations,
@@ -31,6 +42,10 @@ from core.db.direction_pool_score import (
     MIN_DIRECTION_CANDIDATE_POOLS,
     has_confirmed_depth,
     score_pool_by_direction,
+)
+from core.db.pool_depth_keys import (
+    pool_capacity_binding,
+    pool_depth_sort_key,
 )
 from core.db.storage_business_io import delete_rows, query
 from core.db.storage_chain_core import seed_chain_tokens
@@ -71,17 +86,11 @@ from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
 
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-ROBINHOOD_TOKEN_ALLOWLIST_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "chains"
-    / "robinhood"
-    / "v4_token_allowlist.json"
-)
+# Chain configuration lives at ``flashloan/chains`` (data, not Python source).
+_CHAINS_ROOT = Path(__file__).resolve().parents[3] / "chains"
+ROBINHOOD_TOKEN_ALLOWLIST_PATH = _CHAINS_ROOT / "robinhood" / "v4_token_allowlist.json"
 ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "chains"
-    / "robinhood-testnet"
-    / "v4_token_allowlist.json"
+    _CHAINS_ROOT / "robinhood-testnet" / "v4_token_allowlist.json"
 )
 DYNAMIC_FEE_FLAG = 8388608
 MAX_FIXED_FEE = 100_000
@@ -113,35 +122,8 @@ def _stamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _text(value: Any) -> str:
-    return str(value or "").strip().lower()
-
-
-def _int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _float(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value is not None else "null"
-
-
-def _json_loads(value: str | None) -> Any:
-    if value is None:
-        return {}
-    try:
-        return json.loads(value)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return {}
 
 
 def _is_fixed_fee(pool: dict[str, Any], *, max_fixed_fee: int = MAX_FIXED_FEE) -> bool:
@@ -151,13 +133,6 @@ def _is_fixed_fee(pool: dict[str, Any], *, max_fixed_fee: int = MAX_FIXED_FEE) -
 
 def _has_no_hook(pool: dict[str, Any]) -> bool:
     return _text(pool.get("hooks")) in NO_HOOK_ADDRESSES
-
-
-def _has_depth(pool: dict[str, Any]) -> bool:
-    has_liquidity = pool.get("has_liquidity")
-    if has_liquidity is not None:
-        return bool(has_liquidity) or _float(pool.get("liquidity_index")) > 0
-    return _float(pool.get("liquidity_index")) > 0 or _float(pool.get("estimated_tvl_usd")) > 0
 
 
 def _fixed_fee_no_hook_sql(*, max_fixed_fee: int = MAX_FIXED_FEE) -> str:
@@ -369,10 +344,6 @@ def _token_symbol_lookup(database_url: str, *, network: str, chain_id: int) -> d
     return symbols
 
 
-def _pool_id(pool: dict[str, Any]) -> str:
-    return _text(pool.get("pool_id") or pool.get("poolId") or pool.get("pool"))
-
-
 def _validate_sorted_token_addresses(token_addresses: Iterable[str]) -> list[str]:
     addresses = sorted({_text(item) for item in token_addresses if _text(item)})
     if len(addresses) != len({item.lower() for item in addresses}):
@@ -423,21 +394,6 @@ def _base_anchor_symbols(network: str) -> tuple[str, ...]:
     )
 
 
-def _pool_depth(pool: dict[str, Any]) -> float:
-    return max(
-        _float(pool.get("liquidity_index")),
-        _float(pool.get("estimated_tvl_usd")),
-        _float(pool.get("depth_score_usd")),
-    )
-
-
-def _pool_reference_price(pool: dict[str, Any]) -> float | None:
-    try:
-        price = float(pool.get("price"))
-    except (TypeError, ValueError):
-        return None
-    return price if price > 0 else None
-
 
 def _representative_pool_rows(
     pools: list[dict[str, Any]],
@@ -452,13 +408,14 @@ def _representative_pool_rows(
     B ranks first, while the same physical pool may rank last for B -> A.
     """
     def _sort_key(row: dict[str, Any]):
-        if token_in and token_out:
-            return (
-                -score_pool_by_direction(row, token_in, token_out),
-                _int(row.get("fee")),
-                _pool_id(row),
-            )
-        return (-_pool_depth(row), _int(row.get("fee")), _pool_id(row))
+        # ARCH-1a: capacity DESC, price impact ASC, directional price score,
+        # pool id. The direction score is no longer the primary key, but it
+        # keeps the two mirror directions distinct.
+        return pool_depth_sort_key(
+            row,
+            _pool_id(row),
+            direction_score=score_pool_by_direction(row, token_in, token_out),
+        )
 
     if limit <= 0 or len(pools) <= limit:
         return sorted(
@@ -508,27 +465,27 @@ def _select_recommendations(
             fallback_token_base=1.0,
         )
     ]
+    # ARCH-1a: the recommendation order is decided by the on-chain capacity
+    # evidence, not by a directional price reading. The primary key is the
+    # decimals-normalised binding-side capacity (DESC), the secondary key is
+    # the realised price impact (ASC), the directional price score only
+    # breaks ties between equally deep pools, and the pool id closes the
+    # order so it is total and reproducible.
+    #
+    # `estimated_tvl_usd` is deliberately absent: a TVL estimate depends on an
+    # external price feed and can never decide an admission (R-02, R-04).
     return sorted(
         confirmed,
-        key=lambda item: (
-            -score_pool_by_direction(item, token_in, token_out),
-            _int(item.get("fee")),
+        key=lambda item: pool_depth_sort_key(
+            item,
             _pool_id(item),
+            direction_score=score_pool_by_direction(
+                item,
+                token_in,
+                token_out,
+            ),
         ),
     )[:MAX_RECOMMENDATIONS_PER_HOP]
-
-
-def _pools_for_token_pair(
-    pools_by_edge: dict[str, list[dict[str, Any]]],
-    token_x: str,
-    token_y: str,
-) -> list[dict[str, Any]]:
-    """Return physical pools regardless of which token the JSON stored first."""
-    x = _text(token_x)
-    y = _text(token_y)
-    if not x or not y:
-        return []
-    return pools_by_edge.get(f"{x}:{y}") or pools_by_edge.get(f"{y}:{x}") or []
 
 
 def _candidate_rows(
@@ -551,6 +508,12 @@ def _candidate_rows(
         if counter == anchor_address:
             continue
         pools = _pools_for_token_pair(pools_by_edge, anchor_address, counter)
+        # The kernel-owned admission verdict is addressed by chain scope, so
+        # every pool row has to carry its chain identity.
+        for pool in pools:
+            pool.setdefault("network", network)
+            pool.setdefault("chain_id", chain_id)
+            pool.setdefault("protocol", protocol)
         meta = tokens_meta.get(counter, {})
         fixed = [
             pool
@@ -720,11 +683,12 @@ def _candidate_rows(
                         "hop": hop,
                         "rank": rank,
                         "pool_id": _pool_id(rec_pool),
-                        "depth_score": _pool_depth(rec_pool),
+                        "depth_score": pool_capacity_binding(rec_pool),
                         "price": rec_pool.get("price"),
                         "fee": rec_pool.get("fee"),
                         "selection_basis": (
-                            f"direction_static_score_{hop}_hop:{direction_key}"
+                            f"capacity_binding_desc_price_impact_asc_{hop}_hop:"
+                            f"{direction_key}"
                         ),
                     }
                 )
@@ -736,103 +700,6 @@ def _candidate_rows(
     }
 
 
-def _candidate_abnormal_rows(
-    *,
-    network: str,
-    chain_id: int,
-    protocol: str,
-    anchor_scope: str,
-    anchor_symbol: str,
-    anchor_address: str,
-    token_addresses: list[str],
-    pools_by_edge: dict[str, list[dict[str, Any]]],
-    tokens_meta: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
-    """Build candidate rows for pools outside the normal fixed-fee/no-hook set."""
-    tokens: list[dict[str, Any]] = []
-    pairs: list[dict[str, Any]] = []
-    pool_rows: list[dict[str, Any]] = []
-    for counter in token_addresses:
-        if counter == anchor_address:
-            continue
-        pools = _pools_for_token_pair(pools_by_edge, anchor_address, counter)
-        if not pools:
-            continue
-        meta = tokens_meta.get(counter, {})
-        tokens.append(
-            {
-                "token_role": "yc_zc_abnormal",
-                "token_address": counter,
-                "token_symbol": meta.get("token_symbol") or "",
-                "pool_count": len(pools),
-                "has_yc_optimal_pool": False,
-                "has_zc_optimal_pool": False,
-                "yc_optimal_pool_id": "",
-                "zc_optimal_pool_id": "",
-                "yc_zc_same_set": True,
-            }
-        )
-        for direction_key, direction_anchor, direction_counter in (
-            (f"{anchor_address}:{counter}", anchor_address, counter),
-            (f"{counter}:{anchor_address}", counter, anchor_address),
-        ):
-            pairs.append(
-                {
-                    "anchor_address": direction_anchor,
-                    "counter_address": direction_counter,
-                    "address_pair": direction_key,
-                    "direction_key": direction_key,
-                    "pool_count": len(pools),
-                    "fixed_fee_liquid_pool_count": 0,
-                    "priced_pool_count": sum(1 for pool in pools if _has_depth(pool)),
-                    "yc_optimal_pool_id": "",
-                    "zc_optimal_pool_id": "",
-                    "price_reference": {},
-                    "price_outlier_filter": "abnormal_pool",
-                }
-            )
-        for pool in pools:
-            pool_id = _pool_id(pool)
-            if not pool_id:
-                continue
-            token0 = _text(pool.get("token0"))
-            token1 = _text(pool.get("token1"))
-            canonical_pair = f"{token0}:{token1}" if token0 and token1 else f"{anchor_address}:{counter}"
-            pool_rows.append(
-                {
-                    "address_pair": canonical_pair,
-                    "direction_key": canonical_pair,
-                    "direction_address_pair": canonical_pair,
-                    "pool_id": pool_id,
-                    "pool_key": _json_loads(pool.get("pool_key_json")),
-                    "pool_manager": pool.get("pool_manager") or "",
-                    "token0": pool.get("token0"),
-                    "token1": pool.get("token1"),
-                    "fee": pool.get("fee"),
-                    "fee_label": pool.get("fee_label"),
-                    "dynamic_fee": pool.get("dynamic_fee"),
-                    "special_fee": pool.get("special_fee"),
-                    "tick_spacing": pool.get("tick_spacing"),
-                    "hooks": pool.get("hooks"),
-                    "sqrt_price_x96": pool.get("sqrt_price_x96"),
-                    "tick": pool.get("tick"),
-                    "has_liquidity": pool.get("has_liquidity"),
-                    "liquidity": pool.get("liquidity"),
-                    "liquidity_index": pool.get("liquidity_index"),
-                    "estimated_tvl_usd": pool.get("estimated_tvl_usd"),
-                    "balances": _json_loads(pool.get("balances_json")),
-                    "depth_status": pool.get("depth_status"),
-                    "depth_band": _json_loads(pool.get("depth_band_json")),
-                    "usable_for_observation": False,
-                    "is_first_hop_recommended": False,
-                    "is_third_hop_recommended": False,
-                    "hop_recommendation": {"first": False, "third": False},
-                    "optimal_roles": {"yc": False, "zc": False},
-                    "liquidity_read_at": pool.get("liquidity_read_at"),
-                    "liquidity_block_number": pool.get("liquidity_block_number"),
-                }
-            )
-    return {"tokens": tokens, "pairs": pairs, "pools": pool_rows}
 
 
 def build_candidate_anchor(
@@ -885,6 +752,15 @@ def build_candidate_anchor(
         """,
         (network, chain_id, protocol, anchor_address, anchor_address),
     )
+    # Every pool row carries the chain identity so the kernel-owned
+    # admission verdict can be resolved for it. The verdict lookup needs the
+    # chain scope; a row without it could only be resolved by a
+    # Python-local rule.
+    for pool in pools:
+        pool["network"] = network
+        pool["chain_id"] = chain_id
+        pool["protocol"] = protocol
+        pool["database_url"] = str(resolved)
     normal_pools = [
         pool
         for pool in pools
@@ -1620,22 +1496,30 @@ def build_all_anchor_data(
         rust_available,
     )
 
-    if rust_available():
-        anchor_addresses = {
-            symbol: _configured_anchor_address_by_symbol(network).get(symbol, "")
-            for symbol in anchor_symbols
-        }
-        return _rust_build_v4_anchor_data(
-            network,
-            chain_id,
-            protocol=protocol,
-            anchor_scope=anchor_scope,
-            market_id=market_id,
-            anchors=list(anchor_symbols),
-            anchor_addresses=anchor_addresses,
-            token_universe=universe,
-            database_url=str(resolved),
+    # The Rust kernel owns the candidate/observation/loop build. The kernel
+    # object is mandatory: a missing kernel is a broken system, not a mode
+    # that may be replaced by a Python-local rebuild with its own admission
+    # rule.
+    if not rust_available():
+        raise RuntimeError(
+            "flashloan_rs unavailable; the anchor data build is owned by the "
+            "Rust kernel and must not be re-implemented in Python"
         )
+    anchor_addresses = {
+        symbol: _configured_anchor_address_by_symbol(network).get(symbol, "")
+        for symbol in anchor_symbols
+    }
+    return _rust_build_v4_anchor_data(
+        network,
+        chain_id,
+        protocol=protocol,
+        anchor_scope=anchor_scope,
+        market_id=market_id,
+        anchors=list(anchor_symbols),
+        anchor_addresses=anchor_addresses,
+        token_universe=universe,
+        database_url=str(resolved),
+    )
     # The full rebuild owns every business row for this network/chain/protocol.
     # Older interrupted imports may have written rows under the mainnet market
     # id/anchor scope; deleting by network+chain+protocol removes that residue

@@ -21,6 +21,7 @@ from market.binance_market.dex_surface_types import (
     _raw_from_human,
 )
 from market.binance_market.dex_surface_route_quotes import (
+    CHAIN_FLASH_LOAN_FEE_BPS,
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
 )
@@ -443,7 +444,11 @@ def _candidate_pool_overview_profit(
         if route_complete and reference_values:
             reference_final_output_usd = reference_values[-1]
             reference_route_complete = route_complete
-    flash_loan_fee_usd = QUOTE_PROBE_NOTIONAL_USD * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    # The chain's own fee: the overview's reference economics reproduce the
+    # chain's arithmetic, so they must use the fee the chain charges. The
+    # production route borrows straight from the Uniswap V4 PoolManager and
+    # pays no flash-loan fee.
+    flash_loan_fee_usd = QUOTE_PROBE_NOTIONAL_USD * CHAIN_FLASH_LOAN_FEE_BPS / 10_000.0
     reference_net_profit_usd = (
         reference_final_output_usd - QUOTE_PROBE_NOTIONAL_USD - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD
         if reference_final_output_usd is not None

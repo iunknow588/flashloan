@@ -85,11 +85,11 @@ def test_supported_chains_are_registry_driven():
 
 
 def test_manual_menu_belongs_to_repo_root_and_accepts_chain_flag():
-    source = (ROOT / "test-token_create" / "scripts" / "tool" / "manual_official_v4_menu.py").read_text(
+    source = (ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool" / "manual_official_v4_menu.py").read_text(
         encoding="utf-8"
     )
 
-    assert "parents[3]" in source
+    assert "parents[5]" in source
     assert '"--chain"' in source
     assert "chain_config" in source
     assert "FLASHLOAN_MANIFEST_PATH" in source
@@ -104,7 +104,7 @@ def test_multi_chain_cli_exposes_direct_actions():
     assert '"mainnet-refresh-v4-index"' in source
     assert '"local-menu"' in source
     assert '"chain-info"' in source
-    assert 'str(ROOT / "test-token_create"' in source
+    assert 'str(ROOT / "flashloan" / "tools" / "test-token_create"' in source
     assert 'testnet-menu requires chain 46630' in source
     assert 'local-menu requires chain 31337' in source
     assert "run_mainnet_readiness" in source
@@ -126,11 +126,11 @@ def test_mainnet_v4_pool_index_tool_defaults_to_observation_scope():
 
 
 def test_periodic_composer_uses_shared_chain_config():
-    source = (ROOT / "test-token_create" / "scripts" / "tool" / "periodic_official_v4_composer.py").read_text(
+    source = (ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool" / "periodic_official_v4_composer.py").read_text(
         encoding="utf-8"
     )
 
-    assert "parents[3]" in source
+    assert "parents[5]" in source
     assert "from chain_config import chain_config, set_chain_env" in source
     assert '"--chain"' in source
     assert "cfg[\"hardhat_network\"]" in source
@@ -138,7 +138,7 @@ def test_periodic_composer_uses_shared_chain_config():
 
 
 def test_test_token_create_root_has_main_entry():
-    main_entry = ROOT / "test-token_create" / "main.py"
+    main_entry = ROOT / "flashloan" / "tools" / "test-token_create" / "main.py"
 
     assert main_entry.is_file()
     source = main_entry.read_text(encoding="utf-8")

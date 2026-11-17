@@ -227,6 +227,36 @@ def merge_v4_pool_index(
     return payload
 
 
+def candidate_admission_verdicts(
+    database_url: str | None = None,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str = "uniswap_v4",
+) -> dict[str, Any]:
+    """Return the kernel-owned candidate admission verdicts of one chain.
+
+    The admission thresholds live in the Rust kernel and in the shared depth
+    policy document. Python only consumes and displays the verdict; it never
+    carries a private copy of a threshold.
+    """
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            "flashloan_rs unavailable; candidate admission is Rust-owned: "
+            + str(rust_load_error())
+        )
+    payload = _RUST_MODULE.candidate_admission_verdicts(
+        _database_path(database_url),
+        network,
+        int(chain_id),
+        protocol,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs candidate_admission_verdicts returned a non-dict payload")
+    return payload
+
+
 def build_v4_anchor_data(
     network: str,
     chain_id: int,
@@ -1187,6 +1217,7 @@ def page_payload_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 __all__ = [
     "build_v4_quote_calldata",
+    "candidate_admission_verdicts",
     "build_v4_pool_index",
     "find_pools_between_tokens",
     "get_v4_pending_nonce",

@@ -1,0 +1,364 @@
+{
+  "evidence": [
+    "plan/runtime_evidence/reports/regression_gates_round21_20261116.json",
+    "plan/runtime_evidence/reports/mainnet_readonly_diagnosis_chain4663_20261116.json",
+    "plan/runtime_evidence/reports/mainnet_arbitrage_healer_repair_chain4663_20261116T134201Z.json",
+    "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261116T145155Z.json",
+    "plan/back/已完成任务归档_20261116_第21轮_闭环数据库解析分裂与生产库写入防护.md",
+    "plan/back/已完成任务归档索引_20261116_v10.6.md"
+  ],
+  "fixes": [
+    {
+      "acceptanceIds": [
+        "AC-171"
+      ],
+      "class": "production-defect",
+      "fix": "Introduced one authoritative resolver _closed_loop_database_url(chain_id, network). An explicitly pinned _native_database_url on the instance wins. Otherwise the consumer resolver is authoritative and a None answer means the scope has no database (no fallback to another chain's store). When the chain-scoped path for the chain actually being processed differs from the resolved target, the chain-scoped path wins, so a testnet scan can never write into the mainnet store.",
+      "fixId": "FIX-R21-01",
+      "rootCause": "mark_group_submitted and claim_review_before_submit resolved the closed-loop target through closed_loop_consumer.resolve_runtime_database, while complete_loop and scope_error_isolation_active used the mixin's own _native_database_url(chain_id) derived from the chain runtime registry. When the two resolvers disagreed, the claim was written into one SQLite file and the completion into another, so the loop was stranded in preflight_running forever and never reached preflight_failed.",
+      "severity": "critical",
+      "surface": "flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py",
+      "symbols": [
+        "_closed_loop_database_url",
+        "_chain_scoped_database_url",
+        "_has_pinned_native_database"
+      ],
+      "taskIds": [
+        "TASK-107"
+      ],
+      "title": "closed-loop database resolver split caused permanent preflight_running stall",
+      "verification": [
+        "GATE-R21-01",
+        "GATE-R21-02",
+        "GATE-R21-03",
+        "GATE-R21-04",
+        "PROD-READONLY-02"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-172"
+      ],
+      "class": "test-isolation-defect",
+      "fix": "Added an autouse fixture that intercepts execute/executemany/replace_rows/transaction/delete_rows on core.db.storage_business_io and raises AssertionError when the resolved target parent is the real chain database directory. The guard is additionally applied to dex.runtime.closed_loop_state_machine and dex.runtime.closed_loop_consumer so module-level name bindings cannot bypass it.",
+      "fixId": "FIX-R21-02",
+      "rootCause": "core.db.storage_business_io write entry points were not intercepted, so a test that resolved a chain database through the runtime registry wrote fixture rows into flashloan/db/local_store_4663.sqlite3 (mainnet) and local_store_46630.sqlite3 (testnet). Modules that bind 'from ... import execute' at module level also bypassed patching of the storage_business_io module attributes alone.",
+      "severity": "critical",
+      "surface": "flashloan/app_runtime/tests/conftest.py",
+      "symbols": [
+        "_guard_real_chain_databases"
+      ],
+      "taskIds": [
+        "TASK-108"
+      ],
+      "title": "test suite could write fixture rows into real production chain databases",
+      "verification": [
+        "GATE-R21-01",
+        "GATE-R21-02",
+        "PROD-READONLY-01",
+        "PROD-READONLY-02"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-173"
+      ],
+      "class": "test-isolation-defect",
+      "fix": "Session-scoped working-directory sandbox, per-test reset of the dynamic RPC offline reason set, per-test removal of FLASHLOAN_KV_PATH from os.environ, and per-test reset of the chain runtime registry.",
+      "fixId": "FIX-R21-03",
+      "rootCause": "flashloan/app_runtime/.env line 615 hardcodes FLASHLOAN_KV_PATH to the mainnet database and load_env_files writes it into os.environ, which polluted the whole suite. In addition the global chain runtime registry, the dynamic RPC offline reason set, and the process working directory leaked between tests.",
+      "severity": "major",
+      "surface": "flashloan/app_runtime/tests/conftest.py",
+      "symbols": [
+        "_isolate_working_directory",
+        "_reset_dynamic_rpc_offline_state",
+        "_isolate_flashloan_kv_path",
+        "_reset_chain_runtime_registry"
+      ],
+      "taskIds": [
+        "TASK-109"
+      ],
+      "title": "test environment pollution from production .env and global runtime registries",
+      "verification": [
+        "GATE-R21-01",
+        "GATE-R21-02",
+        "GATE-R21-03",
+        "GATE-R21-04"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-175"
+      ],
+      "class": "data-hygiene",
+      "fix": "Deleted the three fixture rows together with the matching v4_closed_loop_error_isolation rows. Both databases were re-verified read-only after the cleanup and again after the full round-21 gate run: zero fixture rows remain.",
+      "fixId": "FIX-R21-04",
+      "rootCause": "Fixture rows written by earlier test runs remained in the two real chain databases: two rows in the mainnet store (token pair 0x1111...:0x2222...:0x3333... in preflight_running and 0x1111...:0x3333...:0x2222... in preflight_failed) and one row in the testnet store (0x1111...:0x2222...:0x3333... in execution_success with tx_hash 0xabc123).",
+      "severity": "major",
+      "surface": "flashloan/db/local_store_4663.sqlite3, flashloan/db/local_store_46630.sqlite3",
+      "symbols": [
+        "v4_closed_loop_state",
+        "v4_closed_loop_error_isolation"
+      ],
+      "taskIds": [
+        "TASK-107",
+        "TASK-108"
+      ],
+      "title": "production database fixture pollution cleanup",
+      "verification": [
+        "PROD-READONLY-01",
+        "PROD-READONLY-02"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "acceptanceIds": [
+        "AC-174"
+      ],
+      "command": "python -m pytest flashloan/app_runtime/tests/unit -p no:cacheprovider -q",
+      "durationSeconds": 470.01,
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-R21-01",
+      "name": "python unit suite",
+      "passed": 2624,
+      "skipped": 3,
+      "status": "pass",
+      "taskIds": [
+        "TASK-110"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-174"
+      ],
+      "command": "python -m pytest flashloan/app_runtime/tests/functional flashloan/app_runtime/tests/integration -p no:cacheprovider -q",
+      "durationSeconds": 293.26,
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-R21-02",
+      "name": "python functional + integration suite",
+      "passed": 398,
+      "skipped": 0,
+      "status": "pass",
+      "taskIds": [
+        "TASK-110"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-174"
+      ],
+      "command": "cd flashloan/tools && cargo test --locked --workspace",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-R21-03",
+      "ignored": 0,
+      "name": "rust tools workspace",
+      "passed": 473,
+      "status": "pass",
+      "taskIds": [
+        "TASK-110"
+      ]
+    },
+    {
+      "acceptanceIds": [
+        "AC-174"
+      ],
+      "command": "cd flashloan/rs-src && cargo test --locked",
+      "exitCode": 0,
+      "failed": 0,
+      "gateId": "GATE-R21-04",
+      "ignored": 0,
+      "name": "rust rs-src",
+      "passed": 127,
+      "status": "pass",
+      "taskIds": [
+        "TASK-110"
+      ]
+    }
+  ],
+  "generatedAt": "2026-11-16T23:00:00Z",
+  "notCompleted": [
+    {
+      "id": "AC-155",
+      "reason": "report produced in round 20, but the mainnet manager_v4_reviews is still 0 so no real on-chain sample exists; producing samples requires production write authorization",
+      "taskIds": [
+        "TASK-103"
+      ],
+      "title": "SDK upgrade parity, performance, license and rollback difference report with real samples"
+    },
+    {
+      "id": "AC-147",
+      "reason": "requires an approved downtime window; not executed",
+      "taskIds": [],
+      "title": "release manager-api.exe stop-the-world replacement"
+    },
+    {
+      "id": "AC-148",
+      "reason": "requires the same downtime window as AC-147; not executed",
+      "taskIds": [],
+      "title": "daemon and run.py restart with health/version/page verification"
+    },
+    {
+      "id": "AC-022",
+      "reason": "requires explicit production write authorization; mainnet manager_v4_reviews = 0, healer reports review_stalled and safeToAutoBroadcast=false",
+      "taskIds": [],
+      "title": "mainnet manager_v4_reviews materialization"
+    },
+    {
+      "id": "AC-023",
+      "reason": "depends on AC-022; no executable positive review exists yet",
+      "taskIds": [],
+      "title": "mainnet broadcast transaction repair"
+    },
+    {
+      "id": "AC-024",
+      "reason": "depends on AC-022 and AC-023; no arbitrage broadcast has been produced on mainnet",
+      "taskIds": [],
+      "title": "continuous arbitrage broadcast and PnL observation"
+    },
+    {
+      "id": "AC-158",
+      "reason": "production write authorization not granted",
+      "taskIds": [],
+      "title": "production write command target confirmed"
+    },
+    {
+      "id": "AC-159",
+      "reason": "production write authorization not granted",
+      "taskIds": [],
+      "title": "user authorization text recorded"
+    },
+    {
+      "id": "AC-160",
+      "reason": "production write authorization not granted",
+      "taskIds": [],
+      "title": "backup and rollback point verified"
+    },
+    {
+      "id": "AC-161",
+      "reason": "production write authorization not granted",
+      "taskIds": [],
+      "title": "RPC/worker/authority state controllable during the write"
+    },
+    {
+      "id": "AC-162",
+      "reason": "production write authorization not granted",
+      "taskIds": [],
+      "title": "post-write checksum/row-count/orphan/idempotency verification"
+    },
+    {
+      "id": "TASK-036",
+      "reason": "only the round-20 evaluation and recommended path exist; implementation requires a downtime window and a fresh EIP-170 measurement that cannot reuse the earlier 24576-byte result",
+      "taskIds": [],
+      "title": "per-hop amountOutMinimum executor expansion implementation"
+    },
+    {
+      "id": "AC-006",
+      "reason": "depends on the P0-8-L production materialization window",
+      "taskIds": [],
+      "title": "mainnet executor space wiring"
+    },
+    {
+      "id": "AC-007",
+      "reason": "depends on the P0-8-L production materialization window",
+      "taskIds": [],
+      "title": "mainnet executor space wiring (companion)"
+    },
+    {
+      "id": "AC-008",
+      "reason": "depends on the P0-8-L production materialization window",
+      "taskIds": [],
+      "title": "mainnet executor space wiring (companion)"
+    },
+    {
+      "id": "AC-009",
+      "reason": "depends on the P0-8-L production materialization window",
+      "taskIds": [],
+      "title": "mainnet executor space wiring (companion)"
+    },
+    {
+      "id": "AC-010",
+      "reason": "depends on the P0-8-L production materialization window",
+      "taskIds": [],
+      "title": "mainnet executor space wiring (companion)"
+    },
+    {
+      "id": "P0-9",
+      "reason": "audit and self-healing code complete, production data not converged; 3 manager migrations still unapplied and the pool scope library policy is stale",
+      "taskIds": [],
+      "title": "mainnet database baseline and historical migration consistency"
+    },
+    {
+      "id": "P1",
+      "reason": "requires the single production authorization window",
+      "taskIds": [],
+      "title": "production pool library convergence"
+    },
+    {
+      "id": "P2-P10",
+      "reason": "not started or not authorized",
+      "taskIds": [],
+      "title": "precision switch, on-chain protection, production rollout, W7/W8, lifecycle and statistics"
+    }
+  ],
+  "planVersion": "v10.6",
+  "productionDatabaseState": {
+    "automaticBroadcastCandidates": 0,
+    "broadcastPolicy": "fresh_positive_review_only",
+    "mainnetChain4663": {
+      "fixtureRowsRemaining": 0,
+      "path": "flashloan/db/local_store_4663.sqlite3",
+      "readOnly": true,
+      "sizeBytes": 3507453952,
+      "tables": 79
+    },
+    "mainnetManagerV4Reviews": 0,
+    "safeToAutoBroadcast": false,
+    "testnetChain46630": {
+      "fixtureRowsRemaining": 0,
+      "path": "flashloan/db/local_store_46630.sqlite3",
+      "readOnly": true,
+      "sizeBytes": 870842368,
+      "tables": 80
+    },
+    "testnetManagerV4Reviews": 8
+  },
+  "round": 21,
+  "safety": {
+    "broadcastAuthorityChanged": false,
+    "broadcastSent": false,
+    "contractDeployed": false,
+    "networkSwitched": false,
+    "notes": "Round 21 changed only local source code, test fixtures and plan documents. The two real chain databases were verified read-only before and after the full gate run; their size stayed at 3507453952 and 870842368 bytes and contained zero fixture rows.",
+    "productionDatabaseWritten": false,
+    "safeToAutoBroadcast": false
+  },
+  "schemaVersion": "1.0.0",
+  "scope": "closed-loop database resolver unification, production-database write protection, test environment isolation, full regression gate closure",
+  "summary": {
+    "baselineComparison": {
+      "comparisonMethod": "set comparison of failed test identifiers between the round-21 pre-fix run and the post-fix run",
+      "note": "The 41-failure figure is the figure documented by v10.5 and is not reproduced by the round-21 measurement; the round-21 pre-fix measurement found 4 failures. Both observations are recorded so the discrepancy stays visible.",
+      "round21MeasuredPostFix": "unit 2624 passed / 0 failed / 3 skipped",
+      "round21MeasuredPreFixBaseline": "unit 2620 passed / 4 failed / 3 skipped",
+      "v10_5BaselineSource": "plan/back/已完成任务归档索引_20261116_v10.5.md and the v10.5 active documents",
+      "v10_5DocumentedBaseline": "unit 2572 passed / 41 failed / 3 skipped"
+    },
+    "failedAfter": 0,
+    "failedAfterIds": [],
+    "failedBefore": 4,
+    "failedBeforeIds": [
+      "test_closed_loop_claim_review_before_submit_uses_consumer_database",
+      "test_closed_loop_complete_loop_uses_same_database_as_claim",
+      "test_closed_loop_native_submit_prefers_requested_group_over_capacity",
+      "test_closed_loop_scope_error_isolation_writes_to_same_database"
+    ],
+    "failureIdSetSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "newFailuresIntroduced": 0,
+    "newlyFixed": 4,
+    "verdict": "pass"
+  }
+}

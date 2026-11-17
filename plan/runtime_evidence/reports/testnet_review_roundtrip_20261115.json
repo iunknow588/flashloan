@@ -1,0 +1,312 @@
+{
+  "codeFixesThisRound": [
+    {
+      "file": "flashloan/src/dex/tools/refresh_robinhood_v4_live.py",
+      "fix": "地址解析仅保留显式锚点；SQL 中 {MAX_CANDIDATE_FIXED_FEE} 改为 f-string",
+      "issue": "显式 --anchors 指定时地址解析扩展到全量锚点，破坏显式范围语义",
+      "test": "flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py"
+    },
+    {
+      "file": "flashloan/src/core/db/import_existing_json.py",
+      "fix": "索引流动性行优先使用 observedAt / liquidityReadAt / liquidityScanAt / generatedAt",
+      "issue": "实时流动性导入缺少 observed_at，Rust importer 写入 observed_at=NULL",
+      "test": "flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py::test_prepare_v4_evidence_rows_uses_live_liquidity_observation_time"
+    },
+    {
+      "file": "flashloan/rs-src/src/evidence.rs",
+      "fix": "池及子表记录按 500 个分批删除",
+      "issue": "47k 池删除时单条 IN (...) 超过 SQLite 999 参数上限，报 too many SQL variables",
+      "test": "cargo test --offline evidence --lib"
+    },
+    {
+      "file": "flashloan/rs-src/src/worker_pool.rs",
+      "fix": "清除等待截止时间并立即重新提交同一复核任务，返回 action=trigger_immediate_review",
+      "issue": "wake_waiting_for_review 只改等待截止时间，没有立即执行复核",
+      "test": "cargo test --offline worker_pool --lib"
+    },
+    {
+      "file": "flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py",
+      "fix": "原生复核结果记录不再要求 auto_execute_enabled=true，复核与广播解耦",
+      "issue": "复核记录错误依赖自动执行开关，广播关闭时不落库复核结果",
+      "test": "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py::test_scanner_records_native_review_when_auto_execute_is_disabled"
+    },
+    {
+      "file": "flashloan/src/dex/runtime/dex_opportunity_scanner_lifecycle.py",
+      "fix": "原生 worker watchdog 每次 tick 调用 _record_native_worker_results()",
+      "issue": "手工复核完成后结果回写依赖下一次完整市场扫描",
+      "test": "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py"
+    },
+    {
+      "file": "flashloan/src/dex/runtime/closed_loop_consumer.py",
+      "fix": "auto_execute.skipped=true 且未尝试广播时不再请求执行，正确终止为 execution_not_requested",
+      "issue": "广播关闭时因正利润自动请求执行，产生错误状态 broadcast_result_missing",
+      "test": "flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py::test_native_review_with_broadcast_disabled_does_not_request_execution"
+    }
+  ],
+  "evidencePaths": {
+    "mainnetDir": "plan/runtime_evidence/diagnostics/mainnet_readonly_after_testnet",
+    "mainnetRuntimeLog": "plan/runtime_evidence/diagnostics/mainnet_readonly_after_testnet/runtime_20261115T113339.stderr.log",
+    "testnetDir": "plan/runtime_evidence/diagnostics/testnet_review",
+    "testnetRuntimeLog": "plan/runtime_evidence/diagnostics/testnet_review/runtime_sync_20261115T112950.stderr.log"
+  },
+  "generatedAt": "2026-11-15T04:00:00Z",
+  "generatedAtLocal": "2026-11-15 12:00 Asia/Shanghai",
+  "regression": {
+    "broadcastGateCheck": "unified_executor / triangular_direct / testnet_official_v4_arb 广播均关闭",
+    "cargoTest": {
+      "command": "cargo test --offline",
+      "exitCode": 0,
+      "result": "127 passed; 0 failed"
+    },
+    "cargoTestEvidence": {
+      "command": "cargo test --offline evidence --lib",
+      "result": "3 passed"
+    },
+    "cargoTestWorkerPool": {
+      "command": "cargo test --offline worker_pool --lib",
+      "result": "48 passed"
+    },
+    "pytestTargeted": {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/functional/test_dex_closed_loop_manual_transition_routes.py -q",
+      "exitCode": 0,
+      "result": "138 passed"
+    },
+    "rustExtensionRebuilt": "python -m maturin develop --release"
+  },
+  "remainingGaps": [
+    "composite_manager 仍硬编码 chain 4663，测试网 Manager 全工具链尚未打通，Manager 页面在测试网可能仍 503。",
+    "本轮完成的是 legacy SQLite + RuntimeCore/native worker 闭环复核链路，不得宣称 Manager 全链迁移完成。",
+    "测试网 Manager schema 未物化，manager_v4_* 权威表在测试网不存在。",
+    "逐跳输出下限（amountOutMinimum）仍需新 ABI，主网 Executor 余量不足。",
+    "主网生产写入（scope 重物化、闭环库重建、复核物化）仍未授权。"
+  ],
+  "report": "testnet_closed_loop_review_roundtrip",
+  "safetyBoundary": {
+    "authoritySwitched": false,
+    "autoExecuteEnabled": false,
+    "broadcastEnabled": false,
+    "contractDeployed": false,
+    "note": "提交测试仅到 RuntimeCore/native worker 闭环复核链路；未发送任何链上交易。",
+    "onchainTransactionSubmitted": false,
+    "releaseBinaryReplaced": false
+  },
+  "scope": "robinhood-testnet(46630) closed-loop review round-trip, then robinhood(4663) read-only verification",
+  "structuralDataSeparation": {
+    "chainScopedColumnPresent": [
+      "network",
+      "chain_id"
+    ],
+    "conclusion": "主网与测试网 DB 文件独立，表结构一致，所有业务行均带 network/chain_id 且单一 scope；运行时 scope 注册与 maintenance DB 均指向本网络。切换网络未串库、未串链。",
+    "mainnet": {
+      "autoExecuteCallbackConfigured": false,
+      "autoExecuteEnabled": false,
+      "chainId": 4663,
+      "crossChainRowsFound": 0,
+      "database": "flashloan/db/local_store_4663.sqlite3",
+      "databaseExists": true,
+      "executionBackend": "rust",
+      "lastError": null,
+      "maintenanceWorkers": [
+        "v4_broadcast_execution_worker",
+        "v4_candidate_yc_zc_worker",
+        "v4_closed_loop_worker",
+        "v4_dex_overview_worker",
+        "v4_market_observation_worker",
+        "v4_onchain_review_worker",
+        "v4_pool_liquidity_worker"
+      ],
+      "network": "robinhood",
+      "runtimeDatabase": "flashloan/db/local_store_4663.sqlite3",
+      "runtimeScopeRegistered": [
+        "robinhood|4663|uniswap_v4"
+      ],
+      "scannerOk": true,
+      "scopeCounts": {
+        "v4_closed_loop_hops": {
+          "robinhood/4663": 264
+        },
+        "v4_closed_loops": {
+          "robinhood/4663": 88
+        },
+        "v4_exchange_pool_liquidity_snapshots": {
+          "robinhood/4663": 4669
+        },
+        "v4_exchange_pools": {
+          "robinhood/4663": 4741
+        }
+      }
+    },
+    "principle": "结构（schema/代码）与数据（池/闭环/复核行）分离；网络切换通过 chain_id/network scope 与独立 DB 文件实现",
+    "schemaIdenticalAcrossNetworks": true,
+    "tablesChecked": [
+      "v4_exchange_pools",
+      "v4_exchange_pool_liquidity_snapshots",
+      "v4_closed_loops",
+      "v4_closed_loop_hops",
+      "v4_closed_loop_runtime_state"
+    ],
+    "testnet": {
+      "chainId": 46630,
+      "crossChainRowsFound": 0,
+      "database": "flashloan/db/local_store_46630.sqlite3",
+      "databaseExists": true,
+      "network": "robinhood-testnet",
+      "scopeCounts": {
+        "v4_closed_loop_hops": {
+          "robinhood-testnet/46630": 18
+        },
+        "v4_closed_loops": {
+          "robinhood-testnet/46630": 6
+        },
+        "v4_exchange_pool_liquidity_snapshots": {
+          "robinhood-testnet/46630": 1368
+        },
+        "v4_exchange_pools": {
+          "robinhood-testnet/46630": 12312
+        }
+      }
+    }
+  },
+  "testnetPrerequisite": {
+    "chainId": 46630,
+    "liquidityEvidence": {
+      "blockNumber": 153449191,
+      "liquidityErrorCount": 0,
+      "liquidityMarkedPoolCount": 3,
+      "liquidityScanAt": "2026-11-15T02:30:32.131510Z",
+      "scannedPoolCount": 3,
+      "source": "pool_manager_extsload_live_state_batch"
+    },
+    "marketId": "dex-arbitrage-46630-uniswap-v4",
+    "minimalRefresh": {
+      "afterPoolCount": 12312,
+      "anchorCount": 3,
+      "deletedPoolCount": 35390,
+      "deletedUnknownLiquidityCount": 0,
+      "deletedZeroLiquidityCount": 0,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/minimal_refresh_chunked.json",
+      "hopCount": 18,
+      "indexLiquidityRowCount": 3,
+      "libraryFeeCeiling": 30000,
+      "ok": true,
+      "poolCount": 47702,
+      "removedByLibraryFeeCount": 35390,
+      "routeCount": 6,
+      "tokenCount": 3,
+      "v4PoolCount": 3
+    },
+    "network": "robinhood-testnet",
+    "pools": [
+      {
+        "pair": "ETH/NFLX",
+        "poolId": "0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0"
+      },
+      {
+        "pair": "NFLX/PLTR",
+        "poolId": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3"
+      },
+      {
+        "pair": "ETH/PLTR",
+        "poolId": "0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a"
+      }
+    ],
+    "route": {
+      "anchorSymbols": [
+        "ETH",
+        "PLTR",
+        "NFLX"
+      ],
+      "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "pathText": "ETH -> PLTR -> NFLX -> ETH",
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "routeSymbols": [
+        "ETH",
+        "PLTR",
+        "NFLX",
+        "ETH"
+      ]
+    },
+    "rpcUrl": "https://rpc.testnet.chain.robinhood.com/rpc"
+  },
+  "testnetReviewRoundTrip": {
+    "chainTransactionObserved": false,
+    "step1_groupRefresh": {
+      "accepted": true,
+      "broadcastGate": {
+        "autoExecuteEnabled": false,
+        "broadcastAllowed": false,
+        "broadcastCount": 0,
+        "broadcastEnabled": false,
+        "broadcastFailureCount": 0
+      },
+      "chainId": 46630,
+      "endpoint": "POST /api/dex/closed-loop-groups/eth%7Cpltr%7Cnflx/refresh",
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/group_refresh_sync.json",
+      "failures": [],
+      "groupKey": "eth|pltr|nflx",
+      "groupsConsidered": 1,
+      "groupsDiscovered": 2,
+      "httpStatus": 200,
+      "mode": "native_closed_loop_group_refresh",
+      "ok": true,
+      "submittedGroupKeys": [
+        "eth|pltr|nflx"
+      ]
+    },
+    "step2_manualReview": {
+      "accepted": true,
+      "action": "trigger_immediate_review",
+      "chainId": 46630,
+      "command": "manual_review",
+      "dataSource": "rust_runtime_core",
+      "dryRun": false,
+      "endpoint": "POST /api/dex/closed-loop-groups/manual-review",
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/manual_review_submit_sync.json",
+      "groupKey": "eth|pltr|nflx",
+      "httpStatus": 200,
+      "mode": "native_closed_loop_group_manual_review",
+      "ok": true,
+      "processingAsync": true,
+      "stateReadRequired": true,
+      "transitionQueued": true,
+      "version": "rust_runtime_core_v1",
+      "waitingDeadlineCleared": true
+    },
+    "step3_reviewResult": {
+      "category": "not_executable",
+      "checksPassed": false,
+      "evidence": "plan/runtime_evidence/diagnostics/testnet_review/final_review_evidence.txt",
+      "explicitProfitPresent": true,
+      "finalDeltaAmount": 0.000548878265974414,
+      "missing": "chain review passed; closed-loop borrow-token profit is positive and automation is allowed; DEX:unknown:OK",
+      "pair": "ETH -> PLTR -> NFLX -> ETH",
+      "precheckProfit": null,
+      "precheckPureProfit": null,
+      "precheckStatus": "transaction_development_required",
+      "reviewRowCount": 3,
+      "selectedProfitAmount": 0.000548878265974414,
+      "selectedProfitRaw": "0x1f333ae117e8e",
+      "source": "native_rust_contract_preview",
+      "symbol": "ETH",
+      "tokenProfit": 0.000548878265974414
+    },
+    "step4_runtimeState": {
+      "chainId": 46630,
+      "correct": true,
+      "generation": 5,
+      "lastError": "execution_not_requested",
+      "loopKey": "0x0000000000000000000000000000000000000000:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "network": "robinhood-testnet",
+      "reason": "广播关闭时复核完成后不请求链上执行，属预期终态。",
+      "state": "execution_not_requested",
+      "updatedAt": "2026-11-15T03:32:57Z"
+    },
+    "txHashObserved": null
+  },
+  "version": "1.0"
+}

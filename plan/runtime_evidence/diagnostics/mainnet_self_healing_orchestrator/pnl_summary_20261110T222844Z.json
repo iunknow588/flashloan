@@ -1,0 +1,36 @@
+{
+  "event": "pnl_summary_requested",
+  "generatedAt": "2026-11-10T22:28:44Z",
+  "observationStartedAt": "2026-11-10T19:57:50Z",
+  "network": "robinhood",
+  "chainId": 4663,
+  "metrics": {
+    "positiveExpectation": {
+      "totalReviews": 506,
+      "valuedReviews": 506,
+      "missingValue": 0,
+      "positiveExpectedAmount": 32,
+      "executablePositive": 0,
+      "notExecutablePositive": 32,
+      "positiveByCurrency": {
+        "ETH": 27,
+        "SPY": 5
+      },
+      "note": "positiveExpectedAmount=所有 signed PnL>0 的复核；executablePositive=其中 category=executable 且可驱动自动广播"
+    },
+    "successfulBroadcast": {
+      "legacyAttempts": {},
+      "managerAttempts": {},
+      "broadcastRequests": {},
+      "totalBroadcast": 0,
+      "successfulBroadcast": 0,
+      "note": "成功广播=execution_success/success 终态的 attempt"
+    },
+    "formallyProfitable": {
+      "attemptsWithRecords": 0,
+      "realizedPositive": 0,
+      "realizedMissingReasons": {},
+      "note": "正式盈利=有 receipt/余额证据确认 realized PnL>0 的交易"
+    }
+  }
+}

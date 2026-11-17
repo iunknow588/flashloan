@@ -1,0 +1,70 @@
+{
+  "chain_id": 56,
+  "contracts": {
+    "owner": "",
+    "unified_executor": "",
+    "usdc": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+  },
+  "data_files": {
+    "dex_pools": "runtime/cache/bnb_arbitrage_pool_static_table.json",
+    "venus_markets": "../../data_info/BNB/liquidation/venus_market_static_table.json"
+  },
+  "database": {
+    "sqlite_dir": "../../db",
+    "sqlite_file": "local_store_bnb.sqlite3"
+  },
+  "display_name": "BNB Chain",
+  "explorer": {
+    "url": "https://bscscan.com"
+  },
+  "features": {
+    "dex_arbitrage": {
+      "default_market_id": "dex-arbitrage-56-pancakeswap-v3",
+      "legacy_default_market_id": "bnb-dex-arbitrage",
+      "protocol": "pancakeswap_v3"
+    },
+    "liquidation": {
+      "default_market_id": "liquidation-56-venus-core",
+      "legacy_default_market_id": "bnb-venus-core",
+      "protocol": "venus_core"
+    }
+  },
+  "flash_loan": {
+    "candidate_protocols": [
+      "aave_v3",
+      "venus_core",
+      "pancakeswap_v3",
+      "pancakeswap_v2",
+      "biswap_v2",
+      "uniswap_v4"
+    ],
+    "default_protocols": [
+      "venus_core",
+      "pancakeswap_v3",
+      "pancakeswap_v2",
+      "aave_v3"
+    ],
+    "supported_protocol_count": 6
+  },
+  "native_symbol": "BNB",
+  "network": "bnb",
+  "processing_handlers": {
+    "dex_pool_candidates": "intent_trade.chains.bnb.dex_pool_candidates:dex_pool_candidates_payload",
+    "flash_loan_pools": "intent_trade.chains.bnb.flash_loan_pools:flash_loan_pool_protocol_view",
+    "pool_discovery": "intent_trade.chains.bnb.pool_discovery:pool_discovery_flow"
+  },
+  "rpc": {
+    "fallbacks": [
+      "https://bsc.publicnode.com",
+      "https://1rpc.io/bnb"
+    ],
+    "log_fallbacks": [],
+    "primary": "https://bsc-dataseed.bnbchain.org",
+    "timeout_seconds": 20
+  },
+  "schema_version": "chain-data-v1",
+  "tooling": {
+    "foundry_alias": "bnb",
+    "hardhat_network": "bnb"
+  }
+}

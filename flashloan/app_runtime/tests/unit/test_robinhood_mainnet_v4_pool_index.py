@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from core.db.chain_database_context import chain_database_scope
 from dex.intent_trade.chains.robinhood import v4_pool_index
 from dex.intent_trade.chains.robinhood import v4_quote_adapter
+from dex.intent_trade.chains.robinhood import v4_pool_capacity
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
     _iter_observation_pool_rows,
     default_v4_pool_index_path,
@@ -18,6 +22,202 @@ def _module_text() -> str:
     return Path(v4_pool_index.__file__).read_text(encoding="utf-8")
 
 
+CANONICAL_USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+COUNTERFEIT_USDG = "0x391f08bf88afa9c8e3ce9808cf73b5b11a86505e"
+
+
+def _pool(token0: str, token1: str, decimals0: int, decimals1: int,
+          symbol0: str = "ETH", symbol1: str = "USDG") -> dict:
+    return {
+        "token0": token0,
+        "token1": token1,
+        "token0Decimals": decimals0,
+        "token1Decimals": decimals1,
+        "token0Symbol": symbol0,
+        "token1Symbol": symbol1,
+    }
+
+
+def _state(liquidity: int, sqrt_price_x96: int) -> dict:
+    return {"sqrtPriceX96": str(sqrt_price_x96), "liquidity": str(liquidity)}
+
+
+# At sqrt_price == 1 the full-range approximation gives
+# amount0 = L / 1e18 and amount1 = L / 10**decimals1. L = 1e18 therefore
+# yields exactly 1 ETH on the token0 side.
+ONE_ETH_LIQUIDITY = 10 ** 18
+
+
+def test_pool_index_has_no_hardcoded_eth_price_fallback():
+    """The old $3000 default silently mis-priced every ETH pool."""
+    assert "DEFAULT_ETH_PRICE_USD" not in _module_text()
+    assert "ROBINHOOD_MAINNET_ETH_PRICE_USD\", \"3000" not in _module_text()
+
+
+def test_true_reserve_tvl_uses_pool_own_decimals(monkeypatch):
+    """USDG uses 6 decimals; assuming 18 would deflate the TVL by 1e12."""
+    price = {"price": Decimal("2069.52"), "source": "binance_us",
+             "observedAt": v4_pool_index._stamp(), "priceSource": "binance_us"}
+    monkeypatch.setattr(v4_pool_index, "eth_price_usd", lambda **_: price)
+    q96 = Decimal(2) ** 96
+    sqrt_price_x96 = int(q96)
+    # Liquidity chosen so token0 (ETH side, 18 decimals) is 1 ETH.
+    liquidity = ONE_ETH_LIQUIDITY
+    pool = _pool("0x0000000000000000000000000000000000000000", CANONICAL_USDG, 18, 6)
+    metrics = v4_pool_index._liquidity_reserve_metrics(pool, _state(liquidity, sqrt_price_x96))
+    assert metrics["hasLiquidity"] is True
+    assert metrics["depthBasis"] == "true_reserve_estimate"
+    assert metrics["priceSource"] == "binance_us"
+    # 1 ETH at $2069.52 plus the USDG side at one dollar.
+    reserve_usd0 = Decimal(metrics["reserveUsdToken0"])
+    assert reserve_usd0 == Decimal("2069.52")
+    reserve_usd1 = Decimal(metrics["reserveUsdToken1"])
+    assert reserve_usd1 > 0
+    tvl = Decimal(metrics["estimatedTvlUsd"])
+    assert tvl == reserve_usd0 + reserve_usd1
+
+
+def test_counterfeit_usdg_symbol_is_not_priced_as_a_dollar(monkeypatch):
+    """A token that only claims the USDG symbol must not be priced at $1."""
+    price = {"price": Decimal("2069.52"), "source": "binance_us",
+             "observedAt": v4_pool_index._stamp(), "priceSource": "binance_us"}
+    monkeypatch.setattr(v4_pool_index, "eth_price_usd", lambda **_: price)
+    q96 = Decimal(2) ** 96
+    pool = _pool("0x0000000000000000000000000000000000000000", COUNTERFEIT_USDG, 18, 18)
+    metrics = v4_pool_index._liquidity_reserve_metrics(
+        pool, _state(ONE_ETH_LIQUIDITY, int(q96)))
+    # No dollar price may be inferred for the counterfeit token.
+    assert metrics["token1ReserveUsd"] is None
+    assert metrics["estimatedTvlUsd"] is None
+    # The depth verdict does not depend on the USD reading: the pool still
+    # has an on-chain capacity, so it is classified from that capacity.
+    status = v4_pool_index._liquidity_depth_status(metrics)
+    assert status["capacityRaw"] is not None
+    # DEP-4.2: the verdict follows the binding-side capacity, which for a
+    # pool with one ETH of liquidity is about 0.001 ETH. The USD reading
+    # still plays no part in it.
+    assert status["capacityBindingRaw"] is not None
+    assert status["capacityBand"] == v4_pool_index.capacity_band(status["capacityBindingRaw"])
+
+
+def test_missing_eth_price_refuses_to_publish_tvl(monkeypatch):
+    """Without a usable price the pool stays unpriced instead of TVL=0."""
+    monkeypatch.setattr(
+        v4_pool_index, "eth_price_usd",
+        lambda **_: {"price": None, "source": None, "observedAt": None,
+                     "priceSource": None, "errors": ["all sources failed"]})
+    q96 = Decimal(2) ** 96
+    pool = _pool("0x0000000000000000000000000000000000000000", CANONICAL_USDG, 18, 6)
+    metrics = v4_pool_index._liquidity_reserve_metrics(
+        pool, _state(ONE_ETH_LIQUIDITY, int(q96)))
+    assert metrics["estimatedTvlUsd"] is None
+    assert metrics["priceSource"] is None
+    # A missing USD feed does not change the depth verdict: the capacity is
+    # denominated in the pool's own tokens and is computed on-chain.
+    status = v4_pool_index._liquidity_depth_status(metrics)
+    assert status["capacityRaw"] is not None
+    # DEP-4.2: the verdict follows the binding-side capacity, which for a
+    # pool with one ETH of liquidity is about 0.001 ETH. A missing USD feed
+    # still plays no part in it.
+    assert status["capacityBindingRaw"] is not None
+    assert status["capacityBand"] == v4_pool_index.capacity_band(status["capacityBindingRaw"])
+
+
+def test_eth_price_falls_back_to_the_next_source(monkeypatch):
+    """The primary host may answer HTTP 451; the next source must be used."""
+    calls: list[str] = []
+
+    def fake_fetch(url: str, timeout: int = 10):
+        calls.append(url)
+        if "binance.us" in url:
+            raise OSError("HTTP 451")
+        if "kraken" in url:
+            return {"result": {"ETHUSD": {"c": ["2069.51", "1"]}}}
+        return {"ethereum": {"usd": 2069.5}}
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": None, "source": None, "observedAt": None})
+    result = v4_pool_index.eth_price_usd(refresh=True)
+    assert result["price"] == Decimal("2069.51")
+    assert result["priceSource"] == "kraken"
+    assert any("binance.us" in url for url in calls)
+    assert any("kraken" in url for url in calls)
+
+
+def test_eth_price_rejects_out_of_range_price(monkeypatch):
+    def fake_fetch(url: str, timeout: int = 10):
+        return {"price": "12"}
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": None, "source": None, "observedAt": None})
+    result = v4_pool_index.eth_price_usd(refresh=True)
+    assert result["price"] is None
+    assert result["errors"]
+
+
+def test_all_eth_price_sources_failing_refuses_a_price(monkeypatch):
+    def fake_fetch(url: str, timeout: int = 10):
+        raise OSError("network down")
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": None, "source": None, "observedAt": None})
+    result = v4_pool_index.eth_price_usd(refresh=True)
+    assert result["price"] is None
+    assert result["priceSource"] is None
+    assert len(result["errors"]) == len(v4_pool_index.ETH_PRICE_SOURCES)
+
+
+def test_depth_status_boundaries_match_the_rust_pool_manager():
+    """Both sides classify the same binding-side capacity into the same band.
+
+    DEP-4.2: the band boundaries are the shared capacity constants, and the
+    operator is ``>=`` on both sides. The capacity that decides the band is
+    the decimals-normalised binding side, because a raw unit is only
+    comparable to another raw unit when both tokens share the same decimals.
+    The USD reading is reported for observation but can never change the
+    verdict.
+    """
+    deep = v4_pool_capacity.DEPTH_BAND_DEEP_CAPACITY
+    medium = v4_pool_capacity.DEPTH_BAND_MEDIUM_CAPACITY
+    shallow = v4_pool_capacity.DEPTH_BAND_SHALLOW_CAPACITY
+    assert v4_pool_index._liquidity_depth_status(
+        {"liquidityIndex": 1, "capacityRaw": 1, "capacityBindingRaw": deep})["label"] == "deep"
+    assert v4_pool_index._liquidity_depth_status(
+        {"liquidityIndex": 1, "capacityRaw": 1, "capacityBindingRaw": medium})["label"] == "medium"
+    assert v4_pool_index._liquidity_depth_status(
+        {"liquidityIndex": 1, "capacityRaw": 1, "capacityBindingRaw": shallow})["label"] == "thin"
+    assert v4_pool_index._liquidity_depth_status(
+        {"liquidityIndex": 1, "capacityRaw": 1,
+         "capacityBindingRaw": shallow * 0.999})["label"] == "thin"
+    # A USD reading alone never produces a depth verdict.
+    assert v4_pool_index._liquidity_depth_status(
+        {"liquidityIndex": 1, "estimatedTvlUsd": "1000000"})["label"] == "unpriced"
+
+
+def test_binding_side_capacity_is_the_weaker_of_the_two_sides():
+    """DEP-4.2: a pool is only as deep as its weaker side.
+
+    The raw maximum of the two one-sided capacities hides a pool whose
+    weaker side cannot absorb anything. The binding side is computed after
+    each side is converted into its own token units, because a raw unit of a
+    6-decimal stablecoin and a raw unit of an 18-decimal token are not the
+    same quantity.
+    """
+    # One side cannot absorb anything: the pool is dust.
+    assert v4_pool_capacity.binding_side_capacity(
+        0, 1_000_000_000_000, 18, 6) == 0.0
+    # The same raw amount means different things on the two scales.
+    stable = v4_pool_capacity.binding_side_capacity(1_000_000, 1_000_000, 6, 6)
+    token = v4_pool_capacity.binding_side_capacity(1_000_000, 1_000_000, 18, 18)
+    assert stable == 1.0
+    assert token == 1e-12
+    assert stable > token
+    # An unknown side cannot be decided.
+    assert v4_pool_capacity.binding_side_capacity(None, 1, 18, 6) is None
+    assert v4_pool_capacity.binding_side_capacity(1, 1, None, 6) is None
 def test_mainnet_v4_pool_index_does_not_import_testnet_internals():
     assert "robinhood_testnet" not in _module_text()
     assert "robinhood-testnet" not in _module_text()
@@ -214,3 +414,6 @@ def test_quote_evidence_v4_adapter_prefers_chain_specific_env(monkeypatch):
     assert "mainnet" in resolved_modules
     assert "testnet" in resolved_modules
     assert "generic" not in resolved_modules
+
+
+

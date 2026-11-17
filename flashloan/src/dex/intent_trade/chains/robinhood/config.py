@@ -11,7 +11,11 @@ from dataclasses import dataclass
 import os
 from typing import Any
 
-from core.chain_data_registry import chain_contracts, chain_data_by_network
+from core.chain_data_registry import (
+    chain_contracts,
+    chain_data_by_network,
+    chain_value,
+)
 from dex.intent_trade.chains.common.routes import (
     all_unordered_pairs,
     best_edges_by_pair,
@@ -101,6 +105,31 @@ def _split_env_urls(*names: str) -> tuple[str, ...]:
     return tuple(urls)
 
 
+def chain_rpc_urls(network: str) -> tuple[str, ...]:
+    """Return the chain-owned RPC endpoints declared in ``chain.json``.
+
+    The chain file is the single source of truth for a chain's endpoints.
+    Environment variables may still override the set as a whole, but they
+    never replace the chain's own declaration.
+    """
+
+    row = _chain_row(network)
+    rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+    urls: list[str] = []
+    for key in ("primary", "alchemy", "hyperrpc"):
+        value = str(rpc_block.get(key) or "").strip()
+        if value and value not in urls:
+            urls.append(value)
+    for key in ("overrides", "fallbacks", "log_fallbacks"):
+        raw = rpc_block.get(key)
+        items = raw if isinstance(raw, list) else ([raw] if raw else [])
+        for item in items:
+            value = str(item).strip()
+            if value and value not in urls:
+                urls.append(value)
+    return tuple(urls)
+
+
 def rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]:
     env_urls = _split_env_urls(
             "ROBINHOOD_MAINNET_RPC_URLS",
@@ -117,20 +146,7 @@ def rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]
         return env_urls
     if default:
         return tuple(default)
-    row = _chain_row("robinhood")
-    rpc_urls = list(
-        str(url).strip()
-        for url in row.get("rpc_urls") or []
-        if str(url).strip()
-    )
-    rpc_block = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
-    primary = str(rpc_block.get("primary") or "").strip()
-    if primary and primary not in rpc_urls:
-        rpc_urls.append(primary)
-    for url in rpc_block.get("fallbacks") or []:
-        value = str(url).strip()
-        if value and value not in rpc_urls:
-            rpc_urls.append(value)
+    rpc_urls = list(chain_rpc_urls("robinhood"))
     rpc_url = _chain_value("robinhood", "rpc_url", "ROBINHOOD_RPC_URL")
     if rpc_url and rpc_url not in rpc_urls:
         rpc_urls.append(rpc_url)
@@ -138,16 +154,25 @@ def rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]
 
 
 def v3_quoter_addresses_from_env(default: tuple[str, ...] = ()) -> tuple[str, ...]:
-    return (
-        _split_env_urls(
-            "ROBINHOOD_V3_QUOTER_ADDRESSES",
-            "ROBINHOOD_V3_QUOTER_ADDRESS",
-            "ROBINHOOD_UNISWAP_V3_QUOTER_ADDRESS",
-            "DEX_V3_QUOTER_ADDRESSES",
-            "DEX_V3_QUOTER_ADDRESS",
-        )
-        or default
+    env_addresses = _split_env_urls(
+        "ROBINHOOD_V3_QUOTER_ADDRESSES",
+        "ROBINHOOD_V3_QUOTER_ADDRESS",
+        "ROBINHOOD_UNISWAP_V3_QUOTER_ADDRESS",
+        "DEX_V3_QUOTER_ADDRESSES",
+        "DEX_V3_QUOTER_ADDRESS",
     )
+    if env_addresses:
+        return env_addresses
+    chain_address = chain_value(
+        "robinhood",
+        "contracts.v3_quoter",
+        "ROBINHOOD_V3_QUOTER_ADDRESSES",
+        "ROBINHOOD_V3_QUOTER_ADDRESS",
+        "ROBINHOOD_UNISWAP_V3_QUOTER_ADDRESS",
+        "DEX_V3_QUOTER_ADDRESSES",
+        "DEX_V3_QUOTER_ADDRESS",
+    )
+    return (chain_address,) if chain_address else default
 
 
 def v3_quoter_address_from_env(default: str = "") -> str:
@@ -172,12 +197,7 @@ def testnet_rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[s
         return env_urls
     if default:
         return tuple(default)
-    row = _chain_row("robinhood-testnet")
-    rpc_urls = tuple(
-        str(url).strip()
-        for url in row.get("rpc_urls") or []
-        if str(url).strip()
-    )
+    rpc_urls = tuple(chain_rpc_urls("robinhood-testnet"))
     rpc_url = _chain_value("robinhood-testnet", "rpc_url", "ROBINHOOD_TESTNET_RPC_URL")
     if rpc_url and rpc_url not in rpc_urls:
         rpc_urls = (*rpc_urls, rpc_url)

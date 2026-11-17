@@ -32,7 +32,7 @@ from core.route_symbol_identity import (
 
 ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST = (
     ROOT
-    / "test-token_create"
+    / "flashloan" / "tools" / "test-token_create"
     / "config"
     / "testnet-v4-amm"
     / "manifest.json"
@@ -48,7 +48,7 @@ def _chain_official_v4_manifest_path(chain_id: int | None) -> Path:
         "robinhood": "mainnet",
         "robinhood-testnet": "testnet",
     }.get(network, network)
-    return ROOT / "test-token_create" / "config" / f"{manifest_network}-v4-amm" / "manifest.json"
+    return ROOT / "flashloan" / "tools" / "test-token_create" / "config" / f"{manifest_network}-v4-amm" / "manifest.json"
 
 
 _OFFICIAL_TEST_ROUTE_SYMBOLS = {"TZ", "TA", "TB"}

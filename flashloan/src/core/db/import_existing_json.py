@@ -19,6 +19,7 @@ from core.db.storage_chain_core import (
     seed_chain_tokens,
     upsert_initialization,
 )
+from core.db.token_symbols import is_unresolved_placeholder_symbol
 from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
@@ -90,7 +91,7 @@ def _number(value: Any, default: float | None = None) -> float | None:
 
 
 def _observation_pool_allowed(pool: dict[str, Any]) -> bool:
-    """Market observation only stores fixed fee <= 3000 pools with no hook."""
+    """Market observation only stores fixed-fee pools within the shared ceiling."""
     from core.db.storage_dex_candidate import MAX_USABLE_CANDIDATE_FIXED_FEE
 
     raw_fee = pool.get("fee")
@@ -140,11 +141,9 @@ def _token_rows_from_v4_index(
             decimals = pool.get(f"token{side}Decimals")
             if not address:
                 continue
-            if not symbol:
-                suffix = _text(address)[-6:]
-                symbol = f"0X{suffix.upper()}" if suffix else "UNKNOWN"
-            if not symbol:
-                continue
+            if address == "0x0000000000000000000000000000000000000000":
+                symbol = symbol or "ETH"
+                decimals = 18 if decimals in (None, "") else decimals
             key = address
             existing = rows.get(key)
             if existing:
@@ -170,6 +169,19 @@ def _token_rows_from_v4_index(
             symbol = _symbol(row.get("token_symbol"))
             if symbol in anchor_symbols:
                 row["anchor_symbol"] = symbol
+    for row in token_rows:
+        symbol = _symbol(row.get("token_symbol"))
+        if not symbol or is_unresolved_placeholder_symbol(symbol):
+            address = _text(row.get("token_address"))
+            row["token_symbol"] = (
+                f"UNRESOLVED:{address[:10]}" if address else "UNRESOLVED"
+            )
+        try:
+            decimals = row.get("token_decimals")
+            if decimals in (None, "") or int(decimals) < 0:
+                row["token_decimals"] = None
+        except (TypeError, ValueError):
+            row["token_decimals"] = None
     return token_rows
 
 
@@ -264,7 +276,12 @@ def _liquidity_rows_from_index(index: dict[str, Any]) -> list[dict[str, Any]]:
             "tick": raw.get("tick") if raw.get("tick") is not None else key.get("tick"),
             "liquidity_read_at": raw.get("liquidityReadAt"),
             "liquidity_block_number": raw.get("liquidityBlockNumber"),
-            "observed_at": index.get("generatedAt") or index.get("liquidityScanAt"),
+            "observed_at": (
+                raw.get("observedAt")
+                or raw.get("liquidityReadAt")
+                or index.get("liquidityScanAt")
+                or index.get("generatedAt")
+            ),
             "evidence_source": raw.get("evidenceSource")
             or raw.get("liquiditySource")
             or index.get("source")

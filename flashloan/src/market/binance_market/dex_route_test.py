@@ -45,7 +45,7 @@ from market.binance_market.dex_route_helpers import normalize_route_symbols
 ROOT = Path(__file__).resolve().parents[4]
 # Compatibility aliases kept for tests that still reference the old module
 # constants. The live helpers resolve script/dex dir from chain configuration.
-OFFICIAL_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "tool" / "testnet-v4-official-arb-live.js"
+OFFICIAL_ARB_SCRIPT = ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool" / "testnet-v4-official-arb-live.js"
 OFFICIAL_DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
 
 
@@ -79,7 +79,7 @@ def _official_arb_script_for_chain(chain_id: int) -> Path:
         "robinhood-testnet": "testnet",
         "robinhood": "mainnet",
     }.get(network, network)
-    return ROOT / "test-token_create" / "scripts" / "tool" / f"{script_network}-v4-official-arb-live.js"
+    return ROOT / "flashloan" / "tools" / "test-token_create" / "scripts" / "tool" / f"{script_network}-v4-official-arb-live.js"
 
 
 def _official_dex_dir_for_chain(chain_id: int) -> Path:
@@ -942,6 +942,7 @@ def _offline_pool_token_pnl_reference(
     """
     from market.binance_market.dex_surface_graph import _route_pools
     from market.binance_market.dex_surface_route_quotes import (
+        CHAIN_FLASH_LOAN_FEE_BPS,
         DEFAULT_FLASH_LOAN_FEE_BPS,
     )
 
@@ -1038,7 +1039,11 @@ def _offline_pool_token_pnl_reference(
             }
         )
         current_amount = output_amount
-    flash_loan_fee_amount = float(amount) * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    # The chain's own fee, not the preflight margin: this figure is compared
+    # against what the chain settles, so it must reproduce the chain's
+    # arithmetic exactly. The production route borrows straight from the
+    # Uniswap V4 PoolManager and pays no flash-loan fee.
+    flash_loan_fee_amount = float(amount) * CHAIN_FLASH_LOAN_FEE_BPS / 10_000.0
     net_profit_amount = current_amount - float(amount) - flash_loan_fee_amount
     net_return_bps = (
         net_profit_amount / float(amount) * 10_000.0
@@ -1047,6 +1052,8 @@ def _offline_pool_token_pnl_reference(
     )
     analysis = {
         "method": "offline_v4_pool_snapshot_token_basis",
+        "chainFlashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
+        "preflightMarginBps": DEFAULT_FLASH_LOAN_FEE_BPS,
         "routeSymbols": route_symbols,
         "routeAddresses": route_addresses,
         "referenceInputSymbol": route_symbols[0],
@@ -1220,6 +1227,7 @@ def _offline_v4_route_sqlite_pnl_reference(
     """
     from core.db.database_path import absolute_database_path
     from market.binance_market.dex_surface_route_quotes import (
+        CHAIN_FLASH_LOAN_FEE_BPS,
         DEFAULT_FLASH_LOAN_FEE_BPS,
     )
 
@@ -1348,7 +1356,11 @@ def _offline_v4_route_sqlite_pnl_reference(
             }
         )
         current_amount = output_amount
-    flash_loan_fee_amount = float(amount) * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    # The chain's own fee, not the preflight margin: this figure is compared
+    # against what the chain settles, so it must reproduce the chain's
+    # arithmetic exactly. The production route borrows straight from the
+    # Uniswap V4 PoolManager and pays no flash-loan fee.
+    flash_loan_fee_amount = float(amount) * CHAIN_FLASH_LOAN_FEE_BPS / 10_000.0
     net_profit_amount = current_amount - float(amount) - flash_loan_fee_amount
     net_return_bps = (
         net_profit_amount / float(amount) * 10_000.0
@@ -1357,6 +1369,8 @@ def _offline_v4_route_sqlite_pnl_reference(
     )
     analysis = {
         "method": "offline_v4_sqlite_route_snapshot_token_basis",
+        "chainFlashLoanFeeBps": CHAIN_FLASH_LOAN_FEE_BPS,
+        "preflightMarginBps": DEFAULT_FLASH_LOAN_FEE_BPS,
         "routeSymbols": route_symbols,
         "routeAddresses": route_addresses,
         "referenceInputSymbol": route_symbols[0],

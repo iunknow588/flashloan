@@ -483,6 +483,73 @@ def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitab
     assert 0.001 in attempt_amounts
 
 
+def test_fixed_refresh_deep_mode_blocks_positive_eth_profit_below_estimated_gas(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet(
+        symbol_pair="ETH -> USDE -> USDG -> ETH"
+    )
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.0)
+
+    def fake_run_official(**kwargs):
+        broadcast = bool(kwargs.get("broadcast"))
+        symbols = kwargs.get("route_symbols") or []
+        calls.append({"broadcast": broadcast, "symbols": symbols, "amount": kwargs.get("amount")})
+        profit = 5.0e-8
+        evidence = {
+            "status": "live_verified",
+            "routeSymbols": symbols,
+            "costModel": {
+                "netProfitAmount": profit,
+                "netProfitAmountSymbol": "ETH",
+                "profitBasis": "borrow_token",
+            },
+        }
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": True,
+            "profitable": True,
+            "profit": profit,
+            "profitHuman": profit,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": profit},
+            "evidence": evidence,
+            "txHash": "0xshould-not-broadcast" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    scanner.closed_loop_review_queue.submit_group(
+        group_key="ETH",
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls
+    assert all(not call["broadcast"] for call in calls)
+    assert (done.result or {}).get("auto_execute", {}).get("autoExecuted") == 0
+    route = (done.result or {}).get("routes", [])[0]
+    size_probe = (route.get("__liveEstimate") or {}).get("sizeProbe") or {}
+    assert size_probe.get("searchStatus") == "not_profitable_after_estimated_gas"
+    assert size_probe.get("failureReason") == "expected_loss_after_gas_before_broadcast"
+    assert (size_probe.get("offchainGasGate") or {}).get("blocked") is True
+
+
 def test_fixed_refresh_deep_mode_shrinks_until_positive_profit_and_broadcasts(tmp_path, monkeypatch):
     from runtime import dex_opportunity_scanner as scanner_module
     from market.binance_market import dex_route_test
@@ -777,6 +844,121 @@ def test_auto_execute_skip_reason_requires_consistent_live_evidence_and_positive
         }
     }
     assert _auto_execute_skip_reason(rpc_failed, chain_id=46630) == "rpc_verification_failed"
+
+
+def test_auto_execute_skip_reason_blocks_expected_loss_after_gas():
+    from dex.runtime.dex_opportunity_auto_execute import _auto_execute_skip_reason
+
+    eth_loss_after_gas = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.000001",
+                    "netProfitAmountSymbol": "ETH",
+                },
+            }
+        }
+    }
+    assert (
+        _auto_execute_skip_reason(eth_loss_after_gas, chain_id=4663)
+        == "expected_loss_after_gas_before_broadcast"
+    )
+
+    eth_profit_after_gas = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.001",
+                    "netProfitAmountSymbol": "ETH",
+                },
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(eth_profit_after_gas, chain_id=4663) is None
+
+    unconverted_placeholder_zero = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.113",
+                    "netProfitAmountSymbol": "SPY",
+                    "profitBasis": "borrow_token",
+                },
+            }
+        }
+    }
+    # No trusted conversion exists: the fixed placeholder gas cost is 0 for
+    # now, so the gross-positive review is not blocked by conversion absence.
+    assert _auto_execute_skip_reason(unconverted_placeholder_zero, chain_id=4663) is None
+
+    # After experience calibrates the placeholder, a profit below the fixed
+    # cost is refused instead of broadcast.
+    from dex.runtime.dex_opportunity_auto_execute import os as _os
+
+    _os.environ["FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED"] = "0.2"
+    try:
+        assert (
+            _auto_execute_skip_reason(unconverted_placeholder_zero, chain_id=4663)
+            == "expected_loss_after_gas_before_broadcast"
+        )
+    finally:
+        _os.environ.pop("FLASHLOAN_OFFCHAIN_GAS_ESTIMATE_UNCONVERTED", None)
+
+    usd_net_loss_after_gas = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.11",
+                    "netProfitAmountSymbol": "USDG",
+                    "profitBasis": "usd",
+                    "submissionNetProfitUsd": "0.00001",
+                    "gasReserveUsd": "0.00002",
+                },
+            }
+        }
+    }
+    assert (
+        _auto_execute_skip_reason(usd_net_loss_after_gas, chain_id=4663)
+        == "expected_loss_after_gas_before_broadcast"
+    )
+
+    usd_without_conversion_uses_fixed_zero = {
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "readyForTransactionPreflight": True,
+                "bestAmountConfirmed": True,
+                "hops": [{"hop": 1}],
+                "blockers": [],
+                "costModel": {
+                    "netProfitAmount": "0.00001",
+                    "netProfitAmountSymbol": "USDE",
+                    "profitBasis": "usd",
+                },
+            }
+        }
+    }
+    assert _auto_execute_skip_reason(usd_without_conversion_uses_fixed_zero, chain_id=4663) is None
 
 
 def test_evidence_ready_for_auto_execute_requires_live_consistent_profit():

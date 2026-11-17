@@ -1,0 +1,142 @@
+{
+  "authorizations": {
+    "authoritySwitch": false,
+    "broadcast": false,
+    "deployment": false,
+    "productionWrite": false,
+    "releaseBinaryReplacement": false
+  },
+  "binarySourceConsistency": {
+    "previousSourceDigest": "3575b7a76c59103eec89513e7d7118eeeabae78bdd4920b5a0d81471052252f5",
+    "sourceDigest": "73c10dac6ffc2444398658cb5a3930692591ec6a2eca4fef011ed3ae90053ecc",
+    "tool": "pool-manager.exe",
+    "valid": true
+  },
+  "boundaries": [
+    "本轮全部为只读检查、离线测试与 debug 二进制重建",
+    "未部署合约、未广播、未切换 Authority、未写生产库、未替换锁定 release 二进制",
+    "闭环库重物化、复核库物化与 3 个迁移的 apply 都需要显式生产写入授权"
+  ],
+  "chainId": 4663,
+  "databaseReadOnlyEvidence": {
+    "path": "flashloan\\db\\local_store_4663.sqlite3",
+    "sha256": "285CE72AEF57A15EA390232D7B7B76966BD5DA09C90D55048522284B89C697A0",
+    "sha256Source": "p0_8_non_persistent_live_parity_and_healer_repair_chain_20261115.json (同一轮只读实测前后一致)",
+    "sizeBytes": 3507453952
+  },
+  "finding1ReviewAuthority": {
+    "affectedFunctions": [
+      "review_rows",
+      "pnl",
+      "best_amount_state",
+      "reviews_missing_a_value",
+      "missing_pnl_review_candidates",
+      "pnl_stats"
+    ],
+    "files": [
+      "scripts/mainnet_arbitrage_healer.py",
+      "flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py"
+    ],
+    "fix": [
+      "新增 manager_review_rows() 读取 manager_v4_reviews（携带闭环/候选边/观察层/池 scope 的版本与 checksum）",
+      "review_rows() 优先读权威库，权威库为空时才回退 legacy；每行带 review_source 标记",
+      "新增 row_route_addresses() 统一两种行形状的路线身份",
+      "review_loop_key() 对 manager 行直接使用 loop_key 列",
+      "pnl() 同时支持 selected_profit_amount 与 signed_pnl_amount，缺值仍为 None",
+      "新增 review_missing_reason() 统一 legacy 与 manager 的缺值原因词汇表",
+      "best_amount_state() 读取 manager 行的 run_arbitrage_json/static_preview_json",
+      "新增 materialize_reviews()：经 /v1/reviews/run 写入权威库并携带 expectedUpstream",
+      "rereview_missing_pnl / fill_missing_reviews / rereview_historical_positive 三条路径接入物化",
+      "converge_reviews 与 supervisor 循环透传 manager API"
+    ],
+    "gap": "整个复核管线只读 legacy cow_execution_reviews；manager_v4_reviews 从不被读取。权威库被 Review Manager 填充后，收敛循环看不见这些复核，既检测不到缺明确盈亏，也永远收敛不了。"
+  },
+  "finding2ObservationEpoch": {
+    "after": {
+      "observationEpochFallback": false,
+      "observationEpochFallbackReason": null,
+      "observationEpochUnknown": false,
+      "observationStartedAt": "2026-11-10T19:57:50Z",
+      "reportDirectory": "plan/runtime_evidence/reports"
+    },
+    "before": {
+      "observationEpochFallback": true,
+      "observationEpochFallbackReason": "FileNotFoundError",
+      "observationEpochUnknown": true,
+      "observationStartedAt": "2026-01-01T00:00:00Z",
+      "reportDirectory": "logs/plan/runtime_evidence/reports"
+    },
+    "fix": [
+      "新增 PLAN_ROOT / LEGACY_PLAN_ROOT 与 _plan_path()，当前路径优先、旧路径回退",
+      "REPORT_DIR / WATCH_DIR / SUPERVISOR_DIR / EPOCH_FILE 全部改到 plan/runtime_evidence/",
+      "scripts/measure_robinhood_api_status.py 同步修正"
+    ],
+    "gap": "healer 的路径常量仍指向 logs/plan/，而计划树已于 2026-11-14 迁移到 plan/（迁移记录明确要求代码中的 logs/plan 默认路径改为 plan）。EPOCH_FILE 永远找不到，观察纪元退化为 2026-01-01T00:00:00Z，复核窗口实际变成整表，计数无法复现；新证据也继续写进已废弃的目录。"
+  },
+  "finding3MigrationBaseline": {
+    "appliedMigrationCount": 7,
+    "fix": "MigrationBaseline 增加 missing_migrations 与 applied_migrations 两个字段。",
+    "gap": "baseline-audit 只报「最新期望迁移未应用」，运营方无法据此估算生产变更窗口规模。",
+    "managerDbPreflight": {
+      "optionalTablesAbsent": [
+        "token_usdg_valuations"
+      ],
+      "quickCheck": "ok",
+      "readyForMigration": true,
+      "targetTablesIncompatible": []
+    },
+    "missingMigrations": [
+      "20261112_007_usdg_valuation_schema",
+      "20261114_008_single_tick_capacity_schema",
+      "20261114_009_hop_price_limit_schema"
+    ],
+    "source": "flashloan/tools/pool_manager/src/baseline_audit.rs",
+    "unknownMigrationCount": 0
+  },
+  "generatedAt": "2026-11-15T01:05:00Z",
+  "mainnetStateAfter": {
+    "blockerCodes": {
+      "broadcast": "layer_invalid",
+      "databaseBaseline": "layer_invalid",
+      "pools": "pool_scope_drift",
+      "reviews": "best_amount_missing"
+    },
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast",
+      "databaseBaseline"
+    ],
+    "productionState": "pool_scope_drift",
+    "reason": "closed_loop_library_records_a_stale_pool_scope",
+    "safeToAutoBroadcast": false,
+    "unchanged": "阻塞项与上一轮一致——scope 重物化与复核物化都属于生产写入，未执行。"
+  },
+  "network": "robinhood",
+  "nextBlockingStep": {
+    "id": "P0-8-L",
+    "name": "授权窗口内执行迁移、scope 重物化与复核物化",
+    "orderedSteps": [
+      "manager-db migrate（3 个迁移：007 USDG 估值、008 single-tick 容量、009 逐 hop 限价）",
+      "pool-manager materialize-scope --scope core4 / --scope candidate_exchange（均改为 [core, stocks]）",
+      "composite-manager materialize-arbitrage（闭环库写入 core4 scope checksum，1146 行）",
+      "healer --mode repair --apply（复核物化 + 每个复核带明确盈亏 + 广播错误修复）"
+    ],
+    "requires": "显式生产写入授权"
+  },
+  "reportId": "p0_8_review_authority_and_observation_epoch_20261115",
+  "scope": "P0-8 复核层权威源统一、观察纪元修复与迁移基线精确化",
+  "tests": {
+    "healer": {
+      "addedThisRound": 8,
+      "file": "flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py",
+      "total": 31
+    },
+    "poolManager": {
+      "addedThisRound": 2,
+      "file": "flashloan/tools/pool_manager/src/baseline_audit.rs",
+      "total": 135
+    },
+    "targetedPythonSuite": "90 passed"
+  }
+}

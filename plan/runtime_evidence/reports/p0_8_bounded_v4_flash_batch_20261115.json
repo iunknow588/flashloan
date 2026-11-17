@@ -1,0 +1,140 @@
+{
+  "auditFinding": {
+    "broadcastManagerAcceptsMultipleAttempts": true,
+    "conclusion": "此前无法描述为一次交易打包多个盈利闭环",
+    "perTransactionIndependentTransactions": true,
+    "workerSelectedSingleBestClosedLoop": true
+  },
+  "authority": "code_only_no_deploy_no_broadcast",
+  "blocked": true,
+  "component": "executor_batch + worker_pool + execution",
+  "contractChanges": {
+    "batchLimitConstant": "MAX_BATCH_REQUESTS = 16",
+    "deployedBytecodeBytes": {
+      "mainnet": 24454,
+      "mainnetLimit": 24576,
+      "testnet": 24331
+    },
+    "events": [
+      "RobinhoodV4FlashBatchItemResult(uint256 indexed itemIndex, bool success, bytes4 failureSelector)",
+      "RobinhoodV4FlashBatchCompleted(uint256 requestCount, uint256 successCount, uint256 failureCount)"
+    ],
+    "files": [
+      "contract/robinhood/DEX/src/RobinhoodPausedFlashLoanExecutor.sol",
+      "contract/robinhood-testnet/DEX/src/RobinhoodPausedFlashLoanExecutor.sol"
+    ],
+    "incrementalProfitGate": "每项余额必须独立覆盖自身 minProfit 与 repaymentGuard.minProfit，禁止前序利润串用",
+    "isolationMechanism": "每项通过合约自调用形成独立回滚边界；失败项只记录 revert selector，不回滚整批",
+    "itemEntryPoint": "executeV4FlashLoanBatchItem(V4FlashAccountingRequest)",
+    "itemEntryPointProtection": "onlySelf (msg.sender == address(this)), 外部调用以 BadFlashCallback 拒绝",
+    "newEntryPoint": "requestV4FlashLoanBatch(V4FlashAccountingRequest[])",
+    "productionWrite": false
+  },
+  "durationMs": 0,
+  "failed": false,
+  "failureCodes": [],
+  "generatedAt": "2026-11-14T17:13:29Z",
+  "mode": "dry_run",
+  "negativeAssertions": {
+    "authoritySwitched": false,
+    "broadcastTransactionSent": false,
+    "contractDeployed": false,
+    "lockedBinaryReplaced": false,
+    "productionDatabaseWritten": false,
+    "singleLoopBroadcastPathChanged": false
+  },
+  "passed": true,
+  "productionWrite": false,
+  "regression": {
+    "cargoFmt": "clean",
+    "mainnetExecutorSuite": "29 passing",
+    "rsSrcSuite": "116 passed; 0 failed",
+    "testnetExecutorSuite": "27 passing"
+  },
+  "remainingGates": [
+    "主网 bounded executor 部署与批次入口接线（需显式授权）",
+    "复核侧构造 executorRequest（token/amount/swapTargets/swapCalldatas/finalToken/minProfit/gasReserve）",
+    "主网 live parity 与同源数学精确链上三态分类",
+    "批次广播在生产开启前的端到端回放"
+  ],
+  "rollbackAvailable": true,
+  "rollbackPoint": "本轮仅新增代码与测试；回滚为撤销 Executor 批次入口、Rust 批次分支与对应测试",
+  "rpcRequestCount": 0,
+  "rustChanges": {
+    "abiSignature": "requestV4FlashLoanBatch((address,uint256,address[],bytes[],address,uint256,uint256)[])",
+    "additionalGuards": [
+      "executorBatchRequests 非空",
+      "executorBatchRequests 长度 == executorBatchEligibleRouteCount",
+      "每条路线必须已通过 offchain gas gate、capacity gate、economic floor gate 与 hop price limit gate",
+      "配置必须提供 executorAddress"
+    ],
+    "defaultEnabled": false,
+    "enableSwitch": "config.executorBatchEnabled == true",
+    "files": [
+      "flashloan/rs-src/src/execution.rs",
+      "flashloan/rs-src/src/worker_pool.rs"
+    ],
+    "newFunctions": [
+      "execution::build_v4_flash_batch_calldata",
+      "execution::broadcast_v4_flash_batch_inner",
+      "execution::broadcast_calldata_inner",
+      "worker_pool::eligible_executor_batch_request"
+    ],
+    "singleLoopPathUnchanged": true
+  },
+  "schemaVersion": "1.0",
+  "stage": "P0-8",
+  "tests": [
+    {
+      "name": "isolates failed V4 flash requests inside one bounded batch transaction",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "does not let an earlier batch profit subsidize a later unprofitable request",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "bounds V4 flash batches and protects the self-call item entry",
+      "result": "passed",
+      "target": "contract/robinhood/DEX"
+    },
+    {
+      "name": "isolates failed V4 flash requests inside one bounded batch transaction",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "does not let an earlier batch profit subsidize a later unprofitable request",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "bounds V4 flash batches and protects the self-call item entry",
+      "result": "passed",
+      "target": "contract/robinhood-testnet/DEX"
+    },
+    {
+      "name": "v4_flash_batch_calldata_matches_ethers_vector",
+      "result": "passed",
+      "target": "rs-src execution"
+    },
+    {
+      "name": "v4_flash_batch_calldata_enforces_bounds_and_parallel_arrays",
+      "result": "passed",
+      "target": "rs-src execution"
+    },
+    {
+      "name": "executor_batch_queue_requires_nonempty_matching_eligible_requests",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    },
+    {
+      "name": "executor_batch_collects_only_fully_gated_profitable_routes",
+      "result": "passed",
+      "target": "rs-src worker_pool"
+    }
+  ],
+  "title": "多盈利闭环单交易批处理与批内失败隔离（默认关闭）"
+}

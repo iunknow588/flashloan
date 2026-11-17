@@ -1,4 +1,6 @@
 use manager_contracts::normalize_address;
+use rusqlite::{params, Connection};
+use serde::Serialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -6,17 +8,128 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use token_manager::{
-    audit_library_memberships, classify_tokens_with_liquidity, framework_status,
-    mainnet_core4_allowlist, normalize_metadata_batch, pool_is_liquidity_qualified,
-    proposed_memberships_from_classification, read_chain_tokens_read_only, read_stock_registry,
+    apply_economic_gate, audit_library_memberships, build_evidence, classify_tokens_with_liquidity,
+    framework_status, mainnet_core4_allowlist, normalize_metadata_batch,
+    pool_is_liquidity_qualified, proposed_memberships_from_classification,
+    read_chain_tokens_read_only, read_measured_depths, read_stock_registry, read_stored_valuations,
     read_target_schema_and_memberships_read_only, read_v4_pool_currency_references_read_only,
     read_v4_pool_liquidity_evidence_read_only, simulate_bootstrap_in_temporary_database,
-    ClassificationPolicy, MetadataAuditError, MetadataSourceKind, NormalizedTokenMetadata,
-    RawTokenMetadata, V4PoolCurrencyReference, V4PoolLiquidityEvidence,
-    MAINNET_TEST_TOKEN_CANDIDATES, ROBINHOOD_CHAIN_ID, ROBINHOOD_NETWORK,
+    token_writes_metadata_checksum, write_library, write_library_dry_run, ClassificationPolicy,
+    AdmissionStatus, EconomicPolicy, LibraryKey, LibraryWriteResult, MetadataAuditError,
+    MetadataSourceKind, NormalizedTokenMetadata, RawTokenMetadata, TokenWrite,
+    V4PoolCurrencyReference, V4PoolLiquidityEvidence, MAINNET_TEST_TOKEN_CANDIDATES,
+    ROBINHOOD_CHAIN_ID, ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
 };
+use manager_contracts::TokenKeyId;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredTokenIdentity {
+    v4_currency_key: String,
+    token_address: String,
+    token_symbol: String,
+    token_decimals: u8,
+    admission_status: String,
+}
+
+#[derive(Debug, Clone)]
+struct TargetLibrarySnapshot {
+    token_count: usize,
+    metadata_checksum: String,
+    status_distribution: BTreeMap<String, usize>,
+    identities: BTreeMap<String, StoredTokenIdentity>,
+}
+
+/// The chain scope a token-library materialization runs against.
+///
+/// The token manager owns the token libraries of both Robinhood chains, so
+/// the scope cannot be implied by the binary. It is selected explicitly and
+/// defaults to mainnet, which keeps every existing invocation unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChainScope {
+    Mainnet,
+    Testnet,
+}
+
+impl ChainScope {
+    fn network(&self) -> &'static str {
+        match self {
+            Self::Mainnet => ROBINHOOD_NETWORK,
+            Self::Testnet => ROBINHOOD_TESTNET_NETWORK,
+        }
+    }
+
+    fn chain_id(&self) -> u64 {
+        match self {
+            Self::Mainnet => ROBINHOOD_CHAIN_ID,
+            Self::Testnet => ROBINHOOD_TESTNET_CHAIN_ID,
+        }
+    }
+
+    fn core_allowlist(&self) -> Vec<RawTokenMetadata> {
+        token_manager::core4_allowlist(self.network(), self.chain_id())
+    }
+
+    fn classification_policy(&self) -> ClassificationPolicy {
+        match self {
+            Self::Mainnet => ClassificationPolicy::mainnet(),
+            Self::Testnet => ClassificationPolicy::testnet_test_policy(),
+        }
+    }
+
+    /// The economic policy for this scope, denominated in the chain's own
+    /// quote asset.
+    fn economic_policy(&self) -> Result<EconomicPolicy, Box<dyn std::error::Error>> {
+        Ok(EconomicPolicy::for_scope(self.network(), self.chain_id())?)
+    }
+
+    fn from_arguments(arguments: &[String]) -> Result<Self, Box<dyn std::error::Error>> {
+        match flag(arguments, "--network") {
+            Some(network) => match network {
+                ROBINHOOD_NETWORK => Ok(Self::Mainnet),
+                ROBINHOOD_TESTNET_NETWORK => Ok(Self::Testnet),
+                other => Err(format!(
+                    "unsupported network: {other}; expected {ROBINHOOD_NETWORK} or {ROBINHOOD_TESTNET_NETWORK}"
+                )
+                .into()),
+            },
+            None => {
+                if let Some(chain_id) = flag(arguments, "--chain-id") {
+                    let chain_id = chain_id
+                        .parse::<u64>()
+                        .map_err(|error| format!("invalid --chain-id: {error}"))?;
+                    return match chain_id {
+                        ROBINHOOD_CHAIN_ID => Ok(Self::Mainnet),
+                        ROBINHOOD_TESTNET_CHAIN_ID => Ok(Self::Testnet),
+                        other => Err(format!(
+                            "unsupported chain-id: {other}; expected {ROBINHOOD_CHAIN_ID} or {ROBINHOOD_TESTNET_CHAIN_ID}"
+                        )
+                        .into()),
+                    };
+                }
+                Ok(Self::Mainnet)
+            }
+        }
+    }
+}
 
 fn main() -> ExitCode {
+    // The shared depth/economic policy must agree with the compiled-in
+    // view. A mismatch means the policy file changed without the tool
+    // being rebuilt, and the tool refuses to run instead of silently
+    // reaching a different verdict than the Python orchestrator.
+    if let Err(error) = token_manager::assert_economic_policy_matches_file() {
+        eprintln!("token-manager error: {error}");
+        return ExitCode::FAILURE;
+    }
+    // R-11: USDG is USD-equivalent by definition. The peg policy states the
+    // ratio, the tolerated deviation and the uses the peg may enter. It is
+    // asserted at start-up so a depegged USDG or a widened use list stops the
+    // tool instead of silently changing every economic verdict.
+    if let Err(error) = token_manager::assert_usdg_peg_policy_matches_file() {
+        eprintln!("token-manager error: {error}");
+        return ExitCode::FAILURE;
+    }
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments.first().map(String::as_str) == Some("audit-metadata") {
         return match metadata_audit(&arguments[1..]) {
@@ -54,9 +167,713 @@ fn main() -> ExitCode {
             }
         };
     }
+    if arguments.first().map(String::as_str) == Some("land-valuations") {
+        return match land_valuations(&arguments[1..]) {
+            Ok(report) => {
+                println!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    if arguments.first().map(String::as_str) == Some("audit-valuation-expiry") {
+        return match audit_valuation_expiry(&arguments[1..]) {
+            Ok(report) => {
+                println!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    if arguments.first().map(String::as_str) == Some("prune-incomplete-tokens") {
+        return match prune_incomplete_tokens(&arguments[1..]) {
+            Ok(report) => {
+                println!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    if arguments.first().map(String::as_str) == Some("materialize-libraries") {
+        return match materialize_libraries(&arguments[1..]) {
+            Ok(report) => {
+                println!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
 
+    if arguments.first().map(String::as_str) == Some("value-tokens") {
+        return match token_manager::valuation_cli::run(&arguments[1..]) {
+            Ok(report) => {
+                println!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     println!("{}", framework_status());
     ExitCode::SUCCESS
+}
+
+/// Prune every token of the chain that carries no usable metadata.
+///
+/// This is the token layer of the repair cascade. A token that has no
+/// symbol, or whose symbol is still the factory placeholder, or whose
+/// decimals are unknown, cannot be priced and cannot be routed through.
+/// The token manager therefore **removes** it, and it removes the
+/// dependances that only exist because of it: the candidate and
+/// observation rows that describe a route through that token, and the
+/// closed loops and their hops that were built on top of them.
+///
+/// The command never writes without an explicit `--apply`. The dry run
+/// reports exactly which tokens and which loops would go, so the
+/// orchestrator can decide before anything is removed.
+fn prune_incomplete_tokens(arguments: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    let database = flag(arguments, "--database")
+        .map(PathBuf::from)
+        .ok_or("prune-incomplete-tokens requires --database <manager sqlite path>")?;
+    let apply = arguments.iter().any(|argument| argument == "--apply");
+    let scope = ChainScope::from_arguments(arguments)?;
+    let report = token_manager::prune_incomplete_tokens(
+        &database,
+        scope.network(),
+        scope.chain_id(),
+        apply,
+    )?;
+    Ok(token_manager::render_prune_report(&report))
+}
+
+/// Lands a USDG valuation report into the durable valuation store.
+///
+/// VAL-4-7: the valuation probe produces a report file, and a report file
+/// is a transient artifact.  This command turns it into the database
+/// statement the economic gate reads, so that "this token has no exchange
+/// path into USDG" survives a restart and can never be lost because
+/// somebody moved a file.
+///
+/// The write only happens with an explicit `--apply`; without it the
+/// command reports what would land and touches nothing.
+fn land_valuations(arguments: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    let database = flag(arguments, "--database")
+        .map(PathBuf::from)
+        .ok_or("land-valuations requires --database <manager sqlite path>")?;
+    let report_path = flag(arguments, "--valuation-report")
+        .map(PathBuf::from)
+        .ok_or("land-valuations requires --valuation-report <report json path>")?;
+    let apply = arguments.iter().any(|argument| argument == "--apply");
+    let scope = ChainScope::from_arguments(arguments)?;
+    let report = token_manager::read_valuation_report(&report_path)?
+        .ok_or("land-valuations requires a valuation report that carries a token list")?;
+    let result = token_manager::valuation_store::land_valuation_report(
+        &database,
+        scope.network(),
+        scope.chain_id(),
+        &report,
+        apply,
+    )?;
+    let mut rendered = token_manager::valuation_store::render_landing(&result);
+    rendered["applied"] = json!(apply);
+    rendered["database"] = json!(database.to_string_lossy());
+    rendered["network"] = json!(scope.network());
+    rendered["chainId"] = json!(scope.chain_id());
+    rendered["observedAt"] = json!(report.observed_at);
+    Ok(rendered.to_string())
+}
+
+/// Audits the expiry state of the stored USDG valuations.
+///
+/// P0-5: the valuation store keeps the timestamp of every observation,
+/// but the gate used to consume every stored row as if it were current.
+/// This command is the operator-facing view of the expiry policy: it
+/// reports, read-only, how much of the stored valuation population is
+/// still fresh enough to decide a membership question and how much is
+/// still fresh enough to decide a magnitude question.
+///
+/// It never writes, and it never deletes a row.  Expiry is a *reading*
+/// rule, not a delete job: an expired row stays in the store so that the
+/// audit trail is complete, and a later refresh can replace it.
+fn audit_valuation_expiry(arguments: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    let database = flag(arguments, "--database")
+        .map(PathBuf::from)
+        .ok_or("audit-valuation-expiry requires --database <manager sqlite path>")?;
+    let scope = ChainScope::from_arguments(arguments)?;
+    let report = token_manager::audit_valuation_expiry(
+        &database,
+        scope.network(),
+        scope.chain_id(),
+    )?;
+    Ok(serde_json::to_string_pretty(&report)?)
+}
+
+/// Withdraw every row of a library that the source no longer carries.
+///
+/// The write path only upserts, so a token whose address changed on the
+/// chain -- or a token the chain's own allowlist no longer declares -- would
+/// stay in the library with its old, now wrong address. The library would
+/// then hold two admitted rows for one symbol and the audit would read the
+/// stale one, which is exactly the defect the audit has to report.
+///
+/// A withdrawal is a `blocked` row that carries the reason, so the token
+/// stops counting as a library member while the decision stays auditable.
+/// The **extension** library is exempt: it holds candidates that no source
+/// enumerates, so an absence there says nothing.
+fn withdraw_rows_missing_from_source(
+    connection: &Connection,
+    library: LibraryKey,
+    network: &str,
+    chain_id: u64,
+    source_token_keys: &BTreeSet<String>,
+) -> Result<Vec<TokenWrite>, Box<dyn std::error::Error>> {
+    if library == LibraryKey::Extension {
+        return Ok(Vec::new());
+    }
+    let table = library.table_name();
+    let mut statement = connection.prepare(&format!(
+        "SELECT token_key_id, v4_currency_key, token_address, token_symbol,
+                token_name, token_decimals, token_kind, is_native,
+                is_wrapped_native, is_stable, admission_status,
+                admission_source, metadata_source, metadata_checksum,
+                source_json, first_seen_at
+         FROM {table} WHERE network = ?1 AND chain_id = ?2"
+    ))?;
+    let rows = statement.query_map(params![network, chain_id as i64], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+            row.get::<_, Option<String>>(6)?,
+            row.get::<_, Option<i64>>(7)?,
+            row.get::<_, Option<i64>>(8)?,
+            row.get::<_, Option<i64>>(9)?,
+            row.get::<_, Option<String>>(10)?,
+            row.get::<_, Option<String>>(11)?,
+            row.get::<_, Option<String>>(12)?,
+            row.get::<_, Option<String>>(13)?,
+            row.get::<_, Option<String>>(14)?,
+            row.get::<_, Option<String>>(15)?,
+        ))
+    })?;
+    let mut withdrawn = Vec::new();
+    for row in rows {
+        let (
+            token_key_id,
+            v4_currency_key,
+            token_address,
+            token_symbol,
+            token_name,
+            token_decimals,
+            token_kind,
+            is_native,
+            is_wrapped_native,
+            is_stable,
+            admission_status,
+            admission_source,
+            metadata_source,
+            metadata_checksum,
+            source_json,
+            first_seen_at,
+        ) = row?;
+        // A row the source carries is upserted by the normal path.
+        if source_token_keys.contains(&token_key_id) {
+            continue;
+        }
+        // A row that is already blocked stays blocked; rewriting it would
+        // produce a second, meaningless admission event.
+        if admission_status.as_deref() == Some("blocked") {
+            continue;
+        }
+        let token_key_id = TokenKeyId::new(network, chain_id, &token_address)
+            .map_err(|error| format!("cannot build the token key id: {error}"))?;
+        withdrawn.push(TokenWrite {
+            network: network.to_owned(),
+            chain_id,
+            token_key_id,
+            v4_currency_key,
+            token_address,
+            token_symbol: token_symbol.unwrap_or_default(),
+            token_name,
+            token_decimals: token_decimals.unwrap_or(0).clamp(0, u8::MAX as i64) as u8,
+            token_kind: token_kind.unwrap_or_else(|| "erc20".to_owned()),
+            is_native: is_native.unwrap_or(0) != 0,
+            is_wrapped_native: is_wrapped_native.unwrap_or(0) != 0,
+            is_stable: is_stable.unwrap_or(0) != 0,
+            admission_status: AdmissionStatus::Blocked,
+            admission_source: admission_source.unwrap_or_else(|| "bootstrap".to_owned()),
+            metadata_source: metadata_source.unwrap_or_else(|| "unknown".to_owned()),
+            metadata_checksum: metadata_checksum.unwrap_or_default(),
+            source_json,
+            first_seen_at,
+            blocked_reason: Some(
+                "the chain's own source no longer declares this token; the admission                  was withdrawn so the library does not keep a stale address"
+                    .to_owned(),
+            ),
+        });
+    }
+    Ok(withdrawn)
+}
+
+fn materialize_libraries(arguments: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    let source_database = flag(arguments, "--source-db")
+        .map(PathBuf::from)
+        .ok_or("materialize-libraries requires --source-db <legacy read-only sqlite path>")?;
+    let target_database = flag(arguments, "--target-db")
+        .map(PathBuf::from)
+        .ok_or("materialize-libraries requires --target-db <manager sqlite path>")?;
+    let registry = flag(arguments, "--registry")
+        .map(PathBuf::from)
+        .ok_or("materialize-libraries requires --registry <stock registry JSON>")?;
+    let apply = arguments.iter().any(|argument| argument == "--apply");
+    let actor = flag(arguments, "--actor").unwrap_or("token-manager-cli");
+    let scope = ChainScope::from_arguments(arguments)?;
+    let default_reason = format!("materialize token libraries from {} sources", scope.network());
+    let reason = flag(arguments, "--reason").unwrap_or(&default_reason);
+
+    let core = scope.core_allowlist();
+    let chain_tokens = read_chain_tokens_read_only(&source_database, scope.network(), scope.chain_id())?;
+    let stocks = read_stock_registry(&registry, scope.network(), scope.chain_id())?;
+    let pool_references = read_v4_pool_currency_references_read_only(
+        &source_database,
+        scope.network(),
+        scope.chain_id(),
+    )?;
+    let pool_liquidity = read_v4_pool_liquidity_evidence_read_only(
+        &source_database,
+        scope.network(),
+        scope.chain_id(),
+    )?;
+    let chain_token_row_count = chain_tokens.len();
+    let stock_registry_row_count = stocks.len();
+    let mut records = Vec::with_capacity(core.len() + chain_tokens.len() + stocks.len());
+    records.extend(core);
+    records.extend(chain_tokens);
+    records.extend(stocks);
+    let normalized = normalize_metadata_batch(records);
+    let classification = classify_tokens_with_liquidity(
+        &normalized.accepted,
+        &pool_references,
+        &pool_liquidity,
+        &scope.classification_policy(),
+    );
+    if !classification.issues.is_empty() {
+        return Err(format!(
+            "materialize-libraries refused classification with {} issue(s)",
+            classification.issues.len()
+        )
+        .into());
+    }
+
+    // The economic gate runs *before* any library is written, so a stock
+    // token without a USDG valuation is never materialized into the stock
+    // library in the first place.
+    //
+    // The valuation evidence has two possible sources, and they are not
+    // interchangeable:
+    //
+    //   --valuation-report   a report file produced by the probe
+    //   --valuation-db       the durable store the report was landed in
+    //
+    // The durable store wins when both are given: it is the statement the
+    // database actually holds, and a report file that has been copied
+    // around since the last landing can describe an older observation.
+    // A source that is present but empty is *not* silently replaced by the
+    // other one — an empty durable store means "nothing has been landed
+    // yet", which is different from "everything has a valuation".
+    let valuation_database = flag(arguments, "--valuation-db").map(PathBuf::from);
+    let stored_valuations = match valuation_database.as_ref() {
+        Some(path) => Some(read_stored_valuations(
+            path,
+            scope.network(),
+            scope.chain_id(),
+        )?),
+        None => None,
+    };
+    let valuation_report = match stored_valuations.as_ref() {
+        Some(stored) => Some(token_manager::valuation::ValuationBatchReport::from_tokens(
+            stored.clone(),
+        )),
+        None => flag(arguments, "--valuation-report")
+            .map(PathBuf::from)
+            .map(|path| token_manager::read_valuation_report(&path))
+            .transpose()?
+            .flatten(),
+    };
+    let depth_database = flag(arguments, "--depth-db").map(PathBuf::from);
+    let depths = match depth_database.as_ref() {
+        Some(path) => read_measured_depths(path, scope.network(), scope.chain_id())?,
+        None => Vec::new(),
+    };
+    let evidence_report = build_evidence(valuation_report.as_ref(), &depths);
+    // The economic floor is a shared number, but it is denominated in the
+    // chain's own quote asset. The mainnet values in USDG; the testnet
+    // values in the native coin, because USDG has no pool path there.
+    // The mainnet scope resolves to exactly the shared policy, so its
+    // verdicts are unchanged.
+    let economic_policy = EconomicPolicy::for_scope(scope.network(), scope.chain_id())?;
+    let quote_asset =
+        token_manager::quote_asset_for(scope.network(), scope.chain_id(), economic_policy.min_economic_position_usdg_raw)?;
+    let mut gated_classification = classification.clone();
+    let gate = apply_economic_gate(
+        &mut gated_classification,
+        &evidence_report.evidence,
+        &economic_policy,
+    );
+
+    let checkpoint_payload = json!({
+        "classification": &gated_classification.tokens,
+        "classificationIssues": &gated_classification.issues,
+        "duplicateSymbols": &gated_classification.duplicate_symbols,
+        "sourceOverrides": gated_classification.source_overrides,
+        "economicGate": {
+            "excludedStockTokens": gate.excluded_stock_tokens,
+            "excludedExtensionHops": gate.excluded_extension_hops,
+            "pendingStockTokens": gate.pending_stock_tokens
+        }
+    });
+    let source_checkpoint = format!(
+        "sha256:{}",
+        hex::encode(Sha256::digest(serde_json::to_vec(&checkpoint_payload)?))
+    );
+    let mut writes_by_library = gated_classification.writes_by_library();
+    // The source set of every library, taken from the classification
+    // **before** the economic gate narrowed it. A token the gate withdrew
+    // or left pending is still a token of the source -- it is only not
+    // admitted -- so it must not be mistaken for a token the source no
+    // longer carries.
+    let source_token_keys_by_library = classification.source_token_keys_by_library();
+    // The gate withdraws a membership by taking it away from the
+    // classification, but the row that is already in the library table
+    // would simply stay there, still `admitted`. The withdrawal writes
+    // put the decision back into the table: a `blocked` row with the
+    // reason attached, so the token stops counting as a member and the
+    // decision stays auditable.
+    //
+    // A withdrawal is routed to the library the token was withdrawn
+    // *from*, which is not always the library it is being written into:
+    // a stock token can also be an extension member.
+    let mut withdrawn_by_library: BTreeMap<LibraryKey, Vec<TokenWrite>> = BTreeMap::new();
+    for write in gate.withdrawn_stock_writes {
+        withdrawn_by_library
+            .entry(LibraryKey::Stocks)
+            .or_default()
+            .push(write);
+    }
+    for write in gate.withdrawn_extension_writes {
+        withdrawn_by_library
+            .entry(LibraryKey::Extension)
+            .or_default()
+            .push(write);
+    }
+    let mut connection = Connection::open(&target_database)?;
+    let mut library_results = Vec::new();
+    let mut migration_receipts = Vec::new();
+    for library in [
+        LibraryKey::Core,
+        LibraryKey::Stocks,
+        LibraryKey::Test,
+        LibraryKey::Extension,
+    ] {
+        let mut writes = writes_by_library.remove(&library).unwrap_or_default();
+        // A token that the gate withdrew and a token that it kept must
+        // not both be written. The withdrawal wins: it carries the
+        // reason, and the kept write carries no reason at all.
+        let withdrawn = withdrawn_by_library.remove(&library).unwrap_or_default();
+        let withdrawn_keys: BTreeSet<String> = withdrawn
+            .iter()
+            .map(|write| write.token_key_id.as_str().to_owned())
+            .collect();
+        writes.retain(|write| !withdrawn_keys.contains(write.token_key_id.as_str()));
+        writes.extend(withdrawn.clone());
+        // A row that the source no longer contains has to be withdrawn.
+        //
+        // The write path only upserts, so a token whose address changed on
+        // the chain -- or a token that the chain's own allowlist no longer
+        // declares -- would stay in the library with its old, now wrong
+        // address. The library would then hold two admitted rows for one
+        // symbol, and the audit would read the stale one. The materializer
+        // therefore compares the library against the source and withdraws
+        // every row the source does not carry.
+        //
+        // The gate withdrawals are part of the source set: a token the gate
+        // withdrew is still a token of the source, it is only not admitted,
+        // so it must not be counted as missing.
+        writes.extend(withdraw_rows_missing_from_source(
+            &connection,
+            library,
+            scope.network(),
+            scope.chain_id(),
+            &source_token_keys_by_library
+                .get(&library)
+                .cloned()
+                .unwrap_or_default(),
+        )?);
+        let current_target = read_target_library_snapshot(
+            &connection,
+            library,
+            scope.network(),
+            scope.chain_id(),
+        )?;
+        let planned_writes = writes.clone();
+        let result = if apply {
+            write_library(
+                &mut connection,
+                library,
+                scope.network(),
+                scope.chain_id(),
+                writes,
+                Some(&source_checkpoint),
+                actor,
+                reason,
+            )?
+        } else {
+            write_library_dry_run(
+                &mut connection,
+                library,
+                scope.network(),
+                scope.chain_id(),
+                writes,
+                Some(&source_checkpoint),
+                actor,
+                reason,
+            )?
+        };
+        migration_receipts.push(build_library_migration_receipt(
+            library,
+            scope.network(),
+            scope.chain_id(),
+            &planned_writes,
+            &current_target,
+            &result,
+        )?);
+        library_results.push(result);
+    }
+    let quick_check: String = connection.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
+    if quick_check != "ok" {
+        return Err(format!("target database quick_check failed: {quick_check}").into());
+    }
+    let migration_receipt_valid = migration_receipts
+        .iter()
+        .all(|receipt| receipt["projectedConsistentWithSource"] == json!(true));
+
+    Ok(serde_json::to_string_pretty(&json!({
+        "mode": if apply { "apply" } else { "dry_run" },
+        "network": scope.network(),
+        "chainId": scope.chain_id(),
+        "sourceDatabase": source_database.display().to_string(),
+        "targetDatabase": target_database.display().to_string(),
+        "registry": registry.display().to_string(),
+        "sourceCheckpoint": source_checkpoint,
+        "migrationReceipt": {
+            "valid": migration_receipt_valid,
+            "source": {
+                "chainTokenRows": chain_token_row_count,
+                "stockRegistryRows": stock_registry_row_count,
+                "poolCurrencyReferences": pool_references.len(),
+                "poolLiquidityEvidenceRows": pool_liquidity.len(),
+                "normalizedAcceptedRows": normalized.accepted.len(),
+                "normalizedRejectedRows": normalized.errors.len()
+            },
+            "libraries": migration_receipts
+        },
+        "normalization": {
+            "accepted": normalized.accepted.len(),
+            "rejected": normalized.errors.len()
+        },
+        "classification": {
+            "tokens": gated_classification.tokens.len(),
+            "issues": gated_classification.issues.len(),
+            "duplicateSymbolGroups": gated_classification.duplicate_symbols.len(),
+            "unclassified": gated_classification.unclassified_count()
+        },
+        "economicGate": {
+            "policy": {
+                "minimumEconomicPositionUsdgRaw":
+                    economic_policy.min_economic_position_usdg_raw,
+                "minimumPoolDepthUsdgRaw":
+                    economic_policy.min_pool_depth_usdg_raw,
+                "quoteAsset": quote_asset,
+                "quoteAssetAddress": quote_asset.address,
+                "quoteAssetDecimals": quote_asset.decimals
+            },
+            "evidence": token_manager::render_evidence_report(&evidence_report),
+            "excludedStockTokens": gate.excluded_stock_tokens,
+            "excludedStockCount": gate.excluded_stock_tokens.len(),
+            "excludedExtensionHops": gate.excluded_extension_hops,
+            "excludedExtensionCount": gate.excluded_extension_hops.len(),
+            "pendingStockTokens": gate.pending_stock_tokens,
+            "pendingStockCount": gate.pending_stock_tokens.len()
+        },
+        "libraries": library_results,
+        "quickCheck": quick_check,
+        "applied": apply
+    }))?)
+}
+
+fn read_target_library_snapshot(
+    connection: &Connection,
+    library: LibraryKey,
+    network: &str,
+    chain_id: u64,
+) -> Result<TargetLibrarySnapshot, Box<dyn std::error::Error>> {
+    let mut statement = connection.prepare(&format!(
+        "SELECT token_key_id, lower(v4_currency_key), lower(token_address), token_symbol,
+                token_decimals, admission_status
+         FROM {} WHERE network = ?1 AND chain_id = ?2
+         ORDER BY token_key_id",
+        library.table_name()
+    ))?;
+    let rows = statement.query_map((network, chain_id), |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            StoredTokenIdentity {
+                v4_currency_key: row.get(1)?,
+                token_address: row.get(2)?,
+                token_symbol: row.get(3)?,
+                token_decimals: row.get(4)?,
+                admission_status: row.get(5)?,
+            },
+        ))
+    })?;
+    let identities = rows.collect::<Result<BTreeMap<_, _>, _>>()?;
+    let mut status_distribution = BTreeMap::new();
+    for identity in identities.values() {
+        *status_distribution
+            .entry(identity.admission_status.clone())
+            .or_insert(0) += 1;
+    }
+    Ok(TargetLibrarySnapshot {
+        token_count: identities.len(),
+        metadata_checksum: token_manager::library_metadata_checksum(
+            connection, library, network, chain_id,
+        )?,
+        status_distribution,
+        identities,
+    })
+}
+
+fn build_library_migration_receipt(
+    library: LibraryKey,
+    network: &str,
+    chain_id: u64,
+    planned_writes: &[TokenWrite],
+    current_target: &TargetLibrarySnapshot,
+    projected: &LibraryWriteResult,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let planned_identities = planned_writes
+        .iter()
+        .map(|write| {
+            (
+                write.token_key_id.as_str().to_owned(),
+                StoredTokenIdentity {
+                    v4_currency_key: write.v4_currency_key.to_ascii_lowercase(),
+                    token_address: write.token_address.to_ascii_lowercase(),
+                    token_symbol: write.token_symbol.clone(),
+                    token_decimals: write.token_decimals,
+                    admission_status: write.admission_status.as_str().to_owned(),
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let planned_status_distribution = status_distribution(planned_identities.values());
+    let missing_from_current = planned_identities
+        .keys()
+        .filter(|token_key_id| !current_target.identities.contains_key(*token_key_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let unexpected_in_current = current_target
+        .identities
+        .keys()
+        .filter(|token_key_id| !planned_identities.contains_key(*token_key_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let identity_mismatches = planned_identities
+        .iter()
+        .filter_map(|(token_key_id, planned)| {
+            current_target
+                .identities
+                .get(token_key_id)
+                .filter(|current| *current != planned)
+                .map(|_| token_key_id.clone())
+        })
+        .collect::<Vec<_>>();
+    let planned_metadata_checksum = token_writes_metadata_checksum(
+        network,
+        chain_id,
+        planned_writes.to_vec(),
+    )?;
+    let projected_status_distribution = BTreeMap::from([
+        ("admitted".to_owned(), projected.admitted_count as usize),
+        (
+            "candidate_only".to_owned(),
+            projected.candidate_only_count as usize,
+        ),
+        ("blocked".to_owned(), projected.blocked_count as usize),
+        (
+            "pending_review".to_owned(),
+            projected.pending_review_count as usize,
+        ),
+    ]);
+    let projected_consistent = planned_identities.len() == projected.token_count as usize
+        && planned_metadata_checksum == projected.metadata_checksum
+        && planned_status_distribution == projected_status_distribution;
+    Ok(json!({
+        "library": library,
+        "planned": {
+            "tokenCount": planned_identities.len(),
+            "metadataChecksum": planned_metadata_checksum,
+            "statusDistribution": planned_status_distribution
+        },
+        "currentTarget": {
+            "tokenCount": current_target.token_count,
+            "metadataChecksum": current_target.metadata_checksum,
+            "statusDistribution": current_target.status_distribution,
+            "missingTokenKeyIds": missing_from_current,
+            "unexpectedTokenKeyIds": unexpected_in_current,
+            "identityMismatchTokenKeyIds": identity_mismatches
+        },
+        "projectedTarget": {
+            "tokenCount": projected.token_count,
+            "metadataChecksum": projected.metadata_checksum,
+            "statusDistribution": projected_status_distribution
+        },
+        "projectedConsistentWithSource": projected_consistent
+    }))
+}
+
+fn status_distribution<'a>(
+    identities: impl Iterator<Item = &'a StoredTokenIdentity>,
+) -> BTreeMap<String, usize> {
+    let mut distribution = BTreeMap::from([
+        ("admitted".to_owned(), 0),
+        ("candidate_only".to_owned(), 0),
+        ("blocked".to_owned(), 0),
+        ("pending_review".to_owned(), 0),
+    ]);
+    for identity in identities {
+        *distribution
+            .entry(identity.admission_status.clone())
+            .or_insert(0) += 1;
+    }
+    distribution
 }
 
 fn bootstrap_simulate(arguments: &[String]) -> Result<String, Box<dyn std::error::Error>> {

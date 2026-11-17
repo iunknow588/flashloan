@@ -1,0 +1,40 @@
+{
+  "authoritySwitches": 0,
+  "broadcasts": 0,
+  "checksum": "sha256:p0-8-single-tick-capacity-and-state-change-v1",
+  "completed": [
+    "P0-8-a three-hop M_cap cumulative-rate unit fold",
+    "P0-8-b closed-loop manager reads published tick state and prefers folded M_cap",
+    "single-tick state-change decision tree added to active task checklist",
+    "single-tick safety invariants and acceptance checklist added"
+  ],
+  "failureCodes": [],
+  "failureSummary": [],
+  "inputVersions": {
+    "plan": "v9.8",
+    "poolStateChangeDesign": "v1.0-2026-11-14",
+    "singleTickCapacityDesign": "2026-11-14"
+  },
+  "mode": "read_only_code_and_contract",
+  "outputVersions": {
+    "closedLoopCapacityWiring": "p0_8_b_20261114",
+    "singleTickCapacityModule": "p0_8_a_20261114",
+    "taskChecklist": "p0_8_20261114"
+  },
+  "pending": [
+    "P0-8-c enforce M_cap as hard upper bound in single-tick best-amount selection",
+    "P0-8-e implement contract-side state-change arbitration and replay tests",
+    "publish production single-tick bounds/tick state and rematerialize under P1 authorization"
+  ],
+  "productionDatabaseWrites": 0,
+  "productionWrite": false,
+  "rollbackPoint": "none-read-only-code-and-documents",
+  "rowCount": 4,
+  "rpcRequestCount": 0,
+  "status": "passed",
+  "testCommands": [
+    "cargo test -p pool-manager single_tick_capacity",
+    "cargo test -p closed-loop-manager",
+    "cargo test --locked --workspace"
+  ]
+}

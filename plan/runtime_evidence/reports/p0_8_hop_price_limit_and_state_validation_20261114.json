@@ -1,0 +1,94 @@
+{
+  "id": "p0_8_hop_price_limit_and_state_validation_20261114",
+  "generatedAt": "2026-11-14",
+  "workPackage": "P0-8",
+  "title": "Per-hop price-limit propagation and on-chain current-state validation",
+  "scope": "M0-A",
+  "authority": {
+    "productionDatabaseWrite": false,
+    "authoritySwitch": false,
+    "broadcast": false,
+    "lockedBinaryReplacement": false
+  },
+  "migration": {
+    "id": "20261114_009_hop_price_limit_schema",
+    "columns": [
+      "manager_v4_reviews.hop_sqrt_price_limits_json",
+      "manager_v4_review_broadcast_requests.hop_sqrt_price_limits_json",
+      "manager_cow_execution_attempts.hop_sqrt_price_limits_json"
+    ]
+  },
+  "changes": [
+    {
+      "area": "review_manager",
+      "change": "The three-state verdict publishes the three current tick price limits in route order. A review without all three limits does not create an automatic broadcast request."
+    },
+    {
+      "area": "broadcast_manager",
+      "change": "A broadcast request without all three price limits is refused before an execution attempt is created; the attempt persists the limits used."
+    },
+    {
+      "area": "contracts",
+      "change": "Both mainnet and testnet executor packages build bounded PoolManager calldata, read the current slot0/liquidity through extsload, and reject a limit on the wrong side of the current price before execution."
+    },
+    {
+      "area": "rust_runtime",
+      "change": "The Rust broadcast path fail-closes a payload without three hop price limits instead of falling back to the global V4 price bound."
+    }
+  ],
+  "parity": {
+    "finalInputAmount": "The reviewed selectedAmountRaw is the single amount used by every hop's single-tick and three-state gate; the review and broadcast request carry the same three limits.",
+    "machineEvidence": "The review-manager regression test the_broadcast_request_carries_the_proved_hop_price_limits asserts three parseable limits and equality between the review row and the broadcast request.",
+    "chainLiveParity": "not_executed_on_mainnet",
+    "reason": "No production broadcast or mainnet state-changing call was authorized; only deterministic local contract tests were run."
+  },
+  "failClosed": [
+    "A review without three price limits creates no automatic broadcast request.",
+    "A broadcast request without three price limits is refused.",
+    "A Rust payload without three price limits is skipped before signing.",
+    "A PoolManager state read failure reverts with V4PoolStateUnavailable.",
+    "A limit on the wrong side of the current price reverts with V4PriceLimitWrongDirection.",
+    "The global V4 price bounds are refused as current-tick limits."
+  ],
+  "remaining": [
+    "The deployed mainnet arbiter ABI cannot accept per-hop price limits; the production broadcast path still requires the bounded executor deployment or a reviewed arbiter upgrade.",
+    "Exact on-chain favorable/unchanged/adverse output classification still requires the same SDK math on-chain; the current contract validates current state, tick direction and liquidity presence.",
+    "Batch isolation for multiple independently profitable closed loops is not yet implemented end to end; the broadcast manager accepts multiple attempts but each chain transaction remains independent.",
+    "Mainnet live three-hop input parity remains unexecuted because production calls were not authorized."
+  ],
+  "regression": {
+    "toolsWorkspace": {
+      "command": "cargo test --offline --workspace",
+      "exitCode": 0,
+      "result": "passed"
+    },
+    "rsSrc": {
+      "command": "cargo test --offline",
+      "exitCode": 0,
+      "passed": 111,
+      "failed": 0
+    },
+    "pythonRustBridge": {
+      "command": "python -m pytest app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py -q",
+      "exitCode": 0,
+      "passed": 90,
+      "failed": 0
+    },
+    "mainnetExecutor": {
+      "passed": 26,
+      "failed": 0
+    },
+    "testnetExecutor": {
+      "passed": 24,
+      "failed": 0
+    },
+    "pythonFull": {
+      "command": "python -m pytest -q",
+      "exitCode": 1,
+      "passed": 2897,
+      "failed": 28,
+      "skipped": 3,
+      "assessment": "Failures are outside the hop-price-limit change surface and are concentrated in existing configuration, architecture guards, runtime database fixtures, and migration isolation tests; the focused Rust bridge suite passes."
+    }
+  }
+}

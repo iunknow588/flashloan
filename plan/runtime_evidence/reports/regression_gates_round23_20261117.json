@@ -1,0 +1,328 @@
+{
+  "schemaVersion": "regression-gates-v1",
+  "round": 23,
+  "generatedAt": "2026-11-17T06:30:00Z",
+  "scope": "编排器级联能力补齐轮：TASK-127 / TASK-128 / TASK-129 / TASK-130（判据实现）/ TASK-131",
+  "premise": {
+    "perChainSqlite": true,
+    "chainDatabases": {
+      "robinhood": {
+        "chainId": 4663,
+        "file": "flashloan/db/local_store_4663.sqlite3",
+        "bytes": 3507453952
+      },
+      "robinhood-testnet": {
+        "chainId": 46630,
+        "file": "flashloan/db/local_store_46630.sqlite3",
+        "bytes": 870842368
+      }
+    },
+    "productionDbUnchanged": true,
+    "orchestratorChainAgnostic": true
+  },
+  "evidence": [
+    "plan/runtime_evidence/reports/regression_gates_round23_20261117.json",
+    "plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261116T220913Z.json",
+    "plan/back/已完成任务归档_20261117_第23轮_编排器级联能力补齐.md",
+    "plan/back/已完成任务归档索引_20261117_v10.10.md"
+  ],
+  "fixes": [
+    {
+      "fixId": "FIX-R23-01",
+      "title": "TASK-128 / GAP-C：新增 resolve_token 单币种定点修复动作",
+      "class": "capability-gap",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "token_defects",
+        "resolve_token_targets",
+        "repair_resolve_token",
+        "audit_tokens",
+        "healing_actions",
+        "supervise"
+      ],
+      "rootCause": "healing_actions 的代币分支只有 repair_tokens（批量 materialize-libraries），没有单币种修复路径。批量路径会重写全部四库，无法告诉运营方究竟是哪个符号被修复，且把已经正确的行一并改写。",
+      "fix": "新增 token_defects() 逐符号定位五类缺陷（missing_decimals / missing_symbol / funding_address_mismatch / counterfeit_admission / stock_provenance_invalid）；resolve_token_targets() 只把可按符号解析的缺陷送往 POST /v1/tokens/resolve；repair_resolve_token() 逐符号调用并统计 resolvedCount / failedCount / blockedCount；假币准入与无符号 token 标记为 blocked 并回落批量路径（批量路径负责撤销错误准入）；supervise 在代币层失效时必然进入 manager_repair。",
+      "taskIds": [
+        "TASK-128"
+      ],
+      "acceptanceIds": [
+        "AC-192"
+      ],
+      "verification": [
+        "GATE-R23-01",
+        "GATE-R23-02",
+        "GATE-R23-08"
+      ]
+    },
+    {
+      "fixId": "FIX-R23-02",
+      "title": "TASK-129 / GAP-D：池容量不足与读数异常分离 + 全范围贯通矩阵",
+      "class": "capability-gap",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "pool_depth_audit",
+        "repair_pool_depth",
+        "healing_actions",
+        "cascade_matrix",
+        "build_report",
+        "print_report"
+      ],
+      "rootCause": "healing_actions 的层级判定未区分「池子无容量」与「池子读数异常」，两者修复路径不同却共用一个 pool_depth_insufficient 状态；且缺少 §7.0.5 要求的资金代币→候选代币→候选池→闭环的贯通矩阵，任一环节为空集会被沉默掩盖。",
+      "fix": "pool_depth_audit 按池 id 重新分类：TVL 超出合理带（高于上限或缺失）判为 bad reading（需 remeasure），带内但低于下限判为 genuinely thin（需 replace），输出 classification 与 repairPath；repair_pool_depth 在存在坏读数时先执行 pool-manager depth 重测；healing_actions 按分类分派 remeasure_pool_depth / repair_pools；新增 cascade_matrix() 建立 F→C→P→L 贯通矩阵，每环计数显式给出（含 0），并把 58 个引用候选集外池的闭环 hop 显式呈现。",
+      "taskIds": [
+        "TASK-129"
+      ],
+      "acceptanceIds": [
+        "AC-193"
+      ],
+      "verification": [
+        "GATE-R23-01",
+        "GATE-R23-03",
+        "GATE-R23-04"
+      ]
+    },
+    {
+      "fixId": "FIX-R23-03",
+      "title": "TASK-130 / GAP-F：实现「稳定产生广播」的可判定滚动判据",
+      "class": "capability-gap",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py",
+      "symbols": [
+        "stability_window",
+        "StabilityTracker",
+        "watch",
+        "supervise"
+      ],
+      "rootCause": "没有任何可判定定义来回答「主网是否稳定产生套利广播交易」，因此该结论只能靠感觉，也无从验收。",
+      "fix": "新增 stability_window() 逐条判定五个条件（positive_reviews>0 / broadcast_success>0 / blockers==[] / missingValue==0 / productionState==healthy）与 StabilityTracker（STABILITY_REQUIRED_WINDOWS=3、STABILITY_MIN_WINDOW_SECONDS=1800）；任一窗口不满足即计数归零，且要求窗口时间连续；已接入 watch 与 supervise 循环，并在 journal 事件与 stdout 公布 stableWindows=N/3 与 stable=。",
+      "taskIds": [
+        "TASK-130"
+      ],
+      "acceptanceIds": [
+        "AC-200"
+      ],
+      "verification": [
+        "GATE-R23-01",
+        "GATE-R23-05"
+      ],
+      "criterionSatisfied": false,
+      "criterionReason": "判据已实现，但主网当前 blockers=pools,reviews,broadcast、positive=0、broadcast_success=0，窗口计数为 0，故 AC-200 仍未达成。"
+    },
+    {
+      "fixId": "FIX-R23-04",
+      "title": "TASK-131：编排器链无关性证明与固化",
+      "class": "capability-gap",
+      "severity": "major",
+      "surface": "scripts/mainnet_arbitrage_healer.py, scripts/tests/test_mainnet_arbitrage_healer.py",
+      "symbols": [
+        "activate_scope",
+        "assert_chain_database",
+        "database_for_chain",
+        "cascade_matrix",
+        "review_rows"
+      ],
+      "rootCause": "链无关性此前只是设计主张，没有可执行证明，也没有防止回归的守卫。",
+      "fix": "证明并固化为 5 条回归用例：两条链走同一 activate_scope 路径；每链解析到各自的数据库文件；assert_chain_database 拒绝他链文件；同一张含两条链数据的库上，报告只包含当前链的行；cascade_matrix 只统计当前链。源码层面确认链 id 仅出现于 KNOWN_SCOPES / CHAIN_DATABASES / REGISTRIES / database_for_chain() 四处配置位置，业务逻辑零硬编码。",
+      "taskIds": [
+        "TASK-131"
+      ],
+      "acceptanceIds": [
+        "AC-197"
+      ],
+      "verification": [
+        "GATE-R23-06",
+        "GATE-R23-07",
+        "GATE-R23-09"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gateId": "GATE-R23-01",
+      "command": "python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q -p no:cacheprovider",
+      "expected": "all passed",
+      "actual": "71 passed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-02",
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q -p no:cacheprovider",
+      "expected": "all passed",
+      "actual": "35 passed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-03",
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check --database flashloan/db/local_store_4663.sqlite3 --window-hours 24",
+      "expected": "exit 0 with pool classification and repair path",
+      "actual": "exit 0; classification=pool_depth_insufficient repairPath=replace_shallow_pool_and_remeasure_depth badReadingRows=311 badReadingPools=691 unmeasuredPools=380",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-04",
+      "command": "python scripts/mainnet_arbitrage_healer.py --mode check --database flashloan/db/local_store_4663.sqlite3 --window-hours 24 (MATRIX line)",
+      "expected": "the full-range matrix counts every link explicitly",
+      "actual": "funding valid=5/5 counterfeit=0 | candidateTokens admitted=199 symbols=199 | pools distinct=858 | loops total=106 threeHops=106 hopsInScope=260/318",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-05",
+      "command": "python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -k stability -q -p no:cacheprovider",
+      "expected": "the stability criterion is decided, not asserted",
+      "actual": "7 stability cases passed (single window, three windows, reset, missing value, no broadcast success, unhealthy production)",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-06",
+      "command": "python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -k chain -q -p no:cacheprovider",
+      "expected": "the chain-agnosticism proof is executable",
+      "actual": "5 chain cases passed (same path, own database, guard refusal, no cross-chain rows, chain-scoped matrix)",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-07",
+      "command": "python -m pytest flashloan/app_runtime/tests/unit -p no:cacheprovider -q",
+      "expected": ">=2624 passed, 0 failed",
+      "actual": "2626 passed, 3 skipped, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-08",
+      "command": "python -m pytest flashloan/app_runtime/tests/functional flashloan/app_runtime/tests/integration scripts/tests -p no:cacheprovider -q",
+      "expected": ">=448 passed, 0 failed",
+      "actual": "480 passed, 0 failed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-09",
+      "command": "cd flashloan/tools && cargo test --locked --workspace; cd flashloan/rs-src && cargo test --locked",
+      "expected": "0 failed",
+      "actual": "tools 522 passed, rs-src 127 passed",
+      "result": "pass"
+    },
+    {
+      "gateId": "GATE-R23-10",
+      "command": "production database byte comparison",
+      "expected": "no production database writes",
+      "actual": "local_store_4663.sqlite3 = 3507453952 bytes, local_store_46630.sqlite3 = 870842368 bytes (unchanged)",
+      "result": "pass"
+    }
+  ],
+  "liveState": {
+    "readOnly": true,
+    "network": "robinhood",
+    "chainId": 4663,
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "layers": {
+      "tokens": {
+        "valid": true,
+        "admitted": 199,
+        "defectCount": 0,
+        "defectKinds": [],
+        "resolvableTargets": []
+      },
+      "pools": {
+        "valid": false,
+        "classification": "pool_depth_insufficient",
+        "repairPath": "replace_shallow_pool_and_remeasure_depth",
+        "uniquePools": 862,
+        "adequate": 21,
+        "insufficient": 841,
+        "thin": 216,
+        "unpriced": 331,
+        "badReadingRows": 311,
+        "badReadingPools": 691,
+        "unmeasuredPools": 380,
+        "adequatePoolIds": 17
+      },
+      "closedLoops": {
+        "valid": true,
+        "loops": 106
+      },
+      "reviews": {
+        "valid": false,
+        "total": 69,
+        "valued": 69,
+        "missingValue": 0,
+        "positive": 0,
+        "bestAmountMissing": 69,
+        "ladderIncomplete": 29
+      },
+      "broadcast": {
+        "valid": false,
+        "managerAttempts": 0
+      }
+    },
+    "cascadeMatrix": {
+      "fundingTokens": {
+        "expected": 5,
+        "valid": 5,
+        "counterfeitAdmittedCount": 0,
+        "complete": true
+      },
+      "candidateTokens": {
+        "admitted": 199,
+        "symbolCount": 199,
+        "byLibrary": {
+          "token_core": 4,
+          "token_stocks": 194,
+          "token_extension": 0,
+          "token_test": 1
+        }
+      },
+      "candidatePools": {
+        "distinctPoolCount": 858
+      },
+      "closedLoops": {
+        "total": 106,
+        "exactThreeHops": 106,
+        "hopsTotal": 318,
+        "hopsInCandidateScope": 260,
+        "hopsMissingFromCandidateScope": 58,
+        "loopsWithMissingHop": 58
+      }
+    },
+    "productionState": "upstream_invalid",
+    "blockers": [
+      "pools",
+      "reviews",
+      "broadcast"
+    ],
+    "safeToAutoBroadcast": false,
+    "stability": {
+      "requiredWindows": 3,
+      "minWindowSeconds": 1800,
+      "consecutiveWindows": 0,
+      "stable": false
+    },
+    "note": "本轮补齐编排器能力，未对生产库执行任何写入。新增可见缺口：58 个闭环 hop 引用了候选集外的池。"
+  },
+  "notClaimed": [
+    "尚未产生套利广播交易",
+    "稳定达成判据尚未满足（AC-200 未达成）",
+    "测试网五层全链收敛尚未完成（TASK-132 / AC-196 未完成）",
+    "生产库写入尚未解锁（前提依赖未解除）"
+  ],
+  "summary": {
+    "fixesApplied": 4,
+    "gatesPassed": 10,
+    "gatesFailed": 0,
+    "unitTests": "2626 passed, 3 skipped",
+    "functionalIntegrationScripts": "480 passed",
+    "rustTools": "522 passed",
+    "rustRsSrc": "127 passed",
+    "healerTests": "71 + 35 passed",
+    "productionDbBytesChanged": false,
+    "tasksCompleted": [
+      "TASK-127",
+      "TASK-128",
+      "TASK-129",
+      "TASK-131"
+    ],
+    "taskPartiallyCompleted": [
+      "TASK-130（判据已实现，判据未满足）"
+    ]
+  }
+}

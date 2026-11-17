@@ -1,9 +1,10 @@
 use crate::metadata::{MetadataSourceKind, RawTokenMetadata, ZERO_ADDRESS};
 use rusqlite::{params, Connection, OpenFlags};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const ROBINHOOD_NETWORK: &str = "robinhood";
 pub const ROBINHOOD_CHAIN_ID: u64 = 4663;
@@ -111,7 +112,9 @@ pub struct V4PoolLiquidityEvidence {
     pub special_fee: i64,
     pub hooks: Option<String>,
     pub has_liquidity: bool,
+    pub liquidity: Option<String>,
     pub liquidity_index: Option<f64>,
+    pub estimated_tvl_usd: Option<f64>,
     pub depth_status: Option<String>,
     pub evidence_source: Option<String>,
 }
@@ -127,9 +130,103 @@ struct CoreTokenDefinition {
 }
 
 pub fn mainnet_core4_allowlist() -> Vec<RawTokenMetadata> {
+    core4_allowlist(ROBINHOOD_NETWORK, ROBINHOOD_CHAIN_ID)
+}
+
+/// The token allowlist file of a chain scope.
+///
+/// The allowlist is the authority for the addresses of a chain's core
+/// assets: the wrapped native token differs between the chains, so a
+/// compiled-in address would put a chain's core library on an address that
+/// belongs to another chain.
+fn token_allowlist_path(network: &str, chain_id: u64) -> Option<PathBuf> {
+    // An explicit override wins, so a deployment does not have to depend on
+    // the working directory the tool happens to be started from.
+    let override_root = std::env::var("FLASHLOAN_CHAINS_ROOT").ok();
+    let relative = match (network, chain_id) {
+        (ROBINHOOD_NETWORK, ROBINHOOD_CHAIN_ID) => {
+            "chains/robinhood/v4_token_allowlist.json"
+        }
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID) => {
+            "chains/robinhood-testnet/v4_token_allowlist.json"
+        }
+        _ => return None,
+    };
+    // The tool runs from the repository root, from the tools directory, and
+    // from the flashloan package directory depending on the caller, so the
+    // allowlist is looked up relative to each of those roots.
+    let mut candidates = Vec::new();
+    if let Some(root) = override_root {
+        candidates.push(PathBuf::from(root).join(relative));
+    }
+    candidates.extend([
+        PathBuf::from(relative),
+        PathBuf::from("flashloan").join(relative),
+        PathBuf::from("..").join(relative),
+        PathBuf::from("..").join("..").join(relative),
+        PathBuf::from("..").join("..").join("flashloan").join(relative),
+        PathBuf::from("..").join("..").join("..").join("flashloan").join(relative),
+    ]);
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .or(Some(PathBuf::from(relative)))
+}
+
+/// Read the addresses the chain's own allowlist declares for the core
+/// assets. The map is keyed by symbol.
+fn core_addresses_from_allowlist(network: &str, chain_id: u64) -> BTreeMap<String, String> {
+    let mut addresses = BTreeMap::new();
+    let Some(path) = token_allowlist_path(network, chain_id) else {
+        return addresses;
+    };
+    let Ok(payload) = fs::read_to_string(&path) else {
+        return addresses;
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&payload) else {
+        return addresses;
+    };
+    let Some(tokens) = value.get("tokens").and_then(Value::as_object) else {
+        return addresses;
+    };
+    for item in tokens.values() {
+        let Some(symbol) = item.get("symbol").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(address) = item.get("address").and_then(Value::as_str) else {
+            continue;
+        };
+        addresses.insert(symbol.trim().to_ascii_uppercase(), address.to_owned());
+    }
+    addresses
+}
+
+/// Builds the core4 allowlist for the given chain scope.
+///
+/// The core tokens are the same four assets on both Robinhood chains: the
+/// native coin, its wrapped form and the two stablecoins. Their **addresses**
+/// are chain specific -- the wrapped native token lives on a different
+/// address on each chain -- so the address is taken from the chain's own
+/// token allowlist. Only the scope the row is written into differs
+/// otherwise, so the seed carries the network and chain id of the scope it
+/// belongs to.
+pub fn core4_allowlist(network: &str, chain_id: u64) -> Vec<RawTokenMetadata> {
+    let chain_addresses = core_addresses_from_allowlist(network, chain_id);
+    // The compiled-in addresses are the **mainnet** addresses. They are only
+    // a legitimate fallback for the mainnet; on any other chain a missing
+    // allowlist would silently put a core token on a mainnet address, which
+    // is worse than not writing the row at all. So on a non mainnet chain an
+    // unreadable allowlist yields an incomplete core library instead of a
+    // wrong one.
+    let compiled_in_is_authoritative = network == ROBINHOOD_NETWORK && chain_id == ROBINHOOD_CHAIN_ID;
     CORE4_DEFINITIONS
         .iter()
-        .map(|definition| {
+        .filter_map(|definition| {
+            let address = match chain_addresses.get(definition.symbol) {
+                Some(address) => address.clone(),
+                None if compiled_in_is_authoritative => definition.address.to_owned(),
+                None => return None,
+            };
             let metadata_json = serde_json::json!({
                 "category": definition.kind,
                 "source": "fixed_core4_allowlist",
@@ -139,19 +236,19 @@ pub fn mainnet_core4_allowlist() -> Vec<RawTokenMetadata> {
             .to_string();
             let source_json = serde_json::json!({
                 "seed": "fixed_core4_allowlist",
-                "network": ROBINHOOD_NETWORK,
-                "chainId": ROBINHOOD_CHAIN_ID,
+                "network": network,
+                "chainId": chain_id,
             })
             .to_string();
             RawTokenMetadata {
                 source: MetadataSourceKind::CoreAllowlist,
                 source_locator: format!(
-                    "core4_allowlist:{ROBINHOOD_NETWORK}:{ROBINHOOD_CHAIN_ID}:{}",
+                    "core4_allowlist:{network}:{chain_id}:{}",
                     definition.symbol
                 ),
-                network: ROBINHOOD_NETWORK.to_owned(),
-                chain_id: ROBINHOOD_CHAIN_ID,
-                token_address: Some(definition.address.to_owned()),
+                network: network.to_owned(),
+                chain_id,
+                token_address: Some(address),
                 token_symbol: Some(definition.symbol.to_owned()),
                 token_name: Some(definition.symbol.to_owned()),
                 token_decimals: Some(definition.decimals),
@@ -166,6 +263,7 @@ pub fn mainnet_core4_allowlist() -> Vec<RawTokenMetadata> {
                 source_json: Some(source_json),
                 first_seen_at: None,
             }
+            .into()
         })
         .collect()
 }
@@ -378,8 +476,8 @@ pub fn read_v4_pool_liquidity_evidence(
 ) -> Result<Vec<V4PoolLiquidityEvidence>, SourceError> {
     let mut statement = connection.prepare(
         "SELECT e.pool_id, e.fee, e.dynamic_fee, e.special_fee,
-                lower(e.hooks), s.has_liquidity, s.liquidity_index,
-                lower(s.depth_status), lower(s.evidence_source)
+                lower(e.hooks), s.has_liquidity, s.liquidity, s.liquidity_index,
+                s.estimated_tvl_usd, lower(s.depth_status), lower(s.evidence_source)
          FROM v4_exchange_pools e
          JOIN v4_exchange_pool_liquidity_snapshots s
            ON s.network = e.network
@@ -400,9 +498,11 @@ pub fn read_v4_pool_liquidity_evidence(
             special_fee: row.get(3)?,
             hooks: row.get(4)?,
             has_liquidity: row.get::<_, i64>(5)? != 0,
-            liquidity_index: row.get(6)?,
-            depth_status: row.get(7)?,
-            evidence_source: row.get(8)?,
+            liquidity: row.get(6)?,
+            liquidity_index: row.get(7)?,
+            estimated_tvl_usd: row.get(8)?,
+            depth_status: row.get(9)?,
+            evidence_source: row.get(10)?,
         })
     })?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -440,11 +540,60 @@ fn value_as_i64(value: &Value) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::{
-        mainnet_core4_allowlist, read_chain_tokens, read_stock_registry,
+        core4_allowlist, mainnet_core4_allowlist, read_chain_tokens, read_stock_registry,
         read_v4_pool_currency_references, read_v4_pool_liquidity_evidence, ROBINHOOD_CHAIN_ID,
-        ROBINHOOD_NETWORK,
+        ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
     };
     use rusqlite::Connection;
+    use std::collections::BTreeMap;
+
+    /// The core addresses of a chain are chain specific. The wrapped native
+    /// token lives on a different address on each chain, so a compiled-in
+    /// address would put a chain's core library on another chain's token.
+    #[test]
+    fn core_allowlist_reads_the_addresses_of_the_chain_it_serves() {
+        let mainnet = core4_allowlist(ROBINHOOD_NETWORK, ROBINHOOD_CHAIN_ID);
+        let testnet = core4_allowlist(ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID);
+
+        let address_of = |rows: &[super::RawTokenMetadata], symbol: &str| -> String {
+            rows.iter()
+                .find(|row| row.token_symbol.as_deref() == Some(symbol))
+                .and_then(|row| row.token_address.clone())
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+        };
+
+        // The native coin and the stablecoins are shared by both chains.
+        assert_eq!(
+            address_of(&mainnet, "ETH"),
+            address_of(&testnet, "ETH")
+        );
+        assert_eq!(
+            address_of(&mainnet, "USDG"),
+            address_of(&testnet, "USDG")
+        );
+        assert_eq!(
+            address_of(&mainnet, "USDE"),
+            address_of(&testnet, "USDE")
+        );
+
+        // The wrapped native token is chain specific and must never be
+        // borrowed from the other chain.
+        let mainnet_weth = address_of(&mainnet, "WETH");
+        let testnet_weth = address_of(&testnet, "WETH");
+        assert!(!mainnet_weth.is_empty(), "mainnet WETH address is missing");
+        assert!(!testnet_weth.is_empty(), "testnet WETH address is missing");
+        assert_ne!(
+            mainnet_weth, testnet_weth,
+            "the wrapped native token address must not be shared between chains"
+        );
+
+        // Every core row carries the scope it belongs to.
+        for row in &testnet {
+            assert_eq!(row.network, ROBINHOOD_TESTNET_NETWORK);
+            assert_eq!(row.chain_id, ROBINHOOD_TESTNET_CHAIN_ID);
+        }
+    }
 
     #[test]
     fn core4_allowlist_is_address_based_and_exact() {
@@ -500,7 +649,9 @@ mod tests {
                     protocol TEXT NOT NULL,
                     pool_id TEXT NOT NULL,
                     has_liquidity INTEGER,
+                    liquidity TEXT,
                     liquidity_index REAL,
+                    estimated_tvl_usd REAL,
                     depth_status TEXT,
                     evidence_source TEXT
                 );
@@ -540,7 +691,8 @@ mod tests {
             .execute(
                 "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (
                     'robinhood', 4663, 'uniswap_v4', 'pool-1',
-                    1, 1000.0, 'deep', 'pool_manager_extsload_live_state_batch'
+                    1, '1000000000000000000000', 1000.0, 1000.0, 'deep',
+                    'pool_manager_extsload_live_state_batch_rust'
                 )",
                 [],
             )
@@ -552,6 +704,11 @@ mod tests {
         assert_eq!(liquidity[0].pool_id, "pool-1");
         assert_eq!(liquidity[0].fee, Some(3000));
         assert!(liquidity[0].has_liquidity);
+        assert_eq!(
+            liquidity[0].liquidity.as_deref(),
+            Some("1000000000000000000000")
+        );
+        assert_eq!(liquidity[0].estimated_tvl_usd, Some(1000.0));
         assert_eq!(liquidity[0].depth_status.as_deref(), Some("deep"));
     }
 

@@ -1,0 +1,120 @@
+{
+  "title": "Robinhood 主网架构评审：对『提分优化综合意见』11 条建议的逐条核验",
+  "generatedAt": "2026-11-11T19:38:34.121324Z",
+  "method": "逐条对照真实源码与生产只读数据核验，而非接受建议的前提假设",
+  "keyFindings": [
+    "当前架构与建议描述的架构不一致：现在是『链上合约重算 + eth_call 取最优量』，不是『链下纯数学计算』。建议第 3/4/5/7 条的前提不成立。",
+    "Hook 前提成立：候选池 47/47、manager 候选 114/114、闭环跳 264/264 全部无 Hook。",
+    "容量计算已经是纯整数数学（v4_pool_capacity.py 全用 // 整除），只依赖 sqrtPriceX96 + liquidity，不需要全量 tick。",
+    "生产零广播（cow_execution_attempts=0），因此第 7/8/9 条（盲发/直连排序器/硬编码 Gas）在当前证据下无法验证。",
+    "f64 只出现在评分排序与限流间隔，不在盈亏计算路径；盈亏链走 BigUint/Decimal。",
+    "无 WSS 订阅、无 DashMap：池状态靠 HyperSync 日志轮询 + extsload 批读 + SQLite 快照。"
+  ],
+  "currentArchitecture": {
+    "bestAmountSearch": "链上重算：eth_call → OfficialV4FlashArb.previewArbitrageBestAmount → 内部 MAX_AMOUNT_SEARCH_STEPS=24 阶梯 + 二分 + _probeAmount 反复 runArbitrage",
+    "profitOracle": "链上真实 swap 模拟（runArbitrage 捕获输出），捕获异常即视为不可执行",
+    "liquidityCap": "Rust extsload 读 sqrtPriceX96/liquidity → 纯整数价格冲击容量（ε=10bps）",
+    "broadcast": "eth_getTransactionCount → eth_estimateGas(默认) → eth_maxPriorityFeePerGas/eth_gasPrice → sign → submit_v4_route_inner（private_rpc 通道）",
+    "storage": "rusqlite 直连 + WAL + synchronous=NORMAL；Python 侧短连接",
+    "stateFeed": "HyperSync 日志轮询（hypersync.rs）+ extsload 批读；无 WSS/DashMap",
+    "gasPreview": "OFFICIAL_V4_PREVIEW_GAS = 50_000_000（仅 eth_call 上限，非执行 tx）"
+  },
+  "suggestionReview": [
+    {
+      "no": 1,
+      "topic": "局部 Tick 缓存 + 纯整数",
+      "verdict": "部分成立，方向已达成",
+      "evidence": "v4_pool_capacity.py 用 // 整除 + u128；只用 sqrtPriceX96+liquidity；全库 tickLiquidityNet/tickBitmap 命中 0",
+      "action": "无需引入 ±5% tick 缓存。引入反而增加复杂度：V4 池流动性跨 tick 分布，当前容量判据刻意只用当前 tick 的流动性做保守估计。若要提升，应改为『读取 tick 区间净流动性』而非『缓存全量』"
+    },
+    {
+      "no": 2,
+      "topic": "版本触发替代死等作废",
+      "verdict": "成立且是当前最大缺口",
+      "evidence": "复核靠 1 分钟轮询；观察窗 66130s；无 WSS/版本触发；reviewAgeSeconds 高达 18 小时",
+      "action": "高价值。但落地顺序应是：先用现有 HyperSync/extsload 做『池状态版本戳 + 变更即重算』的轻量版，不必先上 WSS"
+    },
+    {
+      "no": 3,
+      "topic": "阶梯式备选参数打包进 Calldata",
+      "verdict": "成立，但契约层需改",
+      "evidence": "合约只有单个 selectedAmountRaw（runArbitrageBestPoolsWithSelectedAmount），无备选数组",
+      "action": "中等价值。注意『每档带各自 amountOutMinimum』在 V4 上不成立——amountOutMinimum 是 Uniswap V3 概念，V4 用 sqrtPriceLimitX96 + 内置 amountOut 校验。需先确认 Robinhood V4 的滑点保护形态"
+    },
+    {
+      "no": 4,
+      "topic": "拒绝链上全量重算，改快照比对",
+      "verdict": "成立，是本意见最有价值的一条",
+      "evidence": "合约 previewArbitrageBestAmount 内 MAX_AMOUNT_SEARCH_STEPS=24 循环 + 多次 _probeAmount（每次都真实 runArbitrage）",
+      "action": "高价值但工程量大：需要链下实现与链上完全一致的三跳 V4 swap 数学，并做等价性回归（对比链上 preview 结果与链下计算，容差内一致）"
+    },
+    {
+      "no": 5,
+      "topic": "合约内智能降级 if-else",
+      "verdict": "成立，与第 4 条同源",
+      "evidence": "当前合约 selectedAmount 单一，无降级数组",
+      "action": "与第 4 条一起做。降级档位必须在链下与链上共用同一套『可执行性判据』，否则降级后仍可能 revert，白白烧 Gas"
+    },
+    {
+      "no": 6,
+      "topic": "收紧 amountOutMinimum 到 0.1%-0.5%",
+      "verdict": "部分成立，但对象错了",
+      "evidence": "Robinhood 链上执行的 amountOutMinimum 存在于 executor 的 V3/V4 参数结构（RobinhoodPausedFlashLoanExecutor.sol），但 V4 路径主用 sqrtPriceLimitX96",
+      "action": "不要直接照搬『Robinhood 无三明治』的前提——链上是否有私有内存池/审查机制需先核实。且当前瓶颈不是滑点而是『没有任何可执行交易』（bestAmount confirmed=0/1356），收紧滑点对零交易无改善"
+    },
+    {
+      "no": 7,
+      "topic": "废除链下 Quoter，盲发",
+      "verdict": "不成立（当前架构下不可行）",
+      "evidence": "链下『绝对真理』今天不存在：最优交易量就是靠 eth_call 拿链上 preview 的结果；删掉它等于没有最佳交易量",
+      "action": "第 4 条完成后此条自动成立。在那之前盲发 = 用固定 64 token 上限发交易 = 必然不盈利。必须排在第 4 条之后"
+    },
+    {
+      "no": 8,
+      "topic": "低延迟网络 / 直连排序器",
+      "verdict": "成立但不可本地验证",
+      "evidence": "execution.rs 已有 private_rpc 通道（submit_v4_route_inner）与 relay_urls；chain.json 只有公共 RPC",
+      "action": "基础设施改造，属于运维/部署决策而非代码架构。需先确认 Robinhood Chain 是否公开排序器接入方式（是否有 sequencer endpoint / build 通道）"
+    },
+    {
+      "no": 9,
+      "topic": "硬编码 gasLimit=500000",
+      "verdict": "有风险，不可现在执行",
+      "evidence": "执行 gas 当前走 eth_estimateGas（可被 config gasLimit/gasLimitRaw 覆盖，最低 .max(300_000)）；生产广播尝试 0 行，无实测 gasUsed 分布",
+      "action": "反对在无实测数据时硬编码。三跳 flash loan + unlock + settle 的真实 gas 未知，500k 可能不足导致交易永远 out of gas。先采集真实 gasUsed 分布再定"
+    },
+    {
+      "no": 10,
+      "topic": "SQLite 黑匣子化 + mpsc 批量写",
+      "verdict": "部分成立",
+      "evidence": "WAL + synchronous=NORMAL 已启用；但 rusqlite 写路径是直连（sqlite_read.rs / manager_db），无 mpsc 批量写；无 DashMap",
+      "action": "低-中价值。当前生产写入压力来自守护器的分钟级复核，不是热路径。热路径改造应等广播真正跑起来、有实测写入 QPS 后再做"
+    },
+    {
+      "no": 11,
+      "topic": "纯 WSS 增量更新",
+      "verdict": "成立但优先级靠后",
+      "evidence": "hypersync.rs 是 HTTP 日志分页轮询；全库 WSS eth_subscribe 命中 0",
+      "action": "中价值。WSS 能显著降低『发现机会』延迟，但要配套第 2 条的版本触发才完整，且需处理断线补偿"
+    }
+  ],
+  "criticalRisks": [
+    "建议整体基于『本地计算是绝对真理』，而该前提在当前架构下不成立（最优量由链上 eth_call 得出）。若先做第 7 条盲发而不先做第 4 条链下重算，会直接造成亏损交易。",
+    "建议第 6 条基于『Robinhood 无 MEV』，该前提需核实（是否存在私有内存池/区块审查）。未核实前收紧滑点可能反而错失机会。",
+    "第 4/5 条要求链下数学与链上 V4 swap 完全等价，需要专门的等价性回归测试（链下结果 vs 链上 preview），不能凭『公式一样』上线。",
+    "第 9 条硬编码 Gas 在零实测数据下执行，可能导致全部交易 out of gas。"
+  ],
+  "recommendedPriority": [
+    "P0 先修数据面（当前唯一真实阻塞）：W6 生产铺开 → 容量铺开 → 复核链路自然恢复。现状是 bestAmount confirmed=0/1356，根本没有『可优化的执行』存在。",
+    "P1 第 2 条：池状态版本戳 + 变更即重算（轻量版，不必先上 WSS）。",
+    "P2 第 4+5 条：链下三跳 V4 swap 数学 + 等价性回归 + 备选档位。做完才谈得上第 7 条。",
+    "P3 第 11 条 WSS 增量 + 第 3 条备选数组。",
+    "P4 第 6 条滑点口径统一（先核实链是否有 MEV 审查）。",
+    "P5 第 8/9/10 条：属于部署与运维决策，且需先有实测广播数据。"
+  ],
+  "explicitlyNotRecommended": [
+    "第 7 条『盲发』在第 4 条完成前实施",
+    "第 9 条在零广播实测数据下硬编码 gasLimit",
+    "第 1 条引入 ±5% 全量 tick 缓存（当前容量判据刻意不依赖 tick 分布）"
+  ]
+}

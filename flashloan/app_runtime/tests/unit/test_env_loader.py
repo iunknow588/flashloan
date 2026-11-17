@@ -1,6 +1,7 @@
 import os
 
 from core.env_loader import (
+    candidate_env_paths,
     load_chain_env_files,
     load_env_files,
 )
@@ -117,3 +118,54 @@ def test_load_chain_env_files_prefers_chain_env_then_global_env(monkeypatch, tmp
     assert os.environ["ROBINHOOD_TESTNET_FOO"] == "chain"
     assert os.environ["GLOBAL_SHARED"] == "chain"
     assert os.environ["CROSS_CHAIN"] == "global-only"
+
+
+def test_candidate_env_paths_stops_at_repository_root(monkeypatch, tmp_path):
+    """A parent folder outside the repository must never leak its ``.env``.
+
+    The repository lives inside a shared parent folder that holds unrelated
+    projects and their own ``.env`` files.  Loading those would silently
+    merge foreign configuration (API keys, a Postgres URL, retired contract
+    addresses) into this application.
+    """
+
+    foreign = tmp_path / ".env"
+    foreign.write_text("FOREIGN_ONLY=leaked\n", encoding="utf-8")
+
+    root = tmp_path / "repo"
+    (root / "contract").mkdir(parents=True)
+    (root / "flashloan").mkdir(parents=True)
+    app_env = root / "flashloan" / "app_runtime" / ".env"
+    app_env.parent.mkdir(parents=True)
+    app_env.write_text("APP_ONLY=app\n", encoding="utf-8")
+
+    tool = root / "flashloan" / "app_runtime" / "run.py"
+    tool.write_text("", encoding="utf-8")
+
+    loaded = candidate_env_paths(tool)
+
+    assert app_env in loaded
+    assert foreign not in loaded
+
+
+def test_load_env_files_does_not_apply_foreign_parent_env(monkeypatch, tmp_path):
+    foreign = tmp_path / ".env"
+    foreign.write_text("FOREIGN_ONLY=leaked\n", encoding="utf-8")
+
+    root = tmp_path / "repo"
+    (root / "contract").mkdir(parents=True)
+    (root / "flashloan").mkdir(parents=True)
+    app_env = root / "flashloan" / "app_runtime" / ".env"
+    app_env.parent.mkdir(parents=True)
+    app_env.write_text("APP_ONLY=app\n", encoding="utf-8")
+
+    tool = root / "flashloan" / "app_runtime" / "run.py"
+    tool.write_text("", encoding="utf-8")
+
+    monkeypatch.delenv("FOREIGN_ONLY", raising=False)
+    monkeypatch.delenv("APP_ONLY", raising=False)
+
+    load_env_files(tool)
+
+    assert os.environ.get("APP_ONLY") == "app"
+    assert "FOREIGN_ONLY" not in os.environ

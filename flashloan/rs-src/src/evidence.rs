@@ -7,6 +7,30 @@ static JSON_NULL: Value = Value::Null;
 const DYNAMIC_FEE_FLAG: i64 = 8_388_608;
 const MAX_FIXED_FEE: i64 = 100_000;
 
+/// The highest fee a pool may carry to enter the pool library.
+///
+/// The library is the trading universe of the orchestrator. A pool whose
+/// fee is above this ceiling is not a pool the orchestrator may trade, and
+/// a pool that is not tradeable does not belong in the library at all: it
+/// only enlarges the index, the depth measurement load and the backup
+/// retention set without ever being a candidate.
+///
+/// The ceiling is expressed in hundredths of a bip, so 30000 is 3.00%.
+const MAX_LIBRARY_FEE: i64 = 30_000;
+
+/// Whether a pool may enter the pool library.
+///
+/// A pool qualifies only when it carries a **fixed** fee inside the
+/// ceiling. A dynamic-fee pool is excluded because its rate is decided by
+/// a hook at swap time, and a pool above the ceiling is excluded because
+/// the orchestrator will never trade it.
+fn pool_enters_library(fee: Option<i64>) -> bool {
+    match fee {
+        Some(value) => value > 0 && value <= MAX_LIBRARY_FEE && value & DYNAMIC_FEE_FLAG == 0,
+        None => false,
+    }
+}
+
 fn utc_now() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
@@ -69,6 +93,25 @@ fn bool_value(value: &Value) -> bool {
         Value::Number(item) => item.as_f64().map(|item| item != 0.0).unwrap_or(false),
         Value::String(raw) => matches!(raw.trim().to_lowercase().as_str(), "1" | "true" | "yes"),
         _ => false,
+    }
+}
+
+/// Interpret a tri-state liquidity observation as a boolean.
+///
+/// The store keeps the observation as `NULL` (never measured), `0` (the
+/// pool manager reported no liquidity) or `1` (liquidity confirmed).  The
+/// admission rule treats a missing measurement as a coverage gap and an
+/// explicit zero as a rejection, so the two states must not collapse.
+fn tri_bool(value: &Value) -> Option<bool> {
+    match value {
+        Value::Null => None,
+        Value::Bool(item) => Some(*item),
+        Value::Number(item) => Some(item.as_f64().map(|raw| raw != 0.0).unwrap_or(false)),
+        Value::String(raw) => Some(matches!(
+            raw.trim().to_lowercase().as_str(),
+            "1" | "true" | "yes"
+        )),
+        _ => Some(true),
     }
 }
 
@@ -464,8 +507,19 @@ fn upsert_v4_exchange_pools(
         if pool_id.is_empty() || token0.is_empty() || token1.is_empty() {
             continue;
         }
+        // A pool whose fee is outside the library ceiling never enters the
+        // pool table. The rule is a **storage** rule, not a ranking rule:
+        // the pool is not in the library, so it can never be a candidate, a
+        // recommendation or a backup.
+        let fee = as_i64(
+            row.get("fee")
+                .or_else(|| row.get("feePips"))
+                .unwrap_or(&JSON_NULL),
+        );
+        if !pool_enters_library(fee) {
+            continue;
+        }
         let address_pair = format!("{token0}:{token1}");
-        let fee = as_i64(row.get("fee").unwrap_or(&JSON_NULL));
         let dynamic_fee = fee
             .map(|value| value & DYNAMIC_FEE_FLAG != 0)
             .unwrap_or(false);
@@ -551,6 +605,49 @@ fn upsert_v4_exchange_pools(
     Ok(count)
 }
 
+/// Attach the kernel admission verdict to a depth-band document.
+///
+/// The verdict is owned by the Rust kernel and read from the shared depth
+/// policy, so publishing it on every surface keeps one decision per pool
+/// instead of a decision that only exists on the candidate surface.
+fn attach_kernel_admission_verdict(
+    depth_band: Value,
+    depth_status: Option<&str>,
+    has_liquidity: Option<bool>,
+) -> Value {
+    let document = json_object_value(&depth_band);
+    let document_raw = json_dumps(&document);
+    let verdict = crate::depth_verdict::admit_candidate_pool_with_liquidity(
+        depth_status,
+        Some(document_raw.as_str()),
+        has_liquidity,
+    );
+    let mut document = match document {
+        Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    document.insert(
+        "kernelAdmitted".to_string(),
+        Value::Bool(verdict.admitted),
+    );
+    document.insert(
+        "kernelAdmissionReason".to_string(),
+        Value::String(verdict.reason),
+    );
+    if let Some(band) = verdict.depth_band {
+        document.insert("kernelDepthBand".to_string(), Value::String(band));
+    }
+    if let Some(capacity) = verdict.capacity_binding_raw {
+        document.insert(
+            "kernelCapacityBindingRaw".to_string(),
+            serde_json::Number::from_f64(capacity)
+                .map(Value::Number)
+                .unwrap_or(Value::Null),
+        );
+    }
+    Value::Object(document)
+}
+
 fn upsert_v4_liquidity_snapshots(
     transaction: &Transaction<'_>,
     network: &str,
@@ -621,6 +718,18 @@ fn upsert_v4_liquidity_snapshots(
             .or_else(|| row.get("depthBand"))
             .cloned()
             .unwrap_or_else(|| Value::Object(Default::default()));
+        // The chain scoped liquidity snapshot is the one row every consumer
+        // of a physical pool can reach.  The kernel admission verdict must
+        // therefore travel with it, otherwise a pool that is absent from an
+        // anchor scoped surface has no verdict at all and every consumer
+        // reads it as an unresolved coverage gap.
+        let depth_band = attach_kernel_admission_verdict(
+            depth_band,
+            row.get("depth_status")
+                .or_else(|| row.get("depthStatus"))
+                .and_then(Value::as_str),
+            tri_bool(&has_liquidity),
+        );
         let observed_at = row
             .get("observed_at")
             .or_else(|| row.get("observedAt"))
@@ -1110,25 +1219,88 @@ pub(crate) fn prune_v4_non_executable_evidence(
             )
             .map_err(|error| format!("unknown liquidity delete failed: {error}"))?;
     }
-    let deleted_pools = if removable_pool_ids.is_empty() {
-        0
-    } else {
-        let placeholders = vec!["?"; removable_pool_ids.len()].join(",");
-        let sql = format!(
-            "DELETE FROM v4_exchange_pools
-             WHERE network = ? AND chain_id = ? AND protocol = ?
-               AND pool_id IN ({placeholders})"
-        );
+    // A pool whose fee is above the library ceiling does not belong in the
+    // pool table. The ceiling is a **storage** rule, so the rows that
+    // entered the table before the rule was enforced are removed here.
+    //
+    // The removal also drops the matching liquidity snapshot, because a
+    // snapshot without its pool is an orphan that the pool index would keep
+    // reporting as a coverage gap.
+    let mut removed_by_fee = 0usize;
+    {
+        let mut statement = transaction
+            .prepare(
+                "SELECT pool_id FROM v4_exchange_pools
+                 WHERE network = ? AND chain_id = ? AND protocol = ?
+                   AND (fee IS NULL OR fee <= 0 OR fee > ?4
+                        OR (fee & ?5) != 0)",
+            )
+            .map_err(|error| format!("library fee select failed: {error}"))?;
+        let rows = statement
+            .query_map(
+                params_from_iter(
+                    sql_params(&[
+                        Value::from(network.to_string()),
+                        Value::from(chain_id),
+                        Value::from(protocol.to_string()),
+                        Value::from(MAX_LIBRARY_FEE),
+                        Value::from(DYNAMIC_FEE_FLAG),
+                    ])
+                    .iter(),
+                ),
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .map_err(|error| format!("library fee query failed: {error}"))?;
+        for row in rows {
+            let pool_id = norm(&row.map_err(|error| format!("library fee row failed: {error}"))?);
+            if !pool_id.is_empty() {
+                removable_pool_ids.insert(pool_id);
+            }
+        }
+    }
+    let mut deleted_pools = 0usize;
+    let removable_pool_ids = removable_pool_ids.into_iter().collect::<Vec<_>>();
+    for chunk in removable_pool_ids.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(",");
         let mut params = vec![
             Value::from(network.to_string()),
             Value::from(chain_id),
             Value::from(protocol.to_string()),
         ];
-        params.extend(removable_pool_ids.iter().cloned().map(Value::from));
-        transaction
+        params.extend(chunk.iter().cloned().map(Value::from));
+
+        // The children have to go first: the closed-loop tables reference
+        // the pool table, and the snapshot table references it as well. The
+        // removal order is therefore deepest child first. Chunks stay below
+        // SQLite's common 999-variable limit.
+        for (table, column) in [
+            ("v4_closed_loop_optimizations", "optimized_pool_id"),
+            ("v4_closed_loop_optimizations", "original_pool_id"),
+            ("v4_closed_loop_hops", "base_pool_id"),
+            ("v4_closed_loop_hops", "pool_id"),
+            ("v4_exchange_pool_liquidity_snapshots", "pool_id"),
+        ] {
+            let sql = format!(
+                "DELETE FROM {table}
+                 WHERE network = ? AND chain_id = ? AND protocol = ?
+                   AND {column} IN ({placeholders})"
+            );
+            transaction
+                .execute(&sql, params_from_iter(sql_params(&params).iter()))
+                .map_err(|error| format!("{table} delete failed: {error}"))?;
+        }
+        let sql = format!(
+            "DELETE FROM v4_exchange_pools
+             WHERE network = ? AND chain_id = ? AND protocol = ?
+               AND pool_id IN ({placeholders})"
+        );
+        deleted_pools += transaction
             .execute(&sql, params_from_iter(sql_params(&params).iter()))
-            .map_err(|error| format!("pool delete failed: {error}"))?
-    };
+            .map_err(|error| format!("pool delete failed: {error}"))?;
+    }
+    if !removable_pool_ids.is_empty() {
+        removed_by_fee = removable_pool_ids.len();
+    }
     let after_liquidity: i64 = transaction
         .query_row(
             count_sql,
@@ -1167,6 +1339,8 @@ pub(crate) fn prune_v4_non_executable_evidence(
         "deletedZeroLiquidityCount": deleted_zero,
         "deletedUnknownLiquidityCount": deleted_unknown,
         "deletedPoolCount": deleted_pools,
+        "removedByLibraryFeeCount": removed_by_fee,
+        "libraryFeeCeiling": MAX_LIBRARY_FEE,
         "afterLiquidityCount": after_liquidity,
         "afterPoolCount": after_pools,
     }))
@@ -1176,6 +1350,74 @@ pub(crate) fn prune_v4_non_executable_evidence(
 mod tests {
     use super::*;
     use rusqlite::Connection;
+
+    /// The pool library only holds pools the orchestrator may trade, so
+    /// the fee ceiling is a **storage** rule and not a ranking rule.
+    #[test]
+    fn the_library_only_accepts_a_fixed_fee_inside_the_ceiling() {
+        assert!(pool_enters_library(Some(500)));
+        assert!(pool_enters_library(Some(30_000)));
+        // Above the ceiling the pool is not tradeable, so it is not stored.
+        assert!(!pool_enters_library(Some(30_001)));
+        assert!(!pool_enters_library(Some(100_000)));
+        // A dynamic-fee pool carries no reproducible rate.
+        assert!(!pool_enters_library(Some(DYNAMIC_FEE_FLAG)));
+        assert!(!pool_enters_library(Some(DYNAMIC_FEE_FLAG | 3000)));
+        // A pool without a fee cannot be priced.
+        assert!(!pool_enters_library(None));
+        assert!(!pool_enters_library(Some(0)));
+    }
+
+    /// The chain scoped liquidity snapshot is the only row every consumer of
+    /// a physical pool can reach.  The kernel verdict has to travel with it,
+    /// otherwise a pool that is missing from an anchor scoped surface reads
+    /// as an unresolved coverage gap instead of an admission decision.
+    #[test]
+    fn the_chain_scoped_depth_document_carries_the_kernel_verdict() {
+        let document = attach_kernel_admission_verdict(
+            json!({"label": "deep", "level": "deep"}),
+            Some("deep"),
+            Some(true),
+        );
+        assert_eq!(document.get("kernelAdmitted"), Some(&Value::Bool(true)));
+        assert!(document.get("kernelAdmissionReason").is_some());
+        // The measured facts stay untouched next to the verdict.
+        assert_eq!(document.get("label"), Some(&Value::from("deep")));
+    }
+
+    /// An explicit zero liquidity is a rejection, whatever the label says.
+    #[test]
+    fn the_chain_scoped_depth_document_rejects_an_explicit_zero_liquidity() {
+        let document = attach_kernel_admission_verdict(
+            json!({"label": "deep"}),
+            Some("deep"),
+            Some(false),
+        );
+        assert_eq!(document.get("kernelAdmitted"), Some(&Value::Bool(false)));
+        assert_eq!(
+            document.get("kernelAdmissionReason"),
+            Some(&Value::from("explicit_zero_liquidity"))
+        );
+    }
+
+    /// A never measured liquidity stays a coverage gap, not a rejection.
+    #[test]
+    fn the_chain_scoped_depth_document_keeps_a_missing_liquidity_unresolved() {
+        let document =
+            attach_kernel_admission_verdict(json!({"label": "deep"}), Some("deep"), None);
+        assert_eq!(document.get("kernelAdmitted"), Some(&Value::Bool(true)));
+    }
+
+    /// The tri-state liquidity observation must not collapse: a missing
+    /// measurement and an explicit zero are different market facts.
+    #[test]
+    fn the_liquidity_observation_keeps_its_three_states() {
+        assert_eq!(tri_bool(&Value::Null), None);
+        assert_eq!(tri_bool(&Value::from(0)), Some(false));
+        assert_eq!(tri_bool(&Value::from(1)), Some(true));
+        assert_eq!(tri_bool(&Value::from("true")), Some(true));
+        assert_eq!(tri_bool(&Value::from("no")), Some(false));
+    }
 
     #[test]
     fn tri_converts_common_evidence_values() {

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_EXTREMES_PATH = SRC_ROOT / "runtime" / "state" / "latest_extremes.json"
 DEFAULT_POOL_CACHE = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 DEFAULT_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "ui_signal_pool_quotes"

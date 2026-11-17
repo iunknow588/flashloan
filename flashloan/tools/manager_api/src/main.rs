@@ -16,20 +16,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let broadcast_authority = authority_from_env("BROADCAST_MANAGER_AUTHORITY")?;
     let composite_authority = authority_from_env("COMPOSITE_MANAGER_AUTHORITY")?;
     if let Ok(database_path) = env::var("MANAGER_DB_PATH") {
-        serve_with_state(
-            address,
-            Arc::new(
-                AppState::with_token_database(database_path)
-                    .with_token_authority(token_authority)
-                    .with_candidate_authority(candidate_authority)
-                    .with_exchange_authority(exchange_authority)
-                    .with_closed_loop_authority(closed_loop_authority)
-                    .with_review_authority(review_authority)
-                    .with_broadcast_authority(broadcast_authority)
-                    .with_composite_authority(composite_authority),
-            ),
-        )
-        .await?;
+        let mut state = AppState::with_token_database(database_path)
+            .with_token_authority(token_authority)
+            .with_candidate_authority(candidate_authority)
+            .with_exchange_authority(exchange_authority)
+            .with_closed_loop_authority(closed_loop_authority)
+            .with_review_authority(review_authority)
+            .with_broadcast_authority(broadcast_authority)
+            .with_composite_authority(composite_authority);
+        // The network namespace is part of the row identity of every chain's
+        // library. It is resolved per request from the chain id by default,
+        // which keeps one process chain-safe. The operator can pin it when
+        // the namespace is not known to the chain-id table.
+        if let Ok(network) = env::var("MANAGER_NETWORK") {
+            state = state.with_network_override(network);
+        }
+        serve_with_state(address, Arc::new(state)).await?;
     } else {
         serve(address).await?;
     }

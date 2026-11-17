@@ -6,10 +6,15 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
+from core.db.direction_pool_score import depth_band_document
 from core.db.storage_business_io import executemany, query
 
 
-MAX_USABLE_CANDIDATE_FIXED_FEE = 3000
+# The ceiling comes from the shared depth policy, so the Python orchestrator,
+# the Rust pool manager, the Rust token manager and the Rust evidence writer
+# can never disagree about which pools may enter the library.
+MAX_USABLE_CANDIDATE_FIXED_FEE = MAX_CANDIDATE_FIXED_FEE
 
 
 def _stamp() -> str:
@@ -249,7 +254,7 @@ def replace_dex_candidate_tables(
                 _float_none(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd")),
                 _json_dumps(pool.get("balances") or pool.get("balances_json") or {}),
                 pool.get("depth_status") or pool.get("depthStatus") or "",
-                _json_dumps(pool.get("depth_band") or pool.get("depthBand") or {}),
+                _json_dumps(depth_band_document(pool)),
                 _bool_tri(
                     pool.get("usable_for_observation")
                     if pool.get("usable_for_observation") is not None
@@ -541,7 +546,7 @@ def replace_dex_candidate_abnormal_tables(
                 _float_none(pool.get("estimated_tvl_usd") or pool.get("estimatedTvlUsd")),
                 _json_dumps(pool.get("balances") or pool.get("balances_json") or {}),
                 pool.get("depth_status") or pool.get("depthStatus") or "",
-                _json_dumps(pool.get("depth_band") or pool.get("depthBand") or {}),
+                _json_dumps(depth_band_document(pool)),
                 _bool_tri(
                     pool.get("usable_for_observation")
                     if pool.get("usable_for_observation") is not None

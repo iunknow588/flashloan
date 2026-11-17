@@ -261,4 +261,14 @@ class DexOpportunityScannerFlowMixin:
                     else:
                         self._snapshots[key]["error"] = error
                         self._snapshots[key]["errorStack"] = error_stack
+                if snapshot is not None:
+                    # ARCH-1: the recommendation set was derived from this
+                    # pool state, so this state becomes the baseline that a
+                    # later version change is measured against. A failed scan
+                    # deliberately does not move the baseline: the state has
+                    # not been turned into a recommendation yet.
+                    self._remember_pool_state_fingerprint(
+                        chain_id=chain_id,
+                        protocols=protocols,
+                    )
                 self._write_cache()
