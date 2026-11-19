@@ -1,4 +1,4 @@
-﻿# 主网自愈编排器审查修复 Checklist v10.17（2026-11-20）
+# 主网自愈编排器审查修复 Checklist v10.17（2026-11-20）
 
 > 仅包含开放验收条件。全部保持 `[ ]`；完成时先保存当前机器证据与人工摘要，再把对应任务和验收项归档至 `back/`。
 
@@ -38,10 +38,11 @@
 
 ### TASK-145｜USDG 估值单位与覆盖
 
+- [ ] **AC-212** USDG identity、ETH/WETH 路径、token decimals、借款本金、fee、gas 和 signed PnL 的 raw/human 单位契约经 Rust 单测与真实 review 输出共同验证；缺价格时 fail-closed，不以默认零或估值补值。
 - [ ] `token_library_catalog` table/view 两种契约读取和 decimals 测试通过。
 - [ ] ETH/WETH 估值方向与 token decimals 正确；USDG anchor 使用稳定币原始单位 identity，不依赖 USDG/USDG 池。
 - [ ] review 的借款本金、fee、gas、signed PnL 使用可审计一致单位；保存实际 review 原始字段对照。
-- [ ] 主网 88/88 覆盖在本轮新鲜 Manager 状态下复核；测试网 Manager loops>0 后执行同一验证。
+- [ ] 主网 88/88 覆盖在新鲜 Manager 状态下复核；测试网 Manager loops>0 后执行同一验证。覆盖率不能替代真实 review 单位检查。
 - [ ] 其他无可用价格/精度的代币明确报告 coverage gap，不使用零汇率或默认汇率。
 
 ## 2. P1 测试网级联和广播

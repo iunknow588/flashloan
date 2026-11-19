@@ -9,15 +9,15 @@
 | `主网编排器审查修复_check_list_20261113.md` | 逐项验收条件；未完成项目保持 `[ ]` |
 | `back/` | 冻结计划、已完成任务归档和历史索引 |
 
-当前活动版本为 **v10.17**。已分配任务至 `TASK-148`，验收编号至 `AC-213`；编号永久不复用。v10.16 活动文件已冻结于 `back/冻结归档_*_20261120_v10.16.md`。
+当前活动版本为 **v10.17**。已分配任务至 `TASK-148`，验收编号至 `AC-213`；编号永久不复用。v10.16 活动文件已逐份冻结于归档目录。
 
-## 当前状态
+## 最近留存观测（非实时）
 
 - Rust 内核：`cargo test --offline --lib`，183 passed。
 - Manager workspace：`cargo test --offline --workspace` 的各 crate 测试全部通过；有 unused import/variable 警告。
-- Python 全量测试上次在根 `scripts/` 被移走的期间运行，未能通过；脚本现已回到根目录，必须重新验证后才能更新全量基线。
-- 主网 healer 最新留存报告时间为 2026-11-19 12:13Z：60 条 review 中 59 条有盈亏、1 条缺最佳金额，positive=0，broadcast records=0，blockers 为 reviews/broadcast，`safeToAutoBroadcast=false`。该报告已过新鲜度窗口，不能代表当前实时状态。
-- 测试网 Round 38 证据显示方向数 0、Manager loops 0；RPC/WSS 刷新和候选池覆盖仍阻塞完整同构验证。
+- Python 全量测试记录：脚本恢复到根目录后的全量运行是 2649 passed、2 failed、3 skipped；其中 README MIO 断言失败已修复，MIO 守卫随后 19/19 通过。token-authority 用例全量运行时失败、单独运行 1/1 通过，指向测试间 chain runtime 状态污染；全量套件尚未在隔离该状态后重跑。
+- 主网 healer 留存报告（生成于 2026-11-19 12:13Z）：60 条 review 中 59 条有盈亏、1 条缺最佳金额，positive=0，broadcast records=0，blockers 为 reviews/broadcast，`safeToAutoBroadcast=false`。该报告已过新鲜度窗口，不能代表当前实时状态。
+- 测试网 Round 38 留存证据（生成于 2026-11-18 12:00Z）显示方向数 0、Manager loops 0；RPC/WSS 刷新和候选池覆盖仍阻塞完整同构验证。
 - 已完成代码/迁移/物化范围和未完成边界见 `back/已完成任务归档_20261120_第39轮_跨tick与级联诊断实现.md`。
 
 ## 下一执行顺序
@@ -44,10 +44,10 @@
 
 ## 归档
 
-- v10.16 快照：`back/冻结归档_*_20261120_v10.16.md`。
+- v10.16 快照：`back/冻结归档_README_20261120_v10.16.md`、`back/冻结归档_开发计划_20261120_v10.16.md`、`back/冻结归档_未完成任务清单_20261120_v10.16.md`、`back/冻结归档_主网编排器审查修复_check_list_20261120_v10.16.md`。
 - 第 39 轮实现归档：`back/已完成任务归档_20261120_第39轮_跨tick与级联诊断实现.md`。
 - 机器证据：`runtime_evidence/reports/`。证据必须按时间、chain ID 和数据库范围解释，不得把过期状态称为当前状态。
-## 内存对象处理约束
+## 内存对象处理约束（MIO-1..MIO-8）
 
 - **MIO-1** 初始化读取 SQLite；处理循环不逐条查询业务表。
 - **MIO-2** 运行期业务状态由全局内存上下文持有，计算只消费当前快照。
