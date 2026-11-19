@@ -1,0 +1,90 @@
+{
+    "schema":  "flashloan-plan-round-evidence-v1",
+    "generatedAt":  "2026-11-18T12:00:00Z",
+    "planVersion":  "v10.15",
+    "round":  38,
+    "taskIds":  [
+                    "TASK-147",
+                    "TASK-141"
+                ],
+    "acceptanceIds":  [
+                          "AC-211",
+                          "AC-212"
+                      ],
+    "authority":  "controlled-replay",
+    "scope":  "read-only testnet SQLite inspection and manager dry-runs; no apply, review rerun, or broadcast",
+    "database":  {
+                     "path":  "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+                     "chainId":  46630,
+                     "network":  "robinhood-testnet",
+                     "backupCreated":  false
+                 },
+    "rootCause":  {
+                      "candidateAnchorCount":  1,
+                      "candidateToken":  "AMZN",
+                      "candidateTokenAdmission":  "candidate_only",
+                      "candidateRecommendations":  2,
+                      "candidateExchangeAdmittedTokenCount":  1,
+                      "candidateExchangeDirectionCount":  0,
+                      "candidateExchangePoolCount":  0,
+                      "managerClosedLoopCount":  0,
+                      "managerSkippedTokenCount":  1,
+                      "legacyClosedLoopCount":  38,
+                      "legacyUsedAsAuthority":  false
+                  },
+    "scopeDryRuns":  [
+                         {
+                             "scope":  "core4",
+                             "sourcePoolCount":  36,
+                             "eligiblePoolCount":  1,
+                             "skippedPoolCount":  35,
+                             "skipReasonCounts":  {
+                                                      "depth_ineligible":  17,
+                                                      "no_core_anchor":  6,
+                                                      "token_not_admitted":  12
+                                                  },
+                             "apply":  false,
+                             "changedRows":  1
+                         },
+                         {
+                             "scope":  "candidate_exchange",
+                             "sourcePoolCount":  36,
+                             "eligiblePoolCount":  5,
+                             "skippedPoolCount":  31,
+                             "skipReasonCounts":  {
+                                                      "depth_ineligible":  19,
+                                                      "token_not_admitted":  12
+                                                  },
+                             "apply":  false,
+                             "changedRows":  20
+                         }
+                     ],
+    "cascadeDryRun":  {
+                          "candidateEdges":  {
+                                                 "anchorTokenCount":  1,
+                                                 "candidateTokenCount":  1,
+                                                 "eligiblePoolCount":  1,
+                                                 "recommendationCount":  2
+                                             },
+                          "candidateExchanges":  {
+                                                     "anchorCount":  1,
+                                                     "tokenCount":  1,
+                                                     "directionCount":  0,
+                                                     "poolCount":  0
+                                                 },
+                          "closedLoops":  {
+                                              "loopCount":  0,
+                                              "hopCount":  0,
+                                              "optimizationCount":  0,
+                                              "skippedTokenCount":  1
+                                          },
+                          "apply":  false
+                      },
+    "changesApplied":  false,
+    "limitations":  [
+                        "AMZN candidate admission requires token-manager evidence review and authorized manager apply.",
+                        "Depth/tick state refresh and pool-scope apply have not been run.",
+                        "No testnet reviews or broadcasts were run.",
+                        "Mainnet production state was not modified."
+                    ]
+}

@@ -1,0 +1,11 @@
+{
+  "mode": "fill-reviews",
+  "generatedAt": "2026-11-18T18:33:22Z",
+  "apply": false,
+  "dryRun": true,
+  "policy": "real-time review first; only fresh positive review may trigger broadcast",
+  "candidateCount": 0,
+  "results": [],
+  "evidenceCount": 0,
+  "materialization": null
+}

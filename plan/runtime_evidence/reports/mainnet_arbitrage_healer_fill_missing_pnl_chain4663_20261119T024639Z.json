@@ -1,0 +1,11 @@
+{
+  "mode": "rereview-missing-pnl",
+  "generatedAt": "2026-11-19T02:46:39Z",
+  "apply": true,
+  "dryRun": false,
+  "candidateCount": 0,
+  "results": [],
+  "evidenceCount": 0,
+  "materialization": null,
+  "policy": "missing PnL must be replaced by a fresh live review, never by zero"
+}

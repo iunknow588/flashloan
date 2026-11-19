@@ -1,0 +1,508 @@
+{
+  "mode": "fill-reviews",
+  "generatedAt": "2026-11-19T03:44:58Z",
+  "apply": true,
+  "dryRun": false,
+  "policy": "real-time review first; only fresh positive review may trigger broadcast",
+  "candidateCount": 16,
+  "results": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "path": "ETH -> NVDA -> MU -> ETH",
+      "routeSymbols": [
+        "ETH",
+        "NVDA",
+        "MU",
+        "ETH"
+      ],
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "ETH -> MU -> NVDA -> ETH",
+      "routeSymbols": [
+        "ETH",
+        "MU",
+        "NVDA",
+        "ETH"
+      ],
+      "routeAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "path": "SPY -> NVDA -> AMD -> SPY",
+      "routeSymbols": [
+        "SPY",
+        "NVDA",
+        "AMD",
+        "SPY"
+      ],
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "path": "SPY -> NVDA -> MU -> SPY",
+      "routeSymbols": [
+        "SPY",
+        "NVDA",
+        "MU",
+        "SPY"
+      ],
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "SPY -> MU -> NVDA -> SPY",
+      "routeSymbols": [
+        "SPY",
+        "MU",
+        "NVDA",
+        "SPY"
+      ],
+      "routeAddresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "AMD -> SPY -> NVDA -> AMD",
+      "routeSymbols": [
+        "AMD",
+        "SPY",
+        "NVDA",
+        "AMD"
+      ],
+      "routeAddresses": [
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "path": "TZ -> TB -> TA -> TZ",
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "routeAddresses": [
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "0xa8cf7c51eee671646ba440ffa180f970902fd2fb"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "path": "NVDA -> ETH -> MU -> NVDA",
+      "routeSymbols": [
+        "NVDA",
+        "ETH",
+        "MU",
+        "NVDA"
+      ],
+      "routeAddresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "path": "NVDA -> SPY -> MU -> NVDA",
+      "routeSymbols": [
+        "NVDA",
+        "SPY",
+        "MU",
+        "NVDA"
+      ],
+      "routeAddresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "path": "NVDA -> AMD -> SPY -> NVDA",
+      "routeSymbols": [
+        "NVDA",
+        "AMD",
+        "SPY",
+        "NVDA"
+      ],
+      "routeAddresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "path": "NVDA -> MU -> ETH -> NVDA",
+      "routeSymbols": [
+        "NVDA",
+        "MU",
+        "ETH",
+        "NVDA"
+      ],
+      "routeAddresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "path": "NVDA -> MU -> SPY -> NVDA",
+      "routeSymbols": [
+        "NVDA",
+        "MU",
+        "SPY",
+        "NVDA"
+      ],
+      "routeAddresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "MU -> ETH -> NVDA -> MU",
+      "routeSymbols": [
+        "MU",
+        "ETH",
+        "NVDA",
+        "MU"
+      ],
+      "routeAddresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "path": "MU -> SPY -> NVDA -> MU",
+      "routeSymbols": [
+        "MU",
+        "SPY",
+        "NVDA",
+        "MU"
+      ],
+      "routeAddresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "path": "MU -> NVDA -> ETH -> MU",
+      "routeSymbols": [
+        "MU",
+        "NVDA",
+        "ETH",
+        "MU"
+      ],
+      "routeAddresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "path": "MU -> NVDA -> SPY -> MU",
+      "routeSymbols": [
+        "MU",
+        "NVDA",
+        "SPY",
+        "MU"
+      ],
+      "routeAddresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "broadcastRequestedByHealer": false,
+      "liveReviewRequest": {
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        },
+        "workerRefreshRequired": false,
+        "finalReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      "evidenceCaptured": false
+    }
+  ],
+  "evidenceCount": 0,
+  "materialization": null
+}

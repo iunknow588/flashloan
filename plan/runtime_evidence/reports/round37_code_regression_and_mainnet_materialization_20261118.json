@@ -1,0 +1,161 @@
+{
+  "schema": "flashloan-plan-round-evidence-v1",
+  "generatedAt": "2026-11-18T10:05:00Z",
+  "planVersion": "v10.14",
+  "round": 37,
+  "taskIds": [
+    "TASK-142",
+    "TASK-145"
+  ],
+  "acceptanceIds": [
+    "AC-211",
+    "AC-212"
+  ],
+  "authority": "controlled-replay",
+  "scope": "code-and-test verification plus recorded local mainnet manager migration/materialization; no real broadcast",
+  "codeChangesVerified": [
+    {
+      "area": "rust-ladder",
+      "facts": [
+        "kernel derives ladder start",
+        "search capacity separated from single-tick capacity",
+        "economic floor checked in Rust",
+        "measured zero profit emitted explicitly"
+      ],
+      "verification": "cargo test --offline --lib: 178 passed"
+    },
+    {
+      "area": "python-consumer",
+      "facts": [
+        "Python no longer derives initial amount/capacity",
+        "zero profit accepted only when measurement is explicit"
+      ],
+      "verification": "Python unit suite: 2650 passed, 3 skipped"
+    },
+    {
+      "area": "review-healer",
+      "facts": [
+        "absent manager/legacy hop table handled",
+        "manager and legacy reviews normalized and deduplicated by route",
+        "explicit PnL preferred over missing value"
+      ],
+      "verification": "test_mainnet_arbitrage_healer_repair_chain.py: 35 passed"
+    },
+    {
+      "area": "secret-guard",
+      "facts": [
+        "public pool IDs, transaction hashes, bytecode fields and max-u256 sentinel are contextually excluded from private-key false positives"
+      ],
+      "verification": "test_secret_leakage_guards.py: 3 passed"
+    },
+    {
+      "area": "rust-manager",
+      "facts": [
+        "closed-loop reads token_library_catalog as table or view"
+      ],
+      "verification": "closed-loop-manager 28 passed; pool-manager 155 passed"
+    },
+    {
+      "area": "usdg-identity-valuation",
+      "facts": [
+        "USDG identity valuation is one whole USDG token expressed in raw USDG units",
+        "no USDG/USDG pool required",
+        "shared function is unit tested"
+      ],
+      "verification": "closed-loop-manager: 29 passed"
+    }
+  ],
+  "localMainnet": {
+    "database": "flashloan/db/local_store_4663.sqlite3",
+    "chainId": 4663,
+    "migration": "20261118_010_cross_tick_seed_schema",
+    "migrationApplied": true,
+    "closedLoopMaterialization": {
+      "loopCount": 88,
+      "hopCount": 264,
+      "optimizationCount": 374
+    },
+    "usdgValuationCoverage": {
+      "total": 88,
+      "valued": 88,
+      "eth": {
+        "total": 28,
+        "valued": 28,
+        "rawValuePerWholeToken": "2461669444"
+      },
+      "weth": {
+        "total": 6,
+        "valued": 6,
+        "rawValuePerWholeToken": "2428434875"
+      },
+      "usdgAnchor": {
+        "total": 54,
+        "valued": 54,
+        "rawValuePerWholeToken": "1000000",
+        "basis": "stablecoin_unit_identity"
+      }
+    },
+    "reviewsBeforeRerun": {
+      "total": 88,
+      "dataIncomplete": 59,
+      "notExecutable": 29
+    },
+    "reviewRerunCompleted": false,
+    "broadcastSubmitted": false,
+    "stableWindowPassed": false
+  },
+  "services": [
+    {
+      "port": 8091,
+      "chainId": 4663,
+      "health": "200"
+    },
+    {
+      "port": 8092,
+      "chainId": 46630,
+      "health": "200"
+    }
+  ],
+  "limitations": [
+    "Application runtime API on port 5000 is not running, so live reviews have not been rerun.",
+    "Testnet manager schema state exists but closed-loop count is 0; testnet parity is unresolved.",
+    "No real broadcast has been submitted and no production stability window has passed."
+  ],
+  "pendingTaskIds": [
+    "TASK-141",
+    "TASK-142",
+    "TASK-143",
+    "TASK-144",
+    "TASK-145",
+    "TASK-146"
+  ],
+  "pendingAcceptanceIds": [
+    "AC-211",
+    "AC-212"
+  ],
+  "localTestnet": {
+    "database": "flashloan/db/local_store_46630.sqlite3",
+    "chainId": 46630,
+    "managerClosedLoopCount": 0,
+    "materializeMode": "apply",
+    "closedLoopParityVerified": false,
+    "reason": "manager library state exists but current closed-loop table has zero rows"
+  },
+  "backups": [
+    {
+      "path": "flashloan/db/local_store_4663.sqlite3.bak_v1014_usdg",
+      "created": true,
+      "verifiedBytes": 3507453952
+    },
+    {
+      "path": "flashloan/db/local_store_46630.sqlite3.bak_v1014_usdg",
+      "created": true,
+      "verifiedBytes": 875880448
+    }
+  ],
+  "runtime": {
+    "applicationApi5000": "not-running",
+    "managerApi8091": "healthy-mainnet",
+    "managerApi8092": "healthy-testnet"
+  }
+}
