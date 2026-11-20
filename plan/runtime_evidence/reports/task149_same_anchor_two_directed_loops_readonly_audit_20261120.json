@@ -1,0 +1,84 @@
+{
+  "task": "TASK-149 补充核验 / 同锚点双方向闭环查询结构确认",
+  "generatedAt": "2026-11-20T10:54:16.636990+00:00",
+  "readonly": true,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "question": "一个闭环分组下存在两个方向闭环 X-Y-Z-X 与 X-Z-Y-X 时，当前系统是否支持该查询结构？",
+  "answer": "支持。两个方向被实现为两个完全独立的闭环，各自拥有独立的发布键、池集合、容量、绑定池、路由键与运行时状态行。系统不做任何合并、归一化或重排。",
+  "identityModel": {
+    "principle": "闭环身份 = 资金锚点 + 方向池子（有序三地址路径）",
+    "managerLoopKeyFormula": "anchor_address:y_address:z_address（有序，Y 与 Z 不可互换）",
+    "kernelCatalogKey": "有序 3 地址路径 Vec<String>，BTreeMap 精确索引",
+    "pythonRuntimeKey": "normalize_physical_loop_key(loop_key) = anchor:y:z",
+    "rotationCapabilityPresent": false,
+    "reversedPairIsSameLoop": false
+  },
+  "layers": {
+    "managerPublish": {
+      "loopKeyFormula": "format!(\"{anchor_address}:{y_address}:{z_address}\")",
+      "generatorLoop": "for y_token in &first_keys { for z_token in &third_keys { ... } }  // 有序双循环",
+      "yzDirectionKey": "format!(\"{y_token}->{z_token}\")  // 有向，Y->Z 与 Z->Y 是不同条目",
+      "pathAddresses": "[anchor, y, z, anchor]（4 元素首尾闭合）",
+      "routeKeyId": "RouteKeyId::new(&[anchor, y, z])（有序）"
+    },
+    "kernelCatalog": {
+      "module": "flashloan/rs-src/src/closed_loop_identity.rs",
+      "index": "BTreeMap<Vec<String>, ClosedLoopIdentity>，键为有序 3 地址路径",
+      "lookup": "identity_for(addresses) 精确匹配，无重排、无别名、无归一化",
+      "poolIdentityCheck": "routePoolIds / 顶层 poolIds 在真实 review 配置中不存在，故不参与判定；身份判定由有序地址路径唯一决定"
+    },
+    "pythonRuntimeStateMachine": {
+      "module": "flashloan/src/dex/runtime/closed_loop_state_machine.py",
+      "identitySets": "_closed_loop_identity_sets 收集精确有序路径集合",
+      "match": "_state_identity_matches 要求归一化后完全相等",
+      "legacyClassification": "_legacy_state_identity_kind 精确匹配，误判则报孤儿",
+      "runtimeRowKey": "loop_key（anchor:y:z），每个方向一行"
+    },
+    "reviewManager": {
+      "module": "flashloan/tools/review_manager/src/lib.rs",
+      "membership": "validate_evidence_membership 要求证据键在已发布键集合中精确命中，未命中报 UnknownClosedLoop",
+      "indexing": "build_review_rows 以精确 loop_key 建 BTreeMap 索引证据"
+    }
+  },
+  "mainnetReadings": {
+    "managerPublishedLoops": 164,
+    "distinctAnchors": 17,
+    "anchorsWithMultipleDirectedLoops": 17,
+    "distinctOrderedAddressPaths": 164,
+    "distinctOrderedSymbolPaths": 164,
+    "reversedPairsX_Y_Z_X_vsX_Z_Y_X": 158,
+    "reversedPairsResolvingToDistinctKeyPoolsAndCapacity": 158,
+    "reversedPairsWithSamePoolSet": 0,
+    "reversedPairsWithIdenticalCapacity": 0,
+    "kernelCatalogEntries": 164,
+    "kernelCatalogEntriesWithCapacity": 164,
+    "managerRuntimeStateDistinctLoopKeys": 164,
+    "managerRuntimeStateDuplicateLoopKeys": 0,
+    "legacyRuntimeStateDistinctLoopKeys": 66,
+    "legacyRuntimeStateDuplicateLoopKeys": 0,
+    "reversedPairsBothOwningRuntimeStateRow": 158,
+    "yzOrderedDirectionsMeasured": 1326,
+    "anchorsWithBothY_toZ_andZ_toY": 17
+  },
+  "conclusion": {
+    "supported": true,
+    "model": "两个独立闭环（不是同一条闭环的两个方向视图）",
+    "guarantee": "X-Y-Z-X 的路由绝不会借用 X-Z-Y-X 的 loop key、pool ids、capacity、USDG valuation 或 cross-tick threshold",
+    "noMergingAnywhere": "Manager 发布层、Rust 目录层、Python 状态机层、review 管理器层四处均无合并/归一化/重排逻辑"
+  },
+  "regressionCoverage": {
+    "rust": "flashloan/rs-src/src/closed_loop_identity.rs :: one_anchor_carries_two_independent_directed_closed_loops（本轮新增）",
+    "pythonExisting": [
+      "flashloan/app_runtime/tests/unit/test_closed_loop_identity.py :: test_physical_and_worker_keys_preserve_direction_boundaries",
+      "flashloan/app_runtime/tests/unit/test_closed_loop_state_machine.py :: test_backfill_runtime_state_creates_one_row_per_directed_loop"
+    ],
+    "gapClosed": "Rust 侧此前没有覆盖同锚点双方向的用例"
+  },
+  "limitations": [
+    "本轮为只读核验，未执行主网复跑，未触碰生产写入、apply 与广播。",
+    "pool identity 校验分支在真实 review 配置中不参与判定，原因见 kernelCatalog.poolIdentityCheck。",
+    "market_observation 层的 group_key = anchor|direction_key 是按池边（X-Y 入口边）分组的观测分组，不是闭环身份，二者不可混淆。"
+  ]
+}

@@ -204,6 +204,55 @@ mod tests {
         assert_eq!(identity.pool_ids, vec!["p1", "p2", "p3"]);
     }
 
+    /// One funding anchor may carry two directed closed loops: X-Y-Z-X and
+    /// X-Z-Y-X.  They share the anchor but not the direction, so they are
+    /// **two independent closed loops**: each has its own published key, its
+    /// own pool set and its own folded capacity.  The catalog has to keep
+    /// them apart, because a route that runs X-Y-Z-X may never be bounded by
+    /// the capacity that was proved for X-Z-Y-X.
+    #[test]
+    fn one_anchor_carries_two_independent_directed_closed_loops() {
+        let catalog = catalog_from_rows(&[
+            serde_json::json!({
+                "loop_key": "anchor:middle:other",
+                "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+                "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
+                "single_tick_capacity_anchor_raw": "100",
+            }),
+            serde_json::json!({
+                "loop_key": "anchor:other:middle",
+                "path_addresses_json": "[\"A\",\"C\",\"B\",\"A\"]",
+                "pool_ids_json": "[\"q1\",\"q2\",\"q3\"]",
+                "single_tick_capacity_anchor_raw": "900",
+            }),
+        ]);
+        assert_eq!(catalog.by_address_path.len(), 2);
+
+        // The forward direction resolves to its own identity ...
+        let forward = catalog
+            .identity_for(&addresses("a", "b", "c", "a"))
+            .expect("X-Y-Z-X resolves");
+        assert_eq!(forward.loop_key, "anchor:middle:other");
+        assert_eq!(forward.pool_ids, vec!["p1", "p2", "p3"]);
+        assert_eq!(forward.single_tick_capacity_anchor_raw, Some(100));
+
+        // ... and the reverse direction resolves to the **other** identity.
+        let reverse = catalog
+            .identity_for(&addresses("a", "c", "b", "a"))
+            .expect("X-Z-Y-X resolves");
+        assert_eq!(reverse.loop_key, "anchor:other:middle");
+        assert_eq!(reverse.pool_ids, vec!["q1", "q2", "q3"]);
+        assert_eq!(reverse.single_tick_capacity_anchor_raw, Some(900));
+
+        // The two directions are never the same closed loop.
+        assert_ne!(forward.loop_key, reverse.loop_key);
+        assert_ne!(forward.pool_ids, reverse.pool_ids);
+        assert_ne!(
+            forward.single_tick_capacity_anchor_raw,
+            reverse.single_tick_capacity_anchor_raw
+        );
+    }
+
     #[test]
     fn conflicting_rows_for_one_address_path_are_not_selectable() {
         let rows = [
