@@ -597,6 +597,12 @@ pub fn load_v4_closed_loop(
 /// identity of every loop and the folded single-tick capacity that bounds
 /// it. The runtime reads them once, into its in-memory object, and every
 /// later processing step works on that object.
+///
+/// The projection carries `path_addresses_json` because the catalog is
+/// keyed by the **ordered address path** of the loop. Without that
+/// column the catalog has no way to tell which loop a route belongs to,
+/// every row falls out of the identity, and the closed-loop capacity
+/// never reaches the execution path.
 pub fn load_manager_closed_loop_rows(
     connection: &Connection,
     network: &str,
@@ -604,7 +610,7 @@ pub fn load_manager_closed_loop_rows(
 ) -> Result<Vec<Value>, String> {
     rows(
         connection,
-        "SELECT loop_key, path_symbols_json, pool_ids_json, \
+        "SELECT loop_key, path_addresses_json, path_symbols_json, pool_ids_json, \
          single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id, \
          borrow_token_usdg_value_raw, borrow_token_decimals, \
          cross_tick_review_threshold_usdg_raw, cross_tick_capacity_anchor_raw \
@@ -768,6 +774,75 @@ mod tests {
             "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
         );
         assert_eq!(tokens[0]["token_decimals"].as_i64().unwrap(), 6);
+    }
+
+    /// The closed-loop catalog is keyed by the ordered address path of the
+    /// loop, so the Manager rows must carry `path_addresses_json`. When the
+    /// projection dropped that column, every row fell out of the identity,
+    /// the catalog stayed empty, and the published single-tick capacity
+    /// never reached the execution path.
+    #[test]
+    fn the_closed_loop_rows_carry_the_address_path_the_catalog_is_keyed_by() {
+        let dir = tempfile::tempdir().expect("temporary dir");
+        let path = dir.path().join("closed-loop-rows.sqlite3");
+        let connection = Connection::open(&path).expect("open test database");
+        connection
+            .execute_batch(
+                "
+                CREATE TABLE manager_v4_closed_loops (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    loop_key TEXT NOT NULL,
+                    path_addresses_json TEXT,
+                    path_symbols_json TEXT,
+                    pool_ids_json TEXT,
+                    single_tick_capacity_anchor_raw TEXT,
+                    single_tick_capacity_binding_pool_id TEXT,
+                    borrow_token_usdg_value_raw TEXT,
+                    borrow_token_decimals INTEGER,
+                    cross_tick_review_threshold_usdg_raw TEXT,
+                    cross_tick_capacity_anchor_raw TEXT
+                );
+                INSERT INTO manager_v4_closed_loops VALUES (
+                    'robinhood', 4663,
+                    '0xanchor:0xmid:0xend',
+                    '[\"0xanchor\",\"0xmid\",\"0xend\",\"0xanchor\"]',
+                    '[\"ETH\",\"WETH\",\"USDG\",\"ETH\"]',
+                    '[\"pool-a\",\"pool-b\",\"pool-c\"]',
+                    '10735155545429035', 'pool-b',
+                    '1000000', 6,
+                    '500', '999'
+                );
+                ",
+            )
+            .expect("create closed-loop table");
+        let rows = load_manager_closed_loop_rows(&connection, "robinhood", 4663)
+            .expect("load closed-loop rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0]["path_addresses_json"].as_str().unwrap(),
+            "[\"0xanchor\",\"0xmid\",\"0xend\",\"0xanchor\"]"
+        );
+
+        // The catalog must be able to resolve this row. Without the
+        // address path the identity is dropped and the capacity is lost.
+        let catalog =
+            crate::closed_loop_identity::catalog_from_rows(&rows);
+        let addresses = vec![
+            "0xanchor".to_string(),
+            "0xmid".to_string(),
+            "0xend".to_string(),
+            "0xanchor".to_string(),
+        ];
+        let identity = catalog
+            .identity_for(&addresses)
+            .expect("the published loop must resolve");
+        assert_eq!(identity.loop_key, "0xanchor:0xmid:0xend");
+        assert_eq!(
+            identity.single_tick_capacity_anchor_raw,
+            Some(10_735_155_545_429_035)
+        );
+        assert_eq!(identity.pool_ids.len(), 3);
     }
 
     #[test]

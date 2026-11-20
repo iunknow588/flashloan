@@ -1,0 +1,20 @@
+{
+  "task": "TASK-148",
+  "generatedAt": "2026-11-20T09:59:48.719592+00:00",
+  "rootCause": "load_manager_closed_loop_rows omitted path_addresses_json from the SQL projection; catalog_from_rows keys the catalog by the ordered address path, so every row fell out of the identity and the published single-tick capacity never reached the execution path",
+  "database": "flashloan/db/local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "readonly": true,
+  "managerClosedLoopsPublished": 164,
+  "catalogEntriesBeforeFix": 0,
+  "catalogEntriesAfterFix": 164,
+  "catalogEntriesWithCapacityAfterFix": 164,
+  "sampleLimit": 2000,
+  "sampled": 2000,
+  "recoveredCapacity": 2000,
+  "recoveryRate": 100.0,
+  "breakdown": {
+    "RECOVERED_capacity": 2000
+  }
+}

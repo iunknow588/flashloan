@@ -1,4 +1,4 @@
-# 主网自愈编排器审查修复 Checklist v10.18（2026-11-20）
+# 主网自愈编排器审查修复 Checklist v10.19（2026-11-20）
 
 > 仅包含**开放**验收条件。全部保持 `[ ]`；完成时先保存当前机器证据与人工摘要，再把对应任务和验收项归档至 `back/`，然后从活动清单与本清单移除。
 
@@ -36,11 +36,15 @@
 
 ### TASK-148｜单 tick 容量不可用根因（AC-213）
 
-> 容量投影与缺失/零/正的诊断实现已归档（内核已发布 `single_tick_capacity_unavailable` 与 `singleTickCapacityBasis`）。以下只保留责任层定位与实盘验证。
+> 容量投影与缺失/零/正的诊断实现已归档（内核已发布 `single_tick_capacity_unavailable` 与 `singleTickCapacityBasis`）。
+> **根因已定位并修复**（2026-11-20，见开发计划 §7.3）：内核 SQL 投影 `load_manager_closed_loop_rows` **遗漏 `path_addresses_json`**，导致闭环目录恒空、容量永不落地。修复后目录 164/164、容量 164/164 > 0。
+> 以下只保留**修复后仍需的实盘验证**。
 
 - [ ] **AC-213** 用最新主网复核复现 `single_tick_capacity_unavailable` 样本；保存闭环身份、pool ID、状态版本和 Rust 原始诊断。
 - [ ] 沿四层归因责任层：① 实时池状态 ② pool-manager 容量投影 ③ Rust registry ④ review 输入；**修复责任层，不在 healer/Python 填默认值**。
-- [ ] **定位链路收敛**（2026-11-20 只读归因已确立）：Manager 库发布的 164 条闭环容量**全部 > 0**，而 legacy review 仍有 11536 条报 `single_tick_capacity_unavailable`。容量缺失**不在 Manager 发布列上**，必须沿 **Manager → 内核快照 → review 输入** 定位（内核 `apply_closed_loop_identity` 的命中与 pool identity 校验、review 组装阶段），**不得**回头反复查看 Manager 容量投影。
+- [x] **定位链路收敛**（2026-11-20 只读归因已确立）：Manager 库发布的 164 条闭环容量**全部 > 0**，而 legacy review 仍有 11536 条报 `single_tick_capacity_unavailable`。容量缺失**不在 Manager 发布列上**，必须沿 **Manager → 内核快照 → review 输入** 定位（内核 `apply_closed_loop_identity` 的命中与 pool identity 校验、review 组装阶段），**不得**回头反复查看 Manager 容量投影。
+- [x] **责任层定位与修复**（源码级守卫，非行为断言）：`sqlite_read::load_manager_closed_loop_rows` 的 SELECT **必须**包含 `path_addresses_json`（闭环目录以有序 3 地址路径为键，缺该列 → 目录恒空 → 容量永不落地）。修复只恢复**已发布**容量，**不得**引入默认值、零填充或兜底容量。
+- [ ] **修复后实盘复跑**：重跑主网 review，确认 `single_tick_capacity_unavailable` 样本数显著下降；剩余样本须逐条给出**新的**真实原因（初始量缺失、RPC 失败等），**不得**以容量缺失笼统归因。
 - [ ] 次要原因一并归因（不另开任务）：`preview pool initialAmountRaw is required` 1180 条、RPC `eth_call` 失败 437 条。
 - [ ] 在实盘样本上分别确认容量缺失、容量为零和正容量三种状态；**缺失不能伪装为 0**，容量 0 必须有真实测量和原因。
 - [ ] 在同一当前内存快照下，单 tick 起始量、跨 tick 搜索上限和最终 best amount 证据可追踪且单位正确。
