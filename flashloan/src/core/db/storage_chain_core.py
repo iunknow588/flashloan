@@ -595,6 +595,43 @@ def load_chain_tokens(
     )
 
 
+def load_token_manager_tokens(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+) -> list[dict[str, Any]]:
+    """Read the admitted tokens of one chain from the Token Manager.
+
+    The Token Manager owns the token truth of every chain: the symbol and
+    the decimals of a token are decided there and nowhere else. The
+    ``chain_tokens`` table is only a compatibility projection of that
+    truth, and a projection can lag behind its source, so a consumer that
+    needs the decimals of a token must read the authority itself.
+
+    An empty result means the chain has no Token Manager truth yet. The
+    caller then fails closed instead of guessing a decimal count.
+    """
+
+    try:
+        return query(
+            database_url,
+            """
+            SELECT network, chain_id, token_key_id, v4_currency_key,
+                   token_address, token_symbol, token_name, token_decimals,
+                   token_kind, is_native, is_wrapped_native, is_stable,
+                   admission_status
+            FROM token_library_catalog
+            WHERE network = ? AND chain_id = ?
+              AND admission_status = 'admitted'
+            ORDER BY token_address
+            """,
+            (network, chain_id),
+        )
+    except sqlite3.Error:
+        return []
+
+
 def seed_chain_contracts(database_url: str, *, network: str, chain_id: int, contracts: dict[str, Any]) -> None:
     rows = []
     now = _stamp()
@@ -904,6 +941,7 @@ __all__ = [
     "load_chain_markets",
     "load_chain_tokens",
     "load_initialization",
+    "load_token_manager_tokens",
     "project_chain_tokens_from_manager",
     "seed_chain_contracts",
     "seed_chain_info",

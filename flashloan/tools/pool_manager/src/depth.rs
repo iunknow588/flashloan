@@ -816,6 +816,7 @@ struct SwapStepRaw {
     /// The price the step ended at.
     sqrt_price_next_x96: u128,
     /// The input the step consumed, fee included.
+    #[allow(dead_code)]
     amount_in: u128,
     /// The output the step produced.
     amount_out: u128,

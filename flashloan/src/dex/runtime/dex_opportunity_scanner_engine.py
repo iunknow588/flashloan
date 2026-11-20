@@ -160,7 +160,7 @@ class DexOpportunityScanner(
                 ReviewSupervisor(
                     queue=self.closed_loop_review_queue,
                     refresh_fn=self._fixed_refresh_group,
-                    max_workers=os.getenv("DEX_CLOSED_LOOP_REVIEW_WORKERS", "16"),
+                    max_workers=os.getenv("DEX_CLOSED_LOOP_REVIEW_WORKERS") or None,
                 )
                 if self._supervisor_enabled and not self._native_rust_closed_loop
                 else None

@@ -28,40 +28,42 @@ pub struct ClosedLoopIdentity {
     pub single_tick_capacity_anchor_raw: Option<u128>,
     /// The hop whose folded capacity is the smallest.
     pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The USDG value of **one whole** borrow token, in raw USDG units.
+    ///
+    /// The value is what makes the cross-tick threshold expressible
+    /// without an external price feed: every pool token has a USDG
+    /// conversion route by convention.
+    pub borrow_token_usdg_value_raw: Option<u128>,
+    /// The decimals of the borrow token.
+    pub borrow_token_decimals: Option<u32>,
+    /// The shared cross-tick review threshold, in raw USDG units.
+    pub cross_tick_review_threshold_usdg_raw: u128,
+    /// The ceiling of the cross-tick search, in anchor-token raw units.
+    pub cross_tick_capacity_anchor_raw: Option<u128>,
 }
 
-/// The closed loops of one chain, indexed by the token path of the route.
+/// The closed loops of one chain, indexed by their full ordered address path.
 #[derive(Clone, Debug, Default)]
 pub struct ClosedLoopCatalog {
-    by_symbol_path: BTreeMap<Vec<String>, ClosedLoopIdentity>,
+    by_address_path: BTreeMap<Vec<String>, ClosedLoopIdentity>,
 }
 
 impl ClosedLoopCatalog {
-    /// The identity of the loop that trades the given token path.
-    ///
-    /// The path is the **ordered** token path of the route. A route that
-    /// trades the same symbols in the other direction is a different loop
-    /// and therefore never matches.
-    pub fn identity_for(&self, symbols: &[String]) -> Option<&ClosedLoopIdentity> {
-        if symbols.len() < 2 {
-            return None;
-        }
-        // The loop path repeats the anchor at the end, so the key is the
-        // first three symbols of the path.
-        let key: Vec<String> = symbols.iter().take(3).cloned().collect();
-        self.by_symbol_path.get(&key)
-    }
-
-    /// The number of loops the catalog holds.
-    #[cfg(test)]
-    pub fn len(&self) -> usize {
-        self.by_symbol_path.len()
+    /// Resolve the exact ordered three-address identity published by Manager.
+    /// A route may carry that path closed with its anchor; rotations never match.
+    pub fn identity_for(&self, addresses: &[String]) -> Option<&ClosedLoopIdentity> {
+        let identity_path = match addresses {
+            [_, _, _] => addresses,
+            [first, _, _, last] if first == last => &addresses[..3],
+            _ => return None,
+        };
+        self.by_address_path.get(identity_path)
     }
 
     /// Whether the catalog holds no loop at all.
     #[cfg(test)]
     pub fn is_empty(&self) -> bool {
-        self.by_symbol_path.is_empty()
+        self.by_address_path.is_empty()
     }
 }
 
@@ -71,7 +73,7 @@ impl ClosedLoopCatalog {
 /// object. Every later processing step works on that object, so the
 /// execution path never reads the Manager library per review.
 pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
-    let mut by_symbol_path: BTreeMap<Vec<String>, ClosedLoopIdentity> = BTreeMap::new();
+    let mut by_address_path: BTreeMap<Vec<String>, ClosedLoopIdentity> = BTreeMap::new();
     for row in rows {
         let Some(loop_key) = row
             .get("loop_key")
@@ -81,19 +83,19 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
         else {
             continue;
         };
-        let symbols: Vec<String> = row
-            .get("path_symbols_json")
+        let address_path: Vec<String> = row
+            .get("path_addresses_json")
             .and_then(serde_json::Value::as_str)
             .and_then(|text| serde_json::from_str::<Vec<String>>(text).ok())
             .unwrap_or_default()
             .iter()
-            .map(|item| item.trim().to_uppercase())
+            .map(|item| item.trim().to_ascii_lowercase())
             .filter(|item| !item.is_empty())
-            .take(3)
             .collect();
-        if symbols.len() < 3 {
+        if address_path.len() != 4 || address_path.first() != address_path.last() {
             continue;
         }
+        let identity_path = address_path[..3].to_vec();
         let pool_ids: Vec<String> = row
             .get("pool_ids_json")
             .and_then(serde_json::Value::as_str)
@@ -109,79 +111,165 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .and_then(serde_json::Value::as_str)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        by_symbol_path.insert(
-            symbols,
-            ClosedLoopIdentity {
+        let borrow_token_usdg_value_raw = row
+            .get("borrow_token_usdg_value_raw")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|text| text.trim().parse::<u128>().ok())
+            .filter(|value| *value > 0);
+        let borrow_token_decimals = row
+            .get("borrow_token_decimals")
+            .and_then(serde_json::Value::as_i64)
+            .and_then(|value| u32::try_from(value).ok());
+        let cross_tick_review_threshold_usdg_raw = row
+            .get("cross_tick_review_threshold_usdg_raw")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|text| text.trim().parse::<u128>().ok())
+            .unwrap_or(0);
+        let cross_tick_capacity_anchor_raw = row
+            .get("cross_tick_capacity_anchor_raw")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|text| text.trim().parse::<u128>().ok())
+            .filter(|value| *value > 0);
+        let identity = ClosedLoopIdentity {
                 loop_key,
                 pool_ids,
                 single_tick_capacity_anchor_raw: capacity,
                 single_tick_capacity_binding_pool_id: binding,
-            },
-        );
+                borrow_token_usdg_value_raw,
+                borrow_token_decimals,
+                cross_tick_review_threshold_usdg_raw,
+                cross_tick_capacity_anchor_raw,
+            };
+        if by_address_path
+            .get(&identity_path)
+            .is_some_and(|existing| existing != &identity)
+        {
+            by_address_path.remove(&identity_path);
+            continue;
+        }
+        by_address_path.insert(identity_path, identity);
     }
-    ClosedLoopCatalog { by_symbol_path }
+    ClosedLoopCatalog { by_address_path }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn addresses(a: &str, b: &str, c: &str, close: &str) -> Vec<String> {
+        [a, b, c, close]
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
     #[test]
     fn an_empty_catalog_never_matches() {
         let catalog = ClosedLoopCatalog::default();
         assert!(catalog.is_empty());
         assert!(catalog
-            .identity_for(&["ETH".to_owned(), "AMZN".to_owned(), "AMD".to_owned()])
+            .identity_for(&addresses("a", "b", "c", "a"))
             .is_none());
     }
 
     #[test]
-    fn the_reverse_path_never_borrows_the_other_loops_identity() {
-        let mut catalog = ClosedLoopCatalog::default();
-        catalog.by_symbol_path.insert(
-            vec!["ETH".to_owned(), "AMZN".to_owned(), "AMD".to_owned()],
-            ClosedLoopIdentity {
-                loop_key: "a:b:c".to_owned(),
-                pool_ids: vec!["p1".to_owned()],
-                single_tick_capacity_anchor_raw: Some(42),
-                single_tick_capacity_binding_pool_id: Some("p1".to_owned()),
-            },
-        );
-        assert!(catalog
-            .identity_for(&["ETH".to_owned(), "AMD".to_owned(), "AMZN".to_owned()])
-            .is_none());
-        assert_eq!(
-            catalog
-                .identity_for(&["ETH".to_owned(), "AMZN".to_owned(), "AMD".to_owned()])
-                .map(|item| item.single_tick_capacity_anchor_raw),
-            Some(Some(42))
-        );
-    }
-
-    #[test]
-    fn a_row_without_a_symbol_path_is_ignored() {
+    fn a_row_without_a_closed_address_path_is_ignored() {
         let catalog = catalog_from_rows(&[serde_json::json!({
             "loop_key": "a:b:c",
-            "path_symbols_json": "[]",
+            "path_addresses_json": "[]",
             "pool_ids_json": "[]",
         })]);
         assert!(catalog.is_empty());
     }
 
     #[test]
+    fn only_the_exact_manager_address_path_matches() {
+        let catalog = catalog_from_rows(&[serde_json::json!({
+            "loop_key": "a:b:c",
+            "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+            "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
+            "single_tick_capacity_anchor_raw": "10888919926",
+        })]);
+        assert!(catalog.identity_for(&addresses("B", "C", "A", "B")).is_none());
+        assert!(catalog.identity_for(&addresses("C", "A", "B", "C")).is_none());
+        let identity = catalog
+            .identity_for(&addresses("a", "b", "c", "a"))
+            .expect("exact Manager address path matches");
+        assert_eq!(identity.loop_key, "a:b:c");
+        assert_eq!(identity.single_tick_capacity_anchor_raw, Some(10_888_919_926));
+        assert_eq!(identity.pool_ids, vec!["p1", "p2", "p3"]);
+    }
+
+    #[test]
+    fn conflicting_rows_for_one_address_path_are_not_selectable() {
+        let rows = [
+            serde_json::json!({
+                "loop_key": "first",
+                "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+                "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
+                "single_tick_capacity_anchor_raw": "100",
+            }),
+            serde_json::json!({
+                "loop_key": "second",
+                "path_addresses_json": "[\"a\",\"b\",\"c\",\"a\"]",
+                "pool_ids_json": "[\"q1\",\"q2\",\"q3\"]",
+                "single_tick_capacity_anchor_raw": "200",
+            }),
+        ];
+        let catalog = catalog_from_rows(&rows);
+        assert!(catalog.identity_for(&addresses("A", "B", "C", "A")).is_none());
+    }
+
+    #[test]
     fn a_published_capacity_is_read_as_a_decimal_string() {
         let catalog = catalog_from_rows(&[serde_json::json!({
             "loop_key": "a:b:c",
-            "path_symbols_json": "[\"ETH\",\"AMZN\",\"AMD\",\"ETH\"]",
-            "pool_ids_json": "[\"p1\"]",
+            "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+            "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
             "single_tick_capacity_anchor_raw": "10888919926",
             "single_tick_capacity_binding_pool_id": "p1",
         })]);
         let identity = catalog
-            .identity_for(&["ETH".to_owned(), "AMZN".to_owned(), "AMD".to_owned()])
+            .identity_for(&addresses("a", "b", "c", "a"))
             .expect("the loop is published");
         assert_eq!(identity.loop_key, "a:b:c");
         assert_eq!(identity.single_tick_capacity_anchor_raw, Some(10_888_919_926));
         assert_eq!(identity.single_tick_capacity_binding_pool_id.as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn cross_tick_inputs_are_read_from_the_manager_row() {
+        let catalog = catalog_from_rows(&[serde_json::json!({
+            "loop_key": "a:b:c",
+            "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+            "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
+            "borrow_token_usdg_value_raw": "2500000",
+            "borrow_token_decimals": 18,
+            "cross_tick_review_threshold_usdg_raw": "10000000",
+            "cross_tick_capacity_anchor_raw": "9000000000000000000"
+        })]);
+        let identity = catalog
+            .identity_for(&addresses("a", "b", "c", "a"))
+            .expect("Manager row is loaded");
+        assert_eq!(identity.borrow_token_usdg_value_raw, Some(2_500_000));
+        assert_eq!(identity.borrow_token_decimals, Some(18));
+        assert_eq!(identity.cross_tick_review_threshold_usdg_raw, 10_000_000);
+        assert_eq!(identity.cross_tick_capacity_anchor_raw, Some(9_000_000_000_000_000_000));
+    }
+
+    #[test]
+    fn missing_cross_tick_inputs_remain_missing() {
+        let catalog = catalog_from_rows(&[serde_json::json!({
+            "loop_key": "a:b:c",
+            "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+            "pool_ids_json": "[]"
+        })]);
+        let identity = catalog
+            .identity_for(&addresses("a", "b", "c", "a"))
+            .expect("Manager row is loaded");
+        assert_eq!(identity.borrow_token_usdg_value_raw, None);
+        assert_eq!(identity.borrow_token_decimals, None);
+        assert_eq!(identity.cross_tick_review_threshold_usdg_raw, 0);
+        assert_eq!(identity.cross_tick_capacity_anchor_raw, None);
     }
 }

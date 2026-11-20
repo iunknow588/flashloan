@@ -445,9 +445,81 @@ fn cumulative_factor_update(
     }
 }
 
+/// One hop of a cross-tick capacity fold.
+///
+/// The hop carries the **depth** capacity of its pool, which is denominated
+/// in the token the hop spends, together with the pool state that decides
+/// the cumulative conversion rate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DepthCapacityHop {
+    /// The pool the hop trades in.
+    pub pool_id: String,
+    /// The token the hop **spends**.
+    pub token_in: String,
+    /// The token the hop **receives**.
+    pub token_out: String,
+    /// The current square-root price of the pool, in Q96 fixed point.
+    pub sqrt_price_x96: u128,
+    /// Whether the hop spends token0 for token1.
+    pub zero_for_one: bool,
+    /// The depth capacity of the pool, in the token the hop spends.
+    pub depth_capacity_raw: u128,
+}
+
+/// Fold the depth capacities of the hops into the anchor token.
+///
+/// The fold is the **same** cumulative-rate fold the single-tick capacity
+/// uses: the depth capacity of hop 2 is denominated in the token hop 1
+/// produces, so it has to be converted with the cumulative rate of the
+/// preceding hops before the minimum can be taken.
+///
+/// The result is the ceiling of the cross-tick search. It is **not** a
+/// single-tick bound: the cross-tick mode is allowed to grow beyond the
+/// current tick range, up to the depth the pools can carry.
+pub fn compute_loop_depth_capacity(
+    anchor_token: &str,
+    hops: &[DepthCapacityHop],
+) -> Result<u128, CapacityError> {
+    if hops.is_empty() {
+        return Err(CapacityError::NoHops);
+    }
+    if hops[0].token_in != anchor_token {
+        return Err(CapacityError::AnchorTokenMismatch);
+    }
+
+    let mut minimum: Option<u128> = None;
+    let mut factor_numerator_q96 = 1u128 << Q96_BITS;
+    let mut factor_denominator_q96 = 1u128 << Q96_BITS;
+
+    for hop in hops.iter() {
+        if hop.sqrt_price_x96 == 0 {
+            return Err(CapacityError::PriceUnknown);
+        }
+        let ratio_q96 = ratio_q96(factor_numerator_q96, factor_denominator_q96)?;
+        let half_folded = fold_q96(hop.depth_capacity_raw, ratio_q96)?;
+        let folded = fold_q96(half_folded, ratio_q96)?;
+        if minimum.is_none_or(|current| folded < current) {
+            minimum = Some(folded);
+        }
+        let (numerator, denominator) = cumulative_factor_update(
+            factor_numerator_q96,
+            factor_denominator_q96,
+            hop.sqrt_price_x96,
+            hop.zero_for_one,
+        )?;
+        factor_numerator_q96 = numerator;
+        factor_denominator_q96 = denominator;
+    }
+
+    Ok(minimum.unwrap_or(0))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{compute_loop_capacity, CapacityError, CapacityHop, Q96_BITS};
+    use super::{
+        compute_loop_capacity, compute_loop_depth_capacity, CapacityError, CapacityHop,
+        DepthCapacityHop, Q96_BITS,
+    };
 
     const Q96: u128 = 1u128 << Q96_BITS;
     const TOKEN_A: &str = "A";
@@ -716,5 +788,87 @@ mod tests {
         )
         .unwrap();
         assert!(better.capacity_anchor_raw > worse.capacity_anchor_raw);
+    }
+
+    #[test]
+    fn depth_capacity_is_folded_into_anchor_units_before_minimum() {
+        let hops = vec![
+            DepthCapacityHop {
+                pool_id: "p1".to_owned(),
+                token_in: TOKEN_A.to_owned(),
+                token_out: TOKEN_B.to_owned(),
+                sqrt_price_x96: 2 * Q96,
+                zero_for_one: true,
+                depth_capacity_raw: 1_000,
+            },
+            DepthCapacityHop {
+                pool_id: "p2".to_owned(),
+                token_in: TOKEN_B.to_owned(),
+                token_out: TOKEN_A.to_owned(),
+                sqrt_price_x96: 2 * Q96,
+                zero_for_one: true,
+                depth_capacity_raw: 8_000,
+            },
+        ];
+        // The second hop's 8,000 B is folded through the first hop's
+        // 4:1 rate, yielding 2,000 A; the first hop binds at 1,000 A.
+        assert_eq!(compute_loop_depth_capacity(TOKEN_A, &hops).unwrap(), 1_000);
+    }
+
+    /// The reproduction of the mainnet loop that publishes no folded
+    /// capacity.
+    ///
+    /// The loop ``ETH -> WETH -> USDG -> ETH`` runs through three pools with
+    /// very different tick spacings, and the first one sits on ``tick = -1``
+    /// with a spacing of one. The fold has to prove the capacity of every
+    /// hop, so a single hop it cannot price keeps the whole loop without a
+    /// capacity, and the probe ladder then searches sizes the route can
+    /// never carry.
+    #[test]
+    fn the_mainnet_usdg_loop_publishes_a_folded_capacity() {
+        const ETH: &str = "robinhood:4663:0x0000000000000000000000000000000000000000";
+        const WETH: &str = "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+        const USDG: &str = "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168";
+
+        let hops = vec![
+            CapacityHop {
+                pool_id: "p1".to_owned(),
+                token_in: ETH.to_owned(),
+                token_out: WETH.to_owned(),
+                sqrt_price_x96: 79_226_958_849_466_828_945_823_652_261,
+                liquidity: 97_368_630_663_047_855_132_032,
+                fee_pips: 500,
+                tick_spacing: 1,
+                tick: -1,
+                zero_for_one: true,
+            },
+            CapacityHop {
+                pool_id: "p2".to_owned(),
+                token_in: WETH.to_owned(),
+                token_out: USDG.to_owned(),
+                sqrt_price_x96: 3_375_438_720_389_679_810_660_917,
+                liquidity: 2_734_032_023_434_582,
+                fee_pips: 200,
+                tick_spacing: 4,
+                tick: -201_282,
+                zero_for_one: true,
+            },
+            CapacityHop {
+                pool_id: "p3".to_owned(),
+                token_in: USDG.to_owned(),
+                token_out: ETH.to_owned(),
+                sqrt_price_x96: 3_372_610_930_655_197_333_263_251,
+                liquidity: 555_363_339_399_824,
+                fee_pips: 10_000,
+                tick_spacing: 200,
+                tick: -201_299,
+                zero_for_one: false,
+            },
+        ];
+
+        let capacity = compute_loop_capacity(ETH, &hops)
+            .expect("the loop must publish a folded capacity");
+        assert!(capacity.capacity_anchor_raw > 0);
+        assert_eq!(capacity.anchor_token, ETH);
     }
 }

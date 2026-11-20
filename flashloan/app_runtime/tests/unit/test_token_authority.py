@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from core.db.storage_chain_core import (
+    load_token_manager_tokens,
     project_chain_tokens_from_manager,
     seed_chain_tokens,
 )
@@ -28,6 +29,7 @@ EXTENSION_ONLY = "0x" + "2" * 40
 BLOCKED = "0x" + "3" * 40
 PENDING = "0x" + "4" * 40
 ORPHAN = "0x" + "5" * 40
+STALE_PROJECTION_SYMBOL = "UNRESOLVED:0X" + "1" * 8
 FLASHLOAN_ROOT = Path(__file__).resolve().parents[3]
 MIGRATION = (
     FLASHLOAN_ROOT
@@ -462,3 +464,71 @@ def test_projection_fails_closed_when_blocked_legacy_row_would_remain_visible(
             chain_id=CHAIN_ID,
             dry_run=False,
         )
+
+
+def test_token_manager_is_the_authority_for_token_decimals(tmp_path, monkeypatch) -> None:
+    """The borrow-token decimals must come from the Token Manager.
+
+    The ``chain_tokens`` table is only a compatibility projection, and a
+    projection can lag behind its source. A consumer that needs the
+    decimals of a token must read the Token Manager catalog, otherwise a
+    stale projection silently removes a tradeable token from the system.
+    """
+
+    path = tmp_path / "authority.sqlite3"
+    _create_database(path, manager_schema=True)
+    _insert_manager_token(
+        path,
+        table="token_core",
+        library="core",
+        address=USDG,
+        symbol="USDG",
+        status="admitted",
+        decimals=6,
+    )
+    # The projection is stale: placeholder symbol and no decimals.
+    connection = sqlite3.connect(str(path))
+    connection.execute(
+        """
+        UPDATE chain_tokens
+           SET token_symbol = ?, token_decimals = NULL
+         WHERE network = ? AND chain_id = ? AND token_address = ?
+        """,
+        (STALE_PROJECTION_SYMBOL, NETWORK, CHAIN_ID, USDG),
+    )
+    connection.commit()
+    connection.close()
+
+    authority = load_token_manager_tokens(
+        str(path),
+        network=NETWORK,
+        chain_id=CHAIN_ID,
+    )
+    assert len(authority) == 1
+    assert authority[0]["token_address"].lower() == USDG
+    assert int(authority[0]["token_decimals"]) == 6
+
+    from market.binance_market.dex_route_test import (
+        _borrow_token_decimals_from_registry,
+    )
+
+    from core.runtime.chain_runtime import ChainRuntimeRegistry
+    import core.runtime.chain_runtime as chain_runtime_module
+
+    registry = ChainRuntimeRegistry()
+    registry.register_chain(
+        CHAIN_ID,
+        network=NETWORK,
+        database_url=str(path),
+        make_active=True,
+    )
+    monkeypatch.setattr(
+        chain_runtime_module, "chain_runtime_registry", lambda: registry
+    )
+
+    resolved = _borrow_token_decimals_from_registry(
+        chain_id=CHAIN_ID,
+        borrow_address=USDG,
+    )
+    assert resolved == 6
+    registry.reset()

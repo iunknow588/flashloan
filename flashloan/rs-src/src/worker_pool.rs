@@ -206,7 +206,16 @@ struct ContextCacheData {
 
 #[derive(Debug)]
 struct ContextCache {
-    data: RwLock<ContextCacheData>,
+    /// The snapshot of the in-memory object.
+    ///
+    /// The data is wrapped in an `Arc` so a worker can take a **snapshot**
+    /// and release the lock immediately. The review then runs on that
+    /// snapshot, over the network, without holding the lock.
+    ///
+    /// Holding the lock across the RPC call deadlocked the whole pool: the
+    /// refresher waited for the write lock while every worker held a read
+    /// lock, and the write-preferring `RwLock` blocked every new reader.
+    data: RwLock<Arc<ContextCacheData>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -475,6 +484,15 @@ fn now_iso() -> String {
 }
 
 const CONTEXT_CACHE_TTL_SECONDS: i64 = 300;
+
+/// The hard ceiling on resident closed-loop workers.
+///
+/// This is a **resource** ceiling, not a count of loops. The number of
+/// loops a chain publishes is a fact about the chain and changes with it,
+/// so the number of workers has to be derived from it rather than fixed.
+/// The ceiling only exists so that a pathological loop count cannot
+/// exhaust the process.
+pub const CLOSED_LOOP_WORKER_CEILING: usize = 256;
 
 fn maintenance_scope(
     network: Option<&str>,
@@ -1102,8 +1120,14 @@ fn load_context_cache(
         .unwrap_or_else(|| "uniswap_v4".to_string());
     let chain_id = command.chain_id.unwrap_or(0).max(0) as u64;
     let registry_scope = maintenance_scope(Some(&network), Some(chain_id as i64), Some(&protocol));
-    let mut contexts = inner.contexts.lock().unwrap();
-    if let Some(cached) = contexts.get(&registry_scope).cloned() {
+    // The registry rows are read **outside** the `contexts` mutex. The read
+    // touches the chain database and can take seconds on a large file; holding
+    // the mutex across it would stall every other worker of the pool.
+    let cached = {
+        let contexts = inner.contexts.lock().unwrap();
+        contexts.get(&registry_scope).cloned()
+    };
+    if let Some(cached) = cached {
         let stale = {
             let data = cached.data.read().unwrap();
             context_cache_is_stale(&data)
@@ -1114,14 +1138,19 @@ fn load_context_cache(
         if let Some((pool_rows, liquidity_rows, token_rows, token_decimals_rows, closed_loops)) =
             load_context_registry_rows(&database_path, &network, chain_id, &protocol)
         {
-            cached.data.write().unwrap().replace_from_rows(
+            // The refresh **replaces** the snapshot in one write. The workers
+            // that already hold the old `Arc` keep reading it until they are
+            // done, so a refresh never invalidates a running review.
+            let mut data = ContextCacheData::default();
+            data.replace_from_rows(
                 &pool_rows,
                 &liquidity_rows,
                 &token_rows,
                 &registry_scope,
             );
-            cached.data.write().unwrap().token_decimals.replace_from_rows(&token_decimals_rows);
-            cached.data.write().unwrap().closed_loops = closed_loops;
+            data.token_decimals.replace_from_rows(&token_decimals_rows);
+            data.closed_loops = closed_loops;
+            *cached.data.write().unwrap() = Arc::new(data);
             return Some((cached, false));
         }
         return Some((cached, true));
@@ -1133,9 +1162,13 @@ fn load_context_cache(
     data.token_decimals.replace_from_rows(&token_decimals_rows);
     data.closed_loops = closed_loops;
     let cache = Arc::new(ContextCache {
-        data: RwLock::new(data),
+        data: RwLock::new(Arc::new(data)),
     });
-    contexts.insert(registry_scope, Arc::clone(&cache));
+    inner
+        .contexts
+        .lock()
+        .unwrap()
+        .insert(registry_scope, Arc::clone(&cache));
     Some((cache, false))
 }
 
@@ -1144,6 +1177,146 @@ fn load_context_cache(
 /// The raw form is what the contract produced: a hexadecimal integer with
 /// an optional minus sign. The human amount is the same number scaled by
 /// the decimals of the token, so the two always describe the same value.
+/// Return the signed profit of the last **priced** probe row.
+///
+/// The amount ladder records the signed profit of every size it priced, so a
+/// route that pays at no size still carries a measured loss. The rows are
+/// scanned from the back because the ladder halves the size while it
+/// searches downwards: the last row is the smallest size it tried, and the
+/// loss at the smallest executable size is the one that bounds the route.
+///
+/// An unsigned zero placeholder is skipped. It means "nothing was measured",
+/// not "the route broke even".
+fn measured_probe_loss_raw(attempts: Option<&Value>) -> Option<Value> {
+    let rows = attempts?.as_array()?;
+    for row in rows.iter().rev() {
+        let Some(profit) = row.get("profitRaw") else {
+            continue;
+        };
+        if profit.is_null() {
+            continue;
+        }
+        if let Some(text) = profit.as_str() {
+            if text.trim().is_empty() || is_unsigned_zero_placeholder(profit) {
+                continue;
+            }
+        }
+        return Some(profit.clone());
+    }
+    None
+}
+
+/// Return whether a raw value is the unsigned zero placeholder.
+///
+/// The kernel publishes `"0x0"` when it measured nothing. Treating it as a
+/// measured zero would turn a measurement gap into a measured result.
+fn is_unsigned_zero_placeholder(value: &Value) -> bool {
+    let Some(text) = value.as_str() else {
+        return false;
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let digits = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
+    !digits.is_empty() && digits.chars().all(|character| character == '0')
+}
+
+/// Parse a signed raw hexadecimal amount into an exact integer.
+///
+/// The kernel publishes raw amounts as an optional minus sign followed by a
+/// hexadecimal magnitude (`"-0x5b24"`). The comparison between two measured
+/// amounts has to be exact: a float comparison could pick the wrong route
+/// when two losses differ by less than one ULP, and the published conclusion
+/// would then describe a size the kernel never priced.
+fn signed_raw_to_bigint(raw: &Value) -> Option<BigInt> {
+    let text = raw.as_str()?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (negative, digits) = if let Some(rest) = text.strip_prefix('-') {
+        (true, rest.trim())
+    } else {
+        (false, text.trim())
+    };
+    let digits = digits.strip_prefix("0x").or_else(|| digits.strip_prefix("0X"))?;
+    let magnitude = BigUint::parse_bytes(digits.as_bytes(), 16)?;
+    let value = BigInt::from_biguint(Sign::Plus, magnitude);
+    Some(if negative { -value } else { value })
+}
+
+/// Return the measured signed loss of a route payload, as an exact integer.
+///
+/// The amount ladder records the signed profit of every size it priced, so a
+/// route that pays at no size still carries a measured loss. The rows are
+/// scanned from the back because the ladder halves the size while it searches
+/// downwards: the last row is the smallest size it tried, and the loss at the
+/// smallest executable size is the one that bounds the route.
+///
+/// The loss is negative, so the route that comes closest to paying is the
+/// one with the **largest** value.
+fn route_measured_loss(route_payload: &Value) -> Option<(BigInt, Value)> {
+    // The verdict of the contract is the primary measurement: when it
+    // rejected the route with ``ArbitrageNotProfitable(received, required)``,
+    // the kernel decoded the exact borrow-token loss of the reviewed size.
+    let run_arbitrage = route_payload
+        .get("runArbitrage")
+        .or_else(|| {
+            route_payload
+                .get("selectedRoutePayload")
+                .and_then(|inner| inner.get("runArbitrage"))
+        })
+        .cloned()
+        .unwrap_or(Value::Null);
+    for candidate in [
+        run_arbitrage.get("reportedNetProfitRaw").cloned(),
+        run_arbitrage
+            .get("arbitrageNotProfitable")
+            .and_then(|value| value.get("profitDeltaRaw"))
+            .cloned(),
+        route_payload.get("reportedNetProfitRaw").cloned(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if candidate.is_null() {
+            continue;
+        }
+        if let Some(text) = candidate.as_str() {
+            if text.trim().is_empty() || is_unsigned_zero_placeholder(&candidate) {
+                continue;
+            }
+        }
+        let Some(exact) = signed_raw_to_bigint(&candidate) else {
+            continue;
+        };
+        return Some((exact, candidate));
+    }
+    if let Some(rows) = route_payload.get("attempts").and_then(Value::as_array) {
+        for row in rows.iter().rev() {
+            let Some(profit) = row.get("profitRaw") else {
+                continue;
+            };
+            if profit.is_null() {
+                continue;
+            }
+            if let Some(text) = profit.as_str() {
+                if text.trim().is_empty() || is_unsigned_zero_placeholder(profit) {
+                    continue;
+                }
+            }
+            let Some(exact) = signed_raw_to_bigint(profit) else {
+                continue;
+            };
+            return Some((exact, profit.clone()));
+        }
+    }
+    None
+}
+
 fn signed_raw_to_amount(raw: &Value, decimals: i64) -> Option<f64> {
     let text = raw.as_str()?.trim();
     if text.is_empty() {
@@ -1211,11 +1384,25 @@ fn apply_selected_route_overrides(
     //
     // The borrow token is the currency of the profit: the route borrows it
     // and repays it, so the signed profit is denominated in it.
+    //
+    // The route **evidence** is the authority here, not the task config.
+    // The config of a closed-loop group holds the shared fields, while the
+    // route symbols and addresses belong to the route itself, and the kernel
+    // publishes them on the route result it returns. Reading them from the
+    // config alone therefore produced an empty borrow token, and the signed
+    // profit was published without a currency and without a human amount.
     let borrow_symbol = route_config
         .get("routeSymbols")
         .and_then(Value::as_array)
         .and_then(|rows| rows.first())
         .and_then(Value::as_str)
+        .or_else(|| {
+            route_payload
+                .get("routeSymbols")
+                .and_then(Value::as_array)
+                .and_then(|rows| rows.first())
+                .and_then(Value::as_str)
+        })
         .unwrap_or_default()
         .trim()
         .to_uppercase();
@@ -1224,6 +1411,14 @@ fn apply_selected_route_overrides(
         .and_then(Value::as_array)
         .and_then(|rows| rows.first())
         .and_then(Value::as_str)
+        .or_else(|| {
+            route_payload
+                .get("routeAddresses")
+                .and_then(Value::as_array)
+                .and_then(|rows| rows.first())
+                .and_then(Value::as_str)
+        })
+        .or_else(|| route_config.get("token").and_then(Value::as_str))
         .unwrap_or_default()
         .trim()
         .to_lowercase();
@@ -1237,10 +1432,56 @@ fn apply_selected_route_overrides(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     payload["executable"] = json!(executable);
+    // The signed profit of the reviewed size is a **kernel conclusion**, and
+    // the kernel owns every shape it can arrive in.
+    //
+    // The order below matters:
+    //
+    // 1. ``reportedNetProfitRaw`` is the kernel's own conclusion for the
+    //    reviewed size and wins whenever it carries a value.
+    // 2. The **probe rows** are the fallback. The amount ladder prices the
+    //    route at several concrete sizes and records the signed profit of
+    //    each one, so a route that pays at no size still has a measured
+    //    loss. Without this fallback the no-profit path published
+    //    ``"0x0"`` -- an unsigned placeholder -- and the review was filed as
+    //    "signed PnL is missing or incomplete" even though the kernel had
+    //    measured the exact loss. That turned a measured negative result
+    //    into a measurement gap, and the orchestrator chased a review
+    //    repair for a measurement that was never broken.
+    // 3. The ``runArbitrage`` object of the route carries the verdict the
+    //    contract gave for the reviewed size. When the contract rejected the
+    //    route with ``ArbitrageNotProfitable(received, required)``, that pair
+    //    is the exact borrow-token loss of the size, and the kernel decoded
+    //    it into ``reportedNetProfitRaw`` right there. The preview ladder
+    //    cannot carry it: the contract catches the rejection inside its own
+    //    probe and reverts with a bare ``NoProfitableRoute()``, so the
+    //    numbers never leave the contract on that path.
+    // 4. ``selectedProfitRaw`` is the last resort, and only when it is not
+    //    the unsigned zero placeholder.
     let signed_profit_raw = route_payload
         .get("reportedNetProfitRaw")
-        .or_else(|| route_payload.get("selectedProfitRaw"))
         .cloned()
+        .filter(|value| !value.is_null())
+        .or_else(|| {
+            run_arbitrage
+                .get("reportedNetProfitRaw")
+                .cloned()
+                .filter(|value| !value.is_null())
+        })
+        .or_else(|| {
+            run_arbitrage
+                .get("arbitrageNotProfitable")
+                .and_then(|value| value.get("profitDeltaRaw"))
+                .cloned()
+                .filter(|value| !value.is_null())
+        })
+        .or_else(|| measured_probe_loss_raw(route_payload.get("attempts")))
+        .or_else(|| {
+            route_payload
+                .get("selectedProfitRaw")
+                .cloned()
+                .filter(|value| !value.is_null() && !is_unsigned_zero_placeholder(value))
+        })
         .unwrap_or(Value::Null);
     if !signed_profit_raw.is_null() {
         // The human amount is a **kernel conclusion** too. The Review
@@ -1263,10 +1504,25 @@ fn apply_selected_route_overrides(
         // ``runArbitrage`` object, so the kernel publishes it there as
         // well. The two places carry the same value: they are written from
         // the same kernel conclusion, never from two derivations.
+        //
+        // The nested object inherits the run evidence of the route it
+        // describes, so the verdict the chain gave -- ``ok``, ``error``,
+        // ``revertData`` and ``revertSelector`` -- survives next to the
+        // measured profit. Without the inheritance the object would only
+        // carry the profit, and the reviewer would lose the reason the
+        // route was rejected.
         let mut nested_run = match payload.get("runArbitrage") {
             Some(Value::Object(map)) => Value::Object(map.clone()),
             _ => json!({}),
         };
+        if nested_run.as_object().map(|map| map.is_empty()).unwrap_or(true) {
+            if let Some(route_run) = run_arbitrage.as_object() {
+                nested_run
+                    .as_object_mut()
+                    .expect("the nested run object was just built")
+                    .extend(route_run.clone());
+            }
+        }
         nested_run["executable"] = json!(executable);
         nested_run["signedPnl"] = signed_pnl;
         payload["runArbitrage"] = nested_run;
@@ -1323,6 +1579,33 @@ fn apply_selected_route_overrides(
                 .and_then(|evidence| evidence.get("hopSqrtPriceLimits").cloned())
         })
         .unwrap_or(Value::Null);
+}
+
+/// Publish the signed profit of the reviewed route onto the route's own
+/// payload.
+///
+/// The group payload carries the conclusion of the **selected** route, and
+/// every consumer of a single route reads the route payload. Without this
+/// the measurement was only visible on the group, so a consumer that reads
+/// the route it reviews never saw the signed profit and filed the review as
+/// an incomplete measurement.
+fn publish_signed_pnl_to_route(payload: &mut Value, route_index: usize) {
+    let Some(signed_pnl) = payload.get("signedPnl").cloned() else {
+        return;
+    };
+    if signed_pnl.is_null() {
+        return;
+    }
+    let Some(Value::Array(routes)) = payload.get_mut("routes") else {
+        return;
+    };
+    let Some(route) = routes.get_mut(route_index) else {
+        return;
+    };
+    route["signedPnl"] = signed_pnl.clone();
+    if let Some(Value::Object(run)) = route.get_mut("runArbitrage") {
+        run.insert("signedPnl".to_owned(), signed_pnl);
+    }
 }
 
 /// Builds the **non-persistent** parity input of one live review.
@@ -2504,37 +2787,80 @@ fn prefilter_config_pool_keys(
     (entry_dropped, bridge_dropped, exit_dropped)
 }
 
-/// Apply the published closed-loop identity to one route config.
-///
-/// The Manager published the loop key of the route and the folded
-/// single-tick capacity that bounds it. Both are copied into the route
-/// config so the amount ladder is bounded by the number the Manager
-/// proved, and so the review can be filed under the loop it belongs to.
-///
-/// A route the Manager does not know keeps the values it came with: the
-/// absence is a coverage gap of the Manager layer, not proof that the
-/// route fits, so the caller decides what to do with it.
+/// Apply only the identity published for this exact route address path.
 fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCatalog) {
-    let symbols: Vec<String> = route_config
-        .get("routeSymbols")
+    for key in [
+        "closedLoopKey",
+        "closedLoopPoolIds",
+        "singleTickCapacityRaw",
+        "singleTickCapacityBasis",
+        "singleTickCapacityBindingPoolId",
+        "borrowTokenUsdgValueRaw",
+        "borrowTokenDecimals",
+        "crossTickReviewThresholdUsdgRaw",
+        "crossTickCapacityRaw",
+    ] {
+        route_config.as_object_mut().map(|object| object.remove(key));
+    }
+    let addresses: Vec<String> = route_config
+        .get("routeAddresses")
         .and_then(Value::as_array)
         .map(|rows| {
             rows.iter()
-                .map(|item| item.as_str().unwrap_or_default().trim().to_uppercase())
+                .map(|item| item.as_str().unwrap_or_default().trim().to_ascii_lowercase())
                 .filter(|item| !item.is_empty())
                 .collect()
         })
         .unwrap_or_default();
-    let Some(identity) = catalog.identity_for(&symbols) else {
+    let Some(identity) = catalog.identity_for(&addresses) else {
+        route_config["closedLoopIdentityStatus"] = json!("mismatch");
+        route_config["repairTarget"] = json!("closed_loop_manager");
+        route_config["identityMismatch"] = json!({
+            "queryAddresses": addresses,
+            "reason": "manager_closed_loop_identity_not_found",
+        });
         return;
     };
+    let route_pool_ids = route_config
+        .get("routePoolIds")
+        .or_else(|| route_config.get("poolIds"))
+        .and_then(Value::as_array)
+        .map(|rows| rows.iter().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>());
+    if route_pool_ids.as_ref().is_some_and(|pool_ids| pool_ids != &identity.pool_ids) {
+        route_config["closedLoopIdentityStatus"] = json!("mismatch");
+        route_config["repairTarget"] = json!("closed_loop_manager");
+        route_config["identityMismatch"] = json!({
+            "queryAddresses": addresses,
+            "managerPoolIds": identity.pool_ids,
+            "routePoolIds": route_pool_ids,
+            "reason": "manager_closed_loop_pool_identity_mismatch",
+        });
+        return;
+    }
     route_config["closedLoopKey"] = json!(identity.loop_key);
+    route_config["closedLoopIdentityStatus"] = json!("matched");
     if let Some(capacity) = identity.single_tick_capacity_anchor_raw {
         route_config["singleTickCapacityRaw"] = json!(format!("0x{capacity:x}"));
         route_config["singleTickCapacityBasis"] = json!("folded_single_tick_capacity_anchor");
     }
     if let Some(binding) = identity.single_tick_capacity_binding_pool_id.as_ref() {
         route_config["singleTickCapacityBindingPoolId"] = json!(binding);
+    }
+    // The cross-tick inputs come from the same published identity, so the
+    // kernel owns them: the Python runtime never reads the Manager for a
+    // trading number.
+    if let Some(value) = identity.borrow_token_usdg_value_raw {
+        route_config["borrowTokenUsdgValueRaw"] = json!(format!("0x{value:x}"));
+    }
+    if let Some(decimals) = identity.borrow_token_decimals {
+        route_config["borrowTokenDecimals"] = json!(decimals);
+    }
+    if identity.cross_tick_review_threshold_usdg_raw > 0 {
+        route_config["crossTickReviewThresholdUsdgRaw"] =
+            json!(format!("0x{:x}", identity.cross_tick_review_threshold_usdg_raw));
+    }
+    if let Some(capacity) = identity.cross_tick_capacity_anchor_raw {
+        route_config["crossTickCapacityRaw"] = json!(format!("0x{capacity:x}"));
     }
     if !identity.pool_ids.is_empty() {
         route_config["closedLoopPoolIds"] = json!(identity.pool_ids);
@@ -2582,6 +2908,16 @@ fn run_native_review(
     let mut payload = if let Some(routes) = config.get("routes").and_then(Value::as_array) {
         let mut route_results = Vec::with_capacity(routes.len());
         let mut best_route: Option<(BigUint, Value, Value, usize, String, usize)> = None;
+        // The route whose measured loss is the smallest, i.e. the route that
+        // came closest to paying.
+        //
+        // A route that pays at no size still has a **measured** result: the
+        // amount ladder priced it at several sizes and the contract answered
+        // with the exact loss of each size. That measurement is the signed
+        // PnL the review has to publish. The selection only runs when no
+        // route was profitable, because a profitable route is already the
+        // better conclusion.
+        let mut best_measured_route: Option<(BigInt, Value, Value, usize, String, usize)> = None;
         let mut executor_batch_requests = Vec::new();
         let mut executor_batch_gated_route_count = 0usize;
         let mut executor_batch_build_failures = Vec::new();
@@ -2589,6 +2925,8 @@ fn run_native_review(
             let mut route_config = config.clone();
             for field in [
                 "token",
+                "routeSymbols",
+                "routeAddresses",
                 "entryKeys",
                 "entryDirections",
                 "bridgeKeys",
@@ -2836,6 +3174,26 @@ fn run_native_review(
                         route_rpc_failover_count,
                     ));
                 }
+            } else if let Some((loss, _)) = route_measured_loss(&result) {
+                // The route is unprofitable, but the ladder measured how much
+                // it loses. The route that loses the least is the one that
+                // comes closest to paying, so it is the route the review
+                // reports. The loss is negative, so the route that loses
+                // the least is the one with the **largest** value.
+                if best_measured_route
+                    .as_ref()
+                    .map(|(best_loss, _, _, _, _, _)| loss > *best_loss)
+                    .unwrap_or(true)
+                {
+                    best_measured_route = Some((
+                        loss,
+                        result.clone(),
+                        route_config,
+                        route_index,
+                        route_rpc_url,
+                        route_rpc_failover_count,
+                    ));
+                }
             }
             route_results.push(result);
         }
@@ -2878,12 +3236,51 @@ fn run_native_review(
                 &route_config,
                 token_decimals,
             );
+            publish_signed_pnl_to_route(&mut payload, best_index);
             payload["rpcMetadata"] = json!({
                 "attemptedRpcUrls": rpc_urls,
                 "selectedRpcUrl": best_rpc_url,
                 "rpcFailoverCount": best_rpc_failover_count,
             });
             selected_rpc_url = best_rpc_url;
+        } else if let Some((
+            _loss,
+            route_payload,
+            route_config,
+            best_index,
+            best_rpc_url,
+            best_rpc_failover_count,
+        )) = best_measured_route
+        {
+            // No route paid, but the kernel **measured** how much each route
+            // loses. The review needs that measurement as its signed PnL, so
+            // the closest route is published with the same override the
+            // profitable path uses.
+            //
+            // Without this the payload carried no signed PnL at all: the
+            // Review Manager read the missing value as an incomplete
+            // measurement and filed the review as ``data_incomplete``, even
+            // though the contract had already priced the route and stated
+            // the exact loss. The orchestrator then chased a review repair
+            // for a measurement that was never broken.
+            mark_selected_route_direction(&mut payload, best_index);
+            apply_selected_route_overrides(
+                &mut payload,
+                &route_payload,
+                &route_config,
+                token_decimals,
+            );
+            publish_signed_pnl_to_route(&mut payload, best_index);
+            payload["rpcMetadata"] = json!({
+                "attemptedRpcUrls": rpc_urls,
+                "selectedRpcUrl": best_rpc_url,
+                "rpcFailoverCount": best_rpc_failover_count,
+            });
+            selected_rpc_url = best_rpc_url;
+            payload["measuredLossRoute"] = json!({
+                "routeIndex": best_index,
+                "basis": "native_rust_ladder_measured_loss",
+            });
         } else {
             payload["rpcMetadata"] = json!({
                 "attemptedRpcUrls": rpc_urls,
@@ -3339,7 +3736,13 @@ fn worker_loop(
         // happens once, when the context object is built or refreshed.
         let result = match context_cache.as_ref() {
             Some((cache, _)) => {
-                let data = cache.data.read().unwrap();
+                // Take a **snapshot** and release the lock before the review.
+                //
+                // The review talks to the network and can take many seconds.
+                // Holding the lock across that call blocked the refresher's
+                // write lock, and the write-preferring `RwLock` then blocked
+                // every other worker: the whole pool stalled.
+                let data = Arc::clone(&cache.data.read().unwrap());
                 run_native_review(
                     &command.config_json,
                     Some(&data.registry),
@@ -3369,7 +3772,7 @@ fn worker_loop(
                 payload["executionQueueAt"] = json!(now_iso());
             }
             if let Some((cache, _)) = &context_cache {
-                let data = cache.data.read().unwrap();
+                let data = Arc::clone(&cache.data.read().unwrap());
                 let config_value: Value =
                     serde_json::from_str(&command.config_json).unwrap_or(Value::Null);
                 let route_addresses = config_route_addresses(&config_value);
@@ -3492,10 +3895,12 @@ fn worker_loop(
                             .ok()
                             .and_then(|config| config.get("timeoutSeconds").and_then(Value::as_u64))
                             .unwrap_or(20);
-                        let registry_guard = context_cache
+                        // Same rule as the review itself: take the snapshot,
+                        // release the lock, then talk to the network.
+                        let registry_snapshot = context_cache
                             .as_ref()
-                            .map(|(cache, _)| cache.data.read().unwrap());
-                        let parity_payload = registry_guard.as_ref().and_then(|data| {
+                            .map(|(cache, _)| Arc::clone(&cache.data.read().unwrap()));
+                        let parity_payload = registry_snapshot.as_ref().and_then(|data| {
                             live_review_parity_payload(
                                 &payload,
                                 Some(&data.registry),
@@ -3537,7 +3942,7 @@ fn worker_loop(
         {
             enqueue_maintenance(&inner, &command);
             if let Some((cache, _)) = &context_cache {
-                let data = cache.data.read().unwrap();
+                let data = Arc::clone(&cache.data.read().unwrap());
                 let zero_pool_ids = registry_zero_liquidity_pool_ids(&data.registry);
                 if !zero_pool_ids.is_empty() {
                     enqueue_zero_liquidity_cleanup(&inner, &command, zero_pool_ids);
@@ -3831,7 +4236,7 @@ impl ClosedLoopWorkerPool {
         execution_workers: usize,
         execution_queue_enabled: bool,
     ) -> Self {
-        let concurrency_limit = max_workers.clamp(1, 32);
+        let concurrency_limit = max_workers.clamp(1, CLOSED_LOOP_WORKER_CEILING);
         let execution_worker_count = execution_workers.clamp(1, 8);
         let database_path = database_path.or_else(|| active_runtime_database_path(None));
         let (binance_tx, binance_rx) = if binance_enabled {
@@ -4125,7 +4530,7 @@ impl ClosedLoopWorkerPool {
             .unwrap()
             .values()
             .map(|cache| {
-                let data = cache.data.read().unwrap();
+                let data = Arc::clone(&cache.data.read().unwrap());
                 json!({
                     "registryScope": data.registry_scope.clone(),
                     "poolCount": data.pool_count,
@@ -4338,7 +4743,13 @@ fn worker_state_value(state: &WorkerState, include_payloads: bool) -> Value {
 #[pymethods]
 impl ClosedLoopWorkerPool {
     #[new]
-    #[pyo3(signature = (max_workers=16, database_path=None, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
+    // The default resident-worker count must not be a fixed constant: the
+    // number of closed loops a chain publishes is a fact about the chain and
+    // changes with it. A hard-coded default silently starves a chain that
+    // publishes more loops than that default, because the surplus loops
+    // never get a worker and can therefore never be reviewed or broadcast.
+    // The resource ceiling is the only bound that belongs here.
+    #[pyo3(signature = (max_workers=CLOSED_LOOP_WORKER_CEILING, database_path=None, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
     fn new(
         max_workers: usize,
         database_path: Option<String>,
@@ -4602,6 +5013,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn closed_loop_identity_lookup_is_exact_and_fail_closed() {
+        let catalog = crate::closed_loop_identity::catalog_from_rows(&[json!({
+            "loop_key": "manager-loop",
+            "path_addresses_json": "[\"0xa\",\"0xb\",\"0xc\",\"0xa\"]",
+            "pool_ids_json": "[\"p1\",\"p2\",\"p3\"]",
+            "single_tick_capacity_anchor_raw": "123",
+            "borrow_token_usdg_value_raw": "456",
+            "cross_tick_review_threshold_usdg_raw": "789"
+        })]);
+        let mut exact = json!({
+            "routeAddresses": ["0xa", "0xb", "0xc", "0xa"],
+            "routePoolIds": ["p1", "p2", "p3"]
+        });
+        apply_closed_loop_identity(&mut exact, &catalog);
+        assert_eq!(exact["closedLoopKey"], json!("manager-loop"));
+        assert_eq!(exact["closedLoopIdentityStatus"], json!("matched"));
+        assert_eq!(exact["singleTickCapacityRaw"], json!("0x7b"));
+        assert_eq!(exact["borrowTokenUsdgValueRaw"], json!("0x1c8"));
+        assert_eq!(exact["closedLoopPoolIds"], json!(["p1", "p2", "p3"]));
+
+        let mut rotated = json!({
+            "routeAddresses": ["0xb", "0xc", "0xa", "0xb"],
+            "closedLoopKey": "borrowed-loop",
+            "closedLoopPoolIds": ["borrowed-pool"],
+            "singleTickCapacityRaw": "0xdead",
+            "borrowTokenUsdgValueRaw": "0xbeef",
+            "crossTickReviewThresholdUsdgRaw": "0xff"
+        });
+        apply_closed_loop_identity(&mut rotated, &catalog);
+        assert_eq!(rotated["closedLoopIdentityStatus"], json!("mismatch"));
+        assert_eq!(rotated["repairTarget"], json!("closed_loop_manager"));
+        assert_eq!(rotated["identityMismatch"]["reason"], json!("manager_closed_loop_identity_not_found"));
+        for key in [
+            "closedLoopKey",
+            "closedLoopPoolIds",
+            "singleTickCapacityRaw",
+            "borrowTokenUsdgValueRaw",
+            "crossTickReviewThresholdUsdgRaw",
+        ] {
+            assert!(rotated.get(key).is_none(), "inherited {key} must be cleared");
+        }
+    }
+
+    #[test]
     fn v4_pool_registry_indexes_by_id_and_token() {
         let pool_rows = json!([
             {
@@ -4858,6 +5313,247 @@ mod tests {
     }
 
     /// A negative measured profit keeps its sign in the human amount.
+    /// A route that the kernel priced and found unprofitable must still
+    /// publish its measured loss.
+    ///
+    /// The Review Manager reads the signed profit **only** from
+    /// ``runArbitrage.signedPnl``. The no-profit path used to publish
+    /// ``"0x0"`` -- an unsigned placeholder -- so every unprofitable review
+    /// was filed as "signed PnL is missing or incomplete". That turned a
+    /// measured negative result into a measurement gap and sent the
+    /// orchestrator after a review repair for a measurement that was never
+    /// broken.
+    ///
+    /// The amount ladder records the signed profit of every size it priced,
+    /// so the loss is available in the probe rows even when the route paid at
+    /// no size.
+    #[test]
+    fn the_measured_probe_loss_is_published_as_the_signed_pnl() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "ETH",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "not_profitable_after_costs",
+            "reportedNetProfitRaw": Value::Null,
+            "selectedProfitRaw": "0x0",
+            "attempts": [
+                {"amountRaw": "0x153b7a71dbab7d000", "ok": false, "profitable": false, "profitRaw": "-0x94e6e1e0d52eb3c8"},
+                {"amountRaw": "0x1a9d8c00f4e1b000", "ok": false, "profitable": false, "profitRaw": "-0xc38e285ca0456"},
+            ],
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "routeSymbols": ["ETH", "WETH", "NVDA"],
+            "routeAddresses": [borrow_address],
+        });
+        let mut payload = json!({"status": "not_profitable_after_costs"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+
+        let signed = &payload["signedPnl"];
+        assert!(signed.is_object(), "a measured loss must be published");
+        // The rows are scanned from the back: the ladder halves the size while
+        // it searches downwards, so the last row is the smallest size it
+        // tried and its loss is the one that bounds the route.
+        assert_eq!(signed["raw"], json!("-0xc38e285ca0456"));
+        assert_eq!(signed["currency"], json!("ETH"));
+        assert_eq!(signed["unit"], json!("raw"));
+        assert!(signed["amount"].as_f64().unwrap() < 0.0, "the loss keeps its sign");
+        // The Review Manager reads the value from inside runArbitrage, so the
+        // nested copy must carry the very same conclusion.
+        assert_eq!(payload["runArbitrage"]["signedPnl"], *signed);
+    }
+
+    /// An unsigned zero placeholder means "nothing was measured". Publishing
+    /// it as a signed PnL would turn a measurement gap into a measured zero.
+    #[test]
+    fn an_unsigned_zero_probe_is_never_published_as_the_signed_pnl() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "ETH",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "not_profitable_after_costs",
+            "reportedNetProfitRaw": Value::Null,
+            "selectedProfitRaw": "0x0",
+            "attempts": [
+                {"amountRaw": "0x153b7a71dbab7d000", "ok": false, "profitable": false, "profitRaw": "0x0"},
+            ],
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "routeSymbols": ["ETH", "WETH", "NVDA"],
+            "routeAddresses": [borrow_address],
+        });
+        let mut payload = json!({"status": "not_profitable_after_costs"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+
+        assert!(payload["signedPnl"].is_null(), "an unsigned zero is not a measurement");
+        assert!(payload["runArbitrage"]["signedPnl"].is_null());
+    }
+
+    /// The contract rejects the route with
+    /// ``ArbitrageNotProfitable(received, required)``, and the kernel decodes
+    /// that pair into the exact borrow-token loss of the reviewed size.
+    ///
+    /// The amount ladder cannot carry that number: the contract catches the
+    /// rejection inside its own probe and reverts with a bare
+    /// ``NoProfitableRoute()``, so the measured loss never leaves the
+    /// contract on the preview path. The verdict of the run call is therefore
+    /// the only place where the loss exists, and the kernel has to publish it
+    /// from there.
+    #[test]
+    fn the_run_verdict_loss_is_published_as_the_signed_pnl() {
+        let borrow_address = "0x1111111111111111111111111111111111111111";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "ETH",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "not_profitable_after_costs",
+            "selectedProfitRaw": "0x0",
+            "attempts": [
+                {"amountRaw": "0x2ad4705434c3d40", "ok": false, "profitable": false, "profitRaw": Value::Null},
+            ],
+            "runArbitrage": {
+                "ok": false,
+                "executable": true,
+                "error": "NoProfitableRoute",
+                "revertData": "0x1630123400000000000000000000000000000000000000000000000002a794c0e2b4791f00000000000000000000000000000000000000000000000002ad4705434c3d41",
+                "revertSelector": "0x16301234",
+                "reportedNetProfitRaw": "-0x5b2446097c422",
+                "arbitrageNotProfitable": {
+                    "receivedRaw": "0x2a794c0e2b4791f",
+                    "requiredRaw": "0x2ad4705434c3d41",
+                    "profitDeltaRaw": "-0x5b2446097c422",
+                },
+            },
+        });
+        let route_config = json!({
+            "token": borrow_address,
+            "routeSymbols": ["ETH", "SPY", "GOOGL"],
+            "routeAddresses": [borrow_address],
+        });
+        let mut payload = json!({"status": "not_profitable_after_costs"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+
+        let signed = &payload["signedPnl"];
+        assert_eq!(signed["raw"], json!("-0x5b2446097c422"));
+        assert!(signed["amount"].as_f64().unwrap() < 0.0, "the loss keeps its sign");
+        // The verdict of the chain survives next to the measured profit, so
+        // the reviewer still knows why the route was rejected.
+        assert_eq!(payload["runArbitrage"]["revertSelector"], json!("0x16301234"));
+        assert_eq!(payload["runArbitrage"]["error"], json!("NoProfitableRoute"));
+        assert_eq!(payload["runArbitrage"]["signedPnl"], *signed);
+    }
+
+    /// The measured loss of a route is compared exactly, so the route that
+    /// comes closest to paying is the one the review reports.
+    #[test]
+    fn the_route_with_the_smallest_measured_loss_is_selected() {
+        let closer = json!({
+            "attempts": [{"amountRaw": "0x1", "profitRaw": "-0x64"}],
+            "runArbitrage": {"reportedNetProfitRaw": "-0x64"},
+        });
+        let farther = json!({
+            "attempts": [{"amountRaw": "0x1", "profitRaw": "-0x3e8"}],
+            "runArbitrage": {"reportedNetProfitRaw": "-0x3e8"},
+        });
+        let (closest, _) = route_measured_loss(&closer).expect("the closer route is measured");
+        let (worse, _) = route_measured_loss(&farther).expect("the farther route is measured");
+        assert!(closest > worse, "the route that loses less comes first");
+        // An unsigned zero placeholder is not a measurement.
+        let unmeasured = json!({
+            "attempts": [{"amountRaw": "0x1", "profitRaw": "0x0"}],
+            "runArbitrage": {"reportedNetProfitRaw": Value::Null},
+        });
+        assert!(route_measured_loss(&unmeasured).is_none());
+    }
+
+    /// The borrow token is the currency of the signed profit, and the route
+    /// **evidence** carries it.
+    ///
+    /// The task config of a closed-loop group only holds the shared fields;
+    /// the route symbols and addresses belong to the route itself. Reading
+    /// them from the config alone published a signed profit without a
+    /// currency and without a human amount, and the Review Manager could not
+    /// accept it.
+    #[test]
+    fn the_borrow_token_comes_from_the_route_evidence() {
+        let borrow_address = "0xa8cf7c51eee671646ba440ffa180f970902fd2fb";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "TZ",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "not_profitable_after_costs",
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [
+                borrow_address,
+                "0x02a0bacc642d501422af804a462f98335b2bbf09",
+                "0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+                borrow_address,
+            ],
+            "runArbitrage": {"reportedNetProfitRaw": "-0x64"},
+        });
+        // The group config carries the shared fields only.
+        let route_config = json!({
+            "token": borrow_address,
+            "minProfitRaw": "0x01",
+        });
+        let mut payload = json!({"status": "not_profitable_after_costs"});
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+
+        assert_eq!(payload["signedPnl"]["currency"], json!("TZ"));
+        assert_eq!(payload["signedPnl"]["address"], json!(borrow_address));
+        // 100 raw units of an 18-decimals token.
+        assert_eq!(payload["signedPnl"]["amount"], json!(-1.0e-16));
+    }
+
+    /// Every consumer of a single route reads the **route** payload, so the
+    /// signed profit of the reviewed route has to travel with it.
+    ///
+    /// The group payload carries the conclusion of the selected route only.
+    /// Without publishing it onto the route itself, a consumer that reads the
+    /// route it reviews never saw the signed profit and filed the review as
+    /// an incomplete measurement.
+    #[test]
+    fn the_signed_pnl_travels_with_the_reviewed_route() {
+        let borrow_address = "0xa8cf7c51eee671646ba440ffa180f970902fd2fb";
+        let mut registry = TokenDecimalsRegistry::default();
+        registry.replace_from_rows(&[json!({
+            "token_address": borrow_address,
+            "token_symbol": "TZ",
+            "token_decimals": 18,
+        })]);
+        let route_payload = json!({
+            "status": "not_profitable_after_costs",
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [borrow_address, borrow_address, borrow_address, borrow_address],
+            "runArbitrage": {"reportedNetProfitRaw": "-0x64"},
+        });
+        let route_config = json!({"token": borrow_address, "minProfitRaw": "0x01"});
+        let mut payload = json!({
+            "routes": [route_payload.clone()],
+        });
+        apply_selected_route_overrides(&mut payload, &route_payload, &route_config, Some(&registry));
+        publish_signed_pnl_to_route(&mut payload, 0);
+
+        let route = &payload["routes"][0];
+        assert_eq!(route["signedPnl"]["raw"], json!("-0x64"));
+        assert_eq!(route["signedPnl"]["currency"], json!("TZ"));
+        assert_eq!(route["runArbitrage"]["signedPnl"]["raw"], json!("-0x64"));
+    }
     #[test]
     fn a_negative_signed_profit_keeps_its_sign() {
         let borrow_address = "0x1111111111111111111111111111111111111111";
@@ -5323,7 +6019,7 @@ mod tests {
     #[test]
     fn context_cache_refresh_keeps_stable_scope_object() {
         let cache = Arc::new(ContextCache {
-            data: RwLock::new(ContextCacheData::default()),
+            data: RwLock::new(Arc::new(ContextCacheData::default())),
         });
         let cache_identity = Arc::as_ptr(&cache);
         let first_pool = json!({
@@ -5331,12 +6027,16 @@ mod tests {
             "token0": "0xaaa",
             "token1": "0xbbb",
         });
-        cache.data.write().unwrap().replace_from_rows(
-            &[first_pool],
-            &[json!({"pool_id": "0x01", "has_liquidity": 1})],
-            &[json!({"token_address": "0xaaa"})],
-            "robinhood|4663|uniswap_v4",
-        );
+        {
+            let mut data = ContextCacheData::default();
+            data.replace_from_rows(
+                &[first_pool],
+                &[json!({"pool_id": "0x01", "has_liquidity": 1})],
+                &[json!({"token_address": "0xaaa"})],
+                "robinhood|4663|uniswap_v4",
+            );
+            *cache.data.write().unwrap() = Arc::new(data);
+        }
         assert!(Arc::ptr_eq(&cache, &cache));
         assert_eq!(Arc::as_ptr(&cache), cache_identity);
         assert_eq!(
@@ -5355,18 +6055,53 @@ mod tests {
             "token0": "0xccc",
             "token1": "0xddd",
         });
-        cache.data.write().unwrap().replace_from_rows(
-            &[replacement_pool],
-            &[json!({"pool_id": "0x02", "has_liquidity": 0})],
-            &[json!({"token_address": "0xccc"})],
-            "robinhood|4663|uniswap_v4",
-        );
+        {
+            let mut data = ContextCacheData::default();
+            data.replace_from_rows(
+                &[replacement_pool],
+                &[json!({"pool_id": "0x02", "has_liquidity": 0})],
+                &[json!({"token_address": "0xccc"})],
+                "robinhood|4663|uniswap_v4",
+            );
+            *cache.data.write().unwrap() = Arc::new(data);
+        }
 
         let data = cache.data.read().unwrap();
         assert_eq!(data.pool_count, 1);
         assert_eq!(data.registry.pool_by_id.len(), 1);
         assert!(data.registry.get_pool_info("0x01").is_none());
         assert!(data.registry.get_pool_info("0x02").is_some());
+    }
+
+    #[test]
+    fn the_context_snapshot_is_taken_without_holding_the_lock() {
+        // The review runs over the network. If it kept the read lock, the
+        // refresher could never take the write lock and the write-preferring
+        // `RwLock` would block every other worker: the whole pool stalled.
+        //
+        // A writer must therefore be able to acquire the lock while a
+        // snapshot is still in use.
+        let cache = Arc::new(ContextCache {
+            data: RwLock::new(Arc::new(ContextCacheData::default())),
+        });
+        let snapshot = Arc::clone(&cache.data.read().unwrap());
+        // The snapshot outlives the guard, so the guard is already gone.
+        let refreshed = Arc::clone(&cache.data.read().unwrap());
+        assert!(Arc::ptr_eq(&snapshot, &refreshed));
+        // A writer acquires the lock without waiting for the snapshot.
+        let mut next = ContextCacheData::default();
+        next.replace_from_rows(
+            &[json!({"pool_id": "0x09", "token0": "0x1", "token1": "0x2"})],
+            &[json!({"pool_id": "0x09", "has_liquidity": 1})],
+            &[json!({"token_address": "0x1"})],
+            "robinhood|4663|uniswap_v4",
+        );
+        *cache.data.write().unwrap() = Arc::new(next);
+        // The old snapshot still describes the old world, and the new one
+        // describes the new world. Neither is torn.
+        assert!(snapshot.registry.get_pool_info("0x09").is_none());
+        let current = cache.data.read().unwrap();
+        assert!(current.registry.get_pool_info("0x09").is_some());
     }
 
     #[test]

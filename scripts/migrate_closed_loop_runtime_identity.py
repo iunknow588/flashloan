@@ -609,7 +609,10 @@ def _build_mapping(
     source_report_checksum: str,
 ) -> dict[str, Any]:
     return {
-        "closedLoopKey": closed_record["physicalKey"],
+        # Named distinctly from the runtime kernel field ``closedLoopKey``:
+        # this is a *migration plan* field that records the target identity
+        # of the re-key, not a live kernel-published identity (MIO-7).
+        "targetClosedLoopKey": closed_record["physicalKey"],
         "routeKeyId": closed_record["routeKeyId"],
         "sourceSymbolGroupKey": runtime_record["groupKey"],
         "sourceRuntimeKey": runtime_record["sourceRuntimeKey"],

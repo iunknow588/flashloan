@@ -247,8 +247,6 @@ mod tests {
 
     const Q96: u128 = 79_228_162_514_264_337_593_543_950_336;
     const LIQUIDITY: u128 = 10_000_000_000_000_000_000;
-    const TOKEN_A: &str = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const TOKEN_B: &str = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     fn hop(zero_for_one: bool) -> HopExecutionState {
         let expected = SingleTickExecutionState {

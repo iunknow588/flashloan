@@ -9,11 +9,9 @@ from typing import Any
 from core.broadcast_failure_audit import append_broadcast_failure_audit
 from core.market_identity import canonical_market_id
 from dex.runtime.closed_loop_identity import (
-    canonical_directed_cycle_key,
-    directed_cycle_rotations,
     directed_symbol_key_from_symbols,
     physical_loop_key_from_addresses,
-    physical_loop_key_from_route,
+    physical_route_key_from_route,
     worker_group_key_from_route,
 )
 from dex.runtime.dex_opportunity_route_runner import (
@@ -34,21 +32,23 @@ def _directed_loop_config(
     config_by_loop_key: dict[str, dict[str, Any]],
     loop_key: str,
 ) -> dict[str, Any] | None:
-    """Rotation-aware route config lookup for one directed cycle.
+    """Return the route config that belongs to one physical route.
 
-    A task-config route may carry a different rotation anchor than the
-    scanner route (for example "usdg|eth|spy" vs "eth|spy|usdg").  All
-    rotations of the same directed cycle are the same closed loop; the
-    reverse direction never shares rotations, so direction independence is
-    preserved.
+    The lookup is **exact**. The config map and the scanner key are the
+    same key space: both are the ordered physical address path of the
+    route. A route config that carries a different order describes a
+    different route and must not be used for this one.
+
+    The lookup used to fall back to the rotations of the key, which let a
+    route pick up the config of another starting point of the same
+    triangle. That config carries the other loop's pool set and the
+    other loop's published identity, so the route was then reviewed
+    against a loop the Manager never named for it (MIO-7 / TASK-149 /
+    AC-214). The kernel applies the Manager identity to the route
+    itself, so an exact miss is reported as
+    ``native_task_config_route_identity_unavailable`` instead.
     """
-    exact = config_by_loop_key.get(loop_key)
-    if exact is not None:
-        return exact
-    for rotation in directed_cycle_rotations(loop_key, separator=":"):
-        if rotation in config_by_loop_key:
-            return config_by_loop_key[rotation]
-    return None
+    return config_by_loop_key.get(loop_key)
 
 
 def _has_directed_loop_config(
@@ -675,7 +675,7 @@ class DexOpportunityNativeRustMixin:
             # a review is always filed under the loop the Manager knows.
             physical_route_key = (
                 physical_loop_key_from_addresses(addresses)
-                or physical_loop_key_from_route(route)
+                or physical_loop_key_from_addresses(route.get("routeAddresses"))
             )
             worker_group_key = worker_group_key_from_route(route)
             if not physical_route_key or not worker_group_key:
@@ -935,7 +935,7 @@ class DexOpportunityNativeRustMixin:
             for route_config in route_configs:
                 if not isinstance(route_config, dict):
                     continue
-                route_loop_key = physical_loop_key_from_route(route_config)
+                route_loop_key = physical_route_key_from_route(route_config)
                 if route_loop_key:
                     config_by_loop_key[route_loop_key] = route_config
 
@@ -970,11 +970,9 @@ class DexOpportunityNativeRustMixin:
                 elif not has_config:
                     logger.info(
                         "native closed-loop direction %s missing route config; "
-                        "scanner key rotations=%s available config keys=%s",
+                        "scanner key=%s available config keys=%s",
                         loop_key,
-                        sorted(
-                            directed_cycle_rotations(loop_key, separator=":")
-                        ),
+                        loop_key,
                         sorted(config_by_loop_key),
                     )
                     _record_config_failure(
@@ -996,9 +994,7 @@ class DexOpportunityNativeRustMixin:
                         "native closed-loop direction %s has no matching "
                         "route config; scanner key=%s available config keys=%s",
                         loop_key,
-                        canonical_directed_cycle_key(
-                            loop_key, separator=":"
-                        ),
+                        loop_key,
                         sorted(config_by_loop_key),
                     )
                     continue

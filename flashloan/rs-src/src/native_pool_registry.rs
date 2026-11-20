@@ -321,7 +321,12 @@ pub(crate) fn execute_manual_broadcast_command(
 }
 
 #[pyfunction]
-#[pyo3(signature = (database_path, chain_id=None, network=None, protocol=None, max_workers=16, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
+// The default resident-worker count must not be a fixed constant. The number
+// of closed loops a chain publishes is a fact about the chain and changes with
+// it, so a hard-coded default starves a chain that publishes more loops than
+// the default: the surplus loops never get a worker and can therefore never
+// be reviewed or broadcast. The resource ceiling is the only bound here.
+#[pyo3(signature = (database_path, chain_id=None, network=None, protocol=None, max_workers=crate::worker_pool::CLOSED_LOOP_WORKER_CEILING, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
 pub(crate) fn native_pool_get_or_create(
     py: Python<'_>,
     database_path: String,

@@ -843,11 +843,16 @@ def _offline_pool_token_decimals_map(chain_id: int, pool_manager: str) -> dict[s
 
 
 def _borrow_token_decimals_from_registry(*, chain_id: int, borrow_address: str) -> int | None:
-    """Resolve borrow-token decimals from the SQLite chain token registry.
+    """Resolve borrow-token decimals from the Token Manager authority.
 
     No 18-decimal fallback is applied: a route whose borrow token lacks
-    registry decimals cannot form a validated closed loop and must fail
+    authority decimals cannot form a validated closed loop and must fail
     closed instead of guessing a decimal count.
+
+    The Token Manager decides the decimals of every token, so its catalog
+    is the source of truth. The ``chain_tokens`` table is only a
+    compatibility projection of that truth, and a projection may lag
+    behind its source, so it is consulted only as a fallback.
     """
     normalized_address = str(borrow_address or "").strip().lower()
     resolved_chain_id = int(chain_id or 0)
@@ -859,7 +864,10 @@ def _borrow_token_decimals_from_registry(*, chain_id: int, borrow_address: str) 
         else "robinhood"
     )
     try:
-        from core.db.storage_chain_core import load_chain_tokens
+        from core.db.storage_chain_core import (
+            load_chain_tokens,
+            load_token_manager_tokens,
+        )
 
         database_path = ""
         try:
@@ -884,6 +892,22 @@ def _borrow_token_decimals_from_registry(*, chain_id: int, borrow_address: str) 
             database_path = str(
                 chain_database_path(resolved_chain_id, network).resolve()
             )
+        # The Token Manager authority first: it owns the decimals of every
+        # token and is never stale.
+        for row in load_token_manager_tokens(
+            database_path,
+            network=network,
+            chain_id=resolved_chain_id,
+        ):
+            if (
+                str(row.get("token_address") or "").strip().lower()
+                != normalized_address
+            ):
+                continue
+            raw = row.get("token_decimals")
+            if raw in (None, ""):
+                return None
+            return int(raw)
         for row in load_chain_tokens(
             database_path,
             network=network,

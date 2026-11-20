@@ -62,7 +62,7 @@ def test_normalize_physical_loop_key_accepts_three_part_key_only() -> None:
     assert normalize_physical_loop_key(f"{ANCHOR}|{Y}|not-an-address") is None
 
 
-def test_route_identity_prefers_physical_key_then_trusted_addresses() -> None:
+def test_route_identity_reads_only_the_published_key() -> None:
     route = {
         "loopKey": f"{ANCHOR}|{Y}|{Z}",
         "routeAddresses": [ANCHOR, Z, Y, ANCHOR],
@@ -73,7 +73,7 @@ def test_route_identity_prefers_physical_key_then_trusted_addresses() -> None:
     assert worker_group_key_from_route(route) == "spy|usdg|tsla"
 
     route["loopKey"] = "route:v1:" + str(route["loopKey"])
-    assert physical_loop_key_from_route(route) == f"{ANCHOR}:{Z}:{Y}"
+    assert physical_loop_key_from_route(route) is None
 
 
 def test_route_identity_rejects_untrusted_or_malformed_paths() -> None:
@@ -84,28 +84,43 @@ def test_route_identity_rejects_untrusted_or_malformed_paths() -> None:
             "loopKey": "route:v1:spy|tsla|usdg",
             "routeAddresses": [ANCHOR, Y, Z, ANCHOR],
         }
-    ) == f"{ANCHOR}:{Y}:{Z}"
+    ) is None
 
 
-# --- GROUP-KEY-ROTATION ----------------------------------------------------
+# --- GROUP-KEY EXACT MATCH (TASK-149 / AC-214) -----------------------------
 #
-# The closed-loop library stores every loop ETH-anchored ("ETH -> Y -> Z ->
-# ETH"), while the scanner registers its resident worker under the route
-# order it discovered, which is a rotation of the same directed cycle
-# ("Z -> ETH -> Y"). The worker pool keys its state machine by the exact
-# registered string, so a manual review addressed by the library order used
-# to miss the worker and answer with CLOSED_LOOP_GROUP_NOT_FOUND.
+# The rotation-aware resolver was removed: it made a request for one
+# starting point of a triangle address the worker of another starting
+# point, and therefore borrow the closed-loop identity, capacity and pool
+# set of a loop the request never named.
+#
+# The lookup is now exact and ordered. A rotation is a miss, and the
+# reverse direction is a miss.
 
 
-def test_a_rotation_of_the_same_directed_cycle_resolves_to_the_registered_key():
+def test_the_exact_ordered_key_resolves_to_the_registered_worker():
     registered = ["tsla|eth|amzn", "weth|eth|tsla"]
 
     assert resolve_registered_group_key(
-        ["ETH", "AMZN", "TSLA"], registered
+        ["TSLA", "ETH", "AMZN"], registered
     ) == "tsla|eth|amzn"
     assert resolve_registered_group_key(
-        ["AMZN", "TSLA", "ETH"], registered
-    ) == "tsla|eth|amzn"
+        ["WETH", "ETH", "TSLA"], registered
+    ) == "weth|eth|tsla"
+
+
+def test_a_rotation_of_the_same_directed_cycle_never_resolves():
+    """A different starting point is a different loop, never a rotation.
+
+    This is the direct regression of TASK-149: the rotation-aware
+    resolver used to answer with the key of the *other* worker, which
+    then borrowed that loop's identity, capacity and pool set.
+    """
+    registered = ["tsla|eth|amzn", "weth|eth|tsla"]
+
+    assert resolve_registered_group_key(["ETH", "AMZN", "TSLA"], registered) is None
+    assert resolve_registered_group_key(["AMZN", "TSLA", "ETH"], registered) is None
+    assert resolve_registered_group_key(["ETH", "TSLA", "AMZN"], registered) is None
 
 
 def test_the_reverse_direction_never_resolves_to_the_forward_worker():
@@ -124,3 +139,20 @@ def test_resolution_ignores_malformed_request_paths():
     assert resolve_registered_group_key(["ETH", "AMZN"], ["tsla|eth|amzn"]) is None
     assert resolve_registered_group_key([], ["tsla|eth|amzn"]) is None
     assert resolve_registered_group_key(["ETH", "AMZN", "ETH"], ["tsla|eth|amzn"]) is None
+
+
+def test_the_module_no_longer_exposes_a_rotation_capability():
+    """The rotation helpers are gone, so they cannot be called again.
+
+    A removed name that is still importable would let a future caller
+    reintroduce exactly the defect TASK-149 removed.
+    """
+    import dex.runtime.closed_loop_identity as module
+
+    for name in (
+        "directed_cycle_rotations",
+        "canonical_directed_cycle_key",
+        "directed_cycle_keys_match",
+    ):
+        assert not hasattr(module, name), name
+        assert name not in module.__all__, name

@@ -32,6 +32,39 @@ where
     }
 }
 
+/// Serializes a 128-bit amount as a decimal string.
+///
+/// The threshold that gates the cross-tick review is a plain amount rather
+/// than an optional one, but it has the same problem: a JSON number cannot
+/// hold a 128-bit quantity. It therefore uses the same representation.
+pub fn serialize_u128_as_string<S>(value: &u128, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&value.to_string())
+}
+
+/// Reads back a decimal string into a 128-bit amount.
+///
+/// A JSON number is accepted too, so a view that was written by an older
+/// build still reads back.
+pub fn deserialize_u128_from_string<'de, D>(deserializer: D) -> Result<u128, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = serde_json::Value::deserialize(deserializer)?;
+    match raw {
+        serde_json::Value::String(text) => {
+            text.trim().parse::<u128>().map_err(serde::de::Error::custom)
+        }
+        serde_json::Value::Number(number) => number
+            .to_string()
+            .parse::<u128>()
+            .map_err(serde::de::Error::custom),
+        _ => Err(serde::de::Error::custom("expected a 128-bit amount")),
+    }
+}
+
 /// Reads back a decimal string into an optional 128-bit amount.
 ///
 /// A JSON number is accepted too, so a view that was written by an older

@@ -110,11 +110,58 @@ pub fn load_chain_tokens(
     )
 }
 
+/// Whether the Token Manager authority table is present in this database.
+///
+/// The Token Manager owns the token truth of every chain. Its
+/// `token_library_catalog` view is the only place a token's symbol and
+/// decimals are decided, so the kernel reads its tokens from there. A
+/// database that has not been migrated yet simply has no token truth to
+/// read, and the kernel reports that instead of guessing.
+fn token_library_catalog_exists(connection: &Connection) -> bool {
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master \
+             WHERE type IN ('table','view') AND name='token_library_catalog'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+        > 0
+}
+
+/// The tokens of one chain, as the Token Manager publishes them.
+///
+/// Every admitted token of every library is returned. The kernel needs the
+/// full token set of the chain, because a route may borrow any token the
+/// Token Manager admitted, not only the core four. A token that the Token
+/// Manager blocked or left pending is deliberately left out: an
+/// unadmitted token is not a tradeable token of the system.
+fn load_token_manager_rows(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Vec<Value>, String> {
+    rows(
+        connection,
+        "SELECT token_address, token_symbol, token_name, token_decimals, \
+         token_kind, is_native, is_wrapped_native, is_stable, \
+         admission_status \
+         FROM token_library_catalog \
+         WHERE network = ?1 AND chain_id = ?2 \
+           AND admission_status = 'admitted' \
+         ORDER BY token_address",
+        &[&network.to_string(), &(chain_id as i64)],
+    )
+}
+
 pub fn load_chain_token_registry_rows(
     connection: &Connection,
     network: &str,
     chain_id: u64,
 ) -> Result<Vec<Value>, String> {
+    if token_library_catalog_exists(connection) {
+        return load_token_manager_rows(connection, network, chain_id);
+    }
     rows(
         connection,
         "SELECT token_address \
@@ -141,6 +188,9 @@ pub fn load_chain_token_decimals_rows(
     network: &str,
     chain_id: u64,
 ) -> Result<Vec<Value>, String> {
+    if token_library_catalog_exists(connection) {
+        return load_token_manager_rows(connection, network, chain_id);
+    }
     rows(
         connection,
         "SELECT token_address, token_symbol, token_decimals \
@@ -555,7 +605,9 @@ pub fn load_manager_closed_loop_rows(
     rows(
         connection,
         "SELECT loop_key, path_symbols_json, pool_ids_json, \
-         single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id \
+         single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id, \
+         borrow_token_usdg_value_raw, borrow_token_decimals, \
+         cross_tick_review_threshold_usdg_raw, cross_tick_capacity_anchor_raw \
          FROM manager_v4_closed_loops \
          WHERE network = ?1 AND chain_id = ?2 \
          ORDER BY loop_key",
@@ -779,6 +831,135 @@ mod tests {
         assert!(liquidity[0]["has_liquidity"].is_null());
         assert!(liquidity[0]["recent_swap_active"].is_null());
         assert!(liquidity[0]["liquidity_read_at"].is_null());
+    }
+
+    #[test]
+    fn token_decimals_come_from_the_token_manager_authority() {
+        let dir = tempfile::tempdir().expect("temporary dir");
+        let path = dir.path().join("token-authority.sqlite3");
+        let path_text = path.to_string_lossy().into_owned();
+        let connection = Connection::open(&path).expect("open test database");
+        connection
+            .execute_batch(
+                "
+                CREATE TABLE chain_tokens (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    token_address TEXT NOT NULL,
+                    token_symbol TEXT,
+                    token_name TEXT,
+                    token_decimals INTEGER,
+                    token_kind TEXT,
+                    is_native INTEGER,
+                    is_wrapped_native INTEGER,
+                    is_stable INTEGER,
+                    anchor_symbol TEXT,
+                    token_metadata_json TEXT,
+                    source_json TEXT,
+                    first_seen_at TEXT,
+                    updated_at TEXT,
+                    PRIMARY KEY (network, chain_id, token_address)
+                );
+                CREATE TABLE token_library_catalog (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    token_key_id TEXT NOT NULL,
+                    v4_currency_key TEXT NOT NULL,
+                    token_address TEXT NOT NULL,
+                    token_symbol TEXT NOT NULL,
+                    token_name TEXT,
+                    token_decimals INTEGER NOT NULL,
+                    token_kind TEXT NOT NULL,
+                    is_native INTEGER NOT NULL DEFAULT 0,
+                    is_wrapped_native INTEGER NOT NULL DEFAULT 0,
+                    is_stable INTEGER NOT NULL DEFAULT 0,
+                    admission_status TEXT NOT NULL,
+                    admission_source TEXT NOT NULL,
+                    metadata_source TEXT NOT NULL,
+                    metadata_checksum TEXT NOT NULL,
+                    source_json TEXT NOT NULL DEFAULT '{}',
+                    first_seen_at TEXT NOT NULL,
+                    first_admitted_at TEXT,
+                    updated_at TEXT NOT NULL,
+                    blocked_reason TEXT,
+                    PRIMARY KEY (network, chain_id, token_key_id)
+                );
+                ",
+            )
+            .expect("create token tables");
+        // The compatibility projection is stale: it carries a placeholder
+        // symbol and no decimals at all.
+        connection
+            .execute(
+                "INSERT INTO chain_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    "robinhood",
+                    4663_i64,
+                    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "UNRESOLVED:0X5FC5360D",
+                    "UNRESOLVED:0X5FC5360D",
+                    Option::<i64>::None,
+                    "stable",
+                    0_i64,
+                    0_i64,
+                    1_i64,
+                    "USDG",
+                    "{}",
+                    "{}",
+                    "2026-10-09T00:00:00.000Z",
+                    "2026-10-09T00:00:00.000Z"
+                ],
+            )
+            .expect("insert stale projection row");
+        // The Token Manager knows the truth about the same token.
+        connection
+            .execute(
+                "INSERT INTO token_library_catalog VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    "robinhood",
+                    4663_i64,
+                    "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "USDG",
+                    "USDG",
+                    6_i64,
+                    "stable",
+                    0_i64,
+                    0_i64,
+                    1_i64,
+                    "admitted",
+                    "bootstrap:core4_allowlist",
+                    "fixed_core4_allowlist",
+                    "sha256:test",
+                    "{}",
+                    "2026-10-09T00:00:00.000Z",
+                    Option::<String>::None,
+                    "2026-10-09T00:00:00.000Z",
+                    Option::<String>::None
+                ],
+            )
+            .expect("insert token manager row");
+        drop(connection);
+
+        let connection = open_readonly(&path_text).expect("open read-only");
+        let decimals = load_chain_token_decimals_rows(&connection, "robinhood", 4663)
+            .expect("load token decimals");
+        assert_eq!(decimals.len(), 1);
+        assert_eq!(
+            decimals[0]["token_address"].as_str().unwrap(),
+            "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        );
+        assert_eq!(decimals[0]["token_decimals"].as_i64().unwrap(), 6);
+        assert_eq!(decimals[0]["token_symbol"].as_str().unwrap(), "USDG");
+
+        let registry = load_chain_token_registry_rows(&connection, "robinhood", 4663)
+            .expect("load token registry rows");
+        assert_eq!(registry.len(), 1);
+        assert_eq!(
+            registry[0]["token_address"].as_str().unwrap(),
+            "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        );
     }
 
     #[test]

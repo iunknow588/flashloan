@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::config::parse_u64_hexish;
+use crate::cross_tick_init::{decide as decide_cross_tick, to_json as cross_tick_to_json};
 use crate::json_result_to_py;
 
 /// The deployed quoter takes the canonical Uniswap V4 nested struct.
@@ -1819,6 +1820,215 @@ fn measured_probe_loss_raw(attempts: &[Value]) -> Value {
     Value::Null
 }
 
+/// Publish the deterministic cross-tick initialization contract.
+///
+/// The single-tick best amount is the **only** admissible seed of the
+/// cross-tick search. A zero best amount never starts the cross-tick mode,
+/// and the search ceiling is the depth capacity rather than the single-tick
+/// physical ceiling.
+fn cross_tick_initialization(
+    config: &Value,
+    single_tick_best_amount_raw: &BigUint,
+    single_tick_best_profit_raw: &BigUint,
+) -> Value {
+    let threshold = config
+        .get("crossTickReviewThresholdUsdgRaw")
+        .and_then(|value| parse_big_uint(value).ok());
+    let value = config
+        .get("borrowTokenUsdgValueRaw")
+        .and_then(|value| parse_big_uint(value).ok());
+    let decimals = config
+        .get("borrowTokenDecimals")
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok());
+    let capacity = config
+        .get("crossTickCapacityRaw")
+        .and_then(|value| parse_big_uint(value).ok());
+    let decision = decide_cross_tick(
+        single_tick_best_amount_raw,
+        single_tick_best_profit_raw,
+        threshold.as_ref(),
+        value.as_ref(),
+        decimals,
+        capacity.as_ref(),
+    );
+    let mut payload = cross_tick_to_json(&decision);
+    payload["singleTickBestAmountRaw"] = json!(format!("0x{:x}", single_tick_best_amount_raw));
+    payload["singleTickBestProfitRaw"] = json!(format!("0x{:x}", single_tick_best_profit_raw));
+    if let (Some(threshold), Some(value), Some(decimals)) = (threshold, value, decimals) {
+        let scale = BigUint::from(10u8).pow(decimals);
+        let profit_usdg_raw = (single_tick_best_profit_raw * &value) / &scale;
+        payload["singleTickProfitUsdgRaw"] = json!(format!("0x{:x}", profit_usdg_raw));
+        payload["thresholdUsdgRaw"] = json!(format!("0x{:x}", threshold));
+        payload["borrowTokenDecimals"] = json!(decimals);
+    }
+    if let Some(capacity) = capacity {
+        payload["crossTickCapacityRaw"] = json!(format!("0x{:x}", capacity));
+    }
+    // The seed basis is published by the decision itself and must not be
+    // overwritten: "single_tick_best_amount" states **where** the
+    // cross-tick search starts, while "usdg_quote_asset_not_usd" states
+    // **how** the threshold is denominated. Both facts are needed.
+    payload["thresholdBasis"] = json!("usdg_quote_asset_not_usd");
+    payload
+}
+
+/// Continue the generic input/output ladder from the single-tick optimum.
+///
+/// The single-tick calculation produces the deterministic initial amount;
+/// its bucket-cap ceiling is not carried into this second-stage search.
+/// The same ladder probes the closed loop's actual swap input/output, now
+/// bounded by the Manager-published depth capacity.
+fn official_v4_cross_tick_best_amount_inner(
+    config: &Value,
+    rpc_url: &str,
+    arb_address: &str,
+    call_from: Option<&str>,
+    timeout_seconds: u64,
+    single_tick_best_amount_raw: &BigUint,
+) -> Result<Value, String> {
+    if single_tick_best_amount_raw.is_zero() {
+        // A zero single-tick best amount means nothing works inside the
+        // current single-tick domain. Do not start the continuation at zero.
+        return Ok(json!({
+            "method": "previewArbitrageBestAmount",
+            "searchMode": "cross_tick",
+            "status": "cross_tick_not_started",
+            "crossTickReview": json!({
+                "started": false,
+                "reason": "single_tick_best_amount_zero",
+            }),
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            // A zero best amount carries a zero profit. That is a
+            // **measurement**, not a missing value: zero is greater than
+            // every negative result, so the review may publish it and
+            // must not classify the route as `data_incomplete`.
+            "reportedNetProfitRaw": "0x0",
+            "error": "single_tick_best_amount_zero",
+        }));
+    }
+    let Some(capacity_raw) = config
+        .get("crossTickCapacityRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?
+        .filter(|value| !value.is_zero())
+    else {
+        return Ok(json!({
+            "method": "previewArbitrageBestAmount",
+            "searchMode": "cross_tick",
+            "status": "cross_tick_capacity_unavailable",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "cross_tick_capacity_unavailable",
+            "repairTarget": "closed_loop_manager",
+            "crossTickReview": json!({
+                "started": false,
+                "reason": "cross_tick_inputs_unavailable",
+            }),
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            "reportedNetProfitRaw": Value::Null,
+            "error": "cross_tick_capacity_unavailable",
+        }));
+    };
+    if single_tick_best_amount_raw > &capacity_raw {
+        return Ok(json!({
+            "method": "previewArbitrageBestAmount",
+            "searchMode": "cross_tick",
+            "status": "cross_tick_seed_exceeds_capacity",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_best_amount_exceeds_cross_tick_capacity",
+            "crossTickSeedAmountRaw": format!("0x{:x}", single_tick_best_amount_raw),
+            "crossTickCapacityRaw": format!("0x{:x}", capacity_raw),
+            "crossTickSeedBasis": "single_tick_best_amount",
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            "error": "single_tick_best_amount_exceeds_cross_tick_capacity",
+        }));
+    }
+
+    let mut ladder_config = config.clone();
+    ladder_config["initialAmountRaw"] =
+        json!(format!("0x{:x}", single_tick_best_amount_raw));
+    ladder_config["searchCapacityOverrideRaw"] =
+        json!(format!("0x{:x}", capacity_raw));
+    ladder_config["maxProbeAmountRaw"] = json!(format!("0x{:x}", capacity_raw));
+    ladder_config["searchMode"] = json!("cross_tick");
+
+    let mut result = official_v4_adaptive_best_amount_single_route_inner(
+        &ladder_config,
+        rpc_url,
+        arb_address,
+        call_from,
+        timeout_seconds,
+    )?;
+    result["searchMode"] = json!("cross_tick");
+    result["crossTickSeedAmountRaw"] =
+        json!(format!("0x{:x}", single_tick_best_amount_raw));
+    result["crossTickSeedBasis"] = json!("single_tick_best_amount");
+    result["crossTickCapacityRaw"] = json!(format!("0x{:x}", capacity_raw));
+    result.as_object_mut().map(|payload| {
+        payload.remove("singleTickCapacityRaw");
+        payload.remove("singleTickCapacityBasis");
+    });
+    result["crossTickCapacityBasis"] = json!("folded_depth_capacity");
+    result["searchCapacityRaw"] = json!(format!("0x{:x}", capacity_raw));
+    result["searchCapacityBasis"] = json!("search_capacity_override");
+    Ok(result)
+}
+
+/// Publish the cross-tick verdict and its typed measurement availability.
+fn cross_tick_review_with_search(
+    config: &Value,
+    rpc_url: &str,
+    arb_address: &str,
+    call_from: Option<&str>,
+    timeout_seconds: u64,
+    single_tick_best_amount_raw: &BigUint,
+    single_tick_best_profit_raw: &BigUint,
+) -> Value {
+    let verdict = cross_tick_initialization(
+        config,
+        single_tick_best_amount_raw,
+        single_tick_best_profit_raw,
+    );
+    if verdict.get("started").and_then(Value::as_bool) != Some(true) {
+        return verdict;
+    }
+    if config.get("searchMode").and_then(Value::as_str) == Some("cross_tick") {
+        return verdict;
+    }
+    match official_v4_cross_tick_best_amount_inner(
+        config,
+        rpc_url,
+        arb_address,
+        call_from,
+        timeout_seconds,
+        single_tick_best_amount_raw,
+    ) {
+        Ok(search) => {
+            let mut payload = verdict;
+            payload["search"] = search;
+            payload
+        }
+        Err(error) => {
+            let mut payload = verdict;
+            payload["searchError"] = json!(error);
+            payload
+        }
+    }
+}
+
 fn attach_arbitrage_not_profitable(payload: &mut Value) {
     let revert_data = payload
         .get("revertData")
@@ -2595,6 +2805,148 @@ fn big_uint_to_usize(value: &BigUint) -> Result<usize, String> {
         .map_err(|_| format!("index exceeds usize: {value}"))
 }
 
+/// Resolve the **search capacity** that bounds the amount ladder.
+///
+/// The kernel owns this number. The Manager publishes the folded single-tick
+/// capacity for a closed loop, and the ladder treats that fold as the
+/// authoritative bound because it is the only value that was actually proved
+/// for the route. The two compatibility fallbacks are deliberately weaker:
+/// an explicit override wins when the caller knows a wider search domain,
+/// and the generic probe maximum is the last resort for a route that has no
+/// published fold yet.
+///
+/// A missing capacity is **not** an error. It is the blocked case that the
+/// ladder and the preview-pool path both report, so the orchestrator knows to
+/// call the closed-loop manager instead of the review manager. A JSON `null`
+/// therefore means exactly the same thing as an absent key.
+fn resolve_search_capacity(
+    config: &Value,
+) -> Result<(Option<BigUint>, String, &'static str), String> {
+    let search_capacity_override_raw = config
+        .get("searchCapacityOverrideRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    let folded_capacity_raw = config
+        .get("singleTickCapacityRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    let max_probe_raw = config
+        .get("maxProbeAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    Ok(
+        if let Some(capacity) = search_capacity_override_raw
+            .as_ref()
+            .filter(|value| !value.is_zero())
+        {
+            (
+                Some(capacity.clone()),
+                "search_capacity_override".to_string(),
+                "searchCapacityRaw",
+            )
+        } else {
+            match folded_capacity_raw
+                .as_ref()
+                .filter(|value| !value.is_zero())
+            {
+                Some(capacity) => (
+                    Some(capacity.clone()),
+                    "folded_single_tick_capacity".to_string(),
+                    "singleTickCapacityRaw",
+                ),
+                None => (
+                    max_probe_raw
+                        .as_ref()
+                        .filter(|value| !value.is_zero())
+                        .cloned(),
+                    "max_probe_amount_fallback".to_string(),
+                    "singleTickCapacityRaw",
+                ),
+            }
+        },
+    )
+}
+
+/// Derive the **initial amount** of the ladder from the published capacity.
+///
+/// The Python runtime never computes a trading number: it only describes the
+/// environment (chain, pools, protocol). The kernel owns the amount, so the
+/// start is derived here from the same single-tick capacity the ladder uses.
+/// When the caller supplied an explicit start it wins, but it is clamped to
+/// the capacity so a caller can never push the search past the bound that was
+/// proved for the route.
+fn derive_initial_amount_raw(
+    config: &Value,
+    capacity_limit_raw: Option<&BigUint>,
+) -> Result<DerivedInitialAmount, String> {
+    let requested_initial_amount_raw = config
+        .get("initialAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    let ladder_start_fraction = config
+        .get("ladderStartCapacityFraction")
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.5)
+        .clamp(0.01, 1.0);
+    let min_probe_raw = config
+        .get("minProbeAmountRaw")
+        .map(parse_big_uint)
+        .transpose()?
+        .unwrap_or_else(BigUint::zero);
+    let economic_floor_raw = config
+        .get("economicFloorRequiredAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    let Some(capacity_limit_raw) = capacity_limit_raw else {
+        // Without a published capacity there is no defensible start amount.
+        // The caller decides whether that is a blocked route or a hard error;
+        // this helper only reports the missing bound.
+        return Ok(DerivedInitialAmount {
+            initial_amount_raw: BigUint::zero(),
+            derived_initial_amount_raw: BigUint::zero(),
+            basis: "single_tick_capacity_unavailable".to_string(),
+        });
+    };
+    let fraction_scaled_start = capacity_limit_raw
+        * BigUint::from((ladder_start_fraction * 1_000_000_000_000f64).round() as u64)
+        / BigUint::from(1_000_000_000_000u64);
+    let mut derived_initial_amount_raw = fraction_scaled_start;
+    if let Some(required) = economic_floor_raw.as_ref() {
+        derived_initial_amount_raw = derived_initial_amount_raw.max(required.clone());
+    }
+    derived_initial_amount_raw = derived_initial_amount_raw.max(min_probe_raw.clone());
+    derived_initial_amount_raw = derived_initial_amount_raw.min(capacity_limit_raw.clone());
+    let initial_amount_raw = requested_initial_amount_raw
+        .clone()
+        .unwrap_or_else(|| derived_initial_amount_raw.clone())
+        .min(capacity_limit_raw.clone());
+    let basis = if requested_initial_amount_raw.is_some() {
+        "caller_provided_start".to_string()
+    } else {
+        "single_tick_capacity_fraction".to_string()
+    };
+    Ok(DerivedInitialAmount {
+        initial_amount_raw,
+        derived_initial_amount_raw,
+        basis,
+    })
+}
+
+/// The outcome of deriving the ladder start from the published capacity.
+struct DerivedInitialAmount {
+    /// The amount the ladder starts from.
+    initial_amount_raw: BigUint,
+    /// The amount the kernel derived on its own, before any caller override.
+    derived_initial_amount_raw: BigUint,
+    /// How the start was determined.
+    basis: String,
+}
+
 fn official_v4_probe_one(
     config: &Value,
     rpc_url: &str,
@@ -2687,33 +3039,15 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
     // quote participates: 86 of 88 production loops borrow a token that is
     // neither ETH nor a USD stablecoin, so a USD valuation could not be
     // computed for the active book at all.
-    if let Some(gate) = config.get("economicFloorGate").and_then(Value::as_object) {
-        if gate.get("blocked").and_then(Value::as_bool) == Some(true) {
-            return Ok(json!({
-                "method": "previewArbitrageBestAmount",
-                "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
-                "initialAmountRaw": config.get("initialAmountRaw").cloned().unwrap_or(Value::Null),
-                "minProfitRaw": config.get("minProfitRaw").cloned().unwrap_or(Value::Null),
-                "status": "economically_infeasible",
-                "selectedAmountRaw": "0x0",
-                "selectedProfitRaw": "0x0",
-                "selectedRouteIndex": "0x0",
-                "attemptedCount": "0x0",
-                "attempts": [],
-                "economicFloorGate": gate.clone(),
-                "error": gate
-                    .get("reason")
-                    .and_then(Value::as_str)
-                    .unwrap_or("dust_unprofitable"),
-            }));
-        }
-    }
-
-    let requested_initial_amount_raw = parse_big_uint(
-        config
-            .get("initialAmountRaw")
-            .ok_or_else(|| "initialAmountRaw is required".to_string())?,
-    )?;
+    // The economic floor travels with the task config as a **number**, not
+    // as a verdict: the Python runtime does not compare it against the
+    // capacity, because the capacity belongs to the kernel. The kernel
+    // performs the comparison once it knows the Manager-published capacity.
+    let requested_initial_amount_raw = config
+        .get("initialAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
     let min_profit_raw = parse_big_uint(
         config
             .get("minProfitRaw")
@@ -2724,6 +3058,29 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         .map(parse_big_uint)
         .transpose()?
         .unwrap_or_else(BigUint::zero);
+    // The generic probe maximum still bounds the **expansion** of the ladder:
+    // the start comes from the published single-tick capacity, but the
+    // doubling/halving search may run wider than that capacity when the
+    // route is allowed to cross a tick boundary.
+    let max_probe_raw = config
+        .get("maxProbeAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
+    // The **kernel** owns the starting amount of the ladder. The Python
+    // runtime never computes a trading number: it only describes the
+    // environment (chain, pools, protocol) and the kernel derives the
+    // single-tick start from the capacity the Manager published.
+    //
+    // The single tick is the **method** that produces the initial amount,
+    // not a restriction of the later search. Its bucket capacity
+    // `M_cap` therefore bounds only the single-tick domain; the cross-tick
+    // continuation is bounded by the depth capacity instead.
+    let economic_floor_raw = config
+        .get("economicFloorRequiredAmountRaw")
+        .filter(|value| !value.is_null())
+        .map(parse_big_uint)
+        .transpose()?;
     // The authoritative bound is the **folded single-tick capacity** that
     // the closed-loop Manager published for this route. `maxProbeAmountRaw`
     // is accepted as a compatibility fallback for a caller that has not
@@ -2734,29 +3091,8 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
     // ladder reports below. A JSON ``null`` therefore means "no capacity was
     // published", exactly like an absent key, and must not turn into a
     // parse failure that hides the real reason.
-    let folded_capacity_raw = config
-        .get("singleTickCapacityRaw")
-        .filter(|value| !value.is_null())
-        .map(parse_big_uint)
-        .transpose()?;
-    let max_probe_raw = config
-        .get("maxProbeAmountRaw")
-        .filter(|value| !value.is_null())
-        .map(parse_big_uint)
-        .transpose()?;
-    let (capacity_limit_raw, capacity_basis) = match folded_capacity_raw
-        .as_ref()
-        .filter(|value| !value.is_zero())
-    {
-        Some(capacity) => (Some(capacity.clone()), "folded_single_tick_capacity"),
-        None => (
-            max_probe_raw
-                .as_ref()
-                .filter(|value| !value.is_zero())
-                .cloned(),
-            "max_probe_amount_fallback",
-        ),
-    };
+    let (capacity_limit_raw, capacity_basis, search_capacity_key) =
+        resolve_search_capacity(config)?;
     let Some(capacity_limit_raw) = capacity_limit_raw.as_ref() else {
         // The route has no published capacity, so the ladder is **blocked**
         // before it probes anything. Nothing was measured, and the record
@@ -2773,7 +3109,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
-            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "requestedInitialAmountRaw": requested_initial_amount_raw
+                .as_ref()
+                .map(|value| json!(format!("0x{:x}", value)))
+                .unwrap_or(Value::Null),
             "initialAmountRaw": "0x0",
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "status": "single_tick_capacity_unavailable",
@@ -2796,7 +3135,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
-            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "requestedInitialAmountRaw": requested_initial_amount_raw
+                .as_ref()
+                .map(|value| json!(format!("0x{:x}", value)))
+                .unwrap_or(Value::Null),
             "initialAmountRaw": "0x0",
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
@@ -2813,9 +3155,54 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "error": "single_tick_capacity_below_min_probe",
         }));
     }
-    let initial_amount_raw = requested_initial_amount_raw
-        .clone()
-        .min(capacity_limit_raw.clone());
+    // The economic floor is compared against the capacity **here**, because
+    // the capacity is the kernel's own value. A pool that cannot carry the
+    // amount needed to cover Gas can never be profitable at any size it can
+    // absorb, so the route is refused before a single probe is spent.
+    if let Some(required) = economic_floor_raw.as_ref() {
+        if !required.is_zero() && required > capacity_limit_raw {
+            return Ok(json!({
+                "method": "previewArbitrageBestAmount",
+                "searchMode": config.get("searchMode").cloned().unwrap_or(Value::Null),
+                "requestedInitialAmountRaw": requested_initial_amount_raw
+                    .as_ref()
+                    .map(|value| json!(format!("0x{:x}", value)))
+                    .unwrap_or(Value::Null),
+                "initialAmountRaw": "0x0",
+                "minProfitRaw": format!("0x{:x}", min_profit_raw),
+                "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+                "singleTickCapacityBasis": capacity_basis,
+                "status": "economically_infeasible",
+                "ladderBlocked": true,
+                "ladderBlockedReason": "capacity_cannot_cover_gas",
+                "economicFloorGate": {
+                    "verdict": "dust_unprofitable",
+                    "blocked": true,
+                    "reason": "capacity_cannot_cover_gas",
+                    "measured": true,
+                    "capacityRaw": format!("0x{:x}", capacity_limit_raw),
+                    "requiredRaw": format!("0x{:x}", required),
+                    "basis": "token_denominated_economic_floor",
+                },
+                "selectedAmountRaw": "0x0",
+                "selectedProfitRaw": "0x0",
+                "selectedRouteIndex": "0x0",
+                "attemptedCount": "0x0",
+                "attempts": [],
+                "error": "dust_unprofitable",
+            }));
+        }
+    }
+    // Derive the ladder start inside the kernel. The Manager-published
+    // single-tick capacity is the bucket-shortest-board bound `M_cap`.
+    // The start is the capacity fraction that is also raised to the
+    // economic floor and the minimum probe size, but never exceeds the
+    // capacity itself. A caller-provided start remains an explicit
+    // override for compatibility, never a Python-computed default.
+    let derived_start = derive_initial_amount_raw(config, Some(&capacity_limit_raw))?;
+    let initial_amount_raw = derived_start.initial_amount_raw.clone();
+    let derived_initial_amount_raw = derived_start.derived_initial_amount_raw.clone();
+    let initial_amount_basis = derived_start.basis.clone();
     let max_steps = config
         .get("maxProbeAttempts")
         .and_then(Value::as_u64)
@@ -2844,6 +3231,11 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             .and_then(Value::as_str)
             .and_then(|value| BigUint::parse_bytes(strip_0x(value).as_bytes(), 16))
             .unwrap_or_else(BigUint::zero);
+        let single_tick_best_amount_raw = single
+            .get("selectedAmountRaw")
+            .and_then(Value::as_str)
+            .and_then(|value| BigUint::parse_bytes(strip_0x(value).as_bytes(), 16))
+            .unwrap_or_else(BigUint::zero);
         let attempts = vec![json!({
             "amountRaw": config.get("initialAmountRaw").cloned().unwrap_or(Value::Null),
             "ok": ok,
@@ -2862,14 +3254,23 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": search_mode,
-            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "requestedInitialAmountRaw": requested_initial_amount_raw
+                .as_ref()
+                .map(|value| json!(format!("0x{:x}", value)))
+                .unwrap_or(Value::Null),
             "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
             "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
             "singleTickCapacityBasis": capacity_basis,
+            search_capacity_key: format!("0x{:x}", capacity_limit_raw),
+            "searchCapacityBasis": capacity_basis,
+            "ladderStartBasis": initial_amount_basis,
+            "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "status": if ok { "profitable_amount_found" } else { "not_profitable_after_costs" },
             "selectedAmountRaw": single.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
             "selectedProfitRaw": single.get("selectedProfitRaw").cloned().unwrap_or(Value::Null),
+            "singleTickBestAmountRaw": format!("0x{:x}", single_tick_best_amount_raw),
+            "singleTickBestProfitRaw": format!("0x{:x}", profit_raw),
             "selectedRouteIndex": single.get("selectedRouteIndex").cloned().unwrap_or(Value::Null),
             "attemptedCount": single.get("attemptedCount").cloned().unwrap_or(Value::Null),
             "attempts": attempts,
@@ -2877,6 +3278,15 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             // the ladder reports "no profit" without ever saying **how much**
             // was lost, and the review cannot publish a concrete PnL.
             "reportedNetProfitRaw": measured_probe_loss_raw(&attempts),
+            "crossTickReview": cross_tick_review_with_search(
+                config,
+                rpc_url,
+                arb_address,
+                call_from,
+                timeout_seconds,
+                &single_tick_best_amount_raw,
+                &profit_raw,
+            ),
         }));
     }
 
@@ -2899,10 +3309,17 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             return Ok(json!({
                 "method": "previewArbitrageBestAmount",
                 "searchMode": search_mode,
-                "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+                "requestedInitialAmountRaw": requested_initial_amount_raw
+                    .as_ref()
+                    .map(|value| json!(format!("0x{:x}", value)))
+                    .unwrap_or(Value::Null),
                 "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
                 "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
             "singleTickCapacityBasis": capacity_basis,
+                search_capacity_key: format!("0x{:x}", capacity_limit_raw),
+                "searchCapacityBasis": capacity_basis,
+                "ladderStartBasis": initial_amount_basis,
+                "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
                 "minProfitRaw": format!("0x{:x}", min_profit_raw),
                 "status": "preflight_failed",
                 "selectedAmountRaw": "0x0",
@@ -3101,10 +3518,17 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         return Ok(json!({
             "method": "previewArbitrageBestAmount",
             "searchMode": search_mode,
-            "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+            "requestedInitialAmountRaw": requested_initial_amount_raw
+                .as_ref()
+                .map(|value| format!("0x{:x}", value))
+                .unwrap_or_else(|| Value::Null.to_string()),
             "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
             "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
             "singleTickCapacityBasis": capacity_basis,
+            search_capacity_key: format!("0x{:x}", capacity_limit_raw),
+            "searchCapacityBasis": capacity_basis,
+            "ladderStartBasis": initial_amount_basis,
+            "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
             "status": "not_profitable_after_costs",
             "selectedAmountRaw": "0x0",
@@ -3116,6 +3540,19 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             // The probes already carry it; publishing it here keeps the
             // ladder's own conclusion instead of dropping it.
             "reportedNetProfitRaw": measured_probe_loss_raw(&attempts),
+            // The single-tick mode is the default. A route whose single-tick
+            // result is worth less than the shared USDG threshold is worth
+            // a cross-tick review, because the cross-tick mode may still
+            // find room that the single-tick range cannot express.
+            "crossTickReview": cross_tick_review_with_search(
+                config,
+                rpc_url,
+                arb_address,
+                call_from,
+                timeout_seconds,
+                &BigUint::zero(),
+                &BigUint::zero(),
+            ),
         }));
     }
 
@@ -3249,14 +3686,23 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
     Ok(json!({
         "method": "previewArbitrageBestAmount",
         "searchMode": search_mode,
-        "requestedInitialAmountRaw": format!("0x{:x}", requested_initial_amount_raw),
+        "requestedInitialAmountRaw": requested_initial_amount_raw
+            .as_ref()
+            .map(|value| json!(format!("0x{:x}", value)))
+            .unwrap_or(Value::Null),
+        "ladderStartBasis": initial_amount_basis,
+        "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
         "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
         "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
             "singleTickCapacityBasis": capacity_basis,
+        search_capacity_key: format!("0x{:x}", capacity_limit_raw),
+        "searchCapacityBasis": capacity_basis,
         "minProfitRaw": format!("0x{:x}", min_profit_raw),
         "status": "profitable_amount_found",
         "selectedAmountRaw": format!("0x{:x}", selected_amount),
         "selectedProfitRaw": format!("0x{:x}", selected_profit),
+        "singleTickBestAmountRaw": format!("0x{:x}", selected_amount),
+        "singleTickBestProfitRaw": format!("0x{:x}", selected_profit),
         "selectedRouteIndex": format!("0x{:x}", selected_route_index),
         "attemptedCount": format!("0x{:x}", total_attempted),
         "attempts": attempts,
@@ -3264,6 +3710,19 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         "lowerAmountRaw": format!("0x{:x}", lower_amount),
         "upperAmountRaw": format!("0x{:x}", upper_amount),
         "hasUpperBound": has_upper_amount,
+        // The single-tick mode is the default. A route whose single-tick
+        // profit is worth less than the shared USDG threshold is worth a
+        // cross-tick review, because the cross-tick mode may still find
+        // room that the single-tick range cannot express.
+        "crossTickReview": cross_tick_review_with_search(
+            config,
+            rpc_url,
+            arb_address,
+            call_from,
+            timeout_seconds,
+            &selected_amount,
+            &selected_profit,
+        ),
     }))
 }
 
@@ -3302,11 +3761,6 @@ pub(crate) fn official_v4_preview_and_ladder_inner(
         .get("exitDirections")
         .and_then(Value::as_array)
         .ok_or_else(|| "preview pool exitDirections is required".to_string())?;
-    let initial_amount_raw = parse_big_uint(
-        config
-            .get("initialAmountRaw")
-            .ok_or_else(|| "preview pool initialAmountRaw is required".to_string())?,
-    )?;
     let min_profit_raw = parse_big_uint(
         config
             .get("minProfitRaw")
@@ -3317,6 +3771,45 @@ pub(crate) fn official_v4_preview_and_ladder_inner(
         .and_then(Value::as_str)
         .unwrap_or("inner_single_call")
         .to_string();
+    // The kernel owns the trading amount. The Python runtime only describes
+    // the environment (chain, pools, protocol) and never publishes an
+    // `initialAmountRaw`, so requiring that key here would turn every route
+    // into a hard error before a single pool was even queried. The start is
+    // derived from the same published single-tick capacity the ladder uses.
+    let (capacity_limit_raw, capacity_basis, search_capacity_key) =
+        resolve_search_capacity(config)?;
+    let derived_start = derive_initial_amount_raw(config, capacity_limit_raw.as_ref())?;
+    let initial_amount_raw = derived_start.initial_amount_raw.clone();
+    let initial_amount_basis = derived_start.basis.clone();
+    let derived_initial_amount_raw = derived_start.derived_initial_amount_raw.clone();
+    let Some(capacity_limit_raw) = capacity_limit_raw.as_ref() else {
+        // No published capacity means there is no defensible start amount, so
+        // the route is blocked before it probes anything. The record says so
+        // explicitly and points at the closed-loop manager, which is the tool
+        // that publishes the capacity.
+        return Ok(json!({
+            "method": "previewBestPool+previewArbitrageBestAmount+runArbitrage",
+            "searchMode": search_mode,
+            "status": "single_tick_capacity_unavailable",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_capacity_unavailable",
+            "repairTarget": "closed_loop_manager",
+            "requestedInitialAmountRaw": config
+                .get("initialAmountRaw")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "initialAmountRaw": "0x0",
+            "derivedInitialAmountRaw": "0x0",
+            "minProfitRaw": format!("0x{:x}", min_profit_raw),
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "selectedRouteIndex": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+            "error": "single_tick_capacity_unavailable",
+        }));
+    };
+    let capacity_limit_raw = capacity_limit_raw.clone();
     let pool_preview =
         preview_best_pool_inner(config, rpc_url, arb_address, call_from, timeout_seconds)?;
     if pool_preview
@@ -3437,6 +3930,12 @@ pub(crate) fn official_v4_preview_and_ladder_inner(
         "searchMode": search_mode,
         "status": ladder.get("status").cloned().unwrap_or(Value::Null),
         "initialAmountRaw": format!("0x{:x}", initial_amount_raw),
+        "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
+        "ladderStartBasis": initial_amount_basis,
+        "singleTickCapacityRaw": format!("0x{:x}", capacity_limit_raw),
+        "singleTickCapacityBasis": capacity_basis,
+        search_capacity_key: format!("0x{:x}", capacity_limit_raw),
+        "searchCapacityBasis": capacity_basis,
         "minProfitRaw": format!("0x{:x}", min_profit_raw),
         "poolPreview": pool_preview,
         "selectedPool": {
@@ -3547,7 +4046,78 @@ pub(crate) fn official_v4_preview_and_ladder_inner(
             }
         }
     }
+    // The amount ladder is the authority on the best trade amount, and this
+    // path measured it just like the no-profit path does.  The payload must
+    // therefore publish the measurement, otherwise a route whose pool
+    // preview succeeded but whose ladder found no profitable size is
+    // reported as "the best amount is missing" even though the ladder
+    // measured every size it tried.
+    //
+    // The two outcomes stay distinct:
+    //
+    // * the ladder found a profitable size -> the best amount is that size
+    //   and it is confirmed;
+    // * the ladder found no profitable size -> the best amount is ``0``,
+    //   the measurement is confirmed, and the review states that the route
+    //   is unprofitable at every size the ladder tried.
+    //
+    // A ladder that was blocked before it probed publishes no probe row at
+    // all, and that case keeps its own blocked status: nothing was measured,
+    // so nothing may be claimed.
+    publish_ladder_best_amount(&mut payload);
     Ok(payload)
+}
+
+/// Publish the measured best trade amount of a ladder result.
+///
+/// The helper is idempotent: it only fills the fields when the ladder
+/// actually produced concrete probe records, so a payload that already
+/// carries the measurement is left untouched.
+fn publish_ladder_best_amount(payload: &mut Value) {
+    let Some(attempts) = payload
+        .get("attempts")
+        .and_then(Value::as_array)
+        .cloned()
+    else {
+        return;
+    };
+    let measured_probes = attempts
+        .iter()
+        .filter(|row| row.get("amountRaw").and_then(Value::as_str).is_some())
+        .count();
+    if measured_probes == 0 {
+        return;
+    }
+    payload["bestAmountMissing"] = json!(false);
+    payload["bestAmountMeasured"] = json!(true);
+    let profitable = attempts
+        .iter()
+        .find(|row| row.get("profitable").and_then(Value::as_bool) == Some(true));
+    match profitable {
+        Some(row) => {
+            let amount_raw = row
+                .get("amountRaw")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+            if !amount_raw.is_empty() {
+                payload["bestAmount"] = json!(amount_raw);
+                payload["bestAmountConfirmed"] = json!(true);
+                payload["bestAmountSelectionBasis"] =
+                    json!("native_rust_ladder_profitable_probe");
+            }
+        }
+        None => {
+            payload["bestAmount"] = json!("0x0");
+            payload["bestAmountConfirmed"] = json!(true);
+            payload["bestAmountSelectionBasis"] =
+                json!("native_rust_ladder_no_profitable_size_measured");
+            payload["bestAmountZeroReason"] = json!(format!(
+                "the amount ladder measured {} size(s) and none of them was profitable",
+                measured_probes
+            ));
+        }
+    }
 }
 
 fn submit_v4_route_inner(
@@ -4251,6 +4821,35 @@ pub fn run_v4_arb_best_amount_ladder(
     Python::with_gil(|py| Ok(json_result_to_py(py, result)))
 }
 
+/// Run the cross-tick search with the generic best-amount ladder.
+///
+/// The seed is the single-tick best amount, which the caller passes in as
+/// a raw amount. The kernel owns that value: it is the structural product
+/// of the single-tick computation, not a value Python reconstructs.
+#[pyfunction]
+#[pyo3(signature = (config_json, single_tick_best_amount_raw, rpc_url, arb_address, call_from=None, timeout_seconds=20))]
+pub fn run_v4_arb_best_amount_cross_tick(
+    config_json: String,
+    single_tick_best_amount_raw: String,
+    rpc_url: String,
+    arb_address: String,
+    call_from: Option<String>,
+    timeout_seconds: u64,
+) -> PyResult<PyObject> {
+    let config = parse_json(&config_json, "config")?;
+    let seed = parse_big_uint(&Value::String(single_tick_best_amount_raw)).map_err(as_py_error)?;
+    let result = official_v4_cross_tick_best_amount_inner(
+        &config,
+        &rpc_url,
+        &arb_address,
+        call_from.as_deref(),
+        timeout_seconds,
+        &seed,
+    )
+    .map_err(as_py_error)?;
+    Python::with_gil(|py| Ok(json_result_to_py(py, result)))
+}
+
 #[pyfunction]
 #[pyo3(signature = (config_json, rpc_url, arb_address, call_from=None, timeout_seconds=20))]
 pub fn preview_v4_best_pool(
@@ -4423,6 +5022,76 @@ pub fn get_v4_pending_nonce(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_single_tick_profit_below_the_usdg_threshold_starts_the_cross_tick_search() {
+        // The borrow token has eighteen decimals and is worth 1_000_000 raw
+        // USDG (one USDG) per whole token, so one whole token of profit is
+        // worth one USDG, which is below the ten USDG threshold. The
+        // cross-tick capacity is larger than the single-tick optimum, so
+        // the seed is the optimum itself and is **not** clamped.
+        let config = json!({
+            "crossTickReviewThresholdUsdgRaw": "0x989680",
+            "borrowTokenUsdgValueRaw": "0xf4240",
+            "borrowTokenDecimals": 18,
+            "crossTickCapacityRaw": "0xde0b6b3a764000000",
+        });
+        let seed = BigUint::from(7u32) * BigUint::from(10u32).pow(18);
+        let verdict = cross_tick_initialization(
+            &config,
+            &seed,
+            &BigUint::from(10u32).pow(18),
+        );
+        assert_eq!(verdict["started"], json!(true));
+        assert_eq!(verdict["seedAmountRaw"], json!(format!("0x{:x}", seed)));
+        assert_eq!(
+            verdict["singleTickProfitUsdgRaw"],
+            json!(format!("0x{:x}", BigUint::from(1_000_000u64)))
+        );
+        // The seed basis states where the search starts; the threshold
+        // basis states how the threshold is denominated. Neither may
+        // overwrite the other.
+        assert_eq!(verdict["basis"], json!("single_tick_best_amount"));
+        assert_eq!(
+            verdict["thresholdBasis"],
+            json!("usdg_quote_asset_not_usd")
+        );
+    }
+
+    #[test]
+    fn a_zero_seed_never_starts_the_cross_tick_search() {
+        let config = json!({
+            "crossTickReviewThresholdUsdgRaw": "0x989680",
+            "borrowTokenUsdgValueRaw": "0xf4240",
+            "borrowTokenDecimals": 18,
+            "crossTickCapacityRaw": "0xde0b6b3a7640000",
+        });
+        let verdict = cross_tick_initialization(
+            &config,
+            &BigUint::zero(),
+            &BigUint::zero(),
+        );
+        assert_eq!(verdict["started"], json!(false));
+        assert_eq!(verdict["reason"], json!("single_tick_best_amount_zero"));
+    }
+
+    #[test]
+    fn a_route_without_the_usdg_valuation_never_starts_the_cross_tick_search() {
+        // The cross-tick mode is a supplement. A route that carries no
+        // valuation must never lose its measured single-tick result.
+        let config = json!({
+            "crossTickReviewThresholdUsdgRaw": "0x989680",
+            "borrowTokenDecimals": 18,
+            "crossTickCapacityRaw": "0xde0b6b3a7640000",
+        });
+        let verdict = cross_tick_initialization(
+            &config,
+            &BigUint::from(10u32).pow(18),
+            &BigUint::from(10u32).pow(18),
+        );
+        assert_eq!(verdict["started"], json!(false));
+        assert_eq!(verdict["reason"], json!("cross_tick_inputs_unavailable"));
+    }
 
     #[test]
     fn the_v4_quote_words_decode_keeps_the_amount_and_the_gas_apart() {
@@ -4633,6 +5302,15 @@ mod tests {
 
     #[test]
     fn arbitrage_not_profitable_revert_decodes_received_and_required() {
+        // The selector is pinned to the value the deployed contract uses.
+        // Keccak-256 and SHA3-256 are different functions, so a selector
+        // computed with the wrong hash would silently never match and every
+        // measured loss would stay undecoded.
+        assert_eq!(
+            hex_encode(function_selector("ArbitrageNotProfitable(uint256,uint256)")),
+            "16301234"
+        );
+        assert_eq!(hex_encode(function_selector("NoProfitableRoute()")), "4f422847");
         let revert_hex = format!(
             "0x{}00000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000004b0",
             hex_encode(function_selector("ArbitrageNotProfitable(uint256,uint256)"))
@@ -5086,20 +5764,11 @@ mod tests {
     #[test]
     fn d4_economic_floor_short_circuits_the_ladder_without_probing() {
         let config = json!({
-            "initialAmountRaw": "0xde0b6b3a7640000",
             "minProfitRaw": "0x1",
             "minProbeAmountRaw": "0x1",
-            "maxProbeAmountRaw": "0xde0b6b3a7640000",
+            "singleTickCapacityRaw": "0x3e8",
             "maxProbeAttempts": 24,
-            "economicFloorGate": {
-                "verdict": "dust_unprofitable",
-                "blocked": true,
-                "reason": "capacity_cannot_cover_gas",
-                "measured": true,
-                "capacityRaw": 1000,
-                "requiredRaw": 6200000,
-                "basis": "token_denominated_economic_floor"
-            }
+            "economicFloorRequiredAmountRaw": "0x5e69f40"
         });
 
         let result = official_v4_adaptive_best_amount_single_route_inner(
@@ -5127,6 +5796,10 @@ mod tests {
         );
         assert_eq!(
             result.get("error").and_then(Value::as_str),
+            Some("dust_unprofitable")
+        );
+        assert_eq!(
+            result.get("ladderBlockedReason").and_then(Value::as_str),
             Some("capacity_cannot_cover_gas")
         );
     }
@@ -5466,6 +6139,47 @@ mod tests {
         let without = vec![json!({"amountRaw": "0x1", "ok": true, "profitRaw": Value::Null})];
         assert!(measured_probe_loss_raw(&without).is_null());
         assert!(measured_probe_loss_raw(&[]).is_null());
+
+        // The profitable path publishes the same measurement.  A route whose
+        // pool preview succeeded but whose ladder found no profitable size
+        // used to be reported as "the best amount is missing", even though
+        // the ladder measured every size it tried.
+        let mut payload = json!({
+            "method": "previewBestPool+previewArbitrageBestAmount+runArbitrage",
+            "attempts": [
+                {"amountRaw": "0x1", "ok": false, "profitable": false, "profitRaw": "-0x2"},
+                {"amountRaw": "0x2", "ok": false, "profitable": false, "profitRaw": "-0x1"},
+            ],
+        });
+        publish_ladder_best_amount(&mut payload);
+        assert_eq!(payload["bestAmountMissing"], json!(false));
+        assert_eq!(payload["bestAmountMeasured"], json!(true));
+        assert_eq!(payload["bestAmountConfirmed"], json!(true));
+        assert_eq!(payload["bestAmount"], json!("0x0"));
+        assert_eq!(
+            payload["bestAmountSelectionBasis"],
+            json!("native_rust_ladder_no_profitable_size_measured")
+        );
+
+        // A profitable probe publishes its size.
+        let mut winning = json!({
+            "attempts": [
+                {"amountRaw": "0x1", "ok": false, "profitable": false},
+                {"amountRaw": "0x4", "ok": true, "profitable": true},
+            ],
+        });
+        publish_ladder_best_amount(&mut winning);
+        assert_eq!(winning["bestAmount"], json!("0x4"));
+        assert_eq!(
+            winning["bestAmountSelectionBasis"],
+            json!("native_rust_ladder_profitable_probe")
+        );
+
+        // A ladder that never probed claims nothing.
+        let mut blocked = json!({"attempts": [], "ladderBlocked": true});
+        publish_ladder_best_amount(&mut blocked);
+        assert!(blocked.get("bestAmountMeasured").is_none());
+        assert!(blocked.get("bestAmount").is_none());
     }
 
     /// Without a ladder the payload still has to carry a concrete probe
@@ -5521,5 +6235,217 @@ mod tests {
         assert_eq!(result["repairTarget"], json!("closed_loop_manager"));
         assert_eq!(result["attemptedCount"], json!("0x0"));
         assert!(result["attempts"].as_array().is_some_and(Vec::is_empty));
+    }
+
+    #[test]
+    fn a_zero_single_tick_best_amount_never_starts_the_cross_tick_search() {
+        let config = json!({
+            "token": "0x0000000000000000000000000000000000000000",
+            "keys": [],
+            "directions": [],
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "crossTickCapacityRaw": "0xde0b6b3a7640000",
+        });
+        let result = official_v4_cross_tick_best_amount_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+            &BigUint::zero(),
+        )
+        .expect("the cross-tick mode reports that it did not start");
+        assert_eq!(result["status"], json!("cross_tick_not_started"));
+        assert_eq!(result["error"], json!("single_tick_best_amount_zero"));
+        assert_eq!(
+            result["crossTickReview"]["reason"],
+            json!("single_tick_best_amount_zero")
+        );
+        assert_eq!(result["attemptedCount"], json!("0x0"));
+        assert!(result["attempts"].as_array().is_some_and(Vec::is_empty));
+    }
+
+    #[test]
+    fn a_cross_tick_search_without_a_depth_ceiling_is_blocked() {
+        let config = json!({
+            "token": "0x0000000000000000000000000000000000000000",
+            "keys": [],
+            "directions": [],
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+        });
+        let result = official_v4_cross_tick_best_amount_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+            &BigUint::from(100u32),
+        )
+        .expect("the cross-tick mode reports the blocked route");
+        assert_eq!(result["status"], json!("cross_tick_capacity_unavailable"));
+        assert_eq!(result["ladderBlocked"], json!(true));
+        assert_eq!(result["repairTarget"], json!("closed_loop_manager"));
+        assert_eq!(result["attemptedCount"], json!("0x0"));
+    }
+
+    #[test]
+    fn the_cross_tick_search_starts_at_the_single_tick_best_amount() {
+        // The seed is the structural product of the single-tick
+        // computation. The search must start there, not at a constant, and
+        // the ceiling is the depth capacity rather than the single-tick
+        // physical ceiling.
+        let config = json!({
+            "token": "0x0000000000000000000000000000000000000000",
+            "keys": [],
+            "directions": [],
+            "initialAmountRaw": "0x1",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAttempts": 4,
+            "singleTickCapacityRaw": "0x64",
+            "crossTickCapacityRaw": "0xde0b6b3a7640000",
+        });
+        let seed = BigUint::from(7u32);
+        let result = official_v4_cross_tick_best_amount_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+            &seed,
+        )
+        .expect("the cross-tick mode runs");
+        assert_eq!(result["searchMode"], json!("cross_tick"));
+        assert_eq!(result["crossTickSeedAmountRaw"], json!("0x7"));
+        assert_eq!(
+            result["crossTickSeedBasis"],
+            json!("single_tick_best_amount")
+        );
+        assert_eq!(
+            result["crossTickCapacityRaw"],
+            json!("0xde0b6b3a7640000")
+        );
+        // The single-tick capacity is not the cross-tick ladder ceiling.
+        assert!(result.get("singleTickCapacityRaw").is_none());
+        assert_eq!(
+            result["searchCapacityBasis"],
+            json!("search_capacity_override")
+        );
+        assert_eq!(
+            result["crossTickCapacityBasis"],
+            json!("folded_depth_capacity")
+        );
+    }
+
+    #[test]
+    fn the_kernel_derives_the_ladder_start_when_the_caller_omits_it() {
+        // The Python runtime is a pure consumer: it never computes a
+        // trading number. When the caller omits the start, the kernel
+        // derives it from the Manager-published single-tick capacity.
+        let config = json!({
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAttempts": 4,
+            "singleTickCapacityRaw": "0x64",
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the kernel derives its own start");
+        assert_eq!(result["ladderStartBasis"], json!("single_tick_capacity_fraction"));
+        assert_eq!(result["derivedInitialAmountRaw"], json!("0x32"));
+        assert_eq!(result["initialAmountRaw"], json!("0x32"));
+        // The absent start is published as JSON null, not as the string
+        // "null".
+        assert_eq!(result["requestedInitialAmountRaw"], json!(null));
+    }
+
+    #[test]
+    fn the_preview_pool_path_does_not_require_the_caller_to_supply_an_initial_amount() {
+        // Regression: the preview-pool path used to read
+        // `config.initialAmountRaw` as a **required** field and failed with
+        // "preview pool initialAmountRaw is required" for every route, because
+        // the Python runtime is a pure consumer that never publishes a
+        // trading number. The kernel now derives the start from the published
+        // single-tick capacity, so a missing start is no longer a hard error.
+        let config = json!({
+            "token": "0x0000000000000000000000000000000000000001",
+            "entryKeys": [{"poolId": "0x1"}],
+            "entryDirections": [true],
+            "bridgeKeys": [{"poolId": "0x2"}],
+            "bridgeDirections": [true],
+            "exitKeys": [{"poolId": "0x3"}],
+            "exitDirections": [true],
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "singleTickCapacityRaw": "0x64",
+        });
+        // The RPC endpoint is intentionally unreachable: the assertion is
+        // about the **error kind**. A missing `initialAmountRaw` must never
+        // surface as the configuration error any more.
+        let error = official_v4_preview_and_ladder_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect_err("the unreachable RPC still fails");
+        assert!(
+            !error.contains("initialAmountRaw is required"),
+            "the preview-pool path must not require a caller-supplied start: {error}"
+        );
+    }
+
+    #[test]
+    fn a_cross_tick_seed_above_depth_capacity_is_blocked_without_clamping() {
+        let config = json!({
+            "crossTickCapacityRaw": "0x64",
+        });
+        let result = official_v4_cross_tick_best_amount_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+            &BigUint::from(101u32),
+        )
+        .expect("an invalid seed is explicitly blocked");
+        assert_eq!(result["status"], json!("cross_tick_seed_exceeds_capacity"));
+        assert_eq!(result["crossTickSeedAmountRaw"], json!("0x65"));
+        assert_eq!(result["crossTickCapacityRaw"], json!("0x64"));
+        assert_eq!(result["attemptedCount"], json!("0x0"));
+    }
+
+    #[test]
+    fn a_cross_tick_ladder_does_not_launch_another_cross_tick_ladder() {
+        let config = json!({
+            "searchMode": "cross_tick",
+            "crossTickReviewThresholdUsdgRaw": "0x989680",
+            "borrowTokenUsdgValueRaw": "0xf4240",
+            "borrowTokenDecimals": 18,
+            "crossTickCapacityRaw": "0xde0b6b3a764000000",
+        });
+        let verdict = cross_tick_review_with_search(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+            &BigUint::from(7u32),
+            &BigUint::from(1u32),
+        );
+        assert_eq!(verdict["started"], json!(true));
+        assert_eq!(verdict["basis"], json!("single_tick_best_amount"));
+        assert!(verdict.get("search").is_none());
+        assert!(verdict.get("searchError").is_none());
     }
 }

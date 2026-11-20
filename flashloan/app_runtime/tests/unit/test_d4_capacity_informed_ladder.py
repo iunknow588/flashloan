@@ -6,6 +6,11 @@ D4-a
     candidate-pool capacity by roughly four orders of magnitude, so a
     profitable size was unreachable.
 
+    The start is derived by the Rust kernel: the kernel receives the folded
+    single-tick capacity from the closed-loop Manager and derives the ladder
+    start itself. The Python runtime is a pure consumer of kernel output and
+    must not carry a trading number at all.
+
 D4-d
     The economic floor must be expressed in the borrow token's own units. A
     route whose tightest capacity cannot carry the amount needed to cover Gas
@@ -20,6 +25,7 @@ No USD quote participates in any of these decisions.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,127 +50,162 @@ def _closed_loop_module() -> Any:
 # ---------------------------------------------------------------------------
 
 
-def test_ladder_start_is_derived_from_measured_capacity() -> None:
-    """The start must scale with the measured capacity, not stay at 1.0 token."""
-    module = _closed_loop_module()
+def _mock_pool_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub the pool-key helpers so a route can be described offline."""
+    from dex.runtime import rust_closed_loop
 
-    # 18 decimals: 1.0 token is 1e18 raw.
-    start, basis = module._capacity_informed_ladder_start(
-        cap_raw=4_000_000_000_000_000_000,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
-        required_amount_raw=0,
+    a = "0x" + ("1" * 40)
+    b = "0x" + ("2" * 40)
+    c = "0x" + ("3" * 40)
+    zero_hook = "0x0000000000000000000000000000000000000000"
+    pools = [
+        {"currency0": a, "currency1": b, "fee": 3000, "tickSpacing": 60, "hooks": zero_hook},
+        {"currency0": b, "currency1": c, "fee": 3000, "tickSpacing": 60, "hooks": zero_hook},
+        {"currency0": a, "currency1": c, "fee": 3000, "tickSpacing": 60, "hooks": zero_hook},
+    ]
+
+    def fake_pool_key_groups(*, route_symbols: list[str], chain_id: int, protocols: list[str], route_addresses: list[str] | None = None) -> list[list[dict[str, Any]]]:
+        return [deepcopy(pools)]
+
+    def fake_candidate_sets(
+        pool_key_groups: list[list[dict[str, Any]]],
+        route_addresses: list[str],
+    ) -> tuple[list[Any], list[bool], list[Any], list[bool], list[Any], list[bool]]:
+        keys: list[Any] = []
+        directions: list[bool] = []
+        for pool_key in pool_key_groups[0]:
+            keys.append(
+                [
+                    pool_key["currency0"],
+                    pool_key["currency1"],
+                    pool_key["fee"],
+                    pool_key["tickSpacing"],
+                    pool_key["hooks"],
+                ]
+            )
+            directions.append(False)
+        return keys, directions, keys, directions, keys, directions
+
+    monkeypatch.setattr(
+        "market.binance_market.dex_route_helpers._official_v4_route_pool_key_groups",
+        fake_pool_key_groups,
+    )
+    monkeypatch.setattr(
+        "market.binance_market.dex_route_test._official_v4_hop_candidate_sets",
+        fake_candidate_sets,
+    )
+    monkeypatch.setattr(
+        "dex.runtime.rust_closed_loop._candidate_pool_key_groups_from_database",
+        lambda **kwargs: {
+            "ok": True,
+            "groups": [deepcopy(pools)],
+            "keyIds": [f"{a}:{b}", f"{b}:{c}", f"{a}:{c}"],
+            "missingEdges": [],
+            "routeAddresses": [a, b, c, a],
+        },
+    )
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
     )
 
-    assert start == 2_000_000_000_000_000_000
-    assert start != 10**18
-    assert basis == "capacity_fraction_0.50"
 
-
-def test_ladder_start_scales_with_capacity() -> None:
-    """A ten-times deeper pool must produce a ten-times larger start."""
-    module = _closed_loop_module()
-
-    small, _ = module._capacity_informed_ladder_start(
-        cap_raw=10**18,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
+def _route_config(module: Any, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Build a route task config through the public Python entry point."""
+    _mock_pool_helpers(monkeypatch)
+    route = {
+        "routeSymbols": ["AAA", "BBB", "CCC", "AAA"],
+        "routeAddresses": ["0x" + ("1" * 40), "0x" + ("2" * 40), "0x" + ("3" * 40), "0x" + ("1" * 40)],
+        "tokenSymbols": ["AAA", "BBB", "CCC", "AAA"],
+        "quoteStatus": "requires_live_quoter",
+        "poolPathKey": "a|b|c",
+        "pools": [],
+    }
+    config = module._route_task_config(
+        route=route,
+        chain_id=4663,
+        protocols=["uniswap_v4"],
     )
-    large, _ = module._capacity_informed_ladder_start(
-        cap_raw=10**19,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
+    assert config is not None
+    return config
+
+
+def test_python_does_not_derive_the_ladder_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Python runtime must not compute a trading number.
+
+    The ladder start belongs to the Rust kernel: it receives the capacity
+    from the closed-loop Manager and derives the start itself. The Python
+    side only describes the environment.
+    """
+    module = _closed_loop_module()
+    config = _route_config(module, monkeypatch)
+
+    assert "initialAmountRaw" not in config
+    assert "ladderStartBasis" not in config
+
+
+def test_python_does_not_carry_the_folded_capacity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The folded single-tick capacity belongs to the kernel as well."""
+    module = _closed_loop_module()
+    config = _route_config(module, monkeypatch)
+
+    assert "singleTickCapacityRaw" not in config
+    assert "singleTickCapacityBasis" not in config
+    assert "singleTickCapacityBindingPoolId" not in config
+    assert "maxProbeAmountRaw" not in config
+
+
+def test_python_does_not_read_the_manager_capacity_from_the_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Even a route that carries the capacity must not forward it."""
+    module = _closed_loop_module()
+    _mock_pool_helpers(monkeypatch)
+    route = {
+        "routeSymbols": ["AAA", "BBB", "CCC", "AAA"],
+        "routeAddresses": ["0x" + ("1" * 40), "0x" + ("2" * 40), "0x" + ("3" * 40), "0x" + ("1" * 40)],
+        "tokenSymbols": ["AAA", "BBB", "CCC", "AAA"],
+        "quoteStatus": "requires_live_quoter",
+        "poolPathKey": "a|b|c",
+        "pools": [],
+        "singleTickCapacityAnchorRaw": "3000000",
+        "singleTickCapacityBindingPoolId": "p-b-c",
+    }
+    config = module._route_task_config(
+        route=route,
+        chain_id=4663,
+        protocols=["uniswap_v4"],
     )
 
-    assert large == small * 10
+    assert config is not None
+    assert "singleTickCapacityRaw" not in config
+    assert "singleTickCapacityBindingPoolId" not in config
 
 
-def test_ladder_start_never_exceeds_measured_capacity() -> None:
-    """The start must stay inside what the pool can actually carry."""
+def test_python_does_not_expose_a_capacity_informed_ladder_helper() -> None:
+    """The old Python helper must be gone for good."""
     module = _closed_loop_module()
 
-    start, _ = module._capacity_informed_ladder_start(
-        cap_raw=1_000_000_000_000,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
-    )
-
-    assert start <= 1_000_000_000_000
+    assert not hasattr(module, "_capacity_informed_ladder_start")
+    assert not hasattr(module, "_folded_single_tick_capacity_raw")
 
 
-def test_ladder_start_respects_the_economic_floor() -> None:
-    """D4-d: the start must never sit below the amount needed to cover Gas."""
+def test_python_publishes_only_the_economic_floor_number(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The economic floor travels as a number; the kernel compares it."""
     module = _closed_loop_module()
+    config = _route_config(module, monkeypatch)
 
-    required = 800_000_000_000_000_000
-    start, _ = module._capacity_informed_ladder_start(
-        cap_raw=1_000_000_000_000_000_000,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
-        required_amount_raw=required,
-    )
-
-    assert start >= required
+    assert "economicFloorRequiredAmountRaw" in config
+    assert "economicFloorGate" not in config
 
 
-def test_ladder_start_falls_back_to_one_token_without_capacity() -> None:
-    """An unmeasured pool must keep the historical start and say so."""
+def test_python_keeps_the_environment_description(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The environment description is still produced by Python."""
     module = _closed_loop_module()
+    config = _route_config(module, monkeypatch)
 
-    start, basis = module._capacity_informed_ladder_start(
-        cap_raw=0,
-        borrow_decimals=18,
-        min_probe_amount_raw=10**15,
-    )
-
-    assert start == 10**18
-    assert basis == "fallback_one_token_unmeasured_capacity"
-
-
-def test_ladder_start_fraction_is_configurable() -> None:
-    """The capacity fraction must be adjustable without a code change."""
-    module = _closed_loop_module()
-    import os
-
-    previous = os.environ.get("DEX_V4_LADDER_START_CAPACITY_FRACTION")
-    os.environ["DEX_V4_LADDER_START_CAPACITY_FRACTION"] = "0.25"
-    try:
-        start, basis = module._capacity_informed_ladder_start(
-            cap_raw=4_000_000_000_000_000_000,
-            borrow_decimals=18,
-            min_probe_amount_raw=10**15,
-        )
-    finally:
-        if previous is None:
-            os.environ.pop("DEX_V4_LADDER_START_CAPACITY_FRACTION", None)
-        else:
-            os.environ["DEX_V4_LADDER_START_CAPACITY_FRACTION"] = previous
-
-    assert start == 1_000_000_000_000_000_000
-    assert basis == "capacity_fraction_0.25"
-
-
-def test_ladder_start_rejects_out_of_range_fraction() -> None:
-    """A nonsensical fraction must be clamped, never trusted."""
-    module = _closed_loop_module()
-    import os
-
-    previous = os.environ.get("DEX_V4_LADDER_START_CAPACITY_FRACTION")
-    os.environ["DEX_V4_LADDER_START_CAPACITY_FRACTION"] = "17"
-    try:
-        start, basis = module._capacity_informed_ladder_start(
-            cap_raw=4_000_000_000_000_000_000,
-            borrow_decimals=18,
-            min_probe_amount_raw=10**15,
-        )
-    finally:
-        if previous is None:
-            os.environ.pop("DEX_V4_LADDER_START_CAPACITY_FRACTION", None)
-        else:
-            os.environ["DEX_V4_LADDER_START_CAPACITY_FRACTION"] = previous
-
-    assert start == 4_000_000_000_000_000_000
-    assert basis == "capacity_fraction_1.00"
+    assert config["routeSymbols"] == ["AAA", "BBB", "CCC", "AAA"]
+    assert config["minProbeAmountRaw"]
+    assert config["maxProbeAttempts"] >= 4
 
 
 # ---------------------------------------------------------------------------

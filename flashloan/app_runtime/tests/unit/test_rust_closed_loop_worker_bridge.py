@@ -289,12 +289,15 @@ def test_build_group_task_config_keeps_direction_pool_candidates_independent(
         assert task["scanIntervalSeconds"] == 60
         route_config = task["routes"][0]
         assert route_config["token"] == "0x" + ("1" * 40)
-        # D4-a: the ladder start is derived from the measured capacity
-        # (3_000_000 raw in this fixture) instead of a fixed 1.0 token.
-        assert route_config["initialAmountRaw"] == str(3_000_000 // 2)
-        assert route_config["ladderStartBasis"] == "capacity_fraction_0.50"
+        # The Python runtime is a pure consumer: it never computes the best
+        # trade amount and never reconstructs the Manager capacity. The Rust
+        # kernel receives the closed-loop identity from the Manager and
+        # derives the ladder start itself.
+        assert "initialAmountRaw" not in route_config
+        assert "ladderStartBasis" not in route_config
+        assert "singleTickCapacityRaw" not in route_config
+        assert "maxProbeAmountRaw" not in route_config
         assert route_config["minProbeAmountRaw"] == str(10**3)
-        assert route_config["maxProbeAmountRaw"] == "3000000"
         assert route_config["offchainGasGate"]["automaticOnly"] is True
         assert route_config["offchainGasGate"]["conversionAvailable"] is True
         assert route_config["offchainGasGate"]["minProfitRaw"] == "0"
@@ -367,6 +370,7 @@ def test_get_native_pool_forwards_execution_queue_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import sys
+    import types
     from types import SimpleNamespace
 
     captured: dict[str, Any] = {}
@@ -375,9 +379,17 @@ def test_get_native_pool_forwards_execution_queue_config(
         def __init__(self, **kwargs: Any) -> None:
             captured.update(kwargs)
 
-    fake_module = SimpleNamespace(ClosedLoopWorkerPool=_FakePool)
+    # The runtime resolves the extension twice: through
+    # ``_rust_runtime_module`` and through a direct ``import flashloan_rs``
+    # in the Python fallback path. Both have to see the fake, and the
+    # ``sys.modules`` entry has to be a real module object so the import
+    # machinery does not re-import the installed extension.
+    fake_module = types.ModuleType("flashloan_rs")
+    fake_module.ClosedLoopWorkerPool = _FakePool  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "flashloan_rs", fake_module)
+    monkeypatch.setattr(rust_closed_loop, "_rust_runtime_module", lambda: fake_module)
     monkeypatch.setattr(rust_closed_loop, "_POOL", None)
+    monkeypatch.setattr(rust_closed_loop, "_POOLS_BY_DATABASE", {})
     monkeypatch.setattr(rust_closed_loop, "_database_path", lambda: "sqlite:///tmp/test.sqlite3")
 
     pool = rust_closed_loop.get_native_pool(execution_workers=4, execution_queue_enabled=False)
@@ -863,11 +875,11 @@ def test_folded_single_tick_capacity_bounds_the_probe_maximum(
     tmp_path: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The folded Manager capacity is the authoritative probe ceiling.
+    """The Python runtime never carries the folded Manager capacity.
 
-    The generic pool-depth share is **not** a single-tick bound: it can be
-    larger than the tick range allows. When the Manager published the fold,
-    the fold wins.
+    The capacity belongs to the kernel: the Rust worker calls the Manager
+    through the closed-loop catalog and injects the published fold into the
+    task config. The Python side only describes the environment.
     """
     import sqlite3
 
@@ -970,10 +982,11 @@ def test_folded_single_tick_capacity_bounds_the_probe_maximum(
     )
 
     assert config is not None
-    assert config["maxProbeAmountRaw"] == "123456"
-    assert config["singleTickCapacityRaw"] == "123456"
-    assert config["singleTickCapacityBasis"] == "folded_single_tick_capacity_anchor"
-    assert config["singleTickCapacityBindingPoolId"] == "p-b-c"
+    assert "maxProbeAmountRaw" not in config
+    assert "singleTickCapacityRaw" not in config
+    assert "singleTickCapacityBasis" not in config
+    assert "singleTickCapacityBindingPoolId" not in config
+    assert "initialAmountRaw" not in config
 
 
 def test_candidate_pool_key_groups_reports_missing_edge_and_refreshes(
@@ -5241,3 +5254,34 @@ def test_rust_worker_summary_carries_broadcast_failure_recent() -> None:
     assert "last_result" not in worker
     assert "broadcast_history" not in worker
     assert "broadcast_failure_history" not in worker
+
+
+def test_signed_native_profit_accepts_a_measured_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A zero best amount carries a zero profit, and zero is a measurement.
+
+    The kernel proves that no size is profitable, so it publishes the best
+    amount as ``0x0`` and the profit as ``0x0``. That pair is complete: zero
+    is greater than every negative result, so the review must publish it
+    instead of reporting the route as `data_incomplete`.
+    """
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "_decimals_for_borrow",
+        lambda chain_id, borrow_address: 6,
+    )
+    route = _route(["AAA", "BBB", "CCC", "AAA"])
+    result = {
+        "status": "not_profitable_after_costs",
+        "selectedAmountRaw": "0x0",
+        "selectedProfitRaw": "0x0",
+        "reportedNetProfitRaw": "0x0",
+        "bestAmountMeasured": True,
+        "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured",
+        "attempts": [],
+    }
+
+    value = rust_closed_loop._signed_native_profit_value(result, 46630, route["routeAddresses"][0])
+
+    assert value == pytest.approx(0.0)

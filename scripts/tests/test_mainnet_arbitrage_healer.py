@@ -137,7 +137,13 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertIsNone(result["status"])
         self.assertIn("connection reset", result["body"])
 
-    def review_row(self, amount=1.25, category="executable"):
+    def review_row(self, amount=1.25, category="executable", loop_key="0xa:0xb:0xc"):
+        # ``loop_key`` is the identity the closed-loop Manager published and
+        # the kernel wrote into the review payload. It is consumed, never
+        # derived from the route addresses (MIO-7 / TASK-149 / AC-214).
+        payload = {"route_addresses": ["0xA", "0xB", "0xC", "0xA"]}
+        if loop_key is not None:
+            payload["loopKey"] = loop_key
         return {
             "id": 10,
             "attempt_key": "attempt-10",
@@ -149,7 +155,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             "selected_profit_amount_symbol": "SPY",
             "selected_profit_source": "native_rust_contract_preview",
             "selected_profit_missing_reason": None,
-            "payload_json": '{"route_addresses":["0xA","0xB","0xC","0xA"]}',
+            "payload_json": json.dumps(payload),
         }
 
     def test_review_evidence_preserves_direction_and_positive_pnl(self):
@@ -160,6 +166,23 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertTrue(evidence["staticPreview"]["historicalEvidence"])
         self.assertFalse(evidence["staticPreview"]["automaticBroadcastEligible"])
         self.assertEqual(HEALER.review_loop_key(self.review_row()), "0xa:0xb:0xc")
+
+    def test_a_review_without_a_published_identity_is_not_associated(self):
+        """TASK-149: the route addresses never become the identity.
+
+        A review that carries no published ``loop_key`` has no closed-loop
+        identity. The healer used to assemble one out of the route
+        addresses, which could name a loop the Manager never published and
+        therefore borrow its capacity and pool set.
+        """
+        row = self.review_row(loop_key=None)
+
+        self.assertIsNone(HEALER.review_loop_key(row))
+
+        evidence = HEALER.review_evidence(row)
+        self.assertEqual(evidence["loopKey"], "missing-route:10")
+        # The measurement itself is preserved; only the identity is absent.
+        self.assertEqual(evidence["runArbitrage"]["signedPnl"]["amount"], 1.25)
 
     def test_missing_pnl_is_not_replaced_with_zero(self):
         row = self.review_row(amount=None, category="not_executable")
@@ -244,7 +267,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         }
         missing = {"ok": False, "status": 503, "body": "closed_loop_group_worker_not_running:eth|weth|spcx"}
         with mock.patch.object(HEALER, "api_post", return_value=missing) as api_post:
-            result = HEALER.request_live_review("http://127.0.0.1:5000", candidate, False)
+            result = HEALER.request_live_review(
+                Path("unused.sqlite3"), "http://127.0.0.1:5000", candidate, False
+            )
         self.assertTrue(result["workerRefreshRequired"])
         self.assertFalse(result["workerRefreshApplied"])
         self.assertEqual(api_post.call_count, 1)
@@ -257,7 +282,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         missing = {"ok": False, "status": 503, "body": "closed_loop_group_worker_not_running:eth|weth|spcx"}
         refreshed = {"ok": True, "status": 200, "body": '{"accepted":true}'}
         with mock.patch.object(HEALER, "api_post", side_effect=[missing, refreshed]) as api_post:
-            result = HEALER.request_live_review("http://127.0.0.1:5000", candidate, True)
+            result = HEALER.request_live_review(
+                Path("unused.sqlite3"), "http://127.0.0.1:5000", candidate, True
+            )
         self.assertTrue(result["workerRefreshApplied"])
         self.assertTrue(result["reviewTriggeredByRefresh"])
         self.assertTrue(result["finalReview"]["ok"])
@@ -299,9 +326,8 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         missing = self.review_row(amount=None, category="not_executable")
         missing["selected_profit_raw"] = None
         missing["selected_profit_missing_reason"] = "route invalid"
-        missing["payload_json"] = '{"route_addresses":["0xA","0xB","0xC","0xA"]}'
-        valued = self.review_row(amount=-1.0, category="not_executable")
-        valued["payload_json"] = '{"route_addresses":["0xD","0xE","0xF","0xD"]}'
+        valued = self.review_row(
+            amount=-1.0, category="not_executable", loop_key="0xd:0xe:0xf")
         loops = [
             {"loop_key": "0xa:0xb:0xc", "path_text": "A -> B -> C -> A",
              "path_symbols_json": '["A","B","C","A"]',
@@ -442,7 +468,12 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                         "not_executable",
                         0.12,
                         "SPY",
-                        json.dumps({"route_addresses": ["0xa", "0xb", "0xc", "0xa"]}),
+                        # The legacy review table carries the published
+                        # identity in the review payload, not in a column.
+                        json.dumps({
+                            "route_addresses": ["0xa", "0xb", "0xc", "0xa"],
+                            "loopKey": "0xa:0xb:0xc",
+                        }),
                     ),
                 )
                 con.commit()
@@ -469,7 +500,8 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             con.execute(
                 "CREATE TABLE v4_exchange_pool_liquidity_snapshots (network TEXT, "
                 "chain_id INTEGER, protocol TEXT, pool_id TEXT, has_liquidity INTEGER, "
-                "liquidity_index INTEGER, depth_status TEXT, estimated_tvl_usd REAL)"
+                "liquidity_index INTEGER, depth_status TEXT, estimated_tvl_usd REAL, "
+                "capacity_binding_raw TEXT)"
             )
             # The production table carries the anchor scope and the depth
             # status; the fixture has to match it, otherwise the audit is
@@ -484,9 +516,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                  "0x" + "a" * 40, "0x" + "b" * 40, fee, 0, 0, ""),
             )
             con.execute(
-                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?,?,?,?,?,?,?,?,?)",
                 (HEALER.NETWORK, HEALER.CHAIN_ID, "uniswap_v4", "pool-1", 1, 5,
-                 depth_status, tvl),
+                 depth_status, tvl, "1000000000000000000"),
             )
             if in_candidates:
                 con.execute(
@@ -891,10 +923,11 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             database = self.pool_depth_database(
                 directory, in_candidates=1, tvl=1.0e20)
             audit = HEALER.pool_depth_audit(database)
-            self.assertEqual(audit["classification"], "pool_reading_invalid")
-            self.assertEqual(audit["repairPath"], "remeasure_pool_depth")
-            self.assertEqual(audit["badReadingPoolCount"], 1)
+            self.assertIsNone(audit["classification"])
+            self.assertIsNone(audit["repairPath"])
+            self.assertEqual(audit["staleTvlReadingPoolCount"], 1)
             self.assertEqual(audit["thinPoolIdCount"], 0)
+            self.assertEqual(audit["adequatePoolIdCount"], 1)
 
     def test_a_pool_below_the_tvl_floor_is_genuinely_thin(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1040,7 +1073,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 "CREATE TABLE v4_exchange_pool_liquidity_snapshots (network TEXT, "
                 "chain_id INTEGER, protocol TEXT, pool_id TEXT, has_liquidity INTEGER, "
                 "liquidity_index INTEGER, depth_status TEXT, "
-                f"estimated_tvl_usd {tvl_affinity})"
+                f"estimated_tvl_usd {tvl_affinity}, capacity_binding_raw TEXT)"
             )
             con.execute(
                 "CREATE TABLE dex_candidate_pools (network TEXT, chain_id INTEGER, "
@@ -1052,9 +1085,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                  "0x" + "a" * 40, "0x" + "b" * 40, 3000, 0, 0, ""),
             )
             con.execute(
-                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES (?,?,?,?,?,?,?,?,?)",
                 (HEALER.NETWORK, HEALER.CHAIN_ID, "uniswap_v4", "pool-1", 1, 5,
-                 depth_status, tvl),
+                 depth_status, tvl, "1000000000000000000"),
             )
             for index in range(candidate_rows):
                 con.execute(
@@ -1080,8 +1113,8 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             database = self.multi_row_pool_depth_database(directory, 1, 1e43)
             report = HEALER.pool_depth_audit(database)
             self.assertEqual(report["badReadingCount"], 1)
-            self.assertEqual(report["adequateDepthPoolCount"], 0)
-            self.assertFalse(report["valid"])
+            self.assertEqual(report["adequateDepthPoolCount"], 1)
+            self.assertTrue(report["valid"])
 
     def test_pool_depth_audit_casts_text_tvl_to_real(self):
         """A TEXT-affinity TVL column must still satisfy the numeric floor."""

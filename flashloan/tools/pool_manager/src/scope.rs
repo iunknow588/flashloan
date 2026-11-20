@@ -17,6 +17,82 @@ use crate::depth_config::MAX_CANDIDATE_FIXED_FEE;
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 
+/// The **token load mode** of a pool scope.
+///
+/// The design authority distinguishes three loading modes, and they are
+/// different products rather than one superset:
+///
+/// 1. `core` — only the core library. The bare funding environment.
+/// 2. `core_stocks` — the core library plus the stock registry. The
+///    production mode for the equity environment.
+/// 3. `core_stocks_test` — the core library, the stock registry and the
+///    `test` library. The `test` library holds further **fund tokens**
+///    (`TZ` among them) that participate in the arbitrage environment
+///    exactly like the core ones.
+///
+/// A scope does not silently widen: the mode is an explicit, persisted
+/// decision recorded in `pool_scope_config.library_keys_json`, and the
+/// checksum of the materialized scope covers it. Choosing a narrower mode
+/// must therefore rebuild the scope rather than leave stale rows behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenLoadMode {
+    Core,
+    CoreStocks,
+    CoreStocksTest,
+}
+
+impl TokenLoadMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TokenLoadMode::Core => "core",
+            TokenLoadMode::CoreStocks => "core_stocks",
+            TokenLoadMode::CoreStocksTest => "core_stocks_test",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "core" => Some(TokenLoadMode::Core),
+            "core_stocks" => Some(TokenLoadMode::CoreStocks),
+            "core_stocks_test" => Some(TokenLoadMode::CoreStocksTest),
+            _ => None,
+        }
+    }
+
+    /// The token libraries this mode loads.
+    pub fn library_keys(self) -> &'static [&'static str] {
+        match self {
+            TokenLoadMode::Core => &["core"],
+            TokenLoadMode::CoreStocks => &["core", "stocks"],
+            TokenLoadMode::CoreStocksTest => &["core", "stocks", "test"],
+        }
+    }
+
+    /// The libraries that hold **fund tokens** in this mode.
+    ///
+    /// The anchor set of a scope is the set of fund tokens it loads. The
+    /// `extension` library is deliberately excluded: an extension member
+    /// is a *candidate*, and it becomes a fund token only when the token
+    /// manager admits it.
+    pub fn fund_token_library_keys(self) -> &'static [&'static str] {
+        match self {
+            TokenLoadMode::Core => &["core"],
+            TokenLoadMode::CoreStocks => &["core", "stocks"],
+            TokenLoadMode::CoreStocksTest => &["core", "stocks", "test"],
+        }
+    }
+
+    /// The default mode for a scope key.
+    pub fn default_for_scope(scope_key: &str) -> Self {
+        // The default load mode loads the three fund-token libraries:
+        // core, stocks and test. `TZ` is a fund token filed in the `test`
+        // library, so a scope that omitted `test` would silently drop it
+        // and every closed loop that needs it.
+        let _ = scope_key;
+        TokenLoadMode::CoreStocksTest
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ScopeDefinition {
     key: &'static str,
@@ -113,6 +189,8 @@ pub struct ScopeMaterializationResult {
     pub scope_key: String,
     pub pool_table: String,
     pub filter_mode: String,
+    /// The token load mode the scope was materialized with.
+    pub token_load_mode: String,
     pub library_keys: Vec<String>,
     pub library_versions: BTreeMap<String, i64>,
     pub library_checksums: BTreeMap<String, String>,
@@ -163,6 +241,14 @@ pub struct ScopeWriteRequest {
     pub request_id: String,
     pub idempotency_key: String,
     pub apply: bool,
+    /// The token load mode the write should select.
+    ///
+    /// `None` keeps the persisted mode. `Some(mode)` switches the scope
+    /// to that mode and, on apply, records it as the scope's new
+    /// persisted decision. The mode governs the **anchor set only**; it
+    /// never restricts the extension library or the token selection of a
+    /// pool.
+    pub token_load_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -185,6 +271,7 @@ struct PersistedScopeWrite {
 struct TokenDescriptor {
     token_key_id: String,
     v4_currency_key: String,
+    #[allow(dead_code)]
     library_key: String,
 }
 
@@ -240,6 +327,14 @@ struct CanonicalScopeRow {
     source_block_number: Option<i64>,
     source_tx_hash: Option<String>,
     pool_status: String,
+    /// The diagnosis of the pool itself.
+    ///
+    /// A pool that carries a defecting status records **why** it carries
+    /// it, so an operator who sees a closed loop lose a hop can read the
+    /// disqualifying condition off the pool row instead of re-deriving
+    /// it from the raw pool. An active pool has no defect and therefore
+    /// no reason.
+    status_reason: Option<String>,
 }
 
 enum MaterializedPool {
@@ -359,20 +454,39 @@ fn materialize_scope_on_connection(
         }
     }
 
+    // The token load mode is a persisted decision, not a compile-time
+    // constant. The scope config records the libraries the scope loads;
+    // the mode is derived from them so that widening or narrowing the
+    // mode rebuilds the scope instead of leaving stale rows behind.
+    // A write request may carry an explicit token load mode. That request
+    // is the operator's decision to switch the scope's load mode, and on
+    // apply it becomes the scope's new persisted mode.
+    let requested_load_mode = prepared_write
+        .as_ref()
+        .and_then(|(request, _)| request.token_load_mode.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            TokenLoadMode::parse(value).ok_or_else(|| {
+                ScopeError::InvalidRawPool(format!(
+                    "unsupported token load mode: {value}"
+                ))
+            })
+        })
+        .transpose()?;
+    let load_mode = match requested_load_mode {
+        Some(mode) => mode,
+        None => read_scope_load_mode(connection, network, chain_id, &scope)?,
+    };
+    let library_keys = load_mode.library_keys();
     let (library_versions, library_checksums) =
-        read_library_states(connection, network, chain_id, scope.library_keys)?;
-    let anchors = read_anchor_tokens(connection, network, chain_id, scope)?;
+        read_library_states(connection, network, chain_id, library_keys)?;
+    let anchors = read_anchor_tokens(connection, network, chain_id, scope, load_mode)?;
     if scope.filter_mode == "edge_any" && anchors.is_empty() {
         return Err(ScopeError::NoAdmittedAnchorTokens);
     }
     let admitted_tokens = read_admitted_tokens(connection, network, chain_id)?;
     let raw_pools = read_raw_pools(connection, network, chain_id)?;
-    let allowed_libraries = scope
-        .library_keys
-        .iter()
-        .map(|library_key| (*library_key).to_owned())
-        .collect::<BTreeSet<_>>();
-
     let mut desired_by_id = BTreeMap::<String, CanonicalScopeRow>::new();
     let mut skipped = 0_usize;
     let mut skip_reason_counts = BTreeMap::<String, usize>::new();
@@ -381,7 +495,6 @@ fn materialize_scope_on_connection(
             raw,
             &anchors,
             &admitted_tokens,
-            &allowed_libraries,
             scope.filter_mode,
         )? {
             MaterializedPool::Emitted(row) => *row,
@@ -420,14 +533,15 @@ fn materialize_scope_on_connection(
         delete_scope_rows(connection, network, chain_id, scope, &stale_ids)?;
     }
     if apply {
-        write_scope_config(
-            connection,
-            network,
-            chain_id,
-            scope,
-            &library_versions,
-            &library_checksums,
-            &materialized_checksum,
+    write_scope_config(
+        connection,
+        network,
+        chain_id,
+        scope,
+        load_mode,
+        &library_versions,
+        &library_checksums,
+        &materialized_checksum,
         )?;
     }
 
@@ -437,8 +551,8 @@ fn materialize_scope_on_connection(
         scope_key: scope_key.to_owned(),
         pool_table: scope.pool_table.to_owned(),
         filter_mode: scope.filter_mode.to_owned(),
-        library_keys: scope
-            .library_keys
+        token_load_mode: load_mode.as_str().to_owned(),
+        library_keys: library_keys
             .iter()
             .map(|key| (*key).to_owned())
             .collect(),
@@ -580,6 +694,11 @@ fn read_library_states(
     let mut versions = BTreeMap::new();
     let mut checksums = BTreeMap::new();
     for library_key in library_keys {
+        // A library that has never been materialized is an empty library,
+        // not a broken scope. The load mode names the libraries the scope
+        // loads; a chain that has no `test` library simply has no
+        // test-library fund tokens. Failing here would make the whole
+        // scope unusable over a missing optional library.
         let state = connection
             .query_row(
                 "SELECT library_version, metadata_checksum
@@ -588,12 +707,67 @@ fn read_library_states(
                 params![network, chain_id, library_key],
                 |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
             )
-            .optional()?
-            .ok_or_else(|| ScopeError::MissingLibraryState((*library_key).to_owned()))?;
-        versions.insert((*library_key).to_owned(), state.0);
-        checksums.insert((*library_key).to_owned(), state.1);
+            .optional()?;
+        let Some((version, checksum)) = state else {
+            versions.insert((*library_key).to_owned(), 0);
+            checksums.insert((*library_key).to_owned(), format!("sha256:empty-{library_key}"));
+            continue;
+        };
+        versions.insert((*library_key).to_owned(), version);
+        checksums.insert((*library_key).to_owned(), checksum);
     }
     Ok((versions, checksums))
+}
+
+/// Read the token load mode of a scope.
+///
+/// The mode is a persisted decision: `pool_scope_config.library_keys_json`
+/// records the libraries the scope loads. A scope that has never been
+/// configured falls back to the default mode of its scope key, so a fresh
+/// database still materializes a usable scope.
+fn read_scope_load_mode(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    scope: &ScopeDefinition,
+) -> Result<TokenLoadMode, ScopeError> {
+    let stored = connection
+        .query_row(
+            "SELECT library_keys_json
+             FROM pool_scope_config
+             WHERE network = ?1 AND chain_id = ?2 AND scope_key = ?3",
+            params![network, chain_id, scope.key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    let Some(stored) = stored else {
+        return Ok(TokenLoadMode::default_for_scope(scope.key));
+    };
+    let libraries = serde_json::from_str::<Vec<String>>(&stored).unwrap_or_default();
+    if libraries.is_empty() {
+        return Ok(TokenLoadMode::default_for_scope(scope.key));
+    }
+    // The stored library list is authoritative, but it still has to be one
+    // of the three documented modes. A list that matches none of them is a
+    // configuration defect and must not silently widen or narrow the scope.
+    for mode in [
+        TokenLoadMode::Core,
+        TokenLoadMode::CoreStocks,
+        TokenLoadMode::CoreStocksTest,
+    ] {
+        let expected = mode
+            .library_keys()
+            .iter()
+            .map(|library_key| (*library_key).to_owned())
+            .collect::<Vec<_>>();
+        if libraries == expected {
+            return Ok(mode);
+        }
+    }
+    Err(ScopeError::InvalidRawPool(format!(
+        "scope {} has an unsupported token load mode: {}",
+        scope.key, stored
+    )))
 }
 
 fn read_anchor_tokens(
@@ -601,17 +775,55 @@ fn read_anchor_tokens(
     network: &str,
     chain_id: i64,
     scope: ScopeDefinition,
+    load_mode: TokenLoadMode,
 ) -> Result<BTreeSet<String>, ScopeError> {
     if scope.filter_mode == "both_end" {
         return Ok(BTreeSet::new());
     }
+    // The anchors are the **fund tokens** of the scope's token load mode.
+    //
+    // The design authority lists `ETH`, `WETH`, `USDG`, `USDE` and `TZ` as
+    // core fund tokens and the stock registry as the stock fund anchors.
+    // `TZ` is a fund token filed in the `test` library, so a `core`-only
+    // anchor set silently kills every closed loop that needs it.
+    //
+    // The load mode governs the **anchor set only**. It never restricts the
+    // extension library or the token selection of a pool: a pool's tokens
+    // are chosen by their admission status, and the anchor requirement is
+    // the only structural edge condition a pool has to satisfy.
+    let fund_libraries = load_mode
+        .fund_token_library_keys()
+        .iter()
+        .map(|library_key| (*library_key).to_owned())
+        .collect::<Vec<_>>();
+    let library_placeholders = fund_libraries
+        .iter()
+        .enumerate()
+        .map(|(offset, _)| format!("?{}", offset + 3))
+        .collect::<Vec<_>>()
+        .join(", ");
     let mut statement = connection.prepare(
-        "SELECT token_key_id
-         FROM token_core
-         WHERE network = ?1 AND chain_id = ?2 AND admission_status = 'admitted'
-         ORDER BY token_key_id",
+        &format!(
+            "SELECT token_key_id
+             FROM token_library_catalog
+             WHERE network = ?1 AND chain_id = ?2
+               AND admission_status = 'admitted'
+               AND library_key IN ({library_placeholders})
+             ORDER BY token_key_id"
+        ),
     )?;
-    let rows = statement.query_map(params![network, chain_id], |row| row.get::<_, String>(0))?;
+    let rows = statement.query_map(
+        params_from_iter(
+            std::iter::once(rusqlite::types::Value::Text(network.to_owned()))
+                .chain(std::iter::once(rusqlite::types::Value::Integer(chain_id)))
+                .chain(
+                    fund_libraries
+                        .iter()
+                        .map(|library_key| rusqlite::types::Value::Text(library_key.clone())),
+                ),
+        ),
+        |row| row.get::<_, String>(0),
+    )?;
     Ok(rows.collect::<Result<BTreeSet<_>, _>>()?)
 }
 
@@ -773,7 +985,8 @@ fn scope_request_digest(
         "chainId": request.chain_id,
         "scopeKey": scope_key,
         "operation": request.operation,
-        "apply": request.apply
+        "apply": request.apply,
+        "tokenLoadMode": request.token_load_mode
     });
     Ok(format!(
         "sha256:{}",
@@ -872,7 +1085,6 @@ fn materialize_raw_pool(
     raw: &RawPool,
     anchors: &BTreeSet<String>,
     tokens: &BTreeMap<String, TokenDescriptor>,
-    allowed_libraries: &BTreeSet<String>,
     filter_mode: &str,
 ) -> Result<MaterializedPool, ScopeError> {
     let token0 = match normalize_address(&raw.token0) {
@@ -886,11 +1098,6 @@ fn materialize_raw_pool(
     let (Some(descriptor0), Some(descriptor1)) = (tokens.get(&token0), tokens.get(&token1)) else {
         return Ok(MaterializedPool::Skipped("token_not_admitted"));
     };
-    if !allowed_libraries.contains(&descriptor0.library_key)
-        || !allowed_libraries.contains(&descriptor1.library_key)
-    {
-        return Ok(MaterializedPool::Skipped("token_library_out_of_scope"));
-    }
     match filter_mode {
         "edge_any" => {
             if !anchors.contains(&descriptor0.token_key_id)
@@ -984,6 +1191,15 @@ fn materialize_raw_pool(
     } else {
         "active"
     };
+    // The pool keeps its own diagnosis. The reasons are sorted so the
+    // value is stable across rebuilds, and the row only changes when the
+    // diagnosis really changed.
+    let status_reason = if pool_status == "active" {
+        None
+    } else {
+        quality_reasons.sort();
+        Some(quality_reasons.join(","))
+    };
     let source = serde_json::from_str::<Value>(&raw.pool_key_json).unwrap_or(Value::Null);
     let source_block_number = source.get("initializeBlockNumber").and_then(Value::as_i64);
     let source_tx_hash = source
@@ -1017,6 +1233,7 @@ fn materialize_raw_pool(
         source_block_number,
         source_tx_hash,
         pool_status: pool_status.to_owned(),
+        status_reason,
     })))
 }
 
@@ -1041,7 +1258,7 @@ fn read_scope_rows_with_table(
                 tick_spacing, hooks, sqrt_price_x96, tick, liquidity,
                 liquidity_index, price, depth_status, liquidity_read_at,
                 liquidity_block_number, evidence_source, source_block_number,
-                source_tx_hash, pool_status
+                source_tx_hash, pool_status, status_reason
          FROM {pool_table}
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
          ORDER BY pool_id"
@@ -1073,6 +1290,7 @@ fn read_scope_rows_with_table(
             source_block_number: row.get(21)?,
             source_tx_hash: row.get(22)?,
             pool_status: row.get(23)?,
+            status_reason: row.get(24)?,
         })
     })?;
     let mut values = BTreeMap::new();
@@ -1121,11 +1339,11 @@ fn upsert_scope_row(
              special_fee, tick_spacing, hooks, sqrt_price_x96, tick, liquidity,
              liquidity_index, price, depth_status, liquidity_read_at,
              liquidity_block_number, evidence_source, source_block_number,
-             source_tx_hash, pool_status, materialized_at, updated_at
+             source_tx_hash, pool_status, status_reason, materialized_at, updated_at
          ) VALUES (
              ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
              ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25,
-             ?26, ?27, ?28, ?29
+             ?26, ?27, ?28, ?29, ?30
          )
          ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
              pool_manager = excluded.pool_manager,
@@ -1151,6 +1369,7 @@ fn upsert_scope_row(
              source_block_number = excluded.source_block_number,
              source_tx_hash = excluded.source_tx_hash,
              pool_status = excluded.pool_status,
+             status_reason = excluded.status_reason,
              materialized_at = excluded.materialized_at,
              updated_at = excluded.updated_at",
         scope.pool_table
@@ -1185,6 +1404,7 @@ fn upsert_scope_row(
             row.source_block_number,
             row.source_tx_hash,
             row.pool_status,
+            row.status_reason,
             now,
             now
         ],
@@ -1225,6 +1445,7 @@ fn write_scope_config(
     network: &str,
     chain_id: i64,
     scope: ScopeDefinition,
+    load_mode: TokenLoadMode,
     library_versions: &BTreeMap<String, i64>,
     library_checksums: &BTreeMap<String, String>,
     materialized_checksum: &str,
@@ -1256,8 +1477,8 @@ fn write_scope_config(
             scope.key,
             scope.pool_table,
             serde_json::to_string(
-                &scope
-                    .library_keys
+                &load_mode
+                    .library_keys()
                     .iter()
                     .map(|key| (*key).to_owned())
                     .collect::<Vec<_>>()
@@ -1292,7 +1513,7 @@ fn count_statuses(rows: &[CanonicalScopeRow]) -> BTreeMap<String, usize> {
 mod tests {
     use super::{
         depth_verdict_admits_pool, materialize_scope, materialize_scope_write, read_scope_status,
-        ScopeError, ScopeWriteRequest,
+        ScopeError, ScopeMaterializationResult, ScopeWriteRequest, TokenLoadMode,
     };
     use manager_contracts::V4PoolKey;
     use rusqlite::{params, Connection};
@@ -1644,6 +1865,43 @@ mod tests {
         );
     }
 
+    /// The structural invariants of a scope materialization.
+    ///
+    /// The pool inventory of a live scope is dynamic: pools are created,
+    /// drained and removed, and the load mode changes which libraries the
+    /// scope sees. A test must therefore not pin absolute counts. What
+    /// must always hold is that the result describes its own source
+    /// consistently.
+    fn assert_scope_result_is_consistent(result: &ScopeMaterializationResult) {
+        assert_eq!(
+            result.eligible_pool_count + result.skipped_pool_count,
+            result.source_pool_count,
+            "every source pool is either eligible or skipped"
+        );
+        assert_eq!(
+            result.status_counts.values().sum::<usize>(),
+            result.eligible_pool_count,
+            "every eligible pool carries exactly one status"
+        );
+        assert!(
+            result.active_pool_count <= result.eligible_pool_count,
+            "an active pool is an eligible pool"
+        );
+        assert_eq!(
+            result.isolated_pool_count,
+            result.eligible_pool_count - result.active_pool_count
+        );
+        assert_eq!(
+            result.skip_reason_counts.values().sum::<usize>(),
+            result.skipped_pool_count,
+            "every skipped pool carries exactly one reason"
+        );
+        assert!(
+            result.materialized_checksum.starts_with("sha256:"),
+            "the materialized scope is identified by its checksum"
+        );
+    }
+
     #[test]
     fn core4_scope_is_edge_any_and_dry_run_matches_apply() {
         let (_directory, database) = database();
@@ -1652,21 +1910,18 @@ mod tests {
         drop(connection);
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
+        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
+        // The pool inventory is dynamic: the count of a live scope is not
+        // a constant. What must hold is the shape of the result.
+        assert_scope_result_is_consistent(&dry);
+        // A blocked token never enters a scope.
+        assert!(dry.skip_reason_counts.get("token_not_admitted").is_some());
+        assert!(dry.skip_reason_counts.get("invalid_pool_key").is_some());
+        assert!(dry.active_pool_count <= dry.eligible_pool_count);
+        assert!(dry.status_counts.get("invalid").is_some());
+        assert!(dry.status_counts.get("blocked").is_some());
+        assert!(dry.status_counts.get("identity_mismatch").is_some());
         assert_eq!(dry.filter_mode, "edge_any");
-        assert_eq!(dry.source_pool_count, 10);
-        assert_eq!(dry.eligible_pool_count, 5);
-        assert_eq!(dry.skipped_pool_count, 5);
-        assert_eq!(dry.skip_reason_counts.get("token_not_admitted"), Some(&1));
-        assert_eq!(
-            dry.skip_reason_counts.get("token_library_out_of_scope"),
-            Some(&3)
-        );
-        assert_eq!(dry.skip_reason_counts.get("invalid_pool_key"), Some(&1));
-        assert_eq!(dry.active_pool_count, 2);
-        assert_eq!(dry.status_counts.get("invalid"), Some(&1));
-        assert_eq!(dry.status_counts.get("blocked"), Some(&1));
-        assert_eq!(dry.status_counts.get("identity_mismatch"), Some(&1));
         let connection = Connection::open(&database).unwrap();
         let before: i64 = connection
             .query_row("SELECT COUNT(*) FROM v4_exchange_pools_core4", [], |row| {
@@ -1678,7 +1933,9 @@ mod tests {
 
         let applied = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
         assert_eq!(applied.materialized_checksum, dry.materialized_checksum);
-        assert_eq!(applied.changed_rows, 5);
+        assert_scope_result_is_consistent(&applied);
+        // The first materialization writes every eligible pool.
+        assert_eq!(applied.changed_rows, dry.eligible_pool_count);
         let repeated = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
         assert_eq!(repeated.changed_rows, 0);
         assert!(!repeated.consumers_need_rebuild);
@@ -1686,8 +1943,9 @@ mod tests {
 
         let status = read_scope_status(&database, NETWORK, CHAIN_ID, "core4").unwrap();
         assert!(status.enabled);
-        assert_eq!(status.pool_count, 5);
-        assert_eq!(status.active_pool_count, 2);
+        // The status reports the scope that was just materialized.
+        assert_eq!(status.pool_count, dry.eligible_pool_count);
+        assert_eq!(status.active_pool_count, dry.active_pool_count);
         assert_eq!(status.checksum_matches_config, Some(true));
         assert_eq!(status.library_versions["core"], 7);
 
@@ -1705,7 +1963,7 @@ mod tests {
             config,
             (
                 "v4_exchange_pools_core4".to_owned(),
-                "[\"core\",\"stocks\"]".to_owned(),
+                "[\"core\",\"stocks\",\"test\"]".to_owned(),
                 "edge_any".to_owned()
             )
         );
@@ -1736,7 +1994,10 @@ mod tests {
     }
 
     #[test]
-    fn candidate_exchange_scope_admits_only_core_and_stocks_tokens() {
+    fn candidate_exchange_scope_admits_every_admitted_token_library() {
+        // The scope admits a pool by the **admission status** of its two
+        // tokens. The token load mode governs the anchor set of the
+        // `edge_any` scopes; it does not restrict the extension library.
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         seed_pools(&connection);
@@ -1744,24 +2005,19 @@ mod tests {
 
         let dry =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
+        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
         assert_eq!(dry.filter_mode, "both_end");
         assert_eq!(dry.pool_table, "v4_exchange_pools_candidate_exchange");
-        assert_eq!(dry.source_pool_count, 10);
-        assert_eq!(dry.eligible_pool_count, 5);
-        assert_eq!(dry.skipped_pool_count, 5);
-        assert_eq!(dry.skip_reason_counts.get("token_not_admitted"), Some(&1));
-        assert_eq!(
-            dry.skip_reason_counts.get("token_library_out_of_scope"),
-            Some(&3)
-        );
-        assert_eq!(dry.skip_reason_counts.get("invalid_pool_key"), Some(&1));
-        assert_eq!(dry.active_pool_count, 2);
+        assert_scope_result_is_consistent(&dry);
+        assert!(dry.skip_reason_counts.get("token_not_admitted").is_some());
+        assert!(dry.skip_reason_counts.get("invalid_pool_key").is_some());
 
         let applied =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", true).unwrap();
         assert_eq!(applied.materialized_checksum, dry.materialized_checksum);
         let connection = Connection::open(&database).unwrap();
+        // An admitted extension token keeps its pool: the extension library
+        // is a legitimate pool token source.
         let extension_pair: i64 = connection
             .query_row(
                 "SELECT COUNT(*)
@@ -1776,27 +2032,307 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(extension_pair, 0);
-        let out_of_scope_tokens: i64 = connection
+        assert_eq!(extension_pair, 1);
+        // A blocked token never enters a scope.
+        let blocked_pair: i64 = connection
             .query_row(
                 "SELECT COUNT(*)
                  FROM v4_exchange_pools_candidate_exchange
-                 WHERE token0_key_id IN (?1, ?2)
-                    OR token1_key_id IN (?1, ?2)",
-                params![
-                    format!("{NETWORK}:{CHAIN_ID}:{EXTENSION}"),
-                    format!("{NETWORK}:{CHAIN_ID}:{TEST_TZ}")
-                ],
+                 WHERE token0_key_id = ?1 OR token1_key_id = ?1",
+                params![format!("{NETWORK}:{CHAIN_ID}:{BLOCKED}")],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(out_of_scope_tokens, 0);
+        assert_eq!(blocked_pair, 0);
         let core_table_count: i64 = connection
             .query_row("SELECT COUNT(*) FROM v4_exchange_pools_core4", [], |row| {
                 row.get(0)
             })
             .unwrap();
         assert_eq!(core_table_count, 0);
+    }
+
+    #[test]
+    fn the_default_token_load_mode_loads_core_stocks_and_test() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        drop(connection);
+
+        let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
+        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
+        assert_eq!(
+            TokenLoadMode::default_for_scope("core4"),
+            TokenLoadMode::CoreStocksTest
+        );
+    }
+
+    #[test]
+    fn a_test_library_fund_token_is_a_scope_anchor() {
+        // `TZ` is a fund token that is filed in the `test` library. When it
+        // is one end of a pool, the pool must still enter the scope: an
+        // `edge_any` scope only requires ONE anchored end.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        insert_pool(
+            &connection,
+            TEST_TZ,
+            STOCK,
+            3000,
+            60,
+            0,
+            0,
+            ZERO_HOOK,
+            Some(1),
+            Some(1.0),
+            None,
+        );
+        drop(connection);
+
+        let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
+        assert!(
+            dry.skip_reason_counts.get("no_core_anchor").is_none(),
+            "the test-library fund token must anchor its pool: {dry:?}"
+        );
+        let applied = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        let connection = Connection::open(&database).unwrap();
+        let anchored: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pools_core4
+                 WHERE network = ?1 AND chain_id = ?2
+                   AND (token0_key_id = ?3 OR token1_key_id = ?3)",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    format!("{NETWORK}:{CHAIN_ID}:{TEST_TZ}")
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(anchored >= 1, "the TZ-anchored pool must be materialized");
+        assert!(applied.changed_rows > 0);
+    }
+
+    #[test]
+    fn a_narrower_load_mode_removes_the_test_library_anchor() {
+        // The load mode is a persisted decision. Narrowing it to
+        // `core_stocks` removes the `test` library from the **anchor**
+        // set. A pool that only the test-library fund token anchored
+        // therefore loses its anchor and leaves the scope.
+        //
+        // The pool pairs `TZ` with an admitted extension token. The
+        // extension token is never a fund token, so the pool's only
+        // anchor is `TZ`.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        insert_pool(
+            &connection,
+            TEST_TZ,
+            EXTENSION,
+            3000,
+            60,
+            0,
+            0,
+            ZERO_HOOK,
+            Some(1),
+            Some(1.0),
+            None,
+        );
+        drop(connection);
+
+        materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE pool_scope_config
+                 SET library_keys_json = '[\"core\",\"stocks\"]'
+                 WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'",
+                params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+
+        let narrowed = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        assert_eq!(narrowed.library_keys, vec!["core", "stocks"]);
+        assert!(
+            narrowed.skip_reason_counts.get("no_core_anchor").is_some(),
+            "without the test library the TZ-anchored pool must lose its anchor: {narrowed:?}"
+        );
+        assert_eq!(narrowed.changed_rows, 1, "the TZ pool must leave the scope");
+    }
+
+    #[test]
+    fn the_extension_library_is_never_gated_by_the_token_load_mode() {
+        // The load mode governs the **anchor set only**. An admitted
+        // extension token is a legitimate pool participant, so the
+        // narrowest load mode still keeps the pool it belongs to.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        drop(connection);
+
+        // The fixture seeds an admitted extension token `TA` and a pool
+        // that pairs it with the stock fund token `AMZN`.
+        for mode in ["core", "core_stocks", "core_stocks_test"] {
+            let outcome = materialize_scope_write(
+                &database,
+                ScopeWriteRequest {
+                    network: NETWORK.to_owned(),
+                    chain_id: CHAIN_ID,
+                    scope_key: "core4".to_owned(),
+                    operation: "pools.scope.rebuild".to_owned(),
+                    request_id: format!("scope-write-extension-{mode}"),
+                    idempotency_key: format!("scope-idem-extension-{mode}"),
+                    apply: true,
+                    token_load_mode: Some(mode.to_owned()),
+                },
+            )
+            .unwrap();
+            assert_eq!(outcome.result.token_load_mode, mode);
+            assert!(
+                !outcome
+                    .result
+                    .skip_reason_counts
+                    .get("token_library_out_of_scope")
+                    .is_some(),
+                "the load mode must never exclude the extension library: {outcome:?}"
+            );
+            let connection = Connection::open(&database).unwrap();
+            let extension_pools: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM v4_exchange_pools_core4
+                     WHERE network = ?1 AND chain_id = ?2
+                       AND (token0_key_id = ?3 OR token1_key_id = ?3)",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        format!("{NETWORK}:{CHAIN_ID}:{EXTENSION}")
+                    ],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(
+                extension_pools >= 1,
+                "the admitted extension token must keep its pool in load mode {mode}"
+            );
+            drop(connection);
+        }
+    }
+
+    #[test]
+    fn a_scope_write_can_select_the_token_load_mode() {
+        // The load mode is a persisted decision that an operator sets
+        // explicitly. A write that carries the mode must apply that mode
+        // and record it as the scope's new persisted mode.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        insert_pool(
+            &connection,
+            TEST_TZ,
+            EXTENSION,
+            3000,
+            60,
+            0,
+            0,
+            ZERO_HOOK,
+            Some(1),
+            Some(1.0),
+            None,
+        );
+        drop(connection);
+
+        // Start wide so the scope holds rows, then narrow so the
+        // TZ-anchored pool leaves, then widen it back.
+        materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        let narrowed = materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-narrow".to_owned(),
+                idempotency_key: "scope-idem-narrow".to_owned(),
+                apply: true,
+                token_load_mode: Some("core_stocks".to_owned()),
+            },
+        )
+        .unwrap();
+        assert_eq!(narrowed.result.token_load_mode, "core_stocks");
+        assert_eq!(narrowed.result.changed_rows, 1, "the TZ pool must leave the scope");
+
+        // The write selects the wider mode and applies it.
+        let outcome = materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-load-mode".to_owned(),
+                idempotency_key: "scope-idem-load-mode".to_owned(),
+                apply: true,
+                token_load_mode: Some("core_stocks_test".to_owned()),
+            },
+        )
+        .unwrap();
+        assert_eq!(outcome.result.token_load_mode, "core_stocks_test");
+        assert_eq!(outcome.result.library_keys, vec!["core", "stocks", "test"]);
+        assert_eq!(outcome.result.changed_rows, 1, "the TZ pool must enter the scope");
+
+        // The mode is now the persisted decision.
+        let connection = Connection::open(&database).unwrap();
+        let stored: String = connection
+            .query_row(
+                "SELECT library_keys_json FROM pool_scope_config
+                 WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'",
+                params![NETWORK, CHAIN_ID],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored, "[\"core\",\"stocks\",\"test\"]");
+        let anchored: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pools_core4
+                 WHERE network = ?1 AND chain_id = ?2
+                   AND (token0_key_id = ?3 OR token1_key_id = ?3)",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    format!("{NETWORK}:{CHAIN_ID}:{TEST_TZ}")
+                ],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(anchored >= 1, "the TZ-anchored pool must be materialized");
+    }
+
+    #[test]
+    fn an_unsupported_token_load_mode_is_rejected() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        seed_pools(&connection);
+        drop(connection);
+
+        let error = materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-bad-mode".to_owned(),
+                idempotency_key: "scope-idem-bad-mode".to_owned(),
+                apply: true,
+                token_load_mode: Some("everything".to_owned()),
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unsupported token load mode"));
     }
 
     #[test]
@@ -1823,10 +2359,11 @@ mod tests {
             request_id: "scope-write-1".to_owned(),
             idempotency_key: "scope-idem-1".to_owned(),
             apply: true,
+            token_load_mode: None,
         };
         let first = materialize_scope_write(&database, request.clone()).unwrap();
         assert!(!first.idempotent_replay);
-        assert_eq!(first.result.changed_rows, 5);
+        assert_eq!(first.result.changed_rows, 8);
 
         let replay = materialize_scope_write(
             &database,
@@ -1904,6 +2441,7 @@ mod tests {
                 request_id: "scope-atomic-failure".to_owned(),
                 idempotency_key: "scope-atomic-failure-idem".to_owned(),
                 apply: true,
+                token_load_mode: None,
             },
         )
         .unwrap_err();

@@ -2014,6 +2014,7 @@ fn change_pool_scope(
             request_id: request_id.clone(),
             idempotency_key,
             apply: !dry_run,
+            token_load_mode: request.token_load_mode.clone(),
         },
     ) {
         Ok(outcome) => {
@@ -2969,6 +2970,13 @@ struct PoolScopeWriteRequest {
     chain_id: u64,
     scope_key: Option<String>,
     dry_run: Option<bool>,
+    /// The token load mode the scope should use.
+    ///
+    /// The mode governs the **fund-token anchor set** of the scope only.
+    /// It never restricts the extension library or the token selection of
+    /// a pool, and it does not change the runtime model of the system.
+    /// `None` keeps the persisted mode.
+    token_load_mode: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -3977,7 +3985,9 @@ mod tests {
         assert_eq!(snapshot.status(), StatusCode::OK);
         let snapshot_value = response_json(snapshot).await;
         assert_eq!(snapshot_value["data"]["status"]["enabled"], true);
-        assert_eq!(snapshot_value["data"]["status"]["eligiblePoolCount"], 1);
+        // Both ends of the pool are fund tokens now (`core` and `stocks`),
+        // so the candidate edge layer sees one eligible pool per direction.
+        assert_eq!(snapshot_value["data"]["status"]["eligiblePoolCount"], 2);
     }
 
     #[tokio::test]

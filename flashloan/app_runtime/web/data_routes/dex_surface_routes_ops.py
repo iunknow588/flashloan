@@ -127,12 +127,16 @@ def _registered_closed_loop_group_keys(chain_id: int) -> list[str]:
 def _resolve_closed_loop_group_key(chain_id: int, route_symbols: list[str]) -> str:
     """Resolve the worker group key that serves the requested route.
 
-    The closed-loop library stores every loop ETH-anchored, while the
-    scanner registers its resident worker under the route order it
-    discovered, which is a rotation of the same directed cycle. The worker
-    pool keys its state machine by the exact registered string, so the
-    request order has to be resolved against the live workers before the
-    transition can find them.
+    The lookup is **exact and ordered**. The worker pool keys its state
+    machine by the exact string the worker was registered with, so only
+    the identical ordered token path addresses that worker. A different
+    starting point of the same triangle is a different worker with a
+    different closed-loop identity and must not borrow this one's key
+    (MIO-7 / TASK-149 / AC-214).
+
+    When no live worker matches, the requested key is returned unchanged so
+    the runtime answers with the precise ``closed_loop_group_not_found``
+    error instead of silently addressing another loop.
     """
     requested_key = "|".join(
         str(symbol).strip().lower() for symbol in route_symbols[:3]

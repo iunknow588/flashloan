@@ -9,7 +9,7 @@ from flask import has_app_context
 from core.manager_api_client import ManagerApiClient, ManagerApiClientError, manager_ui_data_source
 from dex.runtime.closed_loop_identity import (
     directed_symbol_key_from_symbols,
-    physical_loop_key_from_route,
+    physical_route_key_from_route,
     worker_group_key_from_symbols,
 )
 
@@ -271,7 +271,7 @@ def _attach_closed_loop_control(
     for route in routes:
         route_symbols = list(route.get("routeSymbols") or [])
         group_key = worker_group_key_from_symbols(route_symbols)
-        loop_key = physical_loop_key_from_route(route)
+        loop_key = physical_route_key_from_route(route)
         direction_key = directed_symbol_key_from_symbols(route_symbols)
         worker = workers_by_group.get(group_key or "", {})
         task = tasks_by_group.get(group_key or "", {})

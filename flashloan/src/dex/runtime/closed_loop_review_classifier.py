@@ -11,8 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 from dex.runtime.closed_loop_identity import (
-    physical_loop_key_from_addresses,
-    physical_loop_key_from_route,
+    normalize_physical_loop_key,
+    physical_route_key_from_route,
 )
 
 
@@ -254,69 +254,60 @@ def _row_route_addresses(row: dict[str, Any]) -> list[str]:
 
 
 def loop_key_from_review_row(row: dict[str, Any]) -> str | None:
-    """Build the durable directional key from trusted route addresses.
+    """Return the **runtime state-row key** a review belongs to.
 
-    A third-party token can return any ``symbol()`` it likes.  When the review
-    row has a real token path, the physical address path is the identity and
-    preserves the Y -> Z direction. Legacy unresolved symbol groups are only
-    returned when no physical path is available, for migration diagnostics.
+    This is the key space of ``v4_closed_loop_runtime_state``, not the
+    closed-loop identity the Manager owns.  The state table is keyed by the
+    ordered token path, and a review is correlated with its state row
+    through that key.
+
+    Two forms are recognised, and both are **state-row** keys:
+
+    * the physical address path, which the kernel publishes as ``loopKey``;
+    * the legacy symbol group, which the runtime state table also holds.
+
+    The symbol form is a *state-table* key. It carries no capacity, no pool
+    set and no USDG value, so deriving it here cannot borrow the identity of
+    another closed loop. The Manager identity is never reconstructed from a
+    route: it is consumed from the published ``loopKey`` (MIO-7 / AC-214).
     """
     quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
-    loop_key = physical_loop_key_from_route(row)
-    if not loop_key:
-        loop_key = physical_loop_key_from_route(quote)
-    if not loop_key:
-        loop_key = physical_loop_key_from_addresses(_row_route_addresses(row))
-    if loop_key:
-        return loop_key
+    published = normalize_physical_loop_key(row.get("loopKey"))
+    if published:
+        return published
+    published = normalize_physical_loop_key(quote.get("loopKey"))
+    if published:
+        return published
+    # A review that carries a real address path is keyed by it. A
+    # third-party token can return any ``symbol()`` it likes, so the symbol
+    # path is never trusted over the addresses.
+    physical = physical_route_key_from_route(row)
+    if physical:
+        return physical
+    physical = physical_route_key_from_route(quote)
+    if physical:
+        return physical
     route_symbols = [
-        str(item).strip().upper()
+        str(item).strip().lower()
         for item in (
-            row.get("routeSymbols")
-            or row.get("route_path")
+            row.get("route_path")
+            or row.get("routeSymbols")
             or quote.get("routeSymbols")
             or quote.get("path")
             or []
         )
         if str(item).strip()
     ]
-    if len(route_symbols) != 4 or route_symbols[0] != route_symbols[-1]:
-        tokens = [
-            str(item).strip().upper()
-            for item in str(row.get("pair") or "").split("->")
-            if str(item).strip()
-        ]
-        if len(tokens) == 4 and tokens[0] == tokens[-1]:
-            route_symbols = tokens
-        else:
-            return None
-    route_addresses = _row_route_addresses(row)
-    if len(route_addresses) != len(route_symbols):
-        try:
-            chain_id = int(
-                row.get("chain_id")
-                or quote.get("chain_id")
-                or (quote.get("live_onchain_evidence") or {}).get("chainId")
-                or 0
-            )
-        except (TypeError, ValueError):
-            chain_id = 0
-        from market.binance_market.dex_route_helpers import _official_route_addresses
-
-        route_addresses = _official_route_addresses(route_symbols, chain_id=chain_id)
-        if len(route_addresses) != len(route_symbols):
-            return None
-    try:
-        chain_id = int(row.get("chain_id") or quote.get("chain_id") or 0)
-    except (TypeError, ValueError):
-        chain_id = 0
-    from market.binance_market.dex_route_helpers import trusted_symbol_from_address
-
-    normalized: list[str] = []
-    for symbol, address in zip(route_symbols, route_addresses):
-        trusted = trusted_symbol_from_address(address, chain_id=chain_id)
-        normalized.append(str(trusted or f"unresolved:{str(address).strip().lower()}").upper())
-    return loop_key_from_pair_text(" -> ".join(normalized))
+    if len(route_symbols) == 4 and route_symbols[0] == route_symbols[-1]:
+        return loop_key_from_pair_text(" -> ".join(route_symbols))
+    tokens = [
+        str(item).strip().lower()
+        for item in str(row.get("pair") or "").split("->")
+        if str(item).strip()
+    ]
+    if len(tokens) == 4 and tokens[0] == tokens[-1]:
+        return loop_key_from_pair_text(" -> ".join(tokens))
+    return None
 
 
 __all__ = [

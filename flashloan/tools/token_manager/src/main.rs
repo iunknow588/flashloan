@@ -79,6 +79,7 @@ impl ChainScope {
 
     /// The economic policy for this scope, denominated in the chain's own
     /// quote asset.
+    #[allow(dead_code)]
     fn economic_policy(&self) -> Result<EconomicPolicy, Box<dyn std::error::Error>> {
         Ok(EconomicPolicy::for_scope(self.network(), self.chain_id())?)
     }

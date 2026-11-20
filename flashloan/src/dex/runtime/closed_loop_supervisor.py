@@ -14,12 +14,23 @@ from dex.runtime.dex_closed_loop_review_queue import (
 )
 
 
-def _bounded_workers(value: int | str | None, default: int = 16) -> int:
+def _bounded_workers(value: int | str | None, default: int | None = None) -> int:
+    """Resolve the per-route worker count of the legacy Python fallback.
+
+    The fallback is only used when the Rust kernel is unavailable. Its
+    worker count is therefore also **not** a count of loops: it is a
+    resource bound, and the ceiling is the only thing that is fixed.
+    """
+    from dex.runtime.closed_loop_state_machine import (
+        CLOSED_LOOP_WORKER_CEILING,
+        resolve_max_workers,
+    )
+
     raw = default if value is None else value
     try:
-        return max(1, min(16, int(raw)))
+        return max(1, min(CLOSED_LOOP_WORKER_CEILING, int(raw)))
     except (TypeError, ValueError):
-        return default
+        return resolve_max_workers()
 
 
 def _env_float(name: str, default: float) -> float:
@@ -44,7 +55,7 @@ class ReviewSupervisor:
         self.queue = queue or ClosedLoopReviewQueue()
         self.refresh_fn = refresh_fn
         self.max_workers = _bounded_workers(
-            max_workers if max_workers is not None else os.getenv("DEX_CLOSED_LOOP_REVIEW_WORKERS", "16")
+            max_workers if max_workers is not None else os.getenv("DEX_CLOSED_LOOP_REVIEW_WORKERS")
         )
         self.poll_seconds = max(0.05, float(poll_seconds))
         self.stall_seconds = max(

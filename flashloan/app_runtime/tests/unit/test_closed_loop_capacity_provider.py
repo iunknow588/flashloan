@@ -82,8 +82,35 @@ def test_the_capacity_is_looked_up_by_the_ordered_token_path() -> None:
     match = re.search(r"pub fn identity_for\(.*?\n    \}\n", identity, re.S)
     assert match, "the ordered-path lookup must exist"
     body = match.group(0)
-    assert "take(3)" in body, "the lookup must use the ordered token path"
-    assert "by_symbol_path.get" in body, "the lookup must be exact"
+    # TASK-149 / AC-214: the catalog is keyed by the **ordered address
+    # path** the Manager published, and the lookup is exact. The old
+    # assertion pinned the truncated symbol path (``take(3)``) that
+    # dropped the published loop anchor and let a rotation of the same
+    # cycle borrow another loop's capacity.
+    assert "by_address_path.get" in body, "the lookup must be exact"
+    assert "take(3)" not in body, (
+        "the lookup must not truncate the published identity; the Manager "
+        "publishes the full ordered path with its loop anchor"
+    )
+    assert "rotat" not in body.lower(), (
+        "a rotation of the same cycle must never match: a different "
+        "starting point is a different closed loop"
+    )
+
+
+def test_the_catalog_is_keyed_by_the_published_address_path() -> None:
+    """MIO-7: the catalog index is the Manager's published address path."""
+    identity = _read(RS_SRC / "closed_loop_identity.rs")
+    match = re.search(r"pub fn catalog_from_rows\(.*?\n\}\n", identity, re.S)
+    assert match, "the catalog builder must exist"
+    body = match.group(0)
+    assert "path_addresses_json" in body, (
+        "the catalog must be indexed by the published address path"
+    )
+    assert "path_symbols_json" not in body, (
+        "the catalog must not be indexed by the symbol path: the symbols "
+        "do not identify which pools the capacity was computed for"
+    )
 
 
 def test_a_route_without_a_published_capacity_keeps_no_capacity() -> None:

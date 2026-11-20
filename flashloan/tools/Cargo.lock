@@ -1367,6 +1367,7 @@ dependencies = [
 name = "closed-loop-manager"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "candidate-edge-pool-manager",
  "candidate-exchange-pool-manager",
  "chrono",

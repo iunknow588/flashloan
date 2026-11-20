@@ -9,7 +9,7 @@ The system has exactly one legal data flow::
         -> the queue target writes back to SQLite
 
 The rules are published as ``MIO-1..MIO-8`` in
-``plan/开发计划_20261113.md`` section 4.1. These tests turn the rules into
+``plan/开发计划_20261120.md`` section 3.1. These tests turn the rules into
 executable checks, so a violation fails the build instead of waiting for
 a human review.
 
@@ -29,10 +29,61 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SRC_ROOT = REPO_ROOT / "flashloan" / "src"
 RS_SRC = REPO_ROOT / "flashloan" / "rs-src" / "src"
+SCRIPTS_ROOT = REPO_ROOT / "scripts"
 
 
 def _python_files() -> list[Path]:
     return [path for path in SRC_ROOT.rglob("*.py") if "__pycache__" not in path.parts]
+
+
+def _script_files() -> list[Path]:
+    """Return every Python file of the repo-level CLI/ops area.
+
+    The healer and the migration planners live here, so a violation in this
+    tree is exactly as damaging as one in ``flashloan/src``. The scope is
+    deliberately the whole tree: shrinking it would only hide the offender.
+    """
+    if not SCRIPTS_ROOT.exists():
+        return []
+    return [
+        path
+        for path in SCRIPTS_ROOT.rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+
+
+def _guarded_python_files() -> list[Path]:
+    """Return every Python file subject to the MIO identity guards."""
+    return _python_files() + _script_files()
+
+
+def _active_development_plan() -> Path:
+    """Return the active development-plan document.
+
+    The plan is renamed whenever the active version advances, so pinning
+    one file name here would break the guard on every version bump. The
+    active document is the one in ``plan/`` whose name starts with
+    ``开发计划_``; a frozen snapshot under ``plan/back/`` never matches.
+    """
+    plan_root = REPO_ROOT / "plan"
+    candidates = sorted(
+        path
+        for path in plan_root.glob("开发计划_*.md")
+        if path.is_file()
+    )
+    if not candidates:
+        raise AssertionError(
+            "no active development plan found in plan/; the MIO rules are "
+            "published there and the guard cannot verify them"
+        )
+    return candidates[-1]
+
+
+def _parsed(path: Path) -> ast.Module | None:
+    try:
+        return ast.parse(_read(path), filename=str(path))
+    except SyntaxError:
+        return None
 
 
 def _rust_files() -> list[Path]:
@@ -61,6 +112,205 @@ def _called_names(node: ast.AST) -> set[str]:
             elif isinstance(func, ast.Attribute):
                 names.add(func.attr)
     return names
+
+
+# The rotation capability that the closed-loop Manager owns. A Python layer
+# that calls one of these can make a *different* closed loop look like the
+# one it means, and with it that loop's capacity, pool set and threshold.
+FORBIDDEN_ROTATION_CALLS = frozenset(
+    {
+        "canonical_directed_cycle_key",
+        "directed_cycle_rotations",
+        "directed_cycle_keys_match",
+    }
+)
+
+
+def _forbidden_rotation_call_sites(path: Path) -> list[str]:
+    """Return every AST site that calls a forbidden rotation helper."""
+    tree = _parsed(path)
+    if tree is None:
+        return []
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            name = func.id
+        elif isinstance(func, ast.Attribute):
+            name = func.attr
+        else:
+            continue
+        if name in FORBIDDEN_ROTATION_CALLS:
+            sites.append(f"{path}:{node.lineno}: call to {name}()")
+    return sites
+
+
+def _defined_names(path: Path) -> set[str]:
+    """Return every function and class name a module defines."""
+    tree = _parsed(path)
+    if tree is None:
+        return set()
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+    return names
+
+
+def _imported_names(path: Path) -> set[str]:
+    """Return every name a module imports."""
+    tree = _parsed(path)
+    if tree is None:
+        return set()
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.asname or alias.name.split(".")[0])
+    return names
+
+
+# The names a closed-loop identity may be published under. Exactly one of
+# them is the evidence field; the others are the table columns and the
+# kernel field. A layer that reads several of them for one identity is
+# guessing, and guessing is what produced the borrowed-identity bug.
+IDENTITY_PUBLICATION_NAMES = frozenset(
+    {"loopKey", "loop_key", "closedLoopKey", "libraryLoopKey"}
+)
+
+
+def _identity_publication_read_sites(path: Path) -> list[str]:
+    """Return loops that explicitly try several identity field names."""
+    tree = _parsed(path)
+    if tree is None:
+        return []
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.For):
+            continue
+        if not isinstance(node.target, ast.Name) or node.target.id not in {"key", "field", "name"}:
+            continue
+        if not isinstance(node.iter, (ast.Tuple, ast.List, ast.Set)):
+            continue
+        literals = {
+            element.value
+            for element in node.iter.elts
+            if isinstance(element, ast.Constant) and isinstance(element.value, str)
+        }
+        matched = literals & IDENTITY_PUBLICATION_NAMES
+        if len(matched) > 1:
+            sites.append(
+                f"{path}:{node.lineno}: reads several identity names "
+                f"{sorted(matched)}"
+            )
+    return sites
+
+
+def _kernel_identity_field_read_sites(path: Path) -> list[str]:
+    """Return every site that *reads* the kernel identity field name.
+
+    The kernel publishes the closed-loop identity as ``closedLoopKey``. The
+    bridge layer is the single place that may read it and republish it as
+    ``loopKey``. A mention in a docstring is documentation, not a
+    translation, so only a real subscript or ``get`` call counts.
+    """
+    tree = _parsed(path)
+    if tree is None:
+        return []
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript):
+            index = node.slice
+            if (
+                isinstance(index, ast.Constant)
+                and index.value == "closedLoopKey"
+            ):
+                sites.append(f"{path}:{node.lineno}: reads closedLoopKey[]")
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and func.attr == "get"):
+                continue
+            for arg in node.args:
+                if (
+                    isinstance(arg, ast.Constant)
+                    and arg.value == "closedLoopKey"
+                ):
+                    sites.append(
+                        f"{path}:{node.lineno}: reads .get('closedLoopKey')"
+                    )
+    return sites
+
+
+def _route_address_join_sites(path: Path) -> list[str]:
+    """Return key-shaped joins whose source or destination is address data."""
+    tree = _parsed(path)
+    if tree is None:
+        return []
+    addressish = re.compile(
+        r"route_?addresses?|path_?addresses?|routeAddress|pathAddress",
+        re.IGNORECASE,
+    )
+    identityish = re.compile(r"loop.?key|identity|closed.?loop", re.IGNORECASE)
+    joins: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "join":
+            separator = node.func.value
+            if isinstance(separator, ast.Constant) and separator.value in {":", "|"}:
+                joins.append(node)
+    offenders: list[str] = []
+    for join in joins:
+        source_names = {
+            node.id
+            for node in ast.walk(join)
+            if isinstance(node, ast.Name)
+        } | {
+            node.attr
+            for node in ast.walk(join)
+            if isinstance(node, ast.Attribute)
+        }
+        if not any(addressish.search(name) for name in source_names):
+            continue
+        parents: dict[ast.AST, ast.AST] = {}
+        tree = _parsed(path)
+        if tree is None:
+            continue
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                parents[child] = parent
+        parent = parents.get(join)
+        if isinstance(parent, ast.Call):
+            func_name = (
+                parent.func.id
+                if isinstance(parent.func, ast.Name)
+                else parent.func.attr
+                if isinstance(parent.func, ast.Attribute)
+                else ""
+            )
+            if identityish.search(func_name):
+                offenders.append(f"{path}:{join.lineno}: address join passed to {func_name}()")
+                continue
+        cursor: ast.AST = join
+        while cursor in parents:
+            cursor = parents[cursor]
+            if isinstance(cursor, (ast.Assign, ast.AnnAssign)):
+                target_text = ast.dump(cursor)
+                if identityish.search(target_text):
+                    offenders.append(f"{path}:{join.lineno}: address join assigned to identity")
+                break
+            if isinstance(cursor, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                break
+    return offenders
 
 
 # ---------------------------------------------------------------------------
@@ -347,9 +597,7 @@ def test_python_consumes_the_kernel_published_profit_without_deriving_it() -> No
 
 def test_the_plan_documents_the_memory_object_constraint() -> None:
     """The constraint is published, so a reviewer can check it by reading."""
-    plan = (REPO_ROOT / "plan" / "开发计划_20261113.md").read_text(
-        encoding="utf-8", errors="ignore"
-    )
+    plan = _read(_active_development_plan())
     for rule in ("MIO-1", "MIO-2", "MIO-3", "MIO-4", "MIO-5", "MIO-6", "MIO-7", "MIO-8"):
         assert rule in plan, f"the plan does not publish {rule}"
     assert "内存对象处理约束" in plan, "the plan has no memory-object section"
@@ -360,14 +608,15 @@ def test_the_plan_documents_the_memory_object_constraint() -> None:
     )
 
 
-def test_the_readme_summarizes_the_memory_object_constraint() -> None:
-    """The README carries the summary table of the constraint."""
-    readme = (REPO_ROOT / "plan" / "README.md").read_text(
-        encoding="utf-8", errors="ignore"
-    )
-    assert "内存对象处理约束" in readme, "the README has no memory-object section"
-    for rule in ("MIO-1", "MIO-5", "MIO-6", "MIO-7", "MIO-8"):
-        assert rule in readme, f"the README does not summarize {rule}"
+def test_plan_root_keeps_exactly_the_three_active_documents() -> None:
+    """The plan root exposes one plan, one backlog and one checklist."""
+    plan_root = REPO_ROOT / "plan"
+    active_files = {path.name for path in plan_root.iterdir() if path.is_file()}
+    assert active_files == {
+        "开发计划_20261120.md",
+        "未完成任务清单_20261120.md",
+        "主网编排器审查修复_check_list_20261120.md",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -441,3 +690,164 @@ def test_the_prune_respects_the_chain_boundary() -> None:
     """A store of one chain is never pruned as if it belonged to another."""
     text = TOKEN_PRUNE.read_text(encoding="utf-8", errors="ignore")
     assert "ScopeMismatch" in text, "the prune does not check the chain scope"
+
+
+# ---------------------------------------------------------------------------
+# MIO-6 / MIO-7, strengthened: the closed-loop identity has one authority
+# ---------------------------------------------------------------------------
+
+
+def test_no_python_layer_calls_the_rotation_capability() -> None:
+    """MIO-7: rotation is not a capability a Python layer may use.
+
+    The rotation helpers used to live in ``dex.runtime.closed_loop_identity``.
+    They made a loop borrow the identity -- and therefore the capacity, the
+    pool set and the review threshold -- of a *different* closed loop that
+    happened to start at another hop of the same triangle.
+
+    The Manager owns the identity of every loop and publishes it. A Python
+    layer that rotates is a second authority, so the capability is removed
+    from the shared identity module and no layer may define or call it.
+
+    The scan covers ``flashloan/src`` **and** the whole ``scripts`` tree:
+    the healer lives in ``scripts``, and a violation there is exactly as
+    damaging as one in the runtime.
+    """
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        offenders.extend(_forbidden_rotation_call_sites(path))
+        defined = _defined_names(path)
+        for name in FORBIDDEN_ROTATION_CALLS:
+            if name in defined:
+                offenders.append(f"{path}: defines {name}")
+    assert not offenders, (
+        "MIO-7 violation: a Python layer uses the rotation capability. The "
+        "closed-loop Manager owns the identity and publishes it:\n"
+        + "\n".join(offenders)
+    )
+
+
+def test_no_python_layer_imports_a_rotation_capability() -> None:
+    """MIO-7: the rotation helpers must not even be importable."""
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        imported = _imported_names(path)
+        for name in FORBIDDEN_ROTATION_CALLS:
+            if name in imported:
+                offenders.append(f"{path}: imports {name}")
+    assert not offenders, (
+        "MIO-7 violation: a Python layer imports a rotation helper. Consume "
+        "the Manager-published identity instead:\n" + "\n".join(offenders)
+    )
+
+
+def test_the_shared_identity_module_exposes_no_rotation_capability() -> None:
+    """MIO-7: the identity module itself must be rotation-free."""
+    module = SRC_ROOT / "dex" / "runtime" / "closed_loop_identity.py"
+    assert module.exists(), "the shared identity module is missing"
+    text = _read(module)
+    for name in FORBIDDEN_ROTATION_CALLS:
+        assert f"def {name}(" not in text, (
+            f"MIO-7 violation: dex.runtime.closed_loop_identity still defines "
+            f"{name}()"
+        )
+        assert f'"{name}"' not in text, (
+            f"MIO-7 violation: dex.runtime.closed_loop_identity still exports "
+            f"{name}"
+        )
+
+
+def test_the_runtime_state_row_alias_merge_is_scoped_to_the_state_table() -> None:
+    """MIO-7: the one allowed rotation is scoped to the runtime state table.
+
+    The runtime state table (``v4_closed_loop_runtime_state``) is keyed by a
+    token path that may start at any hop of the same directed triangle. Its
+    own rows must converge on one concrete row, otherwise one state machine
+    is split across anchor variants.
+
+    That merge is allowed **only** inside the state machine module, where it
+    is spelled as a private ``_state_row_alias_*`` helper, and it must never
+    reach a module that selects a Manager identity.
+    """
+    state_machine = SRC_ROOT / "dex" / "runtime" / "closed_loop_state_machine.py"
+    assert state_machine.exists(), "the closed-loop state machine is missing"
+    text = _read(state_machine)
+    assert "_state_row_alias_rotations" in text, (
+        "the runtime state machine has no scoped alias helper"
+    )
+    assert "_state_row_alias_canonical" in text, (
+        "the runtime state machine has no scoped canonical helper"
+    )
+
+    # The scoped helper must stay private to the state machine.
+    for path in _guarded_python_files():
+        if path == state_machine:
+            continue
+        for name in ("_state_row_alias_rotations", "_state_row_alias_canonical"):
+            assert name not in _defined_names(path), (
+                f"MIO-7 violation: {path} defines {name}(). The runtime "
+                "state-row alias merge belongs to the state machine only"
+            )
+
+
+def test_no_python_layer_reads_several_identity_field_names_for_one_identity() -> None:
+    """MIO-7: one identity is published under one name per source.
+
+    The bridge layer translates the kernel field ``closedLoopKey`` into the
+    evidence field ``loopKey`` exactly once. A consumer that reads several
+    names for one identity is guessing between them, which is what allowed a
+    review to be filed under a loop the Manager never published.
+    """
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        offenders.extend(_identity_publication_read_sites(path))
+    assert not offenders, (
+        "MIO-7 violation: a layer reads several identity field names for one "
+        "identity. The bridge translates the kernel field once:\n"
+        + "\n".join(offenders)
+    )
+
+
+def test_the_bridge_is_the_single_translation_point() -> None:
+    """MIO-7: exactly one module translates the kernel identity field."""
+    bridge = SRC_ROOT / "dex" / "runtime" / "rust_closed_loop.py"
+    text = _read(bridge)
+    assert 'result.get("closedLoopKey")' in text, (
+        "the bridge does not consume the kernel-published identity"
+    )
+    assert '"loopKey": loop_key' in text, (
+        "the bridge does not publish the identity as loopKey"
+    )
+
+    # No other module may *read* the kernel field name. A docstring that
+    # merely mentions it is not a translation, so the check is AST based
+    # rather than a plain text scan.
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        if path == bridge:
+            continue
+        offenders.extend(_kernel_identity_field_read_sites(path))
+    assert not offenders, (
+        "MIO-7 violation: another layer translates the kernel identity field. "
+        "The bridge is the single translation point:\n" + "\n".join(offenders)
+    )
+
+
+def test_the_identity_is_never_assembled_from_the_route_addresses() -> None:
+    """MIO-7: the identity is consumed, never assembled.
+
+    This is the AST form of the older regex guard. The regex only saw
+    assignments of the shape ``loopKey = ":".join(...)``; it did not see a
+    join that is passed as a function argument, and it did not see a join
+    that is stored under a different variable name first. The AST form
+    catches the whole shape: a ``join`` over an address-bearing collection
+    that ends up in an identity-ish position.
+    """
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        offenders.extend(_route_address_join_sites(path))
+    assert not offenders, (
+        "MIO-7 violation: a layer assembles the closed-loop identity out of "
+        "the route addresses. Consume the Manager-published key instead:\n"
+        + "\n".join(offenders)
+    )

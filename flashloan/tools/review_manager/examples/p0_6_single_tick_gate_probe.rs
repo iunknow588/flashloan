@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use review_manager::{
-    evaluate_route_single_tick, parity::HopState, BoundConclusion, SingleTickHopState,
+    evaluate_route_single_tick, parity::HopState, SingleTickHopState,
 };
 
 /// The evidence row of one verified sample.

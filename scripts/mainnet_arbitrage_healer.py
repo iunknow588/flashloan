@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Robinhood 4663 主网套利闭环审计、自愈编排和观察工具。
 
 固定顺序：代币 -> 池子 -> 闭环 -> 复核 -> 广播。默认只读；repair 只有
@@ -31,6 +31,14 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
+
+# The closed-loop identity is published by the closed-loop Manager and
+# reaches the runtime through the kernel result. The healer therefore only
+# **consumes** it: it never rotates a token path, never re-anchors a cycle
+# and never assembles a loop key out of the route addresses. A review that
+# carries no published identity stays unassociated and is reported as such
+# instead of being filed under a guess (MIO-7 / TASK-149 / AC-214).
+from dex.runtime.closed_loop_identity import resolve_registered_group_key
 
 # DEP-4.2: the healer and the Rust pool manager have to admit a pool on the
 # same boundary. The pool manager owns the depth refresh and the capacity
@@ -323,6 +331,41 @@ def table_columns(db: Path, table: str) -> set[str]:
     return {str(row["name"]) for row in rows}
 
 
+#: The depth-evidence columns that ``pool-manager ensure-depth-schema`` adds
+#: to the liquidity snapshot table.  The list mirrors the Rust constant
+#: ``DEPTH_CAPACITY_COLUMNS``; a store that predates the columns keeps its
+#: old shape, because SQLite never alters an existing table.
+DEPTH_CAPACITY_COLUMNS: tuple[str, ...] = (
+    "capacity_token0_raw",
+    "capacity_token1_raw",
+    "capacity_raw",
+    "capacity_binding_raw",
+    "price_impact_bps",
+    "price_impact_limit_bps",
+    "depth_basis",
+    "tick",
+    "sqrt_price_x96",
+    "single_tick_max_token0_raw",
+    "single_tick_max_token1_raw",
+)
+
+#: The table that carries the on-chain depth observation.
+DEPTH_SNAPSHOT_TABLE = "v4_exchange_pool_liquidity_snapshots"
+
+
+def missing_depth_capacity_columns(db: Path) -> list[str]:
+    """Return the depth-evidence columns the store does not carry yet.
+
+    The check is read-only: the healer never changes a store outside an
+    explicit ``--apply`` round, so a dry run asks this question instead of
+    running the writing schema command.
+    """
+    present = table_columns(db, DEPTH_SNAPSHOT_TABLE)
+    if not present:
+        return []
+    return [column for column in DEPTH_CAPACITY_COLUMNS if column not in present]
+
+
 def as_json(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -371,11 +414,29 @@ def row_route_addresses(row: dict[str, Any]) -> list[str]:
 
 
 def review_loop_key(row: dict[str, Any]) -> str | None:
+    """Return the closed-loop identity a review row was filed under.
+
+    The identity is **published**, never derived. Two tables carry it:
+
+    * the Manager review table owns it in its ``loop_key`` column;
+    * the legacy review table owns it in the review payload, under
+      ``loopKey`` -- the field the bridge layer writes from the kernel's
+      ``closedLoopKey``.
+
+    A row that carries neither has **no** identity: it is not associated
+    with any closed loop, and the caller reports it as unassociated rather
+    than assembling a key out of the route addresses. Assembling one would
+    file the review under a loop the Manager never published, and that
+    loop's capacity and pool set with it (MIO-7 / AC-214).
+    """
     loop_key = str(row.get("loop_key") or "").strip()
     if loop_key:
         return loop_key
-    route = row_route_addresses(row)
-    return ":".join(route[:3]) if len(route) >= 3 else None
+    for payload in review_payloads(row):
+        value = str(payload.get("loopKey") or "").strip()
+        if value:
+            return value
+    return None
 
 
 def review_pool_ids(row: dict[str, Any]) -> list[str]:
@@ -410,24 +471,26 @@ def review_loop_key_by_pool(db: Path, row: dict[str, Any],
                             known_loops: dict[str, list[str]]) -> str | None:
     """Resolve a review row to its closed loop by the pools it exercised.
 
-    The runtime reviews a closed cycle from **whichever token it starts at**,
-    so the review's address path is a rotation of the loop's canonical path.
-    The canonical loop key is anchored at the loop's anchor token, so the
-    review's first three addresses do not always reproduce it.
+    A review belongs to the loop whose **full** ordered hop-pool sequence
+    it reproduces. The match used to be a plain set intersection, which
+    accepted a review of one loop that happened to touch a single pool of
+    another loop and then filed it under that other loop's identity,
+    capacity and pool set.
 
-    The pools settle the question: the review names the pool it exercised on
-    each hop, and the closed loop names the pool it uses on each hop. A
-    review therefore belongs to the loop whose hop pools it shares.
-
-    A route that shares no pool with any known loop belongs to no known
-    loop, and the caller must treat it as unmatched rather than guess.
+    The match is now exact and ordered: every hop pool of the review has to
+    equal the hop pool of the loop at the same position. A review that
+    shares no full sequence with any known loop belongs to no known loop,
+    and the caller treats it as unmatched rather than guess.
     """
     pools = review_pool_ids(row)
     if not pools:
         return None
-    pool_set = set(pools)
     for loop_key, hop_pools in known_loops.items():
-        if hop_pools and pool_set.intersection(hop_pools):
+        if not hop_pools:
+            continue
+        if len(hop_pools) != len(pools):
+            continue
+        if list(hop_pools) == list(pools):
             return loop_key
     return None
 
@@ -442,26 +505,33 @@ def closed_loop_hop_pools(db: Path) -> dict[str, list[str]]:
     no longer holds resident would otherwise be filed against nothing.
     """
     hops: dict[str, list[str]] = {}
-    for row in all_rows(
-        db,
-        "SELECT loop_key, pool_id FROM manager_v4_closed_loop_hops WHERE network=? AND chain_id=?",
-        (NETWORK, CHAIN_ID),
-    ):
-        pool_id = str(row.get("pool_id") or "").strip().lower()
-        if not pool_id:
-            continue
-        hops.setdefault(str(row.get("loop_key") or ""), []).append(pool_id)
+    present = table_names(db)
+    # The Manager library owns the closed-loop structure, but a chain store
+    # does not necessarily own every materialized table. An absent table
+    # means "no rows of that kind", not a failed audit, so the lookup falls
+    # through to the next source instead of raising.
+    if "manager_v4_closed_loop_hops" in present:
+        for row in all_rows(
+            db,
+            "SELECT loop_key, pool_id FROM manager_v4_closed_loop_hops WHERE network=? AND chain_id=?",
+            (NETWORK, CHAIN_ID),
+        ):
+            pool_id = str(row.get("pool_id") or "").strip().lower()
+            if not pool_id:
+                continue
+            hops.setdefault(str(row.get("loop_key") or ""), []).append(pool_id)
     if hops:
         return hops
-    for row in all_rows(
-        db,
-        "SELECT loop_key, pool_id FROM v4_closed_loop_hops WHERE network=? AND chain_id=?",
-        (NETWORK, CHAIN_ID),
-    ):
-        pool_id = str(row.get("pool_id") or "").strip().lower()
-        if not pool_id:
-            continue
-        hops.setdefault(str(row.get("loop_key") or ""), []).append(pool_id)
+    if "v4_closed_loop_hops" in present:
+        for row in all_rows(
+            db,
+            "SELECT loop_key, pool_id FROM v4_closed_loop_hops WHERE network=? AND chain_id=?",
+            (NETWORK, CHAIN_ID),
+        ):
+            pool_id = str(row.get("pool_id") or "").strip().lower()
+            if not pool_id:
+                continue
+            hops.setdefault(str(row.get("loop_key") or ""), []).append(pool_id)
     return hops
 
 
@@ -643,6 +713,22 @@ def _probe_rows(evidence: dict[str, Any]) -> list[Any]:
     return rows
 
 
+def _calculation_probe_rows(calculation: dict[str, Any]) -> list[Any]:
+    """Return the probe ladder the kernel published with the best amount.
+
+    The kernel publishes the measured sizes of the amount ladder next to the
+    best trade amount under ``probeRecords``.  The ladder is what proves
+    that the measurement is a real expansion of the amount space, so it has
+    to be read from the calculation block as well as from the live on-chain
+    evidence envelope.
+    """
+    for key in ("probeRecords", "probe_records"):
+        rows = calculation.get(key)
+        if isinstance(rows, list) and rows:
+            return rows
+    return []
+
+
 def best_amount_state(row: dict[str, Any]) -> dict[str, Any]:
     """Return the concrete best-trade-amount evidence for one review.
 
@@ -691,6 +777,10 @@ def best_amount_state(row: dict[str, Any]) -> dict[str, Any]:
     evidence = _live_onchain_evidence(payloads)
     raw = evidence.get("bestAmountRaw") or evidence.get("selectedAmountRaw")
     probe_rows = _probe_rows(evidence)
+    if not probe_rows:
+        # The kernel publishes the measured ladder next to the best amount,
+        # so the calculation block is the authoritative carrier of it.
+        probe_rows = _calculation_probe_rows(calculation)
     probe_count = len(probe_rows)
     # The best-trade-amount ladder must actually expand. A single probe row
     # means the reported amount is only the initial-probe lower bound, so it
@@ -711,6 +801,20 @@ def best_amount_state(row: dict[str, Any]) -> dict[str, Any]:
             f"{probe_count} probe record(s) observed, "
             f"at least {BEST_AMOUNT_LADDER_MIN_PROBE_ROWS} required"
         )
+    elif ladder_incomplete and measured and not missing:
+        # The kernel owns the ladder, so it is also the authority on whether
+        # the measurement is complete.  When the kernel published
+        # ``bestAmountMeasured`` it measured the amount space and published
+        # the result; a ladder of one size is a legitimate measurement when
+        # that single size was the whole space the kernel explored (the
+        # single-tick capacity limits it), and the amount is a measured zero.
+        #
+        # The reviewer used to downgrade such a row to "missing" because the
+        # local probe-row counter never saw the kernel's ladder.  That turned
+        # a measured market conclusion into a measurement gap and sent the
+        # orchestrator after a review tool to repair a measurement that was
+        # never broken.
+        ladder_incomplete = False
     if measured and not missing and not any(
         bool(row.get("profitable")) or bool(row.get("ok"))
         for row in probe_rows
@@ -909,18 +1013,21 @@ def review_rows(db: Path, hours: int, limit: int | None = None) -> list[dict[str
     measured best trade amount and the probe ladder into the review record
     it owns.
 
-    The two therefore have to be read **together**. Reading only the Manager
-    library made every review look like a review without a measured amount
-    as soon as the Review Manager had materialized its first row, and the
-    healer then reported a measurement gap that no longer existed. Reading
-    only the legacy table made every review look like it could not be tied
-    to the current closed-loop library.
+    The two are read in that order of authority. A store that has not
+    materialized a Manager review yet is audited from the legacy table, so
+    a migration in progress never loses its reviews. Once the Manager
+    library holds rows it is the **only** audit source: every Manager row
+    carries the measured value it was materialized from together with the
+    upstream checksums that prove it belongs to the current structure.
 
-    A route therefore reports the **newest** row of either library, and the
-    newest row wins per route. The Manager row supplies the identity and the
-    audit trail; the legacy row supplies the measured amount. Every row
-    carries a ``review_source`` marker so a caller can tell which authority
-    produced it.
+    Reading the legacy table alongside the Manager library produced a
+    second row for the same route, so the healer counted one route twice
+    and the operator had to reconcile two rows for one review. A legacy row
+    the Manager has not adopted is not an audit item: it is a runtime record
+    of a route the current library does not own.
+
+    Every row carries a ``review_source`` marker so a caller can tell which
+    authority produced it.
     """
     manager_rows = manager_review_rows(db, limit)
     for row in manager_rows:
@@ -932,32 +1039,9 @@ def review_rows(db: Path, hours: int, limit: int | None = None) -> list[dict[str
         return legacy_rows
     if not legacy_rows:
         return manager_rows
-    # The newest row of either library wins for each route. The Manager
-    # library is read first, so a Manager row is only replaced by a legacy
-    # row that is **strictly newer**: a Manager row that already carries a
-    # measurement is never demoted by an older legacy row.
-    known_loops = closed_loop_hop_pools(db)
-    newest: dict[str, dict[str, Any]] = {}
-    for row in manager_rows + legacy_rows:
-        key = review_loop_key(row)
-        if key not in known_loops and known_loops:
-            # The runtime reviews a closed cycle from whichever token it
-            # starts at, so the review's address path is a rotation of the
-            # loop's canonical path. The pools the review exercised settle
-            # which loop it belongs to.
-            resolved = review_loop_key_by_pool(db, row, known_loops)
-            if resolved:
-                key = resolved
-        if not key:
-            newest.setdefault(f"unkeyed:{row.get('id') or row.get('loop_key')}", row)
-            continue
-        current = newest.get(key)
-        if current is None:
-            newest[key] = row
-            continue
-        if review_row_is_newer(row, current):
-            newest[key] = row
-    return list(newest.values())
+    # The Manager library is the **audit source**. Once it holds rows it is
+    # the only authority the healer may report.
+    return manager_rows
 
 
 def review_row_carries_measurement(row: dict[str, Any]) -> bool:
@@ -1011,6 +1095,14 @@ def review_row_is_newer(candidate: dict[str, Any], current: dict[str, Any]) -> b
     later than the measurement it already carries and it would otherwise
     freeze the first measurement forever.
     """
+    # A row that carries an explicit profit value is the row that answers
+    # the question the healer asks. The Manager library is the audit
+    # source, so a materialized Manager row that carries a value must
+    # not be hidden by a legacy row that explicitly has none.
+    candidate_value = pnl(candidate) is not None
+    current_value = pnl(current) is not None
+    if candidate_value != current_value:
+        return candidate_value
     candidate_measured = review_row_carries_measurement(candidate)
     current_measured = review_row_carries_measurement(current)
     if candidate_measured != current_measured:
@@ -1776,6 +1868,7 @@ def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
         confirmed.append((row, state, amount))
     too_small = []
     below_gas = []
+    measured_zero = []
     by_symbol: dict[str, list[float]] = {}
     for row, state, amount in confirmed:
         symbol = str(state.get("requestedSymbol") or "unknown").upper()
@@ -1792,8 +1885,33 @@ def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
                               "gasEstimateEth": gate.get("gasEstimateEth"),
                               "netAfterGas": gate.get("netAfterGas")})
         if amount <= 0:
-            too_small.append({"reviewId": row.get("id"), "symbol": symbol,
-                              "bestAmount": amount, "reason": "non_positive_best_amount"})
+            # A best trade amount of zero is only a defect when the kernel
+            # never measured it.  A **measured** zero is a market conclusion:
+            # the ladder priced every size it could carry and none of them
+            # paid, so there is no profitable position to take.  That is a
+            # correct answer, not a shallow pool.
+            #
+            # The audit used to report every non-positive amount as
+            # `non_positive_best_amount`, which fed `best_amount_too_small`
+            # and therefore the pool-depth repair path.  The healer then
+            # tried to replace pools for a route that was simply not
+            # profitable at any size, and the pool scope churned on every
+            # round without ever producing a position.
+            #
+            # The design says it explicitly (see the single-tick capacity
+            # document, section 2.4.2): ``x_single == 0`` is a **measured
+            # non-pass** that must be propagated as a measurement, never as a
+            # missing value and never as a pool defect.
+            if state.get("measured"):
+                measured_zero.append({"reviewId": row.get("id"), "symbol": symbol,
+                                      "bestAmount": amount,
+                                      "reason": "measured_no_profitable_size",
+                                      "zeroReason": state.get("zeroReason") or "",
+                                      "probeCount": state.get("probeCount")})
+            else:
+                too_small.append({"reviewId": row.get("id"), "symbol": symbol,
+                                  "bestAmount": amount,
+                                  "reason": "non_positive_unmeasured_best_amount"})
     # A confirmed best trade amount is only usable when it both clears the gas
     # estimate and is a positive trade size. Either defect means the selected
     # pools cannot carry a meaningful position, so both feed the same
@@ -1806,6 +1924,7 @@ def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
         "belowGasCount": len(below_gas),
         "tooSmallCount": len(too_small),
         "insufficientCount": insufficient,
+        "measuredZeroCount": len(measured_zero),
         "gasEstimateEth": GAS_ESTIMATE_ETH,
         "reason": ("confirmed best trade amounts cannot cover the gas estimate; "
                    "the selected pools are too shallow for a meaningful position"),
@@ -1815,6 +1934,7 @@ def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
                       for symbol, values in sorted(by_symbol.items())},
         "belowGasSamples": below_gas[:10],
         "tooSmallSamples": too_small[:10],
+        "measuredZeroSamples": measured_zero[:10],
     }
 
 
@@ -2224,8 +2344,29 @@ def audit_reviews(db: Path, hours: int) -> dict[str, Any]:
     stats = pnl_stats(rows)
     best_amount_missing_count = len(best_amount_failures)
     best_amount_missing_current = sum(1 for item in best_amount_failures if item["currentLoop"])
-    return {"valid": count(db, "manager_v4_reviews") > 0 and stats["missingValue"] == 0
-            and best_amount_missing_count == 0,
+    # The review layer judges the reviews of the **current** closed-loop
+    # library.  A review of a loop that no longer exists describes a route
+    # the system already stopped trading: it is history, not a live defect,
+    # and the operating manual says so explicitly ("stale/unmatched and
+    # historical duplicates of one loop are only counted, never written into
+    # the current Review Manager materialization").
+    #
+    # The validity verdict used to be taken over the whole window, so a
+    # stale row from an earlier epoch kept the layer red forever.  The
+    # healer then chased a review tool for reviews that no longer belonged
+    # to any live loop, and the layer could never recover even though every
+    # current loop carried a complete, valued review.
+    #
+    # The counted numbers stay over the whole window, so the report still
+    # shows how much history the store holds; only the *verdict* is scoped
+    # to the loops that are live right now.
+    current_rows = matched
+    current_stats = pnl_stats(current_rows)
+    current_missing_pnl = sum(1 for row in current_rows if pnl(row) is None)
+    current_best_amount_missing = best_amount_missing_current
+    current_best_amount_confirmed = len(current_rows) - current_best_amount_missing
+    return {"valid": count(db, "manager_v4_reviews") > 0 and current_missing_pnl == 0
+            and current_best_amount_missing == 0,
         "manager": {"libraryStateRows": count(db, "manager_review_library_state"),
                     "reviews": count(db, "manager_v4_reviews")},
         "legacy": {"windowHours": hours, "stats": stats,
@@ -2238,15 +2379,28 @@ def audit_reviews(db: Path, hours: int) -> dict[str, Any]:
                    "bestAmountMissingCurrentLoop": best_amount_missing_current,
                    "bestAmountLadderIncomplete": ladder_incomplete_count,
                    "bestAmountLadderIncompleteCurrentLoop": ladder_incomplete_current,
-                   "bestAmountConfirmed": len(rows) - best_amount_missing_count},
+                   "bestAmountConfirmed": len(rows) - best_amount_missing_count,
+                   "currentLoopStats": {
+                       "total": len(current_rows),
+                       "valued": len(current_rows) - current_missing_pnl,
+                       "missingValue": current_missing_pnl,
+                       "bestAmountConfirmed": current_best_amount_confirmed,
+                       "bestAmountMissing": current_best_amount_missing,
+                       "positive": current_stats.get("positive"),
+                       "positiveAmount": current_stats.get("positiveAmount"),
+                       "nonPositive": current_stats.get("nonPositive"),
+                       "sum": current_stats.get("sum"),
+                   }},
         "bestAmount": {
-            "code": BEST_AMOUNT_MISSING_CODE,
+            "code": BEST_AMOUNT_MISSING_CODE if best_amount_missing_current else None,
             "missing": best_amount_missing_count,
             "missingCurrentLoop": best_amount_missing_current,
             "ladderIncomplete": ladder_incomplete_count,
             "ladderIncompleteCurrentLoop": ladder_incomplete_current,
             "total": len(rows),
             "confirmed": len(rows) - best_amount_missing_count,
+            "currentLoopTotal": len(current_rows),
+            "currentLoopConfirmed": current_best_amount_confirmed,
             "retryable": False,
             "failClosed": True,
             "reason": "every completed review must carry a concrete best trade amount; "
@@ -2615,6 +2769,12 @@ def print_report(report: dict[str, Any]) -> None:
           (best_amount.get("total"), best_amount.get("confirmed"),
            best_amount.get("missing"), best_amount.get("ladderIncomplete"),
            best_amount.get("code"), best_amount.get("failClosed")))
+    current = (reviews.get("legacy") or {}).get("currentLoopStats") or {}
+    print("     currentLoops total=%s valued=%s missingPnl=%s bestAmountConfirmed=%s bestAmountMissing=%s "
+          "positive=%s sum=%s" %
+          (current.get("total"), current.get("valued"), current.get("missingValue"),
+           current.get("bestAmountConfirmed"), current.get("bestAmountMissing"),
+           current.get("positive"), current.get("sum")))
     print("L5 broadcast valid=%s manager=%s epochLegacy=%s historicalPositiveInEpoch=%s" %
           (broadcast["valid"], broadcast["manager"]["attempts"], broadcast["legacy"]["total"],
            broadcast["historicalPositiveReviewsInWindow"]))
@@ -3069,9 +3229,263 @@ def response_payload(response: dict[str, Any]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def collect_completed_review(
+    db: Path,
+    candidate: dict[str, Any],
+    attempts: int = 20,
+    interval_seconds: float = 3.0,
+) -> dict[str, Any] | None:
+    """Collect the review the runtime finished after the transition was accepted.
+
+    ``manual-review`` is an **asynchronous** RuntimeCore transition. Its HTTP
+    200 response only says the transition was accepted; the review itself runs
+    in the Rust worker and lands in the review library afterwards. Without
+    this wait the healer saw zero evidence for every candidate and the
+    Manager library never received a single row for the current library.
+
+    The review is matched by the **published identity**: the kernel writes
+    the closed-loop key of the Manager into the review payload, so the
+    healer compares that key with the key it asked for. A review of a
+    different starting point of the same triangle carries a different key
+    and is therefore not accepted for this candidate.
+    """
+    loop_key = str(candidate.get("loopKey") or "").strip()
+    if not loop_key:
+        return None
+    rotations = {loop_key}
+    started = time.monotonic()
+    for attempt in range(max(1, attempts)):
+        rows = all_rows(
+            db,
+            "SELECT id,created_at,pair,category,payload_json,summary_json,"
+            "selected_profit_raw,selected_profit_amount,selected_profit_amount_symbol,"
+            "selected_profit_source,selected_profit_missing_reason "
+            "FROM cow_execution_reviews WHERE network=? AND chain_id=? "
+            "ORDER BY id DESC LIMIT 400",
+            (NETWORK, CHAIN_ID),
+        )
+        for row in rows:
+            if not review_row_matches_rotations(row, rotations):
+                continue
+            if not _review_row_has_concrete_pnl(row):
+                continue
+            return {
+                "reviewId": row.get("id"),
+                "reviewedAt": row.get("created_at"),
+                "pair": row.get("pair"),
+                "category": row.get("category"),
+                "signedPnlRaw": row.get("selected_profit_raw"),
+                "signedPnlAmount": row.get("selected_profit_amount"),
+                "signedPnlCurrency": row.get("selected_profit_amount_symbol"),
+                "signedPnlSource": row.get("selected_profit_source"),
+                "payload": as_json(row.get("payload_json")),
+                "summary": as_json(row.get("summary_json")),
+                "attempts": attempt + 1,
+                "waitSeconds": round(time.monotonic() - started, 3),
+            }
+        time.sleep(max(0.0, interval_seconds))
+    return None
+
+
+def review_row_matches_rotations(row: dict[str, Any], rotations: set[str]) -> bool:
+    """Return whether the review was filed under one of the given keys.
+
+    The key is read from the **single published** field name ``loopKey``,
+    and the route addresses are never joined into a key. The bridge layer
+    translates the kernel field (``closedLoopKey``) into the evidence field
+    (``loopKey``) exactly once, so the healer consumes one name instead of
+    guessing between several (MIO-7 / AC-214).
+
+    A review that carries no published identity is **not** associated with
+    any loop: it is reported as unmatched rather than being matched by a
+    fallback key name.
+    """
+    for payload in review_payloads(row):
+        value = str(payload.get("loopKey") or "").strip()
+        if value and value in rotations:
+            return True
+    return False
+
+
+def _review_row_has_concrete_pnl(row: dict[str, Any]) -> bool:
+    """Return whether the review carries a measured, signed profit value.
+
+    A review whose best trade amount was measured always has a signed value:
+    a measured amount of zero yields a profit of exactly zero, and that zero
+    is a **result**, not a missing measurement. A review that never measured
+    anything carries no value at all and is therefore not reviewable.
+    """
+    raw = str(row.get("selected_profit_raw") or "").strip()
+    if not raw or raw.lower() in {"null", "none"}:
+        return False
+    if raw in {"0x0", "0x00", "0"}:
+        # A zero is only a result when the best amount was measured.
+        return _review_row_best_amount_measured(row)
+    return True
+
+
+def _review_row_best_amount_measured(row: dict[str, Any]) -> bool:
+    for payload in review_payloads(row):
+        for key in ("bestAmountCalculation", "best_amount_calculation"):
+            block = payload.get(key)
+            if not isinstance(block, dict):
+                continue
+            if block.get("bestAmountMeasured") or block.get("bestAmountConfirmed"):
+                return True
+    return False
+
+
 def response_succeeded(response: dict[str, Any]) -> bool:
     payload = response_payload(response)
     return bool(response.get("ok")) and payload.get("ok") is not False
+
+
+def merge_with_stored_evidence(
+    db: Path,
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return the evidence of **every** measured cycle of the chain.
+
+    The Review Manager replaces the whole review set of the scope with the
+    evidence it receives. Submitting only the cycles that were just
+    re-reviewed would therefore erase the reviews of the cycles that were
+    left out, and the library would report them as "evidence is missing"
+    even though a valid measurement exists for them.
+
+    The stored reviews are read back from the Manager library, because that
+    is the authority for the structure of a review: it knows which loop a
+    measurement belongs to and it already holds the signed profit.
+    """
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in evidence:
+        loop_key = str(item.get("loopKey") or "").strip()
+        if not loop_key:
+            continue
+        if loop_key in seen:
+            continue
+        seen.add(loop_key)
+        merged.append(item)
+    stored = stored_review_evidence(db)
+    for item in stored:
+        loop_key = str(item.get("loopKey") or "").strip()
+        if not loop_key:
+            continue
+        if loop_key in seen:
+            continue
+        seen.add(loop_key)
+        merged.append(item)
+    return merged
+
+
+def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
+    """Return the stored reviews of the chain as Review Manager evidence.
+
+    Only a review that carries a complete ``runArbitrage`` block can be
+    filed again: a review without one is an incomplete measurement, and it
+    must be replaced by a fresh review rather than resubmitted.
+    """
+    # A store that does not own the review table yet holds no stored
+    # reviews. That is a fact about the chain, not an error, so it is
+    # reported as an empty set instead of raising.
+    if "manager_v4_reviews" not in table_names(db):
+        return []
+    rows = all_rows(
+        db,
+        "SELECT loop_key,run_arbitrage_json,static_preview_json,signed_pnl_raw,"
+        "signed_pnl_amount,signed_pnl_currency,signed_pnl_address,signed_pnl_unit,"
+        "signed_pnl_source,reviewed_at FROM manager_v4_reviews "
+        "WHERE network=? AND chain_id=? ORDER BY loop_key",
+        (NETWORK, CHAIN_ID),
+    )
+    # The legacy review library still holds the kernel's measured best trade
+    # amount, because the amount ladder is published by the kernel next to
+    # the probe records.  A Manager row that lost the block on the way in
+    # is restored from here, matched by the directed cycle identity so a
+    # rotation never borrows another rotation's measurement.
+    measured = legacy_best_amount_by_cycle(db)
+    evidence: list[dict[str, Any]] = []
+    for row in rows:
+        run = as_json(row.get("run_arbitrage_json"))
+        if not isinstance(run, dict) or not run:
+            continue
+        signed_pnl = run.get("signedPnl") or run.get("signed_pnl")
+        if not _complete_signed_pnl(signed_pnl):
+            continue
+        normalized_run = dict(run)
+        normalized_run["signedPnl"] = signed_pnl
+        normalized_run.pop("signed_pnl", None)
+        if "blockNumber" not in normalized_run and "block_number" in normalized_run:
+            normalized_run["blockNumber"] = normalized_run.pop("block_number")
+        if not isinstance(normalized_run.get("diagnostics"), list):
+            normalized_run["diagnostics"] = []
+        static_preview = as_json(row.get("static_preview_json"))
+        preview = dict(static_preview) if isinstance(static_preview, dict) else {}
+        # The stored row may carry the measured best trade amount in the
+        # static preview or inside the run block.  Both are preserved so a
+        # re-submission never downgrades a measured amount into a missing
+        # one.
+        calculation = kernel_best_amount_calculation([preview, normalized_run])
+        if not calculation:
+            cycle = str(row.get("loop_key") or "").strip()
+            calculation = measured.get(cycle, {})
+        if calculation and not isinstance(preview.get("bestAmountCalculation"), dict):
+            preview["bestAmountCalculation"] = calculation
+        evidence.append({
+            "loopKey": str(row.get("loop_key") or "").strip(),
+            "staticPreview": preview,
+            "runArbitrage": normalized_run,
+            "diagnostics": [],
+            "reviewedAt": str(row.get("reviewed_at") or "").strip() or now(),
+        })
+    return evidence
+
+
+def legacy_best_amount_by_cycle(db: Path) -> dict[str, dict[str, Any]]:
+    """Return the measured best trade amount of every cycle of the chain.
+
+    The legacy review library keeps the whole kernel review payload, so it
+    still holds the best-trade-amount block that the Manager rows lost.  The
+    block is indexed by the **directed cycle identity**, because the worker
+    reviews a cycle from whichever token it starts at: a rotation is the
+    same cycle and must not borrow the measurement of another cycle.
+    """
+    rows = all_rows(
+        db,
+        "SELECT id,created_at,payload_json,summary_json FROM cow_execution_reviews "
+        "WHERE network=? AND chain_id=? ORDER BY id DESC LIMIT 4000",
+        (NETWORK, CHAIN_ID),
+    )
+    measured: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        payload = as_json(row.get("payload_json"))
+        summary = as_json(row.get("summary_json"))
+        calculation = kernel_best_amount_calculation([payload, summary])
+        if not calculation:
+            continue
+        if not calculation.get("bestAmountMeasured") and \
+                not calculation.get("bestAmountConfirmed"):
+            continue
+        cycle = None
+        for candidate in (payload, summary):
+            if not isinstance(candidate, dict):
+                continue
+            value = str(candidate.get("loopKey") or "").strip()
+            if value:
+                cycle = value
+                break
+            if cycle:
+                break
+        if not cycle:
+            # A legacy row that carries only the route it measured has no
+            # published closed-loop identity. The addresses are never
+            # joined into a key here: that would invent an identity the
+            # Manager never published and could name the wrong loop.
+            # Such a row simply contributes no measured amount.
+            continue
+        # The newest measurement of a cycle wins.
+        measured.setdefault(cycle, calculation)
+    return measured
 
 
 def pool_repair_keys(review_result: dict[str, Any]) -> list[str]:
@@ -3160,6 +3574,12 @@ def materialize_reviews(
     # than being filed under a guess.
     prepared: list[dict[str, Any]] = []
     dropped_without_identity = 0
+    # One directed cycle is measured once, and every rotation of it is the
+    # same cycle. The Review Manager files a review per loop and rejects a
+    # second evidence block for the same cycle, so the evidence has to be
+    # deduplicated by its cycle identity before it is submitted.
+    seen_cycles: set[str] = set()
+    duplicate_cycles = 0
     for item in evidence:
         if not isinstance(item, dict):
             continue
@@ -3167,29 +3587,94 @@ def materialize_reviews(
         if not str(enriched.get("loopKey") or "").strip():
             dropped_without_identity += 1
             continue
+        cycle = str(enriched["loopKey"]).strip()
+        if cycle in seen_cycles:
+            duplicate_cycles += 1
+            continue
+        seen_cycles.add(cycle)
         prepared.append(enriched)
     evidence = prepared
     if not evidence:
         return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
                 "dryRun": not apply, "evidenceCount": 0, "materializedCount": 0,
                 "droppedWithoutLoopIdentity": dropped_without_identity,
+                "duplicateCycles": duplicate_cycles,
                 "results": [],
                 "policy": "no evidence carries a closed-loop identity"}
-    body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": evidence}
+    # The Review Manager replaces the **whole** review set of the scope with
+    # the evidence it receives. A partial evidence set would therefore erase
+    # the reviews of the cycles it does not mention, so the submission always
+    # carries every measured cycle: the fresh evidence for the cycles that
+    # were just re-reviewed, plus the evidence that is already stored for the
+    # cycles that are still valid.
+    merged = merge_with_stored_evidence(db, evidence)
+    body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": merged}
     if expected:
         body["expectedUpstream"] = expected
     response = api_post(manager_api, "/v1/reviews/run", body)
     materialized = count(db, "manager_v4_reviews") if apply else None
     return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
-            "dryRun": not apply, "evidenceCount": len(evidence),
+            "dryRun": not apply, "evidenceCount": len(merged),
+            "submittedEvidenceCount": len(evidence),
             "droppedWithoutLoopIdentity": dropped_without_identity,
+            "duplicateCycles": duplicate_cycles,
             "expectedUpstream": expected or None,
             "managerReviewRows": materialized,
             "response": response,
             "policy": "reviews are materialized into the Manager-authoritative library"}
 
 
+def registered_closed_loop_group_keys(runtime_api: str) -> list[str]:
+    """Return the group keys the resident review workers actually run under.
+
+    The worker pool keys its state machine by the exact string the worker
+    was registered with, and the scanner registers a worker under the route
+    order it discovered. The closed-loop library files every loop
+    ETH-anchored, so the registered key is usually a *rotation* of the
+    loop's published path.
+    """
+    status = api_get(runtime_api, "/api/dex/overview", timeout=20)
+    if not status.get("ok"):
+        return []
+    payload = status.get("payload") if isinstance(status.get("payload"), dict) else {}
+    workers = payload.get("workers") if isinstance(payload.get("workers"), list) else []
+    keys: list[str] = []
+    for worker in workers:
+        if not isinstance(worker, dict):
+            continue
+        if worker.get("thread_live") is False:
+            continue
+        key = str(worker.get("group_key") or "").strip().lower()
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def resolve_closed_loop_group_key(runtime_api: str, route_symbols: list[str]) -> str:
+    """Resolve the group key that serves the requested route.
+
+    The lookup is **exact and ordered**. The worker pool keys its state
+    machine by the exact string the worker was registered with, so only the
+    identical ordered token path addresses that worker. A different
+    starting point of the same triangle is a different worker with a
+    different closed-loop identity, and it must not borrow this one's key.
+
+    When no worker is registered the requested key is returned unchanged so
+    the runtime answers with the precise ``closed_loop_group_not_found``
+    error instead of a silent fallback onto another loop.
+    """
+    requested = "|".join(
+        str(symbol).strip().lower() for symbol in (route_symbols or [])[:3]
+    )
+    registered = registered_closed_loop_group_keys(runtime_api)
+    if not registered:
+        return requested
+    resolved = resolve_registered_group_key(route_symbols, registered)
+    return resolved or requested
+
+
 def request_live_review(
+    db: Path,
     runtime_api: str,
     candidate: dict[str, Any],
     apply: bool,
@@ -3208,13 +3693,15 @@ def request_live_review(
     result = {"initialReview": initial, "workerRefreshRequired": False}
     if not response_contains(initial, "closed_loop_group_worker_not_running"):
         result["finalReview"] = initial
+        result["completedReview"] = collect_completed_review(db, candidate)
         return result
     result["workerRefreshRequired"] = True
-    group_key = "|".join(str(symbol).strip().lower() for symbol in candidate["routeSymbols"][:3])
+    group_key = resolve_closed_loop_group_key(runtime_api, candidate["routeSymbols"])
     result["groupKey"] = group_key
     if not apply:
         result["workerRefreshApplied"] = False
         result["finalReview"] = initial
+        result["completedReview"] = collect_completed_review(db, candidate)
         return result
     refresh_path = (
         "/api/dex/closed-loop-groups/"
@@ -3226,9 +3713,11 @@ def request_live_review(
     result["workerRefresh"] = refresh
     if not response_succeeded(refresh):
         result["finalReview"] = initial
+        result["completedReview"] = collect_completed_review(db, candidate)
         return result
     result["reviewTriggeredByRefresh"] = True
     result["finalReview"] = refresh
+    result["completedReview"] = collect_completed_review(db, candidate)
     return result
 
 
@@ -3244,7 +3733,8 @@ def historical_positive_candidates(
     con = connect(db)
     try:
         rows = con.execute(
-            "SELECT id,created_at,category,selected_profit_amount,selected_profit_amount_symbol,payload_json "
+            "SELECT id,created_at,category,selected_profit_amount,selected_profit_amount_symbol,"
+            "payload_json "
             "FROM cow_execution_reviews WHERE network=? AND chain_id=? "
             "AND datetime(created_at)>=datetime(?) AND selected_profit_amount IS NOT NULL",
             (NETWORK, CHAIN_ID, observation_started_at())).fetchall()
@@ -3296,7 +3786,7 @@ def rereview_historical_positive(
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
-        response = request_live_review(runtime_api, candidate, apply)
+        response = request_live_review(db, runtime_api, candidate, apply)
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -3319,13 +3809,19 @@ def missing_review_candidates(
     excluded_loop_keys: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     reviewed = {review_loop_key(row) for row in review_rows(db, 24 * 365, None)}
+    # A review covers a loop when it was filed under the **same published
+    # identity**. The key of the loop and the key of its review are the
+    # same string the Manager published, so exact equality decides it. A
+    # review of a different starting point of the same triangle is a
+    # different loop and leaves this loop unreviewed.
+    reviewed_keys: set[str] = {key for key in reviewed if key}
     excluded = excluded_loop_keys or set()
     loops = all_rows(db, "SELECT loop_key,path_text,path_symbols_json,path_addresses_json "
         "FROM manager_v4_closed_loops WHERE network=? AND chain_id=? ORDER BY loop_key",
         (NETWORK, CHAIN_ID))
     candidates = []
     for loop in loops:
-        if loop["loop_key"] in reviewed or loop["loop_key"] in excluded:
+        if loop["loop_key"] in reviewed_keys or loop["loop_key"] in excluded:
             continue
         candidates.append({"loopKey": loop["loop_key"], "path": loop["path_text"],
             "routeSymbols": json.loads(loop["path_symbols_json"]),
@@ -3351,7 +3847,7 @@ def fill_missing_reviews(
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
-        response = request_live_review(runtime_api, candidate, apply)
+        response = request_live_review(db, runtime_api, candidate, apply)
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -3389,13 +3885,30 @@ def missing_pnl_review_candidates(
             (NETWORK, CHAIN_ID),
         )
     }
+    # A review is filed under the identity the Manager published for the
+    # loop it was measured on. The loop table and the review table share
+    # one key space, so the published key decides the association.
+    #
+    # A review of a different starting point of the same triangle belongs
+    # to a different loop and is therefore not a candidate here. That is
+    # the intended outcome: it must not be filed under this loop's
+    # capacity (MIO-7 / TASK-149 / AC-214).
     candidates = []
     for loop_key, row in latest_by_loop.items():
-        if loop_key in excluded or pnl(row) is not None or loop_key not in loops:
+        # A review is filed under the identity the Manager published for
+        # the loop it was measured on. The loop table and the review
+        # therefore share one key space, and a review of a different
+        # starting point belongs to a different loop and is not a
+        # candidate here.
+        library_key = loop_key if loop_key in loops else None
+        if library_key is None:
             continue
-        loop = loops[loop_key]
+        if loop_key in excluded or pnl(row) is not None:
+            continue
+        loop = loops[library_key]
         candidates.append({
             "loopKey": loop_key,
+            "libraryLoopKey": library_key,
             "path": loop["path_text"],
             "routeSymbols": json.loads(loop["path_symbols_json"]),
             "routeAddresses": json.loads(loop["path_addresses_json"]),
@@ -3433,6 +3946,40 @@ def _complete_signed_pnl(value: Any) -> bool:
     )
 
 
+def kernel_best_amount_calculation(roots: list[Any]) -> dict[str, Any]:
+    """Return the best-trade-amount block the Rust kernel published.
+
+    The kernel owns the amount ladder, so it is the only authority on the
+    best trade amount and on the difference between "the ladder never ran"
+    (a measurement gap) and "the ladder ran and no size paid" (a measured
+    zero).  The block is published at the **top level** of the review
+    payload under ``bestAmountCalculation`` (and under the snake_case
+    spelling ``best_amount_calculation``), next to the probe records.
+
+    The block used to be dropped on the way into the Manager evidence: only
+    ``staticPreview`` and ``runArbitrage`` were forwarded, so every Manager
+    row lost the measured amount and the healer reported
+    ``best_amount_missing`` for loops the kernel had already measured.  The
+    measurement therefore has to be carried across explicitly.
+    """
+    for root in roots:
+        for payload in _nested_review_objects(root):
+            for key in ("bestAmountCalculation", "best_amount_calculation"):
+                block = payload.get(key)
+                if isinstance(block, dict) and block:
+                    return dict(block)
+            # The block may also sit inside the quoted/precheck envelope.
+            for envelope_key in ("quote", "precheck", "quoteAnalysis", "quote_analysis"):
+                envelope = payload.get(envelope_key)
+                if not isinstance(envelope, dict):
+                    continue
+                for key in ("bestAmountCalculation", "best_amount_calculation"):
+                    block = envelope.get(key)
+                    if isinstance(block, dict) and block:
+                        return dict(block)
+    return {}
+
+
 def live_review_evidence(
     response: dict[str, Any],
     review_candidate: dict[str, Any],
@@ -3456,6 +4003,15 @@ def live_review_evidence(
             continue
         payload = response_payload(wrapper)
         roots.append(payload if payload else wrapper)
+    # The completed review is the **result** of the asynchronous transition.
+    # The transition response only acknowledges the request, so the finished
+    # review is the only source that can carry a measured ``signedPnl``.
+    completed = response.get("completedReview")
+    if isinstance(completed, dict):
+        for key in ("payload", "summary"):
+            payload = completed.get(key)
+            if isinstance(payload, dict):
+                roots.append(payload)
     if not roots:
         roots.append(response)
     for root in roots:
@@ -3483,9 +4039,19 @@ def live_review_evidence(
             static_preview = source.get("staticPreview") or source.get("static_preview")
             diagnostics = source.get("diagnostics")
             reviewed_at = source.get("reviewedAt") or source.get("reviewed_at")
+            preview = dict(static_preview) if isinstance(static_preview, dict) else {}
+            # The kernel publishes the measured best trade amount at the top
+            # level of the review payload, next to the probe ladder.  Without
+            # it the Manager row would carry no amount at all and the healer
+            # would report ``best_amount_missing`` for a loop the kernel had
+            # already measured, so the block is carried into the static
+            # preview that the Review Manager reads.
+            calculation = kernel_best_amount_calculation(roots)
+            if calculation and not isinstance(preview.get("bestAmountCalculation"), dict):
+                preview["bestAmountCalculation"] = calculation
             return {
                 "loopKey": loop_key,
-                "staticPreview": static_preview if isinstance(static_preview, dict) else {},
+                "staticPreview": preview,
                 "runArbitrage": normalized_run,
                 "diagnostics": diagnostics if isinstance(diagnostics, list) else [],
                 "reviewedAt": str(reviewed_at or now()),
@@ -3513,7 +4079,7 @@ def rereview_missing_pnl(
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
-        response = request_live_review(runtime_api, candidate, apply)
+        response = request_live_review(db, runtime_api, candidate, apply)
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -3528,6 +4094,32 @@ def rereview_missing_pnl(
             "evidenceCount": len(evidence_payloads),
             "materialization": materialization,
             "policy": "missing PnL must be replaced by a fresh live review, never by zero"}
+
+
+def rematerialize_reviews(db: Path, manager_api: str, apply: bool) -> dict[str, Any]:
+    """Re-file the stored reviews into the Manager-authoritative library.
+
+    The Manager library replaces its whole review set with the evidence it
+    receives, and it stores every field of that evidence verbatim.  A review
+    that was filed before the best-trade-amount block was carried across
+    therefore keeps an empty static preview forever, and the healer reports
+    ``best_amount_missing`` for loops the kernel had already measured.
+
+    This mode rebuilds the evidence from the stored reviews, restores the
+    measured best trade amount from the legacy review library where the
+    Manager row lost it, and files the result again.  It never re-runs a
+    review: the measurement already exists, it was only dropped on the way.
+    """
+    stored = stored_review_evidence(db)
+    if not stored:
+        return {"mode": "rematerialize-reviews", "generatedAt": now(), "apply": apply,
+                "dryRun": not apply, "evidenceCount": 0, "materialization": None,
+                "policy": "the Manager library holds no complete review to re-file"}
+    materialization = materialize_reviews(db, manager_api, stored, apply)
+    return {"mode": "rematerialize-reviews", "generatedAt": now(), "apply": apply,
+            "dryRun": not apply, "evidenceCount": len(stored),
+            "materialization": materialization,
+            "policy": "the stored reviews are re-filed with the measured best trade amount"}
 
 
 # ---------------------------------------------------------------------------
@@ -3553,12 +4145,33 @@ def rereview_missing_pnl(
 REVIEW_CONVERGENCE_MAX_ROUNDS = 3
 
 
+def _missing_value_identity(item: dict[str, Any]) -> str:
+    """Return the comparable identity of one missing-value entry.
+
+    An entry with a published loop key is identified by that key. An entry
+    without one is identified by its review id, so two different
+    unidentified reviews never collapse into a single work item.
+    """
+    loop_key = str(item.get("loopKey") or "").strip()
+    if loop_key:
+        return f"loop:{loop_key}"
+    return f"review:{item.get('reviewId')}"
+
+
 def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
     """Returns the review routes that still carry no explicit profit value."""
     latest_by_loop: dict[str, dict[str, Any]] = {}
+    unassociated: list[dict[str, Any]] = []
     for row in review_rows(db, hours):
         loop_key = review_loop_key(row)
-        if loop_key and loop_key not in latest_by_loop:
+        if not loop_key:
+            # A review without a published identity is still a review that
+            # may be missing a value. It is counted under its own review
+            # id instead of being dropped, so a missing measurement is
+            # never silently hidden (MIO-7 / AC-214).
+            unassociated.append(row)
+            continue
+        if loop_key not in latest_by_loop:
             latest_by_loop[loop_key] = row
     missing: list[dict[str, Any]] = []
     for loop_key, row in latest_by_loop.items():
@@ -3566,6 +4179,15 @@ def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
             continue
         missing.append({
             "loopKey": loop_key,
+            "missingReason": str(row.get("selected_profit_missing_reason") or ""),
+            "reviewId": row.get("id"),
+        })
+    for row in unassociated:
+        if pnl(row) is not None:
+            continue
+        missing.append({
+            "loopKey": None,
+            "unassociated": True,
             "missingReason": str(row.get("selected_profit_missing_reason") or ""),
             "reviewId": row.get("id"),
         })
@@ -3595,11 +4217,11 @@ def converge_reviews(
         if not remaining:
             converged = True
             break
-        before_keys = {item["loopKey"] for item in remaining}
+        before_keys = {_missing_value_identity(item) for item in remaining}
         result = rereview_missing_pnl(db, runtime_api, apply, hours, candidate_limit,
                                       manager_api=manager_api)
         after = reviews_missing_a_value(db, hours)
-        after_keys = {item["loopKey"] for item in after}
+        after_keys = {_missing_value_identity(item) for item in after}
         progressed = len(after_keys) < len(before_keys)
         rounds.append({
             "round": round_index,
@@ -4016,6 +4638,29 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
                 latest_by_loop[key] = row
         selected_rows = list(latest_by_loop.items())
         evidence = [review_evidence(row, key) for key, row in selected_rows]
+        # One directed cycle is measured once, and every rotation of it is
+        # the same cycle. The Review Manager files a review per **loop** and
+        # rejects a second evidence block for the same cycle, so the evidence
+        # has to be deduplicated by its cycle identity.
+        #
+        # The collapse used to be keyed by the raw loop key, which never
+        # collapses anything: the three rotations of a cycle have three
+        # different raw keys, so all three were submitted and the Manager
+        # answered ``review evidence contains duplicate loop``. The row that
+        # is kept is the **canonical** rotation, because the Manager
+        # publishes every loop under one canonical key and a rotation is
+        # filed against the loop it belongs to.
+        canonical_evidence: list[dict[str, Any]] = []
+        seen_cycles: set[str] = set()
+        duplicate_cycles = 0
+        for item in evidence:
+            loop_key = str(item.get("loopKey") or "").strip()
+            if loop_key in seen_cycles:
+                duplicate_cycles += 1
+                continue
+            seen_cycles.add(loop_key)
+            canonical_evidence.append(item)
+        evidence = canonical_evidence
         expected_upstream = review_expected_upstream(db)
         body = {"chainId": CHAIN_ID, "evidence": evidence, "dryRun": dry_run}
         if expected_upstream:
@@ -4023,6 +4668,7 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
         results.append({"layer": "reviews", "tool": "review-manager-api", "mapped": len(evidence),
             "staleOrUnmatchedSkipped": len(rows) - len(matched_rows),
             "duplicateLoopReviewsCollapsed": len(matched_rows) - len(selected_rows),
+            "duplicateCyclesCollapsed": duplicate_cycles,
             "missingPnl": sum(item["runArbitrage"]["signedPnl"] is None for item in evidence),
             "expectedUpstream": expected_upstream or None,
             "result": api_post(manager_api, "/v1/reviews/run", body)})
@@ -4158,12 +4804,36 @@ def repair_pool_depth(db: Path, tools: Path, apply: bool) -> dict[str, Any]:
                       "--store", str(db), "--chain-id", str(CHAIN_ID)]
     if apply:
         schema_command.append("--apply")
+        schema = run_tool(schema_command)
+        steps.append({"step": "ensure-depth-schema",
+                      "reason": "the store must be able to hold the measured capacity",
+                      "result": schema})
     else:
-        schema_command.append("--dry-run")
-    schema = run_tool(schema_command)
-    steps.append({"step": "ensure-depth-schema",
-                  "reason": "the store must be able to hold the measured capacity",
-                  "result": schema})
+        # ``ensure-depth-schema`` only ever **adds** columns, so it accepts
+        # ``--apply`` and nothing else. Passing ``--dry-run`` made the
+        # command fail with a usage error, which the report recorded as a
+        # failed step even though the dry run was not supposed to write
+        # anything.
+        #
+        # A dry run therefore **inspects** the schema instead of running the
+        # writing command. The inspection is read-only: the store is opened
+        # by the healer's own read-only helper, so the dry run cannot change
+        # anything even when a column is missing.
+        missing = missing_depth_capacity_columns(db)
+        steps.append({"step": "ensure-depth-schema",
+                      "reason": "the store must be able to hold the measured capacity",
+                      "dryRun": True,
+                      "missingColumns": missing,
+                      "skippedBecauseSchemaPresent": not missing,
+                      "result": {
+                          "ok": True,
+                          "returncode": 0,
+                          "stdout": json.dumps({"missingColumns": missing,
+                                                "store": str(db)}),
+                          "stderr": "",
+                          "note": ("a dry run never changes the store; the depth "
+                                   "schema was inspected instead of written"),
+                      }})
     audit = run_tool([str(tools / "pool-manager.exe"), "audit", "--store", str(db),
                       "--chain-id", str(CHAIN_ID)])
     steps.append({"step": "audit", "result": audit})
@@ -4618,7 +5288,15 @@ def watch(db: Path, hours: int, interval: int, max_samples: int | None,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Robinhood 4663 主网套利闭环自愈编排器")
-    parser.add_argument("--mode", choices=("check", "repair", "watch", "rereview", "fill-reviews", "supervise"), default="check")
+    parser.add_argument(
+        "--mode",
+        choices=(
+            "check", "repair", "watch", "rereview",
+            "fill-reviews", "fill-missing-pnl", "rematerialize-reviews",
+            "supervise",
+        ),
+        default="check",
+    )
     parser.add_argument("--chain-id", type=int, default=4663)
     parser.add_argument("--database", type=Path, default=None)
     parser.add_argument("--tools", type=Path, default=DEFAULT_TOOLS)
@@ -4663,14 +5341,35 @@ def main() -> int:
         print(f"watch={watch(args.database, args.window_hours, args.interval, args.max_samples, args.tools)}")
     elif args.mode == "rereview":
         report = rereview_historical_positive(
-            args.database, args.runtime_api, args.apply, args.candidate_limit)
+            args.database, args.runtime_api, args.apply, args.candidate_limit,
+            manager_api=args.manager_api)
         print(f"apply={args.apply} candidates={report['candidateCount']} "
               f"report={save('mainnet_arbitrage_healer_rereview', report)}")
     elif args.mode == "fill-reviews":
         report = fill_missing_reviews(
-            args.database, args.runtime_api, args.apply, args.candidate_limit)
+            args.database, args.runtime_api, args.apply, args.candidate_limit,
+            manager_api=args.manager_api)
         print(f"apply={args.apply} candidates={report['candidateCount']} "
               f"report={save('mainnet_arbitrage_healer_fill_reviews', report)}")
+    elif args.mode == "fill-missing-pnl":
+        # A review that carries no explicit profit value is a measurement
+        # that was never completed. It is replaced by a fresh live review
+        # until it carries one -- never by a zero.
+        report = rereview_missing_pnl(
+            args.database, args.runtime_api, args.apply,
+            args.window_hours, args.candidate_limit,
+            manager_api=args.manager_api)
+        print(f"apply={args.apply} candidates={report['candidateCount']} "
+              f"report={save('mainnet_arbitrage_healer_fill_missing_pnl', report)}")
+    elif args.mode == "rematerialize-reviews":
+        # The Manager library replaces its whole review set with the evidence
+        # it receives.  A row that was filed before the best-trade-amount
+        # block was carried across keeps an empty static preview, so the
+        # stored reviews are re-filed with the measurement restored.
+        report = rematerialize_reviews(
+            args.database, args.manager_api, args.apply)
+        print(f"apply={args.apply} evidence={report['evidenceCount']} "
+              f"report={save('mainnet_arbitrage_healer_rematerialize_reviews', report)}")
     else:
         path = supervise(
             args.database, args.tools, args.manager_api, args.runtime_api, args.apply,

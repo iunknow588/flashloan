@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+pub mod usdg_valuation;
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
 
@@ -24,6 +26,58 @@ const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
 const MAX_COMPARISON_ROWS: usize = 1_000_000;
+
+/// The shared economic threshold that opens the cross-tick supplement.
+///
+/// The value is the shared depth-policy threshold of ten USDG. It is
+/// duplicated here only as the **fallback** for environments where the
+/// policy file cannot be located; the policy file itself is the single
+/// source of truth and is preferred whenever it is present.
+const DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW: u128 = 10_000_000;
+
+/// The symbol of the venue's quote asset.
+const USDG_SYMBOL: &str = "USDG";
+
+/// Locate the shared depth policy file.
+fn depth_policy_path() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(explicit) = std::env::var("FLASHLOAN_DEPTH_POLICY_PATH") {
+        let path = PathBuf::from(explicit);
+        if path.is_file() {
+            return Some(path);
+        }
+        candidates.push(path);
+    }
+    let mut current = std::env::current_dir().ok()?;
+    loop {
+        candidates.push(current.join("flashloan/config/depth_policy.json"));
+        candidates.push(current.join("config/depth_policy.json"));
+        if !current.pop() {
+            break;
+        }
+    }
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+/// Read the shared cross-tick review threshold from the depth policy.
+fn read_cross_tick_review_threshold_usdg_raw() -> u128 {
+    let Some(path) = depth_policy_path() else {
+        return DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW;
+    };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW;
+    };
+    value
+        .get("economicPolicy")
+        .and_then(|policy| policy.get("minEconomicPositionUsdgRaw"))
+        .and_then(|raw| raw.as_u64())
+        .map(|raw| raw as u128)
+        .filter(|raw| *raw > 0)
+        .unwrap_or(DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW)
+}
 
 #[derive(Debug)]
 pub enum ClosedLoopError {
@@ -243,12 +297,47 @@ pub struct ClosedLoopRow {
     /// publish a usable tick state. The absence is a coverage gap of the
     /// pool index, not a market conclusion, so it is never recorded as a
     /// measured zero.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_optional_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_optional_u128_from_string"
+    )]
     pub single_tick_capacity_anchor_raw: Option<u128>,
     /// The hop whose folded capacity is the smallest.
     ///
     /// The pool is named so an operator can see **which** hop bounds the
     /// loop instead of having to re-derive the fold.
     pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The USDG value of **one whole** borrow token, in raw USDG units.
+    ///
+    /// The value is the spot rate of the pool that pairs the borrow token
+    /// with USDG. It is what makes the cross-tick threshold expressible
+    /// without an external price feed.
+    ///
+    /// `None` means the borrow token has no USDG route. The absence is a
+    /// coverage gap, never a zero valuation.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_optional_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_optional_u128_from_string"
+    )]
+    pub borrow_token_usdg_value_raw: Option<u128>,
+    /// The decimals of the borrow token.
+    pub borrow_token_decimals: Option<u32>,
+    /// The shared cross-tick review threshold, in raw USDG units.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_u128_from_string"
+    )]
+    pub cross_tick_review_threshold_usdg_raw: u128,
+    /// The ceiling of the cross-tick search, in borrow-token raw units.
+    ///
+    /// The ceiling is the **depth** capacity of the path, folded into the
+    /// anchor token. The cross-tick mode may grow beyond the single-tick
+    /// physical ceiling, but never beyond the depth the pools can carry.
+    #[serde(
+        serialize_with = "manager_contracts::amount::serialize_optional_u128_as_string",
+        deserialize_with = "manager_contracts::amount::deserialize_optional_u128_from_string"
+    )]
+    pub cross_tick_capacity_anchor_raw: Option<u128>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -449,6 +538,25 @@ struct ClosedLoopInput {
     /// that hop spends, and the conversion between the tokens of the hops
     /// is read from the pools themselves.
     pool_tick_states: BTreeMap<String, PoolTickState>,
+    /// The decimals of every admitted token, keyed by its key id.
+    ///
+    /// The decimals are the property of the **token**, not of a pool, so
+    /// they are read once from the token catalog. Every token of a pool
+    /// carries its decimals, because only admitted tokens enter the pool
+    /// index in the first place.
+    token_decimals: BTreeMap<String, u32>,
+    /// The key id of the venue's quote asset.
+    ///
+    /// Every pool token has a conversion route to it by convention, which
+    /// is what makes an economic threshold expressible without an external
+    /// price feed.
+    usdg_token_key_id: Option<String>,
+    /// The shared economic threshold, in raw USDG units.
+    ///
+    /// The value is the shared depth-policy threshold of ten USDG. It is
+    /// read from the policy file so that there is exactly one definition
+    /// of the threshold in the system.
+    cross_tick_review_threshold_usdg_raw: u128,
 }
 
 /// Resolve the pool-scope checksum that the closed-loop layer must publish.
@@ -771,6 +879,8 @@ fn read_closed_loop_input(
     let capacity_by_pool = read_pool_capacities(connection, network, chain_id)?;
     let single_tick_bounds_by_pool = read_single_tick_bounds(connection, network, chain_id)?;
     let pool_tick_states = read_pool_tick_states(connection, network, chain_id)?;
+    let token_decimals = read_token_decimals(connection, network, chain_id)?;
+    let usdg_token_key_id = read_usdg_token_key_id(connection, network, chain_id)?;
 
     Ok(ClosedLoopInput {
         candidate_edge,
@@ -783,6 +893,9 @@ fn read_closed_loop_input(
         capacity_by_pool,
         single_tick_bounds_by_pool,
         pool_tick_states,
+        token_decimals,
+        usdg_token_key_id,
+        cross_tick_review_threshold_usdg_raw: read_cross_tick_review_threshold_usdg_raw(),
     })
 }
 
@@ -1030,6 +1143,85 @@ fn read_anchors(
             .insert(anchor_token.token_key_id.clone(), anchor_token);
     }
     Ok(anchors)
+}
+
+/// Read the decimals of every admitted token, keyed by its key id.
+///
+/// The token catalog is the owner of the decimals: a token that is not
+/// admitted never enters the pool index, so the pool index never carries a
+/// token whose decimals are unknown.
+fn read_token_decimals(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, u32>, ClosedLoopError> {
+    let table_exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('table','view') AND name='token_library_catalog'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(BTreeMap::new());
+    }
+    let mut statement = connection.prepare(
+        "SELECT token_key_id, token_decimals
+         FROM token_library_catalog
+         WHERE network = ?1 AND chain_id = ?2 AND admission_status = 'admitted'
+         ORDER BY token_key_id",
+    )?;
+    let rows = statement.query_map(params![network, chain_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?))
+    })?;
+    let mut decimals = BTreeMap::new();
+    for row in rows {
+        let (token_key_id, token_decimals) = row?;
+        let Some(token_decimals) = token_decimals else {
+            continue;
+        };
+        if token_decimals < 0 || token_decimals > 255 {
+            continue;
+        }
+        decimals.insert(token_key_id, token_decimals as u32);
+    }
+    Ok(decimals)
+}
+
+/// Resolve the key id of the venue's quote asset.
+fn read_usdg_token_key_id(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<Option<String>, ClosedLoopError> {
+    let table_exists = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('table','view') AND name='token_library_catalog'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(None);
+    }
+    let key_id = connection
+        .query_row(
+            "SELECT token_key_id
+             FROM token_library_catalog
+             WHERE network = ?1 AND chain_id = ?2 AND token_symbol = ?3
+               AND admission_status = 'admitted'
+             ORDER BY CASE library_key
+                 WHEN 'core' THEN 0
+                 WHEN 'stocks' THEN 1
+                 WHEN 'test' THEN 2
+                 ELSE 3
+             END
+             LIMIT 1",
+            params![network, chain_id, USDG_SYMBOL],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    Ok(key_id.filter(|value| !value.trim().is_empty()))
 }
 
 fn read_recommendations(
@@ -1560,9 +1752,171 @@ fn folded_path_capacity(
     // The anchor token is the token the **first** hop spends, which is the
     // token the loop starts from.
     let anchor_token = hops.first()?.token_in.clone();
-    let capacity =
-        pool_manager::single_tick_capacity::compute_loop_capacity(&anchor_token, &hops).ok()?;
+    let capacity = match pool_manager::single_tick_capacity::compute_loop_capacity(
+        &anchor_token,
+        &hops,
+    ) {
+        Ok(capacity) => capacity,
+        Err(_error) => return None,
+    };
     Some((capacity.capacity_anchor_raw, capacity.binding_pool_id))
+}
+
+/// Fold the **depth** capacities of the hops into the anchor token.
+///
+/// The depth capacity is denominated in the token each hop spends, exactly
+/// like the single-tick capacity, so the same cumulative-rate fold applies.
+/// The result is the ceiling of the cross-tick search: the cross-tick mode
+/// may grow beyond the single-tick physical ceiling, but it may never grow
+/// beyond the depth the pools can carry.
+fn folded_path_depth_capacity(
+    pool_tick_states: &BTreeMap<String, PoolTickState>,
+    capacity_by_pool: &BTreeMap<String, u128>,
+    pool_ids: &[String],
+    directions: &[bool],
+) -> Option<u128> {
+    if pool_ids.is_empty() || pool_ids.len() != directions.len() {
+        return None;
+    }
+    let mut hops: Vec<pool_manager::single_tick_capacity::DepthCapacityHop> =
+        Vec::with_capacity(pool_ids.len());
+    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
+        let state = pool_tick_states.get(pool_id)?;
+        let Some(capacity) = capacity_by_pool.get(pool_id) else {
+            return None;
+        };
+        let (token_in, token_out) = if *zero_for_one {
+            (state.token0_key_id.clone(), state.token1_key_id.clone())
+        } else {
+            (state.token1_key_id.clone(), state.token0_key_id.clone())
+        };
+        hops.push(pool_manager::single_tick_capacity::DepthCapacityHop {
+            pool_id: pool_id.clone(),
+            token_in,
+            token_out,
+            sqrt_price_x96: state.sqrt_price_x96,
+            zero_for_one: *zero_for_one,
+            depth_capacity_raw: *capacity,
+        });
+    }
+    let anchor_token = hops.first()?.token_in.clone();
+    pool_manager::single_tick_capacity::compute_loop_depth_capacity(
+        &anchor_token,
+        &hops,
+    )
+    .ok()
+}
+
+/// The USDG valuation of one token, computed from the in-memory pool state.
+///
+/// The valuation is derived from the same tick states the capacity fold
+/// uses, so the two numbers always describe the same snapshot.
+fn usdg_valuation_for_token(
+    input: &ClosedLoopInput,
+    token_key_id: &str,
+) -> Option<usdg_valuation::UsdgValuation> {
+    let usdg_token_key_id = input.usdg_token_key_id.as_deref()?;
+    let usdg_decimals = input.token_decimals.get(usdg_token_key_id).copied()?;
+    if let Some(identity) = usdg_valuation::identity_valuation(
+        token_key_id,
+        usdg_token_key_id,
+        usdg_decimals,
+    ) {
+        return Some(identity);
+    }
+    let pool_states: BTreeMap<String, usdg_valuation::ValuationPoolState> = input
+        .pool_tick_states
+        .iter()
+        .map(|(pool_id, state)| {
+            (
+                pool_id.clone(),
+                usdg_valuation::ValuationPoolState {
+                    sqrt_price_x96: state.sqrt_price_x96,
+                    token0_key_id: state.token0_key_id.clone(),
+                    token1_key_id: state.token1_key_id.clone(),
+                },
+            )
+        })
+        .collect();
+    usdg_valuation::value_tokens_in_usdg(
+        &pool_states,
+        usdg_token_key_id,
+        &input.token_decimals,
+        usdg_decimals,
+    )
+    .remove(token_key_id)
+}
+
+/// Resolve the swap direction of one hop from the **pool's own token order**.
+///
+/// The logical direction of a hop (`A -> B`) does not tell whether the hop
+/// spends the pool's `token0` or its `token1`: the two tokens of a pool are
+/// ordered by their numeric address, and that order is independent of the
+/// logical direction of the trade. A pool whose `token0` is `B` and whose
+/// `token1` is `A` trades `A -> B` as a **token1-for-token0** swap.
+///
+/// Deriving the direction from the logical direction key instead of from the
+/// pool order swaps the input and the output token of the hop, and the
+/// cumulative fold then accumulates the inverse rate of that hop. The fold
+/// either fails outright or produces a capacity that belongs to a different
+/// path, so the loop silently publishes no usable capacity.
+///
+/// The direction is therefore resolved from the published tick state: the
+/// hop spends `token0` exactly when the hop's input token is the pool's
+/// `token0`. A pool that does not carry the hop's input token is a
+/// topology error and is reported as such.
+///
+/// A pool **without** a published tick state carries no token order at all.
+/// That is a coverage gap of the pool index rather than a topology error,
+/// so the caller is expected to fall back to a coarser source of truth
+/// instead of failing the whole materialization.
+fn hop_zero_for_one(
+    pool_tick_states: &BTreeMap<String, PoolTickState>,
+    pool_id: &str,
+    token_in: &str,
+) -> Result<Option<bool>, ClosedLoopError> {
+    let Some(state) = pool_tick_states.get(pool_id) else {
+        return Ok(None);
+    };
+    let token_in = token_in.trim();
+    if state.token0_key_id.trim() == token_in {
+        return Ok(Some(true));
+    }
+    if state.token1_key_id.trim() == token_in {
+        return Ok(Some(false));
+    }
+    Err(ClosedLoopError::InvalidStoredTopology(format!(
+        "hop pool {pool_id} does not carry the hop input token {token_in}"
+    )))
+}
+
+/// Resolve the swap direction of one hop, preferring the pool's token order.
+///
+/// The published tick state carries the pool's token order, which is the
+/// only source that tells whether the hop spends `token0` or `token1`. It is
+/// therefore preferred whenever it is available.
+///
+/// When the pool has no published tick state the direction falls back to the
+/// logical direction key (`from > to`). That fallback only says which token
+/// the hop **spends**, not which side of the pool it spends, so it is
+/// correct only when the pool's token order happens to agree with the
+/// logical order. Such a pool contributes no folded capacity anyway,
+/// because the fold needs the tick state as well, so the fallback never
+/// influences a published capacity.
+fn resolve_hop_direction(
+    pool_tick_states: &BTreeMap<String, PoolTickState>,
+    pool_id: &str,
+    token_in: &str,
+    direction_key: &str,
+    direction_from_token: &str,
+) -> Result<bool, ClosedLoopError> {
+    if let Some(zero_for_one) = hop_zero_for_one(pool_tick_states, pool_id, token_in)? {
+        return Ok(zero_for_one);
+    }
+    Ok(direction_key
+        .split_once('>')
+        .map(|(from, _)| from.trim() == direction_from_token.trim())
+        .unwrap_or(false))
 }
 
 /// Return the path-level minimum capacity of a closed loop.
@@ -1665,9 +2019,40 @@ fn build_closed_loop_rows(
                     .yz_directions
                     .get(&(anchor_token_key_id.clone(), middle_direction_key.clone()))
                 else {
+                    // A missing YZ direction means the observation never
+                    // measured the pair. The loop cannot be published, but
+                    // the drop must still name the pair that is missing so
+                    // the defect can be located to a concrete token pair
+                    // instead of disappearing silently.
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        y_token.clone(),
+                        "middle".to_owned(),
+                        format!("yz_direction_missing:{middle_direction_key}"),
+                    ));
                     continue;
                 };
                 if !yz.has_direct_swap_pool {
+                    // The pair was measured but no usable pool was found.
+                    // The observation reason and the measured pools are the
+                    // diagnosis, so both are carried into the skip reason
+                    // together with the pair itself.
+                    let diagnosis = yz
+                        .empty_reason
+                        .as_deref()
+                        .unwrap_or("no_direct_swap_pool");
+                    let measured = yz.pool_ids.join(",");
+                    let reason = if measured.is_empty() {
+                        format!("yz_pool_missing:{middle_direction_key}:{diagnosis}")
+                    } else {
+                        format!("yz_pool_missing:{middle_direction_key}:{diagnosis}:{measured}")
+                    };
+                    skipped.insert((
+                        anchor_token_key_id.clone(),
+                        y_token.clone(),
+                        "middle".to_owned(),
+                        reason,
+                    ));
                     continue;
                 }
                 let middle_pool_id = yz.optimal_pool_id.as_deref().ok_or_else(|| {
@@ -1749,21 +2134,38 @@ fn build_closed_loop_rows(
                 // anchor. The `direction_key` of a recommendation already
                 // names that direction, and the middle pool publishes the
                 // token order it trades in.
-                let first_direction = first_options[0].direction_key.as_str();
-                let first_zero_for_one = first_direction
-                    .split_once('>')
-                    .map(|(from, _)| from.trim() == anchor_token_key_id.trim())
-                    .unwrap_or(false);
-                let third_direction = third_options[0].direction_key.as_str();
-                let third_zero_for_one = third_direction
-                    .split_once('>')
-                    .map(|(from, _)| from.trim() == z_token.trim())
-                    .unwrap_or(false);
-                let middle_zero_for_one = input
-                    .middle_pools
-                    .get(&(anchor_token_key_id.clone(), middle_pool_id.to_owned()))
-                    .map(|pool| pool.token0_key_id.trim() == y_token.trim())
-                    .unwrap_or(false);
+                // The direction of every hop is resolved from the **pool's
+                // own token order**, never from the logical direction key.
+                //
+                // The logical key names the trade (`A -> B`), while the pool
+                // orders its two tokens by numeric address. Those two orders
+                // are independent, so a hop that logically spends `A` may
+                // still spend the pool's `token1`. Deriving the direction
+                // from the logical key swaps the input and the output token
+                // of the hop, and the cumulative fold then accumulates the
+                // inverse rate of that hop, which destroys the capacity of
+                // the whole loop.
+                let first_zero_for_one = resolve_hop_direction(
+                    &input.pool_tick_states,
+                    &first_options[0].pool_id,
+                    anchor_token_key_id,
+                    &first_options[0].direction_key,
+                    anchor_token_key_id,
+                )?;
+                let third_zero_for_one = resolve_hop_direction(
+                    &input.pool_tick_states,
+                    &third_options[0].pool_id,
+                    z_token,
+                    &third_options[0].direction_key,
+                    z_token,
+                )?;
+                let middle_zero_for_one = resolve_hop_direction(
+                    &input.pool_tick_states,
+                    middle_pool_id,
+                    y_token,
+                    &middle_direction_key,
+                    y_token,
+                )?;
                 let hop_directions = [first_zero_for_one, middle_zero_for_one, third_zero_for_one];
                 // The folded capacity is the authoritative single-tick bound
                 // of the loop. It is captured separately from the legacy
@@ -1772,6 +2174,23 @@ fn build_closed_loop_rows(
                 // fallback is **not** a folded capacity in anchor units.
                 let folded_capacity =
                     folded_path_capacity(&input.pool_tick_states, &path_pool_ids, &hop_directions);
+                // The cross-tick ceiling is the **depth** capacity of the
+                // path, folded into the anchor token with the same
+                // cumulative-rate fold. It is the upper bound of the
+                // cross-tick ladder, which keeps using the existing
+                // double/halve stepping rule.
+                let cross_tick_capacity_anchor_raw = folded_path_depth_capacity(
+                    &input.pool_tick_states,
+                    &input.capacity_by_pool,
+                    &path_pool_ids,
+                    &hop_directions,
+                );
+                // The borrow token is the anchor token: it is the token the
+                // loop spends first and receives last, so its USDG value is
+                // what values the profit of the closed loop.
+                let borrow_token_usdg_value_raw = usdg_valuation_for_token(input, anchor_token_key_id)
+                    .map(|valuation| valuation.value_usdg_raw);
+                let borrow_token_decimals = input.token_decimals.get(anchor_token_key_id).copied();
                 let (path_min_tick_bound_raw, path_tick_blocking_pool) =
                     path_min_single_tick_bound(input, &path_pool_ids, &hop_directions);
                 if path_min_tick_bound_raw.is_some_and(|bound| bound == 0) {
@@ -1842,6 +2261,10 @@ fn build_closed_loop_rows(
                     folded_capacity
                         .as_ref()
                         .map(|(_, binding_pool)| binding_pool.clone()),
+                    borrow_token_usdg_value_raw,
+                    borrow_token_decimals,
+                    input.cross_tick_review_threshold_usdg_raw,
+                    cross_tick_capacity_anchor_raw,
                 )?;
             }
         }
@@ -1950,6 +2373,10 @@ fn push_loop(
     observation_version: &i64,
     single_tick_capacity_anchor_raw: Option<u128>,
     single_tick_capacity_binding_pool_id: Option<String>,
+    borrow_token_usdg_value_raw: Option<u128>,
+    borrow_token_decimals: Option<u32>,
+    cross_tick_review_threshold_usdg_raw: u128,
+    cross_tick_capacity_anchor_raw: Option<u128>,
 ) -> Result<(), ClosedLoopError> {
     let y = tokens.get(y_token_key_id).ok_or_else(|| {
         ClosedLoopError::InvalidStoredTopology(format!("missing Y token {y_token_key_id}"))
@@ -2045,6 +2472,10 @@ fn push_loop(
         source: "closed_loop_manager".to_owned(),
         single_tick_capacity_anchor_raw,
         single_tick_capacity_binding_pool_id,
+        borrow_token_usdg_value_raw,
+        borrow_token_decimals,
+        cross_tick_review_threshold_usdg_raw,
+        cross_tick_capacity_anchor_raw,
     });
 
     let middle_basis = format!("observation_direction_optimal_pool:{y_address}:{z_address}");
@@ -2495,7 +2926,11 @@ fn read_loops(
                 candidate_edge_checksum, observation_version,
                 observation_checksum, status, source,
                 single_tick_capacity_anchor_raw,
-                single_tick_capacity_binding_pool_id
+                single_tick_capacity_binding_pool_id,
+                borrow_token_usdg_value_raw,
+                borrow_token_decimals,
+                cross_tick_review_threshold_usdg_raw,
+                cross_tick_capacity_anchor_raw
          FROM manager_v4_closed_loops
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR anchor_token_key_id = ?5)
@@ -2545,6 +2980,19 @@ fn read_loops(
                     .get::<_, Option<String>>(24)?
                     .map(|value| value.trim().to_owned())
                     .filter(|value| !value.is_empty()),
+                borrow_token_usdg_value_raw: row
+                    .get::<_, Option<String>>(25)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
+                borrow_token_decimals: row
+                    .get::<_, Option<i64>>(26)?
+                    .and_then(|value| u32::try_from(value).ok()),
+                cross_tick_review_threshold_usdg_raw: row
+                    .get::<_, Option<String>>(27)?
+                    .and_then(|value| value.trim().parse::<u128>().ok())
+                    .unwrap_or(0),
+                cross_tick_capacity_anchor_raw: row
+                    .get::<_, Option<String>>(28)?
+                    .and_then(|value| value.trim().parse::<u128>().ok()),
             })
         },
     )?;
@@ -2772,10 +3220,15 @@ fn replace_closed_loop_rows(
                  observation_checksum, status, source,
                  single_tick_capacity_anchor_raw,
                  single_tick_capacity_binding_pool_id,
+                 borrow_token_usdg_value_raw,
+                 borrow_token_decimals,
+                 cross_tick_review_threshold_usdg_raw,
+                 cross_tick_capacity_anchor_raw,
                  created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
-                       ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?30)",
+                       ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33,
+                       ?34, ?34)",
             params![
                 network,
                 chain_id,
@@ -2807,6 +3260,10 @@ fn replace_closed_loop_rows(
                 row.single_tick_capacity_anchor_raw
                     .map(|value| value.to_string()),
                 row.single_tick_capacity_binding_pool_id.clone(),
+                row.borrow_token_usdg_value_raw.map(|value| value.to_string()),
+                row.borrow_token_decimals.map(|value| i64::from(value)),
+                row.cross_tick_review_threshold_usdg_raw.to_string(),
+                row.cross_tick_capacity_anchor_raw.map(|value| value.to_string()),
                 now
             ],
         )?;
@@ -3577,6 +4034,7 @@ mod tests {
         materialize_closed_loops_write, path_min_capacity, read_closed_loop_input,
         read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
         ClosedLoopWriteRequest, ExpectedUpstream, PoolTickState, MIN_CLOSED_LOOP_CAPACITY_RAW,
+        hop_zero_for_one, resolve_hop_direction,
     };
     use manager_contracts::TokenKeyId;
     use rusqlite::{params, Connection};
@@ -4083,9 +4541,9 @@ mod tests {
             seed_pool_tick_states(
                 &connection,
                 &[
-                    (POOL_A1, 1u128 << 96, USDG, AMZN),
-                    (POOL_YZ, 1u128 << 96, AMZN, TA),
-                    (POOL_D, 1u128 << 96, TA, USDG),
+                    (POOL_A1, 1u128 << 96, &token(USDG), &token(AMZN)),
+                    (POOL_YZ, 1u128 << 96, &token(AMZN), &token(TA)),
+                    (POOL_D, 1u128 << 96, &token(TA), &token(USDG)),
                 ],
             );
         }
@@ -4507,5 +4965,82 @@ mod tests {
             folded_path_capacity(&pool_tick_states, &pool_ids, &directions).is_none(),
             "a missing pool state must not produce a folded capacity",
         );
+    }
+
+    #[test]
+    fn the_hop_direction_follows_the_pool_token_order() {
+        // The pool orders its two tokens by numeric address, which is
+        // independent of the logical direction of the trade. The hop spends
+        // the pool's token0 exactly when the hop input token is token0.
+        let pool_tick_states = tick_state_map(&[("pool-inverted", 1u128 << 96, TA, USDG)]);
+
+        assert_eq!(
+            hop_zero_for_one(&pool_tick_states, "pool-inverted", TA).unwrap(),
+            Some(true),
+            "the hop spends token0 when the input token is the pool's token0",
+        );
+        assert_eq!(
+            hop_zero_for_one(&pool_tick_states, "pool-inverted", USDG).unwrap(),
+            Some(false),
+            "the hop spends token1 when the input token is the pool's token1",
+        );
+    }
+
+    #[test]
+    fn a_pool_without_a_tick_state_falls_back_to_the_logical_direction() {
+        let pool_tick_states = BTreeMap::new();
+        assert_eq!(
+            hop_zero_for_one(&pool_tick_states, "pool-missing", TA).unwrap(),
+            None,
+            "a pool without a published tick state has no token order",
+        );
+        assert_eq!(
+            resolve_hop_direction(
+                &pool_tick_states,
+                "pool-missing",
+                TA,
+                &format!("{USDG}>{TA}"),
+                TA,
+            )
+            .unwrap(),
+            false,
+            "the logical direction key still names the spent token",
+        );
+    }
+
+    #[test]
+    fn a_pool_that_does_not_carry_the_hop_input_token_is_a_topology_error() {
+        let pool_tick_states = tick_state_map(&[("pool-inverted", 1u128 << 96, TA, USDG)]);
+        let error = hop_zero_for_one(&pool_tick_states, "pool-inverted", AMZN)
+            .expect_err("a pool without the hop input token must be rejected");
+        assert!(
+            matches!(error, ClosedLoopError::InvalidStoredTopology(_)),
+            "unexpected error: {error:?}",
+        );
+    }
+
+    #[test]
+    fn the_usdg_path_publishes_a_capacity_when_the_pool_order_is_inverted() {
+        // The mainnet USDG path is the regression this fixes: the third hop
+        // spends USDG while the pool orders ETH as token0 and USDG as token1.
+        // Deriving the direction from the logical direction key swapped the
+        // input and the output token of that hop, and the fold then failed.
+        let q96: u128 = 1u128 << 96;
+        let pool_tick_states = tick_state_map(&[
+            ("pool-eth-weth", 2 * q96, USDG, AMZN),
+            ("pool-weth-usdg", q96, AMZN, TA),
+            ("pool-usdg-eth", q96, USDG, TA),
+        ]);
+        let pool_ids = vec![
+            "pool-eth-weth".to_owned(),
+            "pool-weth-usdg".to_owned(),
+            "pool-usdg-eth".to_owned(),
+        ];
+        // The third hop spends USDG, which is the pool's token0 here.
+        let directions = vec![true, true, true];
+        let (capacity, blocking) = folded_path_capacity(&pool_tick_states, &pool_ids, &directions)
+            .expect("the capacity must be computable");
+        assert!(capacity > 0);
+        assert!(!blocking.is_empty());
     }
 }

@@ -272,6 +272,7 @@ fn economic_policy_from_file() -> Result<EconomicPolicy, String> {
 /// The allowed and forbidden use lists are what keep the ruling bounded:
 /// the peg may state an economic floor or a reported notional, but it may
 /// never decide depth, capacity or library membership on its own.
+#[allow(dead_code)]
 fn usdg_peg_policy_from_file() -> Result<UsdgPegPolicy, String> {
     let path = economic_policy_path()?;
     usdg_peg_policy_from_path(&path)

@@ -6,6 +6,7 @@ mod binance_market;
 mod business_builder;
 mod closed_loop_identity;
 mod config;
+mod cross_tick_init;
 mod depth_verdict;
 mod evidence;
 mod execution;
@@ -504,7 +505,9 @@ fn runtime_core_close(py: Python<'_>, chain_id: i64) -> PyResult<PyObject> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (database_path, chain_id=None, network=None, protocol=None, max_workers=16, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
+// See the note in ``native_pool_registry``: the default resident-worker count
+// must follow the chain's published loop count, not a fixed constant.
+#[pyo3(signature = (database_path, chain_id=None, network=None, protocol=None, max_workers=crate::worker_pool::CLOSED_LOOP_WORKER_CEILING, maintenance_handler=None, maintenance_interval_seconds=600, binance_interval_seconds=300, binance_enabled=false, execution_workers=2, execution_queue_enabled=true))]
 fn native_pool_get_or_create(
     py: Python<'_>,
     database_path: String,
@@ -1277,6 +1280,10 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     module.add_function(wrap_pyfunction!(
         execution::run_v4_arb_best_amount_ladder,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        execution::run_v4_arb_best_amount_cross_tick,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(execution::preview_v4_best_pool, module)?)?;

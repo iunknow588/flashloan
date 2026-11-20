@@ -17,6 +17,11 @@ pub const COMPOSITE_MIGRATION_ID: &str = "20261104_006_composite_schema";
 pub const USDG_VALUATION_MIGRATION_ID: &str = "20261112_007_usdg_valuation_schema";
 pub const SINGLE_TICK_CAPACITY_MIGRATION_ID: &str = "20261114_008_single_tick_capacity_schema";
 pub const HOP_PRICE_LIMIT_MIGRATION_ID: &str = "20261114_009_hop_price_limit_schema";
+pub const CROSS_TICK_SEED_MIGRATION_ID: &str = "20261118_010_cross_tick_seed_schema";
+pub const SKIPPED_TOKEN_REASON_MIGRATION_ID: &str = "20261119_011_skipped_token_reason_schema";
+pub const SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID: &str =
+    "20261119_012_skipped_token_pool_localization";
+pub const POOL_STATUS_REASON_MIGRATION_ID: &str = "20261119_013_pool_status_reason";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -28,8 +33,12 @@ pub const MIGRATION_IDS: &[&str] = &[
     USDG_VALUATION_MIGRATION_ID,
     SINGLE_TICK_CAPACITY_MIGRATION_ID,
     HOP_PRICE_LIMIT_MIGRATION_ID,
+    CROSS_TICK_SEED_MIGRATION_ID,
+    SKIPPED_TOKEN_REASON_MIGRATION_ID,
+    SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID,
+    POOL_STATUS_REASON_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = HOP_PRICE_LIMIT_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = POOL_STATUS_REASON_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -79,6 +88,22 @@ const MIGRATIONS: &[MigrationDefinition] = &[
     MigrationDefinition {
         id: HOP_PRICE_LIMIT_MIGRATION_ID,
         sql: include_str!("../migrations/20261114_009_hop_price_limit_schema.sql"),
+    },
+    MigrationDefinition {
+        id: CROSS_TICK_SEED_MIGRATION_ID,
+        sql: include_str!("../migrations/20261118_010_cross_tick_seed_schema.sql"),
+    },
+    MigrationDefinition {
+        id: SKIPPED_TOKEN_REASON_MIGRATION_ID,
+        sql: include_str!("../migrations/20261119_011_skipped_token_reason_schema.sql"),
+    },
+    MigrationDefinition {
+        id: SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID,
+        sql: include_str!("../migrations/20261119_012_skipped_token_pool_localization.sql"),
+    },
+    MigrationDefinition {
+        id: POOL_STATUS_REASON_MIGRATION_ID,
+        sql: include_str!("../migrations/20261119_013_pool_status_reason.sql"),
     },
 ];
 
@@ -182,6 +207,19 @@ const HOP_PRICE_LIMIT_TABLES: &[&str] = &[
     "manager_v4_reviews",
     "manager_v4_review_broadcast_requests",
     "manager_cow_execution_attempts",
+];
+
+const CROSS_TICK_SEED_TABLES: &[&str] = &["manager_v4_closed_loops"];
+
+const SKIPPED_TOKEN_REASON_TABLES: &[&str] = &["manager_v4_closed_loop_skipped_tokens"];
+
+/// The scope tables of the pool Manager.
+///
+/// The pool Manager records the diagnosis of every pool it disqualifies,
+/// so the column that carries it is part of the compatibility contract.
+const POOL_STATUS_REASON_TABLES: &[&str] = &[
+    "v4_exchange_pools_core4",
+    "v4_exchange_pools_candidate_exchange",
 ];
 
 const REVIEW_TABLES: &[&str] = &[
@@ -575,6 +613,10 @@ fn ensure_migration_tables_compatible(
         USDG_VALUATION_MIGRATION_ID => USDG_VALUATION_TABLES,
         SINGLE_TICK_CAPACITY_MIGRATION_ID => SINGLE_TICK_CAPACITY_TABLES,
         HOP_PRICE_LIMIT_MIGRATION_ID => HOP_PRICE_LIMIT_TABLES,
+        CROSS_TICK_SEED_MIGRATION_ID => CROSS_TICK_SEED_TABLES,
+        SKIPPED_TOKEN_REASON_MIGRATION_ID => SKIPPED_TOKEN_REASON_TABLES,
+        SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID => SKIPPED_TOKEN_REASON_TABLES,
+        POOL_STATUS_REASON_MIGRATION_ID => POOL_STATUS_REASON_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {

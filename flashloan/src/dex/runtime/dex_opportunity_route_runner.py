@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from copy import deepcopy
@@ -105,16 +105,9 @@ def _scanner_evidence_timeout_seconds() -> float:
 
 
 def _closed_loop_workers() -> int:
-    try:
-        return max(
-            1,
-            min(
-                64,
-                int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "16") or "16"),
-            ),
-        )
-    except (TypeError, ValueError):
-        return 16
+    from dex.runtime.closed_loop_state_machine import resolve_max_workers
+
+    return resolve_max_workers()
 
 
 def _broadcast_profit_value(payload: Any) -> float | None:

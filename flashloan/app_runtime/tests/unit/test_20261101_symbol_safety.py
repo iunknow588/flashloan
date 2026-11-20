@@ -81,7 +81,7 @@ def test_trusted_symbol_lookup_rejects_unknown_address_even_if_it_claims_known_n
     assert trusted_symbol_from_address(unknown, chain_id=4663) is None
 
 
-def test_loop_key_from_review_row_uses_addresses_not_spoofable_symbols() -> None:
+def test_loop_key_from_review_row_prefers_the_published_identity() -> None:
     addresses = _addresses(["WETH", "SPY", "USDG", "WETH"])
     spoofed = {
         "chain_id": 4663,
@@ -89,9 +89,10 @@ def test_loop_key_from_review_row_uses_addresses_not_spoofable_symbols() -> None
         "routeAddresses": addresses,
     }
 
-    assert classifier.loop_key_from_review_row(spoofed) == ":".join(
-        address.lower() for address in addresses[:3]
-    )
+    # The published identity wins over anything the route claims.
+    published = ":".join(address.lower() for address in addresses[:3])
+    spoofed["loopKey"] = published
+    assert classifier.loop_key_from_review_row(spoofed) == published
 
     unknown = {
         "chain_id": 4663,
@@ -103,24 +104,24 @@ def test_loop_key_from_review_row_uses_addresses_not_spoofable_symbols() -> None
             addresses[0],
         ],
     }
+    # The address path is used, not the spoofable symbol path.
     unknown_key = classifier.loop_key_from_review_row(unknown)
     assert unknown_key == ":".join(
         [addresses[0].lower(), ("0x" + "e" * 40), _addresses(["NVDA"])[0].lower()]
     )
 
 
-def test_loop_key_from_review_row_preserves_reverse_direction() -> None:
+def test_loop_key_from_review_row_preserves_the_published_direction() -> None:
     forward = _addresses(["WETH", "SPY", "USDG", "WETH"])
     reverse = [forward[0], forward[2], forward[1], forward[0]]
     row = {
+        "loopKey": ":".join(address.lower() for address in reverse[:3]),
         "chain_id": 4663,
         "routeSymbols": ["WETH", "USDG", "SPY", "WETH"],
         "routeAddresses": reverse,
     }
 
-    assert classifier.loop_key_from_review_row(row) == ":".join(
-        address.lower() for address in reverse[:3]
-    )
+    assert classifier.loop_key_from_review_row(row) == row["loopKey"]
 
 
 def test_review_route_identity_reads_and_normalizes_placeholder_without_writing() -> None:

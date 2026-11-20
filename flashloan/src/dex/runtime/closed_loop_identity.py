@@ -3,6 +3,24 @@
 The durable runtime state uses the same address-path key as
 ``v4_closed_loops.loop_key``.  Worker identities preserve the same direction
 so every closed-loop direction owns an independent runtime state machine.
+
+Identity arbitration is **not** a Python responsibility (MIO-7 / AC-214).
+The closed-loop Manager owns the identity of every loop, and the kernel
+publishes it.  This module therefore offers two strictly separated kinds of
+helper:
+
+* **Format normalization** -- lower-casing, ``0x`` prefixing and dropping the
+  closing anchor of a route path.  These functions only make two strings
+  comparable; they never decide that two different loops are the same.
+* **Exact resolution** -- an ordered, exact lookup against a published set.
+  A miss is a miss.  Nothing here rotates, re-anchors, or otherwise
+  re-orders a token path to make a lookup succeed.
+
+The rotation helpers that used to live here (``directed_cycle_rotations``,
+``canonical_directed_cycle_key``, ``directed_cycle_keys_match``) were
+deleted on purpose: they made the healer borrow the identity, capacity and
+pool set of a *different* closed loop.  The task plan records the removal
+and the regression that replaces it.
 """
 
 from __future__ import annotations
@@ -82,18 +100,50 @@ def worker_group_key_from_symbols(symbols: Any) -> str | None:
 
 
 def physical_loop_key_from_route(route: dict[str, Any] | None) -> str | None:
-    """Return a route's durable physical key from trusted address data."""
+    """Return the **published** physical key a route carries.
+
+    Only the identity fields are read.  The route addresses are *not* a
+    fallback here: assembling a key out of them would invent an identity
+    that the closed-loop Manager never published, and that loop's capacity,
+    pool set and review threshold with it (MIO-7 / AC-214).
+
+    Use :func:`physical_route_key_from_route` when the caller needs the
+    **route's own** address path, which is a routing concern and not a
+    closed-loop identity.
+    """
     if not isinstance(route, dict):
         return None
-    for key in ("loopKey", "loop_key"):
-        normalized = normalize_physical_loop_key(route.get(key))
-        if normalized:
-            return normalized
+    return normalize_physical_loop_key(route.get("loopKey"))
+
+
+def physical_route_key_from_route(route: dict[str, Any] | None) -> str | None:
+    """Return the ordered address path of one route.
+
+    This is the **route's own** identity: the ordered hop addresses the
+    scanner discovered or the kernel config describes.  It is used to match
+    a route against the route config that belongs to it, and it is *not* the
+    closed-loop identity the Manager owns.
+
+    The published key wins when the route carries one, so a route that was
+    already identified keeps that identity.
+    """
+    if not isinstance(route, dict):
+        return None
+    published = normalize_physical_loop_key(route.get("loopKey"))
+    if published:
+        return published
     for key in ("routeAddresses", "route_addresses", "pathAddresses", "path_addresses"):
         normalized = physical_loop_key_from_addresses(route.get(key))
         if normalized:
             return normalized
     return None
+
+
+def physical_loop_key_from_database_row(row: dict[str, Any] | None) -> str | None:
+    """Read the stored physical loop key from one database row."""
+    if not isinstance(row, dict):
+        return None
+    return normalize_physical_loop_key(row.get("loop_key"))
 
 
 def worker_group_key_from_route(route: dict[str, Any] | None) -> str | None:
@@ -107,127 +157,57 @@ def worker_group_key_from_route(route: dict[str, Any] | None) -> str | None:
     return None
 
 
-def _cycle_path_parts(value: Any) -> list[str] | None:
-    """Return three unique directed-cycle parts from a key or path.
-
-    Accepts a 3-part key, a closed 4-part path, or a 3/4-element list and
-    preserves the original order.  The caller selects the separator; this
-    helper never decides that a short key is invalid.
-    """
-    if isinstance(value, (list, tuple)):
-        parts = _path_parts(value)
-        if len(parts) == 4 and parts[0] == parts[-1]:
-            parts = parts[:3]
-        if len(parts) == 3 and len(set(parts)) == 3:
-            return parts
-        return None
-    text = str(value or "").strip().lower()
-    if not text:
-        return None
-    parts = [
-        str(item).strip()
-        for item in text.replace("|", ":").split(":")
-        if str(item).strip()
-    ]
-    if len(parts) == 4 and parts[0] == parts[-1]:
-        parts = parts[:3]
-    if len(parts) == 3 and len(set(parts)) == 3:
-        return parts
-    return None
-
-
-def directed_cycle_rotations(value: Any, *, separator: str = ":") -> tuple[str, ...]:
-    """Return the three same-direction rotations ``A:B:C``, ``B:C:A``, ``C:A:B``.
-
-    The reverse direction ``A:C:B`` never appears in the result, so a forward
-    and a reverse state machine stay separate while any rotation of the same
-    directed triangle maps to the same identity.
-    """
-    parts = _cycle_path_parts(value)
-    if not parts:
-        return ()
-    return tuple(
-        separator.join(parts[offset:] + parts[:offset])
-        for offset in range(3)
-    )
-
-
-def canonical_directed_cycle_key(value: Any, *, separator: str = ":") -> str | None:
-    """Return one deterministic rotation that represents the directed cycle."""
-    rotations = directed_cycle_rotations(value, separator=separator)
-    return min(rotations) if rotations else None
-
-
-def directed_cycle_keys_match(
-    left: Any,
-    right: Any,
-    *,
-    separator: str = ":",
-) -> bool:
-    """Return True when two keys are rotations of the same directed cycle."""
-    left_rotations = directed_cycle_rotations(left, separator=separator)
-    right_rotations = directed_cycle_rotations(right, separator=separator)
-    if not left_rotations or not right_rotations:
-        return False
-    return right_rotations[0] in left_rotations
-
-
-
-
 def resolve_registered_group_key(
     requested_symbols: Any,
     registered_keys: Any,
 ) -> str | None:
     """Find the registered worker key that serves the requested route.
 
-    The closed-loop library stores every loop ETH-anchored (``ETH -> Y -> Z
-    -> ETH``), while the scanner registers its resident worker under the
-    route order it discovered, which is a *rotation* of the same directed
-    cycle (``Z -> ETH -> Y``). The worker pool keys its state machine by the
-    exact string it was registered with, so a lookup by the request's own
-    order can miss the worker even though it addresses the very same
-    directed cycle.
+    The lookup is **exact and ordered**.  The worker pool keys its state
+    machine by the exact string the worker was registered with, and the
+    scanner registers a worker under the route order it actually
+    discovered.  A request therefore only addresses that worker when its
+    own ordered token path equals the registered key.
 
-    A directed cycle and its rotations are the same closed loop; the
-    reverse direction is not. This helper therefore matches a requested
-    route against the registered keys by rotation identity and returns the
-    key the worker actually runs under.
+    A different starting point of the same triangle is a **different**
+    worker with a **different** state machine and a **different** closed
+    loop identity, so it must not borrow the registered key of its
+    rotation.  A request that matches no registered key is a miss: the
+    caller reports it (``closed_loop_group_not_found``) instead of
+    guessing.
+
+    This replaces the rotation-aware resolver that was deleted with
+    TASK-149 (AC-214).  The identity of a closed loop is published by the
+    closed-loop Manager and reaches the runtime through the kernel; the
+    runtime never re-derives it.
     """
     requested = _compact_path(requested_symbols)
     if not requested:
         return None
-    candidates: list[str] = []
+    requested_key = "|".join(requested)
     for value in registered_keys or []:
         key = str(value or "").strip().lower()
-        if key and key not in candidates:
-            candidates.append(key)
-    if not candidates:
-        return None
-    requested_rotations = {
-        "|".join(requested[offset:] + requested[:offset])
-        for offset in range(3)
-    }
-    for candidate in candidates:
-        parts = candidate.replace(":", "|").split("|")
+        if not key:
+            continue
+        parts = [
+            part.strip()
+            for part in key.replace(":", "|").split("|")
+            if part.strip()
+        ]
         if len(parts) != 3:
             continue
-        candidate_rotations = {
-            "|".join(parts[offset:] + parts[:offset])
-            for offset in range(3)
-        }
-        if requested_rotations & candidate_rotations:
-            return candidate
+        if "|".join(parts) == requested_key:
+            return key
     return None
 
 
 __all__ = [
-    "canonical_directed_cycle_key",
-    "directed_cycle_keys_match",
-    "directed_cycle_rotations",
     "directed_symbol_key_from_symbols",
     "normalize_physical_loop_key",
     "physical_loop_key_from_addresses",
+    "physical_loop_key_from_database_row",
     "physical_loop_key_from_route",
+    "physical_route_key_from_route",
     "resolve_registered_group_key",
     "worker_group_key_from_route",
     "worker_group_key_from_symbols",

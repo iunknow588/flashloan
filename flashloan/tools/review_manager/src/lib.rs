@@ -1084,14 +1084,85 @@ fn validate_evidence_membership(
                 "evidence.loopKey must not be empty".to_owned(),
             ));
         }
-        if !known.contains(item.loop_key.as_str()) {
+        // The review runs from **whichever token the cycle starts at**, so the
+        // evidence is filed under a rotation of the loop the library
+        // published. The rotations of one directed cycle are the same closed
+        // loop, so the membership test has to be rotation aware: an exact
+        // comparison rejected every rotation but the canonical one.
+        if !known.contains(item.loop_key.as_str())
+            && !known
+                .iter()
+                .any(|key| directed_cycle_keys_match(key, &item.loop_key))
+        {
             return Err(ReviewError::UnknownClosedLoop(item.loop_key.clone()));
         }
-        if !seen.insert(item.loop_key.as_str()) {
+        // Two rotations of the same directed cycle describe one measurement,
+        // so they must not both be filed: the second one would duplicate the
+        // first.
+        let identity = directed_cycle_identity(&item.loop_key);
+        if !seen.insert(identity) {
             return Err(ReviewError::DuplicateEvidence(item.loop_key.clone()));
         }
     }
     Ok(())
+}
+
+/// Return the three same-direction rotations of a closed-loop key.
+///
+/// The key is an address path of three distinct tokens (``A:B:C``). The
+/// rotations are ``A:B:C``, ``B:C:A`` and ``C:A:B``. The reverse direction
+/// never appears, so a forward and a reverse cycle stay separate.
+fn directed_cycle_rotations(value: &str) -> Vec<String> {
+    let parts: Vec<String> = value
+        .split(|character| character == ':' || character == '|')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_lowercase)
+        .collect();
+    if parts.len() == 4 && parts[0] == parts[3] {
+        // A closed four-part path names the same cycle as its three-part form.
+        return directed_cycle_rotations(&parts[..3].join(":"));
+    }
+    if parts.len() != 3 {
+        return Vec::new();
+    }
+    let mut unique = parts.clone();
+    unique.sort();
+    unique.dedup();
+    if unique.len() != 3 {
+        return Vec::new();
+    }
+    (0..3)
+        .map(|offset| {
+            parts[offset..]
+                .iter()
+                .chain(parts[..offset].iter())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(":")
+        })
+        .collect()
+}
+
+/// Return one deterministic identity for a closed-loop key.
+fn directed_cycle_identity(value: &str) -> String {
+    let rotations = directed_cycle_rotations(value);
+    if rotations.is_empty() {
+        return value.trim().to_lowercase();
+    }
+    rotations.into_iter().min().unwrap_or_default()
+}
+
+/// Return whether two keys name the same directed cycle.
+fn directed_cycle_keys_match(left: &str, right: &str) -> bool {
+    let left_rotations = directed_cycle_rotations(left);
+    let right_rotations = directed_cycle_rotations(right);
+    if left_rotations.is_empty() || right_rotations.is_empty() {
+        return false;
+    }
+    left_rotations
+        .iter()
+        .any(|rotation| right_rotations.contains(rotation))
 }
 
 /// The three-state execution gate of one closed loop.
@@ -1378,13 +1449,20 @@ fn build_review_rows(
     input: &ReviewInput,
     evidence: &[ReviewEvidenceInput],
 ) -> Result<DesiredReviewData, ReviewError> {
+    // The evidence is indexed by the **directed cycle identity**, not by the
+    // exact key. One measurement of a directed cycle describes every
+    // rotation of it: the cycle is the same three pools, only the token it
+    // starts at differs. Indexing by the exact key filed the measurement
+    // under one rotation and left the other rotations without evidence.
     let evidence_by_loop = evidence
         .iter()
-        .map(|item| (item.loop_key.as_str(), item))
+        .map(|item| (directed_cycle_identity(&item.loop_key), item))
         .collect::<BTreeMap<_, _>>();
     let mut desired = DesiredReviewData::default();
     for closed_loop in &input.loops {
-        let item = evidence_by_loop.get(closed_loop.loop_key.as_str()).copied();
+        let item = evidence_by_loop
+            .get(&directed_cycle_identity(&closed_loop.loop_key))
+            .copied();
         let run_arbitrage = item.and_then(|value| value.run_arbitrage.as_ref());
         let run_json = match run_arbitrage {
             Some(value) => serde_json::to_value(value)?,
@@ -3152,6 +3230,42 @@ mod tests {
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
     const LOOP_KEY: &str = "loop-1";
+
+    #[test]
+    fn a_rotation_of_a_directed_cycle_shares_its_identity() {
+        use super::{directed_cycle_identity, directed_cycle_keys_match,
+                    directed_cycle_rotations};
+
+        let anchor = "0x0000000000000000000000000000000000000000:0xaaa:0xbbb";
+        let rotations = directed_cycle_rotations(anchor);
+        assert_eq!(rotations.len(), 3);
+        assert!(rotations.contains(&anchor.to_owned()));
+        assert!(rotations.contains(&"0xaaa:0xbbb:0x0000000000000000000000000000000000000000".to_owned()));
+        assert!(rotations.contains(&"0xbbb:0x0000000000000000000000000000000000000000:0xaaa".to_owned()));
+
+        // The reverse direction is a different cycle.
+        let reverse = "0x0000000000000000000000000000000000000000:0xbbb:0xaaa";
+        assert!(!directed_cycle_keys_match(anchor, reverse));
+
+        // Every rotation of one cycle shares one identity.
+        assert_eq!(
+            directed_cycle_identity(anchor),
+            directed_cycle_identity(&rotations[1])
+        );
+        assert_eq!(
+            directed_cycle_identity(anchor),
+            directed_cycle_identity(&rotations[2])
+        );
+    }
+
+    #[test]
+    fn a_closed_four_part_path_names_the_same_cycle() {
+        use super::directed_cycle_identity;
+
+        let closed = "0xaaa:0xbbb:0xccc:0xaaa";
+        let open = "0xaaa:0xbbb:0xccc";
+        assert_eq!(directed_cycle_identity(closed), directed_cycle_identity(open));
+    }
 
     fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();

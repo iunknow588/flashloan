@@ -35,6 +35,10 @@ flashloan/app_runtime/importtime.err
 flashloan/docs/
 contract/robinhood/DEX/docs/
 contract/robinhood-testnet/DEX/docs/
+# 计划归档的**文档**是仓库资产：活动文档退役后必须留有可追溯的冻结副本。
+# git 不会进入被忽略的目录，因此先放行 plan/back 本身，再逐个限制。
+!/plan/back/
+!plan/back/*.md
 back/
 !/contract/back/
 !/contract/back/**
@@ -91,6 +95,7 @@ logs/**/*.log
 plan/runtime_evidence/history/*.jsonl
 pytest_tmp_*/
 flashloan/.pytest_tmp/
+/screenshots/
 flashloan/src/runtime/evidence/chain_archive/
 flashloan/src/runtime/evidence/**/*.bak
 runtime/evidence/root_snapshots_*/
@@ -153,6 +158,16 @@ plan/back/*.sqlite3-shm
 plan/back/**/*.sqlite3
 plan/back/**/*.sqlite3-wal
 plan/back/**/*.sqlite3-shm
+# 计划归档的**文档**是仓库资产：活动文档退役后必须留有可追溯的冻结副本。
+# git 不会进入被忽略的目录，因此这里用精确白名单逐个放行。
+!plan/back/冻结归档_开发计划_20261120_v10.17.md
+!plan/back/冻结归档_未完成任务清单_20261120_v10.17.md
+!plan/back/冻结归档_主网编排器审查修复_check_list_20261120_v10.17.md
+!plan/back/冻结归档_后续开发计划_20261120_v11.0.md
+!plan/back/冻结归档_实施续跑清单_20261120_v11.0.md
+!plan/back/冻结归档_README_20261120_v10.18.md
+!plan/back/已完成任务归档_20261120_第40轮_闭环身份精确匹配与基线收口.md
+!plan/back/已完成任务归档索引_20261120_v10.18.md
 
 # pytest 临时基目录（部分目录由沙箱账号创建，当前用户无删除权限，故忽略）
 .tmp_pytest_base/
@@ -165,3 +180,7 @@ plan/runtime_evidence/diagnostics/mainnet_self_healing_orchestrator/*.jsonl
 plan/runtime_evidence/diagnostics/mainnet_quote_routes_after_rebuild_*.json
 plan/runtime_evidence/diagnostics/mainnet_overview_*.json
 plan/runtime_evidence/reports/arch2b_parity_replay_*_rust.json
+# 临时补丁与一次性诊断脚本（dotfile 前缀，避免误入版本库）
+.patch_*.diff
+.tmp_*
+.apply_patch_runner.py

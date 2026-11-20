@@ -60,6 +60,7 @@ impl From<String> for BatchFailure {
 
 impl BatchFailure {
     /// Whether another endpoint is likely to do better.
+    #[allow(dead_code)]
     fn is_retryable(&self) -> bool {
         match self {
             BatchFailure::RpcError { code, .. } => *code == 429,

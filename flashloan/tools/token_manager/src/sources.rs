@@ -545,7 +545,6 @@ mod tests {
         ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK,
     };
     use rusqlite::Connection;
-    use std::collections::BTreeMap;
 
     /// The core addresses of a chain are chain specific. The wrapped native
     /// token lives on a different address on each chain, so a compiled-in

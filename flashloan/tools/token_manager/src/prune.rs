@@ -569,7 +569,7 @@ pub fn prune_incomplete_tokens(
     let protocols = loop_protocols(&connection, network, chain_id)?;
     let mut counts = PruneCounts::default();
     let mut removed_loop_keys = Vec::new();
-    let mut retained_due_to_references = Vec::new();
+    let retained_due_to_references = Vec::new();
 
     if !apply {
         // The dry run reports the loop keys that would go, without
@@ -955,7 +955,7 @@ mod tests {
     /// A token that is pruned takes the loops that named it with it.
     #[test]
     fn the_dependants_of_a_pruned_token_are_removed_with_it() {
-        let mut connection = store();
+        let connection = store();
         seed_token(&connection, GOOD, "ETH", Some(18));
         seed_token(&connection, BAD_SYMBOL, "0X102154E7", Some(18));
         connection
@@ -1007,7 +1007,7 @@ mod tests {
     /// The prune of a real store removes the token and its dependants.
     #[test]
     fn the_prune_removes_the_token_and_its_dependants() {
-        let mut connection = store();
+        let connection = store();
         seed_token(&connection, GOOD, "ETH", Some(18));
         seed_token(&connection, BAD_SYMBOL, "0X102154E7", Some(18));
         connection
@@ -1058,7 +1058,7 @@ mod tests {
     /// The dry run reports without touching anything.
     #[test]
     fn the_dry_run_changes_nothing() {
-        let mut connection = store();
+        let connection = store();
         seed_token(&connection, GOOD, "ETH", Some(18));
         seed_token(&connection, BAD_SYMBOL, "0X102154E7", Some(18));
         let (report, remaining, _) = prune_and_read_back(&connection, false);
@@ -1072,7 +1072,7 @@ mod tests {
     /// one.
     #[test]
     fn the_chain_boundary_is_never_crossed() {
-        let mut connection = store();
+        let connection = store();
         seed_token(&connection, BAD_SYMBOL, "0X102154E7", Some(18));
         let error = prune_in_memory_with_chain(&connection, 4663, true).unwrap_err();
         assert!(matches!(error, PruneError::ScopeMismatch { .. }));
@@ -1121,17 +1121,6 @@ mod tests {
         drop(readback);
         let _ = std::fs::remove_file(&path);
         (report, remaining, loops)
-    }
-
-    /// Run the prune against a file-backed store.
-    ///
-    /// The prune owns the write path, so the test drives it through the
-    /// same entry point the CLI uses.
-    fn prune_in_memory(
-        connection: &Connection,
-        apply: bool,
-    ) -> Result<PruneReport, PruneError> {
-        prune_in_memory_with_chain(connection, 46630, apply)
     }
 
     fn prune_in_memory_with_chain(

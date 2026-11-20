@@ -106,13 +106,12 @@ fn store_carries_capacity_evidence(present: &[&str]) -> bool {
 
 fn depth_status_reasons(
     depth_status: Option<&str>,
-    estimated_tvl_usd: Option<f64>,
+    _estimated_tvl_usd: Option<f64>,
     capacity_raw: Option<f64>,
     capacity_evidence_available: bool,
 ) -> Vec<String> {
     let mut reasons = Vec::new();
     let label = lowered(depth_status);
-    let tvl = estimated_tvl_usd.filter(|value| value.is_finite() && *value > 0.0);
     let capacity = capacity_raw.filter(|value| value.is_finite() && *value > 0.0);
     match label.as_str() {
         "deep" | "liquid" | "medium" => {}
@@ -131,17 +130,44 @@ fn depth_status_reasons(
     if capacity.is_none() && capacity_evidence_available {
         reasons.push("missing_capacity_evidence".to_string());
     }
-    // A TVL reading outside the reference band is still a malformed reading
-    // and must be surfaced, but it no longer disqualifies the pool.
+    reasons
+}
+
+/// The **reference-only** observations of a pool.
+///
+/// The USD valuation is not an admission gate: it is denominated in the
+/// chain's own quote asset, so a band expressed in USD rejects every pool of
+/// a chain whose quote is not the USD. The shared depth policy lists
+/// ``depth_admission`` and ``capacity_admission`` under
+/// ``usdgPegPolicy.forbiddenUses`` for exactly that reason, and the operating
+/// manual forbids dropping a token pair on a TVL conclusion.
+///
+/// These observations therefore stay **out** of the disqualifying reasons.
+/// They used to be returned by ``depth_status_reasons`` together with the
+/// real defects, and because every non-empty reason list marks a pool as
+/// ineligible, a pool whose USD reading was merely below the reference band
+/// was dropped from the candidate set even though its on-chain capacity was
+/// measured and adequate. The cleanup then removed the pool, the closed
+/// loops that named it lost a hop, and the chain churned its scope on every
+/// repair round without ever fixing the real defect.
+///
+/// The observations are still surfaced: the audit reports them next to the
+/// disqualifying reasons, so a malformed reading is visible to an operator
+/// without ever becoming a gate.
+fn reference_only_observations(
+    estimated_tvl_usd: Option<f64>,
+) -> Vec<String> {
+    let mut observations = Vec::new();
+    let tvl = estimated_tvl_usd.filter(|value| value.is_finite() && *value > 0.0);
     if let Some(value) = tvl {
         if value < MIN_CANDIDATE_TVL_USD_REFERENCE {
-            reasons.push("tvl_below_reference_band".to_string());
+            observations.push("tvl_below_reference_band".to_string());
         }
         if value > MAX_CANDIDATE_TVL_USD_REFERENCE {
-            reasons.push("tvl_out_of_range_bad_reading".to_string());
+            observations.push("tvl_out_of_range_bad_reading".to_string());
         }
     }
-    reasons
+    observations
 }
 
 /// Returns the decimals-normalised binding-side capacity of a pool.
@@ -188,20 +214,13 @@ pub fn depth_band_for_binding_capacity(binding_capacity: Option<f64>) -> &'stati
     }
 }
 
-fn depth_band_json_for(
-    depth_status: &str,
-    estimated_tvl_usd: Option<f64>,
-    capacity_raw: Option<f64>,
-) -> String {
-    depth_band_json_for_binding(depth_status, estimated_tvl_usd, capacity_raw, None)
-}
-
 /// Builds the depth-band document.
 ///
 /// `binding_capacity` is the decimals-normalised binding-side capacity that
 /// actually decides the band. When it is unavailable the band cannot be
 /// decided on the shared basis, so the document reports `observed` and says
 /// which basis applies.
+#[allow(dead_code)]
 fn depth_band_json_for_binding(
     depth_status: &str,
     estimated_tvl_usd: Option<f64>,
@@ -607,6 +626,8 @@ fn quality_reasons(pool: PoolQuality<'_>) -> Vec<String> {
     reasons
 }
 
+
+
 fn chunks<T: Clone>(values: &[T], size: usize) -> Vec<Vec<T>> {
     values.chunks(size).map(|chunk| chunk.to_vec()).collect()
 }
@@ -694,6 +715,7 @@ fn optional_snapshot_columns(connection: &Connection) -> Result<Vec<&'static str
             "capacity_raw" => present.push("capacity_raw"),
             "capacity_binding_raw" => present.push("capacity_binding_raw"),
             "depth_score_usd" => present.push("depth_score_usd"),
+            "depth_status" => present.push("depth_status"),
             _ => {}
         }
     }
@@ -737,10 +759,27 @@ fn audit_internal(connection: &Connection, chain_id: i64) -> Result<Value, Strin
     let network = network_for_chain_id(chain_id);
     let present = optional_snapshot_columns(connection)?;
     let capacity_expression = optional_column_expression("capacity_raw", &present);
+    // The admission verdict has to be the **measured** one. The candidate
+    // row carries a copy of the depth verdict that is only refreshed when
+    // the pool is re-measured, so a pool that was re-measured out of the
+    // adequate band kept its old adequate verdict on the candidate row
+    // until the next refresh propagated it. The audit read that stale copy
+    // and therefore admitted a pool whose measured depth was `thin`.
+    //
+    // The snapshot row is the measured surface, so its verdict wins whenever
+    // it carries one. The candidate row stays the fallback for a store whose
+    // snapshot never carried a verdict: an absent measurement is a coverage
+    // gap, not a reason to disqualify the pool.
+    let snapshot_depth_status_expression = if present.contains(&"depth_status") {
+        "COALESCE(NULLIF(TRIM(s.depth_status), ''), d.depth_status)".to_string()
+    } else {
+        "d.depth_status".to_string()
+    };
     let sql = format!(
         r#"
         SELECT d.pool_id, d.fee, d.dynamic_fee, d.special_fee, d.hooks,
-               d.token0, d.token1, d.depth_status, d.has_liquidity,
+               d.token0, d.token1, {snapshot_depth_status_expression} AS depth_status,
+               d.has_liquidity,
                d.liquidity_index, d.usable_for_observation,
                s.estimated_tvl_usd,
                s.evidence_source,
@@ -795,11 +834,12 @@ fn audit_internal(connection: &Connection, chain_id: i64) -> Result<Value, Strin
 
     let mut bad_pool_ids = BTreeSet::new();
     let mut issue_by_pool: BTreeMap<String, Value> = BTreeMap::new();
+    let mut reference_by_pool: BTreeMap<String, Value> = BTreeMap::new();
     let mut candidate_total = 0;
     for row in rows {
         let row = row.map_err(|error| error.to_string())?;
         candidate_total += 1;
-        let reasons = quality_reasons(PoolQuality {
+        let pool_quality = PoolQuality {
             fee: row.1,
             dynamic_fee: row.2,
             special_fee: row.3,
@@ -815,7 +855,14 @@ fn audit_internal(connection: &Connection, chain_id: i64) -> Result<Value, Strin
                 .as_deref()
                 .and_then(|value| value.trim().parse::<f64>().ok()),
             capacity_evidence_available: store_carries_capacity_evidence(&present),
-        });
+        };
+        // The reference-only observations are reported next to the
+        // disqualifying reasons so that a malformed USD reading stays
+        // visible, but they never make a pool ineligible: the USD valuation
+        // is denominated in the chain's own quote asset and is therefore not
+        // an admission gate.
+        let observations = reference_only_observations(pool_quality.estimated_tvl_usd);
+        let reasons = quality_reasons(pool_quality);
         if !reasons.is_empty() {
             bad_pool_ids.insert(row.0.clone());
             issue_by_pool.insert(
@@ -832,6 +879,23 @@ fn audit_internal(connection: &Connection, chain_id: i64) -> Result<Value, Strin
                     "evidenceSource": row.12,
                     "depthRank": depth_band_rank(row.7.as_deref()),
                     "reasons": reasons,
+                    "referenceObservations": observations,
+                }),
+            );
+        } else if !observations.is_empty() {
+            // A pool that is admitted but carries a reference-only
+            // observation is reported separately, so the observation is
+            // never silently dropped when the pool itself is fine.  It is
+            // kept out of ``reasonsByPool``: that map describes the pools
+            // that are **ineligible**, and a pool that was admitted must
+            // never appear in it.
+            reference_by_pool.insert(
+                row.0.clone(),
+                json!({
+                    "poolId": row.0,
+                    "depthStatus": row.7,
+                    "estimatedTvlUsd": row.11,
+                    "observations": observations,
                 }),
             );
         }
@@ -851,6 +915,7 @@ fn audit_internal(connection: &Connection, chain_id: i64) -> Result<Value, Strin
         "ineligibleTotal": bad_pool_list.len(),
         "ineligiblePoolIds": bad_pool_list,
         "reasonsByPool": issue_by_pool,
+        "referenceObservationsByPool": reference_by_pool,
         "affectedClosedLoopCount": affected_loop_keys.len(),
         "affectedClosedLoopKeys": affected_loop_keys,
         "affectedRecommendationCount": affected_recommendations,
@@ -1417,7 +1482,7 @@ fn eligible_raw_pools(
     );
     let base = base.trim().to_lowercase();
     let quote = quote.trim().to_lowercase();
-    let mut parameters = vec![
+    let parameters = vec![
         rusqlite::types::Value::Text(network.to_string()),
         rusqlite::types::Value::Text(chain_id.to_string()),
         rusqlite::types::Value::Text(base.to_string()),
@@ -3046,6 +3111,67 @@ mod tests {
         );
     }
 
+    /// A USD valuation outside the reference band is a **diagnostic**, never
+    /// a gate.  The shared depth policy lists ``depth_admission`` and
+    /// ``capacity_admission`` under ``usdgPegPolicy.forbiddenUses``, and the
+    /// operating manual forbids dropping a token pair on a TVL conclusion.
+    ///
+    /// The reasons used to carry the TVL observation, and because every
+    /// non-empty reason list marks a pool as ineligible, a pool whose USD
+    /// reading was merely below the band was dropped from the candidate set
+    /// even though its on-chain capacity had been measured and was adequate.
+    #[test]
+    fn a_usd_reading_outside_the_reference_band_never_disqualifies_a_pool() {
+        let token0 = format!("0x{}", "1".repeat(40));
+        let token1 = format!("0x{}", "2".repeat(40));
+        let pool = PoolQuality {
+            fee: 3000,
+            dynamic_fee: 0,
+            special_fee: 0,
+            hooks: Some(ZERO_ADDRESS),
+            token0: Some(&token0),
+            token1: Some(&token1),
+            has_liquidity: 1,
+            liquidity_index: Some(1000.0),
+            depth_status: Some("medium"),
+            // Far below the reference band, but the on-chain capacity is
+            // measured and adequate.
+            estimated_tvl_usd: Some(173.89),
+            capacity_raw: Some(5_000.0),
+            capacity_evidence_available: true,
+        };
+        assert!(
+            quality_reasons(PoolQuality {
+                fee: pool.fee,
+                dynamic_fee: pool.dynamic_fee,
+                special_fee: pool.special_fee,
+                hooks: pool.hooks,
+                token0: pool.token0,
+                token1: pool.token1,
+                has_liquidity: pool.has_liquidity,
+                liquidity_index: pool.liquidity_index,
+                depth_status: pool.depth_status,
+                estimated_tvl_usd: pool.estimated_tvl_usd,
+                capacity_raw: pool.capacity_raw,
+                capacity_evidence_available: pool.capacity_evidence_available,
+            })
+            .is_empty(),
+            "a USD reading outside the reference band is not a disqualifier"
+        );
+        assert_eq!(
+            reference_only_observations(pool.estimated_tvl_usd),
+            vec!["tvl_below_reference_band".to_string()],
+            "the observation is still surfaced"
+        );
+
+        // A reading above the ceiling is a malformed reading.  It is
+        // surfaced the same way and disqualifies nothing on its own.
+        assert_eq!(
+            reference_only_observations(Some(2_000_000_000.0)),
+            vec!["tvl_out_of_range_bad_reading".to_string()]
+        );
+    }
+
     #[test]
     fn quality_ignores_usd_depth_labels_but_requires_onchain_liquidity() {
         let token0 = format!("0x{}", "1".repeat(40));
@@ -3124,11 +3250,21 @@ mod tests {
             .any(|reason| reason == "missing_capacity_evidence"));
     }
 
+    /// The name of this test states the intent the design demands: a stale
+    /// or malformed USD reading is **surfaced** but it never disqualifies a
+    /// pool whose on-chain capacity is measurable.
+    ///
+    /// The assertion used to require the TVL observation to appear in the
+    /// **disqualifying** reason list, which contradicted the name and the
+    /// shared depth policy: every non-empty reason list marks a pool as
+    /// ineligible, so the observation did disqualify the pool.  The
+    /// observation now lives in the reference-only channel, and the test
+    /// asserts the real behaviour.
     #[test]
     fn quality_flags_stale_out_of_range_tvl_reading_without_disqualifying_the_pool() {
         let token0 = format!("0x{}", "1".repeat(40));
         let token1 = format!("0x{}", "2".repeat(40));
-        let reasons = quality_reasons(PoolQuality {
+        let pool = PoolQuality {
             fee: 3000,
             dynamic_fee: 0,
             special_fee: 0,
@@ -3141,15 +3277,28 @@ mod tests {
             estimated_tvl_usd: Some(1e43),
             capacity_raw: Some(5_000.0),
             capacity_evidence_available: true,
-        });
-        assert!(reasons
-            .iter()
-            .any(|reason| reason == "tvl_out_of_range_bad_reading"));
-        // The malformed USD reading is surfaced, but it no longer rejects a
+        };
+        // The malformed USD reading is surfaced, but it does not reject a
         // pool whose on-chain capacity is measurable.
-        assert!(!reasons
-            .iter()
-            .any(|reason| reason == "missing_capacity_evidence"));
+        assert_eq!(
+            reference_only_observations(pool.estimated_tvl_usd),
+            vec!["tvl_out_of_range_bad_reading".to_string()]
+        );
+        assert!(quality_reasons(PoolQuality {
+            fee: pool.fee,
+            dynamic_fee: pool.dynamic_fee,
+            special_fee: pool.special_fee,
+            hooks: pool.hooks,
+            token0: pool.token0,
+            token1: pool.token1,
+            has_liquidity: pool.has_liquidity,
+            liquidity_index: pool.liquidity_index,
+            depth_status: pool.depth_status,
+            estimated_tvl_usd: pool.estimated_tvl_usd,
+            capacity_raw: pool.capacity_raw,
+            capacity_evidence_available: pool.capacity_evidence_available,
+        })
+        .is_empty());
     }
 
     #[test]
@@ -3239,6 +3388,91 @@ mod tests {
         .unwrap();
         assert_eq!(pools.len(), 1, "a deep pool must stay eligible");
         assert_eq!(pools[0].pool_id, "pool-a");
+    }
+
+    /// The candidate row carries a **copy** of the depth verdict that is only
+    /// refreshed when the pool is re-measured. A pool that was measured out
+    /// of the adequate band therefore kept its old adequate verdict on the
+    /// candidate row until the next refresh propagated it, and the audit read
+    /// that stale copy: a pool whose measured depth was `thin` was admitted
+    /// as `medium` and stayed in the candidate set forever.
+    ///
+    /// The measured verdict on the snapshot row is the authority.
+    #[test]
+    fn the_audit_uses_the_measured_depth_verdict_over_the_stale_candidate_copy() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("stale.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE dex_candidate_pools (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    fee INTEGER, dynamic_fee INTEGER, special_fee INTEGER,
+                    hooks TEXT, token0 TEXT, token1 TEXT, depth_status TEXT,
+                    has_liquidity INTEGER, liquidity_index REAL,
+                    usable_for_observation INTEGER);
+                 CREATE TABLE v4_exchange_pool_liquidity_snapshots (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    has_liquidity INTEGER, liquidity_index REAL,
+                    estimated_tvl_usd REAL, depth_status TEXT,
+                    capacity_raw TEXT, balances_json TEXT, evidence_source TEXT);
+                 CREATE TABLE v4_exchange_pools (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    token0 TEXT, token1 TEXT, fee INTEGER, dynamic_fee INTEGER,
+                    special_fee INTEGER, hooks TEXT);
+                 CREATE TABLE dex_candidate_pool_recommendations (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    anchor_scope TEXT, anchor_symbol TEXT, address_pair TEXT,
+                    direction_key TEXT, direction_address_pair TEXT,
+                    recommendation_role TEXT, created_at TEXT, updated_at TEXT);
+                 CREATE TABLE v4_closed_loops (
+                    network TEXT, chain_id INTEGER, protocol TEXT,
+                    market_id TEXT, loop_key TEXT, path_symbols_json TEXT,
+                    pool_ids_json TEXT, anchor_symbol TEXT, status TEXT,
+                    created_at TEXT, updated_at TEXT);
+                 CREATE TABLE v4_closed_loop_hops (
+                    network TEXT, chain_id INTEGER, protocol TEXT,
+                    market_id TEXT, loop_key TEXT, hop_index INTEGER,
+                    hop_name TEXT, input_address TEXT, output_address TEXT,
+                    pool_id TEXT, base_pool_id TEXT, pool_selection_basis TEXT,
+                    optimization_id TEXT, temporary_override INTEGER,
+                    created_at TEXT, updated_at TEXT);
+                 -- The candidate row still claims the old, adequate verdict.
+                 INSERT INTO dex_candidate_pools VALUES
+                    ('robinhood', 4663, 'uniswap_v4', 'pool-a', 3000, 0, 0, '',
+                     '0x1111111111111111111111111111111111111111',
+                     '0x2222222222222222222222222222222222222222',
+                     'medium', 1, 0.5, 1);
+                 -- The measurement says the pool is thin.
+                 INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES
+                    ('robinhood', 4663, 'uniswap_v4', 'pool-a', 1, 0.5, 250000.0,
+                     'thin', 0.011, '{}', 'test');
+                 INSERT INTO v4_exchange_pools VALUES
+                    ('robinhood', 4663, 'uniswap_v4', 'pool-a',
+                     '0x1111111111111111111111111111111111111111',
+                     '0x2222222222222222222222222222222222222222',
+                     3000, 0, 0, '');",
+            )
+            .unwrap();
+
+        let audit = audit_internal(&connection, 4663).unwrap();
+        assert_eq!(audit["candidateTotal"], 1);
+        assert_eq!(
+            audit["ineligibleTotal"], 1,
+            "the measured thin verdict disqualifies the pool"
+        );
+        let ineligible = audit["ineligiblePoolIds"].as_array().unwrap();
+        assert_eq!(ineligible[0], "pool-a");
+        let reasons = &audit["reasonsByPool"]["pool-a"]["reasons"];
+        assert!(
+            reasons
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|reason| reason == "depth_thin"),
+            "the measured verdict is the reason, got {:?}",
+            reasons
+        );
     }
 
     #[test]

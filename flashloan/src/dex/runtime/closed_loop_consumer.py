@@ -23,7 +23,7 @@ from core.db.storage_common import database_url as storage_database_url
 from dex.runtime.closed_loop_identity import (
     directed_symbol_key_from_symbols,
     normalize_physical_loop_key,
-    physical_loop_key_from_route,
+    physical_route_key_from_route,
 )
 from dex.runtime.closed_loop_state_machine import (
     CYCLE_TERMINAL_STATES,
@@ -246,10 +246,10 @@ def _attempt_identity(
     if not key:
         key = normalize_physical_loop_key(attempt.get("loop_key"))
     if not key:
-        key = physical_loop_key_from_route(attempt)
+        key = physical_route_key_from_route(attempt)
     if not key:
         quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
-        key = physical_loop_key_from_route(quote)
+        key = physical_route_key_from_route(quote)
     if not key:
         route = attempt.get("route_path") if isinstance(attempt.get("route_path"), list) else []
         key = directed_symbol_key_from_symbols(route) or ""

@@ -1,4 +1,4 @@
-"""Closed-loop runtime state machine with index-only queues.
+﻿"""Closed-loop runtime state machine with index-only queues.
 
 The state names align with the route-level UI state machine in
 ``app_runtime/web/static/dex_quotes/route_state_machine.js`` and the terminal
@@ -19,11 +19,56 @@ from typing import Any
 from core.db.storage_business_io import execute, query, query_one, transaction
 from core.market_identity import canonical_market_id_from_legacy
 from dex.runtime.closed_loop_identity import (
-    canonical_directed_cycle_key,
-    directed_cycle_rotations,
     normalize_physical_loop_key,
     worker_group_key_from_symbols,
 )
+
+
+def _state_row_alias_rotations(key: str, *, separator: str) -> list[str]:
+    """Return the same-direction rotations of a runtime state-row key.
+
+    **Scope: runtime state-table alias merge only.**
+
+    The durable runtime state (``v4_closed_loop_runtime_state``) is keyed by
+    a token path that may start at any hop of the same directed triangle.
+    This helper exists so those *own rows* converge on one concrete row
+    instead of splitting a state machine across anchor variants.
+
+    It is deliberately **not** part of ``dex.runtime.closed_loop_identity``
+    and it must never be used to:
+
+    * select the closed-loop Manager identity (capacity, pool set, USDG
+      value, review threshold) -- the kernel owns that (MIO-7 / AC-214);
+    * associate a review row with a closed loop;
+    * decide that two different closed loops are the same loop.
+
+    Forward and reverse directions never share a rotation, so opposite state
+    machines stay independent.
+    """
+    text = str(key or "").strip().lower()
+    if not text:
+        return []
+    parts = [
+        part.strip()
+        for part in text.replace(":", "|").split("|")
+        if part.strip()
+    ]
+    if len(parts) != 3:
+        return []
+    rotations: list[str] = []
+    for offset in range(len(parts)):
+        rotated = parts[offset:] + parts[:offset]
+        rotations.append(separator.join(rotated))
+    return rotations
+
+
+def _state_row_alias_canonical(key: str, *, separator: str) -> str | None:
+    """Return the canonical same-direction rotation of a state-row key."""
+    rotations = _state_row_alias_rotations(key, separator=separator)
+    if not rotations:
+        return None
+    return min(rotations)
+
 
 
 STATE_OFFCHAIN_PENDING = "offchain_pending"
@@ -36,6 +81,7 @@ STATE_EXECUTION_PENDING = "execution_pending"
 STATE_EXECUTION_SUBMITTED = "execution_submitted"
 STATE_EXECUTION_SUCCESS = "execution_success"
 STATE_EXECUTION_FAILED = "execution_failed"
+
 
 CLOSED_LOOP_STATES = frozenset(
     {
@@ -253,12 +299,15 @@ def _decode_json_array(value: Any) -> list[str]:
 def _closed_loop_identity_sets(
     rows: list[dict[str, Any]],
 ) -> tuple[set[str], set[str], set[str]]:
-    """Return directed-cycle keys for current loops.
+    """Return runtime state-row alias keys for current loops.
 
     Every physical and legacy key is expanded to its three same-direction
     rotations so a ``v4_closed_loops`` row that anchors a different token
     (for example ETH vs USDG) still preserves the matching runtime machine
     while the reverse direction stays distinct.
+
+    These are **state-row alias keys only**.  They never carry, select or
+    arbitrate a closed-loop Manager identity (MIO-7 / AC-214).
     """
     exact: set[str] = set()
     symbol_keys: set[str] = set()
@@ -266,18 +315,18 @@ def _closed_loop_identity_sets(
     for row in rows:
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if loop_key:
-            exact.update(directed_cycle_rotations(loop_key, separator=":"))
+            exact.update(_state_row_alias_rotations(loop_key, separator=":"))
         symbol_path = _decode_json_array(row.get("path_symbols_json"))
         symbol_key = worker_group_key_from_symbols(symbol_path)
         if symbol_key:
             symbol_keys.update(
-                directed_cycle_rotations(symbol_key, separator="|")
+                _state_row_alias_rotations(symbol_key, separator="|")
             )
         address_path = _decode_json_array(row.get("path_addresses_json"))
         address_key = worker_group_key_from_symbols(address_path)
         if address_key:
             address_keys.update(
-                directed_cycle_rotations(address_key, separator="|")
+                _state_row_alias_rotations(address_key, separator="|")
             )
     return exact, symbol_keys, address_keys
 
@@ -292,7 +341,7 @@ def _state_identity_matches(
         return False
     return any(
         rotation in exact_keys
-        for rotation in directed_cycle_rotations(normalized, separator=":")
+        for rotation in _state_row_alias_rotations(normalized, separator=":")
     )
 
 
@@ -316,12 +365,12 @@ def _legacy_state_identity_kind(
         return None
     if any(
         rotation in symbol_keys
-        for rotation in directed_cycle_rotations(group_key, separator="|")
+        for rotation in _state_row_alias_rotations(group_key, separator="|")
     ):
         return "symbol"
     if any(
         rotation in address_keys
-        for rotation in directed_cycle_rotations(group_key, separator="|")
+        for rotation in _state_row_alias_rotations(group_key, separator="|")
     ):
         return "address"
     return None
@@ -612,13 +661,17 @@ def _resolve_directed_loop_key(
     ordered: list[str] = []
     seen: set[str] = set()
     if physical:
-        canonical = canonical_directed_cycle_key(physical, separator=":")
-        candidates = [canonical, *directed_cycle_rotations(physical, separator=":"), physical]
+        canonical = _state_row_alias_canonical(physical, separator=":")
+        candidates = [
+            canonical,
+            *_state_row_alias_rotations(physical, separator=":"),
+            physical,
+        ]
     else:
-        canonical = canonical_directed_cycle_key(normalized, separator="|")
+        canonical = _state_row_alias_canonical(normalized, separator="|")
         candidates = [canonical]
         for separator in ("|", ":"):
-            for rotation in directed_cycle_rotations(
+            for rotation in _state_row_alias_rotations(
                 normalized, separator=separator
             ):
                 candidates.append(rotation)
@@ -2199,7 +2252,7 @@ def backfill_runtime_state_for_closed_loops(
         if not runtime_key:
             continue
         canonical_market, _ = _canonical_runtime_market_id(row.get("market_id"))
-        canonical_key = canonical_directed_cycle_key(runtime_key, separator=":")
+        canonical_key = _state_row_alias_canonical(runtime_key, separator=":")
         if not canonical_key:
             continue
         identity = (
@@ -2266,7 +2319,7 @@ def backfill_runtime_state_for_closed_loops(
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if not loop_key:
             continue
-        canonical_loop_key = canonical_directed_cycle_key(loop_key, separator=":")
+        canonical_loop_key = _state_row_alias_canonical(loop_key, separator=":")
         if not canonical_loop_key:
             continue
         existing_identities.add(
@@ -2599,17 +2652,100 @@ def reset_loop_for_new_cycle(
     )
 
 
-def resolve_max_workers(value: str | int | None = None) -> int:
-    """Resolve the global worker cap; default 16, hard ceiling 32."""
-    if value is None:
-        raw = os.getenv("DEX_CLOSED_LOOP_MAX_WORKERS", "16")
-    else:
-        raw = str(value)
+# The operational bound on the resident closed-loop workers.
+#
+# This is a **policy** bound, not the Rust resource ceiling. The Rust
+# kernel clamps to its own hard ceiling (a guard against a pathological
+# loop count exhausting the process); this bound is what the runtime is
+# actually allowed to ask for. Keeping the two apart means the policy can
+# be tightened without touching the kernel's safety guard, and the kernel
+# can keep its guard without dictating the operational limit.
+CLOSED_LOOP_WORKER_DEFAULT = 16
+CLOSED_LOOP_WORKER_CEILING = 32
+
+# The operator override, read once at the bootstrap boundary. The runtime
+# never consults the environment again: it asks this module, and the
+# module answers from the value it resolved. That keeps the process
+# environment out of the data path.
+_MAX_WORKERS_ENV = "DEX_CLOSED_LOOP_MAX_WORKERS"
+
+# The resident-group overrides. They bound how many worker groups the
+# scanner may keep resident and how many it may submit per scan. Like the
+# worker cap, they are read once at the bootstrap boundary.
+_RESIDENT_GROUPS_ENV = "DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS"
+_NEW_GROUPS_PER_SCAN_ENV = "DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN"
+
+
+def _read_int_env(name: str) -> int | None:
+    """Read one optional integer override from the process environment."""
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return None
     try:
-        parsed = int(raw)
+        return int(str(raw).strip())
     except (TypeError, ValueError):
-        return 16
-    return max(1, min(32, parsed))
+        return None
+
+
+def max_workers_override() -> int | None:
+    """Return the operator's resident-worker override, if any."""
+    value = _read_int_env(_MAX_WORKERS_ENV)
+    if value is None:
+        return None
+    return max(1, min(CLOSED_LOOP_WORKER_CEILING, value))
+
+
+def resident_group_override() -> int | None:
+    """Return the operator's resident-group override, if any."""
+    value = _read_int_env(_RESIDENT_GROUPS_ENV)
+    if value is None:
+        return None
+    return max(1, min(CLOSED_LOOP_WORKER_CEILING, value))
+
+
+def new_groups_per_scan_override() -> int | None:
+    """Return the operator's per-scan submission override, if any."""
+    return _read_int_env(_NEW_GROUPS_PER_SCAN_ENV)
+
+
+def resolve_resident_group_limit(discovered_group_count: int) -> int:
+    """Resolve how many resident workers the chain may hold.
+
+    The count of discovered groups is the **primary** input, because it
+    is the number of loops the chain actually publishes. The operator's
+    override replaces it when it is set, and the resource ceiling bounds
+    both.
+    """
+    override = resident_group_override()
+    if override is not None:
+        return override
+    return max(1, min(CLOSED_LOOP_WORKER_CEILING, max(0, int(discovered_group_count))))
+
+
+def resolve_max_workers(value: str | int | None = None) -> int:
+    """Resolve the global worker cap.
+
+    The cap exists to bound the resources the runtime may hold. It is
+    **not** a count of loops: the number of loops a chain publishes is a
+    fact about the chain and changes with it, so the cap has to change
+    with it as well. A fixed cap silently starves a chain that publishes
+    more loops than the cap allows: the surplus loops never get a worker,
+    so they can never be reviewed, so they can never be broadcast.
+
+    The environment variable overrides the derived value for an operator
+    who needs to bound the runtime deliberately. An override that is not
+    a number is not a value, so it is ignored and the default applies.
+    """
+    if value is None:
+        override = max_workers_override()
+        if override is not None:
+            return override
+        return CLOSED_LOOP_WORKER_DEFAULT
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return CLOSED_LOOP_WORKER_DEFAULT
+    return max(1, min(CLOSED_LOOP_WORKER_CEILING, parsed))
 
 
 __all__ = [
@@ -2652,6 +2788,12 @@ __all__ = [
     "reclaim_expired_broadcast_claims",
     "reclaim_expired_review_claims",
     "reset_loop_for_new_cycle",
+    "CLOSED_LOOP_WORKER_CEILING",
+    "CLOSED_LOOP_WORKER_DEFAULT",
+    "max_workers_override",
+    "new_groups_per_scan_override",
+    "resident_group_override",
+    "resolve_resident_group_limit",
     "resolve_max_workers",
     "review_only_timeout_seconds",
     "scope_error_isolation_active",

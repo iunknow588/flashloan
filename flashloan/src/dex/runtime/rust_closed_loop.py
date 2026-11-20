@@ -1,4 +1,4 @@
-"""Rust execution component bridge for the closed-loop pipeline.
+﻿"""Rust execution component bridge for the closed-loop pipeline.
 
 Python only builds the per-YZ task config, submits it to the Rust pool, and
 reads ``status_json()``/results back. All on-chain preview, adaptive amount
@@ -335,6 +335,25 @@ def execution_workers_env() -> int:
         return default
 
 
+def resolve_closed_loop_max_workers() -> int:
+    """Resolve the number of resident Rust closed-loop workers.
+
+    The workers run in the Rust kernel; this value only tells the kernel
+    how many of them may be resident. It is a **resource** bound, not a
+    count of loops: the number of loops a chain publishes is a fact about
+    the chain and changes with it, so a fixed number would silently
+    starve a chain that publishes more loops than that number. The
+    surplus loops would never get a worker, so they could never be
+    reviewed and never be broadcast.
+
+    The environment variable overrides the derived value for an operator
+    who needs to bound the runtime deliberately.
+    """
+    from dex.runtime.closed_loop_state_machine import resolve_max_workers
+
+    return resolve_max_workers()
+
+
 def get_native_pool(
     max_workers: int | None = None,
     *,
@@ -374,25 +393,7 @@ def get_native_pool(
         pool = _POOLS_BY_DATABASE.get(requested_path)
         if pool is None:
             if max_workers is None:
-                try:
-                    max_workers = max(
-                        1,
-                        min(
-                            32,
-                            int(
-                                os.getenv(
-                                    "DEX_CLOSED_LOOP_MAX_WORKERS",
-                                    os.getenv(
-                                        "DEX_CLOSED_LOOP_WORKERS",
-                                        os.getenv("DEX_CLOSED_LOOP_MAX_CONCURRENCY", "16"),
-                                    ),
-                                )
-                                or "16"
-                            ),
-                        ),
-                    )
-                except (TypeError, ValueError):
-                    max_workers = 16
+                max_workers = resolve_closed_loop_max_workers()
             resolved_handler = maintenance_handler
             if resolved_handler is None:
                 from dex.runtime.robinhood_v4_idle_maintenance import run_idle_maintenance
@@ -406,10 +407,18 @@ def get_native_pool(
                 if execution_queue_enabled is None
                 else bool(execution_queue_enabled)
             )
-            import flashloan_rs
+            # Resolve the extension through the single canonical resolver.
+            # A second, direct ``import flashloan_rs`` here created a second
+            # lookup path that ignored the resolver and made the pool
+            # lifecycle depend on module import order.
+            module = _rust_runtime_module()
+            if module is None:
+                raise RuntimeError("flashloan_rs extension is unavailable")
 
-            pool = flashloan_rs.ClosedLoopWorkerPool(
-                max_workers=max(1, min(32, int(max_workers))),
+            from dex.runtime.closed_loop_state_machine import CLOSED_LOOP_WORKER_CEILING
+
+            pool = module.ClosedLoopWorkerPool(
+                max_workers=max(1, min(CLOSED_LOOP_WORKER_CEILING, int(max_workers))),
                 database_path=requested_path,
                 maintenance_handler=resolved_handler,
                 maintenance_interval_seconds=max(1, int(maintenance_interval_seconds)),
@@ -442,23 +451,9 @@ def _native_pool_get_or_create(
     module = _rust_runtime_module()
     if module is None or not hasattr(module, "native_pool_get_or_create"):
         return None
+    from dex.runtime.closed_loop_state_machine import CLOSED_LOOP_WORKER_CEILING
     if max_workers is None:
-        max_workers = max(
-            1,
-            min(
-                32,
-                int(
-                    os.getenv(
-                        "DEX_CLOSED_LOOP_MAX_WORKERS",
-                        os.getenv(
-                            "DEX_CLOSED_LOOP_WORKERS",
-                            os.getenv("DEX_CLOSED_LOOP_MAX_CONCURRENCY", "16"),
-                        ),
-                    )
-                    or "16"
-                ),
-            ),
-        )
+        max_workers = resolve_closed_loop_max_workers()
     resolved_handler = maintenance_handler
     if resolved_handler is None:
         from dex.runtime.robinhood_v4_idle_maintenance import run_idle_maintenance
@@ -477,7 +472,7 @@ def _native_pool_get_or_create(
         chain_id=int(chain_id) if chain_id is not None else None,
         network=str(network) if network else None,
         protocol=str(protocol or "uniswap_v4"),
-        max_workers=max(1, min(32, int(max_workers))),
+        max_workers=max(1, min(CLOSED_LOOP_WORKER_CEILING, int(max_workers))),
         maintenance_handler=resolved_handler,
         maintenance_interval_seconds=max(1, int(maintenance_interval_seconds)),
         binance_interval_seconds=max(60, int(binance_interval_seconds)),
@@ -863,6 +858,12 @@ def _hex_or_int(value: Any) -> int | None:
         return None
 
 
+def _is_zero_raw(value: Any) -> bool:
+    """Return whether a raw amount is an explicit zero."""
+    parsed = _hex_or_int(value)
+    return parsed == 0
+
+
 def _human_native_amount(chain_id: int, borrow_address: str, raw_value: Any) -> float | None:
     raw = _hex_or_int(raw_value)
     if raw is None:
@@ -1069,15 +1070,16 @@ def _signed_native_profit_value(
     return one.  A NoProfitableRoute run also produces
     ``arbitrageNotProfitable.profitDeltaRaw`` from
     ``ArbitrageNotProfitable(received, required)``, which is the concrete
-    borrow-token loss for that amount.  Unsigned zero placeholders are not
-    treated as proof of a zero/negative value and are skipped here.
+    borrow-token loss for that amount.  A **present** zero is a real
+    measurement: the kernel proved that the best amount is zero, therefore
+    the profit is zero as well, and zero is greater than every negative
+    result.  Only an absent or empty field means "no value".
     """
-    zero_raw = {"", "0", "0x0", "0x00"}
     for item in result.get("attempts") or []:
         if not isinstance(item, dict):
             continue
         raw = item.get("profitRaw")
-        if raw is None or str(raw).strip().lower() in zero_raw:
+        if raw is None or str(raw).strip() == "":
             continue
         value = _human_native_amount(chain_id, borrow_address or "", raw)
         if value is not None:
@@ -1091,14 +1093,24 @@ def _signed_native_profit_value(
         if value is not None:
             return value
         raw = route.get("selectedProfitRaw")
-        if raw is None or str(raw).strip().lower() in zero_raw:
+        if raw is None or str(raw).strip() == "":
             continue
         value = _human_native_amount(chain_id, borrow_address or "", raw)
         if value is not None:
             return value
-    for key in ("selectedProfitRaw", "profitRaw", "reportedNetProfitRaw"):
+    # The top-level fields are read **after** the nested evidence, because a
+    # zero in ``selectedProfitRaw`` is frequently only a placeholder that
+    # says "no profitable size was selected"; the concrete signed number
+    # then lives in the nested arbitrage evidence or in the rate-delta
+    # estimate. A zero is accepted only when no more specific source exists
+    # at all.
+    for key in ("reportedNetProfitRaw", "selectedProfitRaw", "profitRaw"):
         raw = result.get(key)
-        if raw is None or str(raw).strip().lower() in zero_raw:
+        if raw is None or str(raw).strip() == "":
+            continue
+        if _is_zero_raw(raw):
+            # A zero placeholder is only a measurement when nothing more
+            # specific exists. Keep looking and fall back to it at the end.
             continue
         value = _human_native_amount(chain_id, borrow_address or "", raw)
         if value is not None:
@@ -1113,7 +1125,7 @@ def _signed_native_profit_value(
         or run_arbitrage.get("profit")
         or run_arbitrage.get("profitRaw")
     )
-    if raw is None or str(raw).strip().lower() in zero_raw:
+    if raw is None or str(raw).strip() == "":
         detailed = result.get("poolPreviewDetailed") if isinstance(result.get("poolPreviewDetailed"), dict) else {}
         for container in (detailed, result):
             arbitrage = container.get("arbitrageNotProfitable") if isinstance(
@@ -1123,14 +1135,39 @@ def _signed_native_profit_value(
                 arbitrage.get("profitDeltaRaw")
                 or arbitrage.get("profitDelta")
             )
-            if nested_raw is None or str(nested_raw).strip().lower() in zero_raw:
+            if nested_raw is None or str(nested_raw).strip() == "":
                 continue
             value = _human_native_amount(chain_id, borrow_address or "", nested_raw)
             if value is not None:
                 return value
+        # Nothing more specific was found. A zero that the kernel published
+        # **as a measurement** is a valid result: the best amount is zero,
+        # therefore the profit is zero as well, and zero is greater than
+        # every loss. A zero that is only a placeholder is not: the kernel
+        # marks a measured zero with ``bestAmountMeasured``.
+        if bool(result.get("bestAmountMeasured")):
+            for key in ("reportedNetProfitRaw", "selectedProfitRaw", "profitRaw"):
+                top_raw = result.get(key)
+                if top_raw is None or str(top_raw).strip() == "":
+                    continue
+                value = _human_native_amount(chain_id, borrow_address or "", top_raw)
+                if value is not None:
+                    return value
         return None
     value = _human_native_amount(chain_id, borrow_address or "", raw)
-    return value
+    if value is not None:
+        return value
+    # Nothing more specific was found. A zero that the kernel published is
+    # still a valid measurement: the best amount is zero, therefore the
+    # profit is zero as well, and zero is greater than every loss.
+    for key in ("reportedNetProfitRaw", "selectedProfitRaw", "profitRaw"):
+        raw = result.get(key)
+        if raw is None or str(raw).strip() == "":
+            continue
+        value = _human_native_amount(chain_id, borrow_address or "", raw)
+        if value is not None:
+            return value
+    return None
 
 
 def _native_rate_product_delta(result: dict[str, Any]) -> float | None:
@@ -1167,13 +1204,25 @@ def _native_run_arbitrage_info(result: dict[str, Any]) -> dict[str, Any]:
     revert_selector = str(run.get("revertSelector") or "").strip()
     if not revert_selector and revert_data.lower().startswith("0x") and len(revert_data) >= 10:
         revert_selector = revert_data[:10].lower()
-    return {
+    info = {
         "ok": bool(run.get("ok")),
         "error": error,
         "rawError": raw_error,
         "revertData": revert_data,
         "revertSelector": revert_selector,
     }
+    # The signed profit of the reviewed size is a **kernel conclusion**. The
+    # kernel measured it, decoded it and published it; Python only carries it
+    # through to the review, because the Review Manager reads it from inside
+    # the ``runArbitrage`` object.
+    #
+    # The value is consumed, never derived here: a Python-side derivation
+    # could disagree with the numbers the contract produced, and the review
+    # would then publish a profit that was never measured.
+    signed_pnl = run.get("signedPnl")
+    if isinstance(signed_pnl, dict):
+        info["signedPnl"] = signed_pnl
+    return info
 
 
 def _native_run_arbitrage_executable(result: dict[str, Any]) -> bool:
@@ -2542,6 +2591,15 @@ def build_native_worker_attempt(
         "symbolPair": str(route.get("symbolPair") or " -> ".join(route_symbols)),
         "quoteAnalysis": enriched_analysis,
     }
+    # The closed-loop identity is **published by the closed-loop Manager**
+    # and reaches the runtime through the kernel payload. It travels with
+    # the attempt so that every consumer of a stored attempt (the runtime
+    # object, the monitor and the healer) can correlate the attempt with
+    # the loop the Manager named, instead of rebuilding that identity from
+    # the route addresses (MIO-7 / AC-214).
+    published_loop_key = str(evidence.get("loopKey") or "").strip()
+    if published_loop_key:
+        enriched_route["loopKey"] = published_loop_key
     from dex.runtime.dex_opportunity_helpers import (
         _apply_onchain_evidence_to_attempt,
         _route_attempt,
@@ -2666,6 +2724,8 @@ def build_native_worker_attempt(
             "selectedProfitMissingReason": selected_profit_missing_reason,
         }
     )
+    if published_loop_key:
+        attempt["loopKey"] = published_loop_key
     if attempt.get("precheck") is not None and isinstance(attempt["precheck"], dict):
         attempt["precheck"]["best_amount_calculation"] = best_amount_calculation
         attempt["precheck"]["probe_records"] = probe_rows
@@ -3418,78 +3478,6 @@ def _normalize_route_pool_key_group(
     return normalized
 
 
-def _capacity_informed_ladder_start(
-    *,
-    cap_raw: int | None,
-    borrow_decimals: int,
-    min_probe_amount_raw: int,
-    required_amount_raw: int | None = None,
-) -> tuple[int, str]:
-    """Return the probe-ladder start amount and the basis it was derived from.
-
-    D4-a: the ladder must start where the pool can actually trade.
-
-    The ladder used to start at exactly 1.0 borrow token, which is larger than
-    the median candidate-pool capacity by roughly four orders of magnitude.
-    Because the Rust ladder only searched downward when that first probe
-    reverted, no size above the start could ever be reached, so a profitable
-    position was mathematically unreachable. The start is therefore derived
-    from the measured capacity of the tightest hop.
-
-    D4-d: the economic floor participates in the same clamp. A position that
-    cannot cover Gas is never worth probing, so the start is never placed
-    below the amount the gas gate requires.
-
-    The clamp is::
-
-        start = clamp(cap * LADDER_START_CAPACITY_FRACTION, required, cap)
-
-    and it is additionally clamped into the probe window, so the start is
-    never below ``min_probe_amount_raw`` and never above the measured
-    capacity itself.
-
-    Every quantity is in the borrow token's own raw units. No USD quote
-    participates in this decision.
-    """
-    try:
-        fraction = float(os.getenv("DEX_V4_LADDER_START_CAPACITY_FRACTION", "0.5") or 0.5)
-    except (TypeError, ValueError):
-        fraction = 0.5
-    fraction = max(0.01, min(1.0, fraction))
-
-    decimals = max(0, int(borrow_decimals))
-    one_token = max(1, int(Decimal(10) ** decimals))
-    min_probe = max(1, int(min_probe_amount_raw or 1))
-
-    capacity = int(cap_raw or 0)
-    if capacity <= 0:
-        # No measured capacity: keep the historical 1.0 token start so the
-        # behaviour stays identical for unmeasured pools, and say so.
-        return one_token, "fallback_one_token_unmeasured_capacity"
-
-    floor = max(0, int(required_amount_raw or 0))
-    if floor > capacity:
-        # The pool cannot carry a position that covers Gas. The route is
-        # rejected by the economic floor; the ladder start is still returned
-        # so the config stays well formed, but it is clamped to the capacity.
-        floor = capacity
-
-    start = int(capacity * fraction)
-    if start < floor:
-        start = floor
-    if start > capacity:
-        start = capacity
-    if start < min_probe:
-        start = min_probe
-    if start > capacity:
-        # The capacity is below the smallest probe size. The route cannot be
-        # probed meaningfully; the economic floor is the effective decision.
-        start = capacity
-
-    return max(1, start), "capacity_fraction_%.2f" % fraction
-
-
-
 def _route_capacity_gate(
     route: dict[str, Any],
     input_symbol: str,
@@ -3517,31 +3505,6 @@ def _route_capacity_gate(
             "capacityRaw": None,
             "requiredRaw": None,
         }
-
-
-def _folded_single_tick_capacity_raw(route: dict[str, Any]) -> int | None:
-    """Read the folded single-tick capacity that the Manager published.
-
-    The closed-loop Manager folds the capacity of every hop into the anchor
-    token and publishes the smallest folded capacity on the loop row. That
-    value is the ``M_cap`` of the single-tick design: the only number that
-    may bound the input amount of the route.
-
-    ``None`` means the Manager has not published a capacity for this route.
-    The absence is a coverage gap of the pool index, not proof that the
-    route fits, so the caller decides whether the route may proceed with a
-    weaker bound.
-    """
-    raw = route.get("singleTickCapacityAnchorRaw")
-    if raw is None:
-        return None
-    if isinstance(raw, bool):
-        return None
-    try:
-        value = int(str(raw).strip())
-    except (TypeError, ValueError):
-        return None
-    return value if value > 0 else None
 
 
 def _route_task_config(
@@ -3794,8 +3757,6 @@ def _route_task_config(
         1,
         int(Decimal("0.001") * (Decimal(10) ** int(borrow_decimals))),
     )
-    from dex.runtime.dex_opportunity_helpers import _liquidity_cap_raw, _pool_map
-
     # The authoritative bound on the input amount is the **folded
     # single-tick capacity** that the Rust closed-loop Manager published for
     # this route. It is the smallest of the three hop capacities after
@@ -3805,54 +3766,26 @@ def _route_task_config(
     # The generic pool-depth share that the runtime used before is **not** a
     # single-tick bound: it is denominated in the pool's own depth rather
     # than in the tick range, and it can be larger than the tick range
-    # allows. Using it as `maxProbeAmountRaw` would let the ladder probe
-    # past the boundary the version forbids, so it is only a fallback for a
-    # route that does not come from the Manager.
-    folded_capacity_raw = _folded_single_tick_capacity_raw(route)
-    pool_map = _pool_map(route)
-    depth_cap_raw, _cap_basis = _liquidity_cap_raw(
-        pool_map, route_symbols[0], int(borrow_decimals)
-    )
-    if folded_capacity_raw is not None and folded_capacity_raw > 0:
-        cap_raw = folded_capacity_raw
-        cap_basis = "folded_single_tick_capacity_anchor"
-    else:
-        cap_raw = depth_cap_raw
-        cap_basis = _cap_basis or "depth_capacity_fallback"
-    if cap_raw is None or cap_raw <= 0:
-        cap_raw = max(1, int(Decimal(10) ** int(borrow_decimals))) * 64
-        cap_basis = "unmeasured_capacity_fallback"
-
-    # D4-e: an economically infeasible route is reported as such and never
-    # reaches the probe ladder. The pools stay in the candidate set for human
-    # observation; only the execution path is closed.
-    if required_amount_raw > 0 and cap_raw > 0 and cap_raw < required_amount_raw:
-        economic_gate = {
-            "verdict": "dust_unprofitable",
-            "blocked": True,
-            "reason": "capacity_cannot_cover_gas",
-            "measured": True,
-            "capacityRaw": cap_raw,
-            "requiredRaw": required_amount_raw,
-            "basis": "token_denominated_economic_floor",
-        }
-    else:
-        economic_gate = None
-
-    # D4-a: the ladder start is derived from the measured capacity of the
-    # tightest hop instead of a hardcoded 1.0 borrow token.
+    # allows. A depth capacity therefore must **never** bound a single-tick
+    # probe: probing past the tick boundary triggers the price cliff, the
+    # contract catches the revert and returns a bare `NoProfitableRoute()`
+    # without any numbers, so the review loses its measured profit and the
+    # route is reported as `data_incomplete` instead of as a measured loss.
     #
-    # The previous fixed start (exactly 1.0 token) was larger than the median
-    # candidate-pool capacity by roughly four orders of magnitude, and the
-    # Rust ladder only searched DOWNWARD when that first probe reverted. A
-    # profitable size above the start was therefore unreachable. The start is
-    # now a fraction of the measured capacity, clamped into the probe window.
-    initial_amount_raw, ladder_start_basis = _capacity_informed_ladder_start(
-        cap_raw=cap_raw,
-        borrow_decimals=int(borrow_decimals),
-        min_probe_amount_raw=min_probe_amount_raw,
-        required_amount_raw=required_amount_raw,
-    )
+    # A route without a published folded capacity is therefore **blocked**,
+    # not approximated. The Rust ladder already owns that decision: it
+    # reports `single_tick_capacity_unavailable` with
+    # `repairTarget: closed_loop_manager`, which is the tool that can
+    # actually publish the missing capacity.
+    # The Python runtime is a **pure consumer**. It does not read the
+    # Manager, does not reconstruct the folded single-tick capacity and
+    # does not derive the ladder start. The Rust kernel calls the Manager
+    # through the closed-loop catalog, injects the published capacity into
+    # this task config and derives the single-tick start from it.
+    #
+    # Only the environment description (symbols, addresses, pool keys,
+    # directions, fee-related gates) is produced here. Every trading number
+    # belongs to the kernel.
 
     try:
         max_probe_attempts = max(4, min(64, int(os.getenv("DEX_V4_MANUAL_REVIEW_PROBE_ATTEMPTS", "24") or 24)))
@@ -3869,15 +3802,8 @@ def _route_task_config(
         "bridgeDirections": [bool(item) for item in bridge_directions],
         "exitKeys": exit_keys,
         "exitDirections": [bool(item) for item in exit_directions],
-        "initialAmountRaw": str(initial_amount_raw),
         "minProfitRaw": "1",
         "minProbeAmountRaw": str(min_probe_amount_raw),
-        "maxProbeAmountRaw": str(cap_raw),
-        "singleTickCapacityRaw": str(cap_raw),
-        "singleTickCapacityBasis": cap_basis,
-        "singleTickCapacityBindingPoolId": route.get(
-            "singleTickCapacityBindingPoolId"
-        ),
         "maxProbeAttempts": max_probe_attempts,
         "searchMode": _search_mode(),
         "offchainGasGate": gas_gate,
@@ -3886,12 +3812,10 @@ def _route_task_config(
         # intended position inside the epsilon price-impact budget. The
         # verdict is token denominated and never depends on a USD quote.
         "capacityGate": _route_capacity_gate(route, route_symbols[0]),
-        # D4-e: the token-denominated economic floor. When it reports a block,
-        # the route can never cover Gas at any size the pool can carry, so the
-        # review and broadcast paths refuse it before probing.
-        "economicFloorGate": economic_gate,
-        # D4-a: how the ladder start was derived, for auditability.
-        "ladderStartBasis": ladder_start_basis,
+        # The token-denominated economic floor travels with the task config so
+        # the kernel can refuse a route that can never cover Gas. The kernel
+        # compares that floor with the capacity it received from the Manager.
+        "economicFloorRequiredAmountRaw": str(required_amount_raw),
     }
 
 

@@ -53,6 +53,60 @@ NON_SECRET_HEX_FIXTURES = (
 )
 STOCK_REGISTRY_ID_SUFFIX = "flashloan/chains/robinhood/robinhood_stock_tokens.json"
 
+# Public chain identifiers that are 32 bytes wide and therefore match the
+# private-key literal pattern without being key material:
+#
+# * a Uniswap V4 pool id is the keccak of the pool key,
+# * a transaction hash is the keccak of a signed transaction,
+# * ``0x7fff...ff`` is the max-uint256 sentinel used by the amount ladder.
+#
+# The guard has to recognise them by the field that carries them, otherwise
+# every recorded runtime evidence report would look like a leaked key.
+PUBLIC_IDENTIFIER_FIELDS = (
+    "poolId",
+    "pool_id",
+    "txHash",
+    "tx_hash",
+    "transactionHash",
+    "transaction_hash",
+    "lastReplenishTx",
+    "lastMakeArbTx",
+    "anomalyId",
+    "arbBytecode",
+    "composerCode",
+)
+MAX_UINT256_HEX = "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+
+def _sanitize_public_chain_identifiers(text: str) -> str:
+    """Blank the public 32-byte identifiers a record carries by field name."""
+    for field in PUBLIC_IDENTIFIER_FIELDS:
+        text = re.sub(
+            r'("' + re.escape(field) + r'"\s*:\s*")0x[a-fA-F0-9]{64}',
+            r"\g<1>0x" + "n" * 64,
+            text,
+        )
+    return re.sub(
+        re.escape(MAX_UINT256_HEX),
+        "0x" + "n" * 64,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _sanitize_markdown_transaction_hashes(text: str) -> str:
+    """Blank a transaction hash that a markdown report names in prose.
+
+    The recorded reports describe a transaction as ``txHash : 0x...``. The
+    hash is public chain data, not key material, so the prose form has to
+    be recognised as well.
+    """
+    return re.sub(
+        r"(?i)(txHash\s*[:=]\s*)0x[a-fA-F0-9]{64}",
+        r"\g<1>0x" + "n" * 64,
+        text,
+    )
+
 
 def _tracked_files() -> list[Path]:
     result = subprocess.run(
@@ -113,6 +167,8 @@ def test_tracked_source_does_not_contain_private_key_literals():
             continue
         sanitized = text
         sanitized = _sanitize_public_registry_ids(sanitized, path)
+        sanitized = _sanitize_public_chain_identifiers(sanitized)
+        sanitized = _sanitize_markdown_transaction_hashes(sanitized)
         for fixture in NON_SECRET_HEX_FIXTURES:
             sanitized = re.sub(re.escape(fixture), "0x" + "n" * 64, sanitized, flags=re.IGNORECASE)
         for pattern in SECRET_PATTERNS:

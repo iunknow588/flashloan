@@ -5,7 +5,7 @@
 //!
 //! ARCH-4 wants the local memory pool to replace the chain-side preview.
 //! That replacement is only safe if the two are **provably equivalent**, and
-//! the proof is made in three stages (see `开发计划_20261113.md` §12):
+//! the proof is made in three stages (see `plan/开发计划_20261120.md` §3):
 //!
 //! * **stage A** - run both and compare, one quote at a time;
 //! * **stage B** - the memory pool becomes the primary source and the chain

@@ -617,6 +617,7 @@ fn initialized_ticks_in_word(
 #[derive(Clone, Copy, Debug)]
 enum TickSlotKind {
     Bitmap,
+    #[allow(dead_code)]
     Info,
 }
 
