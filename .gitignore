@@ -173,6 +173,8 @@ plan/back/**/*.sqlite3-shm
 .tmp_pytest_base/
 trash_pytest_*/
 flashloan/.pytest_tmp/
+.pytest_tmp/
+pt_run_*/
 
 # 运行时归档与大体积观测流：超过 GitHub 单文件 100MB 硬限制，不得提交
 plan/runtime_evidence/archives/

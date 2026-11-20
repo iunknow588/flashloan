@@ -50,7 +50,11 @@ pub struct ClosedLoopCatalog {
 
 impl ClosedLoopCatalog {
     /// Resolve the exact ordered three-address identity published by Manager.
-    /// A route may carry that path closed with its anchor; rotations never match.
+    ///
+    /// The closed-loop key is the funding anchor plus the directed pool
+    /// path.  A route may carry that path closed with its anchor; a path
+    /// that starts at an intermediate token names a different closed loop
+    /// and resolves to nothing here.
     pub fn identity_for(&self, addresses: &[String]) -> Option<&ClosedLoopIdentity> {
         let identity_path = match addresses {
             [_, _, _] => addresses,

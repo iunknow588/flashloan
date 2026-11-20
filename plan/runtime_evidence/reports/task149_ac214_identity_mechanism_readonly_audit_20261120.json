@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-11-20T06:25:03.694627+00:00",
+  "mode": "readonly-identity-and-review-audit",
+  "policy": "read-only audit of the mainnet store; no writes, no apply, no broadcast; no rotation probe because the system has no rotation behaviour",
+  "network": "robinhood",
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "databaseAccess": "mode=ro (read-only URI)",
+  "task": "TASK-149 / AC-214 (mechanism) and TASK-148 / AC-213 (attribution)",
+  "closedLoopIdentity": {
+    "managerLoopCount": 164,
+    "catalogEntriesByOrderedAddressPath": 164,
+    "conflictingRowsDropped": 0,
+    "selfLookupHit": 164,
+    "selfLookupKeyMismatch": 0,
+    "selfLookupMiss": 0,
+    "publishedCapacityNull": 0,
+    "publishedCapacityZero": 0,
+    "publishedCapacityPositive": 164,
+    "verdict": "exact ordered-address-path match holds for every published loop; the closed-loop key is the funding anchor plus the directed pool path and no rotation lookup exists",
+    "identityModel": "funding anchor + directed pool path (exact ordered match)",
+    "rotationCapabilityPresent": false,
+    "rotationProbePerformed": false,
+    "rotationProbeRationale": "No rotation probe is run: the system has no rotation lookup, so there is no observable rotation behaviour to measure. A 'rotated path must not hit' check is a false premise and is deliberately absent."
+  },
+  "reviewAttribution": {
+    "runtimeStateDistinctKeys": 66,
+    "runtimeStateKeysPresentInManagerCatalog": 64,
+    "orphanRuntimeStateRows": [
+      {
+        "stateKey": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+        "verdict": "no Manager identity for this ordered path; diagnosed as an exact-key orphan and not associated with any closed loop"
+      },
+      {
+        "stateKey": "0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+        "verdict": "no Manager identity for this ordered path; diagnosed as an exact-key orphan and not associated with any closed loop"
+      }
+    ],
+    "managerReviewDistinctKeys": 44,
+    "managerReviewKeysInsideManagerLoopKeySpace": 44,
+    "legacyReviewTotal": 24412,
+    "legacyReviewMissingAmount": 13359,
+    "managerReviewTotal": 44,
+    "managerReviewMissingAmount": 0,
+    "missingReasonCounts": {
+      "single_tick_capacity_unavailable": 11536,
+      "preview_pool_initialAmountRaw_is_required": 1180,
+      "eth_call_rpc_failure": 449
+    },
+    "latestLegacyReviewAt": "2026-11-19T13:10:55.720488300+00:00",
+    "latestManagerReviewAt": "2026-11-19T07:48:14.614359700+00:00",
+    "freshnessWindowSeconds": 600,
+    "verdict": "capacity-unavailable dominates the missing-value population while every published capacity is positive; the gap sits between the Manager publication and the review input",
+    "orphanClassification": "exact-key orphan (ordered path has no Manager entry)"
+  },
+  "notVerified": [
+    "runtime review re-run (three-way split: identity mismatch / capacity unavailable / normal completion)",
+    "current freshness (the newest stored review is well past the 600s window)",
+    "testnet homologation (AC-211)",
+    "real broadcast and stability windows (AC-144 / AC-141)"
+  ]
+}

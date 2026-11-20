@@ -34,10 +34,11 @@ from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 
 # The closed-loop identity is published by the closed-loop Manager and
 # reaches the runtime through the kernel result. The healer therefore only
-# **consumes** it: it never rotates a token path, never re-anchors a cycle
-# and never assembles a loop key out of the route addresses. A review that
-# carries no published identity stays unassociated and is reported as such
-# instead of being filed under a guess (MIO-7 / TASK-149 / AC-214).
+# **consumes** it: the closed-loop key is the funding anchor plus the
+# directed pool path, and the healer never re-anchors a cycle or assembles
+# a loop key out of the route addresses. A review that carries no published
+# identity stays unassociated and is reported as such instead of being
+# filed under a guess (MIO-7 / TASK-149 / AC-214).
 from dex.runtime.closed_loop_identity import resolve_registered_group_key
 
 # DEP-4.2: the healer and the Rust pool manager have to admit a pool on the
@@ -3252,7 +3253,7 @@ def collect_completed_review(
     loop_key = str(candidate.get("loopKey") or "").strip()
     if not loop_key:
         return None
-    rotations = {loop_key}
+    loop_keys = {loop_key}
     started = time.monotonic()
     for attempt in range(max(1, attempts)):
         rows = all_rows(
@@ -3265,7 +3266,7 @@ def collect_completed_review(
             (NETWORK, CHAIN_ID),
         )
         for row in rows:
-            if not review_row_matches_rotations(row, rotations):
+            if not review_row_matches_loop_keys(row, loop_keys):
                 continue
             if not _review_row_has_concrete_pnl(row):
                 continue
@@ -3287,7 +3288,7 @@ def collect_completed_review(
     return None
 
 
-def review_row_matches_rotations(row: dict[str, Any], rotations: set[str]) -> bool:
+def review_row_matches_loop_keys(row: dict[str, Any], loop_keys: set[str]) -> bool:
     """Return whether the review was filed under one of the given keys.
 
     The key is read from the **single published** field name ``loopKey``,
@@ -3296,13 +3297,17 @@ def review_row_matches_rotations(row: dict[str, Any], rotations: set[str]) -> bo
     (``loopKey``) exactly once, so the healer consumes one name instead of
     guessing between several (MIO-7 / AC-214).
 
+    The closed-loop key is the funding anchor plus the directed pool path.
+    The match is exact: a review that carries the key of a different
+    starting point names a different closed loop and is not accepted here.
+
     A review that carries no published identity is **not** associated with
     any loop: it is reported as unmatched rather than being matched by a
     fallback key name.
     """
     for payload in review_payloads(row):
         value = str(payload.get("loopKey") or "").strip()
-        if value and value in rotations:
+        if value and value in loop_keys:
             return True
     return False
 
@@ -3401,8 +3406,8 @@ def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
     # The legacy review library still holds the kernel's measured best trade
     # amount, because the amount ladder is published by the kernel next to
     # the probe records.  A Manager row that lost the block on the way in
-    # is restored from here, matched by the directed cycle identity so a
-    # rotation never borrows another rotation's measurement.
+    # is restored from here, matched by the exact published closed-loop key
+    # so a measurement never crosses into another closed loop.
     measured = legacy_best_amount_by_cycle(db)
     evidence: list[dict[str, Any]] = []
     for row in rows:
@@ -3427,8 +3432,8 @@ def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
         # one.
         calculation = kernel_best_amount_calculation([preview, normalized_run])
         if not calculation:
-            cycle = str(row.get("loop_key") or "").strip()
-            calculation = measured.get(cycle, {})
+            loop_key = str(row.get("loop_key") or "").strip()
+            calculation = measured.get(loop_key, {})
         if calculation and not isinstance(preview.get("bestAmountCalculation"), dict):
             preview["bestAmountCalculation"] = calculation
         evidence.append({
@@ -3446,9 +3451,9 @@ def legacy_best_amount_by_cycle(db: Path) -> dict[str, dict[str, Any]]:
 
     The legacy review library keeps the whole kernel review payload, so it
     still holds the best-trade-amount block that the Manager rows lost.  The
-    block is indexed by the **directed cycle identity**, because the worker
-    reviews a cycle from whichever token it starts at: a rotation is the
-    same cycle and must not borrow the measurement of another cycle.
+    block is indexed by the **exact published closed-loop key**: the
+    funding anchor plus the directed pool path.  A measurement belongs to
+    the closed loop it names and to no other.
     """
     rows = all_rows(
         db,
@@ -3466,25 +3471,25 @@ def legacy_best_amount_by_cycle(db: Path) -> dict[str, dict[str, Any]]:
         if not calculation.get("bestAmountMeasured") and \
                 not calculation.get("bestAmountConfirmed"):
             continue
-        cycle = None
+        loop_key = None
         for candidate in (payload, summary):
             if not isinstance(candidate, dict):
                 continue
             value = str(candidate.get("loopKey") or "").strip()
             if value:
-                cycle = value
+                loop_key = value
                 break
-            if cycle:
+            if loop_key:
                 break
-        if not cycle:
+        if not loop_key:
             # A legacy row that carries only the route it measured has no
             # published closed-loop identity. The addresses are never
             # joined into a key here: that would invent an identity the
             # Manager never published and could name the wrong loop.
             # Such a row simply contributes no measured amount.
             continue
-        # The newest measurement of a cycle wins.
-        measured.setdefault(cycle, calculation)
+        # The newest measurement of a closed loop wins.
+        measured.setdefault(loop_key, calculation)
     return measured
 
 
@@ -3574,12 +3579,12 @@ def materialize_reviews(
     # than being filed under a guess.
     prepared: list[dict[str, Any]] = []
     dropped_without_identity = 0
-    # One directed cycle is measured once, and every rotation of it is the
-    # same cycle. The Review Manager files a review per loop and rejects a
-    # second evidence block for the same cycle, so the evidence has to be
-    # deduplicated by its cycle identity before it is submitted.
-    seen_cycles: set[str] = set()
-    duplicate_cycles = 0
+    # One closed loop is measured once.  The Review Manager files a review
+    # per loop and rejects a second evidence block for the same loop, so the
+    # evidence has to be deduplicated by its published key before it is
+    # submitted.
+    seen_loops: set[str] = set()
+    duplicate_loops = 0
     for item in evidence:
         if not isinstance(item, dict):
             continue
@@ -3587,18 +3592,18 @@ def materialize_reviews(
         if not str(enriched.get("loopKey") or "").strip():
             dropped_without_identity += 1
             continue
-        cycle = str(enriched["loopKey"]).strip()
-        if cycle in seen_cycles:
-            duplicate_cycles += 1
+        loop_key = str(enriched["loopKey"]).strip()
+        if loop_key in seen_loops:
+            duplicate_loops += 1
             continue
-        seen_cycles.add(cycle)
+        seen_loops.add(loop_key)
         prepared.append(enriched)
     evidence = prepared
     if not evidence:
         return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
                 "dryRun": not apply, "evidenceCount": 0, "materializedCount": 0,
                 "droppedWithoutLoopIdentity": dropped_without_identity,
-                "duplicateCycles": duplicate_cycles,
+                "duplicateLoops": duplicate_loops,
                 "results": [],
                 "policy": "no evidence carries a closed-loop identity"}
     # The Review Manager replaces the **whole** review set of the scope with
@@ -3617,7 +3622,7 @@ def materialize_reviews(
             "dryRun": not apply, "evidenceCount": len(merged),
             "submittedEvidenceCount": len(evidence),
             "droppedWithoutLoopIdentity": dropped_without_identity,
-            "duplicateCycles": duplicate_cycles,
+            "duplicateLoops": duplicate_loops,
             "expectedUpstream": expected or None,
             "managerReviewRows": materialized,
             "response": response,
@@ -3629,9 +3634,11 @@ def registered_closed_loop_group_keys(runtime_api: str) -> list[str]:
 
     The worker pool keys its state machine by the exact string the worker
     was registered with, and the scanner registers a worker under the route
-    order it discovered. The closed-loop library files every loop
-    ETH-anchored, so the registered key is usually a *rotation* of the
-    loop's published path.
+    order it discovered.  The closed-loop key is the funding anchor plus
+    the directed pool path, so the registered key is the exact ordered
+    path of the loop the worker serves; a route that starts at an
+    intermediate token belongs to a different closed loop and resolves to
+    a different worker (or to none).
     """
     status = api_get(runtime_api, "/api/dex/overview", timeout=20)
     if not status.get("ok"):
@@ -4638,29 +4645,26 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
                 latest_by_loop[key] = row
         selected_rows = list(latest_by_loop.items())
         evidence = [review_evidence(row, key) for key, row in selected_rows]
-        # One directed cycle is measured once, and every rotation of it is
-        # the same cycle. The Review Manager files a review per **loop** and
-        # rejects a second evidence block for the same cycle, so the evidence
-        # has to be deduplicated by its cycle identity.
+        # One closed loop is measured once.  The Review Manager files a
+        # review per **loop** and rejects a second evidence block for the
+        # same loop, so the evidence has to be deduplicated by its
+        # published key.
         #
-        # The collapse used to be keyed by the raw loop key, which never
-        # collapses anything: the three rotations of a cycle have three
-        # different raw keys, so all three were submitted and the Manager
-        # answered ``review evidence contains duplicate loop``. The row that
-        # is kept is the **canonical** rotation, because the Manager
-        # publishes every loop under one canonical key and a rotation is
-        # filed against the loop it belongs to.
-        canonical_evidence: list[dict[str, Any]] = []
-        seen_cycles: set[str] = set()
-        duplicate_cycles = 0
+        # The dedup key is the exact published closed-loop key: the funding
+        # anchor plus the directed pool path.  Two different closed loops
+        # have two different keys, and neither of them borrows the
+        # measurement of the other.
+        deduped_evidence: list[dict[str, Any]] = []
+        seen_loops: set[str] = set()
+        duplicate_loops = 0
         for item in evidence:
             loop_key = str(item.get("loopKey") or "").strip()
-            if loop_key in seen_cycles:
-                duplicate_cycles += 1
+            if loop_key in seen_loops:
+                duplicate_loops += 1
                 continue
-            seen_cycles.add(loop_key)
-            canonical_evidence.append(item)
-        evidence = canonical_evidence
+            seen_loops.add(loop_key)
+            deduped_evidence.append(item)
+        evidence = deduped_evidence
         expected_upstream = review_expected_upstream(db)
         body = {"chainId": CHAIN_ID, "evidence": evidence, "dryRun": dry_run}
         if expected_upstream:
@@ -4668,7 +4672,7 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
         results.append({"layer": "reviews", "tool": "review-manager-api", "mapped": len(evidence),
             "staleOrUnmatchedSkipped": len(rows) - len(matched_rows),
             "duplicateLoopReviewsCollapsed": len(matched_rows) - len(selected_rows),
-            "duplicateCyclesCollapsed": duplicate_cycles,
+            "duplicateLoopsCollapsed": duplicate_loops,
             "missingPnl": sum(item["runArbitrage"]["signedPnl"] is None for item in evidence),
             "expectedUpstream": expected_upstream or None,
             "result": api_post(manager_api, "/v1/reviews/run", body)})

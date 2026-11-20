@@ -122,8 +122,40 @@ FORBIDDEN_ROTATION_CALLS = frozenset(
         "canonical_directed_cycle_key",
         "directed_cycle_rotations",
         "directed_cycle_keys_match",
+        "directed_cycle_identity",
     }
 )
+
+# The runtime state table used to own a private rotation namespace.  It is
+# removed: a closed loop is the funding anchor plus the directed pool path,
+# so no layer may expand a key into its rotations or canonicalize it.
+FORBIDDEN_ROTATION_ALIASES = frozenset(
+    {
+        "_state_row_alias_rotations",
+        "_state_row_alias_canonical",
+    }
+)
+
+
+def _rotation_merge_call_sites(path: Path) -> list[str]:
+    """Return every AST site that merges a key with its rotations."""
+    tree = _parsed(path)
+    if tree is None:
+        return []
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            name = func.id
+        elif isinstance(func, ast.Attribute):
+            name = func.attr
+        else:
+            continue
+        if name in FORBIDDEN_ROTATION_ALIASES:
+            sites.append(f"{path}:{node.lineno}: call to {name}()")
+    return sites
 
 
 def _forbidden_rotation_call_sites(path: Path) -> list[str]:
@@ -698,14 +730,19 @@ def test_the_prune_respects_the_chain_boundary() -> None:
 
 
 def test_no_python_layer_calls_the_rotation_capability() -> None:
-    """MIO-7: rotation is not a capability a Python layer may use.
+    """MIO-7: the rotation capability must not exist in any Python layer.
 
-    The rotation helpers used to live in ``dex.runtime.closed_loop_identity``.
-    They made a loop borrow the identity -- and therefore the capacity, the
-    pool set and the review threshold -- of a *different* closed loop that
-    happened to start at another hop of the same triangle.
+    A closed loop is the **funding anchor plus the directed pool path**.
+    The intermediate tokens of one route are not necessarily funding tokens
+    of another route, so a path that starts at an intermediate token is a
+    *different* closed loop with its own identity, its own capacity, its
+    own pool set and its own review threshold.
 
-    The Manager owns the identity of every loop and publishes it. A Python
+    The rotation helpers made a loop borrow the identity -- and therefore
+    the capacity, the pool set and the review threshold -- of a *different*
+    closed loop that happened to start at another hop of the same triangle.
+
+    The Manager owns the identity of every loop and publishes it.  A Python
     layer that rotates is a second authority, so the capability is removed
     from the shared identity module and no layer may define or call it.
 
@@ -722,7 +759,8 @@ def test_no_python_layer_calls_the_rotation_capability() -> None:
                 offenders.append(f"{path}: defines {name}")
     assert not offenders, (
         "MIO-7 violation: a Python layer uses the rotation capability. The "
-        "closed-loop Manager owns the identity and publishes it:\n"
+        "closed-loop key is the funding anchor plus the directed pool path "
+        "and is published by the Manager:\n"
         + "\n".join(offenders)
     )
 
@@ -757,37 +795,54 @@ def test_the_shared_identity_module_exposes_no_rotation_capability() -> None:
         )
 
 
-def test_the_runtime_state_row_alias_merge_is_scoped_to_the_state_table() -> None:
-    """MIO-7: the one allowed rotation is scoped to the runtime state table.
+def test_no_python_layer_merges_a_loop_with_its_rotation() -> None:
+    """MIO-7: no layer may expand a key into the rotations of that key.
 
-    The runtime state table (``v4_closed_loop_runtime_state``) is keyed by a
-    token path that may start at any hop of the same directed triangle. Its
-    own rows must converge on one concrete row, otherwise one state machine
-    is split across anchor variants.
+    The runtime state table used to own a private rotation namespace: the
+    three same-direction rotations of one directed triangle were merged onto
+    one concrete row, so the state of one closed loop could be served to
+    another one.  The merge had no logical basis, because the rotation
+    starts at an intermediate token and is therefore a different closed
+    loop.
 
-    That merge is allowed **only** inside the state machine module, where it
-    is spelled as a private ``_state_row_alias_*`` helper, and it must never
-    reach a module that selects a Manager identity.
+    The runtime state table now uses the same exact lookup as the Manager
+    identity: the published key, spelled exactly as it was published.
+    """
+    offenders: list[str] = []
+    for path in _guarded_python_files():
+        defined = _defined_names(path)
+        for name in FORBIDDEN_ROTATION_ALIASES:
+            if name in defined:
+                offenders.append(f"{path}: defines {name}")
+        offenders.extend(_rotation_merge_call_sites(path))
+    assert not offenders, (
+        "MIO-7 violation: a Python layer merges a closed loop with one of "
+        "its rotations. The closed-loop key is the funding anchor plus the "
+        "directed pool path and it is never rotated:\n"
+        + "\n".join(offenders)
+    )
+
+
+def test_the_runtime_state_machine_resolves_state_keys_exactly() -> None:
+    """MIO-7: the runtime state machine has no rotation namespace.
+
+    The state machine may only look a state row up by its exact published
+    key.  The canonical-rotation helpers it used to own are gone, so the
+    rotation capability cannot be reintroduced through the state table.
     """
     state_machine = SRC_ROOT / "dex" / "runtime" / "closed_loop_state_machine.py"
     assert state_machine.exists(), "the closed-loop state machine is missing"
     text = _read(state_machine)
-    assert "_state_row_alias_rotations" in text, (
-        "the runtime state machine has no scoped alias helper"
-    )
-    assert "_state_row_alias_canonical" in text, (
-        "the runtime state machine has no scoped canonical helper"
-    )
-
-    # The scoped helper must stay private to the state machine.
-    for path in _guarded_python_files():
-        if path == state_machine:
-            continue
-        for name in ("_state_row_alias_rotations", "_state_row_alias_canonical"):
-            assert name not in _defined_names(path), (
-                f"MIO-7 violation: {path} defines {name}(). The runtime "
-                "state-row alias merge belongs to the state machine only"
-            )
+    for name in FORBIDDEN_ROTATION_ALIASES:
+        assert f"def {name}(" not in text, (
+            f"MIO-7 violation: the runtime state machine defines {name}() "
+            "again. The closed-loop key is the funding anchor plus the "
+            "directed pool path; it is never rotated."
+        )
+        assert f'"{name}"' not in text, (
+            f"MIO-7 violation: the runtime state machine still exports "
+            f"{name}"
+        )
 
 
 def test_no_python_layer_reads_several_identity_field_names_for_one_identity() -> None:

@@ -24,51 +24,27 @@ from dex.runtime.closed_loop_identity import (
 )
 
 
-def _state_row_alias_rotations(key: str, *, separator: str) -> list[str]:
-    """Return the same-direction rotations of a runtime state-row key.
-
-    **Scope: runtime state-table alias merge only.**
-
-    The durable runtime state (``v4_closed_loop_runtime_state``) is keyed by
-    a token path that may start at any hop of the same directed triangle.
-    This helper exists so those *own rows* converge on one concrete row
-    instead of splitting a state machine across anchor variants.
-
-    It is deliberately **not** part of ``dex.runtime.closed_loop_identity``
-    and it must never be used to:
-
-    * select the closed-loop Manager identity (capacity, pool set, USDG
-      value, review threshold) -- the kernel owns that (MIO-7 / AC-214);
-    * associate a review row with a closed loop;
-    * decide that two different closed loops are the same loop.
-
-    Forward and reverse directions never share a rotation, so opposite state
-    machines stay independent.
-    """
-    text = str(key or "").strip().lower()
-    if not text:
-        return []
-    parts = [
-        part.strip()
-        for part in text.replace(":", "|").split("|")
-        if part.strip()
-    ]
-    if len(parts) != 3:
-        return []
-    rotations: list[str] = []
-    for offset in range(len(parts)):
-        rotated = parts[offset:] + parts[:offset]
-        rotations.append(separator.join(rotated))
-    return rotations
-
-
-def _state_row_alias_canonical(key: str, *, separator: str) -> str | None:
-    """Return the canonical same-direction rotation of a state-row key."""
-    rotations = _state_row_alias_rotations(key, separator=separator)
-    if not rotations:
-        return None
-    return min(rotations)
-
+# The closed-loop identity is anchored on the funding token.
+#
+# A directed closed loop is *anchored* on one token: the funding token the
+# capital is borrowed in and returned to.  The two other hops are the
+# intermediate tokens, and the intermediate token of one route is **not**
+# necessarily the funding token of another route.  A path that starts at an
+# intermediate token is therefore a *different* closed loop with its own
+# identity, its own capacity, its own pool set and its own review
+# threshold -- it never borrows the identity of the loop it is a rotation
+# of.
+#
+# Concretely, the runtime state table is keyed by the **exact ordered**
+# token path the closed-loop Manager published.  There is no rotation
+# lookup, no rotation normalisation, no alias merge and no canonical
+# rotation anywhere in this module: a path that does not match the
+# published key exactly is a miss, and a miss is reported instead of being
+# repaired by re-ordering the path.
+#
+# See `dex.runtime.closed_loop_identity` for the same contract on the
+# shared identity side, and the task plan for the removal of the rotation
+# capability (MIO-7 / AC-214).
 
 
 STATE_OFFCHAIN_PENDING = "offchain_pending"
@@ -299,15 +275,16 @@ def _decode_json_array(value: Any) -> list[str]:
 def _closed_loop_identity_sets(
     rows: list[dict[str, Any]],
 ) -> tuple[set[str], set[str], set[str]]:
-    """Return runtime state-row alias keys for current loops.
+    """Return the exact runtime state-row keys of the current loops.
 
-    Every physical and legacy key is expanded to its three same-direction
-    rotations so a ``v4_closed_loops`` row that anchors a different token
-    (for example ETH vs USDG) still preserves the matching runtime machine
-    while the reverse direction stays distinct.
+    Every key is the **exact ordered** path the closed-loop Manager
+    published for that loop.  The sets are not expanded to rotations: a
+    loop that starts at an intermediate token is a different loop and owns
+    a different state row, so it must not match the row of the loop it
+    would be a rotation of.
 
-    These are **state-row alias keys only**.  They never carry, select or
-    arbitrate a closed-loop Manager identity (MIO-7 / AC-214).
+    The symbol and address sets carry the same contract for the legacy
+    (non-physical) state rows: they are exact ordered paths as well.
     """
     exact: set[str] = set()
     symbol_keys: set[str] = set()
@@ -315,19 +292,15 @@ def _closed_loop_identity_sets(
     for row in rows:
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if loop_key:
-            exact.update(_state_row_alias_rotations(loop_key, separator=":"))
+            exact.add(loop_key)
         symbol_path = _decode_json_array(row.get("path_symbols_json"))
         symbol_key = worker_group_key_from_symbols(symbol_path)
         if symbol_key:
-            symbol_keys.update(
-                _state_row_alias_rotations(symbol_key, separator="|")
-            )
+            symbol_keys.add(symbol_key)
         address_path = _decode_json_array(row.get("path_addresses_json"))
         address_key = worker_group_key_from_symbols(address_path)
         if address_key:
-            address_keys.update(
-                _state_row_alias_rotations(address_key, separator="|")
-            )
+            address_keys.add(address_key)
     return exact, symbol_keys, address_keys
 
 
@@ -336,13 +309,17 @@ def _state_identity_matches(
     *,
     exact_keys: set[str],
 ) -> bool:
+    """Return whether a state row belongs to a published closed loop.
+
+    The match is **exact**: the row key has to equal the published key.
+    A rotation of a published key does not match, because the rotation is
+    a different closed loop and may not borrow the state, the capacity or
+    the pool set of the published one.
+    """
     normalized = normalize_physical_loop_key(loop_key)
     if not normalized:
         return False
-    return any(
-        rotation in exact_keys
-        for rotation in _state_row_alias_rotations(normalized, separator=":")
-    )
+    return normalized in exact_keys
 
 
 def _legacy_state_identity_kind(
@@ -351,7 +328,14 @@ def _legacy_state_identity_kind(
     symbol_keys: set[str],
     address_keys: set[str],
 ) -> str | None:
-    """Classify a legacy non-physical key without treating it as stable."""
+    """Classify a legacy non-physical key without treating it as stable.
+
+    The classification is **exact** as well: the legacy key has to equal
+    one of the published ordered paths.  A rotated spelling of a published
+    path is not a legacy spelling of it, it is a different loop, so it is
+    reported as an orphan instead of being preserved as a pending
+    migration of the published loop.
+    """
     normalized = str(loop_key or "").strip().lower()
     if not normalized or normalize_physical_loop_key(normalized):
         return None
@@ -363,15 +347,9 @@ def _legacy_state_identity_kind(
     group_key = worker_group_key_from_symbols(parts)
     if not group_key:
         return None
-    if any(
-        rotation in symbol_keys
-        for rotation in _state_row_alias_rotations(group_key, separator="|")
-    ):
+    if group_key in symbol_keys:
         return "symbol"
-    if any(
-        rotation in address_keys
-        for rotation in _state_row_alias_rotations(group_key, separator="|")
-    ):
+    if group_key in address_keys:
         return "address"
     return None
 
@@ -646,36 +624,37 @@ def _resolve_directed_loop_key(
 ) -> str | None:
     """Return the stored runtime row key for one directed cycle.
 
-    Every rotation of a directed cycle maps to one state machine: the
-    canonical rotation row when it exists, otherwise the first existing
-    rotation row.  Forward and reverse directions never share rotations, so
-    opposite state machines stay independent; same-direction rotations
-    converge on one concrete row instead of splitting state across anchor
-    variants.
+    The lookup is **exact and ordered**.  The stored row key has to equal
+    the requested key; a different starting point of the same directed
+    triangle is a different closed loop and owns a different state row, so
+    it is never resolved through the row of the loop it would be a
+    rotation of.
+
+    A miss is a miss.  The function returns ``None`` and the caller
+    creates the row for the requested key, instead of repairing the
+    request by re-ordering the token path.
+
+    The reverse direction never shares a key with the forward direction,
+    so the two state machines stay independent.
     """
     ensure_runtime_state_table(database_url)
     normalized = str(loop_key or "").strip().lower()
     if not normalized:
         return None
     physical = normalize_physical_loop_key(normalized)
+    if physical:
+        candidates = [physical]
+    else:
+        # A legacy (non-physical) key is looked up by its exact spelling.
+        # The stored rows of a legacy key may use either separator, so
+        # both exact spellings are tried -- without re-ordering the path.
+        candidates = [normalized]
+        if "|" in normalized:
+            candidates.append(normalized.replace("|", ":"))
+        elif ":" in normalized:
+            candidates.append(normalized.replace(":", "|"))
     ordered: list[str] = []
     seen: set[str] = set()
-    if physical:
-        canonical = _state_row_alias_canonical(physical, separator=":")
-        candidates = [
-            canonical,
-            *_state_row_alias_rotations(physical, separator=":"),
-            physical,
-        ]
-    else:
-        canonical = _state_row_alias_canonical(normalized, separator="|")
-        candidates = [canonical]
-        for separator in ("|", ":"):
-            for rotation in _state_row_alias_rotations(
-                normalized, separator=separator
-            ):
-                candidates.append(rotation)
-        candidates.append(normalized)
     for candidate in candidates:
         if candidate and candidate not in seen:
             seen.add(candidate)
@@ -2245,48 +2224,39 @@ def backfill_runtime_state_for_closed_loops(
         tuple(params),
     )
 
+    # The identity of a closed loop is the **funding anchor plus the
+    # directed pool path**, spelled exactly as the Manager published it.
+    # A path that starts at an intermediate token is a *different* loop: it
+    # has its own funding anchor, its own capacity and its own state
+    # machine.  Rotations are therefore never merged here -- the loop key
+    # is used verbatim.
     current_loops: dict[tuple[str, int, str, str, str], dict[str, Any]] = {}
-    rotation_duplicates = 0
     for row in loops:
         runtime_key = _runtime_key_for_closed_loop(row)
         if not runtime_key:
             continue
         canonical_market, _ = _canonical_runtime_market_id(row.get("market_id"))
-        canonical_key = _state_row_alias_canonical(runtime_key, separator=":")
-        if not canonical_key:
-            continue
         identity = (
             str(row.get("network") or "").strip().lower(),
             int(row.get("chain_id") or 0),
             str(row.get("protocol") or "").strip().lower(),
             canonical_market,
-            canonical_key,
+            runtime_key,
         )
         if identity in current_loops:
-            existing_row = current_loops[identity]
-            exact_loop_key = normalize_physical_loop_key(row.get("loop_key"))
-            existing_loop_key = normalize_physical_loop_key(
-                existing_row.get("loop_key")
-            )
-            if exact_loop_key == existing_loop_key:
-                # The same physical key repeated twice violates the
-                # closed-loop authority and must not be collapsed.
-                return {
-                    "ok": False,
-                    "created": 0,
-                    "existing": 0,
-                    "runtimeStateCount": 0,
-                    "runtimeGroupCount": 0,
-                    "duplicateDirectedKey": 1,
-                    "rotationDuplicateSkipped": rotation_duplicates,
-                    "records": [],
-                    "disposition": "duplicate_directed_closed_loop_key",
-                    "generatedAt": _stamp(),
-                }
-            # A different rotation of the same directed triangle is the same
-            # closed loop and only needs one runtime state machine.
-            rotation_duplicates += 1
-            continue
+            # The same published key repeated twice violates the
+            # closed-loop authority and must not be collapsed.
+            return {
+                "ok": False,
+                "created": 0,
+                "existing": 0,
+                "runtimeStateCount": 0,
+                "runtimeGroupCount": 0,
+                "duplicateDirectedKey": 1,
+                "records": [],
+                "disposition": "duplicate_directed_closed_loop_key",
+                "generatedAt": _stamp(),
+            }
         current_loops[identity] = row
 
     state_filters: list[str] = []
@@ -2313,14 +2283,14 @@ def backfill_runtime_state_for_closed_loops(
         """,
         tuple(state_params),
     )
+    # An existing state row only satisfies a published loop when its key is
+    # the published key.  A rotated row belongs to a different loop and is
+    # left untouched for the orphan diagnosis.
     existing_identities: set[tuple[str, int, str, str, str]] = set()
     for row in state_rows:
         canonical_market, _ = _canonical_runtime_market_id(row.get("market_id"))
         loop_key = normalize_physical_loop_key(row.get("loop_key"))
         if not loop_key:
-            continue
-        canonical_loop_key = _state_row_alias_canonical(loop_key, separator=":")
-        if not canonical_loop_key:
             continue
         existing_identities.add(
             (
@@ -2328,7 +2298,7 @@ def backfill_runtime_state_for_closed_loops(
                 int(row.get("chain_id") or 0),
                 str(row.get("protocol") or "").strip().lower(),
                 canonical_market,
-                canonical_loop_key,
+                loop_key,
             )
         )
 
@@ -2374,7 +2344,6 @@ def backfill_runtime_state_for_closed_loops(
         "ok": True,
         "created": int(created or 0),
         "existing": len(set(current_loops) & existing_identities),
-        "rotationDuplicateSkipped": rotation_duplicates,
         "runtimeStateCount": len(current_loops),
         "runtimeGroupCount": len(current_loops),
         "duplicateDirectedKey": 0,

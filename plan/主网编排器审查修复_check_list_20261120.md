@@ -14,9 +14,12 @@
 
 ### TASK-149｜闭环起点身份精确匹配
 
-> 代码实现**已完成并归档**（`back/已完成任务归档_20261120_第40轮_闭环身份精确匹配与基线收口.md` §2）。以下条目为**仍需实盘证据**的部分。
+> 代码实现**已完成并归档**（`back/已完成任务归档_20261120_第40轮_闭环身份精确匹配与基线收口.md` §2）。
+> 匹配机制已在主网库只读核验中验证（164/164 精确命中、无路径冲突，见开发计划 §7.1）。
+> 以下条目为**仍需运行期复跑**的部分。
 
-- [ ] **AC-214** 实盘复核确认闭环 lookup 使用 Manager 发布的完整、有序身份精确匹配；闭环起点包含在身份中，旋转后的路径不得命中原闭环，也不得继承 loop key、pool IDs、capacity、USDG valuation 或阈值。
+- [ ] **AC-214** 运行期复核确认闭环 lookup 使用 Manager 发布的完整、有序身份精确匹配；闭环身份 = **资金锚点 + 方向池子**，起点包含在身份中；命中失败时不得继承任何其他闭环的 loop key、pool IDs、capacity、USDG valuation 或阈值。
+- [ ] **旋转能力零存在**（源码级守卫，非行为断言）：全仓（Rust 内核 / Python 运行时 / 脚本层）**不存在**闭环旋转查找、旋转归一化、旋转 alias merge、canonical rotation 的任何定义或调用；命中与否**不作为**验收项、指标或测试断言。
 - [ ] **实盘证据包**（缺任一项视为未验证）：
   - [ ] 被测闭环的 Manager 原始发布身份（loop_key + path_symbols/path_addresses + pool_ids）
   - [ ] 被测闭环的查询身份
@@ -24,17 +27,22 @@
   - [ ] miss 诊断（含 `repairTarget`）
   - [ ] 真实 mainnet review 消费 Manager 原始身份的确认
   - [ ] **纯消费后归并正确性**：`currentDistinctLoops` 与 Manager 闭环数同口径对照，不出现“一个 Manager 闭环被拆成多个 Python 身份”
+- [ ] **孤儿状态行处置**：`v4_closed_loop_runtime_state` 中 2 条在 Manager 目录无对应有序路径的状态行（TZ/TA/TB 闭环的不同起点）按**精确键孤儿**处置：被精确诊断出来，不得与任何闭环关联，不得据此选择 capacity / pool / USDG / threshold。
 - [ ] **强制复跑**（不可省略）：重跑主网 review，产出对比报告，至少分出三类 —— `closed_loop_identity_mismatch`（新增诊断）、`single_tick_capacity_unavailable`（真实缺容量）、正常完成。
   - [ ] 判读规则：若 `single_tick_capacity_unavailable` 样本数**未减少**，说明 TASK-148 是独立阻塞项，按 `TASK-148` 继续；**不得**因此判定 TASK-149 失败。
-- [ ] **关闭门槛**：`AC-214` 与本节全部条目通过，且归档记录写明起点的身份语义与检索方式；**仅通过单元测试不构成关闭依据**。
+- [ ] **关闭门槛**：`AC-214` 与本节全部条目通过，且归档记录写明"资金锚点 + 方向池子"的身份语义与精确检索方式；**仅通过单元测试不构成关闭依据**。
 
 ## 2. P0 金额与复核
 
 ### TASK-148｜单 tick 容量不可用根因（AC-213）
 
+> 容量投影与缺失/零/正的诊断实现已归档（内核已发布 `single_tick_capacity_unavailable` 与 `singleTickCapacityBasis`）。以下只保留责任层定位与实盘验证。
+
 - [ ] **AC-213** 用最新主网复核复现 `single_tick_capacity_unavailable` 样本；保存闭环身份、pool ID、状态版本和 Rust 原始诊断。
 - [ ] 沿四层归因责任层：① 实时池状态 ② pool-manager 容量投影 ③ Rust registry ④ review 输入；**修复责任层，不在 healer/Python 填默认值**。
-- [ ] 对容量缺失、容量为零和正容量分别测试；**缺失不能伪装为 0**，容量 0 必须有真实测量和原因。
+- [ ] **定位链路收敛**（2026-11-20 只读归因已确立）：Manager 库发布的 164 条闭环容量**全部 > 0**，而 legacy review 仍有 11536 条报 `single_tick_capacity_unavailable`。容量缺失**不在 Manager 发布列上**，必须沿 **Manager → 内核快照 → review 输入** 定位（内核 `apply_closed_loop_identity` 的命中与 pool identity 校验、review 组装阶段），**不得**回头反复查看 Manager 容量投影。
+- [ ] 次要原因一并归因（不另开任务）：`preview pool initialAmountRaw is required` 1180 条、RPC `eth_call` 失败 437 条。
+- [ ] 在实盘样本上分别确认容量缺失、容量为零和正容量三种状态；**缺失不能伪装为 0**，容量 0 必须有真实测量和原因。
 - [ ] 在同一当前内存快照下，单 tick 起始量、跨 tick 搜索上限和最终 best amount 证据可追踪且单位正确。
 - [ ] 内核及 pool-manager/review-manager 定向测试通过，并在真实 schema/状态 fixture 上验证。
 - [ ] GOOGL 样本 `loop_key` Y 段为 `0x0` 的成因判定：Manager 侧生成缺陷，还是其 capacity 本就应为 NULL/0。
@@ -56,6 +64,8 @@
 - [ ] 重新运行并验证 review 新鲜度在 **600 秒**内；报告完整/缺值/零/负/正数量和逐条修复目标。
 
 ### TASK-145｜USDG 估值单位与覆盖（AC-212）
+
+> Manager 侧 USDG identity 估值与内核侧跨 tick 估值输入的发布已归档（第 39 轮）。以下只保留真实 review 的单位复核。
 
 - [ ] **AC-212** USDG identity、ETH/WETH 路径、token decimals、借款本金、fee、gas 和 signed PnL 的 raw/human 单位契约经 Rust 单测与真实 review 输出共同验证；**缺价格时 fail-closed**，不以默认零或估值补值。
 - [ ] ETH/WETH 估值方向与 token decimals 正确；USDG anchor 使用稳定币原始单位 identity，**不依赖 USDG/USDG 池**。

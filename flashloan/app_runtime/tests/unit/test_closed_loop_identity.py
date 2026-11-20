@@ -94,8 +94,10 @@ def test_route_identity_rejects_untrusted_or_malformed_paths() -> None:
 # point, and therefore borrow the closed-loop identity, capacity and pool
 # set of a loop the request never named.
 #
-# The lookup is now exact and ordered. A rotation is a miss, and the
-# reverse direction is a miss.
+# The lookup is now exact and ordered.  The closed-loop key is the
+# funding anchor plus the directed pool path, so a path that starts at an
+# intermediate token names a different closed loop and resolves to nothing.
+# The reverse direction is a miss as well.
 
 
 def test_the_exact_ordered_key_resolves_to_the_registered_worker():
@@ -109,12 +111,13 @@ def test_the_exact_ordered_key_resolves_to_the_registered_worker():
     ) == "weth|eth|tsla"
 
 
-def test_a_rotation_of_the_same_directed_cycle_never_resolves():
-    """A different starting point is a different loop, never a rotation.
+def test_a_path_that_starts_at_an_intermediate_token_resolves_to_nothing():
+    """The intermediate token of one route is not a funding anchor.
 
-    This is the direct regression of TASK-149: the rotation-aware
-    resolver used to answer with the key of the *other* worker, which
-    then borrowed that loop's identity, capacity and pool set.
+    A closed loop is the funding anchor plus the directed pool path.  A
+    request that starts at an intermediate token names a different closed
+    loop, so it addresses a different worker with a different state
+    machine -- and with it a different identity, capacity and pool set.
     """
     registered = ["tsla|eth|amzn", "weth|eth|tsla"]
 

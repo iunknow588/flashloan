@@ -1188,24 +1188,19 @@ def test_backfill_runtime_state_rejects_duplicate_physical_loop_key(
     assert result["duplicateDirectedKey"] == 1
     assert result["disposition"] == "duplicate_directed_closed_loop_key"
 
-def test_resolve_directed_loop_key_converges_rotations_one_machine(tmp_path) -> None:
-    """Same-direction rotations converge on the canonical runtime row."""
+def test_resolve_directed_loop_key_uses_the_exact_published_key(tmp_path) -> None:
+    """The state row is found by the published key, and by nothing else.
+
+    The closed-loop key is the **funding anchor plus the directed pool
+    path**.  A path that starts at an intermediate token names a different
+    closed loop, so it owns a different state row; it never resolves to the
+    row of the loop it is a rotation of.
+    """
     path = _row_path(tmp_path)
     a = "0x" + ("a" * 40)
     b = "0x" + ("b" * 40)
     c = "0x" + ("c" * 40)
     forward = f"{a}:{b}:{c}"
-    rotations = [
-        f"{a}:{b}:{c}",
-        f"{b}:{c}:{a}",
-        f"{c}:{a}:{b}",
-    ]
-    reverse = f"{a}:{c}:{b}"
-    reverse_rotations = [
-        f"{a}:{c}:{b}",
-        f"{c}:{b}:{a}",
-        f"{b}:{a}:{c}",
-    ]
     base = {
         "network": "robinhood-testnet",
         "chain_id": 46630,
@@ -1221,34 +1216,17 @@ def test_resolve_directed_loop_key_converges_rotations_one_machine(tmp_path) -> 
     )
     assert row is not None
 
-    resolved = [
-        sm._resolve_directed_loop_key(path, **base, loop_key=key)
-        for key in rotations
-    ]
-    assert len(set(resolved)) == 1
-    canonical_forward = resolved[0]
-    loaded = sm.load_loop_state(path, **base, loop_key=rotations[2])
-    assert loaded is not None
-    assert loaded["loop_key"] == canonical_forward
-    assert loaded["state"] == sm.STATE_OFFCHAIN_PENDING
-
-    reverse_resolved = [
-        sm._resolve_directed_loop_key(path, **base, loop_key=key)
-        for key in reverse_rotations
-    ]
-    assert len(set(reverse_resolved)) == 1
-    assert reverse_resolved[0] != canonical_forward
-    assert sm.load_loop_state(path, **base, loop_key=reverse) is None
+    assert sm._resolve_directed_loop_key(path, **base, loop_key=forward) == forward
+    assert sm.load_loop_state(path, **base, loop_key=forward) is not None
 
 
-def test_claim_loop_rotation_anchor_reuses_same_state_machine(tmp_path) -> None:
-    """A rotation-variant anchor claims the same canonical machine."""
+def test_a_distinct_closed_loop_owns_its_own_state_row(tmp_path) -> None:
+    """Two published closed loops keep two independent state machines."""
     path = _row_path(tmp_path)
     a = "0x" + ("a" * 40)
     b = "0x" + ("b" * 40)
     c = "0x" + ("c" * 40)
     forward = f"{a}:{b}:{c}"
-    rotated_key = f"{b}:{c}:{a}"
     reverse = f"{a}:{c}:{b}"
     base = {
         "network": "robinhood-testnet",
@@ -1263,23 +1241,25 @@ def test_claim_loop_rotation_anchor_reuses_same_state_machine(tmp_path) -> None:
         state=sm.STATE_OFFCHAIN_ESTIMATE,
         generation=3,
     )
+
+    # The reverse direction is a different closed loop and has no row yet.
+    assert sm.load_loop_state(path, **base, loop_key=reverse) is None
+    assert sm.claim_loop(
+        path,
+        **base,
+        loop_key=reverse,
+        operation="review",
+        owner_thread="review-owner-reverse",
+    ) is None
+
+    # The published loop still owns its own machine.
     claimed = sm.claim_loop(
         path,
         **base,
-        loop_key=rotated_key,
+        loop_key=forward,
         operation="review",
         owner_thread="review-owner",
     )
     assert claimed is not None
     assert claimed["state"] == sm.STATE_PREFLIGHT_RUNNING
     assert claimed["generation"] == 3
-
-    reverse_claimed = sm.claim_loop(
-        path,
-        **base,
-        loop_key=reverse,
-        operation="review",
-        owner_thread="review-owner-reverse",
-    )
-    assert reverse_claimed is None
-    assert sm.load_loop_state(path, **base, loop_key=reverse) is None

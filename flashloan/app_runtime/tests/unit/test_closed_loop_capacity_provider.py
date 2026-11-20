@@ -92,9 +92,12 @@ def test_the_capacity_is_looked_up_by_the_ordered_token_path() -> None:
         "the lookup must not truncate the published identity; the Manager "
         "publishes the full ordered path with its loop anchor"
     )
+    # The lookup has no rotation branch at all: a closed loop is the
+    # funding anchor plus the directed pool path, so there is nothing to
+    # rotate.  The word must not appear in the lookup body.
     assert "rotat" not in body.lower(), (
-        "a rotation of the same cycle must never match: a different "
-        "starting point is a different closed loop"
+        "the lookup must not contain a rotation branch; the closed-loop key "
+        "is the funding anchor plus the directed pool path"
     )
 
 
