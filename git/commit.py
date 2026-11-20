@@ -5,6 +5,7 @@ import argparse
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -189,6 +190,37 @@ def remove_staged_ignored_pathspecs(root: Path) -> None:
             run_git(root, "restore", "--staged", "--", pathspec)
 
 
+
+
+def force_add_tracked_ignored(root: Path) -> None:
+    """Force-add tracked files that .gitignore would otherwise drop from the index.
+
+    ``plan/back/`` is ignored as a directory. Archives that are already committed
+    stay tracked, but ``git add --all`` silently drops them from the index when
+    they are re-staged. Re-adding them with ``-f`` keeps the archive history
+    intact instead of losing already-committed archive documents.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--ignored", "--exclude-standard"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    ignored = [p for p in result.stdout.split("\0") if p and p.endswith(".md")]
+    if not ignored:
+        return
+    # Windows caps the command line, so pass the paths through a pathspec file.
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        for path in ignored:
+            handle.write(path + "\n")
+        spec_file = Path(handle.name)
+    try:
+        run_git(root, "add", "-f", "--pathspec-from-file", str(spec_file))
+    finally:
+        spec_file.unlink(missing_ok=True)
+    print(f"Force-added {len(ignored)} tracked-but-ignored markdown path(s)")
+    print(f"Force-added {len(ignored)} tracked-but-ignored path(s)")
 def stage_changes(root: Path, pathspec: str) -> None:
     if head_exists(root):
         run_git(root, "restore", "--staged", "--", ".")
@@ -197,6 +229,7 @@ def stage_changes(root: Path, pathspec: str) -> None:
         return
     run_git(root, "add", "--all", "--", pathspec)
     remove_staged_ignored_pathspecs(root)
+    force_add_tracked_ignored(root)
 
 
 def has_staged_changes(root: Path, pathspec: str) -> bool:
