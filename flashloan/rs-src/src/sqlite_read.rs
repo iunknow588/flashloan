@@ -1047,4 +1047,144 @@ mod tests {
         );
         assert!(result.is_err());
     }
+
+    /// The closed-loop identity has two halves: the ordered address path and
+    /// the ordered directed pool set.  The kernel derives the pool set from
+    /// the pool keys the route prices and compares it with the set the
+    /// Manager published for the same loop.
+    ///
+    /// This test runs that comparison against the **real** mainnet store when
+    /// it is present, so the second dimension is checked on live data and not
+    /// only on synthetic fixtures.  The store is opened read-only and the
+    /// test is skipped when the file is absent, so it never turns the suite
+    /// into a dependency on a particular deployment.
+    #[test]
+    fn the_live_closed_loop_pool_sets_are_reproducible_from_the_pool_keys() {
+        // The crate lives two levels below the repository root, so the live
+        // store is looked up from there.  A missing store skips the check
+        // instead of failing the suite.
+        let database = std::path::Path::new("../db/local_store_4663.sqlite3");
+        if !database.exists() {
+            eprintln!("live mainnet store not present; the live pool-set check is skipped");
+            return;
+        }
+        let connection = open_readonly(&database.to_string_lossy()).expect("read-only open");
+        let rows = load_manager_closed_loop_rows(&connection, "robinhood", 4663)
+            .expect("load closed-loop rows");
+        assert!(
+            !rows.is_empty(),
+            "the live store must publish closed loops for the check to mean anything"
+        );
+
+        // Every pool the store knows, with its pool key.  The candidate pool
+        // set holds the admitted pools and the exchange registry holds every
+        // pool the chain published; a pool that only exists in the registry
+        // is still a real pool with a real key.
+        let mut pool_keys: std::collections::HashMap<String, Value> =
+            std::collections::HashMap::new();
+        let mut statement = connection
+            .prepare(
+                "SELECT pool_id, pool_key_json FROM manager_dex_candidate_pools \
+                 UNION SELECT pool_id, pool_key_json FROM v4_exchange_pools",
+            )
+            .expect("prepare pool keys");
+        let mut pool_rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                ))
+            })
+            .expect("query pool keys");
+        while let Some(row) = pool_rows.next() {
+            let (pool_id, pool_key_json) = row.expect("pool row");
+            let Some(pool_key_json) = pool_key_json else {
+                continue;
+            };
+            let Ok(pool_key) = serde_json::from_str::<Value>(&pool_key_json) else {
+                continue;
+            };
+            pool_keys
+                .entry(pool_id.trim().to_ascii_lowercase())
+                .or_insert(pool_key);
+        }
+
+        let catalog = crate::closed_loop_identity::catalog_from_rows(&rows);
+        let mut verified = 0usize;
+        let mut unverifiable = 0usize;
+        for row in &rows {
+            let loop_key = row["loop_key"].as_str().unwrap_or_default().to_string();
+            // The address path arrives as a JSON string in the row, the same
+            // way the Manager published it.
+            let Some(path) = row["path_addresses_json"].as_str() else {
+                unverifiable += 1;
+                continue;
+            };
+            let Ok(path) = serde_json::from_str::<Vec<String>>(path) else {
+                unverifiable += 1;
+                continue;
+            };
+            let addresses: Vec<String> = path
+                .iter()
+                .map(|item| item.trim().to_ascii_lowercase())
+                .filter(|item| !item.is_empty())
+                .collect();
+            let Some(identity) = catalog.identity_for(&addresses) else {
+                unverifiable += 1;
+                continue;
+            };
+            // The published pool set must be reproducible: every pool id it
+            // names must be the kernel's own id of a pool key the store holds.
+            let mut reproduced = true;
+            for pool_id in &identity.pool_ids {
+                let Some(pool_key) = pool_keys.get(pool_id) else {
+                    reproduced = false;
+                    break;
+                };
+                let key = crate::pool_index::V4PoolKey {
+                    currency0: pool_key["currency0"].as_str().unwrap_or_default().to_owned(),
+                    currency1: pool_key["currency1"].as_str().unwrap_or_default().to_owned(),
+                    fee: pool_key["fee"].as_u64().unwrap_or_default(),
+                    tick_spacing: pool_key["tickSpacing"].as_i64().unwrap_or_default() as i32,
+                    hooks: pool_key
+                        .get("hooks")
+                        .and_then(Value::as_str)
+                        .unwrap_or("0x0000000000000000000000000000000000000000")
+                        .to_owned(),
+                };
+                match crate::pool_index::pool_id(&key) {
+                    Ok(computed) => {
+                        if computed.to_ascii_lowercase() != pool_id.to_ascii_lowercase() {
+                            reproduced = false;
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        reproduced = false;
+                        break;
+                    }
+                }
+            }
+            assert!(
+                reproduced,
+                "the published pool set of {loop_key} is not reproducible from the pool keys"
+            );
+            assert_eq!(
+                identity.pool_ids.len(),
+                3,
+                "a closed loop prices three hops and therefore publishes three pools"
+            );
+            verified += 1;
+        }
+        assert_eq!(
+            verified,
+            rows.len(),
+            "every live closed loop must have a reproducible ordered pool set"
+        );
+        assert_eq!(unverifiable, 0);
+        eprintln!(
+            "live closed-loop pool sets verified: {verified} of {}",
+            rows.len()
+        );
+    }
 }

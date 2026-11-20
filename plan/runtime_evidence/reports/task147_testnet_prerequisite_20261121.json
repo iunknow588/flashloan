@@ -1,0 +1,1281 @@
+{
+  "schema": "task147-testnet-prerequisite-v1",
+  "generatedAt": "2026-11-20T19:59:54.751595+00:00",
+  "task": "TASK-147",
+  "acceptanceCriterion": "AC-211",
+  "mode": "read-only",
+  "chain": {
+    "network": "robinhood-testnet",
+    "configuredChainId": 46630,
+    "expectedChainId": 46630,
+    "chainIdConfigMatches": true,
+    "rpc": {
+      "configuration": {
+        "configuredPrimary": "https://rpc.testnet.chain.robinhood.com/rpc",
+        "configuredFallbacks": [
+          "https://robinhood-sepolia-rpc.publicnode.com"
+        ],
+        "configuredWss": [],
+        "configuredAlchemy": "",
+        "configuredHyperrpc": "",
+        "timeoutSeconds": 20,
+        "endpoints": [
+          [
+            "primary",
+            "https://rpc.testnet.chain.robinhood.com/rpc"
+          ],
+          [
+            "fallback[0]",
+            "https://robinhood-sepolia-rpc.publicnode.com"
+          ]
+        ]
+      },
+      "probe": {
+        "probes": [
+          {
+            "endpoint": "primary",
+            "url": "https://rpc.testnet.chain.robinhood.com/rpc",
+            "method": "eth_chainId",
+            "readOnly": true,
+            "httpStatus": 200,
+            "result": "0xb626",
+            "error": null,
+            "reachable": true,
+            "declaredChainId": 46630,
+            "observedChainId": 46630,
+            "chainIdMatches": true,
+            "observedBlockNumber": 155996398
+          },
+          {
+            "endpoint": "fallback[0]",
+            "url": "https://robinhood-sepolia-rpc.publicnode.com",
+            "method": "eth_chainId",
+            "readOnly": true,
+            "httpStatus": 200,
+            "result": "0xb626",
+            "error": null,
+            "reachable": true,
+            "declaredChainId": 46630,
+            "observedChainId": 46630,
+            "chainIdMatches": true,
+            "observedBlockNumber": 155996404
+          }
+        ],
+        "reachableEndpointCount": 2,
+        "chainIdAgreements": 2,
+        "allReachableAgreeOnChainId": true,
+        "anyReachable": true
+      }
+    },
+    "websocket": {
+      "configuredEndpoints": [],
+      "configuredCount": 0,
+      "available": false,
+      "status": "unavailable",
+      "reason": "the chain config declares rpc.wss = [] -- no websocket endpoint is configured, so stream availability is UNMEASURED, not a measured zero"
+    },
+    "broadcastAllowedByChainConfig": false
+  },
+  "store": {
+    "path": "flashloan/db/local_store_46630.sqlite3",
+    "absolutePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+    "sha256": "c3d430e1150ab9e013a85556f100b43d975264081bc7cd41f550ed37175e445e",
+    "sizeBytes": 875880448,
+    "openedReadOnly": true
+  },
+  "tokenLibraries": {
+    "perLibrary": {
+      "core": {
+        "table": "token_core",
+        "rowCount": 5,
+        "statusCounts": {
+          "admitted": 4,
+          "blocked": 1
+        },
+        "admittedCount": 4,
+        "candidateOnlyCount": 0,
+        "blockedCount": 1,
+        "entries": [
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+            "tokenSymbol": "ETH",
+            "tokenAddress": "0x0000000000000000000000000000000000000000",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:690086312fe40ca4190d00a5a18b575f793e7870fa8a8e5ace66aeb3c146e0b3",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.454051400+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+            "tokenSymbol": "USDE",
+            "tokenAddress": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:6aa457ea872db8061f3d804f900d9e02571f247fe3275fe876721b05bd60d05f",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.454051400+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "tokenSymbol": "USDG",
+            "tokenAddress": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:c911f20b4be933fb26dc931d029b6b1bcc7d66f1b4f306586bc861ebfdc53bc6",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.454051400+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "tokenSymbol": "WETH",
+            "tokenAddress": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "admissionStatus": "blocked",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:9c7850beabc09d369e3e90fd9ff2765289b674eb818789e12a4b76f2fb634b9e",
+            "blockedReason": "the chain's own source no longer declares this token; the admission                  was withdrawn so the library does not keep a stale address",
+            "firstAdmittedAt": "2026-11-15T06:20:38.454051400+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x7943e237c7f95da44e0301572d358911207852fa",
+            "tokenSymbol": "WETH",
+            "tokenAddress": "0x7943e237c7f95da44e0301572d358911207852fa",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:a2fdc33d7baf6509137ad0769fc9aceace65397c408ff425ba4ad7ccb7a463a5",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-16T23:50:08.442785700+00:00"
+          }
+        ]
+      },
+      "stocks": {
+        "table": "token_stocks",
+        "rowCount": 5,
+        "statusCounts": {
+          "admitted": 5
+        },
+        "admittedCount": 5,
+        "candidateOnlyCount": 0,
+        "blockedCount": 0,
+        "entries": [
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+            "tokenSymbol": "AMD",
+            "tokenAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:4391ea80bce5732e83e112126f12b3a844a6f7bcee8059e4f787718a2ac5df26",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.472405900+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "tokenSymbol": "AMZN",
+            "tokenAddress": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:a09e074cdd4ff6bff3b84871b958e8cf6bf554ef04ba60b2163297c193860384",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.472405900+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "tokenSymbol": "NFLX",
+            "tokenAddress": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:fcb5a9a3b043d26049230470d18941b65a35bb03d24b047c4941f318849cc697",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.472405900+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "tokenSymbol": "PLTR",
+            "tokenAddress": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:33081b6dc9df51c0674c1fc1773972c21f9c65759a71e8ac0e6c5d5f8142c03a",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.472405900+00:00"
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "tokenSymbol": "TSLA",
+            "tokenAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:a30b1380cf3e27c4784bf2dd43064ed1f1d158597b7be339fb949e355b7a44c5",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-15T06:20:38.472405900+00:00"
+          }
+        ]
+      },
+      "extension": {
+        "table": "token_extension",
+        "rowCount": 9,
+        "statusCounts": {
+          "candidate_only": 9
+        },
+        "admittedCount": 0,
+        "candidateOnlyCount": 9,
+        "blockedCount": 0,
+        "entries": [
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+            "tokenSymbol": "AMD",
+            "tokenAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:4391ea80bce5732e83e112126f12b3a844a6f7bcee8059e4f787718a2ac5df26",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "tokenSymbol": "AMZN",
+            "tokenAddress": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:a09e074cdd4ff6bff3b84871b958e8cf6bf554ef04ba60b2163297c193860384",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+            "tokenSymbol": "ETH",
+            "tokenAddress": "0x0000000000000000000000000000000000000000",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:690086312fe40ca4190d00a5a18b575f793e7870fa8a8e5ace66aeb3c146e0b3",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "tokenSymbol": "NFLX",
+            "tokenAddress": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:fcb5a9a3b043d26049230470d18941b65a35bb03d24b047c4941f318849cc697",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "tokenSymbol": "PLTR",
+            "tokenAddress": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:33081b6dc9df51c0674c1fc1773972c21f9c65759a71e8ac0e6c5d5f8142c03a",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "tokenSymbol": "TA",
+            "tokenAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:chain_tokens",
+            "metadataSource": "test-token_create/config/testnet-v4-amm/manifest.json",
+            "metadataChecksum": "sha256:56d1c4b47021e42edf3c58d1e27f6d41b1ff5479aaa1b6422ec78d6a2bee2478",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "tokenSymbol": "TB",
+            "tokenAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:chain_tokens",
+            "metadataSource": "test-token_create/config/testnet-v4-amm/manifest.json",
+            "metadataChecksum": "sha256:0b752ae6d42056fdacd0928fb2fef750fa958b0d3efb2fc1312a279fad4d023c",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "tokenSymbol": "TSLA",
+            "tokenAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:stock_registry",
+            "metadataSource": "robinhood_testnet_v4_evidence",
+            "metadataChecksum": "sha256:a30b1380cf3e27c4784bf2dd43064ed1f1d158597b7be339fb949e355b7a44c5",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          },
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x7943e237c7f95da44e0301572d358911207852fa",
+            "tokenSymbol": "WETH",
+            "tokenAddress": "0x7943e237c7f95da44e0301572d358911207852fa",
+            "admissionStatus": "candidate_only",
+            "admissionSource": "bootstrap:core4_allowlist",
+            "metadataSource": "fixed_core4_allowlist",
+            "metadataChecksum": "sha256:a2fdc33d7baf6509137ad0769fc9aceace65397c408ff425ba4ad7ccb7a463a5",
+            "blockedReason": null,
+            "firstAdmittedAt": null
+          }
+        ]
+      },
+      "test": {
+        "table": "token_test",
+        "rowCount": 1,
+        "statusCounts": {
+          "admitted": 1
+        },
+        "admittedCount": 1,
+        "candidateOnlyCount": 0,
+        "blockedCount": 0,
+        "entries": [
+          {
+            "tokenKeyId": "robinhood-testnet:46630:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "tokenSymbol": "TZ",
+            "tokenAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "admissionStatus": "admitted",
+            "admissionSource": "bootstrap:chain_tokens",
+            "metadataSource": "test-token_create/config/testnet-v4-amm/manifest.json",
+            "metadataChecksum": "sha256:ffcd98b2835e76838e55a70c5ec2b25fe951b1a682df53f11de85a80a1f08588",
+            "blockedReason": null,
+            "firstAdmittedAt": "2026-11-16T23:50:08.465927900+00:00"
+          }
+        ]
+      }
+    },
+    "admittedOverlapIndex": [
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenSymbol": "ETH",
+        "admittedInLibraries": [
+          "core"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "tokenSymbol": "TZ",
+        "admittedInLibraries": [
+          "test"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "tokenSymbol": "PLTR",
+        "admittedInLibraries": [
+          "stocks"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "tokenSymbol": "NFLX",
+        "admittedInLibraries": [
+          "stocks"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "admittedInLibraries": [
+          "stocks"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "tokenSymbol": "USDE",
+        "admittedInLibraries": [
+          "core"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenSymbol": "USDG",
+        "admittedInLibraries": [
+          "core"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "admittedInLibraries": [
+          "stocks"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0x7943e237c7f95da44e0301572d358911207852fa",
+        "tokenSymbol": "WETH",
+        "admittedInLibraries": [
+          "core"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      },
+      {
+        "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenSymbol": "TSLA",
+        "admittedInLibraries": [
+          "stocks"
+        ],
+        "admittedLibraryCount": 1,
+        "doubleAdmitted": false
+      }
+    ],
+    "doubleAdmittedTokenCount": 0,
+    "doubleAdmittedTokens": [],
+    "singleAdmissionHolds": true
+  },
+  "tokenLibraryState": {
+    "rows": [
+      {
+        "libraryKey": "core",
+        "libraryVersion": 3,
+        "tokenCount": 5,
+        "admittedCount": 4,
+        "metadataChecksum": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
+        "sourceCheckpoint": "sha256:3558607eedb26c4047fda40390ce68c7733d0d586d2392937a6b4a85013c6eeb",
+        "generatedAt": "2026-11-17T00:21:38.482043500+00:00",
+        "updatedAt": "2026-11-17T00:21:38.482043500+00:00"
+      },
+      {
+        "libraryKey": "extension",
+        "libraryVersion": 2,
+        "tokenCount": 9,
+        "admittedCount": 0,
+        "metadataChecksum": "sha256:8896f0c946e528d9ccc7747e8d64d0a64af365465f241bea3301106556c601de",
+        "sourceCheckpoint": "sha256:3558607eedb26c4047fda40390ce68c7733d0d586d2392937a6b4a85013c6eeb",
+        "generatedAt": "2026-11-17T00:21:38.512152400+00:00",
+        "updatedAt": "2026-11-17T00:21:38.512152400+00:00"
+      },
+      {
+        "libraryKey": "stocks",
+        "libraryVersion": 1,
+        "tokenCount": 5,
+        "admittedCount": 5,
+        "metadataChecksum": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3",
+        "sourceCheckpoint": "sha256:3558607eedb26c4047fda40390ce68c7733d0d586d2392937a6b4a85013c6eeb",
+        "generatedAt": "2026-11-17T00:21:38.499641500+00:00",
+        "updatedAt": "2026-11-17T00:21:38.499641500+00:00"
+      },
+      {
+        "libraryKey": "test",
+        "libraryVersion": 2,
+        "tokenCount": 1,
+        "admittedCount": 1,
+        "metadataChecksum": "sha256:e747e936b5d815e9f946a70ea800ae5c67256ee3c23f220123fde51528b4ee4f",
+        "sourceCheckpoint": "sha256:3558607eedb26c4047fda40390ce68c7733d0d586d2392937a6b4a85013c6eeb",
+        "generatedAt": "2026-11-17T00:21:38.504842800+00:00",
+        "updatedAt": "2026-11-17T00:21:38.504842800+00:00"
+      }
+    ]
+  },
+  "tokenAdmissionEvents": [
+    {
+      "eventId": "cb6ee0e5a7e6b64ddeb70521a9bec93e",
+      "tokenKeyId": "robinhood-testnet:46630:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "libraryKey": "core",
+      "previousStatus": "admitted",
+      "newStatus": "blocked",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-17T00:21:38.482043500+00:00"
+    },
+    {
+      "eventId": "07b96d9800fffe769ed0e5adfec34c67",
+      "tokenKeyId": "robinhood-testnet:46630:0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "0957e276362f4a7fd6f7239567f2a965",
+      "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "libraryKey": "extension",
+      "previousStatus": "candidate_only",
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "3456b08e56ccb589c91a8388150cec74",
+      "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "libraryKey": "extension",
+      "previousStatus": "candidate_only",
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "4a805dc785ff9deaf8fe068a9a17e2ba",
+      "tokenKeyId": "robinhood-testnet:46630:0x7943e237c7f95da44e0301572d358911207852fa",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "562af6d1e783e8fa4ed6ce37383af053",
+      "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "libraryKey": "extension",
+      "previousStatus": "candidate_only",
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "9d944b2ba231949ecccd9920f5572cf5",
+      "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "libraryKey": "extension",
+      "previousStatus": "candidate_only",
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "d98514cc77a32a958684a819484e5e0e",
+      "tokenKeyId": "robinhood-testnet:46630:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "dc5bf465c445211661da9ce68843c8b5",
+      "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "libraryKey": "extension",
+      "previousStatus": "candidate_only",
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.473881300+00:00"
+    },
+    {
+      "eventId": "28b3ff60f5662786d553bf18c286b455",
+      "tokenKeyId": "robinhood-testnet:46630:0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "libraryKey": "test",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.465927900+00:00"
+    },
+    {
+      "eventId": "aa17eb31c70a327b8c8edcc11e9ebd73",
+      "tokenKeyId": "robinhood-testnet:46630:0x7943e237c7f95da44e0301572d358911207852fa",
+      "libraryKey": "core",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "arbitrage-healer-robinhood-testnet",
+      "createdAt": "2026-11-16T23:50:08.442785700+00:00"
+    },
+    {
+      "eventId": "24883e3ad0efb44e8275bf365b0162a2",
+      "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "550df1b17daff0d03928a6269cde71a1",
+      "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "7cba09464e80eac7dafbb54005e63548",
+      "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "c84c1216935516c7511a05f75e10a0ca",
+      "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "dd842848077f17a10b5b39bf6e17a97e",
+      "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "e5173c8d51df4940069f3f76ed56dba5",
+      "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "libraryKey": "extension",
+      "previousStatus": null,
+      "newStatus": "candidate_only",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.490837200+00:00"
+    },
+    {
+      "eventId": "17783400e061587c5d418a55d56aff50",
+      "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+      "libraryKey": "stocks",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.472405900+00:00"
+    },
+    {
+      "eventId": "19d32ab13d1c7960f78e7ff1a0b92205",
+      "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+      "libraryKey": "stocks",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.472405900+00:00"
+    },
+    {
+      "eventId": "52ea99105cb00de88733376e77a2db69",
+      "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+      "libraryKey": "stocks",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.472405900+00:00"
+    },
+    {
+      "eventId": "bc2b7dd41dfbaf14dcddf7cf5c7f600b",
+      "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "libraryKey": "stocks",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.472405900+00:00"
+    },
+    {
+      "eventId": "c9861cb305b6ff186bf8937434130d25",
+      "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+      "libraryKey": "stocks",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.472405900+00:00"
+    },
+    {
+      "eventId": "06ad90f7007f8b9ba8af65b8750672c1",
+      "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+      "libraryKey": "core",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.454051400+00:00"
+    },
+    {
+      "eventId": "11e0fdde3b10d21fa48f06ad88112947",
+      "tokenKeyId": "robinhood-testnet:46630:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "libraryKey": "core",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.454051400+00:00"
+    },
+    {
+      "eventId": "2342818a7dff03f59a7712cc9b1166fe",
+      "tokenKeyId": "robinhood-testnet:46630:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "libraryKey": "core",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.454051400+00:00"
+    },
+    {
+      "eventId": "91dd9413960b7b17e24fb87519bedc70",
+      "tokenKeyId": "robinhood-testnet:46630:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "libraryKey": "core",
+      "previousStatus": null,
+      "newStatus": "admitted",
+      "reason": "materialize token libraries from robinhood-testnet sources",
+      "actor": "token-manager-cli",
+      "createdAt": "2026-11-15T06:20:38.454051400+00:00"
+    }
+  ],
+  "stockRegistry": {
+    "path": "flashloan/chains/robinhood-testnet/robinhood_stock_tokens.json",
+    "sha256": "07ab525bbd0daf08f82ab079dfd25834d0c53e1a54374b9259335ddf2732f23a",
+    "declaredTokens": {
+      "schema_version": "robinhood-testnet-stock-token-registry-v1",
+      "network": "robinhood-testnet",
+      "chain_id": 46630,
+      "source": "testnet_v4_evidence",
+      "token_count": 5,
+      "tokens": {
+        "amd": {
+          "symbol": "AMD",
+          "address": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "name": "AMD Testnet Token",
+          "decimals": 18,
+          "category": "robinhood_stock",
+          "source": "robinhood_testnet_v4_evidence"
+        },
+        "amzn": {
+          "symbol": "AMZN",
+          "address": "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+          "name": "AMZN Testnet Token",
+          "decimals": 18,
+          "category": "robinhood_stock",
+          "source": "robinhood_testnet_v4_evidence"
+        },
+        "nflx": {
+          "symbol": "NFLX",
+          "address": "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93",
+          "name": "NFLX Testnet Token",
+          "decimals": 18,
+          "category": "robinhood_stock",
+          "source": "robinhood_testnet_v4_evidence"
+        },
+        "pltr": {
+          "symbol": "PLTR",
+          "address": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+          "name": "PLTR Testnet Token",
+          "decimals": 18,
+          "category": "robinhood_stock",
+          "source": "robinhood_testnet_v4_evidence"
+        },
+        "tsla": {
+          "symbol": "TSLA",
+          "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+          "name": "TSLA Testnet Token",
+          "decimals": 18,
+          "category": "robinhood_stock",
+          "source": "robinhood_testnet_v4_evidence"
+        }
+      }
+    }
+  },
+  "scopes": [
+    {
+      "scopeKey": "candidate_exchange",
+      "poolTable": "v4_exchange_pools_candidate_exchange",
+      "filterMode": "both_end",
+      "enabled": true,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "pinnedLibraryVersions": {
+        "core": 1,
+        "stocks": 1
+      },
+      "pinnedLibraryChecksums": {
+        "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+        "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
+      },
+      "excludedTokenKeyIds": [],
+      "materializedChecksum": "sha256:aae839c344abc67c73ab387147a6d715bd2703db57a7e13426509f5b6c34f5dc",
+      "lastRebuiltAt": "2026-11-15T14:24:38.179367900+00:00",
+      "createdAt": "2026-11-15T06:20:57.466489400+00:00",
+      "updatedAt": "2026-11-15T14:24:38.179367900+00:00",
+      "poolCounts": {
+        "raw": 20,
+        "active": 19,
+        "blocked": 1
+      },
+      "distinctTokenPairCount": 10,
+      "tokenPairs": [
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "poolCount": 4,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "poolCount": 2,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "poolCount": 3,
+          "depthStatuses": [
+            "deep",
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "poolCount": 2,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "poolCount": 3,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "poolCount": 1,
+          "depthStatuses": [
+            "medium"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "poolCount": 1,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "poolCount": 1,
+          "depthStatuses": [
+            "deep"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "poolCount": 1,
+          "depthStatuses": [
+            "thin"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "poolCount": 2,
+          "depthStatuses": [
+            "deep",
+            "medium"
+          ]
+        }
+      ],
+      "staleLibraries": [
+        {
+          "library": "core",
+          "pinnedVersion": 1,
+          "currentVersion": 3,
+          "reason": "version_drift"
+        }
+      ],
+      "libraryVersionsAreCurrent": false
+    },
+    {
+      "scopeKey": "core4",
+      "poolTable": "v4_exchange_pools_core4",
+      "filterMode": "edge_any",
+      "enabled": true,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "pinnedLibraryVersions": {
+        "core": 3,
+        "stocks": 1
+      },
+      "pinnedLibraryChecksums": {
+        "core": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
+        "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
+      },
+      "excludedTokenKeyIds": [],
+      "materializedChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+      "lastRebuiltAt": "2026-11-17T09:11:35.662590+00:00",
+      "createdAt": "2026-11-15T06:20:56.735244100+00:00",
+      "updatedAt": "2026-11-17T09:11:35.662590+00:00",
+      "poolCounts": {
+        "raw": 1,
+        "active": 1,
+        "blocked": 0
+      },
+      "distinctTokenPairCount": 1,
+      "tokenPairs": [
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+          "token1KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "poolCount": 1,
+          "depthStatuses": [
+            "deep"
+          ]
+        }
+      ],
+      "staleLibraries": [],
+      "libraryVersionsAreCurrent": true
+    }
+  ],
+  "manager": {
+    "marketObservation": [
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "candidate_exchange",
+        "materializedChecksum": "sha256:50b98fee89500deff82c5c1676c3646617d9367450b0fd9bde681e0d20246f50",
+        "poolScopeChecksum": "sha256:aae839c344abc67c73ab387147a6d715bd2703db57a7e13426509f5b6c34f5dc",
+        "libraryVersions": {
+          "core": 1,
+          "stocks": 1
+        },
+        "libraryChecksums": {
+          "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+          "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
+        },
+        "generatedAt": "2026-11-15T06:20:57.646142500+00:00",
+        "updatedAt": "2026-11-17T09:12:26.623804100+00:00",
+        "observationVersion": 7,
+        "candidateEdgeVersion": 7,
+        "candidateEdgeChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
+        "anchorCount": 1,
+        "tokenCount": 1,
+        "directionCount": 0,
+        "emptyDirectionCount": 0,
+        "poolCount": 0,
+        "abnormalDirectionCount": 0,
+        "abnormalPoolCount": 0
+      }
+    ],
+    "dexCandidate": [
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "materializedChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
+        "poolScopeChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+        "libraryVersions": {
+          "core": 3,
+          "extension": 2,
+          "stocks": 1,
+          "test": 2
+        },
+        "libraryChecksums": {
+          "core": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
+          "extension": "sha256:8896f0c946e528d9ccc7747e8d64d0a64af365465f241bea3301106556c601de",
+          "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3",
+          "test": "sha256:e747e936b5d815e9f946a70ea800ae5c67256ee3c23f220123fde51528b4ee4f"
+        },
+        "generatedAt": "2026-11-18T09:56:47.126032900+00:00",
+        "updatedAt": "2026-11-18T09:56:47.126032900+00:00",
+        "candidateVersion": 7,
+        "poolLibraryVersions": {
+          "core": 3,
+          "extension": 2,
+          "stocks": 1,
+          "test": 2
+        },
+        "anchorTokenCount": 1,
+        "candidateTokenCount": 1,
+        "eligiblePoolCount": 1,
+        "recommendationCount": 2,
+        "abnormalPoolCount": 0
+      }
+    ],
+    "closedLoop": [
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "materializedChecksum": "sha256:764fd64f0254b1e93e7a0d4bb676542aac77f8a0526342c3d0c7e0cb6f8375d8",
+        "poolScopeChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+        "libraryVersions": {
+          "core": 1,
+          "stocks": 1
+        },
+        "libraryChecksums": {
+          "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+          "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
+        },
+        "generatedAt": "2026-11-17T09:12:26.648120500+00:00",
+        "updatedAt": "2026-11-17T09:12:26.724369500+00:00",
+        "closedLoopVersion": 9,
+        "candidateEdgeVersion": 7,
+        "candidateEdgeChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
+        "observationVersion": 7,
+        "observationChecksum": "sha256:50b98fee89500deff82c5c1676c3646617d9367450b0fd9bde681e0d20246f50",
+        "anchorCount": 1,
+        "loopCount": 0,
+        "hopCount": 0,
+        "optimizationCount": 0,
+        "skippedTokenCount": 1,
+        "consumersNeedRebuild": 0
+      }
+    ],
+    "skippedTokens": [
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-17T09:12:26.648120500+00:00",
+        "updatedAt": "2026-11-17T09:12:26.648120500+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-17T09:12:26.648120500+00:00",
+        "updatedAt": "2026-11-17T09:12:26.648120500+00:00"
+      }
+    ],
+    "tableCounts": {
+      "manager_v4_closed_loops": 0,
+      "manager_v4_closed_loop_hops": 0,
+      "manager_v4_closed_loop_optimizations": 0,
+      "manager_market_observation_yz_pairs": 0,
+      "manager_market_observation_intermediate_pools": 0,
+      "manager_market_observation_liquidity_snapshots": 0,
+      "manager_dex_candidate_anchor_tokens": 1,
+      "manager_dex_candidate_pool_recommendations": 2
+    }
+  },
+  "derived": {
+    "directionCount": 0,
+    "loopCount": 0,
+    "hopCount": 0,
+    "optimizationCount": 0,
+    "observationScope": {
+      "scopeKey": "candidate_exchange",
+      "poolCounts": {
+        "raw": 20,
+        "active": 19,
+        "blocked": 1
+      },
+      "distinctTokenPairCount": 10,
+      "staleLibraries": [
+        {
+          "library": "core",
+          "pinnedVersion": 1,
+          "currentVersion": 3,
+          "reason": "version_drift"
+        }
+      ],
+      "filterMode": "both_end"
+    },
+    "closedLoopScope": {
+      "scopeKey": "core4",
+      "poolCounts": {
+        "raw": 1,
+        "active": 1,
+        "blocked": 0
+      },
+      "distinctTokenPairCount": 1,
+      "staleLibraries": [],
+      "filterMode": "edge_any"
+    },
+    "scopesWithLibraryDrift": [
+      {
+        "scopeKey": "candidate_exchange",
+        "filterMode": "both_end",
+        "poolTable": "v4_exchange_pools_candidate_exchange",
+        "poolCounts": {
+          "raw": 20,
+          "active": 19,
+          "blocked": 1
+        },
+        "distinctTokenPairCount": 10,
+        "staleLibraries": [
+          {
+            "library": "core",
+            "pinnedVersion": 1,
+            "currentVersion": 3,
+            "reason": "version_drift"
+          }
+        ],
+        "lastRebuiltAt": "2026-11-15T14:24:38.179367900+00:00"
+      }
+    ],
+    "candidateExchangeTokenPairs": [
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token1KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "poolCount": 4,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "poolCount": 2,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token1KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "poolCount": 3,
+        "depthStatuses": [
+          "deep",
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "poolCount": 2,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "poolCount": 3,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "poolCount": 1,
+        "depthStatuses": [
+          "medium"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "poolCount": 1,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "poolCount": 1,
+        "depthStatuses": [
+          "deep"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "poolCount": 1,
+        "depthStatuses": [
+          "thin"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      },
+      {
+        "token0KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "poolCount": 2,
+        "depthStatuses": [
+          "deep",
+          "medium"
+        ],
+        "bothEndsAdmittedInAnyLibrary": true
+      }
+    ],
+    "skipReasons": [
+      "no_completing_middle_direction"
+    ],
+    "closedLoopPublished": false
+  },
+  "acceptance": {
+    "criterion": "AC-211",
+    "met": false,
+    "verdict": "not_met",
+    "reason": "the Manager published no closed loop on the testnet chain: direction_count=0, loop_count=0, hop_count=0. The only admitted candidate token carries the skip reason 'no_completing_middle_direction' for both the first and the third hop, so the middle Y->Z direction required to close the loop does not exist in the published market observation."
+  },
+  "prohibitions": {
+    "noBackfill": "No historical depth, price, business or valuation data was backfilled. Every number in this report is read from the store as it stands; a missing value is reported as missing and never replaced by a default zero or an estimate.",
+    "noHandEdit": "No admission, library version, scope pin, pool row or Manager row was edited by hand. The store was opened read-only.",
+    "noApply": "No rebuild, no re-materialisation and no --apply of any kind was performed.",
+    "noBroadcast": "No transaction was sent and no broadcast was attempted. The chain config itself declares allow_official_v4_broadcast=False.",
+    "measuredVsUnmeasured": "A measured zero and an unmeasured quantity are kept apart: the websocket stream is reported as unavailable because the chain config declares no endpoint, which is not the same as a measured absence of traffic."
+  },
+  "nextStep": {
+    "requiresAuthorization": true,
+    "actions": [
+      "re-pin and rebuild the candidate_exchange pool scope against the current core library version so the market observation can produce the missing Y->Z middle direction",
+      "re-run the closed-loop Manager on the testnet chain and re-collect this prerequisite report"
+    ],
+    "note": "Both actions write to the store. They are therefore NOT performed by this read-only collector and require an explicit separate authorization."
+  }
+}

@@ -1,0 +1,146 @@
+{
+ "audit": "source-level closed-loop rotation capability audit",
+ "kind": "static capability guard, not a behavioural assertion",
+ "rationale": "The system has no rotation lookup, so there is no observable rotation behaviour to measure. Hit-or-miss on a rotated path is not an acceptance item, metric or test assertion, and none exists.",
+ "scannedRoots": [
+  "flashloan\\rs-src\\src",
+  "flashloan\\src",
+  "flashloan\\tools",
+  "flashloan\\app_runtime",
+  "scripts"
+ ],
+ "scannedFileCount": 1161,
+ "forbiddenSymbols": [
+  "_rotation_alias_map",
+  "_state_row_alias_rotations",
+  "canonical_rotation",
+  "closed_loop_rotations",
+  "directed_cycle_rotations",
+  "merge_rotation_aliases",
+  "normalized_rotations",
+  "resolve_rotation",
+  "rotate_closed_loop",
+  "rotation_alias_merge",
+  "rotation_lookup"
+ ],
+ "forbiddenSymbolHits": [],
+ "forbiddenSymbolHitCount": 0,
+ "closedLoopLookupBodyRotationWordFindings": [
+  {
+   "path": "flashloan\\src\\dex\\runtime\\closed_loop_identity.py",
+   "line": 16,
+   "snippet": "A miss is a miss.  Nothing here rotates, re-anchors, or otherwise"
+  },
+  {
+   "path": "flashloan\\src\\dex\\runtime\\closed_loop_identity.py",
+   "line": 19,
+   "snippet": "The rotation helpers that used to live here (``directed_cycle_rotations``,"
+  },
+  {
+   "path": "flashloan\\src\\dex\\runtime\\closed_loop_identity.py",
+   "line": 19,
+   "snippet": "The rotation helpers that used to live here (``directed_cycle_rotations``,"
+  },
+  {
+   "path": "flashloan\\src\\dex\\runtime\\closed_loop_identity.py",
+   "line": 175,
+   "snippet": "rotation.  A request that matches no registered key is a miss: the"
+  },
+  {
+   "path": "flashloan\\src\\dex\\runtime\\closed_loop_identity.py",
+   "line": 179,
+   "snippet": "This replaces the rotation-aware resolver that was deleted with"
+  }
+ ],
+ "closedLoopLookupBodyRotationWordFindingNote": "every hit is prose in a module or function docstring that states the rotation capability was removed; none is a rotation branch in code",
+ "closedLoopLookupBodyRotationWordFindingCount": 5,
+ "unrelatedBitRotationOccurrences": [
+  {
+   "path": "flashloan\\app_runtime\\tests\\unit\\test_venus_accounts.py",
+   "line": 271,
+   "snippet": "def test_scan_venus_account_events_rotates_rpc_pool_after_failure():"
+  },
+  {
+   "path": "flashloan\\src\\bot\\tools\\watch_bnb_venus_liquidations.py",
+   "line": 646,
+   "snippet": "logger.warning(\"failed to rotate BNB RPC after high error round\", exc_info=True)"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 93,
+   "snippet": "def _rotate(route: tuple[str, str, str, str], start: str) -> tuple[str, str, str, str]:"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 96,
+   "snippet": "rotated = body[index:] + body[:index]"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 97,
+   "snippet": "return (rotated[0], rotated[1], rotated[2], rotated[0])"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 104,
+   "snippet": "rotations: str,"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 116,
+   "snippet": "if rotations == \"all\":"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 119,
+   "snippet": "candidates.append(_rotate(base, start))"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 708,
+   "snippet": "rotations=args.rotations,"
+  },
+  {
+   "path": "flashloan\\src\\dex\\intent_trade\\chains\\bnb\\dynamic_monitor.py",
+   "line": 824,
+   "snippet": "parser.add_argument(\"--rotations\", choices=[\"canonical\", \"all\"], default=\"all\")"
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 34,
+   "snippet": "_ROTATIONS = ["
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 44,
+   "snippet": "def rotate(value: int, shift: int) -> int:"
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 53,
+   "snippet": "deltas = [columns[(x - 1) % 5] ^ rotate(columns[(x + 1) % 5], 1) for x in range(5)]"
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 57,
+   "snippet": "rotated = [[0] * 5 for _ in range(5)]"
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 60,
+   "snippet": "rotated[y][(2 * x + 3 * y) % 5] = rotate(state[x][y], _ROTATIONS[x][y])"
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 63,
+   "snippet": "state[x][y] = rotated[x][y] ^ ("
+  },
+  {
+   "path": "scripts\\tools\\p0_1_quoter_revert_probe.py",
+   "line": 64,
+   "snippet": "(~rotated[(x + 1) % 5][y]) & _MASK & rotated[(x + 2) % 5][y]"
+  }
+ ],
+ "unrelatedBitRotationNote": "these are unrelated bit/column rotation arithmetic in unrelated probe tools; they are not a closed-loop rotation capability and are recorded for transparency rather than flagged",
+ "verdict": "review required"
+}

@@ -1,0 +1,59 @@
+{
+ "task": "TASK-151",
+ "title": "cross-layer guard for the independent directed closed loops of one anchor",
+ "generatedAt": "2026-11-20T19:09:31.191703+00:00",
+ "mode": "readonly-red-light-verification",
+ "policy": "the mutated guard copies live inside the application test tree so the suite's own conftest applies, and are removed in a finally block; the repository files are never modified and nothing is written outside the temporary directory",
+ "artifacts": {
+  "architectureGuard": {
+   "path": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+   "sha256": "607e268ab42b99505df6d43c8c8daa9017c775b6f8cb22e6f23433f54833a731"
+  },
+  "runtimeIdentity": {
+   "path": "flashloan/src/dex/runtime/closed_loop_identity.py",
+   "sha256": "e4b8c5d088717ff7318126336b11a6e2ab22d9f11ce7e90e30d971ad96c69b6f"
+  },
+  "closedLoopManager": {
+   "path": "flashloan/tools/closed_loop_manager/src/lib.rs",
+   "sha256": "d63946058315ba389929277e4025ffb89c40407d0c888ea1fc2c4ed9adf9525c"
+  }
+ },
+ "cases": [
+  {
+   "case": "architecture_guard_detects_a_shared_pool_set",
+   "mutation": "the shared-pool-set branch of the checker is disabled",
+   "expectation": "the guard fails on its own assertion",
+   "returnCode": 1,
+   "wentRed": true,
+   "failedForTheRightReason": true,
+   "failureKind": "assertion_failed",
+   "failureDetail": "E       AssertionError: a shared pool set under one anchor must be reported",
+   "stdoutTail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______ test_the_anchor_aggregation_guard_fails_on_a_collapsed_structure _______\n\n    def test_the_anchor_aggregation_guard_fails_on_a_collapsed_structure():\n        \"\"\"The guard has to go red when the structure it protects collapses.\n    \n        A check that cannot fail proves nothing, so the collapsed shapes are\n        fed to the same checker the passing test uses.\n        \"\"\"\n        collapsed_by_pool_set = [\n            {\n                \"anchor\": \"X\",\n                \"middle\": [\"Y\", \"Z\"],\n                \"pool_ids\": [\"p1\", \"p2\", \"p3\"],\n            },\n            {\n                \"anchor\": \"X\",\n                \"middle\": [\"Z\", \"Y\"],\n                \"pool_ids\": [\"p1\", \"p2\", \"p3\"],\n            },\n        ]\n        defects = _find_anchor_aggregation_defects(collapsed_by_pool_set)\n>       assert defects, \"a shared pool set under one anchor must be reported\"\nE       AssertionError: a shared pool set under one anchor must be reported\nE       assert []\n\nE:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\tests\\unit\\test_zz_task151_redlight_probe_architecture.py:1688: AssertionError\n=========================== short test summary info ===========================\nFAILED flashloan/app_runtime/tests/unit/test_zz_task151_redlight_probe_architecture.py::test_the_anchor_aggregation_guard_fails_on_a_collapsed_structure\n1 failed, 55 deselected in 3.43s\n"
+  },
+  {
+   "case": "runtime_never_resolves_by_the_anchor_alone",
+   "mutation": "the resolver compares the anchor alone instead of the full ordered key",
+   "expectation": "the guard fails on its own assertion",
+   "returnCode": 1,
+   "wentRed": true,
+   "failedForTheRightReason": true,
+   "failureKind": "assertion_failed",
+   "failureDetail": "E       AssertionError: the resolver must compare the full ordered key",
+   "stdoutTail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______ test_the_runtime_never_resolves_a_closed_loop_by_its_anchor_alone ______\n\n    def test_the_runtime_never_resolves_a_closed_loop_by_its_anchor_alone():\n        \"\"\"The runtime resolves a closed loop by its full ordered key.\n    \n        Matching on the anchor alone would let a request for one direction\n        borrow the registered key of its opposite, which is exactly what the\n        exact lookup forbids.\n        \"\"\"\n        import importlib.util as _ilu\n        _spec = _ilu.spec_from_file_location(\n            'closed_loop_identity_broken', r'C:\\Users\\iunkn\\AppData\\Local\\Temp\\task151_broken_runtime_j_2cg5oc\\dex\\runtime\\closed_loop_identity.py')\n        closed_loop_identity = _ilu.module_from_spec(_spec)\n        _spec.loader.exec_module(closed_loop_identity)\n    \n        source = Path(closed_loop_identity.__file__).read_text(encoding=\"utf-8\")\n        start = source.index(\"def resolve_registered_group_key(\")\n        resolver = source[start:]\n        end = resolver.find(\"\\ndef \")\n        if end != -1:\n            resolver = resolver[:end]\n        # The comparison is over the whole ordered key, never over the anchor.\n>       assert '\"|\".join(parts) == requested_key' in resolver, (\n            \"the resolver must compare the full ordered key\"\n        )\nE       AssertionError: the resolver must compare the full ordered key\nE       assert '\"|\".join(parts) == requested_key' in 'def resolve_registered_group_key(\\n    requested_symbols: Any,\\n    registered_keys: Any,\\n) -> str | None:\\n    \"\"\"F...\",\\n    \"resolve_registered_group_key\",\\n    \"worker_group_key_from_route\",\\n    \"worker_group_key_from_symbols\",\\n]\\n'\n\nE:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\tests\\unit\\test_zz_task151_redlight_probe_runtime.py:1726: AssertionError\n=========================== short test summary info ===========================\nFAILED flashloan/app_runtime/tests/unit/test_zz_task151_redlight_probe_runtime.py::test_the_runtime_never_resolves_a_closed_loop_by_its_anchor_alone\n1 failed, 55 deselected in 3.36s\n"
+  },
+  {
+   "case": "manager_publishes_two_independent_records_for_one_anchor",
+   "cargoCommand": "cargo test --offline -p closed-loop-manager one_anchor_publishes_two_independent_directed_closed_loops",
+   "returnCode": 0,
+   "passed": true,
+   "stdoutTail": "\nrunning 1 test\ntest tests::one_anchor_publishes_two_independent_directed_closed_loops ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.38s\n\n"
+  }
+ ],
+ "summary": {
+  "redLightCases": 2,
+  "allWentRed": true,
+  "allFailedForTheRightReason": true,
+  "managerAssertionPassed": true,
+  "note": "the red-light cases run the guard against a mutated copy and must fail on their own assertion; the manager case runs the real source and must pass"
+ }
+}

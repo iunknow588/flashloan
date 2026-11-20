@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+﻿use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
@@ -2788,6 +2788,70 @@ fn prefilter_config_pool_keys(
 }
 
 /// Apply only the identity published for this exact route address path.
+///
+/// The closed-loop identity has two halves: the **funding anchor** and the
+/// **directed pools**. The anchor is carried by the ordered address path;
+/// the pools are carried by this list. The list is therefore the second,
+/// independently checkable half of the identity.
+///
+/// The ids come from the kernel's own pool index, from the very same pool
+/// keys the review prices. They are never taken from a caller and never
+/// guessed: a key that cannot be turned into a pool id makes the whole
+/// derivation fail, and the route then reports that its pool set could not
+/// be verified instead of quietly claiming a complete match.
+///
+/// The order is the order of the hops: entry, then bridge, then exit. It is
+/// never deduplicated and never reordered, because a directed pool set is
+/// ordered by direction.
+fn derive_route_pool_ids(route_config: &Value) -> Option<Vec<String>> {
+    let mut pool_ids = Vec::new();
+    for section in ["entryKeys", "bridgeKeys", "exitKeys"] {
+        let keys = route_config.get(section).and_then(Value::as_array)?;
+        if keys.is_empty() {
+            return None;
+        }
+        for key in keys {
+            let pool_key = V4PoolKey {
+                currency0: key.get("currency0")?.as_str()?.to_owned(),
+                currency1: key.get("currency1")?.as_str()?.to_owned(),
+                fee: key.get("fee")?.as_u64()?,
+                tick_spacing: i32::try_from(key.get("tickSpacing")?.as_i64()?).ok()?,
+                hooks: key
+                    .get("hooks")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0x0000000000000000000000000000000000000000")
+                    .to_owned(),
+            };
+            pool_ids.push(pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase());
+        }
+    }
+    if pool_ids.is_empty() {
+        return None;
+    }
+    Some(pool_ids)
+}
+
+/// Publishes the route's own ordered pool set, so the closed-loop identity
+/// check can compare it against the Manager's published pool set.
+///
+/// The list is written even when the Manager has no identity for the route:
+/// it is a fact about the route, not about the identity, and the failure
+/// diagnosis needs it.
+fn publish_route_pool_ids(route_config: &mut Value) {
+    match derive_route_pool_ids(route_config) {
+        Some(pool_ids) => {
+            route_config["routePoolIds"] = json!(pool_ids);
+        }
+        None => {
+            // The route does not describe a usable pool set. The key is
+            // removed rather than left behind, so a stale value from an
+            // earlier route can never be compared against this one.
+            route_config.as_object_mut().map(|object| object.remove("routePoolIds"));
+        }
+    }
+}
+
+/// Apply only the identity published for this exact route address path.
 fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCatalog) {
     for key in [
         "closedLoopKey",
@@ -2825,7 +2889,13 @@ fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCata
         .get("routePoolIds")
         .or_else(|| route_config.get("poolIds"))
         .and_then(Value::as_array)
-        .map(|rows| rows.iter().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>());
+        .map(|rows| {
+            rows.iter()
+                .filter_map(Value::as_str)
+                .map(|value| value.trim().to_ascii_lowercase())
+                .collect::<Vec<_>>()
+        })
+        .filter(|pool_ids| !pool_ids.is_empty());
     if route_pool_ids.as_ref().is_some_and(|pool_ids| pool_ids != &identity.pool_ids) {
         route_config["closedLoopIdentityStatus"] = json!("mismatch");
         route_config["repairTarget"] = json!("closed_loop_manager");
@@ -2835,10 +2905,25 @@ fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCata
             "routePoolIds": route_pool_ids,
             "reason": "manager_closed_loop_pool_identity_mismatch",
         });
+        route_config["closedLoopPoolIdentityStatus"] = json!("mismatch");
         return;
     }
+    // The pool set is the second half of the identity. A route that does
+    // not carry one can only be matched on its address path, and that is
+    // said out loud: the status never claims a complete match that was
+    // only half checked. No pool set is ever invented to close the gap.
+    let pool_identity_status = if route_pool_ids.is_some() {
+        "verified"
+    } else {
+        "unverifiable"
+    };
     route_config["closedLoopKey"] = json!(identity.loop_key);
-    route_config["closedLoopIdentityStatus"] = json!("matched");
+    route_config["closedLoopIdentityStatus"] = if pool_identity_status == "verified" {
+        json!("matched")
+    } else {
+        json!("matched_address_only")
+    };
+    route_config["closedLoopPoolIdentityStatus"] = json!(pool_identity_status);
     if let Some(capacity) = identity.single_tick_capacity_anchor_raw {
         route_config["singleTickCapacityRaw"] = json!(format!("0x{capacity:x}"));
         route_config["singleTickCapacityBasis"] = json!("folded_single_tick_capacity_anchor");
@@ -2942,6 +3027,7 @@ fn run_native_review(
                 "singleTickCapacityBindingPoolId",
                 "maxProbeAttempts",
                 "searchMode",
+                "routePoolIds",
             ] {
                 if let Some(value) = route.get(field) {
                     route_config[field] = value.clone();
@@ -2954,6 +3040,13 @@ fn run_native_review(
                 prefilter_counts.1 += bridge_dropped;
                 prefilter_counts.2 += exit_dropped;
             }
+            // The route's own ordered pool set is published by the kernel,
+            // from the pool keys the route actually prices, after the
+            // prefilter dropped the pools that are not usable. It is the
+            // second, independently checkable half of the closed-loop
+            // identity, so it travels with the route before the identity
+            // is applied.
+            publish_route_pool_ids(&mut route_config);
             // The closed-loop Manager published the identity of this loop
             // and the folded single-tick capacity that bounds it. The
             // published values win over anything the caller supplied: the
@@ -5033,7 +5126,9 @@ mod tests {
         assert_eq!(exact["borrowTokenUsdgValueRaw"], json!("0x1c8"));
         assert_eq!(exact["closedLoopPoolIds"], json!(["p1", "p2", "p3"]));
 
-        let mut rotated = json!({
+        // A different ordered address path. This is a plain path-contrast
+        // sample: the loop key must not be borrowed across start points.
+        let mut different_order_path = json!({
             "routeAddresses": ["0xb", "0xc", "0xa", "0xb"],
             "closedLoopKey": "borrowed-loop",
             "closedLoopPoolIds": ["borrowed-pool"],
@@ -5041,10 +5136,10 @@ mod tests {
             "borrowTokenUsdgValueRaw": "0xbeef",
             "crossTickReviewThresholdUsdgRaw": "0xff"
         });
-        apply_closed_loop_identity(&mut rotated, &catalog);
-        assert_eq!(rotated["closedLoopIdentityStatus"], json!("mismatch"));
-        assert_eq!(rotated["repairTarget"], json!("closed_loop_manager"));
-        assert_eq!(rotated["identityMismatch"]["reason"], json!("manager_closed_loop_identity_not_found"));
+        apply_closed_loop_identity(&mut different_order_path, &catalog);
+        assert_eq!(different_order_path["closedLoopIdentityStatus"], json!("mismatch"));
+        assert_eq!(different_order_path["repairTarget"], json!("closed_loop_manager"));
+        assert_eq!(different_order_path["identityMismatch"]["reason"], json!("manager_closed_loop_identity_not_found"));
         for key in [
             "closedLoopKey",
             "closedLoopPoolIds",
@@ -5052,8 +5147,194 @@ mod tests {
             "borrowTokenUsdgValueRaw",
             "crossTickReviewThresholdUsdgRaw",
         ] {
-            assert!(rotated.get(key).is_none(), "inherited {key} must be cleared");
+            assert!(different_order_path.get(key).is_none(), "inherited {key} must be cleared");
         }
+    }
+
+    /// The pool keys the kernel turns into pool ids. The ids are the ones
+    /// the Manager publishes for the same pools, so the identity check has
+    /// something real to compare.
+    fn identity_pool_keys() -> Value {
+        json!({
+            "entryKeys": [{
+                "currency0": "0x1111111111111111111111111111111111111111",
+                "currency1": "0x2222222222222222222222222222222222222222",
+                "fee": 500, "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "bridgeKeys": [{
+                "currency0": "0x2222222222222222222222222222222222222222",
+                "currency1": "0x3333333333333333333333333333333333333333",
+                "fee": 500, "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "exitKeys": [{
+                "currency0": "0x1111111111111111111111111111111111111111",
+                "currency1": "0x3333333333333333333333333333333333333333",
+                "fee": 500, "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }]
+        })
+    }
+
+    fn identity_catalog(pool_ids: Value) -> crate::closed_loop_identity::ClosedLoopCatalog {
+        crate::closed_loop_identity::catalog_from_rows(&[json!({
+            "loop_key": "manager-loop",
+            "path_addresses_json": "[\"0x1111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222\",\"0x3333333333333333333333333333333333333333\",\"0x1111111111111111111111111111111111111111\"]",
+            "pool_ids_json": pool_ids.to_string(),
+            "single_tick_capacity_anchor_raw": "123",
+            "borrow_token_usdg_value_raw": "456",
+            "cross_tick_review_threshold_usdg_raw": "789"
+        })])
+    }
+
+    /// The route's pool set is derived by the kernel from the pool keys the
+    /// route prices. The derivation is the second half of the identity, so
+    /// it has to produce the ordered ids the Manager published.
+    #[test]
+    fn the_route_pool_set_is_derived_from_the_priced_pool_keys() {
+        let mut route_config = identity_pool_keys();
+        publish_route_pool_ids(&mut route_config);
+        let pool_ids = route_config["routePoolIds"].as_array().expect("route pool ids");
+        assert_eq!(pool_ids.len(), 3, "one pool per hop");
+        for pool_id in pool_ids {
+            let pool_id = pool_id.as_str().expect("pool id string");
+            assert!(
+                pool_id.starts_with("0x") && pool_id.len() > 2,
+                "the derived pool id must be a canonical address: {pool_id}"
+            );
+            assert_eq!(
+                pool_id,
+                pool_id.to_ascii_lowercase(),
+                "the derived pool id must be lower case"
+            );
+        }
+        // The order is the order of the hops, and the pools are distinct.
+        assert_ne!(pool_ids[0], pool_ids[1], "the entry and bridge pools differ");
+        assert_ne!(pool_ids[1], pool_ids[2], "the bridge and exit pools differ");
+    }
+
+    /// A route that prices no pool cannot be checked against the Manager's
+    /// pool set, and it must say so rather than pretend it matched.
+    #[test]
+    fn a_route_without_pool_keys_publishes_no_pool_set() {
+        let mut route_config = json!({
+            "routeAddresses": ["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]
+        });
+        publish_route_pool_ids(&mut route_config);
+        assert!(
+            route_config.get("routePoolIds").is_none(),
+            "a route without pool keys publishes no pool set"
+        );
+    }
+
+    /// A route whose pool set matches the Manager's matches completely, and
+    /// the status says that the pool set was verified.
+    #[test]
+    fn a_matching_pool_set_verifies_the_second_half_of_the_identity() {
+        let mut probe = identity_pool_keys();
+        publish_route_pool_ids(&mut probe);
+        let derived = probe["routePoolIds"].clone();
+
+        let catalog = identity_catalog(derived.clone());
+        let mut route_config = identity_pool_keys();
+        route_config["routeAddresses"] = json!(["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]);
+        publish_route_pool_ids(&mut route_config);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(route_config["closedLoopIdentityStatus"], json!("matched"));
+        assert_eq!(route_config["closedLoopPoolIdentityStatus"], json!("verified"));
+        assert_eq!(route_config["closedLoopKey"], json!("manager-loop"));
+        assert_eq!(route_config["closedLoopPoolIds"], derived);
+    }
+
+    /// The pool set is compared as an ordered list. A route that uses the
+    /// right pools in the wrong order is a different directed pool set and
+    /// must not be accepted.
+    #[test]
+    fn a_pool_set_in_the_wrong_order_fails_closed() {
+        let mut probe = identity_pool_keys();
+        publish_route_pool_ids(&mut probe);
+        let mut derived = probe["routePoolIds"].as_array().expect("pool ids").clone();
+        derived.reverse();
+        let catalog = identity_catalog(json!(derived));
+
+        let mut route_config = identity_pool_keys();
+        route_config["routeAddresses"] = json!(["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]);
+        publish_route_pool_ids(&mut route_config);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(route_config["closedLoopIdentityStatus"], json!("mismatch"));
+        assert_eq!(route_config["closedLoopPoolIdentityStatus"], json!("mismatch"));
+        assert_eq!(route_config["repairTarget"], json!("closed_loop_manager"));
+        assert_eq!(
+            route_config["identityMismatch"]["reason"],
+            json!("manager_closed_loop_pool_identity_mismatch")
+        );
+        for key in ["closedLoopKey", "singleTickCapacityRaw", "closedLoopPoolIds"] {
+            assert!(
+                route_config.get(key).is_none(),
+                "a failed pool check must not publish {key}"
+            );
+        }
+    }
+
+    /// A route whose address path matches but whose pool set does not is
+    /// the defect the pool check exists for: it must fail closed instead of
+    /// inheriting the Manager's pools or capacity.
+    #[test]
+    fn a_wrong_pool_set_with_the_right_address_path_fails_closed() {
+        let catalog = identity_catalog(json!(["0xpool-one", "0xpool-two", "0xpool-three"]));
+
+        let mut route_config = identity_pool_keys();
+        route_config["routeAddresses"] = json!(["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]);
+        publish_route_pool_ids(&mut route_config);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(route_config["closedLoopIdentityStatus"], json!("mismatch"));
+        assert_eq!(
+            route_config["identityMismatch"]["reason"],
+            json!("manager_closed_loop_pool_identity_mismatch")
+        );
+        assert_eq!(
+            route_config["identityMismatch"]["managerPoolIds"],
+            json!(["0xpool-one", "0xpool-two", "0xpool-three"])
+        );
+        assert!(
+            route_config["identityMismatch"]["routePoolIds"].is_array(),
+            "the failure diagnosis carries the route's own pool set"
+        );
+        for key in ["closedLoopKey", "singleTickCapacityRaw", "closedLoopPoolIds"] {
+            assert!(
+                route_config.get(key).is_none(),
+                "a failed pool check must not publish {key}"
+            );
+        }
+    }
+
+    /// A route that carries no pool set can only be matched on its address
+    /// path. The status must say so, and it must not claim a complete
+    /// match. No pool set is invented to close the gap.
+    #[test]
+    fn a_missing_pool_set_is_reported_explicitly() {
+        let catalog = identity_catalog(json!(["0xpool-one", "0xpool-two", "0xpool-three"]));
+
+        let mut route_config = json!({
+            "routeAddresses": ["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]
+        });
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(
+            route_config["closedLoopIdentityStatus"],
+            json!("matched_address_only"),
+            "a missing pool set must not claim a complete match"
+        );
+        assert_eq!(route_config["closedLoopPoolIdentityStatus"], json!("unverifiable"));
+        assert_eq!(route_config["closedLoopKey"], json!("manager-loop"));
+        assert!(
+            route_config.get("routePoolIds").is_none(),
+            "no pool set is invented for a route that has none"
+        );
     }
 
     #[test]
@@ -7209,3 +7490,4 @@ mod tests {
         );
     }
 }
+

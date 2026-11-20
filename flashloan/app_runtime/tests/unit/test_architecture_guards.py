@@ -1,4 +1,4 @@
-import re
+﻿import re
 import ast
 from pathlib import Path
 
@@ -1550,3 +1550,178 @@ def test_d9_41_control_panel_scanner_lifecycle_is_manager_read_only():
         assert "opportunity-scanner" not in source, (
             f"formal page must not reconnect to scanner maintenance routes: {relative_path}"
         )
+
+
+# ---------------------------------------------------------------------------
+# The closed-loop identity: the anchor and the direction are two halves
+# ---------------------------------------------------------------------------
+
+
+def _directed_loop_records(records):
+    """Normalize published closed-loop records into comparable rows.
+
+    Each record has to carry the anchor, the two middle tokens and the
+    ordered pool set. A record that cannot be normalized is returned as
+    ``None`` so the caller can report it instead of skipping it.
+    """
+    rows = []
+    for record in records:
+        if not isinstance(record, dict):
+            rows.append(None)
+            continue
+        anchor = str(record.get("anchor") or record.get("anchor_symbol") or "").strip().upper()
+        middle = record.get("middle") or []
+        pool_ids = record.get("pool_ids")
+        if not anchor or len(middle) != 2 or not isinstance(pool_ids, list):
+            rows.append(None)
+            continue
+        rows.append(
+            {
+                "anchor": anchor,
+                "y": str(middle[0]).strip().upper(),
+                "z": str(middle[1]).strip().upper(),
+                "pool_ids": tuple(str(item).strip().lower() for item in pool_ids),
+            }
+        )
+    return rows
+
+
+def _find_anchor_aggregation_defects(records):
+    """Return the ways the records collapse distinct directed loops.
+
+    A defect is a pair of records that describe two different directed
+    loops but are not kept apart: the same pool set, the same direction
+    published twice, or a middle direction that is not the reverse of its
+    partner.
+    """
+    defects = []
+    rows = _directed_loop_records(records)
+    for index, row in enumerate(rows):
+        if row is None:
+            defects.append(f"record {index} does not describe a directed loop")
+            continue
+        if row["y"] == row["z"]:
+            defects.append(f"record {index} has the same middle token twice")
+        if not row["pool_ids"]:
+            defects.append(f"record {index} has no pool set")
+    for left in range(len(rows)):
+        for right in range(left + 1, len(rows)):
+            first, second = rows[left], rows[right]
+            if first is None or second is None:
+                continue
+            if first["anchor"] != second["anchor"]:
+                continue
+            if (first["y"], first["z"]) == (second["y"], second["z"]):
+                defects.append(
+                    f"records {left} and {right} publish the same directed loop twice"
+                )
+                continue
+            if first["pool_ids"] == second["pool_ids"]:
+                defects.append(
+                    f"records {left} and {right} share a pool set under one anchor"
+                )
+            if (first["y"], first["z"]) != (second["z"], second["y"]):
+                defects.append(
+                    f"records {left} and {right} are not reverse directions of each other"
+                )
+    return defects
+
+
+def test_the_same_anchor_keeps_its_directed_closed_loops_apart():
+    """One anchor may carry several directed loops, and they stay apart.
+
+    A closed loop is identified by its funding anchor **and** its directed
+    pools. Two loops that share the anchor but run the middle hop in
+    opposite directions are two different closed loops: each has its own
+    pool set and its own capacity, and a route that runs one of them may
+    never be bounded by the number that was proved for the other.
+
+    Collapsing them into one loop by anchor would let that happen, so the
+    check below fails on the collapsed shape.
+    """
+    from dex.runtime.closed_loop_identity import resolve_registered_group_key
+
+    # The real shape: one anchor, two opposite directions, two pool sets.
+    published = [
+        {
+            "anchor": "X",
+            "middle": ["Y", "Z"],
+            "pool_ids": ["p1", "p2", "p3"],
+        },
+        {
+            "anchor": "X",
+            "middle": ["Z", "Y"],
+            "pool_ids": ["q1", "q2", "q3"],
+        },
+    ]
+    defects = _find_anchor_aggregation_defects(published)
+    assert defects == [], f"published loops are not kept apart: {defects}"
+
+    # The lookup stays exact: a request for one direction never answers
+    # with the other one.
+    registered = ["x|y|z", "x|z|y"]
+    assert resolve_registered_group_key(["X", "Y", "Z"], registered) == "x|y|z"
+    assert resolve_registered_group_key(["X", "Z", "Y"], registered) == "x|z|y"
+    assert resolve_registered_group_key(["X", "Y"], registered) is None
+    assert resolve_registered_group_key(["Q", "Y", "Z"], registered) is None
+
+
+def test_the_anchor_aggregation_guard_fails_on_a_collapsed_structure():
+    """The guard has to go red when the structure it protects collapses.
+
+    A check that cannot fail proves nothing, so the collapsed shapes are
+    fed to the same checker the passing test uses.
+    """
+    collapsed_by_pool_set = [
+        {
+            "anchor": "X",
+            "middle": ["Y", "Z"],
+            "pool_ids": ["p1", "p2", "p3"],
+        },
+        {
+            "anchor": "X",
+            "middle": ["Z", "Y"],
+            "pool_ids": ["p1", "p2", "p3"],
+        },
+    ]
+    defects = _find_anchor_aggregation_defects(collapsed_by_pool_set)
+    assert defects, "a shared pool set under one anchor must be reported"
+
+    merged_into_one = [
+        {
+            "anchor": "X",
+            "middle": ["Y", "Z"],
+            "pool_ids": ["p1", "p2", "p3"],
+        },
+        {
+            "anchor": "X",
+            "middle": ["Y", "Z"],
+            "pool_ids": ["p1", "p2", "p3"],
+        },
+    ]
+    defects = _find_anchor_aggregation_defects(merged_into_one)
+    assert defects, "the same directed loop published twice must be reported"
+
+
+def test_the_runtime_never_resolves_a_closed_loop_by_its_anchor_alone():
+    """The runtime resolves a closed loop by its full ordered key.
+
+    Matching on the anchor alone would let a request for one direction
+    borrow the registered key of its opposite, which is exactly what the
+    exact lookup forbids.
+    """
+    from dex.runtime import closed_loop_identity
+
+    source = Path(closed_loop_identity.__file__).read_text(encoding="utf-8")
+    start = source.index("def resolve_registered_group_key(")
+    resolver = source[start:]
+    end = resolver.find("\ndef ")
+    if end != -1:
+        resolver = resolver[:end]
+    # The comparison is over the whole ordered key, never over the anchor.
+    assert '"|".join(parts) == requested_key' in resolver, (
+        "the resolver must compare the full ordered key"
+    )
+    assert "parts[0] ==" not in resolver, (
+        "the resolver must not compare the anchor on its own"
+    )

@@ -1,0 +1,197 @@
+{
+ "task": "TASK-148",
+ "acceptance": "AC-213",
+ "title": "single-tick capacity availability archival evidence",
+ "generatedAt": "2026-11-20T18:00:39.297370+00:00",
+ "mode": "readonly-archival-evidence",
+ "policy": "read-only: healer --mode check opens the SQLite store with mode=ro and gates every write behind --apply; this run did NOT pass --apply. No broadcast, no production write, no historical depth or business data backfill.",
+ "network": "robinhood",
+ "chainId": 4663,
+ "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+ "databaseSha256": "81323f7a1245dfe0746e2e7e631da6237aa845209d6d7605d76ef597deb771e3",
+ "gitHead": "3c7d52cbbfb6f8e32f2463930f42010564dc1c5f",
+ "rootCause": {
+  "responsibleLayer": "flashloan/rs-src/src/sqlite_read.rs::load_manager_closed_loop_rows",
+  "defect": "load_manager_closed_loop_rows omitted path_addresses_json from the SQL projection; catalog_from_rows keys the catalog by the ordered address path, so every row fell out of the identity and the published single-tick capacity never reached the execution path",
+  "fixCommit": "6cfd25cf",
+  "fixTitle": "fix(capacity): 补回闭环目录的地址路径投影，修复单 tick 容量永不落地",
+  "fixDate": "2026-11-20T18:39:49+08:00",
+  "whyItLookedLikeCapacityLoss": "the closed-loop catalogue is keyed by the ordered address path; the SELECT omitted path_addresses_json, so every published row fell out of the catalogue, the catalogue was permanently empty, and the published single-tick capacity never reached the execution path"
+ },
+ "beforeAfterSameBasis": {
+  "kernelClosedLoopCatalogEntries": {
+   "before": 0,
+   "after": 164,
+   "changed": true
+  },
+  "kernelCatalogEntriesWithCapacity": {
+   "before": 0,
+   "after": 164,
+   "changed": true
+  },
+  "publishedCapacityPositive": {
+   "before": 0,
+   "after": 164,
+   "changed": true
+  },
+  "sampledLegacyReviewsRecoverableCapacity": {
+   "sampleLimit": 2000,
+   "sampled": 2000,
+   "recovered": 2000,
+   "recoveryRatePercent": 100.0,
+   "before": 0.0,
+   "after": 100.0,
+   "changed": true
+  },
+  "healerMissingValue": {
+   "before": 1,
+   "after": 0,
+   "changed": true
+  },
+  "healerBestAmountMissing": {
+   "before": 1,
+   "after": 0,
+   "changed": true
+  },
+  "healerBestAmountLadderIncomplete": {
+   "before": 1,
+   "after": 0,
+   "changed": true
+  },
+  "healerMatchedMissingPnl": {
+   "before": 1,
+   "after": 0,
+   "changed": true
+  },
+  "blockers": {
+   "before": [
+    "reviews",
+    "broadcast"
+   ],
+   "after": [
+    "broadcast"
+   ],
+   "changed": true
+  },
+  "currentDistinctLoops": {
+   "before": 56,
+   "after": 44,
+   "changed": true
+  },
+  "currentLoopMatched": {
+   "before": 60,
+   "after": 44,
+   "changed": true
+  }
+ },
+ "freshReadonlyRerun": {
+  "report": "mainnet_arbitrage_healer_check_chain4663_20261120T175632Z.json",
+  "generatedAt": "2026-11-20T17:56:32Z",
+  "mode": "check",
+  "threeWaySplit": {
+   "closed_loop_identity_mismatch": 0,
+   "single_tick_capacity_unavailable": 0,
+   "normalCompletion": 44
+  },
+  "missingReasons": [],
+  "missingClassifications": [],
+  "staleOrUnmatched": 0,
+  "currentDistinctLoops": 44,
+  "currentLoopMatched": 44,
+  "bestAmountConfirmed": 44,
+  "bestAmountMissing": 0,
+  "bestAmountLadderIncomplete": 0,
+  "matchedMissingPnl": 0,
+  "missingValue": 0,
+  "reviewTotal": 44,
+  "reviewValued": 44,
+  "closedLoopLibraryCount": 164,
+  "closedLoopHopCount": 492,
+  "blockers": [
+   "broadcast"
+  ],
+  "safeToAutoBroadcast": false,
+  "failClosed": true
+ },
+ "positiveZeroAttribution": {
+  "positive": 0,
+  "nonPositive": 44,
+  "sum": -3.3850581810141773,
+  "byCurrency": {
+   "WETH": -1.6734967622636997e-05,
+   "SPY": -0.011226563141107045,
+   "MU": -0.0008356795522154849,
+   "TZ": -3.372979203353232
+  },
+  "classification": "real business conclusion: the chain is not profitable on these routes",
+  "notADefect": true,
+  "explicitlyNot": "positive=0 is NOT recorded as a capacity defect, NOT as an identity defect and NOT as an unmeasured value: every one of the 44 reviews carries a confirmed best amount and a signed PnL",
+  "evidence": "every review reports runArbitrage returned ok=false with a signed PnL; the amount was measured and the measurement was not profitable"
+ },
+ "secondaryCauseAttribution": {
+  "legacyReviewTable": "cow_execution_reviews",
+  "legacyReviewTotal": 24418,
+  "primaryAttribution": {
+   "single_tick_capacity_unavailable": 11536,
+   "no_profitable_route": 8927,
+   "swap_not_resolved": 2062,
+   "preview_pool_initialAmountRaw_required": 1180,
+   "rpc_eth_call_failed": 446,
+   "other": 267
+  },
+  "repairStatePerCause": {
+   "single_tick_capacity_unavailable": {
+    "responsible_layer": "rust_kernel/sqlite_read.rs::load_manager_closed_loop_rows",
+    "defect": "SELECT omitted path_addresses_json -> closed-loop catalog keyed by ordered 3-address path was permanently empty",
+    "fix_commit": "6cfd25cf",
+    "fix_date": "2026-11-20T18:39:49+08:00",
+    "status": "fixed_in_code_not_yet_rerun_live",
+    "regression_test": "flashloan/rs-src/src/sqlite_read.rs::the_closed_loop_rows_carry_the_address_path_the_catalog_is_keyed_by"
+   },
+   "preview_pool_initialAmountRaw_required": {
+    "responsible_layer": "rust_kernel/execution.rs::official_v4_preview_and_ladder_inner",
+    "defect": "preview-pool path read config.initialAmountRaw as a REQUIRED field; the pure-consumer Python runtime never publishes a trading amount, so every route failed before probing",
+    "fix_commit": "5ff7a1d8",
+    "fix_date": "2026-11-20T13:59:07+08:00",
+    "status": "fixed_in_code_not_yet_rerun_live",
+    "regression_test": "flashloan/rs-src/src/execution.rs::the_preview_pool_path_does_not_require_the_caller_to_supply_an_initial_amount"
+   },
+   "rpc_eth_call_failed": {
+    "responsible_layer": "external_transport/rpc_endpoint",
+    "defect": "previewBestPool eth_call transport failure (RPC endpoint unreachable / transport error)",
+    "fix_commit": null,
+    "fix_date": null,
+    "status": "NOT_a_code_defect_transport_layer_external_dependency",
+    "regression_test": null
+   }
+  },
+  "sourceReport": "task148_secondary_cause_attribution_20261120.json",
+  "allTargetMissingValuesPredateTheirFix": true,
+  "note": "the capacity-unavailable, initialAmountRaw and RPC eth_call missing values were all produced before the corresponding fix commit, so they are historical data and not current code defects",
+  "premiseFalsified": {
+   "claim": "the GOOGL sample loop_key with a zero Y segment is a degenerate route",
+   "verdict": "false",
+   "correction": "0x000...000 is the canonical ETH native token on chain 4663; the 76 closed loops containing it are all active with capacity > 0",
+   "action": "the check item was deleted outright, not rewritten as a negative assertion"
+  }
+ },
+ "capacityStatesOnLiveSamples": {
+  "missing": 0,
+  "zero": 0,
+  "positive": 44,
+  "note": "measured zero is never used to stand in for a missing value; the missing state is 0 and every live review carries a positive measured capacity"
+ },
+ "remainingAuthorisedAction": {
+  "action": "regenerate the mainnet reviews with --apply so the stored reviews are fresh",
+  "needsExplicitAuthorisation": true,
+  "performedInThisRun": false,
+  "whyNotAutomatic": "--apply writes the production store and is an authorised action; it is not part of a read-only evidence wave",
+  "owner": "TASK-148 close-out, with freshness tracked by TASK-147 / TASK-141",
+  "note": "the stale pool-set reading for 4 of 44 reviews found in the TASK-149 package is resolved by the same regeneration"
+ },
+ "notVerified": [
+  "freshly regenerated reviews (needs explicit --apply authorisation)",
+  "testnet homologation (AC-211 / TASK-147)",
+  "real broadcast and stability windows (TASK-144 / TASK-141)"
+ ]
+}

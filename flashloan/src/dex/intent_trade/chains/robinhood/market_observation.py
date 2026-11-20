@@ -3,8 +3,23 @@
 This module is chain-owned. It exists so the generic DEX observation flow can
 find mainnet-specific bridge/fund observation hooks without writing chain
 branches in shared processing code. It never imports or reads testnet evidence.
-"""
 
+Naming contract
+---------------
+``edge_group_key`` is a **pool edge observation group**, not a closed-loop
+identity. It groups the bridge pools that were collected for one entry edge
+(the X-Y edge) of one funding anchor, so the group key is
+``anchor_symbol|direction_key`` where the direction key names the edge's
+ordered token pair.
+
+The **closed-loop identity** lives in the closed-loop Manager and in the
+Rust kernel: it is the funding anchor **plus** the directed pools, and it is
+matched exactly. The two must never be confused: an observation group says
+which pools were seen for an edge, it does not say that those pools form a
+closed loop, and one anchor may carry several independent directed closed
+loops. Anything in this module that groups by ``edge_group_key`` is
+collecting observations, not identifying a loop.
+"""
 from __future__ import annotations
 
 import json
@@ -881,8 +896,11 @@ def _mainnet_associated_observation_rows(
         token0["associatedFunds"] = associated_fund_symbols
         token1["associatedFunds"] = associated_fund_symbols
         direction_key = f"{token_x_address}:{token_y_address}"
-        group_key = f"{anchor_symbol}|{direction_key}"
-        row = grouped.get(group_key)
+        # Pool-edge observation group only (anchor + ordered token pair of one edge).
+        # This is NOT a closed-loop identity: the closed-loop identity is anchor plus
+        # the directed pool set and lives in the closed-loop Manager / Rust kernel.
+        edge_group_key = f"{anchor_symbol}|{direction_key}"
+        row = grouped.get(edge_group_key)
         if row is None:
             row = {
                 "kind": "robinhood_mainnet_v4_associated_fund_anchor_observation_pair",
@@ -908,7 +926,7 @@ def _mainnet_associated_observation_rows(
                 "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 "directSwapRequired": True,
             }
-            grouped[group_key] = row
+            grouped[edge_group_key] = row
         token_by_address.setdefault(edge[0], token0)
         token_by_address.setdefault(edge[1], token1)
         bridge_pools = (

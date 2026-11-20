@@ -1,4 +1,4 @@
-use candidate_edge_pool_manager::CandidateEdgeStatus;
+﻿use candidate_edge_pool_manager::CandidateEdgeStatus;
 use candidate_exchange_pool_manager::CandidateExchangeStatus;
 use manager_contracts::{RouteKeyId, TokenKeyId};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
@@ -4049,6 +4049,9 @@ mod tests {
     const POOL_A2: &str = "pool-a2";
     const POOL_YZ: &str = "pool-yz";
     const POOL_YZ_2: &str = "pool-yz-2";
+    const POOL_YZ_REVERSE: &str = "pool-yz-reverse";
+    const POOL_TA_FIRST: &str = "pool-ta-first";
+    const POOL_AMZN_THIRD: &str = "pool-amzn-third";
     const POOL_D: &str = "pool-d";
     const MARKET_ID: &str = "dex-arbitrage-4663-uniswap-v4";
 
@@ -4394,6 +4397,205 @@ mod tests {
         assert!(
             dry_run.skipped_token_count > 0,
             "the disqualified path must be reported as skipped"
+        );
+    }
+
+    /// Seeds the reverse direction of the middle hop, so the same anchor
+    /// carries a second, opposite directed loop.
+    ///
+    /// The reverse loop needs its own first and third hop pools, because the
+    /// pools are part of the loop's identity: two loops that share a pool
+    /// are not two independent loops.
+    fn seed_the_reverse_direction(connection: &Connection) {
+        let reverse_direction = format!("{}->{}", token(TA), token(AMZN));
+        connection
+            .execute(
+                "INSERT INTO manager_market_observation_yz_pairs (
+                    network, chain_id, protocol, scope_key, anchor_token_key_id,
+                    direction_key, token_x_key_id, token_y_key_id,
+                    has_direct_swap_pool, direct_swap_pool_count, pool_ids_json,
+                    optimal_pool_id, observation_empty_reason, created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'candidate_exchange', ?3, ?4, ?5,
+                           ?6, 1, 1, ?7, ?8, NULL, 'fixture', 'fixture')",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    token(USDG),
+                    reverse_direction,
+                    token(TA),
+                    token(AMZN),
+                    format!("[\"{POOL_YZ_REVERSE}\"]"),
+                    POOL_YZ_REVERSE
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO manager_market_observation_intermediate_pools (
+                    network, chain_id, protocol, scope_key, anchor_token_key_id,
+                    pool_id, pool_manager, pool_key_json, token0, token1,
+                    token0_key_id, token1_key_id, fee, tick_spacing, hooks,
+                    sqrt_price_x96, tick, liquidity, liquidity_index, price,
+                    depth_status, liquidity_read_at, liquidity_block_number,
+                    evidence_source, selection_rank, created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'candidate_exchange', ?3, ?4,
+                           '0xmanager', '{}', '', '', ?5, ?6, 3000, 60, '0x0',
+                           NULL, NULL, NULL, NULL, NULL, 'unpriced', NULL, NULL,
+                           'fixture', 1, 'fixture', 'fixture')",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    token(USDG),
+                    POOL_YZ_REVERSE,
+                    token(TA),
+                    token(AMZN)
+                ],
+            )
+            .unwrap();
+        // The first hop of the reverse loop is USDG -> TA, the third hop is
+        // AMZN -> USDG. Both need their own pool so the reverse loop does
+        // not share a pool with the forward loop.
+        for (candidate, pool_id, hop) in [
+            (TA, POOL_TA_FIRST, "first"),
+            (AMZN, POOL_AMZN_THIRD, "third"),
+        ] {
+            let direction = if hop == "first" {
+                format!("{}>{}", token(USDG), token(candidate))
+            } else {
+                format!("{}>{}", token(candidate), token(USDG))
+            };
+            connection
+                .execute(
+                    "INSERT INTO manager_dex_candidate_pool_recommendations (
+                        network, chain_id, protocol, scope_key, anchor_token_key_id,
+                        candidate_token_key_id, pair_key_id, direction_key, hop,
+                        rank, pool_id, depth_score, fee, selection_basis,
+                        created_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?4, ?5, ?6, ?7,
+                               1, ?8, NULL, 500, 'fixture', 'fixture', 'fixture')",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        token(USDG),
+                        token(candidate),
+                        format!("pair:{}:{}", token(USDG), token(candidate)),
+                        direction,
+                        hop,
+                        pool_id
+                    ],
+                )
+                .unwrap();
+        }
+        // The reverse loop's own first and third hop pools have to exist
+        // in the candidate pool library, otherwise the recommendation
+        // cannot be resolved to a pool.
+        for pool_id in [POOL_TA_FIRST, POOL_AMZN_THIRD] {
+            connection
+                .execute(
+                    "INSERT INTO manager_dex_candidate_pools (
+                        network, chain_id, protocol, scope_key, anchor_token_key_id,
+                        candidate_token_key_id, pair_key_id, pool_id, pool_manager,
+                        pool_key_json, token0, token1, token0_key_id, token1_key_id,
+                        fee, tick_spacing, hooks, sqrt_price_x96, tick, liquidity,
+                        liquidity_index, price, depth_status, liquidity_read_at,
+                        liquidity_block_number, evidence_source,
+                        is_first_hop_recommended, is_third_hop_recommended,
+                        created_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?3, 'pair',
+                               ?4, '0xmanager', '{}', '', '', ?3, ?3, 500, 10, '0x0',
+                               NULL, NULL, NULL, NULL, NULL, 'unpriced', NULL, NULL,
+                               'fixture', 1, 1, 'fixture', 'fixture')",
+                    params![NETWORK, CHAIN_ID, token(USDG), pool_id],
+                )
+                .unwrap();
+        }
+    }
+
+    /// One funding anchor may carry two directed closed loops: X-Y-Z-X and
+    /// X-Z-Y-X.  They are two independent loops, and the Manager has to
+    /// publish them as two records: a different loop key, a different pool
+    /// set, and the two middle directions pointing at each other.
+    ///
+    /// Merging them into one record would let a route that runs X-Y-Z-X be
+    /// bounded by the capacity that was proved for X-Z-Y-X, so the
+    /// separation is a correctness requirement, not a formatting one.
+    #[test]
+    fn one_anchor_publishes_two_independent_directed_closed_loops() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_YZ, 5_000),
+                    (POOL_D, 1_000_000),
+                    (POOL_TA_FIRST, 1_000_000),
+                    (POOL_YZ_REVERSE, 6_000),
+                    (POOL_AMZN_THIRD, 1_000_000),
+                ],
+            );
+            seed_the_reverse_direction(&connection);
+        }
+        let dry_run = materialize_closed_loops(&path, NETWORK, CHAIN_ID, false).unwrap();
+        assert_eq!(
+            dry_run.loop_count, 2,
+            "one anchor with two directed loops publishes two loops"
+        );
+
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(applied.loop_count, 2);
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loops = snapshot.loops;
+        assert_eq!(loops.len(), 2, "both loops are published");
+
+        // The two records are distinct: a different key, and a different
+        // pool set. A shared pool set would mean one loop published twice.
+        let first = &loops[0];
+        let second = &loops[1];
+        assert_ne!(
+            first.loop_key, second.loop_key,
+            "the two directions must not share a loop key"
+        );
+        assert_ne!(
+            first.pool_ids, second.pool_ids,
+            "the two directions must not share a pool set"
+        );
+        assert_eq!(
+            first.anchor_token_key_id, second.anchor_token_key_id,
+            "both loops share the anchor"
+        );
+
+        // The two middle directions point at each other: Y->Z and Z->Y.
+        let forward = loops
+            .iter()
+            .find(|row| row.token_y_key_id == token(AMZN) && row.token_z_key_id == token(TA))
+            .expect("the forward X-Y-Z-X loop is published");
+        let reverse = loops
+            .iter()
+            .find(|row| row.token_y_key_id == token(TA) && row.token_z_key_id == token(AMZN))
+            .expect("the reverse X-Z-Y-X loop is published");
+        assert_ne!(
+            forward.loop_key, reverse.loop_key,
+            "the two directions are two different closed loops"
+        );
+        assert_eq!(
+            forward.path_addresses.first(),
+            forward.path_addresses.last(),
+            "the forward loop closes on its anchor"
+        );
+        assert_eq!(
+            reverse.path_addresses.first(),
+            reverse.path_addresses.last(),
+            "the reverse loop closes on its anchor"
+        );
+        assert_eq!(
+            forward.path_addresses[1], reverse.path_addresses[2],
+            "the two directions swap their middle tokens"
+        );
+        assert_eq!(
+            forward.path_addresses[2], reverse.path_addresses[1],
+            "the two directions swap their middle tokens"
         );
     }
 

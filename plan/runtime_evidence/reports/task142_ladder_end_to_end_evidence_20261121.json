@@ -1,0 +1,199 @@
+{
+  "schema": "task142-ladder-end-to-end-evidence-v1",
+  "generatedAt": "2026-11-20T21:13:23.214980+00:00",
+  "task": "TASK-142",
+  "acceptanceCriterion": "AC-212",
+  "mode": "read-only",
+  "store": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "sha256": "79e67bf26add304372eb3f28f42ec29871b14a75b451dacb204ef9f797c2229f",
+    "sha256IsTheFileDigestAtCollectionTime": true,
+    "logicalContent": {
+      "sha256": "42d2857746458c75775630081d9e20a5f5d265db08249898d323799c54923806",
+      "rowCounts": {
+        "manager_v4_reviews": 44,
+        "manager_review_library_state": 1,
+        "manager_v4_review_diagnostics": 0,
+        "manager_v4_review_broadcast_requests": 0
+      },
+      "note": "the file digest can change on a WAL checkpoint without any business value changing; this digest covers the rows themselves"
+    },
+    "openedReadOnly": true
+  },
+  "reviewLibraryState": [
+    {
+      "protocol": "uniswap_v4",
+      "scope_key": "core4",
+      "review_version": 22,
+      "materialized_checksum": "sha256:9722490475c37bfe8cfdb97a0e0e28c42f825d3ba3f8f4b11b90f5438d9253f4",
+      "closed_loop_version": 11,
+      "closed_loop_checksum": "sha256:1d013e7b95758f2daa55dd803839fc8edfec04c8c12819ed7545f6aa1128f707",
+      "candidate_edge_version": 7,
+      "candidate_edge_checksum": "sha256:6e0e6485cad58ced60b83bd687de1ce8d2ebf94dd0bbd87714bb7264413b2682",
+      "observation_version": 8,
+      "observation_checksum": "sha256:97556a36f760cdb594553c64cfffd677bccd990417e1ec6ddad1ece6eef923d6",
+      "pool_scope_checksum": "sha256:55ca04677266c7b6822b192572bb51cc3b33941081d9894c2cfdfe82789817e2",
+      "library_versions_json": "{\"core\":1,\"stocks\":1,\"test\":1}",
+      "library_checksums_json": "{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\",\"test\":\"sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b\"}",
+      "loop_count": 44,
+      "reviewed_count": 16,
+      "completed_count": 0,
+      "data_incomplete_count": 0,
+      "not_executable_count": 44,
+      "failed_count": 0,
+      "broadcast_request_count": 0,
+      "generated_at": "2026-11-19T07:48:14.614359700+00:00",
+      "updated_at": "2026-11-19T07:48:14.614359700+00:00"
+    }
+  ],
+  "checklist": [
+    {
+      "name": "A",
+      "requirement": "a non-zero single-tick start enters the existing double/halve ladder; a zero single-tick amount starts no cross-tick search",
+      "observations": {
+        "reviewsWithALadder": 44,
+        "everySizeIsReachableFromTheStart": true,
+        "everyStepIsDoubleOrHalf": false,
+        "everyLadderUsesDoubleOrHalf": true,
+        "laddersThatAreALinearDoubleHalveChain": 3,
+        "allLadderSizesWithinCapacity": true,
+        "zeroBestAmountReviews": 44,
+        "zeroBestAmountThatIsMeasuredNotMissing": 44,
+        "zeroBestAmountReviewsThatStartedACrossTickSearch": []
+      },
+      "met": true
+    },
+    {
+      "name": "B",
+      "requirement": "the cross-tick search works on the closed loop's real input/output without simulating a tick traversal; the depth capacity is only the search ceiling",
+      "observations": {
+        "reviewsPublishingACrossTickReview": 0,
+        "reviewsThatStartedACrossTickSearch": 0,
+        "kernelRejectsAZeroSeed": true,
+        "kernelSeedIsTheSingleTickBestAmount": true,
+        "kernelNeverLaunchesACrossTickLadderFromACrossTickLadder": true,
+        "capacityIsTheSearchCeiling": true,
+        "noTickTraversalSimulationInTheCrossTickBody": true,
+        "note": "the stored mainnet reviews contain no profitable size, so no cross-tick continuation was launched. The zero-seed rule is therefore verified on the kernel source and on the published zero reviews (none of them started a cross-tick search), not on an observed cross-tick run."
+      },
+      "met": true
+    },
+    {
+      "name": "C",
+      "requirement": "mainnet and testnet use the same Rust code, and the raw ladder output, the selected amount, the profit and the snapshot version are all saved",
+      "observations": {
+        "sameKernelSourceForBothChains": true,
+        "chainCodeEvidence": {
+          "mainnet": {
+            "store": "flashloan/db/local_store_4663.sqlite3",
+            "reviewCount": 44,
+            "kernelSourceSha256": "269dc32fe567252e39cfb898072295fa80a4bdb76fcc7c7ebb4063c379e53562"
+          },
+          "testnet": {
+            "store": "flashloan/db/local_store_46630.sqlite3",
+            "kernelSourceSha256": "269dc32fe567252e39cfb898072295fa80a4bdb76fcc7c7ebb4063c379e53562",
+            "note": "the testnet store carries no Manager review, so the *same* kernel source file is the evidence for the testnet chain"
+          }
+        },
+        "rawLadderPublishedForEveryReview": true,
+        "selectedAmountPublishedForEveryReview": true,
+        "signedProfitPublishedForEveryReview": true,
+        "snapshotVersionPublishedForEveryReview": true,
+        "testnet": {
+          "storePresent": true,
+          "reviewCount": 0,
+          "loopsWithLadder": 0
+        }
+      },
+      "met": true
+    },
+    {
+      "name": "D",
+      "requirement": "no fixed 1, no recursion, no Python amount calculation on the Robinhood closed-loop path",
+      "observations": {
+        "pythonAudit": {
+          "scannedPythonFiles": 178,
+          "scopes": [
+            "flashloan/src/dex/intent_trade",
+            "flashloan/src/dex/runtime"
+          ],
+          "kernelOwnedKeysAudited": [
+            "initialAmountRaw",
+            "singleTickCapacityRaw",
+            "singleTickCapacityAnchorRaw",
+            "singleTickCapacityBindingPoolId",
+            "crossTickCapacityRaw",
+            "maxProbeAmountRaw",
+            "ladderStartBasis"
+          ],
+          "kernelOwnedKeyHits": [
+            {
+              "path": "flashloan/src/dex/runtime/rust_closed_loop.py",
+              "symbol": "initialAmountRaw",
+              "line": 1526,
+              "kind": "reads_kernel_value",
+              "source": "initial_raw = result.get(\"initialAmountRaw\")"
+            },
+            {
+              "path": "flashloan/src/dex/runtime/rust_closed_loop.py",
+              "symbol": "initialAmountRaw",
+              "line": 2501,
+              "kind": "reads_kernel_value",
+              "source": "amount_raw = _hex_or_int(result.get(\"initialAmountRaw\"))"
+            }
+          ],
+          "kernelOwnedKeyDerivations": [],
+          "ladderHelperHits": [],
+          "pythonComputesNoAmount": true
+        },
+        "kernelAudit": {
+          "executionRs": {
+            "path": "flashloan/rs-src/src/execution.rs",
+            "sha256": "269dc32fe567252e39cfb898072295fa80a4bdb76fcc7c7ebb4063c379e53562"
+          },
+          "crossTickInitRs": {
+            "path": "flashloan/rs-src/src/cross_tick_init.rs",
+            "sha256": "734038eab7e76b2a92992d30645504d196055fea6ad47ce741bcf068e835928d"
+          },
+          "derivesTheStartItself": true,
+          "usesBoundedDouble": true,
+          "usesBoundedHalf": true,
+          "ladderStartFraction": true,
+          "clampsTheStartToTheCapacity": true,
+          "crossTickDecisionRejectsZeroSeed": true,
+          "crossTickSeedIsTheSingleTickBestAmount": true,
+          "crossTickNeverRecurses": true,
+          "crossTickGuardsAgainstRecursiveLaunch": true,
+          "capacityIsTheSearchCeiling": true,
+          "noTickTraversalSimulation": true
+        },
+        "scannerPathProbe": {
+          "file": "flashloan/src/dex/runtime/dex_quote_evidence_execution_probe.py",
+          "present": true,
+          "sha256": "772b900cece3039c1c3a6507f15ded9b315cedbbffdce9a559c88861e85b76b5",
+          "hasPythonDoublingLadder": true,
+          "hasPythonHalvingLadder": true,
+          "reachedFromProductionBy": [
+            "flashloan/src/dex/runtime/dex_quote_evidence_helpers.py"
+          ],
+          "isTheManagerClosedLoopLadder": false,
+          "why": "This module serves the route-evidence / opportunity-scanner path (build_route_onchain_evidence). The Manager closed-loop ladder that produces manager_v4_reviews rows is the Rust kernel's; Python only reads the kernel's published values."
+        },
+        "boundary": "the no-Python-amount rule is scoped to the Manager closed-loop path; the route-evidence scanner probe is a different path and is reported, not folded into the verdict"
+      },
+      "met": true
+    }
+  ],
+  "acceptance": {
+    "criterion": "AC-212",
+    "met": true,
+    "verdict": "met",
+    "reason": "every checklist item is backed by a machine observation"
+  },
+  "prohibitions": {
+    "noBackfill": "No historical depth, price, business or valuation data was backfilled. Every number is read from the store as it stands.",
+    "noApply": "No rebuild, no re-materialisation, no --apply.",
+    "noBroadcast": "No transaction was sent.",
+    "measuredVsUnmeasured": "A measured zero and a missing value stay apart: a review whose best amount is zero but whose ladder measured N sizes is a measured zero, while a review without a ladder row is missing."
+  }
+}
