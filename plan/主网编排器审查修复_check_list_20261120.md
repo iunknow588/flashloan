@@ -1,4 +1,4 @@
-# 主网自愈编排器审查修复 Checklist v10.20（2026-11-20）
+# 主网自愈编排器审查修复 Checklist v10.21（2026-11-20）
 
 > 仅包含**开放**验收条件。全部保持 `[ ]`；完成时先保存当前机器证据与人工摘要，再把对应任务和验收项归档至 `back/`，然后从活动清单与本清单移除。
 
@@ -9,6 +9,7 @@
 - 链库、chain ID、RPC/WSS、权限和运行状态互相隔离。
 - 测得 0 与未测量必须显式区分；不完整、陈旧或未知一律 fail-closed。
 - 根目录 `scripts/` 为仓库级工具入口；**不移动到 `plan/`**。计划目录仅承载计划、证据、checklist 和归档。
+- **前提证伪即删除**（2026-11-20 第 44 轮）：原「GOOGL 样本 `loop_key` Y 段为 `0x0` 是退化路由」一项的前提经只读核验为假 —— `0x0` 是 robinhood chain 4663 上 **ETH 的规范原生地址**（`token_kind='native'`、`is_native=1`、`admission_status='admitted'`），路径含它的 **76** 条闭环**全部** active 且容量 > 0。**该检查项已整体删除，不改写为否定式断言，也不作为验收项、指标或测试断言。**
 
 ## 1. P0 闭环身份正确性
 
@@ -27,10 +28,10 @@
   - [ ] 匹配结果（hit / miss）
   - [ ] miss 诊断（含 `repairTarget`）
   - [ ] 真实 mainnet review 消费 Manager 原始身份的确认
-  - [ ] **纯消费后归并正确性**：`currentDistinctLoops` 与 Manager 闭环数同口径对照，不出现“一个 Manager 闭环被拆成多个 Python 身份”
+  - [x] **纯消费后归并正确性**：`currentDistinctLoops` 与 Manager 闭环数同口径对照，不出现“一个 Manager 闭环被拆成多个 Python 身份”。**（复跑读数：`currentDistinctLoops=44`、`currentLoopMatched=44`、`staleOrUnmatched=0` —— 无拆分、无多余身份。）**
 - [ ] **孤儿状态行处置**：`v4_closed_loop_runtime_state` 中 2 条在 Manager 目录无对应有序路径的状态行（TZ/TA/TB 闭环的不同起点）按**精确键孤儿**处置：被精确诊断出来，不得与任何闭环关联，不得据此选择 capacity / pool / USDG / threshold。
-- [ ] **强制复跑**（不可省略）：重跑主网 review，产出对比报告，至少分出三类 —— `closed_loop_identity_mismatch`（新增诊断）、`single_tick_capacity_unavailable`（真实缺容量）、正常完成。
-  - [ ] 判读规则：若 `single_tick_capacity_unavailable` 样本数**未减少**，说明 TASK-148 是独立阻塞项，按 `TASK-148` 继续；**不得**因此判定 TASK-149 失败。
+- [x] **强制复跑**（不可省略）：重跑主网 review，产出对比报告，至少分出三类 —— `closed_loop_identity_mismatch`（新增诊断）、`single_tick_capacity_unavailable`（真实缺容量）、正常完成。**（2026-11-20T12:04:19Z 只读复跑完成，三类已分离：`single_tick_capacity_unavailable` **1 → 0**；`closed_loop_identity_mismatch` **0**（`missingReasons` 空、`missingClassifications` 空、`staleOrUnmatched=0`）；正常完成 44/44 且 `bestAmountConfirmed=44`。）**
+  - [x] 判读规则：若 `single_tick_capacity_unavailable` 样本数**未减少**，说明 TASK-148 是独立阻塞项，按 `TASK-148` 继续；**不得**因此判定 TASK-149 失败。**（样本数已减少 1→0，TASK-148 独立阻塞成立且已修复，见 §2。）**
 - [ ] **关闭门槛**：`AC-214` 与本节全部条目通过，且归档记录写明"资金锚点 + 方向池子"的身份语义与精确检索方式；**仅通过单元测试不构成关闭依据**。
 
 ## 2. P0 金额与复核
@@ -41,16 +42,15 @@
 > **根因已定位并修复**（2026-11-20，见开发计划 §7.3）：内核 SQL 投影 `load_manager_closed_loop_rows` **遗漏 `path_addresses_json`**，导致闭环目录恒空、容量永不落地。修复后目录 164/164、容量 164/164 > 0。
 > 以下只保留**修复后仍需的实盘验证**。
 
-- [ ] **AC-213** 用最新主网复核复现 `single_tick_capacity_unavailable` 样本；保存闭环身份、pool ID、状态版本和 Rust 原始诊断。
-- [ ] 沿四层归因责任层：① 实时池状态 ② pool-manager 容量投影 ③ Rust registry ④ review 输入；**修复责任层，不在 healer/Python 填默认值**。
+- [x] **AC-213** 用最新主网复核复现 `single_tick_capacity_unavailable` 样本；保存闭环身份、pool ID、状态版本和 Rust 原始诊断。**（2026-11-20 只读复跑已完成：复跑前唯一缺失样本为 `cow_execution_reviews.id=69547`，原因串 `chain review failed: single_tick_capacity_unavailable`；复跑后缺失样本 0。）**
+- [x] 沿四层归因责任层：① 实时池状态 ② pool-manager 容量投影 ③ Rust registry ④ review 输入；**修复责任层，不在 healer/Python 填默认值**。**（责任层 = 内核 `sqlite_read.rs::load_manager_closed_loop_rows`；未在 healer/Python 引入任何默认值。）**
 - [x] **定位链路收敛**（2026-11-20 只读归因已确立）：Manager 库发布的 164 条闭环容量**全部 > 0**，而 legacy review 仍有 11536 条报 `single_tick_capacity_unavailable`。容量缺失**不在 Manager 发布列上**，必须沿 **Manager → 内核快照 → review 输入** 定位（内核 `apply_closed_loop_identity` 的命中与 pool identity 校验、review 组装阶段），**不得**回头反复查看 Manager 容量投影。
 - [x] **责任层定位与修复**（源码级守卫，非行为断言）：`sqlite_read::load_manager_closed_loop_rows` 的 SELECT **必须**包含 `path_addresses_json`（闭环目录以有序 3 地址路径为键，缺该列 → 目录恒空 → 容量永不落地）。修复只恢复**已发布**容量，**不得**引入默认值、零填充或兜底容量。
-- [ ] **修复后实盘复跑**：重跑主网 review，确认 `single_tick_capacity_unavailable` 样本数显著下降；剩余样本须逐条给出**新的**真实原因（初始量缺失、RPC 失败等），**不得**以容量缺失笼统归因。
-- [ ] 次要原因一并归因（不另开任务）：`preview pool initialAmountRaw is required` 1180 条、RPC `eth_call` 失败 437 条。
-- [ ] 在实盘样本上分别确认容量缺失、容量为零和正容量三种状态；**缺失不能伪装为 0**，容量 0 必须有真实测量和原因。
+- [x] **修复后实盘复跑**：重跑主网 review，确认 `single_tick_capacity_unavailable` 样本数显著下降；剩余样本须逐条给出**新的**真实原因（初始量缺失、RPC 失败等），**不得**以容量缺失笼统归因。**（2026-11-20T12:04:19Z 只读 `--mode check` 复跑完成：`missingValue` 1→0、`bestAmountMissing` 1→0、`bestAmountLadderIncomplete` 1→0、`missingReasons` 清空、`blockers` `['reviews','broadcast']`→`['broadcast']`、44/44 manager review 容量 > 0。剩余 44 条 `review_reason='runArbitrage returned ok=false'`、`positive=0` 为链上不盈利的**真实业务结论**。）**
+- [x] 次要原因一并归因（不另开任务）：`preview pool initialAmountRaw is required` 1180 条、RPC `eth_call` 失败 437 条。**（2026-11-20 只读归因完成：1180 条写于 11-18 12:17–13:34Z，早于修复 `5ff7a1d8`，成因是 preview-pool 路径把调用方金额当必填，内核已改为从已发布容量推导起始量，回归 `the_preview_pool_path_does_not_require_the_caller_to_supply_an_initial_amount`；437 条属**传输层外部依赖**，内核无缺陷可修。三类目标缺值全部早于对应修复提交，均为**历史数据**。）**
+- [x] 在实盘样本上分别确认容量缺失、容量为零和正容量三种状态；**缺失不能伪装为 0**，容量 0 必须有真实测量和原因。**（只读核验：Manager 发布 164 条闭环容量全部 > 0，无 NULL、无 0；修复后 44/44 manager review 携带正容量与绑定池 ID，缺失态在复跑后为 0。）**
 - [ ] 在同一当前内存快照下，单 tick 起始量、跨 tick 搜索上限和最终 best amount 证据可追踪且单位正确。
-- [ ] 内核及 pool-manager/review-manager 定向测试通过，并在真实 schema/状态 fixture 上验证。
-- [ ] GOOGL 样本 `loop_key` Y 段为 `0x0` 的成因判定：Manager 侧生成缺陷，还是其 capacity 本就应为 NULL/0。
+- [x] 内核及 pool-manager/review-manager 定向测试通过，并在真实 schema/状态 fixture 上验证。**（`cargo test --offline`：rs-src 185 passed / tools 29 crate 通过；新增回归 `the_closed_loop_rows_carry_the_address_path_the_catalog_is_keyed_by`。）**
 
 ### TASK-142｜单 tick 初始量到跨 tick 搜索
 

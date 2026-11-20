@@ -1,0 +1,287 @@
+{
+  "report_id": "task148_post_fix_live_rerun",
+  "generated_at_utc": "2026-11-20T12:13:38.982776+00:00",
+  "mode": "READ_ONLY_CHECK",
+  "note": "healer --mode check; the healer opens the DB with mode=ro and gates every write behind --apply. No --apply, no broadcast, no production write.",
+  "network": "robinhood",
+  "chain_id": 4663,
+  "db_path_absolute": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "db_sha256": "9edfaddf543bb3f0a7e78d53903006d6a308bc79cb11e32ec9e91ddfcdcce880",
+  "git_head": "a05f5a7408f2bb37ef2753634b27b50bec72e862",
+  "fix_under_test": {
+    "commit": "6cfd25cf",
+    "date": "2026-11-20T18:39:49+08:00",
+    "title": "fix(capacity): 补回闭环目录的地址路径投影，修复单 tick 容量永不落地",
+    "responsible_layer": "flashloan/rs-src/src/sqlite_read.rs::load_manager_closed_loop_rows",
+    "defect": "the SELECT omitted path_addresses_json, so the closed-loop catalog (keyed by the ordered 3-address path) was permanently empty and capacity never landed."
+  },
+  "before_after": {
+    "healer.check.generatedAt": {
+      "before": "2026-11-19T12:13:07Z",
+      "after": "2026-11-20T12:04:19Z",
+      "changed": true
+    },
+    "production.state": {
+      "before": "review_best_amount_missing",
+      "after": "review_stalled",
+      "changed": true
+    },
+    "production.reason": {
+      "before": "review_without_concrete_best_trade_amount",
+      "after": "no_fresh_review_within_threshold",
+      "changed": true
+    },
+    "production.bestAmountMissing": {
+      "before": 1,
+      "after": 0,
+      "changed": true
+    },
+    "blockers": {
+      "before": [
+        "reviews",
+        "broadcast"
+      ],
+      "after": [
+        "broadcast"
+      ],
+      "changed": true
+    },
+    "layers.closedLoops.library.loop_count": {
+      "before": 164,
+      "after": 164,
+      "changed": false
+    },
+    "layers.closedLoops.library.consumers_need_rebuild": {
+      "before": 0,
+      "after": 0,
+      "changed": false
+    },
+    "layers.reviews.manager.reviews": {
+      "before": 44,
+      "after": 44,
+      "changed": false
+    },
+    "layers.reviews.legacy.currentDistinctLoops": {
+      "before": 56,
+      "after": 44,
+      "changed": true
+    },
+    "layers.reviews.legacy.currentLoopMatched": {
+      "before": 60,
+      "after": 44,
+      "changed": true
+    },
+    "layers.reviews.legacy.matchedMissingPnl": {
+      "before": 1,
+      "after": 0,
+      "changed": true
+    },
+    "layers.reviews.legacy.bestAmountMissing": {
+      "before": 1,
+      "after": 0,
+      "changed": true
+    },
+    "layers.reviews.legacy.bestAmountConfirmed": {
+      "before": 59,
+      "after": 44,
+      "changed": true
+    },
+    "layers.reviews.legacy.bestAmountLadderIncomplete": {
+      "before": 1,
+      "after": 0,
+      "changed": true
+    },
+    "layers.reviews.bestAmount.missing": {
+      "before": 1,
+      "after": 0,
+      "changed": true
+    },
+    "layers.reviews.bestAmount.confirmed": {
+      "before": 59,
+      "after": 44,
+      "changed": true
+    },
+    "layers.reviews.legacy.currentLoopStats": {
+      "before": {
+        "total": 60,
+        "valued": 59,
+        "missingValue": 1,
+        "bestAmountConfirmed": 59,
+        "bestAmountMissing": 1,
+        "positive": 0,
+        "positiveAmount": 0,
+        "nonPositive": 59,
+        "sum": -3.5222304276622896
+      },
+      "after": {
+        "total": 44,
+        "valued": 44,
+        "missingValue": 0,
+        "bestAmountConfirmed": 44,
+        "bestAmountMissing": 0,
+        "positive": 0,
+        "positiveAmount": 0,
+        "nonPositive": 44,
+        "sum": -3.3850581810141773
+      },
+      "changed": true
+    }
+  },
+  "pre_fix_missing_reason": [
+    {
+      "reason": "native result has no concrete borrow-token P&L; a zero value would indicate a code/data resolution failure and is never accepted as a conclusion | chain review failed: single_tick_capacity_unavailable",
+      "count": 1
+    }
+  ],
+  "post_fix_missing_reason": [],
+  "pre_fix_missing_review_id": 69547,
+  "pre_fix_missing_review_verified": "cow_execution_reviews.id=69547 (created 2026-11-19T02:02:35Z) reason = 'chain review failed: single_tick_capacity_unavailable'",
+  "post_fix_capacity_evidence": {
+    "manager_v4_reviews_total": 44,
+    "manager_v4_reviews_with_capacity_gt_zero": 44,
+    "source": "flashloan/db/local_store_4663.sqlite3 :: manager_v4_reviews.single_tick_capacity_anchor_raw"
+  },
+  "secondary_cause_attribution": {
+    "table": "cow_execution_reviews",
+    "rows": 24418,
+    "primary_attribution": {
+      "single_tick_capacity_unavailable": 11536,
+      "no_profitable_route": 8927,
+      "swap_not_resolved": 2062,
+      "preview_pool_initialAmountRaw_required": 1180,
+      "rpc_eth_call_failed": 446,
+      "other": 267
+    },
+    "tag_combinations": [
+      {
+        "tags": [
+          "single_tick_capacity_unavailable",
+          "no_positive_pool_profit"
+        ],
+        "count": 11536
+      },
+      {
+        "tags": [
+          "no_profitable_route",
+          "no_positive_pool_profit",
+          "route_unprofitable"
+        ],
+        "count": 8619
+      },
+      {
+        "tags": [
+          "swap_not_resolved",
+          "no_positive_pool_profit",
+          "route_unprofitable"
+        ],
+        "count": 1692
+      },
+      {
+        "tags": [
+          "preview_pool_initialAmountRaw_required"
+        ],
+        "count": 1180
+      },
+      {
+        "tags": [
+          "rpc_eth_call_failed"
+        ],
+        "count": 437
+      },
+      {
+        "tags": [
+          "swap_not_resolved",
+          "no_positive_pool_profit",
+          "missing_best_amount"
+        ],
+        "count": 305
+      },
+      {
+        "tags": [
+          "no_profitable_route",
+          "no_positive_pool_profit"
+        ],
+        "count": 253
+      },
+      {
+        "tags": [
+          "no_positive_pool_profit",
+          "route_unprofitable"
+        ],
+        "count": 218
+      },
+      {
+        "tags": [
+          "swap_not_resolved",
+          "no_positive_pool_profit"
+        ],
+        "count": 65
+      },
+      {
+        "tags": [
+          "no_profitable_route",
+          "no_positive_pool_profit",
+          "missing_best_amount"
+        ],
+        "count": 55
+      },
+      {
+        "tags": [
+          "no_positive_pool_profit"
+        ],
+        "count": 35
+      },
+      {
+        "tags": [],
+        "count": 13
+      },
+      {
+        "tags": [
+          "rpc_eth_call_failed",
+          "no_positive_pool_profit",
+          "route_unprofitable"
+        ],
+        "count": 9
+      },
+      {
+        "tags": [
+          "missing_best_amount"
+        ],
+        "count": 1
+      }
+    ],
+    "time_windows": {
+      "single_tick_capacity_unavailable": {
+        "earliest": "2026-11-18T14:55:32.639041900+00:00",
+        "latest": "2026-11-19T11:40:22.974650600+00:00",
+        "count": 11536
+      },
+      "preview_pool_initialAmountRaw_required": {
+        "earliest": "2026-11-18T12:17:30.070272300+00:00",
+        "latest": "2026-11-18T13:34:52.035125200+00:00",
+        "count": 1180
+      },
+      "rpc_eth_call_failed": {
+        "earliest": "2026-11-18T03:22:30.245367900+00:00",
+        "latest": "2026-11-19T13:10:55.720488300+00:00",
+        "count": 446
+      }
+    }
+  },
+  "conclusions": [
+    "TASK-148 修复后实盘复跑完成：healer check（只读）在 2026-11-20T12:04:19Z 复跑主网。",
+    "single_tick_capacity_unavailable 缺失样本从 1 降为 0：legacy currentLoopStats.missingValue 1 -> 0，bestAmountMissing 1 -> 0，missingReasons 由 1 条变为空。",
+    "复跑前唯一缺失 review（id 69547）的原因经库内直查确认为 'single_tick_capacity_unavailable'，与修复目标精确对应。",
+    "blockers 由 ['reviews','broadcast'] 变为 ['broadcast']：reviews 阻塞已解除。",
+    "production.state 由 review_best_amount_missing 变为 review_stalled（原因是 no_fresh_review_within_threshold，属于新鲜度而非容量/身份）。",
+    "剩余 44 条 review 的 review_reason 为 'runArbitrage returned ok=false'（链上不盈利），不是容量或身份缺陷；positive=0 属真实业务结论。",
+    "次要原因归因：1180 条 preview_pool_initialAmountRaw_required 与 11536 条 single_tick_capacity_unavailable 均为修复前的历史数据（时间戳分别早于 5ff7a1d8 / 6cfd25cf）；437 条 eth_call 失败属传输层外部依赖，不是内核缺陷。",
+    "GOOGL '退化路由' 前提不成立：0x0 是 chain 4663 上 ETH 的规范原生地址（token_kind=native, is_native=1, admission_status=admitted）；含该地址的 76 条闭环全部 active 且容量 > 0，18 条 GOOGL 闭环同样如此。"
+  ],
+  "limitations": [
+    "本次为只读 check 复跑，不是 apply 复跑；主网 review 未重新生成，latestReviewAt 仍为 2026-11-19T07:48:14Z。",
+    "复跑未触发链上广播、未写入生产库、未做任何 apply。",
+    "capacity>0 的 44 条 manager review 的 review_reason 为 runArbitrage ok=false，属真实链上不盈利结论，不能读作容量缺失。",
+    "positive=0 是业务结论（当前无盈利路由），TASK-141 的稳定窗口条件因此仍未满足。"
+  ]
+}

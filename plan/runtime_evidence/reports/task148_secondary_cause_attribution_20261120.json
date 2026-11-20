@@ -1,0 +1,485 @@
+{
+  "report_id": "task148_secondary_cause_attribution",
+  "generated_at_utc": "2026-11-20T11:56:02.116883+00:00",
+  "mode": "READ_ONLY",
+  "db_path_absolute": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "db_sha256": "9edfaddf543bb3f0a7e78d53903006d6a308bc79cb11e32ec9e91ddfcdcce880",
+  "db_bytes": 4038742016,
+  "chain_id": 4663,
+  "network": "robinhood",
+  "git_head": "a05f5a7408f2bb37ef2753634b27b50bec72e862",
+  "tool_versions": {
+    "python": "3.12.9",
+    "sqlite": "3.45.3"
+  },
+  "sections": {
+    "zero_address_token_identity": {
+      "claim": "0x000...000 is the canonical ETH native token on chain 4663, NOT a degenerate route",
+      "registry_row": [
+        {
+          "token_symbol": "ETH",
+          "token_name": "ETH",
+          "token_decimals": 18,
+          "token_kind": "native",
+          "is_native": 1,
+          "is_wrapped_native": 0,
+          "is_stable": 0,
+          "anchor_symbol": "ETH"
+        }
+      ],
+      "chain_tokens_total": 4619,
+      "closed_loops_with_zero_address": {
+        "total": 76,
+        "capacity_gt_zero": 76,
+        "status_active": 76,
+        "binding_pool_present": 76,
+        "note": "every loop containing the ETH native address is active and carries a positive published capacity"
+      }
+    },
+    "googl_loops": {
+      "total": 18,
+      "capacity_gt_zero": 18,
+      "status_active": 18,
+      "skipped_token_rows": 44,
+      "skipped_token_reasons": [
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x2d427692e928fa156ec22acfabafa0447c5805b7:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x41f4267525a8aff329540ef24fd83d9044758b33:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x822cc93ffd030293e9842c30bbd678f530701867:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xae517a2903e68bd929dfd15be875f8369d53e94a:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xb90a19ff0af67f7779aff50a882a9cff42446400:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09:no_reachable_v4_pool",
+          "count": 1
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:no_reachable_v4_pool",
+          "count": 3
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09:no_reachable_v4_pool",
+          "count": 2
+        },
+        {
+          "reason": "yz_pool_missing:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:no_reachable_v4_pool",
+          "count": 3
+        }
+      ],
+      "loops": [
+        {
+          "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "ETH",
+          "path_symbols_json": "[\"ETH\",\"SPY\",\"GOOGL\",\"ETH\"]",
+          "capacity_anchor_raw": "11116800515746830",
+          "binding_pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "anchor_symbol": "ETH",
+          "path_symbols_json": "[\"ETH\",\"GOOGL\",\"SPY\",\"ETH\"]",
+          "capacity_anchor_raw": "31257545313018016",
+          "binding_pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchor_symbol": "ETH",
+          "path_symbols_json": "[\"ETH\",\"GOOGL\",\"USDG\",\"ETH\"]",
+          "capacity_anchor_raw": "10738830545928186",
+          "binding_pool_id": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "ETH",
+          "path_symbols_json": "[\"ETH\",\"USDG\",\"GOOGL\",\"ETH\"]",
+          "capacity_anchor_raw": "6467218478560826",
+          "binding_pool_id": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "SPY",
+          "path_symbols_json": "[\"SPY\",\"ETH\",\"GOOGL\",\"SPY\"]",
+          "capacity_anchor_raw": "76116461709464564",
+          "binding_pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+          "anchor_symbol": "SPY",
+          "path_symbols_json": "[\"SPY\",\"GOOGL\",\"ETH\",\"SPY\"]",
+          "capacity_anchor_raw": "1499736770995771",
+          "binding_pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchor_symbol": "SPY",
+          "path_symbols_json": "[\"SPY\",\"GOOGL\",\"USDG\",\"SPY\"]",
+          "capacity_anchor_raw": "1499736770995771",
+          "binding_pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "SPY",
+          "path_symbols_json": "[\"SPY\",\"USDG\",\"GOOGL\",\"SPY\"]",
+          "capacity_anchor_raw": "8908228938740149",
+          "binding_pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"ETH\",\"SPY\",\"GOOGL\"]",
+          "capacity_anchor_raw": "3784014450048733",
+          "binding_pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"ETH\",\"USDG\",\"GOOGL\"]",
+          "capacity_anchor_raw": "146738863648022883",
+          "binding_pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"SPY\",\"ETH\",\"GOOGL\"]",
+          "capacity_anchor_raw": "192217398853654912",
+          "binding_pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"SPY\",\"USDG\",\"GOOGL\"]",
+          "capacity_anchor_raw": "826012990447734723",
+          "binding_pool_id": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"USDG\",\"ETH\",\"GOOGL\"]",
+          "capacity_anchor_raw": "5449370755577",
+          "binding_pool_id": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "anchor_symbol": "GOOGL",
+          "path_symbols_json": "[\"GOOGL\",\"USDG\",\"SPY\",\"GOOGL\"]",
+          "capacity_anchor_raw": "5449370755577",
+          "binding_pool_id": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "USDG",
+          "path_symbols_json": "[\"USDG\",\"ETH\",\"GOOGL\",\"USDG\"]",
+          "capacity_anchor_raw": "1601",
+          "binding_pool_id": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "anchor_symbol": "USDG",
+          "path_symbols_json": "[\"USDG\",\"SPY\",\"GOOGL\",\"USDG\"]",
+          "capacity_anchor_raw": "1597",
+          "binding_pool_id": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+          "anchor_symbol": "USDG",
+          "path_symbols_json": "[\"USDG\",\"GOOGL\",\"ETH\",\"USDG\"]",
+          "capacity_anchor_raw": "11674685",
+          "binding_pool_id": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+          "status": "active"
+        },
+        {
+          "loop_key": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "anchor_symbol": "USDG",
+          "path_symbols_json": "[\"USDG\",\"GOOGL\",\"SPY\",\"USDG\"]",
+          "capacity_anchor_raw": "6609546",
+          "binding_pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+          "status": "active"
+        }
+      ],
+      "note": "all 18 GOOGL loops are active with positive capacity; the `0x0` Y segment appears only where ETH is the legitimate middle token of SPY-ETH-GOOGL-SPY"
+    },
+    "legacy_review_attribution": {
+      "table": "cow_execution_reviews",
+      "rows": 24418,
+      "primary_attribution": {
+        "single_tick_capacity_unavailable": 11536,
+        "no_profitable_route": 8927,
+        "swap_not_resolved": 2062,
+        "preview_pool_initialAmountRaw_required": 1180,
+        "rpc_eth_call_failed": 446,
+        "other": 267
+      },
+      "tag_combinations": [
+        {
+          "tags": [
+            "single_tick_capacity_unavailable",
+            "no_positive_pool_profit"
+          ],
+          "count": 11536
+        },
+        {
+          "tags": [
+            "no_profitable_route",
+            "no_positive_pool_profit",
+            "route_unprofitable"
+          ],
+          "count": 8619
+        },
+        {
+          "tags": [
+            "swap_not_resolved",
+            "no_positive_pool_profit",
+            "route_unprofitable"
+          ],
+          "count": 1692
+        },
+        {
+          "tags": [
+            "preview_pool_initialAmountRaw_required"
+          ],
+          "count": 1180
+        },
+        {
+          "tags": [
+            "rpc_eth_call_failed"
+          ],
+          "count": 437
+        },
+        {
+          "tags": [
+            "swap_not_resolved",
+            "no_positive_pool_profit",
+            "missing_best_amount"
+          ],
+          "count": 305
+        },
+        {
+          "tags": [
+            "no_profitable_route",
+            "no_positive_pool_profit"
+          ],
+          "count": 253
+        },
+        {
+          "tags": [
+            "no_positive_pool_profit",
+            "route_unprofitable"
+          ],
+          "count": 218
+        },
+        {
+          "tags": [
+            "swap_not_resolved",
+            "no_positive_pool_profit"
+          ],
+          "count": 65
+        },
+        {
+          "tags": [
+            "no_profitable_route",
+            "no_positive_pool_profit",
+            "missing_best_amount"
+          ],
+          "count": 55
+        },
+        {
+          "tags": [
+            "no_positive_pool_profit"
+          ],
+          "count": 35
+        },
+        {
+          "tags": [],
+          "count": 13
+        },
+        {
+          "tags": [
+            "rpc_eth_call_failed",
+            "no_positive_pool_profit",
+            "route_unprofitable"
+          ],
+          "count": 9
+        },
+        {
+          "tags": [
+            "missing_best_amount"
+          ],
+          "count": 1
+        }
+      ],
+      "time_windows": {
+        "single_tick_capacity_unavailable": {
+          "earliest": "2026-11-18T14:55:32.639041900+00:00",
+          "latest": "2026-11-19T11:40:22.974650600+00:00",
+          "count": 11536
+        },
+        "preview_pool_initialAmountRaw_required": {
+          "earliest": "2026-11-18T12:17:30.070272300+00:00",
+          "latest": "2026-11-18T13:34:52.035125200+00:00",
+          "count": 1180
+        },
+        "rpc_eth_call_failed": {
+          "earliest": "2026-11-18T03:22:30.245367900+00:00",
+          "latest": "2026-11-19T13:10:55.720488300+00:00",
+          "count": 446
+        }
+      }
+    },
+    "repair_state_per_cause": {
+      "single_tick_capacity_unavailable": {
+        "responsible_layer": "rust_kernel/sqlite_read.rs::load_manager_closed_loop_rows",
+        "defect": "SELECT omitted path_addresses_json -> closed-loop catalog keyed by ordered 3-address path was permanently empty",
+        "fix_commit": "6cfd25cf",
+        "fix_date": "2026-11-20T18:39:49+08:00",
+        "status": "fixed_in_code_not_yet_rerun_live",
+        "regression_test": "flashloan/rs-src/src/sqlite_read.rs::the_closed_loop_rows_carry_the_address_path_the_catalog_is_keyed_by"
+      },
+      "preview_pool_initialAmountRaw_required": {
+        "responsible_layer": "rust_kernel/execution.rs::official_v4_preview_and_ladder_inner",
+        "defect": "preview-pool path read config.initialAmountRaw as a REQUIRED field; the pure-consumer Python runtime never publishes a trading amount, so every route failed before probing",
+        "fix_commit": "5ff7a1d8",
+        "fix_date": "2026-11-20T13:59:07+08:00",
+        "status": "fixed_in_code_not_yet_rerun_live",
+        "regression_test": "flashloan/rs-src/src/execution.rs::the_preview_pool_path_does_not_require_the_caller_to_supply_an_initial_amount"
+      },
+      "rpc_eth_call_failed": {
+        "responsible_layer": "external_transport/rpc_endpoint",
+        "defect": "previewBestPool eth_call transport failure (RPC endpoint unreachable / transport error)",
+        "fix_commit": null,
+        "fix_date": null,
+        "status": "NOT_a_code_defect_transport_layer_external_dependency",
+        "regression_test": null
+      }
+    }
+  },
+  "conclusions": [
+    "The premise 'GOOGL loopKey Y segment = 0x0 is a degenerate route' is FALSE: 0x0 is the canonical ETH native address on chain 4663 (chain_tokens.token_kind=native, is_native=1, admission_status=admitted).",
+    "All 76 closed loops containing the ETH native address are status=active with published capacity > 0; all 18 GOOGL loops likewise.",
+    "The 11536 single_tick_capacity_unavailable rows were produced 2026-11-18T14:55Z..2026-11-19T11:40Z, BEFORE fix 6cfd25cf (2026-11-20).",
+    "The 1180 preview_pool_initialAmountRaw_required rows were produced 2026-11-18T12:17Z..13:34Z, BEFORE fix 5ff7a1d8 (2026-11-20).",
+    "The 437 (446 incl. co-tagged) rpc_eth_call_failed rows are a transport-layer external dependency, not a kernel defect.",
+    "Therefore all three TASK-148 secondary causes are HISTORICAL data; none is a live code defect. Closing requires a post-fix live rerun, not a code change."
+  ],
+  "limitations": [
+    "Read-only snapshot of the manager DB at the stated digest; it is not a live chain observation.",
+    "No live rerun was executed in this round (no mainnet broadcast, no production write, no apply).",
+    "cow_execution_reviews.reason strings are free-form concatenated diagnostics; grouping is by literal substring matching, so a cause absent from the text is invisible to this attribution."
+  ]
+}
