@@ -685,14 +685,18 @@ fn read_exchange_input(
         return Err(CandidateExchangeError::MissingPoolScope);
     }
     let catalog = read_catalog(connection, network, chain_id)?;
-    let anchors = read_anchor_groups(connection, network, chain_id, &catalog)?;
-    validate_candidate_edge_state(&candidate_edge, &anchors)?;
+    let anchor_groups = read_anchor_groups(connection, network, chain_id, &catalog)?;
+    validate_candidate_edge_state(
+        &candidate_edge,
+        &anchor_groups.groups,
+        anchor_groups.candidate_token_count,
+    )?;
     let pools = read_scope_pools(connection, network, chain_id)?;
     Ok(ExchangeInput {
         candidate_edge,
         pool_scope,
         catalog,
-        anchors,
+        anchors: anchor_groups.groups,
         pools,
     })
 }
@@ -811,12 +815,20 @@ fn read_catalog(
     Ok(catalog)
 }
 
+struct AnchorGroups {
+    groups: BTreeMap<String, BTreeSet<String>>,
+    /// The number of distinct counterparties of the candidate edge rows.
+    /// This is the quantity the candidate edge manager writes into the
+    /// `candidate_token_count` of its state.
+    candidate_token_count: usize,
+}
+
 fn read_anchor_groups(
     connection: &Connection,
     network: &str,
     chain_id: i64,
     catalog: &BTreeMap<String, CatalogToken>,
-) -> Result<BTreeMap<String, BTreeSet<String>>, CandidateExchangeError> {
+) -> Result<AnchorGroups, CandidateExchangeError> {
     let mut statement = connection.prepare(
         "SELECT anchor_token_key_id, token_key_id, anchor_library_key, token_library_key
          FROM manager_dex_candidate_anchor_tokens
@@ -835,6 +847,7 @@ fn read_anchor_groups(
         },
     )?;
     let mut anchors = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut counterparties = BTreeSet::<String>::new();
     for row in rows {
         let (anchor_key_id, token_key_id, anchor_library_key, token_library_key) = row?;
         let anchor = catalog.get(&anchor_key_id).ok_or_else(|| {
@@ -852,28 +865,63 @@ fn read_anchor_groups(
                 "candidate anchor membership library changed for {anchor_key_id}/{token_key_id}"
             )));
         }
-        anchors
-            .entry(anchor_key_id)
-            .or_default()
-            .insert(token_key_id);
+        let group = anchors.entry(anchor_key_id.clone()).or_default();
+        // The anchor is a member of its own token set.
+        //
+        // `manager_dex_candidate_anchor_tokens` records one row per
+        // *(anchor, counterparty)* candidate edge, so the anchor's own
+        // `token_key_id` never appears as a `token_key_id` value. The
+        // candidate edge layer treats the anchor as the **funding token**
+        // and the recorded token as the **counterparty** traded against
+        // it; the pool of an edge therefore has the anchor on one end and
+        // the counterparty on the other.
+        //
+        // The exchange layer observes the *directions between the tokens
+        // that share an anchor*, so the pool of an edge is reachable only
+        // when both of its ends are in the anchor's group: the anchor
+        // itself and its counterparty. Leaving the anchor out of its own
+        // group therefore drops the anchor's own edge pool and silently
+        // empties every direction that depends on it.
+        //
+        // `closed_loop_manager::read_anchors` builds the same group the
+        // same way and then requires `anchor.tokens[anchor]` to exist.
+        group.insert(anchor_key_id.clone());
+        group.insert(token_key_id.clone());
+        counterparties.insert(token_key_id);
     }
     if anchors.is_empty() {
         return Err(CandidateExchangeError::MissingCandidateEdgeState);
     }
-    Ok(anchors)
+    Ok(AnchorGroups {
+        groups: anchors,
+        candidate_token_count: counterparties.len(),
+    })
 }
 
 fn validate_candidate_edge_state(
     status: &CandidateEdgeStatus,
     anchors: &BTreeMap<String, BTreeSet<String>>,
+    candidate_token_count: usize,
 ) -> Result<(), CandidateExchangeError> {
-    let unique_tokens = anchors.values().flatten().collect::<BTreeSet<_>>().len();
-    if anchors.len() != status.anchor_token_count || unique_tokens != status.candidate_token_count {
+    // The state counts are written by the candidate edge manager and
+    // describe the **rows** it stored: the number of distinct anchors and
+    // the number of distinct counterparties.
+    //
+    // The anchor count is therefore compared against the number of anchor
+    // groups, but the token count is compared against the number of
+    // distinct counterparties of the rows. It must not be compared
+    // against the union of the groups, because a group also holds the
+    // anchor itself, which is a member of the group rather than a
+    // counterparty of a row.
+    let anchor_count = anchors.len();
+    if anchor_count != status.anchor_token_count
+        || candidate_token_count != status.candidate_token_count
+    {
         return Err(CandidateExchangeError::CandidateEdgeRead(format!(
             "candidate anchor rows do not match state counts: anchors {}/{}, tokens {}/{}",
-            anchors.len(),
+            anchor_count,
             status.anchor_token_count,
-            unique_tokens,
+            candidate_token_count,
             status.candidate_token_count
         )));
     }
@@ -1642,12 +1690,22 @@ fn read_anchor_symbols(
     network: &str,
     chain_id: i64,
 ) -> Result<BTreeMap<String, String>, CandidateExchangeError> {
+    // The anchor's display symbol is a property of the anchor token
+    // itself, so it is read from the token catalog. The candidate edge
+    // table only stores *(anchor, counterparty)* rows, so a self
+    // referential row (`anchor_token_key_id = token_key_id`) never exists
+    // and the display symbol has to come from the catalog instead.
     let mut statement = connection.prepare(
-        "SELECT DISTINCT anchor_token_key_id, token_symbol
-         FROM manager_dex_candidate_anchor_tokens
-         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
-           AND anchor_token_key_id = token_key_id
-         ORDER BY anchor_token_key_id, token_symbol",
+        "SELECT DISTINCT anchor_token_key_id, catalog.token_symbol
+         FROM manager_dex_candidate_anchor_tokens AS anchor_rows
+         JOIN token_library_catalog AS catalog
+           ON catalog.network = anchor_rows.network
+          AND catalog.chain_id = anchor_rows.chain_id
+          AND catalog.token_key_id = anchor_rows.anchor_token_key_id
+          AND catalog.admission_status = 'admitted'
+         WHERE anchor_rows.network = ?1 AND anchor_rows.chain_id = ?2
+           AND anchor_rows.protocol = ?3 AND anchor_rows.scope_key = ?4
+         ORDER BY anchor_token_key_id, catalog.token_symbol",
     )?;
     let rows = statement.query_map(
         params![network, chain_id, NETWORK_PROTOCOL, CANDIDATE_SCOPE_KEY],
@@ -3236,6 +3294,106 @@ mod tests {
                 )
                 .unwrap();
         }
+    }
+
+    #[test]
+    fn observes_the_anchor_own_edge_pool_without_a_self_referential_row() {
+        // The candidate edge table records one row per *(anchor,
+        // counterparty)* edge. It never stores a self referential row
+        // (`anchor_token_key_id = token_key_id`), so the anchor's own edge
+        // pool has to be discovered from the counterparty rows alone.
+        //
+        // The exchange layer observes the directions between the tokens
+        // that share an anchor, and the closed loop layer consumes the
+        // anchor's own first and third hop. If the anchor is not a member
+        // of its own group, the anchor's edge pool is dropped, every
+        // direction that depends on it is reported as
+        // `no_reachable_v4_pool`, and no closed loop can be published.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Production shape: the anchor is only ever a counterparty, never
+        // its own token. The fixture ships a self row, so it is removed.
+        let removed = connection
+            .execute(
+                "DELETE FROM manager_dex_candidate_anchor_tokens
+                 WHERE anchor_token_key_id = token_key_id",
+                [],
+            )
+            .unwrap();
+        assert_eq!(removed, 1, "the fixture seeds exactly one self row");
+        // The candidate edge state counts the distinct counterparties of
+        // its rows, so removing the self referential row has to be
+        // reflected in the state exactly like the candidate edge manager
+        // itself would have written it.
+        let counterparties: i64 = connection
+            .query_row(
+                "SELECT COUNT(DISTINCT token_key_id)
+                 FROM manager_dex_candidate_anchor_tokens",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE manager_dex_candidate_library_state
+                 SET candidate_token_count = ?1
+                 WHERE network = ?2 AND chain_id = ?3
+                   AND protocol = 'uniswap_v4' AND scope_key = 'core4'",
+                params![counterparties, NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+
+        let applied = materialize_candidate_exchanges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        assert!(applied.anchor_count > 0);
+
+        let snapshot =
+            read_candidate_exchange_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+
+        // The anchor's own edge pool (ANCHOR <-> STOCK) has to be
+        // observable in both directions.
+        let anchor_key = token_key_id(ANCHOR);
+        let stock_key = token_key_id(STOCK);
+        let forward = snapshot
+            .yz_pairs
+            .iter()
+            .find(|row| row.anchor_token_key_id == anchor_key && row.token_x_key_id == anchor_key
+                && row.token_y_key_id == stock_key)
+            .expect("the anchor's own forward direction has to be observed");
+        assert!(
+            forward.has_direct_swap_pool,
+            "the anchor's own edge pool has to be reachable, got {:?}",
+            forward.observation_empty_reason
+        );
+        assert!(forward.direct_swap_pool_count > 0);
+        assert!(forward.optimal_pool_id.is_some());
+
+        let reverse = snapshot
+            .yz_pairs
+            .iter()
+            .find(|row| row.anchor_token_key_id == anchor_key && row.token_x_key_id == stock_key
+                && row.token_y_key_id == anchor_key)
+            .expect("the anchor's own reverse direction has to be observed");
+        assert!(
+            reverse.has_direct_swap_pool,
+            "the anchor's own edge pool has to be reachable, got {:?}",
+            reverse.observation_empty_reason
+        );
+
+        // The anchor has to be part of its own group, otherwise the
+        // closed loop layer cannot resolve `anchor.tokens[anchor]`.
+        let group: Vec<_> = snapshot
+            .yz_pairs
+            .iter()
+            .filter(|row| row.anchor_token_key_id == anchor_key)
+            .collect();
+        assert!(
+            group
+                .iter()
+                .any(|row| row.token_x_key_id == anchor_key
+                    || row.token_y_key_id == anchor_key),
+            "the anchor has to be a member of its own token group"
+        );
     }
 
     #[test]

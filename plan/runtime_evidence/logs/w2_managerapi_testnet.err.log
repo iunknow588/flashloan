@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.54s
+     Running `flashloan\tools\target\debug\manager-api.exe`
+error: process didn't exit successfully: `flashloan\tools\target\debug\manager-api.exe` (exit code: 0xffffffff)

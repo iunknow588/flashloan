@@ -1,6 +1,6 @@
 {
   "schema": "task147-testnet-prerequisite-v1",
-  "generatedAt": "2026-11-20T19:59:54.751595+00:00",
+  "generatedAt": "2026-11-21T05:00:54.721055+00:00",
   "task": "TASK-147",
   "acceptanceCriterion": "AC-211",
   "mode": "read-only",
@@ -44,7 +44,7 @@
             "declaredChainId": 46630,
             "observedChainId": 46630,
             "chainIdMatches": true,
-            "observedBlockNumber": 155996398
+            "observedBlockNumber": 156141157
           },
           {
             "endpoint": "fallback[0]",
@@ -58,7 +58,7 @@
             "declaredChainId": 46630,
             "observedChainId": 46630,
             "chainIdMatches": true,
-            "observedBlockNumber": 155996404
+            "observedBlockNumber": 156141168
           }
         ],
         "reachableEndpointCount": 2,
@@ -79,7 +79,7 @@
   "store": {
     "path": "flashloan/db/local_store_46630.sqlite3",
     "absolutePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
-    "sha256": "c3d430e1150ab9e013a85556f100b43d975264081bc7cd41f550ed37175e445e",
+    "sha256": "09305dc3633f8286d66ea374fb45b9e6c727b4584cf665fbb5be7bdd9dae8971",
     "sizeBytes": 875880448,
     "openedReadOnly": true
   },
@@ -821,64 +821,31 @@
         "stocks"
       ],
       "pinnedLibraryVersions": {
-        "core": 1,
+        "core": 3,
         "stocks": 1
       },
       "pinnedLibraryChecksums": {
-        "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+        "core": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
         "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
       },
       "excludedTokenKeyIds": [],
-      "materializedChecksum": "sha256:aae839c344abc67c73ab387147a6d715bd2703db57a7e13426509f5b6c34f5dc",
-      "lastRebuiltAt": "2026-11-15T14:24:38.179367900+00:00",
+      "materializedChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
+      "lastRebuiltAt": "2026-11-21T04:29:07.736817600+00:00",
       "createdAt": "2026-11-15T06:20:57.466489400+00:00",
-      "updatedAt": "2026-11-15T14:24:38.179367900+00:00",
+      "updatedAt": "2026-11-21T04:29:07.736817600+00:00",
       "poolCounts": {
-        "raw": 20,
-        "active": 19,
-        "blocked": 1
+        "raw": 5,
+        "active": 5,
+        "blocked": 0
       },
-      "distinctTokenPairCount": 10,
+      "distinctTokenPairCount": 4,
       "tokenPairs": [
         {
           "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-          "token1KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
-          "poolCount": 4,
-          "depthStatuses": [
-            "thin"
-          ]
-        },
-        {
-          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-          "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
-          "poolCount": 2,
-          "depthStatuses": [
-            "thin"
-          ]
-        },
-        {
-          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
           "token1KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
-          "poolCount": 3,
+          "poolCount": 1,
           "depthStatuses": [
-            "deep",
-            "thin"
-          ]
-        },
-        {
-          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
-          "poolCount": 2,
-          "depthStatuses": [
-            "thin"
-          ]
-        },
-        {
-          "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "poolCount": 3,
-          "depthStatuses": [
-            "thin"
+            "deep"
           ]
         },
         {
@@ -890,27 +857,11 @@
           ]
         },
         {
-          "token0KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
-          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
-          "poolCount": 1,
-          "depthStatuses": [
-            "thin"
-          ]
-        },
-        {
           "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
           "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
           "poolCount": 1,
           "depthStatuses": [
             "deep"
-          ]
-        },
-        {
-          "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
-          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "poolCount": 1,
-          "depthStatuses": [
-            "thin"
           ]
         },
         {
@@ -923,15 +874,8 @@
           ]
         }
       ],
-      "staleLibraries": [
-        {
-          "library": "core",
-          "pinnedVersion": 1,
-          "currentVersion": 3,
-          "reason": "version_drift"
-        }
-      ],
-      "libraryVersionsAreCurrent": false
+      "staleLibraries": [],
+      "libraryVersionsAreCurrent": true
     },
     {
       "scopeKey": "core4",
@@ -951,16 +895,16 @@
         "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
       },
       "excludedTokenKeyIds": [],
-      "materializedChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
-      "lastRebuiltAt": "2026-11-17T09:11:35.662590+00:00",
+      "materializedChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
+      "lastRebuiltAt": "2026-11-21T04:25:10.615917900+00:00",
       "createdAt": "2026-11-15T06:20:56.735244100+00:00",
-      "updatedAt": "2026-11-17T09:11:35.662590+00:00",
+      "updatedAt": "2026-11-21T04:25:10.615917900+00:00",
       "poolCounts": {
-        "raw": 1,
-        "active": 1,
+        "raw": 5,
+        "active": 5,
         "blocked": 0
       },
-      "distinctTokenPairCount": 1,
+      "distinctTokenPairCount": 4,
       "tokenPairs": [
         {
           "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
@@ -968,6 +912,31 @@
           "poolCount": 1,
           "depthStatuses": [
             "deep"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+          "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+          "poolCount": 1,
+          "depthStatuses": [
+            "medium"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+          "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "poolCount": 1,
+          "depthStatuses": [
+            "deep"
+          ]
+        },
+        {
+          "token0KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "poolCount": 2,
+          "depthStatuses": [
+            "deep",
+            "medium"
           ]
         }
       ],
@@ -980,26 +949,26 @@
       {
         "protocol": "uniswap_v4",
         "scopeKey": "candidate_exchange",
-        "materializedChecksum": "sha256:50b98fee89500deff82c5c1676c3646617d9367450b0fd9bde681e0d20246f50",
-        "poolScopeChecksum": "sha256:aae839c344abc67c73ab387147a6d715bd2703db57a7e13426509f5b6c34f5dc",
+        "materializedChecksum": "sha256:88d3169b56102cf788649873fc75dea00851678c9f644b2f49fa6cbed63de3ba",
+        "poolScopeChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
         "libraryVersions": {
-          "core": 1,
+          "core": 3,
           "stocks": 1
         },
         "libraryChecksums": {
-          "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+          "core": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
           "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
         },
         "generatedAt": "2026-11-15T06:20:57.646142500+00:00",
-        "updatedAt": "2026-11-17T09:12:26.623804100+00:00",
-        "observationVersion": 7,
-        "candidateEdgeVersion": 7,
-        "candidateEdgeChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
-        "anchorCount": 1,
-        "tokenCount": 1,
-        "directionCount": 0,
-        "emptyDirectionCount": 0,
-        "poolCount": 0,
+        "updatedAt": "2026-11-21T04:57:14.651237+00:00",
+        "observationVersion": 9,
+        "candidateEdgeVersion": 8,
+        "candidateEdgeChecksum": "sha256:7b0e217158eb6e1ec4f1993b867a8a0263027917367faf7bc22ed7ea1a012eb9",
+        "anchorCount": 6,
+        "tokenCount": 6,
+        "directionCount": 20,
+        "emptyDirectionCount": 4,
+        "poolCount": 10,
         "abnormalDirectionCount": 0,
         "abnormalPoolCount": 0
       }
@@ -1008,8 +977,8 @@
       {
         "protocol": "uniswap_v4",
         "scopeKey": "core4",
-        "materializedChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
-        "poolScopeChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+        "materializedChecksum": "sha256:7b0e217158eb6e1ec4f1993b867a8a0263027917367faf7bc22ed7ea1a012eb9",
+        "poolScopeChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
         "libraryVersions": {
           "core": 3,
           "extension": 2,
@@ -1022,19 +991,19 @@
           "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3",
           "test": "sha256:e747e936b5d815e9f946a70ea800ae5c67256ee3c23f220123fde51528b4ee4f"
         },
-        "generatedAt": "2026-11-18T09:56:47.126032900+00:00",
-        "updatedAt": "2026-11-18T09:56:47.126032900+00:00",
-        "candidateVersion": 7,
+        "generatedAt": "2026-11-21T04:26:07.593777800+00:00",
+        "updatedAt": "2026-11-21T04:26:07.593777800+00:00",
+        "candidateVersion": 8,
         "poolLibraryVersions": {
           "core": 3,
           "extension": 2,
           "stocks": 1,
           "test": 2
         },
-        "anchorTokenCount": 1,
-        "candidateTokenCount": 1,
-        "eligiblePoolCount": 1,
-        "recommendationCount": 2,
+        "anchorTokenCount": 6,
+        "candidateTokenCount": 6,
+        "eligiblePoolCount": 10,
+        "recommendationCount": 20,
         "abnormalPoolCount": 0
       }
     ],
@@ -1042,29 +1011,29 @@
       {
         "protocol": "uniswap_v4",
         "scopeKey": "core4",
-        "materializedChecksum": "sha256:764fd64f0254b1e93e7a0d4bb676542aac77f8a0526342c3d0c7e0cb6f8375d8",
-        "poolScopeChecksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+        "materializedChecksum": "sha256:62fa4c7ca0adc885a35273704ec1c6e752dad55e90eec5a9ef76645dbf2aa784",
+        "poolScopeChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
         "libraryVersions": {
-          "core": 1,
+          "core": 3,
           "stocks": 1
         },
         "libraryChecksums": {
-          "core": "sha256:4517b9631a6693fd35e5c94c5f82e5c5b4bd3173ad05bfa519d01e2d6e178ed0",
+          "core": "sha256:9c7743e7325a57f711665f23193a0158f873306467da31588b0e898742d48086",
           "stocks": "sha256:fbb6a92d3c7b182785fc74ce9e7b6a9b3694f5bcffeb30f3f9c111aba12fdef3"
         },
-        "generatedAt": "2026-11-17T09:12:26.648120500+00:00",
-        "updatedAt": "2026-11-17T09:12:26.724369500+00:00",
-        "closedLoopVersion": 9,
-        "candidateEdgeVersion": 7,
-        "candidateEdgeChecksum": "sha256:429cec7474d39763535a7faa7c2ef95c84e70891cfc72958627221f75079e1be",
-        "observationVersion": 7,
-        "observationChecksum": "sha256:50b98fee89500deff82c5c1676c3646617d9367450b0fd9bde681e0d20246f50",
-        "anchorCount": 1,
+        "generatedAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00",
+        "closedLoopVersion": 10,
+        "candidateEdgeVersion": 8,
+        "candidateEdgeChecksum": "sha256:7b0e217158eb6e1ec4f1993b867a8a0263027917367faf7bc22ed7ea1a012eb9",
+        "observationVersion": 9,
+        "observationChecksum": "sha256:88d3169b56102cf788649873fc75dea00851678c9f644b2f49fa6cbed63de3ba",
+        "anchorCount": 6,
         "loopCount": 0,
         "hopCount": 0,
         "optimizationCount": 0,
-        "skippedTokenCount": 1,
-        "consumersNeedRebuild": 0
+        "skippedTokenCount": 8,
+        "consumersNeedRebuild": 1
       }
     ],
     "skippedTokens": [
@@ -1076,8 +1045,8 @@
         "tokenSymbol": "AMZN",
         "candidateRole": "first",
         "reason": "no_completing_middle_direction",
-        "createdAt": "2026-11-17T09:12:26.648120500+00:00",
-        "updatedAt": "2026-11-17T09:12:26.648120500+00:00"
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
       },
       {
         "protocol": "uniswap_v4",
@@ -1087,121 +1056,254 @@
         "tokenSymbol": "AMZN",
         "candidateRole": "third",
         "reason": "no_completing_middle_direction",
-        "createdAt": "2026-11-17T09:12:26.648120500+00:00",
-        "updatedAt": "2026-11-17T09:12:26.648120500+00:00"
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "tokenSymbol": "NFLX",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "tokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "tokenSymbol": "NFLX",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "tokenSymbol": "PLTR",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "tokenKeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "tokenSymbol": "PLTR",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenSymbol": "ETH",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenSymbol": "ETH",
+        "candidateRole": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x0000000000000000000000000000000000000000->robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d:no_reachable_v4_pool",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "tokenSymbol": "ETH",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "candidateRole": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d->robinhood-testnet:46630:0x0000000000000000000000000000000000000000:no_reachable_v4_pool",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "candidateRole": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02->robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:no_reachable_v4_pool",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "tokenSymbol": "AMZN",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenSymbol": "TSLA",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenSymbol": "TSLA",
+        "candidateRole": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e->robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:no_reachable_v4_pool",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenSymbol": "TSLA",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "candidateRole": "first",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "anchorTokenKeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "tokenKeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "tokenSymbol": "AMD",
+        "candidateRole": "third",
+        "reason": "no_completing_middle_direction",
+        "createdAt": "2026-11-21T04:59:24.872800300+00:00",
+        "updatedAt": "2026-11-21T04:59:24.872800300+00:00"
       }
     ],
     "tableCounts": {
       "manager_v4_closed_loops": 0,
       "manager_v4_closed_loop_hops": 0,
       "manager_v4_closed_loop_optimizations": 0,
-      "manager_market_observation_yz_pairs": 0,
-      "manager_market_observation_intermediate_pools": 0,
-      "manager_market_observation_liquidity_snapshots": 0,
-      "manager_dex_candidate_anchor_tokens": 1,
-      "manager_dex_candidate_pool_recommendations": 2
+      "manager_market_observation_yz_pairs": 20,
+      "manager_market_observation_intermediate_pools": 10,
+      "manager_market_observation_liquidity_snapshots": 10,
+      "manager_dex_candidate_anchor_tokens": 8,
+      "manager_dex_candidate_pool_recommendations": 20
     }
   },
   "derived": {
-    "directionCount": 0,
+    "directionCount": 20,
     "loopCount": 0,
     "hopCount": 0,
     "optimizationCount": 0,
     "observationScope": {
       "scopeKey": "candidate_exchange",
       "poolCounts": {
-        "raw": 20,
-        "active": 19,
-        "blocked": 1
+        "raw": 5,
+        "active": 5,
+        "blocked": 0
       },
-      "distinctTokenPairCount": 10,
-      "staleLibraries": [
-        {
-          "library": "core",
-          "pinnedVersion": 1,
-          "currentVersion": 3,
-          "reason": "version_drift"
-        }
-      ],
+      "distinctTokenPairCount": 4,
+      "staleLibraries": [],
       "filterMode": "both_end"
     },
     "closedLoopScope": {
       "scopeKey": "core4",
       "poolCounts": {
-        "raw": 1,
-        "active": 1,
+        "raw": 5,
+        "active": 5,
         "blocked": 0
       },
-      "distinctTokenPairCount": 1,
+      "distinctTokenPairCount": 4,
       "staleLibraries": [],
       "filterMode": "edge_any"
     },
-    "scopesWithLibraryDrift": [
-      {
-        "scopeKey": "candidate_exchange",
-        "filterMode": "both_end",
-        "poolTable": "v4_exchange_pools_candidate_exchange",
-        "poolCounts": {
-          "raw": 20,
-          "active": 19,
-          "blocked": 1
-        },
-        "distinctTokenPairCount": 10,
-        "staleLibraries": [
-          {
-            "library": "core",
-            "pinnedVersion": 1,
-            "currentVersion": 3,
-            "reason": "version_drift"
-          }
-        ],
-        "lastRebuiltAt": "2026-11-15T14:24:38.179367900+00:00"
-      }
-    ],
+    "scopesWithLibraryDrift": [],
     "candidateExchangeTokenPairs": [
       {
         "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-        "token1KeyId": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
-        "poolCount": 4,
-        "depthStatuses": [
-          "thin"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
-        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-        "token1KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
-        "poolCount": 2,
-        "depthStatuses": [
-          "thin"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
-        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
         "token1KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
-        "poolCount": 3,
+        "poolCount": 1,
         "depthStatuses": [
-          "deep",
-          "thin"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
-        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-        "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
-        "poolCount": 2,
-        "depthStatuses": [
-          "thin"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
-        "token0KeyId": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
-        "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "poolCount": 3,
-        "depthStatuses": [
-          "thin"
+          "deep"
         ],
         "bothEndsAdmittedInAnyLibrary": true
       },
@@ -1215,29 +1317,11 @@
         "bothEndsAdmittedInAnyLibrary": true
       },
       {
-        "token0KeyId": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
-        "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
-        "poolCount": 1,
-        "depthStatuses": [
-          "thin"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
         "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
         "token1KeyId": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
         "poolCount": 1,
         "depthStatuses": [
           "deep"
-        ],
-        "bothEndsAdmittedInAnyLibrary": true
-      },
-      {
-        "token0KeyId": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
-        "token1KeyId": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "poolCount": 1,
-        "depthStatuses": [
-          "thin"
         ],
         "bothEndsAdmittedInAnyLibrary": true
       },
@@ -1253,7 +1337,11 @@
       }
     ],
     "skipReasons": [
-      "no_completing_middle_direction"
+      "no_completing_middle_direction",
+      "yz_pool_missing:robinhood-testnet:46630:0x0000000000000000000000000000000000000000->robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d:no_reachable_v4_pool",
+      "yz_pool_missing:robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02->robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:no_reachable_v4_pool",
+      "yz_pool_missing:robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d->robinhood-testnet:46630:0x0000000000000000000000000000000000000000:no_reachable_v4_pool",
+      "yz_pool_missing:robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e->robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:no_reachable_v4_pool"
     ],
     "closedLoopPublished": false
   },
@@ -1261,7 +1349,7 @@
     "criterion": "AC-211",
     "met": false,
     "verdict": "not_met",
-    "reason": "the Manager published no closed loop on the testnet chain: direction_count=0, loop_count=0, hop_count=0. The only admitted candidate token carries the skip reason 'no_completing_middle_direction' for both the first and the third hop, so the middle Y->Z direction required to close the loop does not exist in the published market observation."
+    "reason": "the Manager published no closed loop on the testnet chain: direction_count=20, loop_count=0, hop_count=0. The only admitted candidate token carries the skip reason 'no_completing_middle_direction' for both the first and the third hop, so the middle Y->Z direction required to close the loop does not exist in the published market observation."
   },
   "prohibitions": {
     "noBackfill": "No historical depth, price, business or valuation data was backfilled. Every number in this report is read from the store as it stands; a missing value is reported as missing and never replaced by a default zero or an estimate.",

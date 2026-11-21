@@ -71,6 +71,38 @@
       "review_record": "plan/runtime_evidence/reports/p0_8_hop_price_limit_and_state_validation_20261114.json",
       "scope": "submission",
       "table": "manager_cow_execution_attempts"
+    },
+    {
+      "column": "closed_loop_identity_status",
+      "migration": "20261121_014_review_closed_loop_identity_schema",
+      "purpose": "Publish whether the reviewed route matched the closed-loop catalog the closed-loop Manager owns, so a consumer of the review record never has to re-derive the identity outside the Manager.",
+      "review_record": "plan/runtime_evidence/reports/task158_manager_owned_record_reads_20261121.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "closed_loop_pool_identity_status",
+      "migration": "20261121_014_review_closed_loop_identity_schema",
+      "purpose": "Publish whether every pool the reviewed route priced is a pool the closed-loop Manager published for that hop, so a pool-identity failure is distinguishable from a missing loop.",
+      "review_record": "plan/runtime_evidence/reports/task158_manager_owned_record_reads_20261121.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "identity_mismatch",
+      "migration": "20261121_014_review_closed_loop_identity_schema",
+      "purpose": "Carry the diagnosis of an identity mismatch on the review record, naming the pool that broke the match.",
+      "review_record": "plan/runtime_evidence/reports/task158_manager_owned_record_reads_20261121.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
+    },
+    {
+      "column": "closed_loop_repair_target",
+      "migration": "20261121_014_review_closed_loop_identity_schema",
+      "purpose": "Carry the repair target the identity mismatch names on the review record, so the repair reads the target from the Manager instead of recomputing it.",
+      "review_record": "plan/runtime_evidence/reports/task158_manager_owned_record_reads_20261121.json",
+      "scope": "review",
+      "table": "manager_v4_reviews"
     }
   ],
   "description": "AC-141 registry. Every column that the manager_db migrations add to a review / submission / broadcast table must be listed here together with the review record that proves the field supports the token/pool base structure. A new column without a registry entry is rejected by flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_review_submission_broadcast_schema_extensions_are_registered.",
@@ -92,6 +124,6 @@
     ]
   },
   "schema": "flashloan/tools/manager_db/schema_policy.json",
-  "updated_at": "2026-11-16",
-  "version": 1
+  "updated_at": "2026-11-21",
+  "version": 2
 }

@@ -1,0 +1,192 @@
+{
+  "schema": "task158-manager-owned-record-reads-v1",
+  "generatedAt": "2026-11-21T15:44:06.716864+00:00",
+  "task": "TASK-158",
+  "title": "Manager 拥有记录读取：复核管理器发布闭环身份，广播管理器发布广播记录，Python 侧仅消费展示",
+  "authority": "shipped-artifact",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "architecture": "x86_64",
+    "isolation": "none",
+    "id": "workstation"
+  },
+  "userRule": {
+    "statement": "RUST 管理器工具应该提供记录的读取功能。广播管理器可以读取广播记录。复核管理器可以读取复核记录。不应该由 python 侧实现读取记录的功能，python 侧 仅仅消费展示即可。",
+    "interpretation": [
+      "Rust manager 是 manager_v4_reviews / manager_cow_execution_attempts / manager_v4_review_broadcast_requests / manager_v4_closed_loops 的唯一读取方。",
+      "Python 侧不得直接 SELECT 这些 manager 拥有的表；只允许通过 Manager API 消费并展示。",
+      "缺失的读取能力必须在 Rust 侧补齐，而不是在 Python 侧补齐。"
+    ]
+  },
+  "audit": {
+    "managerOwnedReadFunctions": [
+      {
+        "module": "flashloan/tools/review_manager/src/lib.rs",
+        "symbol": "read_review_page",
+        "owns": "manager_v4_reviews",
+        "role": "复核记录读取"
+      },
+      {
+        "module": "flashloan/tools/manager_api/src/lib.rs",
+        "symbol": "review_manager::read_review_page",
+        "owns": "manager_v4_reviews",
+        "role": "HTTP 传输层（薄封装，不重算）"
+      },
+      {
+        "module": "flashloan/tools/broadcast_manager/src/lib.rs",
+        "symbol": "read_broadcast_snapshot_page",
+        "owns": "manager_cow_execution_attempts / manager_v4_review_broadcast_requests / manager_broadcast_attempt_diagnostics",
+        "role": "广播记录读取"
+      },
+      {
+        "module": "flashloan/tools/manager_api/src/lib.rs",
+        "symbol": "broadcast_manager::read_broadcast_snapshot_page",
+        "owns": "broadcast tables",
+        "role": "HTTP 传输层（薄封装）"
+      },
+      {
+        "module": "flashloan/tools/closed_loop_manager/src/lib.rs",
+        "symbol": "read_closed_loop_snapshot",
+        "owns": "manager_v4_closed_loops",
+        "role": "闭环目录读取"
+      }
+    ],
+    "managerApiIsPureTransport": {
+      "claim": "manager_api/src/lib.rs 只做 HTTP 转发，不做业务重算。",
+      "verified": true
+    },
+    "gapsFound": [
+      {
+        "id": "gap-1",
+        "gap": "复核管理器没有闭环身份列：内核在 flashloan/rs-src/src/worker_pool.rs 计算了 closedLoopIdentityStatus / closedLoopPoolIdentityStatus / identityMismatch / repairTarget，但从未写入 manager_v4_reviews。",
+        "consequence": "Python 侧不得不自行重新推导闭环身份，违反用户规则。",
+        "rootCause": "闭环身份的持久化层缺失，而不是读取层缺失。"
+      },
+      {
+        "id": "gap-2",
+        "gap": "Python 侧残留对 manager 拥有表的直接 SQL：SELECT loop_key FROM manager_v4_closed_loops、cow_execution_attempts 直查。",
+        "consequence": "记录语义由 Python 重新解释，Manager 的发布口径被绕过。",
+        "rootCause": "Python 侧调用点未切换到 Manager API 读取适配器。"
+      }
+    ]
+  },
+  "fix": {
+    "rust": [
+      {
+        "change": "新增迁移 20261121_014_review_closed_loop_identity_schema",
+        "file": "flashloan/tools/manager_db/migrations/20261121_014_review_closed_loop_identity_schema.sql",
+        "table": "manager_v4_reviews",
+        "columns": [
+          "closed_loop_identity_status",
+          "closed_loop_pool_identity_status",
+          "identity_mismatch",
+          "closed_loop_repair_target"
+        ],
+        "nullable": true,
+        "nullableRationale": "闭环目录未发布任何闭环时，复核没有身份；这是覆盖缺口而非不匹配，必须存 NULL 而不是记为否定结论。"
+      },
+      {
+        "change": "复核管理器新增 ClosedLoopIdentityEvidence 结构，ReviewEvidenceInput / ReviewRow 透传，写入与读取均只搬运内核已算出的身份，不重建。",
+        "file": "flashloan/tools/review_manager/src/lib.rs",
+        "symbols": [
+          "ClosedLoopIdentityEvidence",
+          "read_closed_loop_identity",
+          "build_review_rows",
+          "replace_review_rows",
+          "read_reviews"
+        ]
+      },
+      {
+        "change": "迁移注册与 schema_policy 登记。",
+        "files": [
+          "flashloan/tools/manager_db/src/migrate.rs",
+          "flashloan/tools/manager_db/schema_policy.json"
+        ],
+        "note": "migrate.rs 新增 REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID 并接入 ensure_migration_tables_compatible 的 match 分支；缺少该分支会触发 unreachable! panic。"
+      }
+    ],
+    "python": [
+      {
+        "change": "新增 _closed_loop_identity_of 辅助函数，遍历嵌套 payload 提取 4 个身份字段；找不到时返回 None，绝不推导结论。",
+        "file": "scripts/mainnet_arbitrage_healer.py"
+      },
+      {
+        "change": "live_review_evidence() 与 stored_review_evidence() 携带 closedLoopIdentity。",
+        "file": "scripts/mainnet_arbitrage_healer.py"
+      },
+      {
+        "change": "manager_read_reviews() 适配器暴露 closed_loop_identity 及四个字段；audit_broadcast() 改为以 Manager 发布的广播尝试为权威，legacy cow_execution_attempts 仅按 attempt_key 做 gas/receipt 富化。",
+        "file": "scripts/mainnet_arbitrage_healer.py"
+      },
+      {
+        "change": "repair() 与 cascade_matrix() 的闭环目录改由 manager_read_closed_loops(manager_api) 提供，不再直查 manager_v4_closed_loops。",
+        "file": "scripts/mainnet_arbitrage_healer.py"
+      }
+    ]
+  },
+  "artifactDigests": {
+    "flashloan/tools/manager_db/migrations/20261121_014_review_closed_loop_identity_schema.sql": "sha256:85b0039054e4b4162090df704dc98f517796f04ddc5f2efc8991198fc20ab817",
+    "flashloan/tools/review_manager/src/lib.rs": "sha256:8c5b31e9e4ea87492514578d8f9e58fb3db8328ce80cee1ef7d264a097a9a6d4",
+    "flashloan/tools/manager_db/src/migrate.rs": "sha256:32325b85fea5807fcff9e0262fca0fd10c0148acd07026de48454d1ef55ca88e",
+    "flashloan/tools/manager_db/schema_policy.json": "sha256:fcbf45165ec0b3e3b23b03b94f7ee3fccc065877657fa18611a8a53b018bd93c",
+    "scripts/mainnet_arbitrage_healer.py": "sha256:09c6d8733d6a2ee9aa2e22cd6c0125caec19e114714b6cdc1bbcef3fd0020c33"
+  },
+  "schemaExtensions": [
+    {
+      "table": "manager_v4_reviews",
+      "column": "closed_loop_identity_status",
+      "scope": "review",
+      "purpose": "复核路线是否匹配闭环 Manager 拥有的闭环目录，使复核记录的消费者无需在 Manager 之外重新推导身份。"
+    },
+    {
+      "table": "manager_v4_reviews",
+      "column": "closed_loop_pool_identity_status",
+      "scope": "review",
+      "purpose": "复核路线定价的每一个池是否都是闭环 Manager 为该跳发布的池，使池身份失败可与缺失闭环区分。"
+    },
+    {
+      "table": "manager_v4_reviews",
+      "column": "identity_mismatch",
+      "scope": "review",
+      "purpose": "承载身份不匹配的诊断，指明破坏匹配的池。"
+    },
+    {
+      "table": "manager_v4_reviews",
+      "column": "closed_loop_repair_target",
+      "scope": "review",
+      "purpose": "承载身份不匹配指明的修复目标，使修复读取目标而非重算。"
+    }
+  ],
+  "regression": {
+    "rustReviewManager": "flashloan/tools/review_manager: cargo test --offline --lib -> 136 passed / 0 failed",
+    "rustKernel": "flashloan/rs-src: cargo test --offline --lib -> 202 passed / 0 failed",
+    "rustManagerApi": "flashloan/tools/manager_api: cargo test --offline --lib -> 28 passed / 0 failed",
+    "rustManagerDb": "flashloan/tools/manager_db: cargo test --offline -> 5 passed / 0 failed",
+    "newRustTests": [
+      "the_review_manager_publishes_the_closed_loop_identity_of_a_review",
+      "a_review_without_an_identity_publishes_no_identity",
+      "the_review_manager_publishes_the_diagnosis_of_a_broken_identity"
+    ],
+    "newRustTestSemantics": [
+      "身份存在时被原样发布。",
+      "身份缺失时发布 None（缺失 != 不匹配）。",
+      "身份破损时发布诊断与修复目标。"
+    ]
+  },
+  "invariants": {
+    "noPythonSideIdentityDerivation": true,
+    "noPythonSideManagerTableSelect": true,
+    "missingIsNotMismatch": true,
+    "noHistoricalBackfill": true,
+    "noAdmissionHandEdit": true,
+    "noThresholdRelaxation": true
+  },
+  "whatThisDoesNotProve": [
+    "不证明主网复核记录已回填闭环身份：迁移只改 schema，存量行的 4 列仍为 NULL，需重跑 healer 的 fill-reviews / rematerialize-reviews 才会落库。",
+    "不证明任何广播执行或盈利：本轮全部为静态重构与只读校验，未触发任何链上交易。",
+    "不证明主网（4663）与测试网（46630）闭环目录一致：两条链的 Manager 数据库是各自独立的。",
+    "不证明 0 缺失即 0 缺陷：Python 侧残留 SQL 已按调用点逐一改写，但未做全仓库 SQL 扫描。",
+    "不证明广播管理器返回的尝试数大于 0：主网广播功能当前处于 enabled=false，尝试表为空是市场与配置事实，不是本轮改动造成。"
+  ]
+}

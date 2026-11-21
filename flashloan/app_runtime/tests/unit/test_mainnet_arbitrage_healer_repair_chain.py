@@ -30,6 +30,7 @@ import pathlib
 import sqlite3
 from datetime import datetime, timezone
 import sys
+from unittest import mock
 
 import pytest
 
@@ -45,6 +46,56 @@ def _load_healer():
 
 
 HEALER = _load_healer()
+
+
+def _published_manager(*, reviews=(), loops=(), broadcasts=None):
+    """Stub the manager API reads of the manager-owned records.
+
+    The **Review Manager** owns the review library, the **closed-loop
+    Manager** owns the closed-loop catalog and the **Broadcast Manager**
+    owns the broadcast attempts. The healer reads all three through the
+    manager API and never selects from their tables, so a fixture has to
+    publish the records the way the manager API publishes them: as
+    structured values, not as table rows.
+    """
+    review_rows = []
+    for row in reviews:
+        review_rows.append(_adapted_review(row))
+    loop_rows = []
+    for row in loops:
+        item = dict(row)
+        item.setdefault("loopKey", item.get("loop_key", ""))
+        item.setdefault("pathText", item.get("path_text"))
+        item.setdefault("pathSymbols", json.loads(item.get("path_symbols_json") or "[]"))
+        item.setdefault("pathAddresses", json.loads(item.get("path_addresses_json") or "[]"))
+        item.setdefault("poolIds", json.loads(item.get("pool_ids_json") or "[]"))
+        loop_rows.append(item)
+    broadcast_doc = broadcasts or {"status": {}, "attempts": [], "diagnostics": []}
+    return (
+        mock.patch.object(HEALER, "manager_read_reviews", return_value=review_rows),
+        mock.patch.object(HEALER, "manager_read_closed_loops", return_value={
+            "status": {"loopCount": len(loop_rows)},
+            "loops": loop_rows,
+            "hops": [],
+            "optimizations": [],
+            "runtimeStates": [],
+            "skippedTokens": [],
+        }),
+        mock.patch.object(HEALER, "manager_read_broadcasts", return_value=broadcast_doc),
+    )
+
+
+def _published_broadcast_attempt(*, status, reason):
+    """Return one broadcast attempt in the shape the manager API publishes."""
+    return {
+        "attemptId": "attempt-1",
+        "attemptKey": "key-1",
+        "loopKey": "loop-1",
+        "status": status,
+        "statusReason": reason,
+        "txHash": None,
+        "createdAt": "2026-11-15T00:00:00Z",
+    }
 
 
 # ------------------------------------------------- the broadcast classification
@@ -93,25 +144,28 @@ def test_an_unknown_failure_is_reported_and_not_guessed():
 
 
 def _broadcast_database(tmp_path, *, status, reason):
+    """Build a store whose broadcast attempt is published by the manager.
+
+    The **Broadcast Manager** owns the broadcast attempts, so the healer
+    reads them through the manager API and never selects from the
+    manager's attempt table. The fixture therefore publishes the attempt
+    the way the manager API publishes it.
+    """
     database = tmp_path / "broadcast.sqlite3"
     connection = sqlite3.connect(database)
-    connection.execute(
-        """
-        CREATE TABLE manager_cow_execution_attempts (
-            attempt_id TEXT, attempt_key TEXT, loop_key TEXT, network TEXT,
-            chain_id INTEGER, status TEXT, status_reason TEXT, tx_hash TEXT,
-            created_at TEXT
-        )
-        """
-    )
-    connection.execute(
-        "INSERT INTO manager_cow_execution_attempts VALUES "
-        "('attempt-1','key-1','loop-1','robinhood',4663,?,?,NULL,'2026-11-15T00:00:00Z')",
-        (status, reason),
-    )
+    connection.execute("CREATE TABLE t (id INTEGER)")
     connection.commit()
     connection.close()
     return database
+
+
+def _published_broadcasts(*, status, reason):
+    """Return the broadcast document the manager API publishes."""
+    return {
+        "status": {"enabled": False},
+        "attempts": [_published_broadcast_attempt(status=status, reason=reason)],
+        "diagnostics": [],
+    }
 
 
 def test_a_failed_broadcast_is_finalized_by_the_broadcast_manager(tmp_path, monkeypatch):
@@ -126,9 +180,13 @@ def test_a_failed_broadcast_is_finalized_by_the_broadcast_manager(tmp_path, monk
         return {"ok": True, "status": 200, "body": json.dumps({"ok": True})}
 
     monkeypatch.setattr(HEALER, "api_post", fake_post)
-    result = HEALER.repair_broadcast_failures(
-        database, "http://manager", True, 24, 10
+    reviews, loops, broadcasts = _published_manager(
+        broadcasts=_published_broadcasts(status="failed", reason="execution reverted")
     )
+    with reviews, loops, broadcasts:
+        result = HEALER.repair_broadcast_failures(
+            database, "http://manager", True, 24, 10
+        )
     assert result["candidateCount"] == 1
     assert result["failureClasses"] == {"transaction_rejected": 1}
     entry = result["results"][0]
@@ -150,9 +208,13 @@ def test_a_market_outcome_is_never_repaired(tmp_path, monkeypatch):
         raise AssertionError("a market outcome must not reach the broadcast manager")
 
     monkeypatch.setattr(HEALER, "api_post", fake_post)
-    result = HEALER.repair_broadcast_failures(
-        database, "http://manager", True, 24, 10
+    reviews, loops, broadcasts = _published_manager(
+        broadcasts=_published_broadcasts(status="failed", reason="not_profitable_after_costs")
     )
+    with reviews, loops, broadcasts:
+        result = HEALER.repair_broadcast_failures(
+            database, "http://manager", True, 24, 10
+        )
     assert result["candidateCount"] == 1
     assert result["results"][0]["action"] == "none"
     assert "not a defect" in result["results"][0]["reason"]
@@ -170,9 +232,13 @@ def test_a_dry_run_never_writes(tmp_path, monkeypatch):
         return {"ok": True, "status": 200, "body": json.dumps({"ok": True})}
 
     monkeypatch.setattr(HEALER, "api_post", fake_post)
-    result = HEALER.repair_broadcast_failures(
-        database, "http://manager", False, 24, 10
+    reviews, loops, broadcasts = _published_manager(
+        broadcasts=_published_broadcasts(status="failed", reason="execution reverted")
     )
+    with reviews, loops, broadcasts:
+        result = HEALER.repair_broadcast_failures(
+            database, "http://manager", False, 24, 10
+        )
     assert result["dryRun"] is True
     assert calls[0]["body"]["dryRun"] is True
 
@@ -187,9 +253,13 @@ def test_a_pending_attempt_is_never_repaired(tmp_path, monkeypatch):
         raise AssertionError("a pending attempt must not be touched")
 
     monkeypatch.setattr(HEALER, "api_post", fake_post)
-    result = HEALER.repair_broadcast_failures(
-        database, "http://manager", True, 24, 10
+    reviews, loops, broadcasts = _published_manager(
+        broadcasts=_published_broadcasts(status="pending", reason="execution reverted")
     )
+    with reviews, loops, broadcasts:
+        result = HEALER.repair_broadcast_failures(
+            database, "http://manager", True, 24, 10
+        )
     assert result["candidateCount"] == 0
 
 
@@ -530,23 +600,6 @@ def _review_database(tmp_path, *, manager_rows=(), legacy_rows=()):
     connection = sqlite3.connect(database)
     connection.execute(
         """
-        CREATE TABLE manager_v4_reviews (
-            network TEXT, chain_id INTEGER, protocol TEXT, scope_key TEXT,
-            loop_key TEXT, closed_loop_version INTEGER, closed_loop_checksum TEXT,
-            candidate_edge_version INTEGER, candidate_edge_checksum TEXT,
-            observation_version INTEGER, observation_checksum TEXT,
-            pool_scope_checksum TEXT, anchor_token_key_id TEXT, anchor_address TEXT,
-            anchor_symbol TEXT, path_text TEXT, path_addresses_json TEXT,
-            path_symbols_json TEXT, pool_path_key TEXT, pool_ids_json TEXT,
-            review_status TEXT, review_reason TEXT, static_preview_json TEXT,
-            run_arbitrage_json TEXT, signed_pnl_raw TEXT, signed_pnl_amount REAL,
-            signed_pnl_currency TEXT, signed_pnl_address TEXT, signed_pnl_unit TEXT,
-            signed_pnl_source TEXT, reviewed_at TEXT, created_at TEXT, updated_at TEXT
-        )
-        """
-    )
-    connection.execute(
-        """
         CREATE TABLE cow_execution_reviews (
             id INTEGER PRIMARY KEY, attempt_key TEXT, network TEXT, chain_id INTEGER,
             category TEXT, pair TEXT, tx_hash TEXT, payload_json TEXT, summary_json TEXT,
@@ -557,11 +610,6 @@ def _review_database(tmp_path, *, manager_rows=(), legacy_rows=()):
         )
         """
     )
-    for row in manager_rows:
-        connection.execute(
-            "INSERT INTO manager_v4_reviews VALUES (" + ",".join(["?"] * len(row)) + ")",
-            row,
-        )
     for row in legacy_rows:
         connection.execute(
             "INSERT INTO cow_execution_reviews VALUES (" + ",".join(["?"] * len(row)) + ")",
@@ -570,6 +618,81 @@ def _review_database(tmp_path, *, manager_rows=(), legacy_rows=()):
     connection.commit()
     connection.close()
     return database
+
+
+def _published_review(loop_key, *, amount=None, status="reviewed", reason=None):
+    """Return one review in the shape the Review Manager publishes.
+
+    The **Review Manager** owns the review library, so the healer reads it
+    through the manager API. The published record carries the nested
+    blocks as structured values and the signed profit as a ``signedPnl``
+    object.
+    """
+    return {
+        "loopKey": loop_key,
+        "network": "robinhood",
+        "chainId": 4663,
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "closedLoopVersion": 2,
+        "closedLoopChecksum": "sha256:loop",
+        "candidateEdgeVersion": 1,
+        "candidateEdgeChecksum": "sha256:edge",
+        "observationVersion": 1,
+        "observationChecksum": "sha256:obs",
+        "poolScopeChecksum": "sha256:scope",
+        "anchorTokenKeyId": "anchor-1",
+        "anchorAddress": "0x" + "11" * 20,
+        "anchorSymbol": "ETH",
+        "pathText": "ETH>USDC>WETH",
+        "pathAddresses": ["0x" + "aa" * 20, "0x" + "bb" * 20, "0x" + "cc" * 20],
+        "pathSymbols": ["ETH", "USDC", "WETH"],
+        "poolPathKey": "key",
+        "poolIds": [],
+        "reviewStatus": status,
+        "reviewReason": reason,
+        "staticPreview": {},
+        "runArbitrage": {},
+        "signedPnl": {
+            "raw": None if amount is None else str(amount),
+            "amount": amount,
+            "currency": "USDG",
+            "address": "0x" + "dd" * 20,
+            "unit": "raw",
+            "source": "live_review",
+        },
+        "reviewedAt": "2026-11-15T00:00:00Z",
+        "createdAt": "2026-11-15T00:00:00Z",
+        "updatedAt": "2026-11-15T00:00:00Z",
+    }
+
+
+def _adapted_review(published):
+    """Return one published review in the row shape the healer audits.
+
+    The healer reads the manager-owned records through the manager API, so
+    a fixture has to publish what the manager publishes. The healer then
+    adapts the published record into the row shape its audits use, so the
+    fixture has to be adapted the same way.
+    """
+    row = dict(published)
+    row["loop_key"] = published.get("loopKey")
+    row["review_status"] = published.get("reviewStatus")
+    row["review_reason"] = published.get("reviewReason")
+    row["path_addresses_json"] = json.dumps(published.get("pathAddresses") or [])
+    row["path_symbols_json"] = json.dumps(published.get("pathSymbols") or [])
+    row["pool_ids_json"] = json.dumps(published.get("poolIds") or [])
+    row["static_preview_json"] = json.dumps(published.get("staticPreview") or {})
+    row["run_arbitrage_json"] = json.dumps(published.get("runArbitrage") or {})
+    row["created_at"] = published.get("createdAt")
+    signed = published.get("signedPnl") or {}
+    row["signed_pnl_raw"] = signed.get("raw")
+    row["signed_pnl_amount"] = signed.get("amount")
+    row["signed_pnl_currency"] = signed.get("currency")
+    row["signed_pnl_address"] = signed.get("address")
+    row["signed_pnl_unit"] = signed.get("unit")
+    row["signed_pnl_source"] = signed.get("source")
+    return row
 
 
 def _fresh_timestamp() -> str:
@@ -584,24 +707,10 @@ def _fresh_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _manager_row(loop_key, *, amount=None, status="reviewed", reason=None):
-    return (
-        "robinhood", 4663, "uniswap_v4", "core4", loop_key,
-        2, "sha256:loop", 1, "sha256:edge", 1, "sha256:obs", "sha256:scope",
-        "anchor-1", "0x" + "11" * 20, "ETH",
-        "ETH>USDC>WETH", json.dumps(["0x" + "aa" * 20, "0x" + "bb" * 20, "0x" + "cc" * 20]),
-        json.dumps(["ETH", "USDC", "WETH"]), "key", "[]",
-        status, reason, "{}", "{}", None, amount, "USDG", "0x" + "dd" * 20,
-        "raw", "live_review", "2026-11-15T00:00:00Z", "2026-11-15T00:00:00Z",
-        "2026-11-15T00:00:00Z",
-    )
-
-
 def test_the_manager_library_is_the_audit_source_when_it_holds_rows(tmp_path):
     """A materialized review must not be invisible to the healer."""
     database = _review_database(
         tmp_path,
-        manager_rows=[_manager_row("loop-a", amount=1.5)],
         legacy_rows=[
             (1, "key-1", "robinhood", 4663, "executable", "ETH/USDC", None,
              "{}", "{}",
@@ -609,7 +718,11 @@ def test_the_manager_library_is_the_audit_source_when_it_holds_rows(tmp_path):
              _fresh_timestamp(), _fresh_timestamp()),
         ],
     )
-    rows = HEALER.review_rows(database, 24)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-a", amount=1.5)],
+    )
+    with reviews, loops, broadcasts:
+        rows = HEALER.review_rows(database, 24)
     assert len(rows) == 1
     assert rows[0]["review_source"] == "manager"
     # The legacy row carries no value; the manager row carries one. The
@@ -637,20 +750,26 @@ def test_the_legacy_library_is_used_while_the_manager_library_is_empty(tmp_path)
 
 def test_a_manager_review_without_a_value_is_reported_as_missing(tmp_path):
     """A missing value stays missing; it is never read as zero profit."""
-    database = _review_database(
-        tmp_path, manager_rows=[_manager_row("loop-a", amount=None, reason="no_profit_value")]
+    database = _review_database(tmp_path)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-a", amount=None, reason="no_profit_value")],
     )
-    rows = HEALER.review_rows(database, 24)
-    assert HEALER.pnl(rows[0]) is None
-    assert "no_profit_value" in HEALER.review_missing_reason(rows[0])
-    missing = HEALER.reviews_missing_a_value(database, 24)
+    with reviews, loops, broadcasts:
+        rows = HEALER.review_rows(database, 24)
+        assert HEALER.pnl(rows[0]) is None
+        assert "no_profit_value" in HEALER.review_missing_reason(rows[0])
+        missing = HEALER.reviews_missing_a_value(database, 24)
     assert [item["loopKey"] for item in missing] == ["loop-a"]
 
 
 def test_the_manager_loop_key_is_used_as_the_route_identity(tmp_path):
     """The Manager library carries the loop key, so it is authoritative."""
-    database = _review_database(tmp_path, manager_rows=[_manager_row("loop-x", amount=2.0)])
-    rows = HEALER.review_rows(database, 24)
+    database = _review_database(tmp_path)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-x", amount=2.0)],
+    )
+    with reviews, loops, broadcasts:
+        rows = HEALER.review_rows(database, 24)
     assert HEALER.review_loop_key(rows[0]) == "loop-x"
 
 
@@ -658,22 +777,7 @@ def test_the_review_materialization_sends_the_expected_upstream(tmp_path):
     """The review manager refuses a review whose upstream does not match."""
     database = tmp_path / "reviews.sqlite3"
     connection = sqlite3.connect(database)
-    connection.execute(
-        """
-        CREATE TABLE manager_v4_closed_loop_library_state (
-            network TEXT, chain_id INTEGER, protocol TEXT, scope_key TEXT,
-            closed_loop_version INTEGER, materialized_checksum TEXT,
-            candidate_edge_version INTEGER, candidate_edge_checksum TEXT,
-            observation_version INTEGER, observation_checksum TEXT,
-            pool_scope_checksum TEXT
-        )
-        """
-    )
-    connection.execute(
-        "INSERT INTO manager_v4_closed_loop_library_state VALUES "
-        "('robinhood',4663,'uniswap_v4','core4',3,'sha256:loop',"
-        "2,'sha256:edge',1,'sha256:obs','sha256:scope')"
-    )
+    connection.execute("CREATE TABLE t (id INTEGER)")
     connection.commit()
     connection.close()
 
@@ -688,10 +792,25 @@ def test_the_review_materialization_sends_the_expected_upstream(tmp_path):
     try:
         HEALER.api_post = fake_post
         HEALER.count = lambda db, table: 1
-        result = HEALER.materialize_reviews(
-            database, "http://manager",
-            [{"loopKey": "loop-a", "runArbitrage": {"ok": True}}], True,
-        )
+        # The upstream versions belong to the **closed-loop Manager**, so
+        # they are published through the manager API.
+        with mock.patch.object(HEALER, "manager_read_closed_loops", return_value={
+            "status": {
+                "closedLoopVersion": 3,
+                "materializedChecksum": "sha256:loop",
+                "candidateEdgeVersion": 2,
+                "candidateEdgeChecksum": "sha256:edge",
+                "observationVersion": 1,
+                "observationChecksum": "sha256:obs",
+                "poolScopeChecksum": "sha256:scope",
+            },
+            "loops": [], "hops": [], "optimizations": [],
+            "runtimeStates": [], "skippedTokens": [],
+        }):
+            result = HEALER.materialize_reviews(
+                database, "http://manager",
+                [{"loopKey": "loop-a", "runArbitrage": {"ok": True}}], True,
+            )
     finally:
         HEALER.api_post = original_post
         HEALER.count = original_count

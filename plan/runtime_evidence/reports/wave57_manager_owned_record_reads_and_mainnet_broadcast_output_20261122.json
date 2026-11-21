@@ -1,0 +1,250 @@
+{
+  "schema": "wave57-manager-owned-record-reads-and-mainnet-broadcast-output-v1",
+  "generatedAt": "2026-11-21T18:57:49.946728+00:00",
+  "wave": "第 57 轮（2026-11-21 → 2026-11-22）",
+  "title": "记录读取收归 Rust Manager；主网持续套利广播产出逐环定位；报价与路由页面改由管理工具接口提供复核与广播统计",
+  "authority": "shipped-artifact",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "architecture": "x86_64",
+    "isolation": "none",
+    "id": "workstation",
+    "network": "robinhood",
+    "chainId": 4663,
+    "managerApi": "127.0.0.1:8091",
+    "runtimeApi": "127.0.0.1:5000",
+    "mainnetDatabase": "flashloan/db/local_store_4663.sqlite3"
+  },
+  "userRules": [
+    {
+      "id": "rule-1",
+      "statement": "RUST管理器工具应该提供记录的读取功能。广播管理器可以读取广播记录。复核管理器可以读取复核记录。不应该由python 侧实现读取记录的功能，python 侧 仅仅消费展示即可。",
+      "howItWasHonoured": [
+        "复核记录读取归 Review Manager（read_review_page）；广播记录读取归 Broadcast Manager（read_broadcast_snapshot_page）；闭环目录读取归 closed-loop Manager（read_closed_loop_snapshot）。manager_api 只做 HTTP 转发。",
+        "复核身份由 Manager 发布（closedLoopIdentity），Python 只复制，从不重推。",
+        "删除 Python 侧对 manager 拥有表的残留直查 SQL，并立架构守卫 test_python_never_reads_the_manager_business_tables_directly。",
+        "报价与路由页面的复核与广播统计，全部来自 Rust 管理工具接口（/v1/overview），页面不落内存对象、不自行计数。"
+      ]
+    },
+    {
+      "id": "rule-2",
+      "statement": "暂时关闭测试网的有关任务。聚焦在主网的持续套利广播的产出。",
+      "howItWasHonoured": [
+        "TASK-147（整项）、TASK-145 第 4 项、TASK-141 测试网前置：标记 ⏸ 暂停，不删除、不改判为完成、不再排期。",
+        "清单新增 TASK-159（主网持续套利广播产出，P0），并新增 §3.0 主线的四级递进口径与逐环解阻断动作。",
+        "开发计划 §9.0 / §9.4 与 checklist 同步改写为 v12.0 主网聚焦。"
+      ]
+    },
+    {
+      "id": "rule-3",
+      "statement": "记录信息不需要放在内存对象中，直接读取管理工具接口即可。",
+      "howItWasHonoured": [
+        "报价与路由页面的复核/广播统计经 /v1/overview（Rust 管理工具接口）取得，页面只做展示。",
+        "Python 侧没有新增任何复核/广播计数的内存缓存对象。"
+      ]
+    }
+  ],
+  "mainnetReadings": {
+    "window": "最近 24 小时（chain 4663，只读）",
+    "fourLevelDefinition": {
+      "L1": "复核出正向盈利预期",
+      "L2": "复核被链上执行确认（runArbitrage.ok=true 且 executable=true）",
+      "L3": "产生广播请求",
+      "L4": "产生广播尝试（有 txHash / receipt）"
+    },
+    "L1_positiveProfitExpectation": 332,
+    "L2_executionConfirmed": 10,
+    "L3_broadcastRequests": 0,
+    "L4_broadcastAttempts": 0,
+    "conclusion": "L1 与 L2 都不是广播产出。主网持续套利广播产出目前为 0。",
+    "reviewTotal": 12854,
+    "reviewCategoryDistribution": {
+      "not_executable": 12854
+    },
+    "negativeProfitReviews": 11384,
+    "measuredZeroReviews": 0,
+    "unmeasuredProfitReviews": 1138,
+    "amounts": {
+      "positiveExpectation": {
+        "WETH": 0.06904116273587732,
+        "ETH": 0.000450159165015672,
+        "SPY": 2.856927353406e-06
+      },
+      "executionConfirmedPositive": {
+        "WETH": 1.34693264258e-06,
+        "ETH": 0.000448836878081916,
+        "SPY": 7.27675237084e-07
+      },
+      "negativeExpectation": {
+        "WETH": -2.0990844923160865,
+        "ETH": -0.17280218536871791,
+        "SPY": -0.0071225967429274,
+        "TZ": -2036.0089957127775
+      },
+      "realizedPnl": null,
+      "realizedPnlReason": "L4 = 0，因此没有任何已实现盈亏、gas 成本、滑点或可关联回执。"
+    },
+    "positiveSources": {
+      "offline_v4_sqlite_route_snapshot": 296,
+      "native_rust_contract_preview": 27,
+      "native_contract_rate_delta_estimate": 9
+    },
+    "topPairs": {
+      "WETH -> NVDA -> USDG -> WETH": 305,
+      "WETH -> ETH -> USDG -> WETH": 13,
+      "ETH -> SPY -> USDG -> ETH": 5
+    },
+    "note": "L2 的 10 条确认记录中，没有一条带 blockNumber —— 没有一条真正上链。"
+  },
+  "blockerDiagnosis": {
+    "report": "plan/runtime_evidence/reports/task159_mainnet_broadcast_output_blockers_20261122.json",
+    "ring1_broadcastSideSwitch": {
+      "verdict": "缺（缺 4 项）",
+      "findings": [
+        "enabled=false 不是配置开关，而是 manager_broadcast_library_state 行不存在（Broadcast Manager 的 submit/finalize 路径才写它）。",
+        "复核上游已具备（reviewVersion=22、closedLoopVersion=11、loopCount=44），read_review_upstream() 不会以 MissingReviewState 失败。",
+        "广播请求行 0 条 —— submit 没有可消费的对象。",
+        "POST /v1/broadcasts/submit 只有 Rust 单测在调用，**没有任何生产调用方**（Python 运行时与 healer 都不发）。L2 -> L3 这段线没有接上。",
+        "生产广播授权（链/账户/限额/时间窗口）不存在，未假定、未自行取得。"
+      ]
+    },
+    "ring2_reviewSideExecutablePrerequisite": {
+      "verdict": "缺（复核侧无一例可执行）",
+      "finding": "44 条复核的 reviewReason **完全相同**：runArbitrage returned ok=false。这是上游链上证据判定该路线不盈利的分支。",
+      "important": "单 tick 门禁与状态迁移门禁 **不是**阻断点：两者只在 run.ok && run.executable 为真时才运行，本轮一次都没走到。",
+      "businessConclusion": "runArbitrage ok=false 是链上不盈利的真实业务结论，**不是**容量/身份/门禁缺陷，不得记为缺陷，也不得为凑 positive>0 放宽门槛。",
+      "corroboration": "legacy 运行时库在同窗口内有 332 条正向预期、10 条执行确认 —— Manager 复核库是另一套记录集且陈旧（reviewVersion=22），两者不可互换。"
+    },
+    "ring3_closedLoopIdentityReading": {
+      "verdict": "未测量（不是不匹配）",
+      "finding": "44 条复核全部**没有**发布闭环身份（字段缺失），因为它们在迁移 20261121_014 之前物化，且**不做历史回填**。缺失是未测量，不是 mismatch。",
+      "counts": {
+        "reviewsWithIdentity": 0,
+        "reviewsWithoutIdentity": 44,
+        "identityMismatchCount": 0
+      }
+    }
+  },
+  "changes": {
+    "rust": [
+      {
+        "file": "flashloan/tools/manager_db/migrations/20261121_014_review_closed_loop_identity_schema.sql",
+        "change": "为 manager_v4_reviews 增加 4 个可空的闭环身份列：closed_loop_identity_status、closed_loop_pool_identity_status、identity_mismatch、closed_loop_repair_target。",
+        "rationale": "缺失 ≠ 不匹配：闭环目录未发布任何闭环时，复核没有身份，这是覆盖缺口，必须存 NULL 而不是记为否定结论。"
+      },
+      {
+        "file": "flashloan/tools/manager_db/src/migrate.rs",
+        "change": "注册迁移 20261121_014，接入 ensure_migration_tables_compatible 的 match 分支（缺该分支会触发 unreachable! panic）。"
+      },
+      {
+        "file": "flashloan/tools/review_manager/src/lib.rs",
+        "change": "新增 ClosedLoopIdentityEvidence；ReviewEvidenceInput / ReviewRow 透传；写入与读取只搬运内核已算出的身份，不重建；read_closed_loop_identity() 在 4 列全空时返回 None。"
+      },
+      {
+        "file": "flashloan/tools/composite_manager/src/overview.rs",
+        "change": "OverviewSummary 新增广播记录统计：broadcastEnabled、broadcastAttemptCount、broadcastPendingCount、broadcastSuccessCount、broadcastFailedCount、broadcastTerminalCount。build_summary() 接收 BroadcastStatus 并搬运，overview 自己不计数。",
+        "rationale": "复核统计说『测到了什么』；广播统计说『真正送上了链什么』。报价与路由页面要显示后者，就必须由拥有广播记录的 Manager 发布。"
+      },
+      {
+        "file": "flashloan/tools/manager_api/src/lib.rs",
+        "change": "新增回归测试 overview_endpoint_publishes_the_broadcast_record_statistics。"
+      }
+    ],
+    "python": [
+      {
+        "file": "scripts/mainnet_arbitrage_healer.py",
+        "change": "_closed_loop_identity_of() 只读取内核发布的身份，不推导结论；live_review_evidence()/stored_review_evidence() 携带 closedLoopIdentity；manager_read_reviews() 暴露身份字段；audit_broadcast() 以 Manager 发布的尝试为权威，legacy 仅按 attempt_key 做 gas/receipt 富化；repair()/cascade_matrix() 的闭环目录改由 manager_read_closed_loops() 提供。"
+      },
+      {
+        "file": "scripts/mainnet_arbitrage_healer.py",
+        "change": "修复 audit_broadcast() 把 summary_json（JSON 文档）当 dict 用的真实缺陷：遇到非对象 JSON 会中断整个广播审计，改为 fail-soft。"
+      },
+      {
+        "file": "flashloan/app_runtime/web/data_routes/manager_quote_payload.py",
+        "change": "报价与路由页面的 summary 直接透传 Rust 管理工具发布的复核与广播统计，页面不自行计数。"
+      },
+      {
+        "file": "flashloan/app_runtime/web/templates/dex_quotes.html",
+        "change": "新增 4 个广播记录指标卡：广播尝试 / 广播成功 / 广播失败 / 广播待定。"
+      },
+      {
+        "file": "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js",
+        "change": "渲染广播记录统计；broadcastEnabled=false 时显示『广播未启用（Manager 未发布广播状态）』，与『广播跑了但没有尝试』区分开。"
+      },
+      {
+        "file": "flashloan/app_runtime/tests/unit/test_architecture_guards.py",
+        "change": "新增架构守卫 test_python_never_reads_the_manager_business_tables_directly。"
+      }
+    ]
+  },
+  "liveActions": {
+    "mainnetMigration": {
+      "migration": "20261121_014_review_closed_loop_identity_schema",
+      "database": "flashloan/db/local_store_4663.sqlite3",
+      "columnsBefore": 36,
+      "columnsAfter": 40,
+      "appliedNow": true,
+      "classification": "基础框架库（纯 DDL、保数据、不回填任何测量值）",
+      "backup": "flashloan/db/backups/local_store_4663.sqlite3.bak_20261122_002243_pre_migration_014",
+      "backupSha256": "b204494d878001f38b97b246e9a8ae3477a379199c16741513a7d471a77eee09",
+      "noHistoricalBackfill": true,
+      "note": "存量 44 条复核的 4 列仍为 NULL —— 这是有意的：身份只会在重新物化复核时落库（属 TASK-143 的写库动作）。"
+    },
+    "services": [
+      {
+        "name": "manager-api",
+        "port": 8091,
+        "note": "用新二进制重启，发布 closedLoopIdentity 与广播记录统计"
+      },
+      {
+        "name": "runtime (v4_dex)",
+        "port": 5000,
+        "note": "chain 4663，V4 维护 worker 全部在运行"
+      }
+    ],
+    "rustExtensionRebuild": {
+      "reason": "load_rust_extension() 优先加载 flashloan/rs-src/target/release/flashloan_rs.dll（工作树 release 构建），而不是 maturin develop 装到 site-packages 的 debug .pyd。maturin develop 之后页面仍读旧数据，正是因为这个优先级。",
+      "fix": "python -m maturin build --offline --release 重建 release 产物；运行中的进程会锁住 DLL，因此必须先停运行时再重建、再重启。",
+      "verified": "重建后 /v1/overview、页面 payload 与渲染页面三处都读到新的广播记录统计。"
+    }
+  },
+  "regression": {
+    "python": "pytest flashloan/app_runtime/tests scripts/tests -q -> 3162 passed / 3 skipped / 13 warnings（本轮 3160 -> 3162）",
+    "rust": {
+      "flashloan/rs-src": "cargo test --offline --lib -> 202 passed / 0 failed",
+      "flashloan/tools/composite_manager": "18 passed / 0 failed",
+      "flashloan/tools/manager_api": "29 passed / 0 failed（本轮 28 -> 29）",
+      "flashloan/tools/review_manager": "136 passed / 0 failed",
+      "flashloan/tools/broadcast_manager": "13 passed / 0 failed",
+      "flashloan/tools/closed_loop_manager": "30 passed / 0 failed",
+      "flashloan/tools/manager_db": "5 passed / 0 failed"
+    },
+    "newTests": [
+      "manager_api: overview_endpoint_publishes_the_broadcast_record_statistics",
+      "python: test_quote_routes_manager_adapter_publishes_the_review_and_broadcast_statistics",
+      "python: test_the_quote_routes_page_renders_the_broadcast_record_statistics",
+      "python: test_python_never_reads_the_manager_business_tables_directly",
+      "python: 8 项 healer 身份/Manager 读取回归（见 task158_manager_owned_record_reads_20261121.json）"
+    ]
+  },
+  "artifactDigests": {
+    "flashloan/tools/composite_manager/src/overview.rs": "sha256:3fbf021ec45d769ea13bdfb3c5196d3ef21b4bc11cbc03568d322a0e0d7ba3a9",
+    "flashloan/tools/review_manager/src/lib.rs": "sha256:8c5b31e9e4ea87492514578d8f9e58fb3db8328ce80cee1ef7d264a097a9a6d4",
+    "flashloan/tools/manager_db/migrations/20261121_014_review_closed_loop_identity_schema.sql": "sha256:85b0039054e4b4162090df704dc98f517796f04ddc5f2efc8991198fc20ab817",
+    "flashloan/tools/manager_db/src/migrate.rs": "sha256:32325b85fea5807fcff9e0262fca0fd10c0148acd07026de48454d1ef55ca88e",
+    "flashloan/tools/manager_db/schema_policy.json": "sha256:fcbf45165ec0b3e3b23b03b94f7ee3fccc065877657fa18611a8a53b018bd93c",
+    "scripts/mainnet_arbitrage_healer.py": "sha256:7802d3d90c4c22ef527597229caaa46dd458af5eb943c9d288d5ee726f265877",
+    "flashloan/app_runtime/web/templates/dex_quotes.html": "sha256:cb834d8358fc7e792c8a40bb48260872aac10ce4df7cd7eccbf84c1fa1c71188",
+    "flashloan/app_runtime/web/static/dex_quotes/quotes_app.js": "sha256:7dedb401172841f21563471e8f8f1c4c79f8cc764f015900be26f3f5c8aa649f"
+  },
+  "whatThisDoesNotProve": [
+    "不证明主网存在任何可实现的套利机会：L1=332 与 L2=10 都是复核阶段的预期与确认读数，其中没有一条带 blockNumber，没有一条真正上链。",
+    "不证明广播链路在代码上是坏的：submit_broadcasts_write() 有通过的单测。缺的是生产调用方与授权 —— 代码路径在，接线不在。",
+    "不证明单 tick 门禁或状态迁移门禁会放行：两者本轮一次都没被走到（run.ok=false 之前就返回了），它们在有盈利路线时的行为仍未在主网测量。",
+    "不证明任何已实现盈亏：L4=0，本报告里所有金额都是复核阶段的预期金额，不是已实现金额。",
+    "不证明复核的闭环身份是完好的：44 条全部**未测量**（字段缺失），既不是 matched 也不是 mismatch。",
+    "不证明测试网状态：测试网任务已暂停，本轮未复采测试网读数。",
+    "不证明除 chain 4663 与 24 小时窗口以外的任何范围。"
+  ]
+}

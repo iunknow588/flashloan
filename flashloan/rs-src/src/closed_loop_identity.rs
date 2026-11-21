@@ -69,6 +69,16 @@ impl ClosedLoopCatalog {
     pub fn is_empty(&self) -> bool {
         self.by_address_path.is_empty()
     }
+
+    /// How many closed loops the catalog holds.
+    ///
+    /// The count is published with every group review, so a review that
+    /// carries no identity can be told apart from a catalog that was never
+    /// loaded: an empty catalog and a catalog that was never read are
+    /// different failures, and only one of them is a Manager problem.
+    pub fn len(&self) -> usize {
+        self.by_address_path.len()
+    }
 }
 
 /// Build the catalog out of the rows the Manager library holds.

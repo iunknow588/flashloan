@@ -6105,4 +6105,53 @@ mod tests {
         assert_eq!(value["data"]["summary"]["watchPairCount"], 0);
         assert_eq!(value["data"]["dataQuality"]["usdDepthRequired"], false);
     }
+
+    /// TASK-159: the quote/route page shows the review AND the broadcast
+    /// record statistics, and both come from the Rust managers.
+    ///
+    /// The review statistics say what was measured; the broadcast
+    /// statistics say what was actually sent to the chain.  A consumer that
+    /// shows "how many broadcasts happened" has to read the numbers the
+    /// Broadcast Manager published, so the overview projection has to carry
+    /// them.
+    ///
+    /// The fixture has no broadcast state row, so the manager reports the
+    /// disabled stub.  That pairing matters: zero attempts together with
+    /// `broadcastEnabled = false` says "no broadcast ever ran", which is
+    /// different from "a broadcast ran and produced no attempt".
+    #[tokio::test]
+    async fn overview_endpoint_publishes_the_broadcast_record_statistics() {
+        let (_directory, state, _path) = pipeline_state();
+        let app = app_with_state(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/overview?chainId=4663&limit=100")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let value = response_json(response).await;
+        let summary = &value["data"]["summary"];
+
+        // The broadcast record statistics are published.
+        assert_eq!(summary["broadcastEnabled"], false);
+        assert_eq!(summary["broadcastAttemptCount"], 0);
+        assert_eq!(summary["broadcastPendingCount"], 0);
+        assert_eq!(summary["broadcastSuccessCount"], 0);
+        assert_eq!(summary["broadcastFailedCount"], 0);
+        assert_eq!(summary["broadcastTerminalCount"], 0);
+
+        // The review record statistics stay published next to them.
+        assert!(summary["reviewCount"].is_number());
+        assert!(summary["reviewCompletedCount"].is_number());
+        assert!(summary["reviewNotExecutableCount"].is_number());
+        assert!(summary["reviewFailedCount"].is_number());
+        assert!(summary["reviewDataIncompleteCount"].is_number());
+        assert!(summary["broadcastRequestCount"].is_number());
+    }
 }

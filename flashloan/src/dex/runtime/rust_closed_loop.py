@@ -2271,6 +2271,17 @@ def _native_worker_evidence(
         "routeSymbols": route_symbols,
         "routeAddresses": route_addresses,
         "loopKey": loop_key,
+        # The **diagnosis** of the closed-loop identity travels with the
+        # evidence. A route that could not be matched against the
+        # closed-loop Manager publishes no key, and a review without a key
+        # cannot be filed under any loop. Without the reason, that failure
+        # looked like a missing value: nobody could tell whether the
+        # Manager had published no loop for the route, the route had priced
+        # the wrong pools, or the catalog had not been loaded at all.
+        "closedLoopIdentityStatus": result.get("closedLoopIdentityStatus"),
+        "closedLoopPoolIdentityStatus": result.get("closedLoopPoolIdentityStatus"),
+        "identityMismatch": result.get("identityMismatch"),
+        "closedLoopRepairTarget": result.get("repairTarget"),
         "hops": [],
         "blockNumber": None,
         "txHash": tx_hash,
@@ -3356,7 +3367,26 @@ def _candidate_pool_key_groups_from_database(
             edge = (token0, token1)
         else:
             edge = (token1, token0)
-        keys_by_edge.setdefault(edge, []).append(key)
+        # The candidate surface holds the **same** pool more than once: the
+        # candidate table and the observation table both contribute a row
+        # for it. The duplicates are not harmless. The per-hop candidate
+        # list feeds a cross product that is capped, so duplicates consume
+        # combination slots that a **distinct** pool needs. A pool that the
+        # closed-loop Manager had published was then never part of any
+        # combination, the route priced the wrong pool set, and the
+        # closed-loop identity was reported as a mismatch.
+        #
+        # The identity of a pool is its PoolKey, so the deduplication is by
+        # PoolKey identity and not by row: two rows that name the same pool
+        # are one pool, and two rows that name different pools stay
+        # separate.
+        identity = _candidate_pool_key_tuple(key)
+        if identity is None:
+            continue
+        candidates = keys_by_edge.setdefault(edge, [])
+        if any(_candidate_pool_key_tuple(existing) == identity for existing in candidates):
+            continue
+        candidates.append(key)
 
     missing_edges = [
         {

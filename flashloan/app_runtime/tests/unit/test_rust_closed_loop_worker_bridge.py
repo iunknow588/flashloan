@@ -5285,3 +5285,241 @@ def test_signed_native_profit_accepts_a_measured_zero(
     value = rust_closed_loop._signed_native_profit_value(result, 46630, route["routeAddresses"][0])
 
     assert value == pytest.approx(0.0)
+
+
+def test_duplicate_candidate_rows_do_not_starve_the_combination_budget(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A duplicated candidate row must not crowd a real pool out of the set.
+
+    The production defect: the candidate surface holds the **same** pool more
+    than once, because the candidate table and the observation table both
+    contribute a row for it. The per-hop candidate list was used raw, so the
+    duplicates filled the cross product and the combination cap cut the
+    surviving combinations at the **duplicate** pools. A real pool that the
+    closed-loop Manager had published was then never part of any
+    combination, the route priced the wrong pool set, and the closed-loop
+    identity was reported as a mismatch.
+
+    The route never carried the Manager's selected pool, so the review was
+    filed without the identity that ties it to the loop the Manager named.
+    The fix is to deduplicate the candidate list **by pool key identity**
+    before the cross product runs, so every distinct pool gets its own
+    combination slot.
+    """
+    import sqlite3
+
+    database = tmp_path / "duplicate_candidate_rows.sqlite3"
+    connection = sqlite3.connect(str(database))
+    connection.executescript(
+        """
+        CREATE TABLE dex_candidate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT NOT NULL,
+            depth_status TEXT NOT NULL,
+            has_liquidity INTEGER NOT NULL,
+            usable_for_observation INTEGER NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        );
+        CREATE TABLE market_observation_intermediate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        );
+        CREATE TABLE v4_exchange_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            pool_key_json TEXT,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        )
+        """
+    )
+    a = "0x" + ("1" * 40)
+    b = "0x" + ("2" * 40)
+    c = "0x" + ("3" * 40)
+    zero_hook = "0x0000000000000000000000000000000000000000"
+
+    def _pool_key(token0: str, token1: str, fee: int, tick_spacing: int) -> str:
+        return json.dumps(
+            {
+                "currency0": token0,
+                "currency1": token1,
+                "fee": fee,
+                "tickSpacing": tick_spacing,
+                "hooks": zero_hook,
+            }
+        )
+
+    # The first hop carries **two** distinct pools, and both are duplicated
+    # often enough to fill the whole combination budget on their own when
+    # the candidates are used raw.
+    first_hop_pools = [("p-ab-450", a, b, 450, 9), ("p-ab-200", a, b, 200, 4)]
+    for pool_id, token0, token1, fee, tick_spacing in first_hop_pools:
+        for index in range(6):
+            connection.execute(
+                """
+                INSERT INTO dex_candidate_pools (
+                    network, chain_id, protocol, pool_id, token0, token1, fee,
+                    tick_spacing, hooks, pool_key_json, depth_status,
+                    has_liquidity, usable_for_observation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "robinhood",
+                    4663,
+                    "uniswap_v4",
+                    f"{pool_id}-{index}",
+                    token0,
+                    token1,
+                    fee,
+                    tick_spacing,
+                    zero_hook,
+                    _pool_key(token0, token1, fee, tick_spacing),
+                    "deep",
+                    1,
+                    1,
+                ),
+            )
+    # The second hop carries one distinct pool, duplicated as well.
+    for index in range(6):
+        connection.execute(
+            """
+            INSERT INTO dex_candidate_pools (
+                network, chain_id, protocol, pool_id, token0, token1, fee,
+                tick_spacing, hooks, pool_key_json, depth_status,
+                has_liquidity, usable_for_observation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "robinhood",
+                4663,
+                "uniswap_v4",
+                f"p-bc-{index}",
+                b,
+                c,
+                3000,
+                60,
+                zero_hook,
+                _pool_key(b, c, 3000, 60),
+                "deep",
+                1,
+                1,
+            ),
+        )
+    connection.execute(
+        """
+        INSERT INTO v4_exchange_pools (
+            network, chain_id, protocol, pool_id, pool_key_json
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            "p-ca",
+            _pool_key(a, c, 1000, 2),
+        ),
+    )
+    # The third hop carries one distinct pool, duplicated as well.
+    for index in range(6):
+        connection.execute(
+            """
+            INSERT INTO dex_candidate_pools (
+                network, chain_id, protocol, pool_id, token0, token1, fee,
+                tick_spacing, hooks, pool_key_json, depth_status,
+                has_liquidity, usable_for_observation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "robinhood",
+                4663,
+                "uniswap_v4",
+                f"p-ca-{index}",
+                a,
+                c,
+                1000,
+                2,
+                zero_hook,
+                _pool_key(a, c, 1000, 2),
+                "deep",
+                1,
+                1,
+            ),
+        )
+    connection.execute(
+        """
+        INSERT INTO market_observation_intermediate_pools (
+            network, chain_id, protocol, pool_id, token0, token1, fee,
+            tick_spacing, hooks, pool_key_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            "p-bc",
+            b,
+            c,
+            3000,
+            60,
+            zero_hook,
+            "{}",
+        ),
+    )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "resolve_runtime",
+        lambda chain_id=None, **kwargs: {
+            "databasePath": str(database),
+            "source": "explicit",
+        },
+    )
+
+    details = rust_closed_loop._candidate_pool_key_groups_from_database(
+        chain_id=4663,
+        route_addresses=[a, b, c, a],
+        network="robinhood",
+        protocols=["uniswap_v4"],
+        return_details=True,
+    )
+
+    assert isinstance(details, dict)
+    assert details["ok"] is True
+    assert details["missingEdges"] == []
+
+    # Every distinct pool of the first hop has to survive: the Manager
+    # publishes one of them, and a route that cannot price it can never
+    # match the closed-loop identity.
+    first_hop_fees = {int(group[0]["fee"]) for group in details["groups"] if group}
+    assert first_hop_fees == {450, 200}, (
+        "every distinct candidate pool must survive the combination budget, "
+        f"got {sorted(first_hop_fees)}"
+    )
+
+    # The duplicate rows must not multiply the combination count either.
+    assert len(details["groups"]) == 2, (
+        "the candidate groups are deduplicated by pool identity, "
+        f"got {len(details['groups'])} groups"
+    )

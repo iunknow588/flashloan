@@ -82,6 +82,23 @@ pub struct OverviewSummary {
     pub review_not_executable_count: usize,
     pub review_failed_count: usize,
     pub broadcast_request_count: usize,
+    /// The broadcast **record** statistics the Broadcast Manager publishes.
+    ///
+    /// The review statistics above say what was measured; these say what
+    /// was actually sent to the chain.  A consumer that shows "how many
+    /// broadcasts happened" must read these numbers, and they have to come
+    /// from the manager that owns the attempts.
+    ///
+    /// A manager that has never published a broadcast state row reports
+    /// zero here **and** `broadcast_enabled = false`; the pair tells the
+    /// reader that no broadcast ever ran, which is different from a
+    /// broadcast that ran and produced no attempt.
+    pub broadcast_enabled: bool,
+    pub broadcast_attempt_count: usize,
+    pub broadcast_pending_count: usize,
+    pub broadcast_success_count: usize,
+    pub broadcast_failed_count: usize,
+    pub broadcast_terminal_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -453,7 +470,7 @@ fn build_manager_overview_snapshot(
         .filter(|pool| pool.has_liquidity != Some(true))
         .count();
 
-    let summary = build_summary(&paths, &watch_pairs, &review, &closed_loop, tokens);
+    let summary = build_summary(&paths, &watch_pairs, &review, &closed_loop, tokens, &broadcast);
     let versions = build_versions(
         &pipeline,
         &candidate,
@@ -1019,6 +1036,7 @@ fn build_summary(
     review: &ReviewSnapshot,
     closed_loop: &ClosedLoopSnapshot,
     tokens: &BTreeMap<String, TokenView>,
+    broadcast: &BroadcastStatus,
 ) -> OverviewSummary {
     let mut anchor_symbols = paths
         .iter()
@@ -1095,6 +1113,15 @@ fn build_summary(
         review_not_executable_count: review.status.not_executable_count,
         review_failed_count: review.status.failed_count,
         broadcast_request_count: review.status.broadcast_request_count,
+        // The broadcast records are owned by the Broadcast Manager.  Its
+        // published status is the authority for the attempt counts; the
+        // overview never counts attempts itself.
+        broadcast_enabled: broadcast.enabled,
+        broadcast_attempt_count: broadcast.attempt_count,
+        broadcast_pending_count: broadcast.pending_count,
+        broadcast_success_count: broadcast.success_count,
+        broadcast_failed_count: broadcast.failed_count,
+        broadcast_terminal_count: broadcast.terminal_count,
     }
 }
 

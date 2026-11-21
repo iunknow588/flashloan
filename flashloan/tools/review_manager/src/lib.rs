@@ -222,6 +222,46 @@ pub struct ReviewEvidenceInput {
     #[serde(default)]
     pub diagnostics: Vec<ReviewDiagnosticInput>,
     pub reviewed_at: Option<String>,
+    /// The **closed-loop identity** the runtime measured this route under.
+    ///
+    /// The identity is computed by the closed-loop kernel against the
+    /// catalog the closed-loop Manager publishes, and the kernel is the
+    /// only place that knows whether the route matched that catalog and
+    /// whether the pools it priced are pools the Manager published.
+    ///
+    /// The Review Manager therefore **stores** the identity instead of
+    /// recomputing it. A consumer of the review library reads the identity
+    /// from the Manager and never has to rebuild it from the route
+    /// addresses, which is what used to make a review with a broken
+    /// identity indistinguishable from a review with no identity at all.
+    #[serde(default)]
+    pub closed_loop_identity: Option<ClosedLoopIdentityEvidence>,
+}
+
+/// The closed-loop identity of one reviewed route.
+///
+/// Every field is optional on purpose. A route that was measured against a
+/// catalog that published no loop has **no** identity, and a route whose
+/// pools the catalog does not publish has an identity that did **not**
+/// match. The two are different facts, so the absence of a verdict is
+/// stored as an absent value instead of being recorded as a negative one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopIdentityEvidence {
+    /// Whether the route matched the closed-loop catalog.
+    #[serde(default)]
+    pub closed_loop_identity_status: Option<String>,
+    /// Whether every pool the route priced is a pool the closed-loop
+    /// Manager published for that hop.
+    #[serde(default)]
+    pub closed_loop_pool_identity_status: Option<String>,
+    /// The diagnosis of an identity mismatch, naming the pool that broke
+    /// the match.
+    #[serde(default)]
+    pub identity_mismatch: Option<String>,
+    /// The repair target the identity mismatch names.
+    #[serde(default)]
+    pub closed_loop_repair_target: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -343,6 +383,13 @@ pub struct ReviewRow {
     /// broadcast payload without all three limits is refused instead of
     /// falling back to the global V4 price bound.
     pub hop_sqrt_price_limits: Vec<String>,
+    /// The closed-loop identity the route was measured under.
+    ///
+    /// The identity is published by the closed-loop Manager and travels
+    /// with the review, so a reader of the review library can tell a
+    /// matched route, a route that priced pools the catalog does not
+    /// publish, and a route measured against an empty catalog apart.
+    pub closed_loop_identity: Option<ClosedLoopIdentityEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1567,6 +1614,11 @@ fn build_review_rows(
                 .single_tick_capacity_binding_pool_id
                 .clone(),
             hop_sqrt_price_limits: hop_sqrt_price_limits.clone(),
+            // The identity travels with the review. It is **copied**, never
+            // rebuilt: the closed-loop kernel measured it against the
+            // catalog the closed-loop Manager publishes, and the Review
+            // Manager has no way to measure it again.
+            closed_loop_identity: item.and_then(|value| value.closed_loop_identity.clone()),
         };
         let fresh_for_automatic_broadcast =
             review_is_fresh_for_automatic_broadcast(&row.reviewed_at);
@@ -2364,6 +2416,45 @@ pub fn read_broadcast_requests_on_connection(
     read_broadcast_requests(connection, network, chain_id, loop_key, limit)
 }
 
+/// Read the closed-loop identity columns of a review row.
+///
+/// The identity is **optional**. A review row whose identity columns are
+/// all NULL was measured against a catalog that published no loop, or it
+/// was written before the identity was published at all. Both cases read
+/// back as an absent identity, never as a "matched" verdict.
+fn read_closed_loop_identity(
+    closed_loop_identity_status: Option<String>,
+    closed_loop_pool_identity_status: Option<String>,
+    identity_mismatch: Option<String>,
+    closed_loop_repair_target: Option<String>,
+) -> Option<ClosedLoopIdentityEvidence> {
+    let closed_loop_identity_status = closed_loop_identity_status
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let closed_loop_pool_identity_status = closed_loop_pool_identity_status
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let identity_mismatch = identity_mismatch
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let closed_loop_repair_target = closed_loop_repair_target
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    if closed_loop_identity_status.is_none()
+        && closed_loop_pool_identity_status.is_none()
+        && identity_mismatch.is_none()
+        && closed_loop_repair_target.is_none()
+    {
+        return None;
+    }
+    Some(ClosedLoopIdentityEvidence {
+        closed_loop_identity_status,
+        closed_loop_pool_identity_status,
+        identity_mismatch,
+        closed_loop_repair_target,
+    })
+}
+
 fn read_reviews(
     connection: &Connection,
     network: &str,
@@ -2383,7 +2474,11 @@ fn read_reviews(
                 signed_pnl_source, reviewed_at,
                 single_tick_capacity_anchor_raw,
                 single_tick_capacity_binding_pool_id,
-                hop_sqrt_price_limits_json
+                hop_sqrt_price_limits_json,
+                closed_loop_identity_status,
+                closed_loop_pool_identity_status,
+                identity_mismatch,
+                closed_loop_repair_target
          FROM manager_v4_reviews
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR loop_key = ?5)
@@ -2449,6 +2544,12 @@ fn read_reviews(
                 hop_sqrt_price_limits: parse_optional_json_column(
                     row.get::<_, Option<String>>(29)?,
                 )?,
+                closed_loop_identity: read_closed_loop_identity(
+                    row.get::<_, Option<String>>(30)?,
+                    row.get::<_, Option<String>>(31)?,
+                    row.get::<_, Option<String>>(32)?,
+                    row.get::<_, Option<String>>(33)?,
+                ),
             })
         },
     )?;
@@ -2610,6 +2711,10 @@ fn replace_review_rows(
                     Some(pnl.source.as_str()),
                 )
             });
+        // The identity is optional. A review measured against a catalog
+        // that published no loop carries none, and the columns stay NULL
+        // instead of being filled with a default verdict.
+        let identity = row.closed_loop_identity.clone().unwrap_or_default();
         connection.execute(
             "INSERT INTO manager_v4_reviews (
                  network, chain_id, protocol, scope_key, loop_key,
@@ -2625,11 +2730,15 @@ fn replace_review_rows(
                  single_tick_capacity_anchor_raw,
                  single_tick_capacity_binding_pool_id,
                  hop_sqrt_price_limits_json,
+                 closed_loop_identity_status,
+                 closed_loop_pool_identity_status,
+                 identity_mismatch,
+                 closed_loop_repair_target,
                  created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
                        ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34,
-                       ?35, ?35)",
+                       ?35, ?36, ?37, ?38, ?39, ?39)",
             params![
                 network,
                 chain_id,
@@ -2666,6 +2775,10 @@ fn replace_review_rows(
                     .map(|value| value.to_string()),
                 row.single_tick_capacity_binding_pool_id.clone(),
                 serde_json::to_string(&row.hop_sqrt_price_limits)?,
+                identity.closed_loop_identity_status.as_deref(),
+                identity.closed_loop_pool_identity_status.as_deref(),
+                identity.identity_mismatch.as_deref(),
+                identity.closed_loop_repair_target.as_deref(),
                 now
             ],
         )?;
@@ -3163,7 +3276,8 @@ mod tests {
         clear_review_records_write, read_review_page, read_review_snapshot, run_reviews,
         run_reviews_write, ExpectedUpstream, ReviewClearRequest, ReviewDiagnosticInput,
         ReviewDiagnosticType, ReviewError, ReviewEvidenceInput, ReviewOutcomeFilter,
-        ReviewReadQuery, ReviewRecordStore, ReviewWriteRequest, RunArbitrageEvidence, SignedPnl,
+        ClosedLoopIdentityEvidence, ReviewReadQuery, ReviewRecordStore, ReviewWriteRequest,
+        RunArbitrageEvidence, SignedPnl,
     };
     use rusqlite::{params, Connection};
     use std::collections::BTreeMap;
@@ -3590,6 +3704,7 @@ mod tests {
             }),
             diagnostics: Vec::new(),
             reviewed_at: Some("2026-11-04T00:00:00Z".to_owned()),
+            closed_loop_identity: None,
         }
     }
 
@@ -4367,5 +4482,201 @@ mod tests {
             parsed.is_err(),
             "the human amount of the signed profit is mandatory"
         );
+    }
+    // -----------------------------------------------------------------
+    // The closed-loop identity is published by the Review Manager.
+    //
+    // The identity of a reviewed route is computed by the closed-loop
+    // kernel against the catalog the closed-loop Manager publishes. The
+    // Review Manager owns the review record, so it is the Review Manager
+    // that stores and publishes the identity: a consumer of the review
+    // library must never have to rebuild the identity outside the
+    // Manager, and must be able to tell a matched route, a route that
+    // priced pools the catalog does not publish, and a route measured
+    // against an empty catalog apart.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn the_review_manager_publishes_the_closed_loop_identity_of_a_review() {
+        let (directory, path) = database();
+        let mut evidence = evidence(Some(signed_pnl(1.0)), true, true, Vec::new());
+        evidence.closed_loop_identity = Some(ClosedLoopIdentityEvidence {
+            closed_loop_identity_status: Some("matched".to_owned()),
+            closed_loop_pool_identity_status: Some("verified".to_owned()),
+            identity_mismatch: None,
+            closed_loop_repair_target: None,
+        });
+
+        let outcome = run_reviews_write(
+            &path,
+            ReviewWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                operation: "review.run".to_owned(),
+                request_id: "request-identity".to_owned(),
+                idempotency_key: "idempotency-identity".to_owned(),
+                apply: true,
+                expected_upstream: expected(&path),
+                evidence: vec![evidence],
+            },
+        )
+        .unwrap();
+        assert!(!outcome.idempotent_replay);
+
+        let page = read_review_page(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            ReviewReadQuery {
+                loop_key: None,
+                category: None,
+                review_status: None,
+                outcome: None,
+                offset: 0,
+                limit: 50,
+            },
+        )
+        .unwrap();
+        let row = page
+            .reviews
+            .iter()
+            .find(|row| row.loop_key == LOOP_KEY)
+            .expect("the reviewed loop is published");
+        let identity = row
+            .closed_loop_identity
+            .as_ref()
+            .expect("the review publishes the identity it was measured under");
+        assert_eq!(
+            identity.closed_loop_identity_status.as_deref(),
+            Some("matched")
+        );
+        assert_eq!(
+            identity.closed_loop_pool_identity_status.as_deref(),
+            Some("verified")
+        );
+        assert!(identity.identity_mismatch.is_none());
+
+        drop(directory);
+    }
+
+    #[test]
+    fn a_review_without_an_identity_publishes_no_identity() {
+        // The absence of an identity is a **coverage gap**, not a verdict.
+        // A review measured against a catalog that published no loop must
+        // read back with no identity at all, so it can never be mistaken
+        // for a route that matched.
+        let (directory, path) = database();
+
+        run_reviews_write(
+            &path,
+            ReviewWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                operation: "review.run".to_owned(),
+                request_id: "request-no-identity".to_owned(),
+                idempotency_key: "idempotency-no-identity".to_owned(),
+                apply: true,
+                expected_upstream: expected(&path),
+                evidence: vec![evidence(Some(signed_pnl(1.0)), true, true, Vec::new())],
+            },
+        )
+        .unwrap();
+
+        let page = read_review_page(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            ReviewReadQuery {
+                loop_key: None,
+                category: None,
+                review_status: None,
+                outcome: None,
+                offset: 0,
+                limit: 50,
+            },
+        )
+        .unwrap();
+        let row = page
+            .reviews
+            .iter()
+            .find(|row| row.loop_key == LOOP_KEY)
+            .expect("the reviewed loop is published");
+        assert!(
+            row.closed_loop_identity.is_none(),
+            "a review without an identity must not publish one: {:?}",
+            row.closed_loop_identity
+        );
+
+        drop(directory);
+    }
+
+    #[test]
+    fn the_review_manager_publishes_the_diagnosis_of_a_broken_identity() {
+        // A route that priced pools the closed-loop catalog does not
+        // publish is a **different** fact from a route that matched. The
+        // diagnosis has to travel with the review, otherwise a reader has
+        // to re-derive it and cannot tell a pool-identity failure from a
+        // missing loop.
+        let (directory, path) = database();
+        let mut evidence = evidence(Some(signed_pnl(1.0)), true, true, Vec::new());
+        evidence.closed_loop_identity = Some(ClosedLoopIdentityEvidence {
+            closed_loop_identity_status: Some("mismatch".to_owned()),
+            closed_loop_pool_identity_status: Some("mismatch".to_owned()),
+            identity_mismatch: Some("manager_closed_loop_pool_identity_mismatch".to_owned()),
+            closed_loop_repair_target: Some("pool-0x84bd4e".to_owned()),
+        });
+
+        run_reviews_write(
+            &path,
+            ReviewWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                operation: "review.run".to_owned(),
+                request_id: "request-broken-identity".to_owned(),
+                idempotency_key: "idempotency-broken-identity".to_owned(),
+                apply: true,
+                expected_upstream: expected(&path),
+                evidence: vec![evidence],
+            },
+        )
+        .unwrap();
+
+        let page = read_review_page(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            ReviewReadQuery {
+                loop_key: None,
+                category: None,
+                review_status: None,
+                outcome: None,
+                offset: 0,
+                limit: 50,
+            },
+        )
+        .unwrap();
+        let row = page
+            .reviews
+            .iter()
+            .find(|row| row.loop_key == LOOP_KEY)
+            .expect("the reviewed loop is published");
+        let identity = row
+            .closed_loop_identity
+            .as_ref()
+            .expect("the review publishes the diagnosis of its identity");
+        assert_eq!(
+            identity.closed_loop_identity_status.as_deref(),
+            Some("mismatch")
+        );
+        assert_eq!(
+            identity.identity_mismatch.as_deref(),
+            Some("manager_closed_loop_pool_identity_mismatch")
+        );
+        assert_eq!(
+            identity.closed_loop_repair_target.as_deref(),
+            Some("pool-0x84bd4e")
+        );
+
+        drop(directory);
     }
 }

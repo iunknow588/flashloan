@@ -1,0 +1,186 @@
+{
+  "schema": "task159-mainnet-broadcast-output-blocker-diagnosis-v1",
+  "generatedAt": "2026-11-21T17:48:41.151056+00:00",
+  "task": "TASK-159",
+  "title": "主网持续套利广播产出：逐环解阻断（只读诊断，第 1-3 环）",
+  "authority": "read-only; manager API read with GET; store opened with mode=ro; no write, no sign, no broadcast",
+  "environment": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "databaseSha256": "sha256:a89b54d0fd0ad64e19ca1a3d9eee5112ad75c41b1ae686ef89501e8e53728faf",
+    "managerApi": "http://127.0.0.1:8091",
+    "runtime": "v4_dex profile, chain 4663",
+    "windowHours": 24
+  },
+  "fourLevelReading": {
+    "definition": {
+      "L1": "review reported a positive measured profit expectation",
+      "L2": "review also carries runArbitrage.ok=true and executable=true",
+      "L3": "a broadcast request row exists",
+      "L4": "a broadcast attempt row exists with a transaction hash"
+    },
+    "L1_positiveProfitExpectation": 332,
+    "L2_executionConfirmed": 10,
+    "L3_broadcastRequests": 0,
+    "L4_broadcastAttempts": 0,
+    "conclusion": "L1 and L2 are NOT broadcast output. The mainnet continuous-arbitrage broadcast output is currently 0."
+  },
+  "ring1_broadcastSideSwitch": {
+    "managerBroadcastStatus": {
+      "enabled": false,
+      "network": "robinhood",
+      "chainId": 4663,
+      "protocol": "uniswap_v4",
+      "scopeKey": "core4",
+      "broadcastVersion": 0,
+      "materializedChecksum": null,
+      "reviewVersion": null,
+      "reviewChecksum": null,
+      "closedLoopVersion": null,
+      "closedLoopChecksum": null,
+      "requestCount": 0,
+      "attemptCount": 0,
+      "pendingCount": 0,
+      "successCount": 0,
+      "failedCount": 0,
+      "terminalCount": 0
+    },
+    "managerAttemptCount": 0,
+    "managerDiagnosticCount": 0,
+    "finding": "enabled=false is NOT a configuration toggle. It is the absence of the manager_broadcast_library_state row for (network, chain_id, protocol, scope_key). The row is written by upsert_broadcast_state() inside the Broadcast Manager's submit/finalize path.",
+    "prerequisites": [
+      {
+        "item": "broadcast library state row materialized",
+        "status": "缺",
+        "detail": "manager_broadcast_library_state has no row for chain 4663 / core4, so read_broadcast_status() returns the disabled stub (broadcastVersion=0, all counters 0)."
+      },
+      {
+        "item": "review upstream state readable",
+        "status": "已具备",
+        "detail": "the review upstream exists (reviewVersion=22, closedLoopVersion=11, loopCount=44), so read_review_upstream() would NOT fail with MissingReviewState."
+      },
+      {
+        "item": "broadcast request rows present",
+        "status": "缺",
+        "detail": "manager_v4_review_broadcast_requests is empty (0 rows). A submit has nothing to consume."
+      },
+      {
+        "item": "production caller for POST /v1/broadcasts/submit",
+        "status": "缺",
+        "detail": "the endpoint is exercised only by the Rust unit tests; NO production caller (neither the Python runtime nor the healer) posts to it. The chain L2 -> L3 is therefore not wired end to end."
+      },
+      {
+        "item": "explicit broadcast authorization (chain/account/limit/time window)",
+        "status": "缺",
+        "detail": "no authorization exists in the evidence; not assumed and not self-granted."
+      }
+    ],
+    "verdict": "缺（缺 4 项）"
+  },
+  "ring2_reviewSideExecutablePrerequisite": {
+    "managerReviewStatus": {
+      "enabled": true,
+      "network": "robinhood",
+      "chainId": 4663,
+      "protocol": "uniswap_v4",
+      "scopeKey": "core4",
+      "reviewVersion": 22,
+      "materializedChecksum": "sha256:9722490475c37bfe8cfdb97a0e0e28c42f825d3ba3f8f4b11b90f5438d9253f4",
+      "closedLoopVersion": 11,
+      "closedLoopChecksum": "sha256:1d013e7b95758f2daa55dd803839fc8edfec04c8c12819ed7545f6aa1128f707",
+      "candidateEdgeVersion": 7,
+      "candidateEdgeChecksum": "sha256:6e0e6485cad58ced60b83bd687de1ce8d2ebf94dd0bbd87714bb7264413b2682",
+      "observationVersion": 8,
+      "observationChecksum": "sha256:97556a36f760cdb594553c64cfffd677bccd990417e1ec6ddad1ece6eef923d6",
+      "poolScopeChecksum": "sha256:55ca04677266c7b6822b192572bb51cc3b33941081d9894c2cfdfe82789817e2",
+      "libraryVersions": {
+        "core": 1,
+        "stocks": 1,
+        "test": 1
+      },
+      "libraryChecksums": {
+        "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+        "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+        "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+      },
+      "loopCount": 44,
+      "reviewedCount": 16,
+      "completedCount": 0,
+      "dataIncompleteCount": 0,
+      "notExecutableCount": 44,
+      "failedCount": 0,
+      "broadcastRequestCount": 0
+    },
+    "reviewStatusDistribution": {
+      "not_executable": 44
+    },
+    "pageCategoryDistribution": {
+      "review_failed": 44
+    },
+    "reviewReasonDistribution": {
+      "runArbitrage returned ok=false": 44
+    },
+    "finding": "All 44 manager reviews carry the identical reason 'runArbitrage returned ok=false'. That is the branch where the upstream chain evidence says the route was NOT profitable. The single-tick gate and the state-transition gate are NOT the blocker: both only run after run.ok && run.executable is true, and neither was reached.",
+    "businessConclusion": "runArbitrage ok=false is a real on-chain business conclusion (the route was not profitable at measurement time). It is NOT a capacity, identity or gate defect, and it must NOT be recorded as one, nor relaxed to manufacture positive>0.",
+    "corroborationFromLegacyLibrary": {
+      "windowReviews": 13088,
+      "legacyCategoryDistribution": {
+        "not_executable": 13088
+      },
+      "positiveExpectations": 332,
+      "executionConfirmedPositive": 10,
+      "negativeProfitReviews": 11584,
+      "measuredZeroReviews": 0,
+      "unmeasuredProfitReviews": 1172,
+      "note": "The legacy runtime library DOES contain positive profit expectations (332) and execution-confirmed rows (10). The manager review library is a different record set with its own version and freshness; it is stale (reviewVersion=22, oldest far beyond the 600s freshness window). The two are not interchangeable."
+    },
+    "verdict": "缺（复核侧无一例可执行；根因为链上不盈利，非缺陷）"
+  },
+  "ring3_closedLoopIdentityReading": {
+    "reviewsWithIdentity": 0,
+    "reviewsWithoutIdentity": 44,
+    "closedLoopIdentityStatusDistribution": {},
+    "closedLoopPoolIdentityStatusDistribution": {},
+    "repairTargetDistribution": {},
+    "identityMismatchCount": 0,
+    "finding": "All 44 manager reviews publish NO closed-loop identity at all (the field is absent), because they were materialized BEFORE migration 20261121_014 added the identity columns, and because NO historical backfill is permitted. Absence is UNMEASURED, NOT a mismatch.",
+    "verdict": "未测量（不是不匹配）；需要 TASK-143 的重新物化才能落库"
+  },
+  "amounts": {
+    "positiveExpectationByCurrency": {
+      "ETH": 0.000450159165015672,
+      "SPY": 2.856927353406e-06,
+      "WETH": 0.0690411627358773
+    },
+    "executionConfirmedPositiveByCurrency": {
+      "ETH": 0.000448836878081916,
+      "SPY": 7.27675237084e-07,
+      "WETH": 1.3469326425799999e-06
+    },
+    "negativeExpectationByCurrency": {
+      "ETH": -0.1728021853687179,
+      "SPY": -2.00946466787396,
+      "TZ": -2049.773202144497,
+      "WETH": -2.118867513727463
+    },
+    "measuredZeroCount": 0,
+    "unmeasuredCount": 1172,
+    "realizedPnl": null,
+    "realizedPnlReason": "L4 = 0, so there is no realized P&L, no gas cost, no slippage and no receipt to report."
+  },
+  "broadcastTableRowCounts": {
+    "manager_v4_review_broadcast_requests": 0,
+    "manager_cow_execution_attempts": 0,
+    "manager_broadcast_attempt_diagnostics": 0,
+    "cow_execution_attempts": 0
+  },
+  "whatThisDoesNotProve": [
+    "It does not prove that no profitable opportunity exists on mainnet: the window contains 332 positive profit expectations and 10 execution-confirmed rows in the LEGACY runtime library. The manager review library is stale (reviewVersion=22), and its 44 rows were measured long ago.",
+    "It does not prove the broadcast path is broken in code: submit_broadcasts_write() has passing unit tests. What is missing is a PRODUCTION caller of POST /v1/broadcasts/submit, plus the authorization. The code path exists; the wiring does not.",
+    "It does not prove the single-tick gate or the state-transition gate would pass: neither was reached, because the route never reached 'run.ok && run.executable'. Their behaviour on a profitable route is still unmeasured on mainnet.",
+    "It does not prove any realized profit or loss: L4 = 0. Every amount in this report is a REVIEW-STAGE expectation, never a realized amount.",
+    "It does not prove the identity of a review is intact: the identity is UNMEASURED for all 44 rows (absent, not mismatched).",
+    "It does not generalize beyond chain 4663 and the 24-hour window named in the environment block."
+  ]
+}

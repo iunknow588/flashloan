@@ -1479,6 +1479,54 @@ def test_python_never_clears_the_manager_business_tables_directly():
     )
 
 
+def test_python_never_reads_the_manager_business_tables_directly():
+    """TASK-158: the managers own the record reads, Python only consumes.
+
+    The **Review Manager** owns the review library, the **Broadcast
+    Manager** owns the broadcast attempts and the **closed-loop Manager**
+    owns the closed-loop catalog.  A Python ``SELECT`` against one of
+    those tables would bind the consumer to the layout it does not own and
+    would let it observe a half-written state that the manager never
+    published.  The records have to be read through the manager API.
+
+    The guard scans every active Python file for a read statement against a
+    manager table.  Test files are excluded on purpose: they build their
+    own fixture databases.
+    """
+
+    manager_tables = (
+        "manager_v4_reviews",
+        "manager_v4_review_diagnostics",
+        "manager_v4_review_broadcast_requests",
+        "manager_cow_execution_attempts",
+        "manager_broadcast_attempt_diagnostics",
+        "manager_review_library_state",
+        "manager_broadcast_library_state",
+        "manager_v4_closed_loops",
+        "manager_v4_closed_loop_hops",
+    )
+    read_pattern = re.compile(
+        r"\b(?:FROM|JOIN)\s+[\"`]?\s*(?:\w+\s*,\s*)?(manager_\w+)",
+        re.IGNORECASE,
+    )
+
+    offenders = []
+    for path in _python_files():
+        if "tests" in path.parts:
+            continue
+        source = path.read_text(encoding="utf-8", errors="replace")
+        for match in read_pattern.finditer(source):
+            table = match.group(1)
+            if table in manager_tables:
+                offenders.append(f"{path}: {match.group(0)}")
+
+    assert offenders == [], (
+        "TASK-158: Python must not read the manager business tables directly; "
+        "the manager publishes the records and Python only consumes them: "
+        + "; ".join(offenders)
+    )
+
+
 def test_review_submission_broadcast_schema_extensions_are_registered():
     """AC-141: a durable review/submission/broadcast column needs a review record.
 

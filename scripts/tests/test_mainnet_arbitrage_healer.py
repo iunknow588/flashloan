@@ -319,7 +319,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 1,
                 excluded,
             )
-        candidates.assert_called_once_with(HEALER.DEFAULT_DB, 1, excluded)
+        candidates.assert_called_once_with(HEALER.DEFAULT_DB, 1, excluded, None)
         self.assertEqual(result["candidateCount"], 0)
 
     def test_missing_pnl_candidates_only_include_latest_missing_review(self):
@@ -337,7 +337,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
              "path_addresses_json": '["0xD","0xE","0xF","0xD"]'},
         ]
         with mock.patch.object(HEALER, "review_rows", return_value=[missing, valued]), \
-             mock.patch.object(HEALER, "all_rows", return_value=loops):
+             mock.patch.object(HEALER, "manager_loop_rows", return_value=loops):
             candidates = HEALER.missing_pnl_review_candidates(HEALER.DEFAULT_DB, 24, 5)
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["loopKey"], "0xa:0xb:0xc")
@@ -479,7 +479,14 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 con.commit()
             finally:
                 con.close()
-            with mock.patch.object(HEALER, "observation_started_at", return_value="2026-11-10T00:00:00Z"):
+            published_loops = [{
+                "loop_key": "0xa:0xb:0xc",
+                "path_text": "SPY -> NVDA -> USDG -> SPY",
+                "path_symbols_json": json.dumps(["SPY", "NVDA", "USDG", "SPY"]),
+                "path_addresses_json": json.dumps(["0xa", "0xb", "0xc", "0xa"]),
+            }]
+            with mock.patch.object(HEALER, "observation_started_at", return_value="2026-11-10T00:00:00Z"), \
+                    mock.patch.object(HEALER, "manager_loop_rows", return_value=published_loops):
                 candidates = HEALER.historical_positive_candidates(database, 5)
                 excluded = HEALER.historical_positive_candidates(database, 5, {"0xa:0xb:0xc"})
         self.assertEqual(len(candidates), 1)
@@ -1189,6 +1196,100 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             },
         }
 
+    def published_manager(self, reviews=(), loops=(), broadcasts=None):
+        """Stub the manager API reads of the manager-owned records.
+
+        The **Review Manager** owns the review library and the
+        **closed-loop Manager** owns the closed-loop catalog, so the healer
+        reads them through the manager API and never selects from their
+        tables. The fixture therefore publishes the records the way the
+        manager API publishes them: as structured values inside the
+        ``data`` member of the answer document.
+        """
+        review_rows = []
+        for row in reviews:
+            item = dict(row)
+            signed = item.pop("signed_pnl", None) or {}
+            item.setdefault("loopKey", row.get("loop_key", ""))
+            item.setdefault("reviewedAt", row.get("created_at", ""))
+            if signed:
+                item["signedPnl"] = signed
+            review_rows.append(item)
+        loop_rows = []
+        for row in loops:
+            item = dict(row)
+            item.setdefault("loopKey", row.get("loop_key", ""))
+            item.setdefault("pathText", row.get("path_text"))
+            item.setdefault("pathSymbols", json.loads(row.get("path_symbols_json") or "[]"))
+            item.setdefault("pathAddresses", json.loads(row.get("path_addresses_json") or "[]"))
+            item.setdefault("poolIds", json.loads(row.get("pool_ids_json") or "[]"))
+            loop_rows.append(item)
+        broadcast_doc = broadcasts or {"status": {}, "attempts": [], "diagnostics": []}
+        return (
+            mock.patch.object(HEALER, "manager_read_reviews", return_value=review_rows),
+            mock.patch.object(HEALER, "manager_read_closed_loops", return_value={
+                "status": {"loopCount": len(loop_rows)},
+                "loops": loop_rows,
+                "hops": [],
+                "optimizations": [],
+                "runtimeStates": [],
+                "skippedTokens": [],
+            }),
+            mock.patch.object(HEALER, "manager_read_broadcasts", return_value=broadcast_doc),
+        )
+
+    def published_review_rows(self, database):
+        """Return the fixture's review rows in the shape the API publishes.
+
+        The fixture materializes the rows the Review Manager owns. The
+        manager API publishes the nested blocks as structured values, so
+        the fixture rows are converted here: the static preview and the
+        arbitrage block become objects, and the signed profit becomes the
+        ``signedPnl`` object the API publishes.
+        """
+        rows = []
+        connection = sqlite3.connect(database)
+        connection.row_factory = sqlite3.Row
+        try:
+            for row in connection.execute(
+                "SELECT * FROM manager_v4_reviews WHERE network=? AND chain_id=?",
+                (HEALER.NETWORK, HEALER.CHAIN_ID),
+            ):
+                item = dict(row)
+                for column, field in (("static_preview_json", "staticPreview"),
+                                      ("run_arbitrage_json", "runArbitrage")):
+                    try:
+                        item[field] = json.loads(item.get(column) or "{}")
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        item[field] = {}
+                item["signedPnl"] = {
+                    "raw": item.get("signed_pnl_raw"),
+                    "amount": item.get("signed_pnl_amount"),
+                    "currency": item.get("signed_pnl_currency"),
+                    "address": item.get("signed_pnl_address"),
+                    "unit": item.get("signed_pnl_unit"),
+                    "source": item.get("signed_pnl_source"),
+                }
+                rows.append(item)
+        finally:
+            connection.close()
+        return rows
+
+    def published_loop_rows(self, database):
+        """Return the fixture's closed-loop rows in the API-published shape."""
+        rows = []
+        connection = sqlite3.connect(database)
+        connection.row_factory = sqlite3.Row
+        try:
+            for row in connection.execute(
+                "SELECT * FROM manager_v4_closed_loops WHERE network=? AND chain_id=?",
+                (HEALER.NETWORK, HEALER.CHAIN_ID),
+            ):
+                rows.append(dict(row))
+        finally:
+            connection.close()
+        return rows
+
     def completed_ladder(self):
         """Return a probe ladder that actually expanded past the first probe."""
         return [
@@ -1302,8 +1403,13 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                                          missing=False,
                                          probe_rows=self.completed_ladder()),
             )
-            with mock.patch.object(HEALER, "observation_started_at",
-                                   return_value="2026-11-10T00:00:00Z"):
+            reviews, loops, broadcasts = self.published_manager(
+                reviews=self.published_review_rows(database),
+                loops=self.published_loop_rows(database),
+            )
+            with reviews, loops, broadcasts, \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2026-11-10T00:00:00Z"):
                 report = HEALER.audit_reviews(database, 24)
             self.assertEqual(report["bestAmount"]["missing"], 0)
             self.assertEqual(report["bestAmount"]["confirmed"], 1)
@@ -1328,8 +1434,13 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                                          missing=True, probe_rows=[]),
                 selected_profit_amount=None,
             )
-            with mock.patch.object(HEALER, "observation_started_at",
-                                   return_value="2026-11-10T00:00:00Z"):
+            reviews, loops, broadcasts = self.published_manager(
+                reviews=self.published_review_rows(database),
+                loops=self.published_loop_rows(database),
+            )
+            with reviews, loops, broadcasts, \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2026-11-10T00:00:00Z"):
                 report = HEALER.audit_reviews(database, 24)
             reasons = [item["reason"] for item in report["missingReasons"]]
             self.assertTrue(any("evidence_missing" != reason for reason in reasons),
@@ -1369,8 +1480,13 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 self.best_amount_payload(best_amount="0.0", confirmed=True, missing=False,
                                          probe_rows=self.completed_ladder()),
             )
-            with mock.patch.object(HEALER, "observation_started_at",
-                                   return_value="2026-11-10T00:00:00Z"):
+            reviews, loops, broadcasts = self.published_manager(
+                reviews=self.published_review_rows(database),
+                loops=self.published_loop_rows(database),
+            )
+            with reviews, loops, broadcasts, \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2026-11-10T00:00:00Z"):
                 report = HEALER.best_amount_audit(database, 24)
             self.assertEqual(report["tooSmallCount"], 1)
             self.assertEqual(report["belowGasCount"], 0)
@@ -1399,8 +1515,13 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 self.best_amount_payload(best_amount="1.0", confirmed=True, missing=False,
                                          probe_rows=[{"amount": "1.0", "ok": True}]),
             )
-            with mock.patch.object(HEALER, "observation_started_at",
-                                   return_value="2026-11-10T00:00:00Z"):
+            reviews, loops, broadcasts = self.published_manager(
+                reviews=self.published_review_rows(database),
+                loops=self.published_loop_rows(database),
+            )
+            with reviews, loops, broadcasts, \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2026-11-10T00:00:00Z"):
                 report = HEALER.audit_reviews(database, 24)
             self.assertEqual(report["bestAmount"]["missing"], 1)
             self.assertEqual(report["bestAmount"]["ladderIncomplete"], 1)
@@ -1489,6 +1610,194 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertFalse(epoch["epochUnknown"])
             self.assertEqual(epoch["startedAt"], "2026-11-11T08:46:25Z")
             self.assertEqual(started_at, "2026-11-11T08:46:25Z")
+
+    # ---- TASK-158: the managers own the record reads ------------------------
+    #
+    # The **Review Manager** owns the review library, the **Broadcast
+    # Manager** owns the broadcast attempts and the **closed-loop Manager**
+    # owns the closed-loop catalog.  The healer therefore reads all three
+    # through the manager API.  The identity of a review is published by
+    # the Review Manager, so the healer only copies it and never rebuilds
+    # it from the route addresses.
+
+    def test_the_healer_reads_the_closed_loop_identity_the_kernel_published(self):
+        identity = HEALER._closed_loop_identity_of([
+            {
+                "review": {
+                    "closedLoopIdentityStatus": "matched",
+                    "closedLoopPoolIdentityStatus": "matched",
+                }
+            }
+        ])
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity["closedLoopIdentityStatus"], "matched")
+        self.assertEqual(identity["closedLoopPoolIdentityStatus"], "matched")
+
+    def test_the_healer_reads_the_identity_diagnosis_of_a_broken_identity(self):
+        identity = HEALER._closed_loop_identity_of([
+            {
+                "runArbitrage": {
+                    "closedLoopIdentityStatus": "mismatch",
+                    "identityMismatch": {"pool": "0xdeadbeef", "hop": 2},
+                    "closedLoopRepairTarget": "manager_closed_loop_pool_identity_mismatch",
+                }
+            }
+        ])
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity["closedLoopIdentityStatus"], "mismatch")
+        # The structured diagnosis is kept as a JSON string so the Review
+        # Manager can store it without knowing the shape of the kernel's
+        # diagnosis block.
+        self.assertEqual(
+            json.loads(identity["identityMismatch"]),
+            {"pool": "0xdeadbeef", "hop": 2},
+        )
+        self.assertEqual(
+            identity["closedLoopRepairTarget"], "manager_closed_loop_pool_identity_mismatch"
+        )
+
+    def test_a_review_without_an_identity_stays_without_one(self):
+        # A payload that publishes no identity yields **no** identity.  The
+        # absence must not be turned into a negative verdict.
+        self.assertIsNone(HEALER._closed_loop_identity_of([{"review": {"ok": True}}]))
+        self.assertIsNone(HEALER._closed_loop_identity_of([]))
+        self.assertIsNone(
+            HEALER._closed_loop_identity_of([{"closedLoopIdentityStatus": "   "}])
+        )
+
+    def test_the_manager_review_adapter_publishes_the_closed_loop_identity(self):
+        published = [{
+            "loopKey": "WETH->NVDA->USDG->WETH",
+            "closedLoopIdentity": {
+                "closedLoopIdentityStatus": "matched",
+                "closedLoopPoolIdentityStatus": "matched",
+                "identityMismatch": None,
+                "closedLoopRepairTarget": None,
+            },
+        }]
+        with mock.patch.object(
+            HEALER.manager_record_reader,
+            "read_reviews",
+            return_value=published,
+        ):
+            rows = HEALER.manager_read_reviews("http://127.0.0.1:8091")
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["closed_loop_identity_status"], "matched")
+        self.assertEqual(row["closed_loop_pool_identity_status"], "matched")
+        # A published ``null`` stays missing rather than becoming a default.
+        self.assertIsNone(row.get("identity_mismatch"))
+        self.assertIsNone(row.get("closed_loop_repair_target"))
+
+    def test_a_manager_review_without_an_identity_has_no_identity_fields(self):
+        with mock.patch.object(
+            HEALER.manager_record_reader,
+            "read_reviews",
+            return_value=[{"loopKey": "ETH->AMD->ETH"}],
+        ):
+            rows = HEALER.manager_read_reviews("http://127.0.0.1:8091")
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertNotIn("closed_loop_identity", row)
+        self.assertNotIn("closed_loop_identity_status", row)
+        self.assertNotIn("closed_loop_pool_identity_status", row)
+
+    def test_the_stored_review_evidence_carries_the_published_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "store.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute(
+                "CREATE TABLE cow_execution_reviews (id INTEGER PRIMARY KEY,network TEXT,"
+                "chain_id INTEGER,created_at TEXT,payload_json TEXT,summary_json TEXT)"
+            )
+            connection.commit()
+            connection.close()
+            published = [{
+                "loopKey": "WETH->NVDA->USDG->WETH",
+                "reviewedAt": "2026-11-21T00:00:00Z",
+                "runArbitrage": {
+                    "ok": True,
+                    "signedPnl": {
+                        "raw": "0.5",
+                        "amount": "0.5",
+                        "currency": "WETH",
+                        "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                        "unit": "wei",
+                        "source": "kernel",
+                    },
+                },
+                "closedLoopIdentity": {
+                    "closedLoopIdentityStatus": "matched",
+                    "closedLoopPoolIdentityStatus": "matched",
+                },
+            }]
+            with mock.patch.object(
+                HEALER.manager_record_reader,
+                "read_reviews",
+                return_value=published,
+            ):
+                evidence = HEALER.stored_review_evidence(database, "http://127.0.0.1:8091")
+        self.assertEqual(len(evidence), 1)
+        self.assertIn("closedLoopIdentity", evidence[0])
+        self.assertEqual(
+            evidence[0]["closedLoopIdentity"]["closedLoopIdentityStatus"], "matched"
+        )
+
+    def test_the_broadcast_audit_counts_the_manager_published_attempts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "store.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute(
+                "CREATE TABLE cow_execution_attempts (id INTEGER PRIMARY KEY,network TEXT,"
+                "chain_id INTEGER,attempt_key TEXT,category TEXT,tx_hash TEXT,created_at TEXT,"
+                "selected_profit_amount TEXT,selected_profit_amount_symbol TEXT,summary_json TEXT)"
+            )
+            connection.execute(
+                "CREATE TABLE cow_execution_reviews (id INTEGER PRIMARY KEY,network TEXT,"
+                "chain_id INTEGER,created_at TEXT,category TEXT,selected_profit_amount TEXT)"
+            )
+            connection.commit()
+            connection.close()
+            broadcast_doc = {
+                "status": {"attemptCount": 1, "successCount": 1, "pendingCount": 0,
+                           "failedCount": 0},
+                "attempts": [{
+                    "attemptId": "attempt-1",
+                    "status": "success",
+                    "txHash": "0xabc",
+                    "createdAt": "2026-11-21T00:00:00Z",
+                    "signedPnl": {"amount": "1.5", "currency": "WETH"},
+                }],
+                "diagnostics": [],
+            }
+            with mock.patch.object(
+                HEALER.manager_record_reader,
+                "read_broadcasts",
+                return_value=broadcast_doc,
+            ):
+                report = HEALER.audit_broadcast(database, 24, "http://127.0.0.1:8091")
+        self.assertTrue(report["valid"])
+        self.assertEqual(report["manager"]["attempts"], 1)
+        self.assertEqual(report["manager"]["success"], 1)
+        self.assertEqual(report["manager"]["source"], "broadcast_manager_published_records")
+        self.assertEqual(len(report["legacy"]["recent"]), 1)
+        self.assertTrue(report["legacy"]["recent"][0]["published_by_manager"])
+
+    def test_the_healer_never_selects_from_a_manager_owned_table(self):
+        # The managers own these tables.  A direct SELECT would bind the
+        # healer to a layout it does not own, so the source must not name
+        # them at all.
+        source = MODULE_PATH.read_text(encoding="utf-8-sig")
+        for table in (
+            "manager_v4_reviews",
+            "manager_v4_closed_loops",
+            "manager_cow_execution_attempts",
+            "manager_v4_review_broadcast_requests",
+        ):
+            self.assertNotIn(f"FROM {table}", source, table)
+            self.assertNotIn(f"JOIN {table}", source, table)
+            self.assertNotIn(f"INTO {table}", source, table)
+            self.assertNotIn(f"UPDATE {table}", source, table)
 
 
 if __name__ == "__main__":

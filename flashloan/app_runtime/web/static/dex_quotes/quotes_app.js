@@ -42,7 +42,9 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds-v2";
       activeRouteKey = ""; pageState = PAGE_STATE.INIT;
       activeExecution = { routeKey: "", state: "", txHash: "", startedAt: 0 };
       $("routeList").innerHTML = `<div class="empty">${esc(message)}</div>`;
-      ["routeCount", "completeCount", "readyCount", "autoExecutableCount"].forEach(id => $(id).textContent = "0");
+      ["routeCount", "completeCount", "readyCount", "autoExecutableCount",
+       "broadcastAttemptCount", "broadcastSuccessCount", "broadcastFailedCount",
+       "broadcastPendingCount"].forEach(id => $(id).textContent = "0");
     };
     const marketIdChainComponent = marketId => {
       const normalized = String(marketId || "").trim().toLowerCase();
@@ -184,6 +186,30 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds-v2";
       $("autoExecutedMeta").textContent = `闭环版本 ${versionValue("closedLoopVersion")}`;
       $("autoBroadcastCount").textContent = versionValue("broadcastVersion");
       $("autoBroadcastMeta").textContent = `广播版本 ${versionValue("broadcastVersion")}`;
+      // The broadcast RECORD statistics are published by the Broadcast
+      // Manager.  They say what was actually sent to the chain, which is
+      // not the same thing as the review statistics above, which say what
+      // was measured.  A manager that never published a broadcast state
+      // reports zero attempts together with `broadcastEnabled = false`;
+      // the pair says "no broadcast ever ran", which is different from
+      // "a broadcast ran and produced no attempt".
+      const broadcastEnabled = summary.broadcastEnabled === true;
+      const broadcastAttemptCount = intValue(summary.broadcastAttemptCount ?? 0);
+      const broadcastSuccessCount = intValue(summary.broadcastSuccessCount ?? 0);
+      const broadcastFailedCount = intValue(summary.broadcastFailedCount ?? 0);
+      const broadcastPendingCount = intValue(summary.broadcastPendingCount ?? 0);
+      const broadcastTerminalCount = intValue(summary.broadcastTerminalCount ?? 0);
+      const broadcastRequestTotal = intValue(summary.broadcastRequestCount ?? 0);
+      $("broadcastAttemptCount").textContent = broadcastAttemptCount;
+      $("broadcastAttemptMeta").textContent = broadcastEnabled
+        ? `Broadcast Manager 记录 | 请求 ${broadcastRequestTotal}`
+        : "广播未启用（Manager 未发布广播状态）";
+      $("broadcastSuccessCount").textContent = broadcastSuccessCount;
+      $("broadcastSuccessMeta").textContent = `已终结 ${broadcastTerminalCount}`;
+      $("broadcastFailedCount").textContent = broadcastFailedCount;
+      $("broadcastFailedMeta").textContent = `已终结 ${broadcastTerminalCount}`;
+      $("broadcastPendingCount").textContent = broadcastPendingCount;
+      $("broadcastPendingMeta").textContent = broadcastEnabled ? "在途尝试" : "广播未启用";
       $("queueCount").textContent = pnlMissingCount;
       $("queueMeta").textContent = `缺 PnL ${pnlMissingCount} | 未解析代币 ${unresolvedTokenCount}`;
       $("settlement").textContent = versionsConsistent ? "一致" : "异常";

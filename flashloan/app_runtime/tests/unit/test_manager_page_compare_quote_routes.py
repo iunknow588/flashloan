@@ -129,6 +129,20 @@ OVERVIEW_DATA = {
         "candidatePathCount": 2,
         "marketObservationRouteCount": 2,
         "overviewPathGroupCount": 2,
+        # The review record statistics the Review Manager published.
+        "reviewCount": 2,
+        "reviewCompletedCount": 1,
+        "reviewNotExecutableCount": 1,
+        "reviewFailedCount": 0,
+        "reviewDataIncompleteCount": 0,
+        # The broadcast record statistics the Broadcast Manager published.
+        "broadcastEnabled": True,
+        "broadcastRequestCount": 1,
+        "broadcastAttemptCount": 3,
+        "broadcastPendingCount": 1,
+        "broadcastSuccessCount": 1,
+        "broadcastFailedCount": 1,
+        "broadcastTerminalCount": 2,
     },
     "arbitragePaths": [USDG_PATH, WETH_PATH],
     "arbitragePathGroups": [
@@ -737,3 +751,72 @@ def test_quote_request_route_is_manager_only_and_never_loads_legacy_data(
     assert failed.status_code == 503
     assert failed.get_json()["error"] == "manager_read_failed"
     assert failed.get_json()["dataSource"] == "manager"
+
+
+def test_quote_routes_manager_adapter_publishes_the_review_and_broadcast_statistics():
+    """TASK-159: the quote/route page shows both record statistics.
+
+    The review statistics say what was measured; the broadcast statistics
+    say what was actually sent to the chain.  Both are published by the
+    Rust managers, and the page adapter only carries them: it never
+    counts a review or an attempt itself.
+    """
+    payload = manager_page_compare.quote_routes_manager_page_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        chain_selection={"market_id": "dex-arbitrage-4663-uniswap-v4"},
+        request_id="quote-routes-statistics-1",
+        overview_envelope=_runtime_core_overview_envelope(),
+    )
+
+    assert payload["ok"] is True
+    summary = payload["summary"]
+
+    # The review record statistics.
+    assert summary["reviewCount"] == 2
+    assert summary["reviewCompletedCount"] == 1
+    assert summary["reviewNotExecutableCount"] == 1
+    assert summary["reviewFailedCount"] == 0
+    assert summary["reviewDataIncompleteCount"] == 0
+
+    # The broadcast record statistics.
+    assert summary["broadcastEnabled"] is True
+    assert summary["broadcastRequestCount"] == 1
+    assert summary["broadcastAttemptCount"] == 3
+    assert summary["broadcastPendingCount"] == 1
+    assert summary["broadcastSuccessCount"] == 1
+    assert summary["broadcastFailedCount"] == 1
+    assert summary["broadcastTerminalCount"] == 2
+
+
+def test_the_quote_routes_page_renders_the_broadcast_record_statistics():
+    """TASK-159: the quote/route page shows the broadcast record metrics.
+
+    The page must show how many broadcasts were attempted, succeeded,
+    failed and are still pending, because those are the numbers that say
+    whether the continuous arbitrage actually produced anything.
+    """
+    from pathlib import Path
+
+    web_root = Path(__file__).resolve().parents[2] / "web"
+    template = web_root / "templates" / "dex_quotes.html"
+    source = template.read_text(encoding="utf-8")
+
+    for element_id in (
+        "broadcastAttemptCount",
+        "broadcastSuccessCount",
+        "broadcastFailedCount",
+        "broadcastPendingCount",
+    ):
+        assert f'id="{element_id}"' in source, element_id
+
+    script = web_root / "static" / "dex_quotes" / "quotes_app.js"
+    script_source = script.read_text(encoding="utf-8")
+    for manager_field in (
+        "broadcastAttemptCount",
+        "broadcastSuccessCount",
+        "broadcastFailedCount",
+        "broadcastPendingCount",
+        "broadcastEnabled",
+    ):
+        assert manager_field in script_source, manager_field

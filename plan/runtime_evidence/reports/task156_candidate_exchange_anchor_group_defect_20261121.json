@@ -1,0 +1,613 @@
+{
+  "schema": "task156-candidate-exchange-anchor-group-defect-v1",
+  "generatedAt": "2026-11-21T05:59:52.961676+00:00",
+  "task": "TASK-156",
+  "title": "candidate_exchange 观测层把锚点排除在自己的 token 组之外，导致锚点自身的边池不可达",
+  "authority": "shipped-artifact",
+  "confidence": "observed",
+  "environment": {
+    "platform": "windows",
+    "architecture": "x86_64",
+    "isolation": "none",
+    "id": "workstation"
+  },
+  "component": {
+    "crate": "candidate-exchange-pool-manager",
+    "file": "flashloan/tools/candidate_exchange_pool_manager/src/lib.rs",
+    "functions": [
+      "read_anchor_groups",
+      "read_anchor_symbols",
+      "validate_candidate_edge_state"
+    ],
+    "referenceImplementation": "flashloan/tools/closed_loop_manager/src/lib.rs::read_anchors"
+  },
+  "rootCause": {
+    "table": "manager_dex_candidate_anchor_tokens",
+    "rowSemantics": "每行是一个 *(anchor_token_key_id, token_key_id)* 的候选边：锚点是资金币，token_key_id 是与之成交的对手币。生产数据**没有**自引用行（anchor_token_key_id = token_key_id 的行数为 0）。",
+    "defect": "candidate_exchange 的 read_anchor_groups 只把 token_key_id（对手币）放进锚点组，**从不把锚点自己放进去**。随后 build_exchange_rows 要求池的两个端点都在该组内 ('tokens.contains(token0) && tokens.contains(token1)')，于是锚点自身的边池（端点 = {锚点, 对手币}）因锚点不在组内而被丢弃。",
+    "consequence": "所有依赖锚点自身边池的方向都变成 no_reachable_v4_pool；观测方向数 4（且全空）→ 20（16 有池）；闭环无法形成。",
+    "whyItWentUnnoticed": "单元测试夹具 seed_candidate_edge_state 写入了一条自引用行 (ANCHOR, ANCHOR)，掩盖了生产形态。",
+    "secondaryDefect": "read_anchor_symbols 用 'AND anchor_token_key_id = token_key_id' 取锚点符号，生产数据下该集合恒为空，比较路径会以 'missing display symbol for anchor' 失败。",
+    "validatorCorrection": "validate_candidate_edge_state 原先把「组成员并集」与 candidate_edge 状态里的 candidate_token_count（= 行的去重对手币数）相比；修复后锚点进入组内，两者语义不同，改为直接按行统计的去重对手币数比对。"
+  },
+  "evidence": {
+    "selfReferentialRowCount": 0,
+    "anchorRows": [
+      {
+        "anchor_token_key_id": "0x000000",
+        "token_key_id": "0x5884ad",
+        "token_role": "yc_zc",
+        "token_symbol": "AMZN",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x1fbe1a",
+        "token_key_id": "0x3b8262",
+        "token_role": "yc_zc",
+        "token_symbol": "NFLX",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x3b8262",
+        "token_key_id": "0x1fbe1a",
+        "token_role": "yc_zc",
+        "token_symbol": "PLTR",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "0x000000",
+        "token_role": "yc_zc",
+        "token_symbol": "ETH",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "0x71178b",
+        "token_role": "yc_zc",
+        "token_symbol": "AMD",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "0x5884ad",
+        "token_role": "yc_zc",
+        "token_symbol": "AMZN",
+        "pool_count": 1
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "0xc9f9c8",
+        "token_role": "yc_zc",
+        "token_symbol": "TSLA",
+        "pool_count": 2
+      },
+      {
+        "anchor_token_key_id": "0xc9f9c8",
+        "token_key_id": "0x71178b",
+        "token_role": "yc_zc",
+        "token_symbol": "AMD",
+        "pool_count": 2
+      }
+    ],
+    "scopePools": [
+      {
+        "pool_id": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a",
+        "token0_key_id": "0x5884ad",
+        "token1_key_id": "0x71178b",
+        "pool_status": "active",
+        "depth_status": "deep",
+        "fee": 3000
+      },
+      {
+        "pool_id": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "token0_key_id": "0x000000",
+        "token1_key_id": "0x5884ad",
+        "pool_status": "active",
+        "depth_status": "deep",
+        "fee": 100
+      },
+      {
+        "pool_id": "0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38",
+        "token0_key_id": "0x71178b",
+        "token1_key_id": "0xc9f9c8",
+        "pool_status": "active",
+        "depth_status": "deep",
+        "fee": 500
+      },
+      {
+        "pool_id": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3",
+        "token0_key_id": "0x1fbe1a",
+        "token1_key_id": "0x3b8262",
+        "pool_status": "active",
+        "depth_status": "medium",
+        "fee": 3000
+      },
+      {
+        "pool_id": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "token0_key_id": "0x71178b",
+        "token1_key_id": "0xc9f9c8",
+        "pool_status": "active",
+        "depth_status": "medium",
+        "fee": 3000
+      }
+    ],
+    "poolsDroppedByBug": [],
+    "poolsReachableAfterFix": [
+      {
+        "anchor": "0x000000",
+        "pool": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "ends": [
+          "0x000000",
+          "0x5884ad"
+        ]
+      },
+      {
+        "anchor": "0x1fbe1a",
+        "pool": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3",
+        "ends": [
+          "0x1fbe1a",
+          "0x3b8262"
+        ]
+      },
+      {
+        "anchor": "0x3b8262",
+        "pool": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3",
+        "ends": [
+          "0x1fbe1a",
+          "0x3b8262"
+        ]
+      },
+      {
+        "anchor": "0x5884ad",
+        "pool": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a",
+        "ends": [
+          "0x5884ad",
+          "0x71178b"
+        ]
+      },
+      {
+        "anchor": "0x5884ad",
+        "pool": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "ends": [
+          "0x000000",
+          "0x5884ad"
+        ]
+      },
+      {
+        "anchor": "0x71178b",
+        "pool": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a",
+        "ends": [
+          "0x5884ad",
+          "0x71178b"
+        ]
+      },
+      {
+        "anchor": "0x71178b",
+        "pool": "0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38",
+        "ends": [
+          "0x71178b",
+          "0xc9f9c8"
+        ]
+      },
+      {
+        "anchor": "0x71178b",
+        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "ends": [
+          "0x71178b",
+          "0xc9f9c8"
+        ]
+      },
+      {
+        "anchor": "0xc9f9c8",
+        "pool": "0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38",
+        "ends": [
+          "0x71178b",
+          "0xc9f9c8"
+        ]
+      },
+      {
+        "anchor": "0xc9f9c8",
+        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "ends": [
+          "0x71178b",
+          "0xc9f9c8"
+        ]
+      }
+    ],
+    "observationBeforeFix": {
+      "directionCount": 4,
+      "populated": 0,
+      "allEmptyReason": "no_reachable_v4_pool"
+    },
+    "observationAfterFix": {
+      "directionCount": 20,
+      "populatedDirectionCount": 16,
+      "emptyDirectionCount": 4,
+      "emptyReasons": [
+        "no_reachable_v4_pool"
+      ]
+    },
+    "yzPairs": [
+      {
+        "anchor_token_key_id": "0x000000",
+        "token_x_key_id": "0x000000",
+        "token_y_key_id": "0x5884ad",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x000000",
+        "token_x_key_id": "0x5884ad",
+        "token_y_key_id": "0x000000",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x1fbe1a",
+        "token_x_key_id": "0x1fbe1a",
+        "token_y_key_id": "0x3b8262",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x1fbe1a",
+        "token_x_key_id": "0x3b8262",
+        "token_y_key_id": "0x1fbe1a",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x3b8262",
+        "token_x_key_id": "0x1fbe1a",
+        "token_y_key_id": "0x3b8262",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x3b8262",
+        "token_x_key_id": "0x3b8262",
+        "token_y_key_id": "0x1fbe1a",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x000000",
+        "token_y_key_id": "0x5884ad",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x000000",
+        "token_y_key_id": "0x71178b",
+        "has_direct_swap_pool": 0,
+        "direct_swap_pool_count": 0,
+        "pool_ids_json": "[]",
+        "observation_empty_reason": "no_reachable_v4_pool"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x5884ad",
+        "token_y_key_id": "0x000000",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x5884ad",
+        "token_y_key_id": "0x71178b",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x71178b",
+        "token_y_key_id": "0x000000",
+        "has_direct_swap_pool": 0,
+        "direct_swap_pool_count": 0,
+        "pool_ids_json": "[]",
+        "observation_empty_reason": "no_reachable_v4_pool"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_x_key_id": "0x71178b",
+        "token_y_key_id": "0x5884ad",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0x5884ad",
+        "token_y_key_id": "0x71178b",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0x5884ad",
+        "token_y_key_id": "0xc9f9c8",
+        "has_direct_swap_pool": 0,
+        "direct_swap_pool_count": 0,
+        "pool_ids_json": "[]",
+        "observation_empty_reason": "no_reachable_v4_pool"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0x71178b",
+        "token_y_key_id": "0x5884ad",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 1,
+        "pool_ids_json": "[\"0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0x71178b",
+        "token_y_key_id": "0xc9f9c8",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 2,
+        "pool_ids_json": "[\"0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38\",\"0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0xc9f9c8",
+        "token_y_key_id": "0x5884ad",
+        "has_direct_swap_pool": 0,
+        "direct_swap_pool_count": 0,
+        "pool_ids_json": "[]",
+        "observation_empty_reason": "no_reachable_v4_pool"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_x_key_id": "0xc9f9c8",
+        "token_y_key_id": "0x71178b",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 2,
+        "pool_ids_json": "[\"0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38\",\"0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0xc9f9c8",
+        "token_x_key_id": "0x71178b",
+        "token_y_key_id": "0xc9f9c8",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 2,
+        "pool_ids_json": "[\"0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38\",\"0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f\"]",
+        "observation_empty_reason": null
+      },
+      {
+        "anchor_token_key_id": "0xc9f9c8",
+        "token_x_key_id": "0xc9f9c8",
+        "token_y_key_id": "0x71178b",
+        "has_direct_swap_pool": 1,
+        "direct_swap_pool_count": 2,
+        "pool_ids_json": "[\"0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38\",\"0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f\"]",
+        "observation_empty_reason": null
+      }
+    ],
+    "closedLoopSkipReasons": [
+      {
+        "anchor_token_key_id": "0x000000",
+        "token_key_id": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token_symbol": "AMZN",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x000000",
+        "token_key_id": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token_symbol": "AMZN",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x1fbe1a",
+        "token_key_id": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "token_symbol": "NFLX",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x1fbe1a",
+        "token_key_id": "robinhood-testnet:46630:0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "token_symbol": "NFLX",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x3b8262",
+        "token_key_id": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "token_symbol": "PLTR",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x3b8262",
+        "token_key_id": "robinhood-testnet:46630:0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "token_symbol": "PLTR",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token_symbol": "AMD",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH",
+        "candidate_role": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x0000000000000000000000000000000000000000->robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d:no_reachable_v4_pool",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token_symbol": "AMD",
+        "candidate_role": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d->robinhood-testnet:46630:0x0000000000000000000000000000000000000000:no_reachable_v4_pool",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x5884ad",
+        "token_key_id": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token_symbol": "AMD",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token_symbol": "AMZN",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "token_symbol": "TSLA",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token_symbol": "AMZN",
+        "candidate_role": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02->robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e:no_reachable_v4_pool",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "token_symbol": "TSLA",
+        "candidate_role": "middle",
+        "reason": "yz_pool_missing:robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e->robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02:no_reachable_v4_pool",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token_symbol": "AMZN",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0x71178b",
+        "token_key_id": "robinhood-testnet:46630:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "token_symbol": "TSLA",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0xc9f9c8",
+        "token_key_id": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token_symbol": "AMD",
+        "candidate_role": "first",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      },
+      {
+        "anchor_token_key_id": "0xc9f9c8",
+        "token_key_id": "robinhood-testnet:46630:0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token_symbol": "AMD",
+        "candidate_role": "third",
+        "reason": "no_completing_middle_direction",
+        "updated_at": "2026-11-21T04:59:24.872800300+00:00"
+      }
+    ],
+    "reachablePairsBeforeFix": 0,
+    "reachablePairsAfterFix": 10,
+    "reachablePairsExplanation": "对每个 (锚点, 池) 对：池的两个端点必须都在该锚点的 token 组内。缺陷版本（锚点不在自己组内）下可达的 (锚点, 池) 对为 **0**；修复版本（锚点在自己组内）为 **10**（= 5 个池 × 各自的 2 个锚点端）。"
+  },
+  "fix": {
+    "read_anchor_groups": "锚点加入自己的组（group.insert(anchor_key_id)），与 closed_loop_manager::read_anchors 同一语义。",
+    "read_anchor_symbols": "改为用 token_library_catalog JOIN 解析锚点符号，不再依赖不存在的自引用行。",
+    "validate_candidate_edge_state": "candidate_token_count 改为按候选边行的去重对手币数比对，与 candidate_edge 写入状态的口径一致。",
+    "thresholdsUnchanged": true,
+    "noHistoricalBackfill": true,
+    "noAdmissionHandEdit": true
+  },
+  "regression": {
+    "test": "candidate_exchange_pool_manager::tests::observes_the_anchor_own_edge_pool_without_a_self_referential_row",
+    "asserts": [
+      "锚点自身的前向与后向方向都有直接池",
+      "锚点是自己 token 组的成员"
+    ],
+    "verifiedFailsWithoutFix": true,
+    "crateTestResult": "5 passed / 0 failed",
+    "workspaceResult": "pool-manager 163, review-manager 133, composite-manager 148, closed-loop-manager 30, candidate-exchange 5 —— 全部 0 failed"
+  },
+  "upstreamClosure": {
+    "poolScopeChecksum": "sha256:407bd786a7f4e392383c04c7a4ccfa1106a67ff97a24d7fb1c9e14c39d0d6a5b",
+    "candidateEdgeVersion": 8,
+    "candidateEdgeChecksum": "sha256:7b0e217158eb6e1ec4f1993b867a8a0263027917367faf7bc22ed7ea1a012eb9",
+    "observationVersion": 9,
+    "observationChecksum": "sha256:88d3169b56102cf788649873fc75dea00851678c9f644b2f49fa6cbed63de3ba",
+    "closedLoopVersion": 10,
+    "closedLoopChecksum": "sha256:62fa4c7ca0adc885a35273704ec1c6e752dad55e90eec5a9ef76645dbf2aa784",
+    "allChecksumsAligned": true
+  },
+  "whatThisDoesNotProve": [
+    "不证明测试网存在可盈利的闭环：测试网 5 个合格池构成的是链（ETH↔AMZN↔AMD↔TSLA 与 PLTR↔NFLX），缺少 AMZN↔TSLA 与 ETH↔AMD 这两个中间池，因此 loop_count=0 是市场事实而非代码缺陷。",
+    "不证明主网（4663）的闭环数量；主网尚未执行同序重建。",
+    "不证明任何广播、成交或利润；本轮全部为静态重建与只读核验。",
+    "不证明 review / broadcast 层的下游消费已经刷新；review 层尚未在测试网重跑。"
+  ]
+}

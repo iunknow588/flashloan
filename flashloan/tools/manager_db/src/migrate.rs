@@ -22,6 +22,8 @@ pub const SKIPPED_TOKEN_REASON_MIGRATION_ID: &str = "20261119_011_skipped_token_
 pub const SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID: &str =
     "20261119_012_skipped_token_pool_localization";
 pub const POOL_STATUS_REASON_MIGRATION_ID: &str = "20261119_013_pool_status_reason";
+pub const REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID: &str =
+    "20261121_014_review_closed_loop_identity_schema";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -37,8 +39,9 @@ pub const MIGRATION_IDS: &[&str] = &[
     SKIPPED_TOKEN_REASON_MIGRATION_ID,
     SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID,
     POOL_STATUS_REASON_MIGRATION_ID,
+    REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = POOL_STATUS_REASON_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -104,6 +107,10 @@ const MIGRATIONS: &[MigrationDefinition] = &[
     MigrationDefinition {
         id: POOL_STATUS_REASON_MIGRATION_ID,
         sql: include_str!("../migrations/20261119_013_pool_status_reason.sql"),
+    },
+    MigrationDefinition {
+        id: REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
+        sql: include_str!("../migrations/20261121_014_review_closed_loop_identity_schema.sql"),
     },
 ];
 
@@ -212,6 +219,14 @@ const HOP_PRICE_LIMIT_TABLES: &[&str] = &[
 const CROSS_TICK_SEED_TABLES: &[&str] = &["manager_v4_closed_loops"];
 
 const SKIPPED_TOKEN_REASON_TABLES: &[&str] = &["manager_v4_closed_loop_skipped_tokens"];
+
+/// The review table that publishes the closed-loop identity of a review.
+///
+/// The identity columns are the compatibility contract of the review
+/// library: a reader has to be able to ask the Review Manager whether the
+/// reviewed route matched the closed-loop catalog, and to get an answer
+/// that is stored rather than recomputed.
+const REVIEW_CLOSED_LOOP_IDENTITY_TABLES: &[&str] = &["manager_v4_reviews"];
 
 /// The scope tables of the pool Manager.
 ///
@@ -617,6 +632,7 @@ fn ensure_migration_tables_compatible(
         SKIPPED_TOKEN_REASON_MIGRATION_ID => SKIPPED_TOKEN_REASON_TABLES,
         SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID => SKIPPED_TOKEN_REASON_TABLES,
         POOL_STATUS_REASON_MIGRATION_ID => POOL_STATUS_REASON_TABLES,
+        REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID => REVIEW_CLOSED_LOOP_IDENTITY_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {

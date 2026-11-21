@@ -1,11 +1,11 @@
 {
   "schema": "task143-review-completeness-evidence-v1",
-  "generatedAt": "2026-11-20T21:13:41.964381+00:00",
+  "generatedAt": "2026-11-21T04:06:55.845236+00:00",
   "task": "TASK-143",
   "mode": "read-only",
   "store": {
     "path": "flashloan/db/local_store_4663.sqlite3",
-    "sha256": "79e67bf26add304372eb3f28f42ec29871b14a75b451dacb204ef9f797c2229f",
+    "sha256": "86fe4e140fe26081568c01f2e6f1317df78af2c1fabbe8e96547b6dca1980aa3",
     "sha256IsTheFileDigestAtCollectionTime": true,
     "logicalContent": {
       "sha256": "42d2857746458c75775630081d9e20a5f5d265db08249898d323799c54923806",
@@ -150,9 +150,9 @@
         "freshnessThresholdSeconds": 600,
         "freshReviews": 0,
         "staleReviews": 44,
-        "oldestAgeSeconds": 143264.959381,
-        "youngestAgeSeconds": 142114.959381,
-        "oldestAgeDays": 1.6581592520949073,
+        "oldestAgeSeconds": 168058.838796,
+        "youngestAgeSeconds": 166908.838796,
+        "oldestAgeDays": 1.9451254490277778,
         "measured": false,
         "note": "the stored reviews were written on 2026-11-19, so the 600 second freshness window is NOT met. A fresh review run is a WRITE action, so it needs its own explicit authorisation and was not performed here. The freshness item is therefore UNMEASURED, not passed."
       },
@@ -184,7 +184,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143264.959381,
+      "ageSeconds": 168058.838796,
       "fresh": false
     },
     {
@@ -211,7 +211,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143255.959381,
+      "ageSeconds": 168049.838796,
       "fresh": false
     },
     {
@@ -238,7 +238,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143242.959381,
+      "ageSeconds": 168036.838796,
       "fresh": false
     },
     {
@@ -265,7 +265,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143232.959381,
+      "ageSeconds": 168026.838796,
       "fresh": false
     },
     {
@@ -292,7 +292,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143220.959381,
+      "ageSeconds": 168014.838796,
       "fresh": false
     },
     {
@@ -319,7 +319,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143209.959381,
+      "ageSeconds": 168003.838796,
       "fresh": false
     },
     {
@@ -346,7 +346,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143200.959381,
+      "ageSeconds": 167994.838796,
       "fresh": false
     },
     {
@@ -373,7 +373,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142188.959381,
+      "ageSeconds": 166982.838796,
       "fresh": false
     },
     {
@@ -400,7 +400,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143191.959381,
+      "ageSeconds": 167985.838796,
       "fresh": false
     },
     {
@@ -427,7 +427,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142177.959381,
+      "ageSeconds": 166971.838796,
       "fresh": false
     },
     {
@@ -454,7 +454,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143209.959381,
+      "ageSeconds": 168003.838796,
       "fresh": false
     },
     {
@@ -481,7 +481,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143264.959381,
+      "ageSeconds": 168058.838796,
       "fresh": false
     },
     {
@@ -508,7 +508,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143220.959381,
+      "ageSeconds": 168014.838796,
       "fresh": false
     },
     {
@@ -535,7 +535,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143200.959381,
+      "ageSeconds": 167994.838796,
       "fresh": false
     },
     {
@@ -562,7 +562,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143191.959381,
+      "ageSeconds": 167985.838796,
       "fresh": false
     },
     {
@@ -589,7 +589,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143255.959381,
+      "ageSeconds": 168049.838796,
       "fresh": false
     },
     {
@@ -616,7 +616,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143128.959381,
+      "ageSeconds": 167922.838796,
       "fresh": false
     },
     {
@@ -643,7 +643,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143242.959381,
+      "ageSeconds": 168036.838796,
       "fresh": false
     },
     {
@@ -670,7 +670,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142163.959381,
+      "ageSeconds": 166957.838796,
       "fresh": false
     },
     {
@@ -697,7 +697,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142150.959381,
+      "ageSeconds": 166944.838796,
       "fresh": false
     },
     {
@@ -724,7 +724,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143232.959381,
+      "ageSeconds": 168026.838796,
       "fresh": false
     },
     {
@@ -751,7 +751,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142138.959381,
+      "ageSeconds": 166932.838796,
       "fresh": false
     },
     {
@@ -778,7 +778,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143255.959381,
+      "ageSeconds": 168049.838796,
       "fresh": false
     },
     {
@@ -805,7 +805,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143220.959381,
+      "ageSeconds": 168014.838796,
       "fresh": false
     },
     {
@@ -832,7 +832,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142163.959381,
+      "ageSeconds": 166957.838796,
       "fresh": false
     },
     {
@@ -859,7 +859,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143128.959381,
+      "ageSeconds": 167922.838796,
       "fresh": false
     },
     {
@@ -886,7 +886,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142114.959381,
+      "ageSeconds": 166908.838796,
       "fresh": false
     },
     {
@@ -913,7 +913,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142946.959381,
+      "ageSeconds": 167740.838796,
       "fresh": false
     },
     {
@@ -940,7 +940,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143264.959381,
+      "ageSeconds": 168058.838796,
       "fresh": false
     },
     {
@@ -967,7 +967,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143242.959381,
+      "ageSeconds": 168036.838796,
       "fresh": false
     },
     {
@@ -994,7 +994,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142177.959381,
+      "ageSeconds": 166971.838796,
       "fresh": false
     },
     {
@@ -1021,7 +1021,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143209.959381,
+      "ageSeconds": 168003.838796,
       "fresh": false
     },
     {
@@ -1048,7 +1048,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143200.959381,
+      "ageSeconds": 167994.838796,
       "fresh": false
     },
     {
@@ -1075,7 +1075,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143128.959381,
+      "ageSeconds": 167922.838796,
       "fresh": false
     },
     {
@@ -1102,7 +1102,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142138.959381,
+      "ageSeconds": 166932.838796,
       "fresh": false
     },
     {
@@ -1129,7 +1129,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142163.959381,
+      "ageSeconds": 166957.838796,
       "fresh": false
     },
     {
@@ -1156,7 +1156,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142188.959381,
+      "ageSeconds": 166982.838796,
       "fresh": false
     },
     {
@@ -1183,7 +1183,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142150.959381,
+      "ageSeconds": 166944.838796,
       "fresh": false
     },
     {
@@ -1210,7 +1210,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143232.959381,
+      "ageSeconds": 168026.838796,
       "fresh": false
     },
     {
@@ -1237,7 +1237,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142188.959381,
+      "ageSeconds": 166982.838796,
       "fresh": false
     },
     {
@@ -1264,7 +1264,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 143191.959381,
+      "ageSeconds": 167985.838796,
       "fresh": false
     },
     {
@@ -1291,7 +1291,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142150.959381,
+      "ageSeconds": 166944.838796,
       "fresh": false
     },
     {
@@ -1318,7 +1318,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142177.959381,
+      "ageSeconds": 166971.838796,
       "fresh": false
     },
     {
@@ -1345,7 +1345,7 @@
       "missingFields": [],
       "complete": true,
       "rawHasAnyValue": true,
-      "ageSeconds": 142138.959381,
+      "ageSeconds": 166932.838796,
       "fresh": false
     }
   ],

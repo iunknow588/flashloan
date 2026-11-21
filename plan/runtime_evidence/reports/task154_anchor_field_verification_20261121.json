@@ -1,0 +1,89 @@
+{
+  "report": "TASK-154 live anchor-field verification",
+  "generatedAt": "2026-11-21T04:21:59.793472+00:00",
+  "task": "TASK-154",
+  "chainId": 4663,
+  "network": "robinhood",
+  "authority": "read-only local database inspection; no chain access; no writes; no broadcast",
+  "store": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "sha256": "86fe4e140fe26081568c01f2e6f1317df78af2c1fabbe8e96547b6dca1980aa3",
+    "openedReadOnly": true
+  },
+  "method": {
+    "anchorRule": "replayed verbatim from closed_loop_anchor() in flashloan/rs-src/src/worker_pool.rs",
+    "bindingRule": "replayed verbatim from anchor_binding_blocks_broadcast() in flashloan/rs-src/src/worker_pool.rs",
+    "conversionRule": "only named conversion operations count as a conversion action; passing through the other anchor as an intermediate pool token does not",
+    "note": "The kernel enforces the rule; this collector replays the same rule over the routes the system actually recorded and reports the readout."
+  },
+  "liveRouteCorpus": {
+    "recordedAttempts": 24418,
+    "closedPaths": 24412,
+    "openPaths": 6,
+    "distinctAnchors": 12,
+    "anchorHistogram": {
+      "0x117cc2133c37b721f49de2a7a74833232b3b4c0c": 10009,
+      "0x0000000000000000000000000000000000000000": 5051,
+      "0xff080c8ce2e5feadaca0da81314ae59d232d4afd": 2490,
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73": 1624,
+      "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3": 1180,
+      "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc": 1114,
+      "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea": 769,
+      "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5": 738,
+      "0xa8cf7c51eee671646ba440ffa180f970902fd2fb": 655,
+      "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e": 389,
+      "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9": 371,
+      "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec": 22
+    }
+  },
+  "anchorFieldVerification": {
+    "requestsBoundToOwnAnchor": 24412,
+    "mismatches": 0,
+    "mismatchSamples": [],
+    "foreignAnchorBorrowAttempts": 24412,
+    "foreignAnchorBorrowRefused": 24412,
+    "unclosedPathsLeftSilentByGuard": 0,
+    "publishedLoopCrossCheck": {
+      "checked": 9336,
+      "anchorMatchesPublished": 9336,
+      "mismatches": 0,
+      "mismatchSamples": []
+    }
+  },
+  "crossAnchorActions": {
+    "requestsWithConversionAction": 0,
+    "samples": [],
+    "policy": "ETH and WETH are two independent anchors; a request body carries no wrap/unwrap and no exchange between them"
+  },
+  "nativeAnchorIndependence": {
+    "ethAnchor": "0x0000000000000000000000000000000000000000",
+    "ethLiveRouteCount": 5051,
+    "ethPublishedLoopCount": 10,
+    "ethLeadingSymbols": [
+      "ETH"
+    ],
+    "wethAnchor": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "wethLiveRouteCount": 1624,
+    "wethPublishedLoopCount": 2,
+    "wethLeadingSymbols": [
+      "WETH"
+    ],
+    "anchorsAreDistinct": true,
+    "routesPassingThroughTheOtherNativeAnchor": 1935,
+    "passingThroughIsNotAConversion": true
+  },
+  "verdict": {
+    "anchorEqualsOwnLoopAnchor": true,
+    "noCrossAnchorConversion": true,
+    "foreignAnchorBorrowRefused": true,
+    "publishedAnchorAgrees": true,
+    "ethAndWethAreIndependentAnchors": true
+  },
+  "whatThisDoesNotProve": [
+    "It does not prove profitability: every stored review is a real not-profitable outcome.",
+    "It does not prove depth, capacity or PnL.",
+    "It does not prove that a live broadcast happened: no transaction was sent.",
+    "It does not exercise the on-chain contract; it exercises the kernel's request-construction and anchor-binding rules.",
+    "It does not prove that a foreign-anchor request would have been rejected on-chain, only that the kernel refuses to build the batch."
+  ]
+}

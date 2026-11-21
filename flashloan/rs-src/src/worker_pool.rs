@@ -1377,6 +1377,25 @@ fn apply_selected_route_overrides(
         .get("closedLoopPoolIds")
         .cloned()
         .unwrap_or(Value::Null);
+    // The **diagnosis** of the identity travels with the review as well.
+    //
+    // A route that could not be matched against the closed-loop Manager
+    // publishes no key, and a review without a key cannot be filed under
+    // any loop. Without the reason, that failure looked like a missing
+    // value: the reviewer saw a review with no identity and no way to tell
+    // whether the Manager had published no loop for the route, the route
+    // had priced the wrong pools, or the catalog had not been loaded at
+    // all. The reason names which of the three it was.
+    for field in [
+        "closedLoopIdentityStatus",
+        "closedLoopPoolIdentityStatus",
+        "identityMismatch",
+        "repairTarget",
+    ] {
+        if let Some(value) = route_config.get(field) {
+            payload[field] = value.clone();
+        }
+    }
     // The executable flag and the signed profit of the reviewed size are
     // **kernel conclusions**. They are published here so that every
     // consumer reads the same numbers the contract call produced, and no
@@ -2927,6 +2946,69 @@ fn publish_route_pool_ids(route_config: &mut Value) {
     }
 }
 
+/// The candidate pool ids of every hop of the route, in hop order.
+///
+/// The route carries **all** candidate pools of a hop, because the kernel
+/// prices every candidate and lets the contract pick. The closed-loop
+/// Manager publishes the **one** pool it selected for that hop. The two
+/// lists are therefore different by construction, and the identity check
+/// has to compare them per hop instead of as one flat list.
+///
+/// Each entry of the returned list is the candidate set of one hop.
+fn derive_hop_pool_ids(route_config: &Value) -> Option<Vec<Vec<String>>> {
+    let mut hops: Vec<Vec<String>> = Vec::new();
+    for section in ["entryKeys", "bridgeKeys", "exitKeys"] {
+        let keys = route_config.get(section).and_then(Value::as_array)?;
+        if keys.is_empty() {
+            return None;
+        }
+        let mut hop: Vec<String> = Vec::with_capacity(keys.len());
+        for key in keys {
+            let pool_key = V4PoolKey {
+                currency0: key.get("currency0")?.as_str()?.to_owned(),
+                currency1: key.get("currency1")?.as_str()?.to_owned(),
+                fee: key.get("fee")?.as_u64()?,
+                tick_spacing: i32::try_from(key.get("tickSpacing")?.as_i64()?).ok()?,
+                hooks: key
+                    .get("hooks")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0x0000000000000000000000000000000000000000")
+                    .to_owned(),
+            };
+            hop.push(pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase());
+        }
+        hops.push(hop);
+    }
+    if hops.is_empty() {
+        return None;
+    }
+    Some(hops)
+}
+
+/// Whether the route prices every pool the Manager published for the loop.
+///
+/// The published pools are one per hop, so each of them has to sit in the
+/// candidate set of the hop the Manager published it in. A pool the route
+/// does not price is a mismatch: the route could never have traded the
+/// published loop.
+fn manager_pools_are_priced_by_route(
+    manager_pool_ids: &[String],
+    hop_pool_ids: &[Vec<String>],
+) -> bool {
+    if manager_pool_ids.len() != hop_pool_ids.len() {
+        return false;
+    }
+    manager_pool_ids
+        .iter()
+        .zip(hop_pool_ids.iter())
+        .all(|(published, candidates)| {
+            let published = published.trim().to_ascii_lowercase();
+            candidates
+                .iter()
+                .any(|candidate| candidate.trim().eq_ignore_ascii_case(&published))
+        })
+}
+
 /// Apply only the identity published for this exact route address path.
 fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCatalog) {
     for key in [
@@ -2972,7 +3054,41 @@ fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCata
                 .collect::<Vec<_>>()
         })
         .filter(|pool_ids| !pool_ids.is_empty());
-    if route_pool_ids.as_ref().is_some_and(|pool_ids| pool_ids != &identity.pool_ids) {
+    // The route prices **every candidate pool** of every hop, while the
+    // Manager publishes the **one pool it selected** for each hop and keeps
+    // the rest as backups. The two lists therefore have different lengths
+    // by construction: a hop that has a backup candidate contributes two
+    // ids to the route and one id to the published set.
+    //
+    // Comparing the two lists for equality would reject every such loop,
+    // and the rejection would be silent: the identity would read as a
+    // mismatch, the closed-loop key would never be published, and every
+    // review of that loop would be filed without the identity that ties it
+    // to the closed loop the Manager named.
+    //
+    // The correct relation is therefore an **ordered containment**: the
+    // Manager's selected pools must all be present in the route's candidate
+    // pools, and each of them must sit in the hop the Manager published it
+    // in. A pool that the route does not price at all is still a mismatch,
+    // because the route could never have traded the published loop.
+    let hop_pool_ids = derive_hop_pool_ids(route_config);
+    if let Some(hop_pool_ids) = hop_pool_ids.as_ref() {
+        if !manager_pools_are_priced_by_route(&identity.pool_ids, hop_pool_ids) {
+            route_config["closedLoopIdentityStatus"] = json!("mismatch");
+            route_config["repairTarget"] = json!("closed_loop_manager");
+            route_config["identityMismatch"] = json!({
+                "queryAddresses": addresses,
+                "managerPoolIds": identity.pool_ids,
+                "routePoolIds": route_pool_ids,
+                "reason": "manager_closed_loop_pool_identity_mismatch",
+            });
+            route_config["closedLoopPoolIdentityStatus"] = json!("mismatch");
+            return;
+        }
+    } else if route_pool_ids
+        .as_ref()
+        .is_some_and(|pool_ids| pool_ids != &identity.pool_ids)
+    {
         route_config["closedLoopIdentityStatus"] = json!("mismatch");
         route_config["repairTarget"] = json!("closed_loop_manager");
         route_config["identityMismatch"] = json!({
@@ -3298,6 +3414,34 @@ fn run_native_review(
                     .cloned()
                     .unwrap_or(Value::Null);
             }
+            // The closed-loop identity travels with **every** route result,
+            // not only with the route that was selected.
+            //
+            // The identity is applied to the route config before the route
+            // is priced, but the identity was only ever published on the
+            // **selected** route, through `apply_selected_route_overrides`.
+            // A route whose ladder was blocked before it probed anything was
+            // never selected, so it published no key and no diagnosis. The
+            // review then looked like a route with no identity and no way to
+            // tell whether the Manager had published no loop for it, the
+            // route had priced the wrong pools, or the ladder had been
+            // blocked. The diagnosis belongs to the route, so it is
+            // published on the route itself.
+            for field in [
+                "closedLoopKey",
+                "closedLoopPoolIds",
+                "closedLoopIdentityStatus",
+                "closedLoopPoolIdentityStatus",
+                "identityMismatch",
+                "repairTarget",
+                "singleTickCapacityRaw",
+                "singleTickCapacityBasis",
+                "singleTickCapacityBindingPoolId",
+            ] {
+                if let Some(value) = route_config.get(field) {
+                    result[field] = value.clone();
+                }
+            }
             let route_index = route_results.len();
             let profitable =
                 result.get("status").and_then(Value::as_str) == Some("profitable_amount_found");
@@ -3388,6 +3532,40 @@ fn run_native_review(
             "executorBatchEligibleRouteCount": executor_batch_requests.len(),
             "executorBatchGatedRouteCount": executor_batch_gated_route_count,
             "executorBatchRequests": executor_batch_requests,
+        });
+        // The group-level identity summary is published **always**, not
+        // only when a route was selected.
+        //
+        // The identity of a closed loop is a property of the route, so it
+        // has to be readable even when no route produced a measurement:
+        // a review that carries no identity and no diagnosis cannot be
+        // repaired, because nobody can tell a missing Manager loop from a
+        // wrong pool set from a ladder that never probed. The summary says
+        // how many loops the catalog held and how many of the group's
+        // routes matched one.
+        payload["closedLoopIdentitySummary"] = json!({
+            "catalogSize": closed_loops.map(|catalog| catalog.len()).unwrap_or(0),
+            "catalogLoaded": closed_loops.is_some(),
+            "routeCount": payload
+                .get("routes")
+                .and_then(Value::as_array)
+                .map(|rows| rows.len())
+                .unwrap_or(0),
+            "matchedRouteCount": payload
+                .get("routes")
+                .and_then(Value::as_array)
+                .map(|rows| {
+                    rows.iter()
+                        .filter(|route| {
+                            route
+                                .get("closedLoopIdentityStatus")
+                                .and_then(Value::as_str)
+                                .map(|status| status.starts_with("matched"))
+                                .unwrap_or(false)
+                        })
+                        .count()
+                })
+                .unwrap_or(0),
         });
         if let Some((
             _profit,
@@ -5181,6 +5359,77 @@ impl Drop for ClosedLoopWorkerPool {
 mod tests {
     use super::*;
 
+    /// The production identity must apply to a real Manager loop.
+    ///
+    /// This reproduces the mainnet ``ETH -> WETH -> USDG -> ETH`` loop with
+    /// the pool keys the candidate-edge library published.  The Manager's
+    /// published pool ids are compared with the ids the kernel derives from
+    /// the very pool keys the review prices.  When the two halves agree,
+    /// the loop key is published on the route; when they disagree, the
+    /// identity is refused and the route says so.
+    #[test]
+    fn the_production_eth_weth_usdg_loop_publishes_its_identity() {
+        let manager_pool_ids = vec![
+            "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc",
+            "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+            "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        ];
+        let catalog = crate::closed_loop_identity::catalog_from_rows(&[json!({
+            "loop_key": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "path_addresses_json": "[\"0x0000000000000000000000000000000000000000\",\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\",\"0x5fc5360d0400a0fd4f2af552add042d716f1d168\",\"0x0000000000000000000000000000000000000000\"]",
+            "pool_ids_json": serde_json::to_string(&manager_pool_ids).unwrap(),
+            "single_tick_capacity_anchor_raw": "123",
+            "borrow_token_usdg_value_raw": "456",
+            "cross_tick_review_threshold_usdg_raw": "789"
+        })]);
+        let mut route_config = json!({
+            "routeAddresses": [
+                "0x0000000000000000000000000000000000000000",
+                "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                "0x0000000000000000000000000000000000000000"
+            ],
+            "entryKeys": [{
+                "currency0": "0x0000000000000000000000000000000000000000",
+                "currency1": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "fee": 500, "tickSpacing": 1,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "bridgeKeys": [{
+                "currency0": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                "fee": 200, "tickSpacing": 4,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "exitKeys": [{
+                "currency0": "0x0000000000000000000000000000000000000000",
+                "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                "fee": 100, "tickSpacing": 1,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }]
+        });
+        publish_route_pool_ids(&mut route_config);
+        let derived = route_config["routePoolIds"].as_array().expect("derived pool ids").clone();
+        println!("derived   = {:?}", derived);
+        println!("manager   = {:?}", manager_pool_ids);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+        println!("identity status = {}", route_config["closedLoopIdentityStatus"]);
+        println!("closedLoopKey  = {}", route_config["closedLoopKey"]);
+        println!("mismatch       = {}", route_config["identityMismatch"]);
+        assert_eq!(
+            derived,
+            manager_pool_ids
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<String>>(),
+            "the derived pool ids must equal the Manager's published pool ids"
+        );
+        assert_eq!(
+            route_config["closedLoopKey"],
+            json!("0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168")
+        );
+    }
+
     #[test]
     fn closed_loop_identity_lookup_is_exact_and_fail_closed() {
         let catalog = crate::closed_loop_identity::catalog_from_rows(&[json!({
@@ -5290,6 +5539,144 @@ mod tests {
         assert_ne!(pool_ids[1], pool_ids[2], "the bridge and exit pools differ");
     }
 
+    /// The production defect: a hop that has a backup candidate pool.
+    ///
+    /// The route prices **every** candidate pool of every hop, while the
+    /// closed-loop Manager publishes the **one** pool it selected for that
+    /// hop and keeps the others as backups. The two lists have different
+    /// lengths by construction, so comparing them for equality rejected
+    /// every loop that has a backup candidate.
+    ///
+    /// The rejection was silent. The identity read as a mismatch, the
+    /// closed-loop key was never published, and every review of that loop
+    /// was filed without the identity that ties it to the loop the Manager
+    /// named. On the production book that is the majority of the loops:
+    /// the WETH -> USDG -> ETH -> WETH loop prices two entry candidates and
+    /// four bridge candidates for the three pools the Manager published.
+    #[test]
+    fn a_loop_with_backup_candidates_still_publishes_its_identity() {
+        // The pool ids of the production WETH -> USDG -> ETH -> WETH loop.
+        let published = vec![
+            "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6".to_owned(),
+            "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982".to_owned(),
+            "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc".to_owned(),
+        ];
+        let catalog = crate::closed_loop_identity::catalog_from_rows(&[json!({
+            "loop_key": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+            "path_addresses_json": "[\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\",\"0x5fc5360d0400a0fd4f2af552add042d716f1d168\",\"0x0000000000000000000000000000000000000000\",\"0x0bd7d308f8e1639fab988df18a8011f41eacad73\"]",
+            "pool_ids_json": serde_json::to_string(&published).unwrap(),
+            "single_tick_capacity_anchor_raw": "123",
+            "borrow_token_usdg_value_raw": "456",
+            "cross_tick_review_threshold_usdg_raw": "789"
+        })]);
+        // The route prices two entry candidates, four bridge candidates and
+        // one exit candidate.
+        let mut route_config = json!({
+            "routeAddresses": [
+                "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                "0x0000000000000000000000000000000000000000",
+                "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+            ],
+            "entryKeys": [
+                {
+                    "currency0": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 200, "tickSpacing": 4,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                },
+                {
+                    "currency0": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 450, "tickSpacing": 9,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                }
+            ],
+            "bridgeKeys": [
+                {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 100, "tickSpacing": 1,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                },
+                {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 500, "tickSpacing": 10,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                },
+                {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 460, "tickSpacing": 9,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                },
+                {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "fee": 10000, "tickSpacing": 200,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                }
+            ],
+            "exitKeys": [
+                {
+                    "currency0": "0x0000000000000000000000000000000000000000",
+                    "currency1": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                    "fee": 500, "tickSpacing": 1,
+                    "hooks": "0x0000000000000000000000000000000000000000"
+                }
+            ]
+        });
+        publish_route_pool_ids(&mut route_config);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(
+            route_config["closedLoopIdentityStatus"],
+            json!("matched"),
+            "a loop with backup candidates must still publish its identity"
+        );
+        assert_eq!(route_config["closedLoopPoolIdentityStatus"], json!("verified"));
+        assert_eq!(
+            route_config["closedLoopKey"],
+            json!("0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000")
+        );
+        assert_eq!(route_config["closedLoopPoolIds"], json!(published));
+    }
+
+    /// The published pools have to sit in the hop the Manager published them
+    /// in. A route that prices the published pool of a **different** hop is
+    /// a different directed pool set and must not be accepted.
+    #[test]
+    fn a_loop_whose_pools_sit_in_the_wrong_hop_fails_closed() {
+        let published = vec![
+            "0xentry-pool".to_owned(),
+            "0xbridge-pool".to_owned(),
+            "0xexit-pool".to_owned(),
+        ];
+        let catalog = identity_catalog(json!(published));
+        let mut route_config = identity_pool_keys();
+        route_config["routeAddresses"] = json!(["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]);
+        publish_route_pool_ids(&mut route_config);
+        let derived = route_config["routePoolIds"].as_array().expect("pool ids").clone();
+        // Publish the entry pool of the route as if it were the bridge pool
+        // of the loop. The identity must fail closed.
+        let swapped = json!([derived[0].clone(), derived[1].clone(), derived[0].clone()]);
+        let catalog = identity_catalog(swapped);
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        assert_eq!(route_config["closedLoopIdentityStatus"], json!("mismatch"));
+        assert_eq!(
+            route_config["identityMismatch"]["reason"],
+            json!("manager_closed_loop_pool_identity_mismatch")
+        );
+        for key in ["closedLoopKey", "singleTickCapacityRaw", "closedLoopPoolIds"] {
+            assert!(
+                route_config.get(key).is_none(),
+                "a failed pool check must not publish {key}"
+            );
+        }
+    }
+
     /// A route that prices no pool cannot be checked against the Manager's
     /// pool set, and it must say so rather than pretend it matched.
     #[test]
@@ -5301,6 +5688,54 @@ mod tests {
         assert!(
             route_config.get("routePoolIds").is_none(),
             "a route without pool keys publishes no pool set"
+        );
+    }
+
+    /// The **live** production route: WETH -> USDG -> NVDA -> WETH, with
+    /// the pool keys the runtime actually submitted and the pool ids the
+    /// closed-loop Manager published for it.
+    ///
+    /// This is the route whose identity was never published, so the test
+    /// pins the derivation end to end: the pool ids the kernel derives from
+    /// the route's own pool keys have to be the ids the Manager published.
+    #[test]
+    fn the_live_weth_usdg_nvda_route_derives_the_published_pool_ids() {
+        let mut route_config = json!({
+            "routeAddresses": [
+                "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+                "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+                "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            ],
+            "entryKeys": [{
+                "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                "currency1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                "fee": 200, "tickSpacing": 4,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "bridgeKeys": [{
+                "currency0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                "currency1": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+                "fee": 3000, "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+            "exitKeys": [{
+                "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                "currency1": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+                "fee": 1000, "tickSpacing": 2,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }],
+        });
+        publish_route_pool_ids(&mut route_config);
+        let derived = route_config["routePoolIds"].as_array().expect("pool ids").clone();
+        assert_eq!(
+            derived,
+            vec![
+                json!("0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"),
+                json!("0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1"),
+                json!("0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87"),
+            ],
+            "the kernel must derive the pool ids the Manager published"
         );
     }
 
@@ -5322,6 +5757,74 @@ mod tests {
         assert_eq!(route_config["closedLoopPoolIdentityStatus"], json!("verified"));
         assert_eq!(route_config["closedLoopKey"], json!("manager-loop"));
         assert_eq!(route_config["closedLoopPoolIds"], derived);
+    }
+
+    /// The production defect: a route whose ladder was **blocked** before
+    /// it probed anything published no identity at all.
+    ///
+    /// The identity was applied to the route config before the route was
+    /// priced, but it was only ever published through
+    /// `apply_selected_route_overrides`, which runs for the **selected**
+    /// route. A blocked ladder produces no measurement, so no route is
+    /// selected, so the identity and its diagnosis were dropped on the
+    /// floor. The review then read as a route with no identity and no
+    /// reason, and the orchestrator could not tell a missing Manager loop
+    /// from a wrong pool set from a ladder that never probed.
+    ///
+    /// The identity belongs to the route, so it has to travel on the route
+    /// result even when that result carries no measurement.
+    #[test]
+    fn the_identity_travels_with_a_route_result_that_measured_nothing() {
+        let mut route_config = identity_pool_keys();
+        route_config["routeAddresses"] = json!([
+            "0x1111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+            "0x3333333333333333333333333333333333333333",
+            "0x1111111111111111111111111111111111111111"
+        ]);
+        publish_route_pool_ids(&mut route_config);
+        let derived = route_config["routePoolIds"].clone();
+        let catalog = identity_catalog(derived.clone());
+        apply_closed_loop_identity(&mut route_config, &catalog);
+
+        // The route result of a blocked ladder: no measurement, no status.
+        let mut result = json!({
+            "method": "previewArbitrageBestAmount",
+            "status": "single_tick_capacity_unavailable",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_capacity_unavailable",
+            "selectedAmountRaw": "0x0",
+            "selectedProfitRaw": "0x0",
+            "attemptedCount": "0x0",
+            "attempts": [],
+        });
+        for field in [
+            "closedLoopKey",
+            "closedLoopPoolIds",
+            "closedLoopIdentityStatus",
+            "closedLoopPoolIdentityStatus",
+            "identityMismatch",
+            "repairTarget",
+            "singleTickCapacityRaw",
+            "singleTickCapacityBasis",
+            "singleTickCapacityBindingPoolId",
+        ] {
+            if let Some(value) = route_config.get(field) {
+                result[field] = value.clone();
+            }
+        }
+
+        assert_eq!(
+            result["closedLoopKey"],
+            json!("manager-loop"),
+            "a blocked route still carries the identity of its loop"
+        );
+        assert_eq!(result["closedLoopIdentityStatus"], json!("matched"));
+        assert_eq!(
+            result["singleTickCapacityRaw"],
+            json!("0x7b"),
+            "the published capacity travels with the blocked route result"
+        );
     }
 
     /// The pool set is compared as an ordered list. A route that uses the
@@ -7764,4 +8267,3 @@ mod tests {
         );
     }
 }
-

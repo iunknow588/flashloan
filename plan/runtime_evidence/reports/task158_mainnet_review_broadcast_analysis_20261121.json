@@ -1,0 +1,167 @@
+{
+  "task": "TASK-158",
+  "question": "mainnet, last 24 hours: how many reviews reported a positive profit expectation, how many broadcast executions were correct, and what were the profit / loss amounts?",
+  "generatedAt": "2026-11-21T17:31:20.322924+00:00",
+  "authority": "read-only; the store is opened with mode=ro and the manager API is read with GET",
+  "environment": {
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "databaseSha256": "54048b715013e0b4ef415988403bbfb9dea50c65085691c305f55a6d1f89e8ac",
+    "managerApi": "http://127.0.0.1:8091",
+    "network": "robinhood",
+    "chainId": 4663,
+    "windowHours": 24
+  },
+  "answers": {
+    "reviewsWithPositiveProfitExpectation": 332,
+    "ofWhichExecutionConfirmed": 10,
+    "ofWhichPreviewOnlyNotConfirmed": 322,
+    "correctBroadcastExecutions": 0,
+    "reviewsWithNegativeProfit": 11384,
+    "reviewsWithMeasuredZeroProfit": 0,
+    "reviewsWithUnmeasuredProfit": 1138,
+    "totalReviewsInWindow": 12854
+  },
+  "amounts": {
+    "positiveExpectation": {
+      "ETH": {
+        "sum": 0.000450159165015672,
+        "worstSingleRecord": 5.7168082834e-08
+      },
+      "SPY": {
+        "sum": 2.856927353406e-06,
+        "worstSingleRecord": 2.00719634764e-07
+      },
+      "WETH": {
+        "sum": 0.06904116273587732,
+        "worstSingleRecord": 2.4907613368e-08
+      }
+    },
+    "negativeExpectation": {
+      "ETH": {
+        "sum": -0.17280218536871791,
+        "worstSingleRecord": -0.001212477822482003
+      },
+      "SPY": {
+        "sum": -2.0071225967429274,
+        "worstSingleRecord": -0.011770998409645612
+      },
+      "TZ": {
+        "sum": -2036.0089957127775,
+        "worstSingleRecord": -3.2561716427541647
+      },
+      "WETH": {
+        "sum": -2.0990844923160865,
+        "worstSingleRecord": -0.006604400536735277
+      }
+    },
+    "executionConfirmedPositive": {
+      "ETH": {
+        "sum": 0.000448836878081916,
+        "worstSingleRecord": 0.000224418439040958
+      },
+      "SPY": {
+        "sum": 7.27675237084e-07,
+        "worstSingleRecord": 3.63837618542e-07
+      },
+      "WETH": {
+        "sum": 1.34693264258e-06,
+        "worstSingleRecord": 2.4907613368e-08
+      }
+    }
+  },
+  "breakdown": {
+    "reviewCategories": {
+      "not_executable": 12854
+    },
+    "positiveSources": {
+      "native_rust_contract_preview": 27,
+      "offline_v4_sqlite_route_snapshot": 296,
+      "native_contract_rate_delta_estimate": 9
+    },
+    "positivePairs": {
+      "WETH -> NVDA -> USDG -> WETH": 305,
+      "WETH -> ETH -> USDG -> WETH": 13,
+      "ETH -> SPY -> USDG -> ETH": 5,
+      "SPY -> USDG -> GOOGL -> SPY": 2,
+      "WETH -> USDG -> ETH -> WETH": 2,
+      "ETH -> SPCX -> USDG -> ETH": 2,
+      "SPY -> USDG -> NVDA -> SPY": 2,
+      "SPY -> USDG -> ETH -> SPY": 1
+    },
+    "executionConfirmedPairs": {
+      "WETH -> ETH -> USDG -> WETH": 4,
+      "WETH -> USDG -> ETH -> WETH": 2,
+      "ETH -> SPCX -> USDG -> ETH": 2,
+      "SPY -> USDG -> NVDA -> SPY": 2
+    }
+  },
+  "broadcastRecords": {
+    "rowCountsAllTime": {
+      "cow_execution_attempts": 0,
+      "manager_cow_execution_attempts": 0,
+      "manager_v4_review_broadcast_requests": 0,
+      "manager_broadcast_attempt_diagnostics": 0
+    },
+    "managerBroadcastStatus": {
+      "enabled": false,
+      "network": "robinhood",
+      "chainId": 4663,
+      "protocol": "uniswap_v4",
+      "scopeKey": "core4",
+      "broadcastVersion": 0,
+      "materializedChecksum": null,
+      "reviewVersion": null,
+      "reviewChecksum": null,
+      "closedLoopVersion": null,
+      "closedLoopChecksum": null,
+      "requestCount": 0,
+      "attemptCount": 0,
+      "pendingCount": 0,
+      "successCount": 0,
+      "failedCount": 0,
+      "terminalCount": 0
+    },
+    "managerAttemptCount": 0,
+    "managerDiagnosticCount": 0
+  },
+  "managerReviewStatus": {
+    "enabled": true,
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4",
+    "reviewVersion": 22,
+    "materializedChecksum": "sha256:9722490475c37bfe8cfdb97a0e0e28c42f825d3ba3f8f4b11b90f5438d9253f4",
+    "closedLoopVersion": 11,
+    "closedLoopChecksum": "sha256:1d013e7b95758f2daa55dd803839fc8edfec04c8c12819ed7545f6aa1128f707",
+    "candidateEdgeVersion": 7,
+    "candidateEdgeChecksum": "sha256:6e0e6485cad58ced60b83bd687de1ce8d2ebf94dd0bbd87714bb7264413b2682",
+    "observationVersion": 8,
+    "observationChecksum": "sha256:97556a36f760cdb594553c64cfffd677bccd990417e1ec6ddad1ece6eef923d6",
+    "poolScopeChecksum": "sha256:55ca04677266c7b6822b192572bb51cc3b33941081d9894c2cfdfe82789817e2",
+    "libraryVersions": {
+      "core": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "libraryChecksums": {
+      "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+    },
+    "loopCount": 44,
+    "reviewedCount": 16,
+    "completedCount": 0,
+    "dataIncompleteCount": 0,
+    "notExecutableCount": 44,
+    "failedCount": 0,
+    "broadcastRequestCount": 0
+  },
+  "whatThisDoesNotProve": [
+    "It does not prove that the positive profit expectations were correct: a positive expectation is a measured preview, and a preview is not an execution.",
+    "It does not prove that any route was profitable in reality: the signed profit of an executed route is only as good as the contract call it was measured with, and a review that was never executed has no realized profit at all.",
+    "It does not count realized P&L: no attempt record exists in the window, so no gas cost, no slippage and no realized token delta is accounted for.",
+    "It does not cover the Manager review library: the manager review library is a different record set with its own version and its own freshness, and it is reported separately below.",
+    "It does not generalize beyond the window and the chain that are named in the environment block."
+  ]
+}

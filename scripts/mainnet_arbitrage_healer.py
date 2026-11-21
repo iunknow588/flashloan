@@ -41,6 +41,11 @@ from core.config.fee_policy import MAX_CANDIDATE_FIXED_FEE
 # filed under a guess (MIO-7 / TASK-149 / AC-214).
 from dex.runtime.closed_loop_identity import resolve_registered_group_key
 
+# The records the Rust managers own are read through the manager API. The
+# healer consumes what the managers published and never reads the manager's
+# own tables with SQL.
+from dex.runtime import manager_record_reader
+
 # DEP-4.2: the healer and the Rust pool manager have to admit a pool on the
 # same boundary. The pool manager owns the depth refresh and the capacity
 # schema, so the shared shallow-band capacity is the single admission floor
@@ -297,6 +302,181 @@ def count(db: Path, table: str) -> int:
     return int((one(db, f"SELECT COUNT(*) AS n FROM {table}") or {"n": 0})["n"])
 
 
+# ---------------------------------------------------------------------------
+# The records the Rust managers own
+# ---------------------------------------------------------------------------
+#
+# The **Review Manager** owns the review library, the **Broadcast Manager**
+# owns the broadcast attempts, and the **closed-loop Manager** owns the
+# closed-loop catalog. The healer reads those records through the manager
+# API, never with SQL against the manager's own tables.
+#
+# The reason is not a preference. A direct read binds the healer to the
+# storage layout of a table it does not own, and it lets the healer observe
+# a half-written state that the manager never publishes. The API answers
+# with a committed generation, so every read below is a read of a state the
+# manager actually published, and the row shapes the audits work with are
+# produced by the adapter functions that follow.
+#
+# The tables that the healer still reads with SQL are the ones **no Rust
+# manager owns**: the dynamic legacy review library the runtime writes
+# (``cow_execution_reviews``), the token registries and the pool scope
+# configuration. Those stay in the store until a manager takes them over.
+
+#: The manager API the healer reads the manager-owned records from.
+MANAGER_API_DEFAULT = "http://127.0.0.1:8091"
+
+
+def manager_read_reviews(manager_api: str | None) -> list[dict[str, Any]]:
+    """Return the review rows the Review Manager published.
+
+    The rows are the shape the healer reasons about. The Manager API
+    publishes the nested blocks as structured values and the columns in
+    camel case, so the adapter re-names them into the column-shaped names
+    the audits use.
+
+    The re-naming is a pure change of **name**, never of **value**: a
+    field the manager did not publish stays absent, and a published
+    ``null`` stays a missing value rather than becoming a default.
+    """
+    if not manager_api:
+        return []
+    try:
+        published = manager_record_reader.read_reviews(manager_api, CHAIN_ID)
+    except manager_record_reader.ManagerReadError:
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in published:
+        row = dict(item)
+        # The published identity and the published upstream versions.
+        if row.get("loopKey") is not None:
+            row["loop_key"] = row.get("loopKey")
+        if row.get("network") is not None:
+            row["network"] = row.get("network")
+        if row.get("chainId") is not None:
+            row["chain_id"] = row.get("chainId")
+        if row.get("protocol") is not None:
+            row["protocol"] = row.get("protocol")
+        if row.get("scopeKey") is not None:
+            row["scope_key"] = row.get("scopeKey")
+        if row.get("closedLoopVersion") is not None:
+            row["closed_loop_version"] = row.get("closedLoopVersion")
+        if row.get("closedLoopChecksum") is not None:
+            row["closed_loop_checksum"] = row.get("closedLoopChecksum")
+        if row.get("candidateEdgeVersion") is not None:
+            row["candidate_edge_version"] = row.get("candidateEdgeVersion")
+        if row.get("candidateEdgeChecksum") is not None:
+            row["candidate_edge_checksum"] = row.get("candidateEdgeChecksum")
+        if row.get("observationVersion") is not None:
+            row["observation_version"] = row.get("observationVersion")
+        if row.get("observationChecksum") is not None:
+            row["observation_checksum"] = row.get("observationChecksum")
+        if row.get("poolScopeChecksum") is not None:
+            row["pool_scope_checksum"] = row.get("poolScopeChecksum")
+        # The published route identity.
+        if row.get("anchorTokenKeyId") is not None:
+            row["anchor_token_key_id"] = row.get("anchorTokenKeyId")
+        if row.get("anchorAddress") is not None:
+            row["anchor_address"] = row.get("anchorAddress")
+        if row.get("anchorSymbol") is not None:
+            row["anchor_symbol"] = row.get("anchorSymbol")
+        if row.get("pathText") is not None:
+            row["path_text"] = row.get("pathText")
+        if row.get("poolPathKey") is not None:
+            row["pool_path_key"] = row.get("poolPathKey")
+        if row.get("pathAddresses") is not None:
+            row["path_addresses_json"] = json.dumps(row.get("pathAddresses"))
+        if row.get("pathSymbols") is not None:
+            row["path_symbols_json"] = json.dumps(row.get("pathSymbols"))
+        if row.get("poolIds") is not None:
+            row["pool_ids_json"] = json.dumps(row.get("poolIds"))
+        # The published verdict and its reason.
+        if row.get("reviewStatus") is not None:
+            row["review_status"] = row.get("reviewStatus")
+        if row.get("reviewReason") is not None:
+            row["review_reason"] = row.get("reviewReason")
+        # The published closed-loop identity.  The Review Manager owns the
+        # identity of a review and publishes it, so the healer only reads
+        # it.  It never rebuilds the identity from the route addresses.
+        identity = row.get("closedLoopIdentity")
+        if isinstance(identity, dict) and identity:
+            row["closed_loop_identity"] = dict(identity)
+            if identity.get("closedLoopIdentityStatus") is not None:
+                row["closed_loop_identity_status"] = identity.get("closedLoopIdentityStatus")
+            if identity.get("closedLoopPoolIdentityStatus") is not None:
+                row["closed_loop_pool_identity_status"] = identity.get(
+                    "closedLoopPoolIdentityStatus"
+                )
+            if identity.get("identityMismatch") is not None:
+                row["identity_mismatch"] = identity.get("identityMismatch")
+            if identity.get("closedLoopRepairTarget") is not None:
+                row["closed_loop_repair_target"] = identity.get("closedLoopRepairTarget")
+        # The published nested blocks.
+        if row.get("staticPreview") is not None:
+            row["static_preview_json"] = json.dumps(row.get("staticPreview"))
+        if row.get("runArbitrage") is not None:
+            row["run_arbitrage_json"] = json.dumps(row.get("runArbitrage"))
+        # The published timestamps.
+        if row.get("reviewedAt") is not None:
+            row["reviewed_at"] = row.get("reviewedAt")
+        if row.get("createdAt") is not None:
+            row["created_at"] = row.get("createdAt")
+        if row.get("updatedAt") is not None:
+            row["updated_at"] = row.get("updatedAt")
+        signed_pnl = item.get("signedPnl")
+        if not isinstance(signed_pnl, dict):
+            signed_pnl = {}
+        row["signed_pnl_raw"] = signed_pnl.get("raw")
+        row["signed_pnl_amount"] = signed_pnl.get("amount")
+        row["signed_pnl_currency"] = signed_pnl.get("currency")
+        row["signed_pnl_address"] = signed_pnl.get("address")
+        row["signed_pnl_unit"] = signed_pnl.get("unit")
+        row["signed_pnl_source"] = signed_pnl.get("source")
+        rows.append(row)
+    return rows
+
+
+def manager_read_closed_loops(manager_api: str | None) -> dict[str, Any]:
+    """Return the closed-loop records the closed-loop Manager published."""
+    if not manager_api:
+        return {"status": {}, "loops": [], "hops": [], "optimizations": [], "runtimeStates": []}
+    try:
+        return manager_record_reader.read_closed_loops(manager_api, CHAIN_ID)
+    except manager_record_reader.ManagerReadError:
+        return {"status": {}, "loops": [], "hops": [], "optimizations": [], "runtimeStates": []}
+
+
+def manager_read_broadcasts(manager_api: str | None) -> dict[str, Any]:
+    """Return the broadcast records the Broadcast Manager published."""
+    if not manager_api:
+        return {"status": {}, "attempts": [], "diagnostics": []}
+    try:
+        return manager_record_reader.read_broadcasts(manager_api, CHAIN_ID)
+    except manager_record_reader.ManagerReadError:
+        return {"status": {}, "attempts": [], "diagnostics": []}
+
+
+def manager_loop_rows(manager_api: str | None) -> list[dict[str, Any]]:
+    """Return the closed-loop catalog the closed-loop Manager published.
+
+    The rows are the shape the healer works with: the published loop key,
+    the path, the directed pool set and the status. Nothing is derived
+    here, and a field the manager did not publish stays absent.
+    """
+    rows: list[dict[str, Any]] = []
+    for item in manager_read_closed_loops(manager_api).get("loops") or []:
+        row = dict(item)
+        row["loop_key"] = str(item.get("loopKey") or "")
+        row["path_text"] = item.get("pathText")
+        row["path_symbols_json"] = json.dumps(item.get("pathSymbols") or [])
+        row["path_addresses_json"] = json.dumps(item.get("pathAddresses") or [])
+        row["pool_ids_json"] = json.dumps(item.get("poolIds") or [])
+        row["anchor_symbol"] = item.get("anchorSymbol")
+        row["status"] = item.get("status")
+        rows.append(row)
+    return rows
+
+
 def table_names(db: Path) -> set[str]:
     """Return every user table in the store.
 
@@ -496,34 +676,37 @@ def review_loop_key_by_pool(db: Path, row: dict[str, Any],
     return None
 
 
-def closed_loop_hop_pools(db: Path) -> dict[str, list[str]]:
+def closed_loop_hop_pools(
+    db: Path,
+    manager_api: str | None = None,
+) -> dict[str, list[str]]:
     """Return the pool of every hop of every known closed loop.
 
-    The Manager library owns the closed-loop structure, so its hop rows are
-    the ones that describe the loops the reviews are filed against. The
-    runtime's own hop table only carries the loops the runtime currently
-    keeps resident, which is a subset: a review of a loop that the runtime
-    no longer holds resident would otherwise be filed against nothing.
+    The **closed-loop Manager** owns the closed-loop structure, so its hop
+    rows are the ones that describe the loops the reviews are filed
+    against. They are read through the manager API, which is the manager's
+    own read surface; the healer never selects from the manager's tables.
+
+    The runtime's own hop table only carries the loops the runtime
+    currently keeps resident, which is a subset: a review of a loop that
+    the runtime no longer holds resident would otherwise be filed against
+    nothing.
     """
     hops: dict[str, list[str]] = {}
-    present = table_names(db)
-    # The Manager library owns the closed-loop structure, but a chain store
-    # does not necessarily own every materialized table. An absent table
-    # means "no rows of that kind", not a failed audit, so the lookup falls
-    # through to the next source instead of raising.
-    if "manager_v4_closed_loop_hops" in present:
-        for row in all_rows(
-            db,
-            "SELECT loop_key, pool_id FROM manager_v4_closed_loop_hops WHERE network=? AND chain_id=?",
-            (NETWORK, CHAIN_ID),
-        ):
-            pool_id = str(row.get("pool_id") or "").strip().lower()
-            if not pool_id:
-                continue
-            hops.setdefault(str(row.get("loop_key") or ""), []).append(pool_id)
+    published = manager_read_closed_loops(manager_api)
+    for row in published.get("hops") or []:
+        loop_key = str(row.get("loopKey") or row.get("loop_key") or "").strip()
+        pool_id = str(row.get("poolId") or row.get("pool_id") or "").strip().lower()
+        if not loop_key or not pool_id:
+            continue
+        hops.setdefault(loop_key, []).append(pool_id)
     if hops:
         return hops
-    if "v4_closed_loop_hops" in present:
+    # The runtime's own hop table is a **runtime** table that no Rust
+    # manager owns, so it is still read from the store. It only carries the
+    # loops the runtime keeps resident, which is a subset of the manager's
+    # catalog.
+    if "v4_closed_loop_hops" in table_names(db):
         for row in all_rows(
             db,
             "SELECT loop_key, pool_id FROM v4_closed_loop_hops WHERE network=? AND chain_id=?",
@@ -962,14 +1145,23 @@ def review_evidence(row: dict[str, Any], resolved_loop_key: str | None = None) -
         "diagnostics": [], "reviewedAt": row.get("created_at") or now()}
 
 
-def manager_review_rows(db: Path, limit: int | None = None) -> list[dict[str, Any]]:
+def manager_review_rows(
+    db: Path,
+    limit: int | None = None,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
     """Read the Manager-authoritative review library.
 
-    ``manager_v4_reviews`` is the table the Review Manager owns. It is the
-    only review source that carries the upstream versions and checksums of
-    the closed loop, the candidate edge, the observation layer and the pool
-    scope, so it is the only source that can prove a review belongs to the
-    current structure.
+    The **Review Manager** owns the review library. It is the only review
+    source that carries the upstream versions and checksums of the closed
+    loop, the candidate edge, the observation layer and the pool scope, so
+    it is the only source that can prove a review belongs to the current
+    structure.
+
+    The library is read through the **manager API**, which is the Review
+    Manager's own read surface. The healer never selects from the
+    manager's table: a direct read would bind the healer to a layout it
+    does not own and could show a generation the manager never published.
 
     The legacy ``cow_execution_reviews`` table has none of those columns. A
     review read from there cannot be tied to the current closed-loop library,
@@ -977,17 +1169,13 @@ def manager_review_rows(db: Path, limit: int | None = None) -> list[dict[str, An
     in a way an operator can audit.
     """
     effective_limit = REVIEW_QUERY_LIMIT if limit is None else int(limit)
-    suffix = f" LIMIT {max(0, effective_limit)}"
-    return all_rows(db, "SELECT loop_key,closed_loop_version,closed_loop_checksum,"
-        "candidate_edge_version,candidate_edge_checksum,observation_version,"
-        "observation_checksum,pool_scope_checksum,anchor_token_key_id,anchor_symbol,"
-        "path_text,path_addresses_json,path_symbols_json,pool_path_key,pool_ids_json,"
-        "review_status,review_reason,static_preview_json,run_arbitrage_json,"
-        "signed_pnl_raw,signed_pnl_amount,signed_pnl_currency,signed_pnl_address,"
-        "signed_pnl_unit,signed_pnl_source,reviewed_at,created_at,updated_at "
-        "FROM manager_v4_reviews WHERE network=? AND chain_id=? "
-        "ORDER BY created_at DESC" + suffix,
-        (NETWORK, CHAIN_ID))
+    rows = manager_read_reviews(manager_api)
+    if not rows and manager_api:
+        # The manager API could not be read. That is a failed read, not an
+        # empty library, and it must not be mistaken for one: the audit
+        # reports the failure instead of reporting "no reviews".
+        return []
+    return rows[:max(0, effective_limit)] if effective_limit else rows
 
 
 def legacy_review_rows(db: Path, hours: int, limit: int | None = None) -> list[dict[str, Any]]:
@@ -1004,7 +1192,12 @@ def legacy_review_rows(db: Path, hours: int, limit: int | None = None) -> list[d
         (NETWORK, CHAIN_ID, f"-{hours} hours", observation_started_at()))
 
 
-def review_rows(db: Path, hours: int, limit: int | None = None) -> list[dict[str, Any]]:
+def review_rows(
+    db: Path,
+    hours: int,
+    limit: int | None = None,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
     """Return the review rows the healer reasons about.
 
     The Manager library is authoritative for the **structure** of a review:
@@ -1030,7 +1223,7 @@ def review_rows(db: Path, hours: int, limit: int | None = None) -> list[dict[str
     Every row carries a ``review_source`` marker so a caller can tell which
     authority produced it.
     """
-    manager_rows = manager_review_rows(db, limit)
+    manager_rows = manager_review_rows(db, limit, manager_api)
     for row in manager_rows:
         row["review_source"] = "manager"
     legacy_rows = legacy_review_rows(db, hours, limit)
@@ -1647,7 +1840,7 @@ def closed_loop_scope_drift(scope_drift: dict[str, Any] | None) -> dict[str, Any
     }
 
 
-def cascade_matrix(db: Path) -> dict[str, Any]:
+def cascade_matrix(db: Path, manager_api: str | None = None) -> dict[str, Any]:
     """Audit the whole cascade from the funding token to the closed loop.
 
     The plan requires the cascade to be examined **in full range**, from
@@ -1732,10 +1925,24 @@ def cascade_matrix(db: Path) -> dict[str, Any]:
         "SELECT COUNT(DISTINCT pool_id) total FROM dex_candidate_pools "
         "WHERE network=? AND chain_id=?", (NETWORK, CHAIN_ID)) or {}
     # ---- closed loops ----------------------------------------------------
-    loops = all_rows(db,
-        "SELECT loop_key,pool_ids_json,path_symbols_json,anchor_symbol,status "
-        "FROM manager_v4_closed_loops WHERE network=? AND chain_id=?",
-        (NETWORK, CHAIN_ID))
+    # The **closed-loop Manager** owns the closed-loop catalog, so it is
+    # read through the manager API.  The healer never selects from the
+    # manager's table: a direct read would bind the healer to the layout it
+    # does not own and could show a generation the manager never published.
+    loops = []
+    for row in (manager_read_closed_loops(manager_api).get("loops") or []):
+        pool_ids_value = row.get("poolIds")
+        if pool_ids_value is None:
+            pool_ids_value = row.get("pool_ids")
+        loops.append({
+            "loop_key": str(row.get("loopKey") or row.get("loop_key") or ""),
+            "pool_ids_json": json.dumps(pool_ids_value) if isinstance(pool_ids_value, list) else "[]",
+            "path_symbols_json": json.dumps(
+                row.get("pathSymbols") or row.get("path_symbols") or []
+            ),
+            "anchor_symbol": str(row.get("anchorSymbol") or row.get("anchor_symbol") or ""),
+            "status": str(row.get("status") or ""),
+        })
     exact_three = 0
     hops_total = 0
     hops_in_scope = 0
@@ -1809,7 +2016,12 @@ def cascade_matrix(db: Path) -> dict[str, Any]:
     }
 
 
-def audit_pools(db: Path, hours: int = 24, tools: Path | None = None) -> dict[str, Any]:
+def audit_pools(
+    db: Path,
+    hours: int = 24,
+    tools: Path | None = None,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
     scope = one(db, "SELECT enabled,materialized_checksum,last_rebuilt_at FROM pool_scope_config "
         "WHERE network=? AND chain_id=? AND scope_key=?", (NETWORK, CHAIN_ID, SCOPE))
     candidate = one(db, "SELECT eligible_pool_count,candidate_token_count,abnormal_pool_count,"
@@ -1823,7 +2035,7 @@ def audit_pools(db: Path, hours: int = 24, tools: Path | None = None) -> dict[st
         "SUM(CASE WHEN fee<=0 OR dynamic_fee!=0 OR special_fee!=0 THEN 1 ELSE 0 END) filtered_fee "
         "FROM v4_exchange_pools WHERE network=? AND chain_id=?", (NETWORK, CHAIN_ID)) or {}
     depth = pool_depth_audit(db)
-    best_amount = best_amount_audit(db, hours)
+    best_amount = best_amount_audit(db, hours, manager_api)
     # A pool-manager binary that predates a command rejects it with
     # "unknown command". The healer used to carry on as if the step had
     # succeeded, which turned a deployment gap into a silent no-op: the
@@ -1848,7 +2060,11 @@ MIN_POOL_TVL_USD = 100_000.0
 GAS_ESTIMATE_ETH = 6.2e-06
 
 
-def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
+def best_amount_audit(
+    db: Path,
+    hours: int,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
     """Audit whether confirmed best trade amounts are economically usable.
 
     A best trade amount that only yields a profit far below the gas estimate
@@ -1856,7 +2072,7 @@ def best_amount_audit(db: Path, hours: int) -> dict[str, Any]:
     meaningful position. Such routes must be reported as a pool-depth defect
     instead of being counted as "positive but not executable" profit.
     """
-    rows = review_rows(db, hours)
+    rows = review_rows(db, hours, None, manager_api)
     confirmed = []
     for row in rows:
         state = best_amount_state(row)
@@ -2217,15 +2433,39 @@ def pool_depth_audit(db: Path) -> dict[str, Any]:
     }
 
 
-def audit_loops(db: Path) -> dict[str, Any]:
-    library = one(db, "SELECT loop_count,hop_count,consumers_need_rebuild,materialized_checksum,generated_at "
-        "FROM manager_v4_closed_loop_library_state WHERE network=? AND chain_id=? AND scope_key=?",
-        (NETWORK, CHAIN_ID, SCOPE))
-    runtime = all_rows(db, "SELECT state,COUNT(*) count FROM v4_closed_loop_runtime_state "
-        "WHERE network=? AND chain_id=? GROUP BY state ORDER BY count DESC", (NETWORK, CHAIN_ID))
-    valid = bool(library and int(library.get("loop_count") or 0) > 0
-                 and int(library.get("consumers_need_rebuild") or 0) == 0)
-    return {"valid": valid, "library": library, "runtime": runtime}
+def audit_loops(db: Path, manager_api: str | None = None) -> dict[str, Any]:
+    """Audit the closed-loop layer through the manager API.
+
+    The **closed-loop Manager** owns the closed-loop catalog, its hop rows
+    and its runtime states, so the healer reads them from the manager API
+    instead of selecting from the manager's tables.
+    """
+    published = manager_read_closed_loops(manager_api)
+    loops = published.get("loops") or []
+    hops = published.get("hops") or []
+    runtime_states = published.get("runtimeStates") or []
+    runtime_counts: dict[str, int] = {}
+    for row in runtime_states:
+        state = str(row.get("runtimeStatus") or "").strip()
+        if state:
+            runtime_counts[state] = runtime_counts.get(state, 0) + 1
+    runtime = [{"state": state, "count": count}
+               for state, count in sorted(runtime_counts.items(), key=lambda item: -item[1])]
+    status = published.get("status") or {}
+    loop_count = int(status.get("loopCount") or len(loops))
+    consumers_need_rebuild = int(status.get("consumersNeedRebuild") or 0)
+    valid = bool(loop_count > 0 and consumers_need_rebuild == 0)
+    return {
+        "valid": valid,
+        "library": {
+            "loop_count": loop_count,
+            "hop_count": len(hops),
+            "consumers_need_rebuild": consumers_need_rebuild,
+            "materialized_checksum": status.get("materializedChecksum"),
+            "generated_at": status.get("generatedAt"),
+        },
+        "runtime": runtime,
+    }
 
 
 ERC20_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
@@ -2294,11 +2534,19 @@ def receipt_realized_token_delta(
     return net_raw / (10 ** decimals), None
 
 
-def audit_reviews(db: Path, hours: int) -> dict[str, Any]:
-    rows, reasons, classifications = review_rows(db, hours), {}, {}
-    known_loops = {row["loop_key"] for row in all_rows(
-        db, "SELECT loop_key FROM manager_v4_closed_loops WHERE network=? AND chain_id=?",
-        (NETWORK, CHAIN_ID))}
+def audit_reviews(
+    db: Path,
+    hours: int,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
+    rows, reasons, classifications = review_rows(db, hours, None, manager_api), {}, {}
+    # The closed-loop Manager owns the catalog, so the known loops are the
+    # ones it published.
+    known_loops = {
+        str(row.get("loopKey") or "")
+        for row in manager_read_closed_loops(manager_api).get("loops") or []
+        if str(row.get("loopKey") or "")
+    }
     matched = [row for row in rows if review_loop_key(row) in known_loops]
     unmatched = [row for row in rows if review_loop_key(row) not in known_loops]
     best_amount_failures = []
@@ -2366,10 +2614,10 @@ def audit_reviews(db: Path, hours: int) -> dict[str, Any]:
     current_missing_pnl = sum(1 for row in current_rows if pnl(row) is None)
     current_best_amount_missing = best_amount_missing_current
     current_best_amount_confirmed = len(current_rows) - current_best_amount_missing
-    return {"valid": count(db, "manager_v4_reviews") > 0 and current_missing_pnl == 0
+    manager_rows = manager_review_rows(db, None, manager_api)
+    return {"valid": bool(manager_rows) and current_missing_pnl == 0
             and current_best_amount_missing == 0,
-        "manager": {"libraryStateRows": count(db, "manager_review_library_state"),
-                    "reviews": count(db, "manager_v4_reviews")},
+        "manager": {"reviews": len(manager_rows)},
         "legacy": {"windowHours": hours, "stats": stats,
                    "latestReviewAt": rows[0].get("created_at") if rows else None,
                    "currentLoopMatched": len(matched), "staleOrUnmatched": len(unmatched),
@@ -2417,11 +2665,56 @@ def audit_reviews(db: Path, hours: int) -> dict[str, Any]:
                                          key=lambda item: item["count"], reverse=True)}
 
 
-def audit_broadcast(db: Path, hours: int) -> dict[str, Any]:
-    attempts = all_rows(db, "SELECT id,attempt_key,category,tx_hash,created_at,selected_profit_amount,"
+def audit_broadcast(
+    db: Path,
+    hours: int,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
+    """Return the broadcast record of the chain.
+
+    The **Broadcast Manager** owns the broadcast attempts and publishes
+    them.  The attempt rows are therefore read from the manager API, and
+    the manager's published status is the authority for the attempt count.
+
+    The legacy ``cow_execution_attempts`` table is a **dynamic runtime
+    table** that no Rust manager owns: it carries the runtime's own
+    execution summary, including the gas cost and the receipt of the
+    transaction it sent.  It is read for that enrichment only, and it is
+    never the source of the attempt count.
+    """
+    broadcast = manager_read_broadcasts(manager_api)
+    broadcast_status = broadcast.get("status") or {}
+    published_attempts = broadcast.get("attempts") or []
+    legacy_attempts = all_rows(db, "SELECT id,attempt_key,category,tx_hash,created_at,selected_profit_amount,"
         "selected_profit_amount_symbol,summary_json FROM cow_execution_attempts WHERE network=? AND chain_id=? "
         "AND datetime(created_at)>=datetime(?) ORDER BY created_at DESC",
         (NETWORK, CHAIN_ID, observation_started_at()))
+    # The published attempt is joined with the legacy execution summary by
+    # its attempt key.  A published attempt without a legacy summary keeps
+    # its own published facts and stays **missing** for the enrichment that
+    # only the legacy row holds.
+    legacy_by_key = {
+        str(row.get("attempt_key") or ""): row for row in legacy_attempts
+    }
+    attempts: list[dict[str, Any]] = []
+    for published in published_attempts:
+        attempt_key = str(published.get("attemptId") or published.get("attempt_id") or "")
+        legacy = legacy_by_key.get(attempt_key, {})
+        signed_pnl = published.get("signedPnl")
+        if not isinstance(signed_pnl, dict):
+            signed_pnl = {}
+        attempts.append({
+            "id": published.get("attemptId"),
+            "attempt_key": attempt_key,
+            "category": str(published.get("status") or published.get("statusReason") or "unknown"),
+            "tx_hash": published.get("txHash"),
+            "created_at": published.get("createdAt"),
+            "selected_profit_amount": signed_pnl.get("amount"),
+            "selected_profit_amount_symbol": signed_pnl.get("currency"),
+            "summary_json": json.dumps(legacy.get("summary_json") or "{}"),
+            "published_by_manager": True,
+        })
+    manager_attempts = int(broadcast_status.get("attemptCount") or len(published_attempts))
     categories = {}
     expected_by_currency: dict[str, float] = {}
     gas_cost_eth_total = 0.0
@@ -2456,6 +2749,12 @@ def audit_broadcast(db: Path, hours: int) -> dict[str, Any]:
             summary = json.loads(row.get("summary_json") or "{}")
         except (TypeError, ValueError, json.JSONDecodeError):
             summary = {}
+        # The stored summary is a JSON **document**, so it decodes to any
+        # JSON value.  Only an object carries the blocks the audit reads; a
+        # decoded string or list is a summary of another shape and stays
+        # empty instead of aborting the whole audit.
+        if not isinstance(summary, dict):
+            summary = {}
         auto_execute = summary.get("auto_execute") if isinstance(summary.get("auto_execute"), dict) else {}
         result = auto_execute.get("result") if isinstance(auto_execute.get("result"), dict) else {}
         try:
@@ -2485,12 +2784,18 @@ def audit_broadcast(db: Path, hours: int) -> dict[str, Any]:
         "AND category='executable' AND selected_profit_amount IS NOT NULL "
         "AND selected_profit_amount!='' AND CAST(selected_profit_amount AS REAL)>0",
         (NETWORK, CHAIN_ID, f"-{hours} hours", observation_started_at())) or {"n": 0}
-    return {"valid": count(db, "manager_cow_execution_attempts") > 0,
-        "manager": {"libraryStateRows": count(db, "manager_broadcast_library_state"),
-                    "attempts": count(db, "manager_cow_execution_attempts")},
+    return {"valid": manager_attempts > 0,
+        "manager": {"attempts": manager_attempts,
+                    "pending": int(broadcast_status.get("pendingCount") or 0),
+                    "success": int(broadcast_status.get("successCount") or 0),
+                    "failed": int(broadcast_status.get("failedCount") or 0),
+                    "diagnostics": len(broadcast.get("diagnostics") or []),
+                    "source": "broadcast_manager_published_records"},
         "legacy": {"total": len(attempts), "categories": categories,
                    "latestAttemptAt": attempts[0].get("created_at") if attempts else None,
-                   "recent": attempts[:10]},
+                   "recent": attempts[:10],
+                   "legacyRuntimeRows": len(legacy_attempts),
+                   "source": "manager_published_attempts_joined_with_legacy_execution_summary"},
         "profitAnalysis": {
             "expectedByCurrency": expected_by_currency,
             "gasCostEthTotal": gas_cost_eth_total,
@@ -2691,18 +2996,25 @@ class StabilityTracker:
         }
 
 
-def build_report(db: Path, hours: int, tools: Path | None = None) -> dict[str, Any]:
+def build_report(
+    db: Path,
+    hours: int,
+    tools: Path | None = None,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
     # Every verdict in this report describes exactly one chain, so the
     # report may only be built from that chain's own database file.
     database = assert_chain_database(db)
-    layers = {"tokens": audit_tokens(database), "pools": audit_pools(database, hours, tools),
-              "closedLoops": audit_loops(database), "reviews": audit_reviews(database, hours),
-              "broadcast": audit_broadcast(database, hours)}
+    layers = {"tokens": audit_tokens(database),
+              "pools": audit_pools(database, hours, tools, manager_api),
+              "closedLoops": audit_loops(database, manager_api),
+              "reviews": audit_reviews(database, hours, manager_api),
+              "broadcast": audit_broadcast(database, hours, manager_api)}
     # The full-range matrix is a **read** of the same store, never a second
     # source of truth: it counts the funding tokens, the candidate tokens,
     # the candidate pools and the closed loops in one place, so an empty
     # set can never be mistaken for a skipped check.
-    matrix = cascade_matrix(database)
+    matrix = cascade_matrix(database, manager_api)
     layers["cascadeMatrix"] = matrix
     blockers = [name for name, layer in layers.items()
                 if name != "cascadeMatrix" and not layer.get("valid")]
@@ -3347,6 +3659,7 @@ def response_succeeded(response: dict[str, Any]) -> bool:
 
 def merge_with_stored_evidence(
     db: Path,
+    manager_api: str | None,
     evidence: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Return the evidence of **every** measured cycle of the chain.
@@ -3371,7 +3684,7 @@ def merge_with_stored_evidence(
             continue
         seen.add(loop_key)
         merged.append(item)
-    stored = stored_review_evidence(db)
+    stored = stored_review_evidence(db, manager_api)
     for item in stored:
         loop_key = str(item.get("loopKey") or "").strip()
         if not loop_key:
@@ -3383,35 +3696,37 @@ def merge_with_stored_evidence(
     return merged
 
 
-def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
+def stored_review_evidence(
+    db: Path,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
     """Return the stored reviews of the chain as Review Manager evidence.
 
     Only a review that carries a complete ``runArbitrage`` block can be
     filed again: a review without one is an incomplete measurement, and it
     must be replaced by a fresh review rather than resubmitted.
+
+    The stored reviews are the **Review Manager's** records, so they are
+    read through the manager API. The manager publishes the static preview
+    and the arbitrage block as structured values, and the adapter below
+    only re-names them.
     """
-    # A store that does not own the review table yet holds no stored
-    # reviews. That is a fact about the chain, not an error, so it is
-    # reported as an empty set instead of raising.
-    if "manager_v4_reviews" not in table_names(db):
+    rows = manager_read_reviews(manager_api)
+    if not rows:
         return []
-    rows = all_rows(
-        db,
-        "SELECT loop_key,run_arbitrage_json,static_preview_json,signed_pnl_raw,"
-        "signed_pnl_amount,signed_pnl_currency,signed_pnl_address,signed_pnl_unit,"
-        "signed_pnl_source,reviewed_at FROM manager_v4_reviews "
-        "WHERE network=? AND chain_id=? ORDER BY loop_key",
-        (NETWORK, CHAIN_ID),
-    )
     # The legacy review library still holds the kernel's measured best trade
     # amount, because the amount ladder is published by the kernel next to
     # the probe records.  A Manager row that lost the block on the way in
     # is restored from here, matched by the exact published closed-loop key
     # so a measurement never crosses into another closed loop.
+    #
+    # The legacy library is a **dynamic runtime table** that no Rust manager
+    # owns yet, so it is still read from the store. It holds the runtime's
+    # own measurements, not a manager-owned record.
     measured = legacy_best_amount_by_cycle(db)
     evidence: list[dict[str, Any]] = []
     for row in rows:
-        run = as_json(row.get("run_arbitrage_json"))
+        run = row.get("runArbitrage")
         if not isinstance(run, dict) or not run:
             continue
         signed_pnl = run.get("signedPnl") or run.get("signed_pnl")
@@ -3424,7 +3739,7 @@ def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
             normalized_run["blockNumber"] = normalized_run.pop("block_number")
         if not isinstance(normalized_run.get("diagnostics"), list):
             normalized_run["diagnostics"] = []
-        static_preview = as_json(row.get("static_preview_json"))
+        static_preview = row.get("staticPreview")
         preview = dict(static_preview) if isinstance(static_preview, dict) else {}
         # The stored row may carry the measured best trade amount in the
         # static preview or inside the run block.  Both are preserved so a
@@ -3432,17 +3747,25 @@ def stored_review_evidence(db: Path) -> list[dict[str, Any]]:
         # one.
         calculation = kernel_best_amount_calculation([preview, normalized_run])
         if not calculation:
-            loop_key = str(row.get("loop_key") or "").strip()
+            loop_key = str(row.get("loopKey") or "").strip()
             calculation = measured.get(loop_key, {})
         if calculation and not isinstance(preview.get("bestAmountCalculation"), dict):
             preview["bestAmountCalculation"] = calculation
-        evidence.append({
-            "loopKey": str(row.get("loop_key") or "").strip(),
+        stored_evidence: dict[str, Any] = {
+            "loopKey": str(row.get("loopKey") or "").strip(),
             "staticPreview": preview,
             "runArbitrage": normalized_run,
             "diagnostics": [],
-            "reviewedAt": str(row.get("reviewed_at") or "").strip() or now(),
-        })
+            "reviewedAt": str(row.get("reviewedAt") or "").strip() or now(),
+        }
+        # A stored review carries the identity it was measured under, and
+        # the identity is published by the Review Manager.  It is copied
+        # forward unchanged so a re-submission never downgrades a known
+        # identity into an absent one.
+        identity = row.get("closedLoopIdentity")
+        if isinstance(identity, dict) and identity:
+            stored_evidence["closedLoopIdentity"] = identity
+        evidence.append(stored_evidence)
     return evidence
 
 
@@ -3518,29 +3841,31 @@ def pool_repair_keys(review_result: dict[str, Any]) -> list[str]:
     return sorted(keys)
 
 
-def review_expected_upstream(db: Path) -> dict[str, Any]:
+def review_expected_upstream(
+    db: Path,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
     """Read the upstream versions and checksums the review library must carry.
 
     The Review Manager refuses a review whose upstream does not match the
     current closed-loop library. The healer therefore has to send the
-    versions and checksums it actually sees in the store, otherwise the
-    manager rejects every review as stale and the convergence can never
-    make progress.
+    versions and checksums it actually sees, otherwise the manager rejects
+    every review as stale and the convergence can never make progress.
+
+    The versions belong to the **closed-loop Manager**, so they are read
+    through the manager API.
     """
-    closed_loop = one(db, "SELECT closed_loop_version,materialized_checksum,"
-        "candidate_edge_version,candidate_edge_checksum,observation_version,"
-        "observation_checksum,pool_scope_checksum FROM manager_v4_closed_loop_library_state "
-        "WHERE network=? AND chain_id=? AND scope_key=?", (NETWORK, CHAIN_ID, SCOPE))
-    if not closed_loop:
+    status = manager_read_closed_loops(manager_api).get("status") or {}
+    if not status:
         return {}
     return {
-        "closedLoopVersion": int(closed_loop.get("closed_loop_version") or 0),
-        "closedLoopChecksum": str(closed_loop.get("materialized_checksum") or ""),
-        "candidateEdgeVersion": int(closed_loop.get("candidate_edge_version") or 0),
-        "candidateEdgeChecksum": str(closed_loop.get("candidate_edge_checksum") or ""),
-        "observationVersion": int(closed_loop.get("observation_version") or 0),
-        "observationChecksum": str(closed_loop.get("observation_checksum") or ""),
-        "poolScopeChecksum": str(closed_loop.get("pool_scope_checksum") or ""),
+        "closedLoopVersion": int(status.get("closedLoopVersion") or 0),
+        "closedLoopChecksum": str(status.get("materializedChecksum") or ""),
+        "candidateEdgeVersion": int(status.get("candidateEdgeVersion") or 0),
+        "candidateEdgeChecksum": str(status.get("candidateEdgeChecksum") or ""),
+        "observationVersion": int(status.get("observationVersion") or 0),
+        "observationChecksum": str(status.get("observationChecksum") or ""),
+        "poolScopeChecksum": str(status.get("poolScopeChecksum") or ""),
     }
 
 
@@ -3565,7 +3890,7 @@ def materialize_reviews(
         return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
                 "dryRun": not apply, "evidenceCount": 0, "materializedCount": 0,
                 "results": [], "policy": "no evidence means nothing to materialize"}
-    expected = review_expected_upstream(db)
+    expected = review_expected_upstream(db, manager_api)
     # The Review Manager keys every review by its closed-loop identity.
     #
     # That identity is **published by the closed-loop Manager** and travels
@@ -3612,7 +3937,7 @@ def materialize_reviews(
     # carries every measured cycle: the fresh evidence for the cycles that
     # were just re-reviewed, plus the evidence that is already stored for the
     # cycles that are still valid.
-    merged = merge_with_stored_evidence(db, evidence)
+    merged = merge_with_stored_evidence(db, manager_api, evidence)
     body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": merged}
     if expected:
         body["expectedUpstream"] = expected
@@ -3639,12 +3964,31 @@ def registered_closed_loop_group_keys(runtime_api: str) -> list[str]:
     path of the loop the worker serves; a route that starts at an
     intermediate token belongs to a different closed loop and resolves to
     a different worker (or to none).
+
+    The worker list lives on the **scanner snapshot**, not on
+    ``/api/dex/overview``.  The overview endpoint answers with the DEX
+    surface document itself and has no ``payload`` member at all, so
+    reading ``overview["payload"]["workers"]`` silently yields an empty
+    list and makes every registered key invisible.  The scanner snapshot
+    reports the resident workers under
+    ``scanner.closed_loop_rust_workers.workers``.
     """
-    status = api_get(runtime_api, "/api/dex/overview", timeout=20)
+    status = api_get(
+        runtime_api,
+        f"/api/dex/opportunity-scanner/snapshot?chain_id={CHAIN_ID}"
+        "&protocols=uniswap_v4&summary=1",
+        timeout=60,
+    )
     if not status.get("ok"):
         return []
     payload = status.get("payload") if isinstance(status.get("payload"), dict) else {}
-    workers = payload.get("workers") if isinstance(payload.get("workers"), list) else []
+    scanner = payload.get("scanner") if isinstance(payload.get("scanner"), dict) else {}
+    workers_block = (
+        scanner.get("closed_loop_rust_workers")
+        if isinstance(scanner.get("closed_loop_rust_workers"), dict)
+        else {}
+    )
+    workers = workers_block.get("workers") if isinstance(workers_block.get("workers"), list) else []
     keys: list[str] = []
     for worker in workers:
         if not isinstance(worker, dict):
@@ -3698,7 +4042,19 @@ def request_live_review(
         body,
     )
     result = {"initialReview": initial, "workerRefreshRequired": False}
-    if not response_contains(initial, "closed_loop_group_worker_not_running"):
+    # A closed loop that has **no resident worker** answers with
+    # ``closed_loop_group_not_found`` (the worker pool never registered the
+    # key), while a loop whose worker exists but is stopped answers with
+    # ``closed_loop_group_worker_not_running``.  Both mean the same thing to
+    # the healer: the worker has to be (re)registered and started before the
+    # review can run.  Treating only the second one as refreshable left every
+    # loop outside the resident set permanently unreachable, because the
+    # healer never registered the worker it needed.
+    worker_missing = (
+        response_contains(initial, "closed_loop_group_worker_not_running")
+        or response_contains(initial, "closed_loop_group_not_found")
+    )
+    if not worker_missing:
         result["finalReview"] = initial
         result["completedReview"] = collect_completed_review(db, candidate)
         return result
@@ -3732,10 +4088,9 @@ def historical_positive_candidates(
     db: Path,
     limit: int,
     excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
-    loops = {row["loop_key"]: row for row in all_rows(
-        db, "SELECT loop_key,path_text,path_symbols_json,path_addresses_json "
-        "FROM manager_v4_closed_loops WHERE network=? AND chain_id=?", (NETWORK, CHAIN_ID))}
+    loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
     latest = {}
     con = connect(db)
     try:
@@ -3789,7 +4144,7 @@ def rereview_historical_positive(
     broadcast on the strength of a **new** positive live review, and that
     review has to land in the Manager-authoritative library.
     """
-    candidates = historical_positive_candidates(db, limit, excluded_loop_keys)
+    candidates = historical_positive_candidates(db, limit, excluded_loop_keys, manager_api)
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -3814,8 +4169,9 @@ def missing_review_candidates(
     db: Path,
     limit: int,
     excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
-    reviewed = {review_loop_key(row) for row in review_rows(db, 24 * 365, None)}
+    reviewed = {review_loop_key(row) for row in review_rows(db, 24 * 365, None, manager_api)}
     # A review covers a loop when it was filed under the **same published
     # identity**. The key of the loop and the key of its review are the
     # same string the Manager published, so exact equality decides it. A
@@ -3823,9 +4179,7 @@ def missing_review_candidates(
     # different loop and leaves this loop unreviewed.
     reviewed_keys: set[str] = {key for key in reviewed if key}
     excluded = excluded_loop_keys or set()
-    loops = all_rows(db, "SELECT loop_key,path_text,path_symbols_json,path_addresses_json "
-        "FROM manager_v4_closed_loops WHERE network=? AND chain_id=? ORDER BY loop_key",
-        (NETWORK, CHAIN_ID))
+    loops = manager_loop_rows(manager_api)
     candidates = []
     for loop in loops:
         if loop["loop_key"] in reviewed_keys or loop["loop_key"] in excluded:
@@ -3850,7 +4204,7 @@ def fill_missing_reviews(
     the gap has to be closed. The review is a fresh live one, and its
     evidence is materialized into the Manager-authoritative library.
     """
-    candidates = missing_review_candidates(db, limit, excluded_loop_keys)
+    candidates = missing_review_candidates(db, limit, excluded_loop_keys, manager_api)
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -3876,22 +4230,15 @@ def missing_pnl_review_candidates(
     hours: int,
     limit: int,
     excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
     excluded = excluded_loop_keys or set()
     latest_by_loop: dict[str, dict[str, Any]] = {}
-    for row in review_rows(db, hours):
+    for row in review_rows(db, hours, None, manager_api):
         loop_key = review_loop_key(row)
         if loop_key and loop_key not in latest_by_loop:
             latest_by_loop[loop_key] = row
-    loops = {
-        row["loop_key"]: row
-        for row in all_rows(
-            db,
-            "SELECT loop_key,path_text,path_symbols_json,path_addresses_json "
-            "FROM manager_v4_closed_loops WHERE network=? AND chain_id=?",
-            (NETWORK, CHAIN_ID),
-        )
-    }
+    loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
     # A review is filed under the identity the Manager published for the
     # loop it was measured on. The loop table and the review table share
     # one key space, so the published key decides the association.
@@ -3923,6 +4270,50 @@ def missing_pnl_review_candidates(
             "historicalMissingReason": row.get("selected_profit_missing_reason"),
         })
     return candidates[:limit]
+
+
+def _closed_loop_identity_of(payloads: list[Any]) -> dict[str, Any] | None:
+    """Return the closed-loop identity the kernel measured a route under.
+
+    The **closed-loop identity** of a reviewed route is computed by the
+    closed-loop kernel against the catalog the closed-loop Manager
+    publishes.  It is the fact that says whether the route matched that
+    catalog and whether the pools it priced are pools the Manager
+    published.
+
+    The identity travels with the review evidence so the **Review Manager**
+    can store it and publish it.  A reader of the review library then asks
+    the Manager for the identity instead of rebuilding it from the route
+    addresses, which is what used to make a broken identity
+    indistinguishable from an absent one.
+
+    The helper only **reads** what the kernel published.  It never
+    derives a verdict: a payload that publishes no identity yields no
+    identity at all, so a missing measurement stays missing.
+    """
+    identity: dict[str, Any] = {}
+    for payload in payloads:
+        for candidate in _nested_review_objects(payload):
+            for key, target in (
+                ("closedLoopIdentityStatus", "closedLoopIdentityStatus"),
+                ("closedLoopPoolIdentityStatus", "closedLoopPoolIdentityStatus"),
+                ("identityMismatch", "identityMismatch"),
+                ("closedLoopRepairTarget", "closedLoopRepairTarget"),
+            ):
+                if target in identity:
+                    continue
+                value = candidate.get(key)
+                if isinstance(value, str) and value.strip():
+                    identity[target] = value.strip()
+                elif isinstance(value, dict) and value:
+                    # The mismatch diagnosis is a structured block.  It is
+                    # kept as a JSON string so the Review Manager can store
+                    # it without having to know the shape of the kernel's
+                    # diagnosis.
+                    identity[target] = json.dumps(value, sort_keys=True)
+    if not identity:
+        return None
+    return identity
 
 
 def _nested_review_objects(value: Any):
@@ -4056,13 +4447,22 @@ def live_review_evidence(
             calculation = kernel_best_amount_calculation(roots)
             if calculation and not isinstance(preview.get("bestAmountCalculation"), dict):
                 preview["bestAmountCalculation"] = calculation
-            return {
+            evidence = {
                 "loopKey": loop_key,
                 "staticPreview": preview,
                 "runArbitrage": normalized_run,
                 "diagnostics": diagnostics if isinstance(diagnostics, list) else [],
                 "reviewedAt": str(reviewed_at or now()),
             }
+            # The identity the kernel published travels with the evidence,
+            # so the Review Manager can store it and publish it.  Without
+            # it the review library could not tell a matched route from a
+            # route that priced pools the closed-loop catalog does not
+            # publish.
+            identity = _closed_loop_identity_of(roots)
+            if identity:
+                evidence["closedLoopIdentity"] = identity
+            return evidence
     return None
 
 def rereview_missing_pnl(
@@ -4082,7 +4482,8 @@ def rereview_missing_pnl(
     review source that can be audited against the current closed-loop
     structure.
     """
-    candidates = missing_pnl_review_candidates(db, hours, limit, excluded_loop_keys)
+    candidates = missing_pnl_review_candidates(db, hours, limit, excluded_loop_keys,
+                                               manager_api)
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -4117,7 +4518,7 @@ def rematerialize_reviews(db: Path, manager_api: str, apply: bool) -> dict[str, 
     Manager row lost it, and files the result again.  It never re-runs a
     review: the measurement already exists, it was only dropped on the way.
     """
-    stored = stored_review_evidence(db)
+    stored = stored_review_evidence(db, manager_api)
     if not stored:
         return {"mode": "rematerialize-reviews", "generatedAt": now(), "apply": apply,
                 "dryRun": not apply, "evidenceCount": 0, "materialization": None,
@@ -4382,49 +4783,50 @@ def broadcast_failure_candidates(
     hours: int,
     limit: int,
     excluded_attempt_ids: set[str] | None = None,
+    manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
     """Collects the failed broadcast attempts that need a repair.
 
     Only the attempts that actually **failed** are collected. A pending
     attempt is not a failure: it is a transaction that has not settled yet,
     and repairing it would risk a double spend.
+
+    The attempts are the **Broadcast Manager's** records, so they are read
+    through the manager API. The healer never selects from the manager's
+    attempt table.
     """
     excluded = excluded_attempt_ids or set()
-    columns = table_columns(db, "manager_cow_execution_attempts")
-    if not columns:
-        return []
-    status_column = "status" if "status" in columns else (
-        "category" if "category" in columns else "")
-    if not status_column:
-        return []
-    rows = all_rows(
-        db,
-        f"SELECT * FROM manager_cow_execution_attempts WHERE network=? AND chain_id=? "
-        f"AND datetime(created_at)>=datetime(?) ORDER BY created_at DESC",
-        (NETWORK, CHAIN_ID, observation_started_at()),
-    )
+    published = manager_read_broadcasts(manager_api)
+    rows = published.get("attempts") or []
     candidates: list[dict[str, Any]] = []
     for row in rows:
-        attempt_id = str(row.get("attempt_id") or row.get("id") or "").strip()
+        attempt_id = str(row.get("attemptId") or row.get("attempt_id") or "").strip()
         if not attempt_id or attempt_id in excluded:
             continue
-        status = str(row.get(status_column) or "").strip().lower()
+        status = str(row.get("status") or "").strip().lower()
         if status not in ("failed", "failure", "reverted", "error"):
             continue
-        evidence = " ".join(
+        evidence_parts = [
             str(row.get(column) or "")
-            for column in ("status_reason", "error", "evidence_json", "summary_json")
-            if column in columns
-        )
+            for column in ("statusReason", "status_reason", "error")
+            if row.get(column)
+        ]
+        for column in ("evidence", "receipt"):
+            value = row.get(column)
+            if isinstance(value, dict) and value:
+                evidence_parts.append(json.dumps(value, ensure_ascii=False, sort_keys=True))
+            elif isinstance(value, str) and value.strip():
+                evidence_parts.append(value)
+        evidence = " ".join(part for part in evidence_parts if part)
         failure_class = classify_broadcast_failure(evidence or status)
         candidates.append({
             "attemptId": attempt_id,
-            "attemptKey": row.get("attempt_key"),
-            "loopKey": row.get("loop_key"),
+            "attemptKey": row.get("attemptKey") or row.get("attempt_key"),
+            "loopKey": row.get("loopKey") or row.get("loop_key"),
             "status": status,
             "failureClass": failure_class,
             "evidence": evidence[:1000],
-            "txHash": row.get("tx_hash"),
+            "txHash": row.get("txHash") or row.get("tx_hash"),
             "repairable": failure_class != "unknown",
         })
     return candidates[:limit]
@@ -4455,7 +4857,7 @@ def repair_broadcast_failures(
     Nothing is written unless ``apply`` is set, and the whole call is
     idempotent: a second run over the same failed attempt is a no-op.
     """
-    candidates = broadcast_failure_candidates(db, hours, limit, excluded_attempt_ids)
+    candidates = broadcast_failure_candidates(db, hours, limit, excluded_attempt_ids, manager_api)
     outcomes: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
     for candidate in candidates:
@@ -4526,7 +4928,7 @@ def tool_entry_failed(entry: dict[str, Any]) -> bool:
 
 
 def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> dict[str, Any]:
-    before, results, dry_run = build_report(db, hours, tools), [], not apply
+    before, results, dry_run = build_report(db, hours, tools, manager_api), [], not apply
     # The 24h review window currently reads the whole cow_execution_reviews
     # table because the existing scope index puts `category` between the scope
     # columns and `created_at`. The healer owns a read-only connection, so the
@@ -4614,10 +5016,16 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
                    "--chain-id", str(CHAIN_ID)] + (["--apply"] if apply else [])
         results.append({"layer": "closedLoops", "tool": "composite-manager", "result": run_tool(command)})
     rows = review_rows(db, hours, 500)
-    known_loops = {row["loop_key"] for row in all_rows(
-        db, "SELECT loop_key FROM manager_v4_closed_loops WHERE network=? AND chain_id=?",
-        (NETWORK, CHAIN_ID))}
-    hop_pools = closed_loop_hop_pools(db)
+    # The closed-loop catalog is owned by the **closed-loop Manager**, so it
+    # is read through the manager API.  The healer never selects from the
+    # manager's table: a direct read would bind the healer to the layout it
+    # does not own and could show a generation the manager never published.
+    known_loops = {
+        str(row.get("loopKey") or row.get("loop_key") or "").strip()
+        for row in (manager_read_closed_loops(manager_api).get("loops") or [])
+    }
+    known_loops.discard("")
+    hop_pools = closed_loop_hop_pools(db, manager_api)
     matched_rows = []
     for row in rows:
         key = review_loop_key(row)
@@ -4665,7 +5073,7 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
             seen_loops.add(loop_key)
             deduped_evidence.append(item)
         evidence = deduped_evidence
-        expected_upstream = review_expected_upstream(db)
+        expected_upstream = review_expected_upstream(db, manager_api)
         body = {"chainId": CHAIN_ID, "evidence": evidence, "dryRun": dry_run}
         if expected_upstream:
             body["expectedUpstream"] = expected_upstream
@@ -4695,7 +5103,7 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
     })
     return {"mode": "repair", "generatedAt": now(), "apply": apply, "dryRun": dry_run,
             "before": before, "results": results,
-            "after": build_report(db, hours, tools) if apply else None}
+            "after": build_report(db, hours, tools, manager_api) if apply else None}
 
 
 def ensure_review_indexes(db: Path, tools: Path, apply: bool) -> dict[str, Any]:
@@ -5112,7 +5520,7 @@ def supervise(
                     continue
 
             try:
-                before = build_report(db, hours, tools)
+                before = build_report(db, hours, tools, manager_api)
                 actions = healing_actions(before)
                 outcomes: list[dict[str, Any]] = []
                 # GAP-E: the upstream gate covers the layers that must be
@@ -5205,7 +5613,7 @@ def supervise(
                             attempt_id = str(entry.get("attemptId") or "")
                             if attempt_id and entry.get("action") == "finalize_failed":
                                 repaired_attempt_ids.add(attempt_id)
-                after = build_report(db, hours, tools)
+                after = build_report(db, hours, tools, manager_api)
                 after_status = cascade_layer_status(after)
                 before_status = cascade_layer_status(before)
                 stability_state = stability.observe(after)
@@ -5262,7 +5670,7 @@ def supervise(
 
 
 def watch(db: Path, hours: int, interval: int, max_samples: int | None,
-          tools: Path | None = None) -> Path:
+          tools: Path | None = None, manager_api: str | None = None) -> Path:
     WATCH_DIR.mkdir(parents=True, exist_ok=True)
     path, sample = WATCH_DIR / f"watch_{stamp()}.jsonl", 0
     # TASK-130: the watch loop is where the stable-achievement criterion is
@@ -5270,7 +5678,7 @@ def watch(db: Path, hours: int, interval: int, max_samples: int | None,
     # has to survive across samples and reset whenever a window breaks.
     tracker = StabilityTracker()
     while max_samples is None or sample < max_samples:
-        report = build_report(db, hours, tools)
+        report = build_report(db, hours, tools, manager_api)
         stability = tracker.observe(report)
         snapshot = {"timestamp": report["generatedAt"], "blockers": report["blockers"],
             "safeToAutoBroadcast": report["safeToAutoBroadcast"],
@@ -5334,7 +5742,7 @@ def main() -> int:
     except ValueError as error:
         parser.error(str(error))
     if args.mode == "check":
-        report = build_report(args.database, args.window_hours, args.tools)
+        report = build_report(args.database, args.window_hours, args.tools, args.manager_api)
         print_report(report)
         print(f"report={save('mainnet_arbitrage_healer_check', report)}")
     elif args.mode == "repair":
@@ -5342,7 +5750,7 @@ def main() -> int:
         print(f"apply={args.apply} results={len(report['results'])} "
               f"report={save('mainnet_arbitrage_healer_repair', report)}")
     elif args.mode == "watch":
-        print(f"watch={watch(args.database, args.window_hours, args.interval, args.max_samples, args.tools)}")
+        print(f"watch={watch(args.database, args.window_hours, args.interval, args.max_samples, args.tools, args.manager_api)}")
     elif args.mode == "rereview":
         report = rereview_historical_positive(
             args.database, args.runtime_api, args.apply, args.candidate_limit,

@@ -1,61 +1,61 @@
 
 running 73 tests
-test worker_pool::tests::a_profitable_single_probe_requests_the_full_ladder ... ok
-test worker_pool::tests::a_profitable_complete_ladder_is_not_retried ... ok
 test worker_pool::tests::a_missing_decimal_count_leaves_the_human_amount_unknown ... ok
+test worker_pool::tests::a_profitable_complete_ladder_is_not_retried ... ok
+test worker_pool::tests::a_profitable_single_probe_requests_the_full_ladder ... ok
 test worker_pool::tests::a_prebuilt_request_naming_its_own_anchor_is_accepted ... ok
 test worker_pool::tests::a_negative_signed_profit_keeps_its_sign ... ok
-test worker_pool::tests::a_route_without_pool_keys_publishes_no_pool_set ... ok
 test worker_pool::tests::a_missing_pool_set_is_reported_explicitly ... ok
+test worker_pool::tests::a_route_without_pool_keys_publishes_no_pool_set ... ok
 test worker_pool::tests::a_request_that_borrows_another_loops_anchor_is_refused ... ok
 test worker_pool::tests::an_unclosed_route_has_no_anchor_to_bind ... ok
 test worker_pool::tests::backoff_seconds_doubles_up_to_cap ... ok
 test worker_pool::tests::an_unsigned_zero_probe_is_never_published_as_the_signed_pnl ... ok
-test worker_pool::tests::broadcast_failure_keeps_profitable_review_payload ... ok
 test worker_pool::tests::a_pool_set_in_the_wrong_order_fails_closed ... ok
 test worker_pool::tests::a_matching_pool_set_verifies_the_second_half_of_the_identity ... ok
+test worker_pool::tests::broadcast_failure_keeps_profitable_review_payload ... ok
 test worker_pool::tests::a_wrong_pool_set_with_the_right_address_path_fails_closed ... ok
 test worker_pool::tests::closed_loop_identity_lookup_is_exact_and_fail_closed ... ok
 test worker_pool::tests::config_rpc_urls_falls_back_to_single_url ... ok
 test worker_pool::tests::compact_worker_status_exposes_prefilter_context_without_payload ... ok
 test worker_pool::tests::context_cache_refresh_keeps_stable_scope_object ... ok
 test worker_pool::tests::execution_queue_status_reports_counters ... ok
-test worker_pool::tests::executor_batch_queue_requires_nonempty_matching_eligible_requests ... ok
 test worker_pool::tests::executor_batch_collects_only_fully_gated_profitable_routes ... ok
+test worker_pool::tests::executor_batch_queue_requires_nonempty_matching_eligible_requests ... ok
 test worker_pool::tests::executor_batch_validator_rejects_partial_requests_after_build_failure ... ok
 test worker_pool::tests::full_scope_payload_builds_from_registered_scope_without_command ... ok
-test worker_pool::tests::helper_counts_are_parsed_from_native_result ... ok
 test worker_pool::tests::executor_batch_refuses_a_route_without_a_reviewed_minimum_output ... ok
+test worker_pool::tests::helper_counts_are_parsed_from_native_result ... ok
 test worker_pool::tests::inner_amount_search_no_profit_requests_external_ladder_retry ... ok
 test worker_pool::tests::inner_pool_preview_no_profit_does_not_retry_external_ladder ... ok
 test worker_pool::tests::inner_profitable_or_other_failure_does_not_trigger_no_profit_retry ... ok
 test worker_pool::tests::maintenance_scope_normalizes_network_chain_protocol ... ok
 test worker_pool::tests::mark_selected_route_direction_writes_into_serialized_route_copy ... ok
+test worker_pool::tests::compact_status_omits_heavy_worker_payload_fields ... ok
 test worker_pool::tests::maybe_broadcast_skips_when_stop_is_requested_between_review_and_broadcast ... ok
 test worker_pool::tests::per_direction_results_keep_both_directions_and_selected_broadcast ... ok
-test worker_pool::tests::compact_status_omits_heavy_worker_payload_fields ... ok
 test worker_pool::tests::per_direction_results_keep_concrete_unprofitable_route_payload ... ok
 test worker_pool::tests::preview_failover_does_not_switch_on_contract_revert ... ok
+test worker_pool::tests::executor_batch_builds_request_from_reviewed_route_and_pool_catalog ... ok
 test worker_pool::tests::preview_failover_returns_last_error_when_all_rpcs_fail ... ok
 test worker_pool::tests::preview_failover_switches_on_server_busy_response ... ok
-test worker_pool::tests::executor_batch_builds_request_from_reviewed_route_and_pool_catalog ... ok
 test worker_pool::tests::preview_failover_switches_only_on_retryable_rpc_errors ... ok
 test worker_pool::tests::registered_maintenance_scopes_includes_command_scopes ... ok
 test worker_pool::tests::retryable_rpc_helper_does_not_switch_on_contract_revert ... ok
 test worker_pool::tests::retryable_rpc_helper_returns_last_error_when_all_rpcs_fail ... ok
 test worker_pool::tests::retryable_rpc_helper_switches_on_transport_error ... ok
 test worker_pool::tests::route_error_kind_classifies_gas_failures ... ok
-test worker_pool::tests::prefilter_drops_known_empty_liquidity_pool_keys ... ok
 test worker_pool::tests::rpc_transport_error_detection_is_scoped_to_transport_failures ... ok
 test worker_pool::tests::review_queue_reports_lifecycle_counters ... ok
+test worker_pool::tests::prefilter_drops_known_empty_liquidity_pool_keys ... ok
 test worker_pool::tests::selected_route_overrides_carry_token_min_profit_and_selected_amounts ... ok
 test worker_pool::tests::should_route_to_execution_queue_requires_gate_and_profit ... ok
 test worker_pool::tests::status_reports_maintenance_defaults_when_handler_disabled ... ok
+test worker_pool::tests::the_anchor_is_the_address_the_closed_path_starts_and_ends_at ... ok
 test worker_pool::tests::the_borrow_token_comes_from_the_route_evidence ... ok
 test worker_pool::tests::status_reports_resident_workers_consistent_with_group_count ... ok
-test worker_pool::tests::the_decimals_registry_is_keyed_by_the_lower_case_address ... ok
-test worker_pool::tests::the_anchor_is_the_address_the_closed_path_starts_and_ends_at ... ok
 test worker_pool::tests::the_context_snapshot_is_taken_without_holding_the_lock ... ok
+test worker_pool::tests::the_decimals_registry_is_keyed_by_the_lower_case_address ... ok
 test worker_pool::tests::the_live_parity_payload_is_refused_when_the_route_does_not_close ... ok
 test worker_pool::tests::stop_pending_group_marks_latest_result_as_stopped_without_broadcast ... ok
 test worker_pool::tests::the_live_parity_payload_is_refused_when_the_route_is_not_profitable ... ok
@@ -67,15 +67,15 @@ test worker_pool::tests::the_route_pool_set_is_derived_from_the_priced_pool_keys
 test worker_pool::tests::the_signed_pnl_travels_with_the_reviewed_route ... ok
 test worker_pool::tests::the_signed_profit_carries_the_human_amount_of_the_borrow_token ... ok
 test worker_pool::tests::v4_pool_registry_indexes_by_id_and_token ... ok
-test worker_pool::tests::the_executor_request_is_bound_to_the_anchor_of_its_own_loop ... ok
-test worker_pool::tests::zero_liquidity_registry_ids_collect_only_explicit_empty_pools ... ok
 test worker_pool::tests::worker_status_includes_broadcast_failure_history_with_payloads ... ok
+test worker_pool::tests::zero_liquidity_registry_ids_collect_only_explicit_empty_pools ... ok
+test worker_pool::tests::the_executor_request_is_bound_to_the_anchor_of_its_own_loop ... ok
 test worker_pool::tests::worker_lifecycle_counters_are_exposed_after_spawn ... ok
 test worker_pool::tests::missing_rpc_config_records_native_worker_error ... ok
 test worker_pool::tests::stopped_group_keeps_thread_and_start_reuses_same_worker ... ok
 
-test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 124 filtered out; finished in 0.05s
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 124 filtered out; finished in 0.06s
 
 
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.57s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.60s
      Running unittests src\lib.rs (target\debug\deps\flashloan_rs-f4d654269b452c86.exe)
