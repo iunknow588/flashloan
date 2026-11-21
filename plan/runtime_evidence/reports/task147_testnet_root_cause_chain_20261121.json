@@ -1,0 +1,594 @@
+{
+  "report": "TASK-147 testnet closed-loop root cause chain",
+  "generated_at": "2026-11-21T03:15:39.618997+00:00",
+  "db_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_46630.sqlite3",
+  "chain_id": 46630,
+  "authority": "read-only local database inspection; no chain access; no writes",
+  "primary_cause": {
+    "name": "core4_scope_materialized_before_depth_snapshot_refresh",
+    "statement": "core4 域物化于全部 36 条深度快照刷新之前，按当时的旧深度裁决只有 1 个池通过闸门；候选边只从 core4 取池，因此只可能产生 1 个锚点组。",
+    "evidence": {
+      "core4_scope_row_count": 1,
+      "eligible_under_current_data": 5,
+      "candidate_edge_anchor_token_count": 1,
+      "candidate_edge_reads_pools_from": "v4_exchange_pools_core4"
+    }
+  },
+  "secondary_symptom": {
+    "name": "candidate_exchange_scope_version_drift",
+    "statement": "candidate_exchange 域早于 core 升到 v3 物化，其固定的 library_versions 与观测层不一致；闭环层在 library_versions.core 上 fail-closed。",
+    "evidence": {
+      "scope_version_drift": {
+        "candidate_exchange": {
+          "pinned": {
+            "core": 1,
+            "stocks": 1
+          },
+          "current_core_version": 3,
+          "drifted": true
+        },
+        "core4": {
+          "pinned": {
+            "core": 3,
+            "stocks": 1
+          },
+          "current_core_version": 3,
+          "drifted": false
+        }
+      },
+      "observation_library_versions": {
+        "core": 1,
+        "stocks": 1
+      },
+      "closed_loop_library_versions": {
+        "core": 1,
+        "stocks": 1
+      }
+    }
+  },
+  "ordering": {
+    "core4_scope_rebuilt_at": "2026-11-17T09:11:35.662590+00:00",
+    "latest_liquidity_snapshot_read_at": "2026-11-17T20:17:00.024697300+00:00",
+    "core4_rebuilt_before_latest_snapshot": true,
+    "candidate_exchange_rebuilt_at": "2026-11-15T14:24:38.179367900+00:00",
+    "candidate_exchange_rebuilt_before_core4": true
+  },
+  "observed_state": {
+    "scope_pinned_library_versions": {
+      "candidate_exchange": {
+        "library_versions": {
+          "core": 1,
+          "stocks": 1
+        },
+        "library_keys": [
+          "core",
+          "stocks"
+        ],
+        "last_rebuilt_at": "2026-11-15T14:24:38.179367900+00:00"
+      },
+      "core4": {
+        "library_versions": {
+          "core": 3,
+          "stocks": 1
+        },
+        "library_keys": [
+          "core",
+          "stocks"
+        ],
+        "last_rebuilt_at": "2026-11-17T09:11:35.662590+00:00"
+      }
+    },
+    "current_token_library_versions": {
+      "core": {
+        "library_version": 3,
+        "updated_at": "2026-11-17T00:21:38.482043500+00:00"
+      },
+      "stocks": {
+        "library_version": 1,
+        "updated_at": "2026-11-17T00:21:38.499641500+00:00"
+      },
+      "test": {
+        "library_version": 2,
+        "updated_at": "2026-11-17T00:21:38.504842800+00:00"
+      },
+      "extension": {
+        "library_version": 2,
+        "updated_at": "2026-11-17T00:21:38.512152400+00:00"
+      }
+    },
+    "admitted_catalog_size": 10,
+    "fund_anchor_set_size": 9,
+    "raw_pool_count": 36,
+    "eligible_under_current_data": [
+      {
+        "pool_id": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "symbol0": "ETH",
+        "symbol1": "AMZN",
+        "fee": 100,
+        "tick_spacing": 1,
+        "depth_status": "deep",
+        "liquidity_index": 525.8938259,
+        "liquidity_read_at": "2026-11-17T20:16:59.888407400+00:00",
+        "reject_reasons": []
+      },
+      {
+        "pool_id": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3",
+        "token0": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "symbol0": "PLTR",
+        "symbol1": "NFLX",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "medium",
+        "liquidity_index": 85.86249718,
+        "liquidity_read_at": "2026-11-17T20:16:59.903864700+00:00",
+        "reject_reasons": []
+      },
+      {
+        "pool_id": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a",
+        "token0": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "symbol0": "AMZN",
+        "symbol1": "AMD",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "deep",
+        "liquidity_index": 274.58785474,
+        "liquidity_read_at": "2026-11-17T20:16:59.884947300+00:00",
+        "reject_reasons": []
+      },
+      {
+        "pool_id": "0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38",
+        "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "symbol0": "AMD",
+        "symbol1": "TSLA",
+        "fee": 500,
+        "tick_spacing": 10,
+        "depth_status": "deep",
+        "liquidity_index": 444.84031321,
+        "liquidity_read_at": "2026-11-17T20:16:59.895764800+00:00",
+        "reject_reasons": []
+      },
+      {
+        "pool_id": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "symbol0": "AMD",
+        "symbol1": "TSLA",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "medium",
+        "liquidity_index": 52.38484258,
+        "liquidity_read_at": "2026-11-17T20:16:59.933019600+00:00",
+        "reject_reasons": []
+      }
+    ],
+    "eligible_count_under_current_data": 5,
+    "rejected_count_under_current_data": 31,
+    "rejected_sample": [
+      {
+        "pool_id": "0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "symbol0": "ETH",
+        "symbol1": "PLTR",
+        "fee": 2500,
+        "tick_spacing": 25,
+        "depth_status": "dust",
+        "liquidity_index": 0.0004,
+        "liquidity_read_at": "2026-11-17T20:16:59.956011800+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "symbol0": "ETH",
+        "symbol1": "PLTR",
+        "fee": 10000,
+        "tick_spacing": 200,
+        "depth_status": "dust",
+        "liquidity_index": 0.01414214,
+        "liquidity_read_at": "2026-11-17T20:16:59.968234500+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "symbol0": "ETH",
+        "symbol1": "PLTR",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.00713924,
+        "liquidity_read_at": "2026-11-17T20:17:00.010952200+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "symbol0": "ETH",
+        "symbol1": "PLTR",
+        "fee": 500,
+        "tick_spacing": 10,
+        "depth_status": "dust",
+        "liquidity_index": 0.0001,
+        "liquidity_read_at": "2026-11-17T20:17:00.020321200+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "symbol0": "ETH",
+        "symbol1": "NFLX",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.01400071,
+        "liquidity_read_at": "2026-11-17T20:16:59.874286400+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "symbol0": "ETH",
+        "symbol1": "NFLX",
+        "fee": 10000,
+        "tick_spacing": 200,
+        "depth_status": "dust",
+        "liquidity_index": 0.01414214,
+        "liquidity_read_at": "2026-11-17T20:16:59.976917200+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "symbol0": "ETH",
+        "symbol1": "AMZN",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.00070553,
+        "liquidity_read_at": "2026-11-17T20:16:59.936704800+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "symbol0": "ETH",
+        "symbol1": "AMZN",
+        "fee": 10000,
+        "tick_spacing": 200,
+        "depth_status": "dust",
+        "liquidity_index": 0.01414214,
+        "liquidity_read_at": "2026-11-17T20:16:59.952207100+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "symbol0": "ETH",
+        "symbol1": "AMD",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.00596222,
+        "liquidity_read_at": "2026-11-17T20:16:59.899677300+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "symbol0": "ETH",
+        "symbol1": "AMD",
+        "fee": 10000,
+        "tick_spacing": 200,
+        "depth_status": "dust",
+        "liquidity_index": 0.01414214,
+        "liquidity_read_at": "2026-11-17T20:16:59.982050200+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xa5ed3a24efad9e9409501721d793e9f144664962d5675aaa946948ce13051551",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x7943e237c7f95da44e0301572d358911207852fa",
+        "symbol0": "ETH",
+        "symbol1": "WETH",
+        "fee": 3000,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.000495,
+        "liquidity_read_at": "2026-11-17T20:16:59.960526500+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      },
+      {
+        "pool_id": "0xb8d6ee94cfa77ad5a2e14b754c746342156cdc85684cb518a4bd854f7c2cf2a0",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x7943e237c7f95da44e0301572d358911207852fa",
+        "symbol0": "ETH",
+        "symbol1": "WETH",
+        "fee": 5555,
+        "tick_spacing": 60,
+        "depth_status": "dust",
+        "liquidity_index": 0.0025,
+        "liquidity_read_at": "2026-11-17T20:16:59.986014700+00:00",
+        "reject_reasons": [
+          "depth_ineligible:dust"
+        ]
+      }
+    ],
+    "core4_scope_rows": [
+      {
+        "pool_id": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-17T08:39:26.052069400+00:00"
+      }
+    ],
+    "candidate_exchange_scope_rows": [
+      {
+        "pool_id": "0x01fd826e4f303948319e30748c5ab019f2588657a5c3a143181844815ccab3e0",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:47:35.515809Z"
+      },
+      {
+        "pool_id": "0x14c58881ab1aea1cf913fa701ff7a1e38effe2de0720bf9b841f73b3556f5a3a",
+        "token0": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:49:16.923385Z"
+      },
+      {
+        "pool_id": "0x1965da48bc986ea0f6197b65521da2f668c22ccc5830f628d0f8f920bef8bc66",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:49:52.112951Z"
+      },
+      {
+        "pool_id": "0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:49:55.898757Z"
+      },
+      {
+        "pool_id": "0x3265a6150d5dc4bdf886c556e1ca5f9237b3aff6efa0e559706a89ff07380a38",
+        "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:52:44.585193Z"
+      },
+      {
+        "pool_id": "0x3dfb14a93967d1a8b2615e6ca3148189f5fce9a69be46a84b3e33905887b5cdd",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:53:53.533652Z"
+      },
+      {
+        "pool_id": "0x415a9cfbc2b653754a248a0f1f4d1b9d9e9af43b9f708e1cb9616b1690ff9ff3",
+        "token0": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:54:15.749119Z"
+      },
+      {
+        "pool_id": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T12:59:21.189904Z"
+      },
+      {
+        "pool_id": "0x7ccf46a008ba5e72abea4d736d184e2ce8ba0f516aef61a7a7b2a76c4d2b919e",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:00:10.886952Z"
+      },
+      {
+        "pool_id": "0x927d1eaa155afa1b353098adb3cfe76b369dee711b287825852f6b7388bbf576",
+        "token0": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "pool_status": "blocked",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:02:22.756084Z"
+      },
+      {
+        "pool_id": "0x978bf7f3949ffc284ed352e28b0bc32efecc9efd0f4f0c4bc971ff742ac3b066",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:02:53.094919Z"
+      },
+      {
+        "pool_id": "0xa33f836f4c6413b81781fe85611498c21e87aa8694a653eb8ae8cce79f7d156c",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:04:11.119283Z"
+      },
+      {
+        "pool_id": "0xa80def62bcca3e86333c6060039ce1e430738b701a109a6d3a6d99fbe936eb96",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:04:53.055388Z"
+      },
+      {
+        "pool_id": "0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:05:35.095287Z"
+      },
+      {
+        "pool_id": "0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x3b8262a63d25f0477c4dde23f83cfe22cb768c93",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:06:00.247370Z"
+      },
+      {
+        "pool_id": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:06:24.433341Z"
+      },
+      {
+        "pool_id": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:08:21.279535Z"
+      },
+      {
+        "pool_id": "0xcf6cbc2e370cbe2d78a33232f0b1ecf960b01e7745dddec34f3e838768d9d94b",
+        "token0": "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:08:28.121043Z"
+      },
+      {
+        "pool_id": "0xde28ba8655365f9b7dbb945dad5d541f11c0bd604f1eeee7ec2563661047c638",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:10:05.890788Z"
+      },
+      {
+        "pool_id": "0xe55a5d6fc96f0bd36ff0d3f12d3ced0035e06ec5c4e42f3a0a3daa6f7260f75a",
+        "token0": "0x0000000000000000000000000000000000000000",
+        "token1": "0x1fbe1a0e43594b3455993b5de5fd0a7a266298d0",
+        "pool_status": "active",
+        "status_reason": null,
+        "liquidity_read_at": "2026-11-15T13:10:49.859471Z"
+      }
+    ],
+    "observation_state": {
+      "library_versions": {
+        "core": 1,
+        "stocks": 1
+      },
+      "direction_count": 0,
+      "pool_count": 0,
+      "updated_at": "2026-11-17T09:12:26.623804100+00:00"
+    },
+    "candidate_edge_state": {
+      "anchor_token_count": 1,
+      "candidate_token_count": 1,
+      "eligible_pool_count": 1,
+      "library_versions": {
+        "core": 3,
+        "extension": 2,
+        "stocks": 1,
+        "test": 2
+      },
+      "pool_scope_checksum": "sha256:520512040fca5b355559dce74733a5e3d4b2944a23541982eda0bcbbb46b9380",
+      "updated_at": "2026-11-18T09:56:47.126032900+00:00"
+    },
+    "closed_loop_state": {
+      "loop_count": 0,
+      "hop_count": 0,
+      "skipped_token_count": 1,
+      "updated_at": "2026-11-17T09:12:26.724369500+00:00"
+    },
+    "table_counts": {
+      "manager_v4_closed_loops": 0,
+      "manager_v4_closed_loop_hops": 0,
+      "manager_v4_closed_loop_optimizations": 0,
+      "manager_market_observation_yz_pairs": 0,
+      "manager_market_observation_intermediate_pools": 0,
+      "manager_market_observation_liquidity_snapshots": 0,
+      "manager_dex_candidate_anchor_tokens": 1,
+      "manager_dex_candidate_pool_pairs": 1,
+      "manager_dex_candidate_pools": 1
+    },
+    "liquidity_snapshot_read_times": {
+      "distinct": 36,
+      "earliest": "2026-11-17T20:16:59.874286400+00:00",
+      "latest": "2026-11-17T20:17:00.024697300+00:00"
+    }
+  },
+  "verdict": {
+    "core4_scope_is_stale_vs_depth_snapshot": true,
+    "candidate_exchange_scope_version_drifted": true,
+    "core4_scope_version_drifted": false,
+    "material_is_available_under_current_depth": true,
+    "closed_loop_count": 0,
+    "observation_direction_count": 0,
+    "candidate_edge_anchor_count": 1
+  },
+  "implication": {
+    "ordering_of_repairs": [
+      "① 刷新 core4 域（读当前深度快照）——结构不变，仅重物化",
+      "② 重建 candidate_edge（从 core4 取池）——会得到多个锚点组",
+      "③ 重建 candidate_exchange 域（钉到 core v3）——消除版本漂移",
+      "④ 重建市场观测（产生 yz_pairs / intermediate_pools）",
+      "⑤ 重跑 Manager 闭环"
+    ],
+    "note": "① 与 ③ 属动态记录写入（写入当前链状态下的测量结果），按计划 §0.3 仍需单独授权；但顺序不可颠倒——先刷 core4，否则 candidate_edge 无池可取。",
+    "not_required": [
+      "不需要放宽 MIN_POOL_TVL_USD / MAX_POOL_TVL_USD / 费率 / hooks / liquidity 任何固定门槛",
+      "不需要手改 admission",
+      "不需要回灌历史 loops / depth / 权限"
+    ]
+  }
+}

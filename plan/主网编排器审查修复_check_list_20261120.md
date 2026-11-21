@@ -1,4 +1,4 @@
-# 主网自愈编排器审查修复 Checklist v11.0（2026-11-21）
+# 主网自愈编排器审查修复 Checklist v11.2（2026-11-21）
 
 > **本清单仅包含未完成的验收条件。**已完成的验收项已从本文件移除，其证据与诚实边界完整保存在 `plan/back/`。
 >
@@ -9,15 +9,20 @@
 > **§1 功能性（离线可实施，优先）** / **§2 实盘与耗时（需授权或长窗口，靠后）** / **§3 性能优化（最后）**。
 > 新增 `TASK-155`（执行器请求的闭环锚点绑定守卫）。
 >
-> **当前开放任务**：`TASK-146` / `TASK-155`（**已闭合**）、`TASK-144`（离线侧已闭合，剩实盘）、
+> **第 56 轮变更（v11.2）**：`TASK-147` 的根因由"`candidate_exchange` 域库版本漂移"**精化为时序错位**
+> （`core4` 域物化早于深度快照刷新 ≈ 11 小时），并把验收项改写为**五步有序重建**。
+> **不改变**任何任务编号、验收编号或绑定规则。
+>
+> **当前开放任务**：`TASK-144`（离线侧已闭合，剩实盘）、
 > `TASK-154`（ETH / WETH 两个独立资金锚点，剩实盘字段核验）、`TASK-143`（剩新鲜度）、
 > `TASK-145`（剩测试网同一验证路径）、`TASK-147`（测试网闭环恢复）、`TASK-141`（最耗时，最后）。
+> **已闭合并归档**：`TASK-146` / `TASK-155`。
 > **已归档不再复用的编号**：`TASK-142`、`TASK-148`、`TASK-149`、`TASK-150`、`TASK-151`、`TASK-152`、`TASK-153`、`AC-213`、`AC-214`。
 > **下一个可用任务编号**：`TASK-156`。
 
 ## 0. 约束
 
-- 活动任务：`TASK-141`..`TASK-147`、`TASK-154`、`TASK-155`（已归档不复用：`TASK-142`、`TASK-148`..`TASK-153`）；验收编号：`AC-211`..`AC-212`（`AC-213`/`AC-214` 已关闭）。**编号不复用；下一个可用任务编号为 `TASK-156`。**
+- 活动任务：`TASK-141`..`TASK-147`、`TASK-154`（`TASK-146` / `TASK-155` **已闭合并归档**；已归档不复用：`TASK-142`、`TASK-148`..`TASK-153`）；验收编号：`AC-211`..`AC-212`（`AC-213`/`AC-214` 已关闭）。**编号不复用；下一个可用任务编号为 `TASK-156`。**
 - Rust 内存内核是金额、容量、利润和闭环身份的权威。Python 仅消费和转发。
 - 链库、chain ID、RPC/WSS、权限和运行状态互相隔离。
 - 测得 0 与未测量必须显式区分；不完整、陈旧或未知一律 fail-closed。
@@ -131,7 +136,7 @@
 
 ### TASK-145｜USDG 估值单位与覆盖（AC-212）
 
-> **1/2/3/5 已证实**；**第 4 项未达成**（测试网 Manager loop = 0，根因 = `TASK-147` 的库版本漂移，**需写库**）。
+> **1/2/3/5 已证实**；**第 4 项未达成**（测试网 Manager loop = 0，阻塞项 = `TASK-147` 的五步有序重建，**需写库**，见本节 `TASK-147`）。
 > **覆盖率不能替代真实 review 单位复核。**
 
 - [ ] 主网 88/88 覆盖在新鲜 Manager 状态下复核；测试网 Manager loops>0 后执行同一验证。**覆盖率不能替代真实 review 单位检查。**
@@ -140,10 +145,23 @@
 
 ### TASK-147｜测试网有效候选、池与 Manager 闭环（AC-211）
 
-- [ ] 以当前链状态刷新 pool depth/tick，**不放宽固定门槛**。（需写库，**待授权**）
-- [ ] 证明确有至少两个不同 admitted token 形成观察方向；要求 `direction_count>0`、Manager `loopCount>0`。
-- [ ] Manager loops/hops/optimizations、上游版本/checksum 全部闭合后才运行测试网 review。
-- [ ] **不手改 admission**、**不回灌**历史 loops/depth/权限。
+> **第 56 轮根因精化（实测，取代"版本漂移 = 根因"）**：
+> **主因 = `core4` 域物化（`2026-11-17T09:11:35Z`）早于全部 36 条深度快照刷新（`2026-11-17T20:16:59Z`–`20:17:00Z`）约 11 小时**，
+> 按旧深度裁决只有 **1** 个池过闸门 → `v4_exchange_pools_core4` 仅 1 行 →
+> `candidate_edge` 只从 `core4` 取池（`candidate_edge_pool_manager/src/lib.rs:868`）→ **锚点组数 = 1**（主网同口径 112）。
+> **次生症状** = `candidate_exchange` 域物化于 `core` 升 v3 之前，固定 `{"core":1}`，观测层为 `{"core":3}` → 闭环层在 `library_versions.core` **fail-closed**。
+> **材料充足**：用当前深度数据复算同一套闸门，**过闸门池 = 5 个**（ETH↔AMZN、PLTR↔NFLX、AMZN↔AMD、AMD↔TSLA ×2）—— **不是候选池不够**。
+> 证据：`plan/runtime_evidence/reports/task147_testnet_root_cause_chain_20261121.json`（脚本 `collect_task147_testnet_root_cause_chain_20261121.py`，只读可重跑）。
+
+**五步有序重建（顺序不可颠倒；全部属动态记录写入，需单独授权）**：
+
+- [ ] **①** 以 `dry_run=true` 预演**刷新 `core4` 域**（读当前深度快照重新物化），确认过闸门池 = **5**。**（必须最先，否则下面无池可取）**
+- [ ] **②** **重建 `candidate_edge`**，确认锚点组数从 **1** 上升。
+- [ ] **③** **重建 `candidate_exchange` 域**，确认 `library_versions.core` 已自动重钉为 **3**（`read_library_states()` 实时读版本，**无需手改版本号**）。
+- [ ] **④** **重建市场观测**（`yz_pairs` / `intermediate_pools`），确认行数 **> 0**。
+- [ ] **⑤** **重跑 Manager 闭环**，要求 `direction_count>0`、`loopCount>0`，且 `loops`/`hops`/`optimizations`、上游版本/checksum **全部闭合**。
+- [ ] 全程**不放宽固定门槛**（`MIN_POOL_TVL_USD` / `MAX_POOL_TVL_USD` / 费率 / hooks / liquidity 均不动）、**不手改 admission**、**不回灌**历史 loops/depth/权限。
+- [ ] **⑤ 闭合后**才运行测试网 review，并复采前置报告（`rpc.wss` 仍记为**未测量**，不得记为零）。
 
 ### TASK-154 实盘字段核验（并入本节最后）
 
