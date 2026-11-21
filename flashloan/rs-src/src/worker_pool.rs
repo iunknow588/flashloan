@@ -1790,6 +1790,75 @@ fn live_review_parity_payload(
     }))
 }
 
+/// The funding anchor of the closed loop this route belongs to.
+///
+/// The anchor is the currency the loop **borrows and repays**: the first
+/// address of the route path, which the closed path returns to at its end.
+/// It is published by the closed-loop Manager as the first component of the
+/// loop key, and it is the token every denomination of the loop - the
+/// capacity, the signed profit and the borrow token - is expressed in.
+///
+/// The anchor is read as an ordinary address. It is not given a special
+/// branch: `address(0)` and the wrapped-native address are two distinct
+/// anchors of two distinct closed loops, and the loop identity already
+/// keeps them apart. What this function guarantees is only that the
+/// executor request borrows and repays **the anchor of its own loop**.
+fn closed_loop_anchor(route_payload: &Value, route_config: &Value) -> Option<String> {
+    for source in [route_payload, route_config] {
+        let Some(addresses) = source.get("routeAddresses").and_then(Value::as_array) else {
+            continue;
+        };
+        let addresses: Vec<String> = addresses
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect();
+        if addresses.len() < 2 {
+            continue;
+        }
+        // A closed loop returns to the currency it started from. A path
+        // that does not close is not a closed loop, so it has no anchor to
+        // bind the request to.
+        if addresses.first() != addresses.last() {
+            continue;
+        }
+        return addresses.first().cloned();
+    }
+    None
+}
+
+/// Bind the executor request to the anchor of its own closed loop.
+///
+/// The request borrows and repays one currency. That currency has to be
+/// the anchor of the loop the route was published for, because the whole
+/// loop is denominated in it: the capacity that bounds the amount, the
+/// signed profit and the borrow token. A request that borrows a different
+/// currency would borrow against the capacity of one loop and repay into
+/// another, so it is refused rather than sent.
+///
+/// The check is made on the **address**, with no special case for the
+/// native address: the identity of the loop already separates the anchors,
+/// and the guard only insists that the request stays inside its own loop.
+fn anchor_binding_blocks_broadcast(
+    route_payload: &Value,
+    route_config: &Value,
+    request: &Value,
+) -> Option<String> {
+    let anchor = closed_loop_anchor(route_payload, route_config)?;
+    let token = request
+        .get("token")
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())?;
+    if token == anchor {
+        return None;
+    }
+    Some(format!(
+        "executor_request_anchor_mismatch:anchor={anchor}:token={token}"
+    ))
+}
+
 fn eligible_executor_batch_request(
     route_payload: &Value,
     route_config: &Value,
@@ -1844,6 +1913,13 @@ fn eligible_executor_batch_request(
     // execution bound was never proved.
     if reviewed_min_amount_out(&request).is_none() {
         return Err("executor_request_reviewed_minimum_output_unavailable".to_string());
+    }
+    // The request must borrow and repay the anchor of **its own** closed
+    // loop. The route path is closed, so the request already repays what it
+    // borrows; this refuses the case where that currency is not the anchor
+    // the loop is denominated in.
+    if let Some(reason) = anchor_binding_blocks_broadcast(route_payload, route_config, &request) {
+        return Err(reason);
     }
     Ok(Some(request))
 }
@@ -7487,6 +7563,204 @@ mod tests {
                 "http://primary"
             ),
             vec!["http://a", "http://b"]
+        );
+    }
+
+    /// A pool key of the shape the executor request builder consumes.
+    fn anchor_sample_pool_key(
+        currency0: &str,
+        currency1: &str,
+        fee: u64,
+        tick_spacing: i64,
+    ) -> Value {
+        json!({
+            "currency0": currency0,
+            "currency1": currency1,
+            "fee": fee,
+            "tickSpacing": tick_spacing,
+            "hooks": "0x3333333333333333333333333333333333333333",
+        })
+    }
+
+    /// The executor request borrows and repays **the anchor of its own
+    /// closed loop**. The route path is closed, so the request already
+    /// repays what it borrows; the guard refuses the case where that
+    /// currency is not the anchor the loop is denominated in.
+    ///
+    /// The anchor is an ordinary address. `address(0)` and the
+    /// wrapped-native address are two anchors of two different loops, and
+    /// the guard treats them the same way: each request must name the
+    /// anchor of the loop it belongs to. Neither is converted into the
+    /// other, and neither gets a special branch.
+    #[test]
+    fn the_executor_request_is_bound_to_the_anchor_of_its_own_loop() {
+        let native = "0x0000000000000000000000000000000000000000";
+        let wrapped = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+        let middle = "0x2222222222222222222222222222222222222222";
+        let third = "0x3333333333333333333333333333333333333333";
+        let manager = "0x4444444444444444444444444444444444444444";
+
+        let payload_for = |anchor: &str| {
+            json!({
+                "status": "profitable_amount_found",
+                "selectedAmountRaw": "0x64",
+                "selectedProfitRaw": "0x0a",
+                "selectedKeys": [
+                    anchor_sample_pool_key(anchor, middle, 3_000, 60),
+                    anchor_sample_pool_key(middle, third, 500, 10),
+                    anchor_sample_pool_key(anchor, third, 1_000, 20),
+                ],
+                "selectedDirections": [true, true, false],
+                "outTb": "0x5a",
+                "outTa": "0x50",
+                "outTz": "0x6e",
+                "routeAddresses": [anchor, middle, anchor],
+            })
+        };
+        let config_for = |anchor: &str| {
+            json!({
+                "manualBroadcast": true,
+                "token": anchor,
+                "minProfitRaw": "0x05",
+                "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+                "poolManager": manager,
+            })
+        };
+
+        // A native-anchored loop borrows and repays the native address.
+        let native_payload = payload_for(native);
+        let native_config = config_for(native);
+        let request = eligible_executor_batch_request(&native_payload, &native_config, None)
+            .expect("a native anchored request is built")
+            .expect("a native anchored request is eligible");
+        assert_eq!(request["token"], json!(native));
+        assert_eq!(request["finalToken"], json!(native));
+        assert!(
+            anchor_binding_blocks_broadcast(&native_payload, &native_config, &request).is_none(),
+            "the native anchor binds its own request"
+        );
+
+        // A wrapped-native anchored loop borrows and repays the wrapped
+        // address. It is a different loop with a different anchor, not a
+        // variant of the native one.
+        let wrapped_payload = payload_for(wrapped);
+        let wrapped_config = config_for(wrapped);
+        let request = eligible_executor_batch_request(&wrapped_payload, &wrapped_config, None)
+            .expect("a wrapped anchored request is built")
+            .expect("a wrapped anchored request is eligible");
+        assert_eq!(request["token"], json!(wrapped));
+        assert_eq!(request["finalToken"], json!(wrapped));
+        assert!(
+            anchor_binding_blocks_broadcast(&wrapped_payload, &wrapped_config, &request).is_none(),
+            "the wrapped anchor binds its own request"
+        );
+    }
+
+    /// A request that borrows a currency other than the anchor of its own
+    /// loop is refused. It would borrow against the capacity of one loop and
+    /// repay into another.
+    ///
+    /// The request arrives pre-built here, which is the case the guard
+    /// exists for: a request that is not derived from the reviewed route
+    /// carries no closed-path check of its own, so nothing else would notice
+    /// that it names a foreign anchor.
+    #[test]
+    fn a_request_that_borrows_another_loops_anchor_is_refused() {
+        let native = "0x0000000000000000000000000000000000000000";
+        let wrapped = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+        let middle = "0x2222222222222222222222222222222222222222";
+
+        // The route is a native-anchored loop, but the request names the
+        // wrapped address as the currency it borrows and repays.
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "routeAddresses": [native, middle, native],
+        });
+        let route_config = json!({
+            "manualBroadcast": true,
+            "token": wrapped,
+            "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+            "executorRequest": {
+                "token": wrapped,
+                "amount": "0x64",
+                "swapTargets": [],
+                "swapCalldatas": [],
+                "finalToken": wrapped,
+                "minProfit": "0x05",
+                "minAmountOut": "0x6e",
+            },
+        });
+        let error = eligible_executor_batch_request(&route_payload, &route_config, None)
+            .expect_err("a foreign anchor must not produce a request")
+            .to_string();
+        assert!(
+            error.starts_with("executor_request_anchor_mismatch"),
+            "the refusal names the anchor mismatch, got {error}"
+        );
+    }
+
+    /// The same pre-built request, naming the anchor of its own loop, is
+    /// accepted. The guard refuses the foreign anchor only, and does not
+    /// become a blanket veto.
+    #[test]
+    fn a_prebuilt_request_naming_its_own_anchor_is_accepted() {
+        let native = "0x0000000000000000000000000000000000000000";
+        let middle = "0x2222222222222222222222222222222222222222";
+        let route_payload = json!({
+            "status": "profitable_amount_found",
+            "routeAddresses": [native, middle, native],
+        });
+        let route_config = json!({
+            "manualBroadcast": true,
+            "token": native,
+            "hopSqrtPriceLimits": ["0x10", "0x20", "0x30"],
+            "executorRequest": {
+                "token": native,
+                "amount": "0x64",
+                "swapTargets": [],
+                "swapCalldatas": [],
+                "finalToken": native,
+                "minProfit": "0x05",
+                "minAmountOut": "0x6e",
+            },
+        });
+        let request = eligible_executor_batch_request(&route_payload, &route_config, None)
+            .expect("an own-anchor request is built")
+            .expect("an own-anchor request is eligible");
+        assert_eq!(request["token"], json!(native));
+        assert_eq!(request["finalToken"], json!(native));
+    }
+
+    /// A route that is not closed has no anchor, so no request may be
+    /// bound to it. The guard stays silent rather than guessing one.
+    #[test]
+    fn an_unclosed_route_has_no_anchor_to_bind() {
+        let native = "0x0000000000000000000000000000000000000000";
+        let middle = "0x2222222222222222222222222222222222222222";
+        let route_payload = json!({
+            "routeAddresses": [native, middle],
+        });
+        let route_config = json!({"token": native});
+        assert!(
+            closed_loop_anchor(&route_payload, &route_config).is_none(),
+            "an unclosed path is not a closed loop"
+        );
+    }
+
+    /// The anchor of the loop is the address the path starts and ends at.
+    /// The route publishes it, and the request has to agree with it.
+    #[test]
+    fn the_anchor_is_the_address_the_closed_path_starts_and_ends_at() {
+        let native = "0x0000000000000000000000000000000000000000";
+        let middle = "0x2222222222222222222222222222222222222222";
+        let route_payload = json!({
+            "routeAddresses": [native, middle, native],
+        });
+        let route_config = json!({});
+        assert_eq!(
+            closed_loop_anchor(&route_payload, &route_config),
+            Some(native.to_string()),
+            "the closed path names its own anchor"
         );
     }
 }
