@@ -5,7 +5,7 @@
 > **归档索引**：`plan/back/已完成任务归档索引_20261120_v10.22.md`（v10.29）。
 > **归档前快照**：`plan/back/冻结归档_check_list_20261121_v10.29.md`（保留了本次收敛前的全部验收项与读数）。
 >
-> **当前开放任务**：`TASK-143`（剩新鲜度）、`TASK-145`（剩测试网同一验证路径）、`TASK-154`（原生 ETH 偿还）、`TASK-147`（测试网闭环恢复）、`TASK-146` / `TASK-144` / `TASK-141`。
+> **当前开放任务**：`TASK-143`（剩新鲜度）、`TASK-145`（剩测试网同一验证路径）、`TASK-154`（ETH / WETH 两个独立资金锚点）、`TASK-147`（测试网闭环恢复）、`TASK-146` / `TASK-144` / `TASK-141`。
 > **已归档不再复用的编号**：`TASK-142`、`TASK-148`、`TASK-149`、`TASK-150`、`TASK-151`、`TASK-152`、`TASK-153`、`AC-213`、`AC-214`。
 > **下一个可用任务编号**：`TASK-155`。
 
@@ -60,31 +60,38 @@
       **下一步**：① `TASK-147` 重新钉版 + 重建观测 + 重跑 Manager（**需写库**）；
       ② loop > 0 后用**同一脚本**重跑并**重新核验**本项及 1/2/3/5（**不可沿用本轮数字**）。
 
-### TASK-154｜原生 ETH 闪贷偿还（新增任务，不得使用 WETH 中转）
+### TASK-154｜ETH 与 WETH 两个独立资金锚点（**不做互相转换**）
 
 > **使用者指示（2026-11-21）**：“不要用 WETH 偿还 ETH。这是浪费。”
-> 已写入开发计划 **§3.3.1**（绑定性架构规则）；协议分析见开发计划 **§7.12.10**。
-> 本任务只负责把该规则落成**可独立核验的验收项**，不新增估值口径。
+> **正式口径**：ETH 与 WETH 是**两个不同的资金锚点**，在 V4 中**不存在**“闪电贷借贷关系”这种需要跨锚点结算的东西。
+> 涉及 ETH 与 WETH 的闭环**全部使用各自锚点的资金代币结算** —— ETH 锚点闭环用 ETH，WETH 锚点闭环用 WETH。
+> **它们就是两个闭环**，不做任何包装/解包转换，**不特殊处理**。
+> 已写入开发计划 **§3.3.1**（绑定性架构规则）与 **§7.12**（协议分析与实测证据）；本任务只负责把它落成**可独立核验的验收项**。
 
-- [ ] 任何以 ETH 计值的闪贷借款，借出与偿还均使用**原生 ETH**（`address(0)`）；
-      **不得**出现“借 ETH → wrap → 交易 → unwrap → 偿还”的包装/解包中转。
-      —— **未实现**：本仓库不直接调用 PoolManager 的 `take`/`settle`，而是构造对**外部 V4 闪贷执行器合约**的请求
-      （`build_v4_flash_executor_request`，`flashloan/rs-src/src/execution.rs` 约 529 行；`route_currency()` 约 517 行读 `currency0`/`currency1`）。
-      执行器合约源码不在本仓库内（未找到 `.sol`），故**需先确认执行器的实际行为**，才能判定本项是否已满足。
-- [ ] 执行器请求中的借款/偿还代币字段，当借款代币为原生 ETH 时为 **`address(0)`**（而非 WETH 地址 `0x0bd7...ad73`），
-      且偿还不降低到需要 WETH 中转的交易体。
+- [ ] ETH 锚点闭环的实盘请求代币字段为 **`address(0)`**；WETH 锚点闭环为 **WETH 地址 `0x0bd7…ad73`** ——
+      各自等于**本闭环自己的锚点地址**，随闭环而异，**不全局固定为某一个**。
       —— **未核验**：需实盘请求里的代币字段可被独立核验时才能关闭。
-      仓库侧事实：`manager_dex_candidate_pools` 中 **36/180** 个池配对 `address(0)`（原生 ETH），其余 144 个为 ERC-20；
-      ETH = `token_kind='native'`、WETH = `token_kind='wrapped_native'`，各自 18 小数；两者 USDG 估值 **2461669444** vs **1804537685**（**不同估值**）。
-- [ ] 对 `address(0)` 的任何 `transfer` / `approve` 调用均回滚；代码必须通过 `isAddressZero()` / `isNative` 分支走 `msg.value`，
-      不得对 `address(0)` 做 ERC-20 调用。
-      —— **未实现**：当前请求构建层以地址字段传递，未见分支语义。
-- [ ] 原生偿还的协议顺序为 `sync(address(0))` → `settle{value: amount}(address(0))`（**`sync` 不可省略**：
-      V4 `PoolManager._settle` 注释明确提示原生结算仍需先 `sync` 以避免 DoS）。
-      —— **未核验**：需执行器合约源码可核。
+      仓库侧事实：主网 chain 4663 `manager_v4_closed_loops` 共 164 条，**ETH 锚点 26 条 / WETH 锚点 6 条**，
+      两者 `loop_key`（`"{anchor}:{y}:{z}"`，`flashloan/tools/closed_loop_manager/src/lib.rs` 约 2390 行）**完全分离**；
+      两者 USDG 估值 **2461669444** vs **1804537685**（**不同估值**），各 18 小数；
+      `manager_dex_candidate_pools` 中 **36/180** 个池配对 `address(0)`（原生 ETH），其余 144 个为 ERC-20。
+- [ ] 请求体中**不存在**任何跨锚点转换动作：无 wrap/unwrap，无 ETH↔WETH 换币，
+      借出与偿还用**同一个锚点代币**（请求体只有一个 `token` 字段与 `finalToken`）。
+      —— **代码侧已满足，待实盘核验**：`build_v4_flash_executor_request()`
+      （`flashloan/rs-src/src/execution.rs` 约 529 行）已强制 `first_input == token && third_output == token`（约 604–610 行）。
+- [ ] **不新增**“原生 ETH 特殊处理”分支：`address(0)` 走与普通地址**完全相同**的代码路径
+      （不引入 `isNative` / `isAddressZero` 之类分支）。
+      —— **代码侧已满足**：`normalize_address()`（`flashloan/tools/manager_contracts/src/ids.rs` 约 272 行）
+      只做小写 + 长度 + 十六进制校验，**对 `address(0)` 无特判**；
+      单测 `native_zero_address_is_valid_and_distinct_from_weth`（约 323 行）断言两者 `currency_key()` 不相等。
+- [ ] 路径中经过异种锚点池时，**该段**按该池自身币种计价，**闭环锚点保持不变**
+      （池的币种属性 ≠ 锚点资产被转换）。
+      —— **代码侧已满足，待实盘核验**：`route_currency()`（约 517 行）只读各池自己的 `currency0`/`currency1`；
+      实测 ETH 锚点闭环有 4 条路径含 WETH 池、WETH 锚点闭环有 4 条路径含 `address(0)` 池，两类共存。
 
-> **边界**：本任务**不引入任何 WETH 包装/解包能力**。若路径某段本身就是 WETH 池，
-> 应在**路径构建层**尽量避开（优先选原生 ETH 池），而不是在偿还阶段包一层封装。
+> **边界**：本任务**不引入任何 WETH 包装/解包能力**，也**不引入**原生 ETH 特殊分支。
+> 若希望改变锚点（例如从 ETH 锚点改走 WETH 锚点），那是在**选另一条闭环**，不是在同一条闭环里做转换。
+
 
 ---
 
