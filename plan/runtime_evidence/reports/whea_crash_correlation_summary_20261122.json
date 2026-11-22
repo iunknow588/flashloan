@@ -1,0 +1,33 @@
+{
+  "generated_for": "TASK-161 / P3 crash forensics correction",
+  "event41_total_2026": 146,
+  "with_cpu_whea_within_60s": 144,
+  "match_rate_pct": 98.6,
+  "delta_seconds": {
+    "min": 5.657,
+    "max": 10.345,
+    "mean": 7.791,
+    "median": 7.706,
+    "stdev": 0.828
+  },
+  "all_bugcheck_code_zero": true,
+  "all_whea_severity_fatal": true,
+  "monthly": {
+    "2026-08": {
+      "event41": 97,
+      "matched": 95
+    },
+    "2026-09": {
+      "event41": 16,
+      "matched": 16
+    },
+    "2026-10": {
+      "event41": 17,
+      "matched": 17
+    },
+    "2026-11": {
+      "event41": 16,
+      "matched": 16
+    }
+  }
+}

@@ -78,7 +78,7 @@
 
 ## 2. 实盘与耗时验收（**需授权或需长窗口，靠后执行**）
 
-### TASK-161｜关闭 VS Installer 自动后台下载（**v12.3 新立，P0 系统稳定性，排在最前**）
+### TASK-161｜系统稳定性：关闭 VS Installer 后台下载 + 打开崩溃取证开关（**v12.3 新立 / v12.4 纠正，P0 系统稳定性，排在最前**）
 
 > **为什么排在所有功能验收之前**：主网自愈编排器是**长跑进程**。
 > VS Installer 后台下载完成会**自动进入安装阶段**（`updateDownloadedSize` 的
@@ -135,6 +135,65 @@
 **不放宽**任何门禁。它**只是把机器稳定性前置**。
 「两次崩溃与后台下载时间吻合」是**相关性**；但"下载完成后自动安装"是安装器**自身行为**
 （`updateDownloadComplete=1`），**不依赖**相关性推断。
+
+#### 崩溃取证开关（**v12.4 纠正与新增验收项**，与上条同一次管理员会话）
+
+> **v12.4 纠正**：原「P3 — 下次崩溃能取证」段落有**三条陈述与实机读数不符**，本节以实机读数为准。
+> ① `CrashDumpEnabled` **本来就是 `7`**（自动内存转储），**不是「完全没有 dump」** ——
+>    但 `C:\Windows\MEMORY.DMP` 与 `C:\Windows\Minidump\` **确实从未产出**；
+>    **根因是 `C:\pagefile.sys` 为托管 `0 0`**，内核转储要求**系统盘页面文件 >= 物理内存**，
+>    **E 盘页面文件不算数** → **只改 `CrashDumpEnabled` 不足以产出 dump，必须同时固定 C 盘页面文件**。
+> ② **WHEA / HardwareEvents 三通道本来就全部 enabled**；`HardwareEvents-Platform`
+>    **在 Windows 10 不存在**，真实通道是 `HardwareEvents` -> **只需只读校验，不做写入**。
+> ③ 这 5 次崩溃 `BugcheckCode=0`、`LongPowerButtonPressDetected=false`，
+>    是**断电/强制复位**，**没走到 dump 阶段** -> **内核转储对这 5 次无效**
+>    （对未来 BSOD 类崩溃仍有价值，**不得写成「完全没用」**）。
+
+**剩余验收（需管理员权限 + `Performance Log Users` 身份）**：
+
+- [ ] **取证开关写入**：以管理员运行
+      `plan/runtime_evidence/tools/enable_crash_forensics.cmd`
+      （或 `powershell -NoProfile -ExecutionPolicy Bypass -File enable_crash_forensics.ps1`）。
+      必须写入 `CrashDumpEnabled = 2`、`AutoReboot = 0`、`AlwaysKeepMemoryDump = 1`、
+      `MinidumpsCount = 20`、`DumpLogLevel = 3`，
+      **并且**把 `PagingFiles` 的 `C:\pagefile.sys` 固定为 **`32768 32768`**（= 物理内存）。
+      **必须重启一次**页面文件配置才生效。
+- [ ] **开关生效复核**：`enable_crash_forensics.ps1 -Verify` 必须显示
+      `CrashDumpEnabled = 2`、`AutoReboot = 0`、
+      `PagingFiles` 含 `C:\pagefile.sys 32768 32768`；
+      且 WHEA 三通道仍为 **enabled**。
+- [ ] **性能快照落盘**：以 `QIAN\cdao`（在 `Performance Log Users` 组内）运行
+      `plan/runtime_evidence/tools/capture_crash_watch_metrics.cmd`，
+      必须产出 `plan/runtime_evidence/logs/crash_watch_metrics_*.csv` 且**行数持续增长**，
+      含 `\Memory\Available MBytes`、`\Processor(_Total)\% Processor Time`、
+      `\Paging File(_Total)\% Usage` 三列，**间隔 5 秒**。
+- [ ] **证据可复跑复核**：执行 `plan/runtime_evidence/tools/run_whea_forensics.ps1`
+      （**只读，不需管理员**），必须复现出
+      **146 次 Event 41 / 144 次 60 秒内 CPU 级 WHEA 前置 / 匹配率 98.6%**，
+      且按月分布仍为 **08月 95/97、09月 16/16、10月 17/17、11月 16/16**。
+- [ ] **崩溃直接触发的定向取证**：从 WHEA CPER 中解出 `ErrorType` / `ApicId` / `CpuNumber`，
+      才能**定向**做 BIOS/微码升级、CPU 供电与温度核查、MemTest86。
+      **在拿到 APIC ID 之前，只能声称「确认到 CPU 级」，不得声称已定位到具体核心或具体部件。**
+
+**证据要求（取证部分）**：
+
+- **必须**附 `enable_crash_forensics.ps1 -Verify` 的完整输出。
+- **必须**附 PerfMon CSV 的**行数与首尾时间戳**，证明是**持续采集**而非一次性快照。
+- **必须**附 WHEA↔Event 41 配对报告
+  （`plan/runtime_evidence/reports/whea_crash_correlation_summary_20261122.json`）。
+- **不得**把「开关已写入」等同于「已产出 dump」—— **必须**以 `C:\Windows\MEMORY.DMP` 或
+  `C:\Windows\Minidump\` 中**实际出现文件**为准。
+
+#### 崩溃根因的最终定性（**v12.4 实测结论，两个独立问题**）
+
+| 角色 | 问题 | 证据 | 处置 |
+|---|---|---|---|
+| **频率诱因** | VS Installer 自动后台下载 | 当天触发 **7 次**、累计下载 **1,387.61 GB**、`updateDownloadComplete=1` | 本节「根治执行」等条目（**降低频率**） |
+| **直接触发** | **CPU 级 WHEA 硬件错误** | 2026 年 **146 次 Event 41** 中 **144 次（98.6%）** 60 秒内有 CPU 级 WHEA 前置记录，Severity **全部 `FATAL_ERROR`**（delta min=5.657s / max=10.345s / mean=7.791s） | 取证开关 + APIC ID 定向硬件排查（**消除崩溃本身**） |
+
+**两者都要处理**：只做前者，崩溃仍会以更低频率复发；只做后者，无法解释为何当天集中复发。
+**不是内存问题**（崩溃时 MemoryLoad 48%、可用物理 16.52 GB、可用页面文件 31.36 GB），
+**也不是 CPU 占用问题**。
 
 ### TASK-159｜主网持续套利广播产出：逐环解阻断（**v12.0 新立，P0，最高优先级**）
 

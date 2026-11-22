@@ -1,0 +1,2914 @@
+{
+  "event41_count": 146,
+  "event6008_count": 0,
+  "cpu_whea_record_count": 1145,
+  "rows": [
+    {
+      "event41_utc": "2026-11-22T00:10:49.940",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-22T00:10:43.053",
+      "delta_seconds_before_crash": 6.887,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-21T21:46:04.129",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-21T21:45:58.040",
+      "delta_seconds_before_crash": 6.089,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-21T17:14:39.111",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-21T17:14:33.045",
+      "delta_seconds_before_crash": 6.066,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-17T19:15:38.706",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-17T19:15:33.049",
+      "delta_seconds_before_crash": 5.657,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-17T05:21:52.145",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-17T05:21:46.049",
+      "delta_seconds_before_crash": 6.096,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-16T15:48:24.190",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-16T15:48:18.040",
+      "delta_seconds_before_crash": 6.15,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-16T04:31:58.393",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-16T04:31:52.043",
+      "delta_seconds_before_crash": 6.35,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-13T15:08:37.474",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-13T15:08:31.056",
+      "delta_seconds_before_crash": 6.418,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-13T13:34:12.053",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-13T13:34:05.046",
+      "delta_seconds_before_crash": 7.006,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-12T22:27:05.411",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-12T22:26:59.051",
+      "delta_seconds_before_crash": 6.36,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-12T06:39:09.957",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-12T06:39:02.401",
+      "delta_seconds_before_crash": 7.557,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-12T01:37:38.955",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-12T01:37:32.048",
+      "delta_seconds_before_crash": 6.907,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-08T08:43:52.208",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-08T08:43:46.049",
+      "delta_seconds_before_crash": 6.159,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-08T08:22:14.768",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-08T08:22:08.044",
+      "delta_seconds_before_crash": 6.724,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-06T22:59:41.768",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-06T22:59:35.046",
+      "delta_seconds_before_crash": 6.722,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-11-02T16:08:43.363",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-11-02T16:08:37.044",
+      "delta_seconds_before_crash": 6.319,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-29T23:04:51.411",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-29T23:04:45.053",
+      "delta_seconds_before_crash": 6.357,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-29T06:05:34.520",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-29T06:05:28.042",
+      "delta_seconds_before_crash": 6.478,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-28T23:04:09.130",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-28T23:04:02.044",
+      "delta_seconds_before_crash": 7.087,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-28T14:23:18.947",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-28T14:23:11.043",
+      "delta_seconds_before_crash": 7.904,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-28T14:14:32.833",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-28T14:14:25.369",
+      "delta_seconds_before_crash": 7.464,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-28T08:57:33.216",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-28T08:57:25.037",
+      "delta_seconds_before_crash": 8.179,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-27T06:33:28.218",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-27T06:33:20.071",
+      "delta_seconds_before_crash": 8.147,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-26T15:07:09.576",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-26T15:07:02.038",
+      "delta_seconds_before_crash": 7.538,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-25T15:51:24.359",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-25T15:51:15.040",
+      "delta_seconds_before_crash": 9.319,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-25T07:16:29.280",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-25T07:16:21.039",
+      "delta_seconds_before_crash": 8.241,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-24T07:17:41.560",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-24T07:17:33.038",
+      "delta_seconds_before_crash": 8.522,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-22T06:41:42.592",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-22T06:41:35.035",
+      "delta_seconds_before_crash": 7.557,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-21T12:46:30.657",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-21T12:46:22.030",
+      "delta_seconds_before_crash": 8.627,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-21T12:19:49.391",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-21T12:19:41.364",
+      "delta_seconds_before_crash": 8.027,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-18T11:56:34.857",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-18T11:56:27.035",
+      "delta_seconds_before_crash": 7.822,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-18T01:52:36.935",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-18T01:52:29.028",
+      "delta_seconds_before_crash": 7.907,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-10-16T14:43:44.811",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-10-16T14:43:37.038",
+      "delta_seconds_before_crash": 7.773,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-26T05:46:18.499",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-26T05:46:11.039",
+      "delta_seconds_before_crash": 7.46,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-24T10:08:57.032",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-24T10:08:49.032",
+      "delta_seconds_before_crash": 8.0,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-23T06:03:06.812",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-23T06:02:58.353",
+      "delta_seconds_before_crash": 8.459,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-19T21:08:39.828",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-19T21:08:30.028",
+      "delta_seconds_before_crash": 9.8,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-18T01:15:26.735",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-18T01:15:18.032",
+      "delta_seconds_before_crash": 8.703,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-16T22:15:31.764",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-16T22:15:24.027",
+      "delta_seconds_before_crash": 7.737,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-16T08:57:08.597",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-16T08:57:00.041",
+      "delta_seconds_before_crash": 8.556,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-10T00:17:29.827",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-10T00:17:22.031",
+      "delta_seconds_before_crash": 7.795,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-06T22:34:35.515",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-06T22:34:28.032",
+      "delta_seconds_before_crash": 7.483,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-06T12:45:10.702",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-06T12:45:03.028",
+      "delta_seconds_before_crash": 7.674,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-03T13:23:15.985",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-03T13:23:08.037",
+      "delta_seconds_before_crash": 7.948,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-03T12:59:07.719",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-03T12:59:00.026",
+      "delta_seconds_before_crash": 7.694,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-03T02:23:57.608",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-03T02:23:50.036",
+      "delta_seconds_before_crash": 7.572,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-02T22:01:38.031",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-02T22:01:30.034",
+      "delta_seconds_before_crash": 7.997,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-02T12:00:04.327",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-02T11:59:57.027",
+      "delta_seconds_before_crash": 7.3,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-09-01T04:03:22.279",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-09-01T04:03:14.032",
+      "delta_seconds_before_crash": 8.247,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-31T23:53:50.466",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-31T23:53:43.028",
+      "delta_seconds_before_crash": 7.438,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-30T07:23:28.314",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-30T07:23:20.037",
+      "delta_seconds_before_crash": 8.277,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-29T11:56:25.750",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-29T11:56:18.030",
+      "delta_seconds_before_crash": 7.72,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-29T04:21:32.422",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-29T04:21:25.030",
+      "delta_seconds_before_crash": 7.392,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-28T01:12:31.935",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-28T01:12:24.354",
+      "delta_seconds_before_crash": 7.581,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-27T11:59:30.736",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-27T11:59:22.036",
+      "delta_seconds_before_crash": 8.7,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-24T02:41:07.576",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-24T02:40:59.042",
+      "delta_seconds_before_crash": 8.534,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-22T14:10:46.310",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-22T14:10:38.033",
+      "delta_seconds_before_crash": 8.278,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T12:45:20.427",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T12:45:11.024",
+      "delta_seconds_before_crash": 9.403,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T12:21:52.552",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T12:21:43.034",
+      "delta_seconds_before_crash": 9.518,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T12:17:02.549",
+      "bugcheck_code": "0",
+      "whea_utc": null,
+      "delta_seconds_before_crash": null,
+      "note": "no CPU-level WHEA record within 300s"
+    },
+    {
+      "event41_utc": "2026-08-11T12:15:09.439",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T12:11:02.062",
+      "delta_seconds_before_crash": 247.377,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T11:56:42.943",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T11:56:33.030",
+      "delta_seconds_before_crash": 9.912,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T11:44:09.380",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T11:43:59.035",
+      "delta_seconds_before_crash": 10.345,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T11:36:32.022",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T11:36:22.026",
+      "delta_seconds_before_crash": 9.996,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T11:28:43.225",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T11:28:33.033",
+      "delta_seconds_before_crash": 10.192,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T11:13:41.584",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T11:13:33.035",
+      "delta_seconds_before_crash": 8.55,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T10:29:36.474",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T10:29:29.037",
+      "delta_seconds_before_crash": 7.436,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T10:17:23.693",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T10:17:16.034",
+      "delta_seconds_before_crash": 7.659,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T10:04:58.741",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T10:04:51.025",
+      "delta_seconds_before_crash": 7.716,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T09:19:48.505",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T09:19:41.026",
+      "delta_seconds_before_crash": 7.479,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T08:19:58.521",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T08:19:51.030",
+      "delta_seconds_before_crash": 7.491,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T07:41:02.524",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T07:40:55.026",
+      "delta_seconds_before_crash": 7.498,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T06:28:07.037",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T06:27:59.031",
+      "delta_seconds_before_crash": 8.007,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T06:14:02.601",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T06:13:54.035",
+      "delta_seconds_before_crash": 8.565,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T02:14:28.458",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T02:14:21.031",
+      "delta_seconds_before_crash": 7.427,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T01:50:27.443",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T01:50:19.025",
+      "delta_seconds_before_crash": 8.418,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-11T01:29:21.288",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-11T01:29:14.024",
+      "delta_seconds_before_crash": 7.264,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T23:30:21.288",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T23:30:14.028",
+      "delta_seconds_before_crash": 7.261,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T23:17:51.272",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T23:17:44.033",
+      "delta_seconds_before_crash": 7.239,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T22:59:23.412",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T22:59:16.026",
+      "delta_seconds_before_crash": 7.386,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T22:47:19.990",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T22:47:12.030",
+      "delta_seconds_before_crash": 7.959,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T22:26:19.864",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T22:26:12.037",
+      "delta_seconds_before_crash": 7.826,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T13:38:35.365",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T13:38:27.031",
+      "delta_seconds_before_crash": 8.334,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T12:03:56.397",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T12:03:49.030",
+      "delta_seconds_before_crash": 7.367,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T11:23:28.740",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T11:23:20.024",
+      "delta_seconds_before_crash": 8.716,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T11:06:12.772",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T11:06:05.024",
+      "delta_seconds_before_crash": 7.748,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T10:44:27.740",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T10:44:20.034",
+      "delta_seconds_before_crash": 7.705,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T08:46:02.333",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T08:45:55.030",
+      "delta_seconds_before_crash": 7.304,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T08:18:25.726",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T08:18:18.029",
+      "delta_seconds_before_crash": 7.697,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T07:40:14.209",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T07:40:07.031",
+      "delta_seconds_before_crash": 7.177,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T05:56:46.584",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T05:56:39.039",
+      "delta_seconds_before_crash": 7.545,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T05:19:45.224",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T05:19:38.025",
+      "delta_seconds_before_crash": 7.199,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T04:37:18.177",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T04:37:10.031",
+      "delta_seconds_before_crash": 8.145,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T04:23:05.240",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T04:22:57.025",
+      "delta_seconds_before_crash": 8.216,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T03:24:59.865",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T03:24:52.025",
+      "delta_seconds_before_crash": 7.839,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T02:17:58.225",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T02:17:51.029",
+      "delta_seconds_before_crash": 7.196,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-10T00:42:27.257",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-10T00:42:20.024",
+      "delta_seconds_before_crash": 7.233,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T23:51:55.240",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T23:51:47.024",
+      "delta_seconds_before_crash": 8.216,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T22:10:40.740",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T22:10:33.032",
+      "delta_seconds_before_crash": 7.707,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T13:15:03.896",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T13:14:56.023",
+      "delta_seconds_before_crash": 7.873,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T12:04:59.974",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T12:04:52.030",
+      "delta_seconds_before_crash": 7.944,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T10:56:37.443",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T10:56:30.026",
+      "delta_seconds_before_crash": 7.416,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T10:13:46.257",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T10:13:38.027",
+      "delta_seconds_before_crash": 8.23,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T10:01:01.397",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T10:00:54.030",
+      "delta_seconds_before_crash": 7.367,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T09:08:09.271",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T09:08:02.024",
+      "delta_seconds_before_crash": 7.247,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T07:24:18.740",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T07:24:10.029",
+      "delta_seconds_before_crash": 8.71,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T03:42:54.928",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T03:42:47.023",
+      "delta_seconds_before_crash": 7.905,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-09T01:07:30.319",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-09T01:07:23.029",
+      "delta_seconds_before_crash": 7.29,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T22:43:53.789",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T22:43:45.032",
+      "delta_seconds_before_crash": 8.756,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T15:51:39.927",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T15:51:32.039",
+      "delta_seconds_before_crash": 7.888,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T15:37:36.959",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T15:37:29.023",
+      "delta_seconds_before_crash": 7.936,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T15:22:53.193",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T15:22:44.029",
+      "delta_seconds_before_crash": 9.164,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T14:55:38.488",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T14:55:31.028",
+      "delta_seconds_before_crash": 7.46,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T12:10:28.756",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T12:10:20.025",
+      "delta_seconds_before_crash": 8.73,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T11:02:57.287",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T11:02:48.023",
+      "delta_seconds_before_crash": 9.265,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T10:00:49.630",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T10:00:42.028",
+      "delta_seconds_before_crash": 7.602,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T09:00:38.435",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T09:00:31.021",
+      "delta_seconds_before_crash": 7.414,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T08:41:52.865",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T08:41:44.024",
+      "delta_seconds_before_crash": 8.841,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T07:55:59.458",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T07:55:52.033",
+      "delta_seconds_before_crash": 7.426,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T03:43:37.052",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T03:43:29.025",
+      "delta_seconds_before_crash": 8.027,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T02:50:22.631",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T02:50:15.024",
+      "delta_seconds_before_crash": 7.607,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T02:04:57.274",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T02:04:50.024",
+      "delta_seconds_before_crash": 7.25,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-08T01:06:26.849",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-08T01:06:19.023",
+      "delta_seconds_before_crash": 7.826,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T22:02:37.272",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T22:02:30.028",
+      "delta_seconds_before_crash": 7.244,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T14:48:36.740",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T14:48:28.024",
+      "delta_seconds_before_crash": 8.717,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T12:27:03.397",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T12:26:55.032",
+      "delta_seconds_before_crash": 8.365,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T11:16:25.429",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T11:16:18.031",
+      "delta_seconds_before_crash": 7.397,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T10:11:04.616",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T10:10:57.034",
+      "delta_seconds_before_crash": 7.582,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T08:47:21.241",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T08:47:14.030",
+      "delta_seconds_before_crash": 7.21,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T08:09:45.882",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T08:09:38.025",
+      "delta_seconds_before_crash": 7.857,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T06:06:55.523",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T06:06:48.022",
+      "delta_seconds_before_crash": 7.5,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T03:00:37.863",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T03:00:29.032",
+      "delta_seconds_before_crash": 8.831,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-07T02:05:40.537",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-07T02:05:33.030",
+      "delta_seconds_before_crash": 7.507,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T22:19:22.282",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T22:19:15.031",
+      "delta_seconds_before_crash": 7.251,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T17:53:58.538",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T17:53:51.039",
+      "delta_seconds_before_crash": 7.499,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T15:01:18.193",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T15:01:10.041",
+      "delta_seconds_before_crash": 8.152,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T13:27:51.037",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T13:27:43.033",
+      "delta_seconds_before_crash": 8.004,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T13:07:29.209",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T13:07:21.023",
+      "delta_seconds_before_crash": 8.186,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T11:51:14.303",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T11:51:07.030",
+      "delta_seconds_before_crash": 7.273,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T10:55:10.929",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T10:55:03.022",
+      "delta_seconds_before_crash": 7.906,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T08:09:56.491",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T08:09:49.027",
+      "delta_seconds_before_crash": 7.464,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T07:37:50.678",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T07:37:43.029",
+      "delta_seconds_before_crash": 7.649,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T06:42:21.552",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T06:42:14.023",
+      "delta_seconds_before_crash": 7.529,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T05:36:42.443",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T05:36:34.027",
+      "delta_seconds_before_crash": 8.416,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-06T02:38:21.085",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-06T02:38:13.032",
+      "delta_seconds_before_crash": 8.053,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    },
+    {
+      "event41_utc": "2026-08-05T23:45:17.538",
+      "bugcheck_code": "0",
+      "bugcheck_params": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ],
+      "long_power_button_press_detected": "false",
+      "sleep_in_progress": "0",
+      "whea_utc": "2026-08-05T23:45:09.021",
+      "delta_seconds_before_crash": 8.516,
+      "whea_event_id": 42,
+      "whea_record_length": "1009",
+      "whea_section_id_guid": "83c1603c-1552-48a7-87d1-14d9467d7765",
+      "whea_section_id_name": "WHEA_PROCESSOR_GENERIC_ERROR_SECTION",
+      "whea_section_length": 3800,
+      "whea_severity": "FATAL_ERROR"
+    }
+  ]
+}

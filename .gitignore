@@ -208,3 +208,9 @@ plan/runtime_evidence/reports/arch2b_parity_replay_*_rust.json
 plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log
 plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log.err
 plan/runtime_evidence/logs/vs_bg_download_watchdog.jsonl
+
+# Crash-forensics PerfMon snapshots (runtime data, regenerate with capture_crash_watch_metrics.cmd)
+plan/runtime_evidence/logs/crash_watch_metrics_*.csv
+
+# WHEA 取证流水线的中间产物（可由 run_whea_forensics.ps1 重新生成）
+plan/runtime_evidence/logs/whea_forensics/
