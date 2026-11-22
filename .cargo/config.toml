@@ -1,0 +1,58 @@
+# Rust build configuration for the whole flashLoan repository.
+#
+# Why this file exists
+# --------------------
+# This repository ships several Rust build roots that must all produce the
+# same machine code:
+#
+#   * flashloan/tools/workspace -- 11 manager crates (CLI binaries + libs)
+#   * flashloan/rs-src/         -- the PyO3 `flashloan_rs` extension module
+#
+# Historically each root was compiled independently, so the effective target
+# was whatever the ambient toolchain happened to default to. On a host that
+# also carries 32-bit build tooling that default can resolve to an `i386`
+# artifact, and a 32-bit binary then refuses to load in a 64-bit Python
+# process with a Wow64 compatibility error.
+#
+# What is pinned here
+# --------------------
+# The host triple reported by `rustc -vV` on the supported machine is
+#
+#   host: x86_64-pc-windows-msvc
+#
+# and every crate in this repository must be built for exactly that triple.
+#
+# The triple is expressed as a `[target.<triple>]` section rather than as
+# `build.target` on purpose. Setting `build.target` makes cargo relocate
+# every artifact into a triple-suffixed directory
+# (`target/x86_64-pc-windows-msvc/debug/...`), which would break every
+# deployment path in this repository that expects the artifact directly
+# under `target/debug/` or `target/release/`:
+#
+#   * scripts/mainnet_arbitrage_healer.py          -> flashloan/tools/target/debug
+#   * scripts/refresh_robinhood_token_libraries.py  -> flashloan/tools/target/debug
+#   * scripts/verify_pool_manager_binary_matches_source.py
+#   * the PyO3 loader that imports flashloan_rs from rs-src/target/release
+#
+# A `[target.<triple>]` section pins the *toolchain and ABI* for that triple
+# without moving any artifact, so the deployment paths stay valid while the
+# build can no longer silently fall back to a different machine target.
+#
+# `rustflags` carries the link argument that selects the 64-bit subsystem.
+# The MSVC linker defaults to the 32-bit subsystem for some inputs, and the
+# resulting binary then carries a PE32 header that a 64-bit host refuses to
+# run. `/MACHINE:X64` makes the machine type explicit for every object the
+# workspace links, including the PyO3 extension module.
+
+# The linker used for the pinned target. Pinning the linker family keeps the
+# extension module and the CLI binaries on the same C runtime as the host
+# Python interpreter, which is what the PyO3 boundary requires.
+[target.x86_64-pc-windows-msvc]
+linker = "link.exe"
+
+# `link-arg=/MACHINE:X64` makes the machine type explicit for every object
+# the workspace links, including the PyO3 extension module. The MSVC linker
+# otherwise defaults to the 32-bit subsystem for some inputs, and the
+# resulting binary then carries a PE32 header that a 64-bit host refuses to
+# run.
+rustflags = ["-C", "link-arg=/MACHINE:X64"]

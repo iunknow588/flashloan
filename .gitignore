@@ -203,3 +203,8 @@ plan/runtime_evidence/reports/arch2b_parity_replay_*_rust.json
 .patch_*.diff
 .tmp_*
 .apply_patch_runner.py
+
+# VS Installer 后台下载看门狗运行时日志（临时产物，不入库）
+plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log
+plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log.err
+plan/runtime_evidence/logs/vs_bg_download_watchdog.jsonl

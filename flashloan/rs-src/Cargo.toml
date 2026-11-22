@@ -1,8 +1,23 @@
+# This crate is built by maturin as a standalone PyO3 project, so it is
+# deliberately its own cargo workspace root and cannot join the
+# `flashloan/tools` workspace. The machine target is pinned in the
+# repository-level `.cargo/config.toml`, which cargo discovers by walking
+# up the directory tree, so it applies here exactly as it does to every
+# crate in `flashloan/tools`.
+
+# `[workspace]` is declared explicitly for the same reason: without it cargo
+# infers an implicit workspace root here, which is fragile once a sibling
+# directory introduces a manifest that could be pulled in.
+[workspace]
+
 [package]
 name = "flashloan-rs"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+# Matches `flashloan/tools` workspace floor. `uniswap-v4-sdk`, which this
+# crate reaches through `pool-manager`, requires Rust 1.91 or newer.
+rust-version = "1.91"
 
 [lib]
 name = "flashloan_rs"

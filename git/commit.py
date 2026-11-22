@@ -121,9 +121,17 @@ def ensure_origin_remote(root: Path) -> None:
 
     remotes = run_git(root, "remote", capture=True).stdout.splitlines()
     if "origin" in remotes:
-        run_git(root, "remote", "set-url", "origin", PREFERRED_REMOTE_URL)
-        run_git(root, "remote", "set-url", "--push", "origin", PREFERRED_REMOTE_URL)
-        print(f"Updated origin -> {PREFERRED_REMOTE_URL}")
+        # 已经是目标 URL 时不要重复 set-url：
+        # set-url 需要改写 .git/config，受保护仓库上会因 config.lock 权限失败，
+        # 而实际上并不需要任何改动。
+        current = get_origin_remote_url(root)
+        current_push = run_git(root, "remote", "get-url", "--push", "origin", capture=True, check=False).stdout.strip()
+        if current == PREFERRED_REMOTE_URL and current_push == PREFERRED_REMOTE_URL:
+            print(f"origin already -> {PREFERRED_REMOTE_URL} (no change needed)")
+        else:
+            run_git(root, "remote", "set-url", "origin", PREFERRED_REMOTE_URL)
+            run_git(root, "remote", "set-url", "--push", "origin", PREFERRED_REMOTE_URL)
+            print(f"Updated origin -> {PREFERRED_REMOTE_URL}")
     else:
         run_git(root, "remote", "add", "origin", PREFERRED_REMOTE_URL)
         print(f"Added origin -> {PREFERRED_REMOTE_URL}")

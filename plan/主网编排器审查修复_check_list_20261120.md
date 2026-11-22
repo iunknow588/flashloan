@@ -1,4 +1,4 @@
-# 主网自愈编排器审查修复 Checklist v12.2（2026-11-22）
+# 主网自愈编排器审查修复 Checklist v12.3（2026-11-22）
 
 > **本清单仅包含未完成的验收条件。**已完成的验收项已从本文件移除，其证据与诚实边界完整保存在 `plan/back/`。
 >
@@ -9,15 +9,16 @@
 > `TASK-158` / `TASK-160`）与**全部 `[x]` 完成项**已从本文移除；**只剩 `[ ]` 未完成项**。
 > **未改变的**：任务编号、验收编号、绑定性规则、停止条件与归档门槛。
 >
-> **当前开放任务（8 个，其中 3 个暂停）**：
-> `TASK-159`（**P0**，主网广播产出）、`TASK-143`（主网复核新鲜度）、`TASK-157`（主网闭环身份读数）、
+> **当前开放任务（9 个，其中 3 个暂停）**：
+> `TASK-161`（**P0**，系统稳定性：VS Installer 后台下载）、`TASK-159`（**P0**，主网广播产出）、
+> `TASK-143`（主网复核新鲜度）、`TASK-157`（主网闭环身份读数）、
 > `TASK-144`（主网 dry-run）、`TASK-154`（实盘字段核验）、`TASK-145`（⏸ 测试网第 4 项）、
 > `TASK-147`（⏸ 整项）、`TASK-141`（⏸ 测试网前置）。
 >
 > **已闭合并归档**：`TASK-146` / `TASK-155` / `TASK-156` / `TASK-158` / `TASK-160`。
 > **已归档不再复用的编号**：`TASK-142`、`TASK-148`、`TASK-149`、`TASK-150`、`TASK-151`、`TASK-152`、
 > `TASK-153`、`AC-213`、`AC-214`。
-> **下一个可用任务编号**：`TASK-161`。
+> **下一个可用任务编号**：`TASK-162`。
 >
 > **证据口径**：每条验收项对应的**报告必须包含什么**，见任务清单 **§4**（通用字段 / 测试网前置 / 主网 review / 广播 / 闭环身份 / 锚点字段 / 已实现盈亏 / 稳定窗口，共 8 类）。
 > **执行顺序**：见任务清单 **§8**（带需授权列）；**勾选清单**见任务清单 **§3.0.4**（唯一）。
@@ -76,6 +77,64 @@
 >
 
 ## 2. 实盘与耗时验收（**需授权或需长窗口，靠后执行**）
+
+### TASK-161｜关闭 VS Installer 自动后台下载（**v12.3 新立，P0 系统稳定性，排在最前**）
+
+> **为什么排在所有功能验收之前**：主网自愈编排器是**长跑进程**。
+> VS Installer 后台下载完成会**自动进入安装阶段**（`updateDownloadedSize` 的
+> `updateDownloadComplete = "1"` 即为完成标志），实测当天触发 **7 次**、
+> 累计下载 **1,387.61 GB**；下载完成后爆发的约 500 个 MSI 安装
+> （Android / iOS SDK / Mono AOT / .NET SDK / MSVC redist）会造成内存与 CPU 峰值，
+> **直接把长跑进程带走**。因此它**不产生业务读数，却决定其他所有读数能否留存**。
+>
+> **实测根因证据**：`%TEMP%\dd_BackgroundDownload_*.log` 自述
+> `Policy setting: BackgroundDownloadDisabled, value: False`；
+> 计划任务 `\Microsoft\VisualStudio\Updates\BackgroundDownload` = **Enabled**
+> （`Run As User: cdao`，触发条件 = **空闲 10 分钟**，当天 03:46 那次标记为 **Success**）。
+
+**已完成的免提权止血（沙箱内，已生效）**：
+
+- [x] 结束运行中的 `BackgroundDownload.exe`（PID 9268 / 12872）—— **完成**
+- [x] 下载计数器**停止增长**复核：72.91 GB 连续 60 秒无变化 —— **完成**
+- [x] 停止 `VSInstallerElevationService` —— **完成**
+- [x] 交付并**端到端验证**看门狗 `plan/runtime_evidence/tools/vs_background_download_watchdog.py`
+      （Win32 枚举检出 → `TerminateProcess` 结束 → 证据 JSONL 落盘）—— **完成**
+
+**剩余验收（需管理员权限）**：
+
+- [ ] **根治执行**：以管理员身份运行
+      `plan/runtime_evidence/tools/disable_vs_background_download.ps1`
+      （或双击 `disable_vs_background_download.cmd`）。
+      **必须**覆盖三条注册表策略路径
+      （`HKLM\SOFTWARE\Policies\Microsoft\VisualStudio\Setup`、
+      `HKLM\SOFTWARE\Microsoft\VisualStudio\Setup`、
+      `HKLM\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\Setup`）、
+      两个 `updates.config`、并**禁用**计划任务。
+- [ ] **生效复核**：`python plan/runtime_evidence/tools/disable_vs_background_download.py --verify`
+      必须显示 `BackgroundDownloadDisabled = 1` **且** `task state = Disabled`。
+      **只显示注册表已设但任务仍 Enabled = 未通过**（任务本身仍会拉起下载器）。
+- [ ] **静置无复发**：静置 **≥ 30 分钟**（覆盖"空闲 10 分钟"触发窗口）后，
+      三个实例 `state.json` 的 `updateDownloadedSize` **必须**与静置前**完全一致**，
+      且 `%TEMP%` **无新增** `dd_BackgroundDownload_*.log`。
+- [ ] **冗余实例清理**：卸载 `238f66ce`（VS 2019 BuildTools 16.11，**已 EOL**，独自后台下载 1.31 TB）。
+- [ ] **冗余 workload 卸载**：`968a13cd` 中的
+      `Workload.ManagedGame` / `Unity` / `Unreal.*` / `Workload.NativeMobile` /
+      `Component.Android.NDK.R23C` / `Component.MDD.Android` / `Component.MDD.Linux`。
+- [ ] **包缓存清理**：`C:\ProgramData\Microsoft\VisualStudio\Packages`（当前 9.94 GB / 2620 文件）。
+- [ ] **看门狗常驻（可选）**：双击 `plan/runtime_evidence/tools/start_vs_background_download_watchdog.cmd`，
+      或将看门狗登记为登录计划任务（根治后其实不再需要，保留作长期兜底）。
+
+**证据要求**：
+
+- **必须**附 `--verify` 的完整输出（注册表三项 + 任务状态 + 两个 config 存在性 + 三实例下载量）。
+- **必须**附静置 ≥30 分钟前后的 `updateDownloadedSize` **对比值**（不是"看起来没涨"）。
+- **必须**附 `%TEMP%` 静置前后 `dd_BackgroundDownload_*.log` **文件数对比**。
+- **不得**用"计划任务已禁用"替代"策略已生效"的证明 —— 两者都要。
+
+**诚实边界**：本项**不豁免**任何主网任务，**不改变**任何金额/容量/利润口径，
+**不放宽**任何门禁。它**只是把机器稳定性前置**。
+「两次崩溃与后台下载时间吻合」是**相关性**；但"下载完成后自动安装"是安装器**自身行为**
+（`updateDownloadComplete=1`），**不依赖**相关性推断。
 
 ### TASK-159｜主网持续套利广播产出：逐环解阻断（**v12.0 新立，P0，最高优先级**）
 
