@@ -148,11 +148,16 @@ class DexOpportunityScanner(
                 "watchedAt": None,
             }
             self.closed_loop_review_queue = ClosedLoopReviewQueue()
+            # The Rust main thread owns the pending-review queue and the
+            # resident per-group review workers.  The Python pipeline stays
+            # only as the legacy fallback and must not schedule reviews
+            # while the Rust kernel is active.
+            self._native_rust_closed_loop = native_closed_loop_enabled()
             self.closed_loop_review_pipeline = FixedRefreshPipeline(
                 queue=self.closed_loop_review_queue,
                 refresh_fn=self._fixed_refresh_group,
+                native_rust_enabled=lambda: bool(self._native_rust_closed_loop),
             )
-            self._native_rust_closed_loop = native_closed_loop_enabled()
             self._supervisor_enabled = str(
                 os.getenv("DEX_CLOSED_LOOP_SUPERVISOR_ENABLED", "1")
             ).strip().lower() in {"1", "true", "yes", "on"}

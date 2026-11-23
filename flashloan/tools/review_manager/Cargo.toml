@@ -21,7 +21,10 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tiny-keccak.workspace = true
-tokio.workspace = true
+# The record layer needs the async filesystem, the bounded channel and the
+# timer.  Only *features* are added here: the dependency edge already exists,
+# so `Cargo.lock` stays byte-identical (guard `G-4`).
+tokio = { workspace = true, features = ["fs", "sync", "time"] }
 
 [dev-dependencies]
 manager-db = { path = "../manager_db" }

@@ -11,12 +11,20 @@ from core.db.storage_market_observation import replace_market_observation_tables
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
-    upsert_v4_liquidity_snapshots,
 )
 from core.db.token_symbols import is_unresolved_placeholder_symbol
 from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
     _decorate_candidates_with_live_state,
 )
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 def _kernel_admitted(**extra):
@@ -409,7 +417,7 @@ def test_stock_anchor_builds_candidate_observation_and_directed_loops(tmp_path):
         protocol="uniswap_v4",
         pool_rows=pools,
     )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network="robinhood",
         chain_id=4663,

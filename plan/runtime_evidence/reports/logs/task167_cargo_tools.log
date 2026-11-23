@@ -1,0 +1,197 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.18s
+     Running unittests src\lib.rs (target\debug\deps\manager_db-367af761daec9b1e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\manager_db-fa77654bd53b8f4b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-5f75c1240f925e12.exe)
+
+running 5 tests
+test incompatible_manager_target_table_blocks_migration_atomically ... ok
+test read_only_preflight_does_not_apply_migration ... ok
+test existing_foreign_schema_migration_ledger_uses_manager_fallback ... ok
+test legacy_candidate_tables_are_not_reused_by_manager_shadow_migration ... ok
+test migration_is_idempotent_and_creates_only_empty_control_schema ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+     Running unittests src\lib.rs (target\debug\deps\token_manager-b5ad365fa89e444d.exe)
+
+running 148 tests
+test audit::tests::existing_status_changes_and_removals_are_reported ... ok
+test audit::tests::primary_conflicts_are_reported_while_extension_overlap_is_allowed ... ok
+test audit::tests::status_summary_and_diff_are_deterministic ... ok
+test audit::tests::target_schema_absent_is_a_safe_empty_baseline ... ok
+test classification::tests::duplicate_symbol_never_drives_primary_classification ... ok
+test audit::tests::migrated_target_schema_is_detected_read_only ... ok
+test admission::tests::missing_token_is_rejected_before_event_creation ... ok
+test classification::tests::duplicate_symbols_are_reported_after_membership_assignment ... ok
+test classification::tests::extension_only_tokens_are_not_unclassified ... ok
+test classification::tests::extension_requires_a_liquidity_qualified_direct_pool ... ok
+test classification::tests::extension_membership_uses_core_stock_and_tz_test_anchors ... ok
+test classification::tests::liquidity_gate_accepts_positive_raw_liquidity_with_zero_index ... ok
+test classification::tests::liquidity_gate_ignores_usd_depth_labels ... ok
+test audit::tests::migrated_target_rows_are_read_without_duplicating_existing_rows ... ok
+test admission::tests::noop_apply_persists_idempotency_without_incrementing_version ... ok
+test admission::tests::same_key_with_different_digest_is_rejected ... ok
+test admission::tests::apply_is_atomic_and_same_idempotency_key_replays_first_result ... ok
+test classification::tests::liquidity_gate_rejects_unsafe_or_missing_pool_evidence ... ok
+test admission::tests::dry_run_reports_change_without_persisting_status_version_or_event ... ok
+test classification::tests::same_priority_disagreement_is_reported_and_not_classified ... ok
+test classification::tests::testnet_address_enters_test_without_symbol_lookup ... ok
+test economic_gate::tests::a_core_token_without_a_usdg_path_keeps_its_membership ... ok
+test economic_gate::tests::a_valued_stock_token_stays_in_the_stock_library ... ok
+test economic_gate::tests::an_excluded_extension_hop_produces_an_extension_withdrawal_write ... ok
+test classification::tests::source_precedence_merges_one_address_and_extension_can_overlap ... ok
+test economic_gate::tests::a_pending_stock_token_never_produces_a_withdrawal_write ... ok
+test economic_gate::tests::a_stock_token_without_a_usdg_path_leaves_the_stock_library ... ok
+test classification::tests::stock_membership_uses_stock_metadata_and_extension_overlap ... ok
+test economic_gate::tests::an_extension_hop_with_unmeasured_depth_is_pending_and_never_excluded ... ok
+test economic_gate::tests::an_unmeasured_stock_token_is_pending_and_never_excluded ... ok
+test economic_gate::tests::an_excluded_stock_token_produces_a_blocked_withdrawal_write ... ok
+test economic_gate::tests::an_extension_hop_that_cannot_carry_a_minimum_position_is_excluded ... ok
+test economic_gate::tests::only_the_stock_library_requires_a_usdg_exchange_path ... ok
+test economic_gate::tests::the_gate_never_adds_a_membership ... ok
+test metadata::tests::accepted_and_error_split_is_stable ... ok
+test metadata::tests::invalid_address_key_decimals_json_and_flags_are_rejected ... ok
+test metadata::tests::native_uses_zero_address_and_remains_distinct_from_weth ... ok
+test metadata::tests::metadata_json_can_fill_placeholder_symbol_name_and_decimals ... ok
+test metadata::tests::metadata_json_symbol_without_decimals_still_fails_cleanly ... ok
+test metadata::tests::normalization_is_deterministic_and_converts_to_token_write ... ok
+test prune::tests::a_complete_token_is_kept ... ok
+test prune::tests::a_placeholder_symbol_is_not_usable ... ok
+test metadata::tests::placeholder_detection_matches_existing_python_rules ... ok
+test model::tests::storage_keys_are_stable ... ok
+test prune::tests::a_token_without_decimals_is_not_usable ... ok
+test prune::tests::only_the_essential_metadata_removes_a_token ... ok
+test prune::tests::the_chain_boundary_is_never_crossed ... ok
+test prune::tests::zero_decimals_is_a_usable_value ... ok
+test prune::tests::the_dry_run_changes_nothing ... ok
+test prune::tests::the_dependants_of_a_pruned_token_are_removed_with_it ... ok
+test quote_asset::tests::a_floor_that_is_not_a_whole_number_of_major_units_is_refused ... ok
+test quote_asset::tests::an_unknown_scope_is_refused_rather_than_defaulting ... ok
+test prune::tests::the_prune_removes_the_token_and_its_dependants ... ok
+test quote_asset::tests::the_testnet_floor_is_not_the_mainnet_floor_converted ... ok
+test quote_asset::tests::mainnet_values_in_usdg_and_keeps_the_shared_floor_verbatim ... ok
+test quote_asset::tests::the_testnet_values_in_the_native_coin_because_usdg_has_no_path_there ... ok
+test quote_asset::tests::the_usdg_floor_is_restated_as_the_same_number_of_major_units ... ok
+test sources::tests::chain_token_and_pool_adapters_preserve_source_locations ... ok
+test sources::tests::core4_allowlist_is_address_based_and_exact ... ok
+test sources::tests::core_allowlist_reads_the_addresses_of_the_chain_it_serves ... ok
+test sources::tests::stock_registry_adapter_reads_explicit_metadata ... ok
+test manager_audit::tests::audit_reports_library_state_duplicates_sources_and_recent_events_read_only ... ok
+test query::tests::library_query_filters_status_and_uses_persisted_state ... ok
+test manager_audit::tests::audit_rejects_invalid_recent_event_limit ... ok
+test store::tests::dry_run_returns_apply_checksum_without_persisting_rows ... ok
+test query::tests::symbol_resolution_deduplicates_overlap_but_rejects_distinct_addresses ... ok
+test query::tests::missing_symbol_returns_not_found_and_invalid_symbol_is_explicit ... ok
+test store::tests::admission_change_increments_version_and_writes_event ... ok
+test store::tests::initial_write_materializes_rows_state_and_events ... ok
+test store::tests::inconsistent_token_identity_is_rejected ... ok
+test tests::framework_status_is_read_only_at_the_http_boundary ... ok
+test usdg_economic::tests::a_missing_measurement_is_not_a_missing_path ... ok
+test simulation::tests::primary_conflict_fails_the_simulation ... ok
+test store::tests::extension_membership_can_overlap_with_all_primary_libraries ... ok
+test store::tests::identical_write_is_idempotent ... ok
+test usdg_economic::tests::a_token_without_a_usdg_path_cannot_be_valued ... ok
+test usdg_economic::tests::a_token_worth_less_than_the_floor_is_a_dust_token ... ok
+test usdg_economic::tests::a_shallow_pool_is_excluded_even_when_the_token_is_worth_a_lot ... ok
+test usdg_economic::tests::a_valued_token_with_deep_enough_pool_is_admissible ... ok
+test usdg_economic::tests::an_intermediate_hop_that_cannot_carry_the_position_is_a_dust_hop ... ok
+test usdg_economic::tests::an_intermediate_hop_without_a_measured_depth_is_pending ... ok
+test usdg_economic::tests::an_intermediate_hop_needs_capacity_but_not_a_valuation ... ok
+test usdg_economic::tests::an_unmeasured_depth_does_not_exclude_a_valued_token ... ok
+test usdg_economic::tests::an_unmeasured_token_is_pending_rather_than_excluded ... ok
+test usdg_economic::tests::r11_the_usdg_peg_never_decides_an_admission ... ok
+test usdg_economic::tests::r11_a_depegged_usdg_is_rejected ... ok
+test usdg_economic::tests::r11_the_usdg_peg_policy_is_declared_with_a_ratio_of_one ... ok
+test usdg_economic::tests::r11_usdg_replaces_usd_as_the_economic_reference ... ok
+test usdg_economic::tests::raw_usdg_amounts_render_as_decimals ... ok
+test usdg_economic::tests::the_extension_library_separates_pending_from_excluded ... ok
+test simulation::tests::temporary_bootstrap_is_dry_run_safe_and_idempotent ... ok
+test usdg_economic::tests::val4_12_the_shared_file_denominates_the_floor_in_usdg ... ok
+test usdg_economic::tests::the_stock_library_excludes_unvaluable_tokens ... ok
+test usdg_evidence::tests::a_live_route_is_recorded_as_a_measured_valuation ... ok
+test usdg_evidence::tests::a_rendered_cli_report_round_trips_back_into_the_evidence ... ok
+test usdg_evidence::tests::a_shallow_hop_is_counted_as_dust ... ok
+test usdg_economic::tests::val4_12_the_economic_floor_comes_from_the_shared_policy_file ... ok
+test usdg_evidence::tests::the_measured_depths_become_the_extension_evidence ... ok
+test usdg_evidence::tests::no_route_is_a_genuine_negative ... ok
+test usdg_evidence::tests::an_api_failure_is_unknown_and_never_a_negative ... ok
+test usdg_evidence::tests::the_placeholder_address_is_rejected ... ok
+test valuation_freshness::tests::a_fresh_membership_observation_is_usable ... ok
+test valuation_freshness::tests::a_fresh_negative_is_a_real_negative ... ok
+test valuation_freshness::tests::a_fresh_probe_failure_stays_unknown ... ok
+test valuation_freshness::tests::a_future_timestamp_is_stale_not_fresh ... ok
+test valuation_freshness::tests::a_stale_negative_never_remains_a_negative ... ok
+test valuation_freshness::tests::a_stale_positive_never_remains_a_positive ... ok
+test valuation_freshness::tests::an_unparseable_timestamp_is_unverifiable_and_never_fresh ... ok
+test valuation_freshness::tests::magnitude_expires_far_sooner_than_membership ... ok
+test valuation_freshness::tests::rfc3339_forms_are_all_parsed ... ok
+test valuation_freshness::tests::membership_survives_for_a_full_day_and_expires_after ... ok
+test valuation_freshness::tests::the_local_approximation_is_rejected ... ok
+test valuation_freshness::tests::the_table_report_separates_fresh_stale_and_unverifiable ... ok
+test usdg_evidence::tests::a_tokens_only_report_is_read_and_its_counters_are_rebuilt ... ok
+test usdg_evidence::tests::a_full_batch_report_is_still_read_from_its_embedded_report ... ok
+test valuation_store::tests::a_missing_table_reads_as_no_observation ... ok
+test usdg_evidence::tests::the_placeholder_address_is_not_a_measured_hop ... ok
+test store::tests::primary_libraries_are_mutually_exclusive ... ok
+test store::tests::planned_write_checksum_matches_materialized_library_checksum ... ok
+test valuation_store::tests::a_dry_run_writes_nothing ... ok
+test valuation_store::tests::a_landing_round_trips_through_the_database ... ok
+test valuation_store::tests::an_unknown_observation_is_recorded_when_nothing_is_known_yet ... ok
+test valuation_store::tests::a_real_negative_still_replaces_a_real_negative ... ok
+test valuation_tests::tests::a_200_no_route_body_is_a_real_negative ... ok
+test valuation_tests::tests::a_401_body_is_never_a_no_route_answer ... ok
+test valuation_tests::tests::a_404_body_without_a_no_route_signal_stays_unknown ... ok
+test valuation_tests::tests::a_429_body_is_never_a_no_route_answer ... ok
+test valuation_tests::tests::a_404_no_route_body_is_a_real_negative ... ok
+test valuation_tests::tests::a_sequential_batch_is_still_supported ... ok
+test valuation_tests::tests::api_key_is_never_serialized_into_a_report ... ok
+test valuation_tests::tests::batch_summary_keeps_unknowns_separate_from_negatives ... ok
+test valuation_store::tests::a_negative_verdict_stores_no_value ... ok
+test valuation_tests::tests::a_concurrent_batch_keeps_the_callers_order ... ok
+test valuation_tests::tests::explicit_no_route_is_a_real_negative ... ok
+test valuation_tests::tests::malformed_response_is_unknown_and_never_a_negative ... ok
+test valuation_tests::tests::missing_api_key_is_unknown_not_a_negative ... ok
+test valuation_tests::tests::nominal_amount_is_converted_to_raw_units_without_floats ... ok
+test valuation_tests::tests::route_detail_is_never_retained_in_the_report ... ok
+test valuation_tests::tests::successful_quote_reports_a_route_and_a_decimal_usdg_amount ... ok
+test valuation_tests::tests::request_body_matches_the_trading_api_contract ... ok
+test valuation_tests::tests::the_canonical_error_code_alone_is_a_no_route_answer ... ok
+test valuation_tests::tests::raw_amounts_render_as_decimals ... ok
+test valuation_tests::tests::verdict_helpers_separate_truth_from_unknown ... ok
+test valuation_store::tests::a_newer_observation_replaces_the_older_one ... ok
+test valuation_store::tests::an_unknown_observation_never_overwrites_a_known_one ... ok
+test valuation_store::tests::the_verdict_vocabulary_is_closed_at_the_schema_level ... ok
+test store::tests::library_checksum_is_order_independent_and_deterministic ... ok
+test valuation_store::tests::landing_the_same_report_twice_is_idempotent ... ok
+
+test result: ok. 148 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.98s
+
+     Running unittests src\main.rs (target\debug\deps\token_manager-5932f43a460be795.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests manager_db
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests token_manager
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,99 @@
+
+running 14 tests
+test runtime::tests::execution_queue_keeps_earliest_verified_at_for_queued_group ... ok
+test runtime::tests::execution_queue_orders_by_verified_at ... ok
+test runtime::tests::execution_queue_reenqueues_after_done_with_new_verified_at ... ok
+test runtime::tests::waiting_execution_task_wakes_only_once_to_queued ... ok
+test runtime::tests::supervisor_owns_bounded_workers_and_terminal_queue_state ... ok
+test tests::a_request_without_hop_price_limits_is_refused ... ok
+test tests::stale_review_version_is_rejected_before_write ... ok
+test tests::only_generated_or_confirmed_requests_are_eligible ... ok
+test tests::failed_finalization_preserves_rpc_nonce_hash_and_diagnostic ... ok
+test tests::clear_is_dry_run_safe_idempotent_and_rejects_pending_work ... ok
+test tests::status_filter_is_applied_before_offset_and_limit ... ok
+test tests::submit_dry_run_is_non_persistent_and_apply_is_idempotent ... ok
+test tests::a_finalized_attempt_reaches_the_monthly_trade_store ... ok
+test tests::success_requires_hash_and_terminal_attempt_cannot_be_finalized_twice ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.98s
+
+
+running 14 tests
+test tests::abnormal_pool_is_isolated_from_candidate_recommendations ... ok
+test tests::a_repeated_materialization_is_deterministic ... ok
+test tests::the_recommendation_basis_records_the_single_tick_exact_output_ordering ... ok
+test tests::extension_ta_and_tb_are_admitted_without_usd_depth_and_rebuild_is_stable ... ok
+test tests::the_exact_output_ranking_beats_the_marginal_rate_ranking ... ok
+test tests::a_pool_without_a_price_never_outranks_a_pool_with_one ... ok
+test tests::comparison_is_read_only_and_reaches_cutover_readiness_for_matching_rows ... ok
+test tests::comparison_reports_legacy_pool_field_mismatch_without_writing ... ok
+test tests::the_selection_basis_is_a_single_label_without_legacy_values ... ok
+test tests::the_two_directions_rank_the_same_pools_in_opposite_tick_order ... ok
+test tests::the_tick_ordering_beats_the_float_rate_when_the_rates_are_nearly_equal ... ok
+test tests::write_is_idempotent_and_dry_run_does_not_persist_idempotency ... ok
+test tests::two_pools_with_the_same_tick_are_ordered_by_their_price ... ok
+test tests::upstream_mismatch_rejects_before_writing ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.82s
+
+
+running 7 tests
+test tests::fee_label_ceiling_is_the_admission_ceiling ... ok
+test tests::fee_label_is_not_emitted_for_pools_the_admission_gate_accepts ... ok
+test tests::stale_candidate_edge_or_pool_scope_is_rejected_without_writes ... ok
+test tests::write_is_idempotent_and_dry_run_does_not_persist_idempotency ... ok
+test tests::observes_the_anchor_own_edge_pool_without_a_self_referential_row ... ok
+test tests::rebuilds_candidate_exchange_directions_for_every_anchor ... ok
+test tests::comparison_reports_usd_gate_expansion_and_is_read_only ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+
+running 30 tests
+test tests::a_pool_without_a_tick_state_falls_back_to_the_logical_direction ... ok
+test tests::a_hop_without_a_published_state_has_no_folded_capacity ... ok
+test tests::a_pool_that_does_not_carry_the_hop_input_token_is_a_topology_error ... ok
+test tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path ... FAILED
+test tests::an_unmeasured_hop_does_not_disqualify_the_path ... ok
+test tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self ... ok
+test tests::a_loop_without_tick_states_publishes_no_folded_capacity ... ok
+test tests::a_hop_with_room_inside_its_tick_range_admits_the_loop ... ok
+test tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed ... ok
+test tests::a_mismatched_expected_scope_checksum_refuses_to_write ... ok
+test tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path ... ok
+test tests::every_hop_above_the_capacity_floor_admits_the_loop ... ok
+test tests::builds_three_token_loop_without_usd_depth_dependency ... ok
+test tests::the_closed_loop_floor_is_the_pool_manager_admission_floor ... ok
+test tests::comparison_reports_exact_legacy_topology ... ok
+test tests::the_hop_direction_follows_the_pool_token_order ... ok
+test tests::the_path_capacity_is_folded_into_the_anchor_token ... ok
+test tests::the_usdg_path_publishes_a_capacity_when_the_pool_order_is_inverted ... ok
+test usdg_valuation::tests::a_token_paired_with_usdg_at_the_peg_is_worth_one_usdg ... ok
+test usdg_valuation::tests::a_token_without_a_usdg_route_has_no_valuation ... ok
+test usdg_valuation::tests::a_token_without_known_decimals_has_no_valuation ... ok
+test usdg_valuation::tests::the_usdg_side_of_the_pool_may_be_either_token ... ok
+test usdg_valuation::tests::usdg_unit_value_does_not_require_a_self_pair_pool ... ok
+test tests::stale_observation_candidate_version_is_rejected ... ok
+test tests::one_anchor_publishes_two_independent_directed_closed_loops ... ok
+test tests::repairing_the_scope_checksum_is_idempotent ... ok
+test tests::repeated_apply_is_stable_and_idempotent ... ok
+test tests::the_closed_loop_layer_publishes_its_own_scope_checksum ... ok
+test tests::the_path_minimum_is_the_binding_capacity ... ok
+test tests::the_folded_single_tick_capacity_is_published_on_the_loop ... ok
+
+failures:
+
+---- tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path stdout ----
+
+thread 'tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path' (9872) panicked at closed_loop_manager\src\lib.rs:4580:9:
+assertion `left == right` failed: a loop whose hop has no tick room must not be materialized
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path
+
+test result: FAILED. 29 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.69s
+

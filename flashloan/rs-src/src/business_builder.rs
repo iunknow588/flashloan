@@ -6,9 +6,30 @@ use std::collections::{BTreeMap, BTreeSet};
 const DYNAMIC_FEE_FLAG: i64 = 8_388_608;
 const MAX_FIXED_FEE: i64 = 100_000;
 const MAX_USABLE_CANDIDATE_FIXED_FEE: i64 = 30_000;
-const MAX_DIRECTION_CANDIDATE_POOLS: usize = 5;
+/// Environment variable that overrides the directional candidate capacity.
+///
+/// The candidate count is a **capacity knob**, not an admission threshold: it
+/// answers "how many pools may one direction keep", never "is this pool
+/// qualified". Changing it changes the system's behaviour, so it is a knob
+/// and belongs in the environment rather than in the source text.
+pub const MAX_DIRECTION_CANDIDATE_POOLS_ENV: &str = "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS";
+/// The default capacity when the environment does not override it.
+pub const DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS: usize = 5;
 const MAX_OBSERVATION_POOLS_PER_DIRECTION: usize = 3;
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
+
+/// Resolve the directional candidate capacity from the environment.
+///
+/// A malformed or non-positive value falls back to the default instead of
+/// failing the build: a capacity knob must never be able to stop the
+/// scanner from running.
+pub fn max_direction_candidate_pools() -> usize {
+    std::env::var(MAX_DIRECTION_CANDIDATE_POOLS_ENV)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS)
+}
 
 #[derive(Clone)]
 struct PoolRow {
@@ -298,11 +319,12 @@ fn select_recommendations(pools: &[PoolRow], token_in: &str, token_out: &str) ->
     confirmed.sort_by_key(|pool| sort_key_score(pool, token_in, token_out));
     let mut selected = Vec::new();
     let mut seen = BTreeSet::new();
+    let capacity = max_direction_candidate_pools();
     for pool in confirmed {
         let pool_id = pool_id_from_row(pool);
         if seen.insert(pool_id) {
             selected.push(pool.clone());
-            if selected.len() >= MAX_DIRECTION_CANDIDATE_POOLS {
+            if selected.len() >= capacity {
                 break;
             }
         }
@@ -323,10 +345,11 @@ fn representative_pool_rows(pools: &[PoolRow]) -> Vec<PoolRow> {
     });
     let mut selected = Vec::new();
     let mut seen = BTreeSet::new();
+    let capacity = max_direction_candidate_pools();
     for pool in ordered {
         if seen.insert(pool_id_from_row(pool)) {
             selected.push(pool.clone());
-            if selected.len() >= MAX_DIRECTION_CANDIDATE_POOLS {
+            if selected.len() >= capacity {
                 break;
             }
         }
@@ -2694,6 +2717,28 @@ pub(crate) fn build_all_anchor_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The directional candidate capacity is an operator knob, so the
+    /// environment must be able to turn it. A malformed or non-positive
+    /// value falls back to the default instead of stopping the scanner.
+    #[test]
+    fn the_directional_candidate_capacity_comes_from_the_environment() {
+        let previous = std::env::var(MAX_DIRECTION_CANDIDATE_POOLS_ENV).ok();
+        std::env::set_var(MAX_DIRECTION_CANDIDATE_POOLS_ENV, "11");
+        assert_eq!(max_direction_candidate_pools(), 11);
+
+        std::env::set_var(MAX_DIRECTION_CANDIDATE_POOLS_ENV, "not-a-number");
+        assert_eq!(max_direction_candidate_pools(), DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS);
+
+        std::env::set_var(MAX_DIRECTION_CANDIDATE_POOLS_ENV, "0");
+        assert_eq!(max_direction_candidate_pools(), DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS);
+
+        match previous {
+            Some(value) => std::env::set_var(MAX_DIRECTION_CANDIDATE_POOLS_ENV, value),
+            None => std::env::remove_var(MAX_DIRECTION_CANDIDATE_POOLS_ENV),
+        }
+        assert_eq!(max_direction_candidate_pools(), DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS);
+    }
 
     #[test]
     fn unresolved_placeholder_rule_is_generic() {

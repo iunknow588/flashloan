@@ -295,6 +295,10 @@ def _apply_runtime_profile_defaults() -> dict[str, str]:
     os.environ["FLASHLOAN_RUNTIME_PROFILE"] = profile
     applied: dict[str, str] = {"FLASHLOAN_RUNTIME_PROFILE": profile}
 
+    # The directional candidate capacity is an operator knob, so an explicit
+    # ambient value wins; the default only makes the knob discoverable.
+    os.environ.setdefault("FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS", "5")
+
     # DEX-only must override ambient .env values. Non-DEX profiles retain the
     # existing behavior and can opt in through their normal environment flags.
     if profile == RUNTIME_PROFILE_V4_DEX:
@@ -378,8 +382,31 @@ def _runtime_environment():
         )
         yield
     finally:
-        os.environ.clear()
-        os.environ.update(original_env)
+        _restore_environment(original_env)
+
+
+def _restore_environment(original_env: dict[str, str]) -> None:
+    """Put the process environment back the way this block found it.
+
+    The environment must not be wiped and written back wholesale.  A
+    variable whose value is the empty string is present but empty, and
+    on Windows the Win32 API cannot put that state back: writing an
+    empty value deletes the variable.  A clear-then-update round trip
+    therefore drops every empty-valued variable that was present
+    before, while ``os.environ`` keeps reporting it -- so the loss is
+    invisible from Python and only shows up in a subprocess, which
+    inherits the process environment block.  A "git" call reading
+    GIT_CONFIG_VALUE_0 then fails with exit code 128 ("missing config
+    value GIT_CONFIG_VALUE_0").
+
+    Only the keys this block actually touched are restored, so every
+    variable it never touched keeps exactly the state it had.
+    """
+    for key in [key for key in os.environ if key not in original_env]:
+        os.environ.pop(key, None)
+    for key, value in original_env.items():
+        if os.environ.get(key) != value:
+            os.environ[key] = value
 
 
 def _dex_active_chain_id() -> int:

@@ -13,6 +13,7 @@ use std::fmt;
 use std::path::Path;
 
 pub mod parity;
+pub mod records;
 pub mod runtime;
 pub mod shadow;
 pub mod single_tick;
@@ -48,6 +49,14 @@ pub use single_tick::{
 pub use state_transition_gate::{
     evaluate_route_transition, route_transition_price_limits, HopExecutionState,
     HopTransitionVerdict, RouteTransitionVerdict, TransitionOutcome,
+};
+pub use records::{
+    diff_review_generations, list_trade_archive_months, publish_review_records,
+    publish_trade_archive, read_review_record_health, read_trade_archive_health,
+    read_trade_archive_summary, review_record_dir, store_directory_for, trade_record_dir,
+    ArchiveRequest, ArchiveReconcileReport, RecordError, ReviewGenerationContext,
+    ReviewRecordEvent, ReviewRecordHealthSnapshot, ReviewRecordLine, ReviewRowSnapshot,
+    TradeArchiveHealthSnapshot, TradeArchiveSummary,
 };
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
@@ -699,14 +708,14 @@ pub fn run_reviews(
         &evidence,
         None,
     )
-    .map(|(result, _)| result)
+    .map(|outcome| outcome.result)
 }
 
 pub fn run_reviews_write(
     database_path: impl AsRef<Path>,
     request: ReviewWriteRequest,
 ) -> Result<ReviewWriteOutcome, ReviewError> {
-    let (result, idempotent_replay) = run_impl(
+    let outcome = run_impl(
         database_path.as_ref(),
         &request.network,
         request.chain_id,
@@ -715,8 +724,8 @@ pub fn run_reviews_write(
         Some(&request),
     )?;
     Ok(ReviewWriteOutcome {
-        result,
-        idempotent_replay,
+        result: outcome.result,
+        idempotent_replay: outcome.idempotent_replay,
     })
 }
 
@@ -810,6 +819,27 @@ pub fn clear_review_records_write(
     })
 }
 
+/// The outcome of one materialization pass.
+///
+/// The audit state is only filled when a generation was really written, so a
+/// dry run and a pass that changed nothing both publish no audit line at all.
+struct ReviewRunOutcome {
+    result: ReviewMaterializationResult,
+    idempotent_replay: bool,
+    audit: Option<ReviewAuditState>,
+}
+
+/// The two review generations the audit stream compares.
+///
+/// `previous` is the generation that was in the main store before the write
+/// and `next` is the generation that was written.  The difference between
+/// them is what the audit stream records.
+struct ReviewAuditState {
+    context: records::ReviewGenerationContext,
+    previous: Vec<records::ReviewRowSnapshot>,
+    next: Vec<records::ReviewRowSnapshot>,
+}
+
 fn run_impl(
     database_path: &Path,
     network: &str,
@@ -817,7 +847,7 @@ fn run_impl(
     apply: bool,
     evidence: &[ReviewEvidenceInput],
     request: Option<&ReviewWriteRequest>,
-) -> Result<(ReviewMaterializationResult, bool), ReviewError> {
+) -> Result<ReviewRunOutcome, ReviewError> {
     validate_operation(network, chain_id)?;
     let prepared_write = match request {
         Some(request) => {
@@ -841,6 +871,7 @@ fn run_impl(
             prepared_write,
         )?;
         transaction.commit()?;
+        publish_review_audit(database_path, network, chain_id, &outcome);
         Ok(outcome)
     } else {
         run_on_connection(
@@ -861,7 +892,7 @@ fn run_on_connection(
     apply: bool,
     evidence: &[ReviewEvidenceInput],
     prepared_write: Option<(&ReviewWriteRequest, String)>,
-) -> Result<(ReviewMaterializationResult, bool), ReviewError> {
+) -> Result<ReviewRunOutcome, ReviewError> {
     if apply {
         if let Some((request, request_digest)) = prepared_write.as_ref() {
             if let Some(response_json) = find_write_request(connection, request)? {
@@ -873,7 +904,11 @@ fn run_on_connection(
                         submitted_request_id: request.request_id.clone(),
                     });
                 }
-                return Ok((persisted.result, true));
+                return Ok(ReviewRunOutcome {
+                    result: persisted.result,
+                    idempotent_replay: true,
+                    audit: None,
+                });
             }
         }
     }
@@ -974,6 +1009,26 @@ fn run_on_connection(
         consumers_need_rebuild: changed,
     };
 
+    // The audit stream compares the generation that was in the main store
+    // with the generation that is about to be written, so the old rows are
+    // read *before* they are replaced.  A pass that changed nothing writes
+    // no rows at all, and then there is nothing to compare either.
+    let audit = if apply && changed {
+        Some(ReviewAuditState {
+            context: records::ReviewGenerationContext {
+                network: network.to_owned(),
+                chain_id,
+                review_version: result.review_version,
+                review_checksum: Some(result.materialized_checksum.clone()),
+                observed_at: chrono::Utc::now().to_rfc3339(),
+            },
+            previous: read_review_rows_for_diff(connection, network, chain_id)?,
+            next: desired.reviews.iter().map(review_row_snapshot).collect(),
+        })
+    } else {
+        None
+    };
+
     if apply {
         if changed {
             replace_review_rows(connection, network, chain_id, &desired, &result)?;
@@ -982,7 +1037,139 @@ fn run_on_connection(
             persist_write_request(connection, request, &request_digest, &result)?;
         }
     }
-    Ok((result, false))
+    Ok(ReviewRunOutcome {
+        result,
+        idempotent_replay: false,
+        audit,
+    })
+}
+
+/// Read the reviews of the current generation in the shape the audit stream
+/// compares.
+///
+/// The filter is the same one `replace_review_rows` uses, so the rows read
+/// here are exactly the rows the write replaces.
+fn read_review_rows_for_diff(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<Vec<records::ReviewRowSnapshot>, ReviewError> {
+    let mut statement = connection.prepare(
+        "SELECT loop_key, closed_loop_version, review_status, review_reason,
+                signed_pnl_raw, signed_pnl_currency, signed_pnl_unit, signed_pnl_source,
+                path_symbols_json, pool_ids_json,
+                single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id
+         FROM manager_v4_reviews
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
+         ORDER BY loop_key",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<i64>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<String>>(10)?,
+                row.get::<_, Option<String>>(11)?,
+            ))
+        },
+    )?;
+    let mut snapshots = Vec::new();
+    for row in rows {
+        let (
+            loop_key,
+            closed_loop_version,
+            review_status,
+            review_reason,
+            signed_pnl_raw,
+            signed_pnl_currency,
+            signed_pnl_unit,
+            signed_pnl_source,
+            path_symbols_json,
+            pool_ids_json,
+            capacity_anchor_raw,
+            capacity_binding_pool_id,
+        ) = row?;
+        snapshots.push(records::ReviewRowSnapshot {
+            loop_key,
+            closed_loop_version,
+            review_status,
+            review_reason,
+            signed_pnl_raw,
+            signed_pnl_currency,
+            signed_pnl_unit,
+            signed_pnl_source,
+            path_symbols: optional_json_list(path_symbols_json)?,
+            pool_ids: optional_json_list(pool_ids_json)?,
+            capacity_anchor_raw,
+            capacity_binding_pool_id,
+        });
+    }
+    Ok(snapshots)
+}
+
+/// Project a review row onto the fields the audit stream compares.
+fn review_row_snapshot(row: &ReviewRow) -> records::ReviewRowSnapshot {
+    records::ReviewRowSnapshot {
+        loop_key: row.loop_key.clone(),
+        closed_loop_version: Some(row.closed_loop_version),
+        review_status: Some(row.review_status.clone()),
+        review_reason: row.review_reason.clone(),
+        signed_pnl_raw: row.signed_pnl.as_ref().map(|pnl| pnl.raw.clone()),
+        signed_pnl_currency: row.signed_pnl.as_ref().map(|pnl| pnl.currency.clone()),
+        signed_pnl_unit: row.signed_pnl.as_ref().map(|pnl| pnl.unit.clone()),
+        signed_pnl_source: row.signed_pnl.as_ref().map(|pnl| pnl.source.clone()),
+        path_symbols: Some(row.path_symbols.clone()),
+        pool_ids: Some(row.pool_ids.clone()),
+        capacity_anchor_raw: row.single_tick_capacity_anchor_raw.map(|value| value.to_string()),
+        capacity_binding_pool_id: row.single_tick_capacity_binding_pool_id.clone(),
+    }
+}
+
+/// Read a JSON list column, keeping *absent* apart from *empty*.
+fn optional_json_list(value: Option<String>) -> Result<Option<Vec<String>>, ReviewError> {
+    match value {
+        Some(value) => Ok(Some(serde_json::from_str::<Vec<String>>(&value)?)),
+        None => Ok(None),
+    }
+}
+
+/// Publish the audit lines of a written generation.
+///
+/// The audit stream takes part in no decision, so a failure here never fails
+/// the review that was already written.  The failure is counted instead, so
+/// the loss stays visible in the health snapshot.
+fn publish_review_audit(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    outcome: &ReviewRunOutcome,
+) {
+    let Some(audit) = outcome.audit.as_ref() else {
+        return;
+    };
+    let lines = records::diff_review_generations(&audit.context, &audit.previous, &audit.next);
+    if lines.is_empty() {
+        return;
+    }
+    let directory = match records::review_record_dir(database_path, network, chain_id) {
+        Ok(directory) => directory,
+        Err(error) => {
+            records::note_review_publish_failure(&error);
+            return;
+        }
+    };
+    if let Err(error) = records::publish_review_records(&directory, lines) {
+        records::note_review_publish_failure(&error);
+    }
 }
 
 fn status_count(rows: &[ReviewRow], status: &str) -> usize {
@@ -3322,9 +3509,27 @@ mod tests {
 
     fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("manager.sqlite3");
-        manager_db::migrate(&path).unwrap();
-        let connection = Connection::open(&path).unwrap();
+        let path = seed_store(&directory.path().join("manager.sqlite3"));
+        (directory, path)
+    }
+
+    /// The same fixture, but with the store inside a `db` directory.
+    ///
+    /// The record layer derives its root from the directory the store lives
+    /// in, so the fixture has to use the layout of the running system: the
+    /// record root then stays inside the fixture instead of next to the
+    /// temporary root.
+    fn database_with_record_root() -> (tempfile::TempDir, std::path::PathBuf) {
+        let directory = tempfile::tempdir().unwrap();
+        let db_directory = directory.path().join("db");
+        std::fs::create_dir_all(&db_directory).unwrap();
+        let path = seed_store(&db_directory.join("manager.sqlite3"));
+        (directory, path)
+    }
+
+    fn seed_store(path: &std::path::Path) -> std::path::PathBuf {
+        manager_db::migrate(path).unwrap();
+        let connection = Connection::open(path).unwrap();
         connection
             .execute(
                 "INSERT INTO manager_v4_closed_loop_library_state (
@@ -3375,7 +3580,7 @@ mod tests {
             .unwrap();
         seed_pool_states(&connection);
         drop(connection);
-        (directory, path)
+        path.to_path_buf()
     }
 
     /// Seeds the measured pool state of the route's three pools.
@@ -4678,5 +4883,66 @@ mod tests {
         );
 
         drop(directory);
+    }
+
+    #[tokio::test]
+    async fn a_written_generation_reaches_the_review_audit_stream() {
+        let (directory, path) = database_with_record_root();
+        let outcome = run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(1.0)), true, true, Vec::new())],
+            true,
+        )
+        .unwrap();
+        assert_eq!(outcome.completed_count, 1);
+
+        // The audit stream lands next to the db directory, one file per day.
+        let records = directory
+            .path()
+            .join("db")
+            .join(super::records::REVIEW_DIR_NAME)
+            .join(NETWORK)
+            .join(CHAIN_ID.to_string());
+        super::records::drain_review_records(&records).await.unwrap();
+        let day = chrono::Utc::now().date_naive();
+        let content = std::fs::read_to_string(
+            records
+                .join(super::records::review_day_folder(day))
+                .join(format!("{}.jsonl", super::records::loop_file_stem(LOOP_KEY))),
+        )
+        .unwrap();
+        let line: serde_json::Value =
+            serde_json::from_str(content.lines().next().unwrap()).unwrap();
+        assert_eq!(line["schema"], "review_record.v1");
+        assert_eq!(line["event"], "upsert");
+        assert_eq!(line["loopKey"], LOOP_KEY);
+        assert_eq!(line["reviewVersion"], 1);
+    }
+
+    #[tokio::test]
+    async fn a_dry_run_never_reaches_the_review_audit_stream() {
+        let (directory, path) = database_with_record_root();
+        let outcome = run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(1.0)), true, true, Vec::new())],
+            false,
+        )
+        .unwrap();
+        assert!(outcome.dry_run);
+
+        let records = directory
+            .path()
+            .join("db")
+            .join(super::records::REVIEW_DIR_NAME)
+            .join(NETWORK)
+            .join(CHAIN_ID.to_string());
+        assert!(
+            !records.exists(),
+            "the dry run wrote into the review audit stream"
+        );
     }
 }

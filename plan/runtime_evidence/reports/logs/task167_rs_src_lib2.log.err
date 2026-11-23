@@ -1,0 +1,16 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling flashloan-rs v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\rs-src)
+warning: unused variable: `catalog`
+    --> src\worker_pool.rs:5656:13
+     |
+5656 |         let catalog = identity_catalog(json!(published));
+     |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_catalog`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `flashloan-rs` (lib test) generated 1 warning (run `cargo fix --lib -p flashloan-rs --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 39s
+     Running unittests src\lib.rs (target\debug\deps\flashloan_rs-5e10c9be78d70d6b.exe)

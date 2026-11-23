@@ -1,5 +1,5 @@
 use candidate_edge_pool_manager::{read_candidate_status, CandidateEdgeError, CandidateEdgeStatus};
-use pool_manager::{read_scope_status, ScopeStatus};
+use pool_manager::{depth_config::MAX_CANDIDATE_FIXED_FEE, read_scope_status, ScopeStatus};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -1162,6 +1162,23 @@ fn pool_score(pool: &ScopePool) -> f64 {
         .unwrap_or(0.0)
 }
 
+/// Fee ceiling used by the **label** only.
+///
+/// This must stay in lockstep with the admission gate in
+/// `pool_manager::quality_reasons`, which rejects a pool when
+/// `fee > MAX_CANDIDATE_FIXED_FEE`. The two used to disagree by a factor
+/// of ten (a private `3_000` literal here versus `30_000` there), so pools
+/// that were admitted by the pool manager were still labelled
+/// `fee_not_fixed_candidate_range` on the exchange layer.
+///
+/// The label is **descriptive only** — membership is decided upstream by
+/// `pool_status == "active"`. Correcting it therefore must not move the
+/// pool universe, only the reason text attached to an already excluded
+/// pool.
+fn fee_within_candidate_range(fee: i64) -> bool {
+    fee > 0 && fee <= MAX_CANDIDATE_FIXED_FEE
+}
+
 fn abnormal_reasons(pool: &ScopePool) -> Vec<String> {
     let mut reasons = BTreeSet::new();
     if matches!(pool.pool_status.as_str(), "stale") {
@@ -1175,7 +1192,7 @@ fn abnormal_reasons(pool: &ScopePool) -> Vec<String> {
     {
         reasons.insert("non_zero_hook".to_owned());
     }
-    if pool.fee <= 0 || pool.fee > 3_000 {
+    if !fee_within_candidate_range(pool.fee) {
         reasons.insert("fee_not_fixed_candidate_range".to_owned());
     }
     if pool
@@ -2719,11 +2736,13 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_candidate_exchanges, materialize_candidate_exchanges,
-        materialize_candidate_exchanges_write, read_candidate_exchange_snapshot,
-        CandidateExchangeError, CandidateExchangeWriteRequest, ExpectedUpstream,
+        abnormal_reasons, compare_candidate_exchanges, fee_within_candidate_range,
+        materialize_candidate_exchanges, materialize_candidate_exchanges_write,
+        read_candidate_exchange_snapshot, CandidateExchangeError,
+        CandidateExchangeWriteRequest, ExpectedUpstream, ScopePool,
     };
     use manager_contracts::V4PoolKey;
+    use pool_manager::depth_config::MAX_CANDIDATE_FIXED_FEE;
     use pool_manager::materialize_scope;
     use rusqlite::{params, Connection};
     use serde_json::json;
@@ -3626,6 +3645,89 @@ mod tests {
                 .all(|difference| difference.cause == "legacyUsdDepthGateRemoved"),
             "the legacy USD depth gate is the cause of every difference: {:?}",
             comparison.differences
+        );
+    }
+
+    fn scope_pool_with_fee(fee: i64) -> ScopePool {
+        ScopePool {
+            pool_id: "0xpool".to_owned(),
+            pool_manager: POOL_MANAGER.to_owned(),
+            pool_key_json: "{}".to_owned(),
+            token0: ANCHOR.to_owned(),
+            token1: STOCK.to_owned(),
+            token0_key_id: token_key_id(ANCHOR),
+            token1_key_id: token_key_id(STOCK),
+            fee,
+            tick_spacing: 60,
+            hooks: ZERO_HOOK.to_owned(),
+            sqrt_price_x96: None,
+            tick: None,
+            liquidity: None,
+            liquidity_index: Some(1.0),
+            price: None,
+            depth_status: None,
+            liquidity_read_at: None,
+            liquidity_block_number: None,
+            evidence_source: None,
+            pool_status: "stale".to_owned(),
+        }
+    }
+
+    #[test]
+    fn fee_label_ceiling_is_the_admission_ceiling() {
+        // The label threshold must be the *same* constant the pool manager
+        // admits against (`pool_manager::quality_reasons` rejects when
+        // `fee > MAX_CANDIDATE_FIXED_FEE`). The two used to differ by a
+        // factor of ten: a private `3_000` literal here versus `30_000`
+        // there.
+        assert_eq!(
+            MAX_CANDIDATE_FIXED_FEE, 30_000,
+            "the admission ceiling is 3.00% and is shared with depth_policy.json"
+        );
+        // The boundary is the shared constant itself: exactly at the
+        // ceiling is in range, one unit above is not.
+        assert!(fee_within_candidate_range(MAX_CANDIDATE_FIXED_FEE));
+        assert!(!fee_within_candidate_range(MAX_CANDIDATE_FIXED_FEE + 1));
+        // The old private ceiling is gone: a pool above 3_000 but at or
+        // below the shared ceiling is in range.
+        assert!(fee_within_candidate_range(3_000));
+        assert!(fee_within_candidate_range(3_001));
+        // A non-positive fee is still out of range on both sides.
+        assert!(!fee_within_candidate_range(0));
+        assert!(!fee_within_candidate_range(-1));
+    }
+
+    #[test]
+    fn fee_label_is_not_emitted_for_pools_the_admission_gate_accepts() {
+        // The label is descriptive only — it never decides membership —
+        // so a pool the admission gate accepts must not be labelled
+        // `fee_not_fixed_candidate_range`. This is the non-vacuous half of
+        // the guard: restoring the old `3_000` literal makes it red.
+        let reasons = abnormal_reasons(&scope_pool_with_fee(5_000));
+        assert!(
+            !reasons
+                .iter()
+                .any(|reason| reason == "fee_not_fixed_candidate_range"),
+            "an admitted fee must not be labelled out of range: {reasons:?}"
+        );
+        assert!(reasons.iter().any(|reason| reason == "stale_pool"));
+
+        // A fee above the shared ceiling still is labelled.
+        let reasons = abnormal_reasons(&scope_pool_with_fee(50_000));
+        assert!(
+            reasons
+                .iter()
+                .any(|reason| reason == "fee_not_fixed_candidate_range"),
+            "a fee above the shared ceiling must stay labelled: {reasons:?}"
+        );
+
+        // A non-positive fee stays labelled as well.
+        let reasons = abnormal_reasons(&scope_pool_with_fee(0));
+        assert!(
+            reasons
+                .iter()
+                .any(|reason| reason == "fee_not_fixed_candidate_range"),
+            "a non-positive fee must stay labelled: {reasons:?}"
         );
     }
 }

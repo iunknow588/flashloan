@@ -17,7 +17,6 @@ from core.db.import_existing_json import import_existing_json
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     load_v4_pool_liquidity,
-    upsert_v4_liquidity_snapshots,
 )
 from dex.intent_trade.chains.robinhood import v4_pool_index as mainnet_pool_index
 from dex.intent_trade.chains.robinhood_testnet import v4_pool_liquidity as testnet_liquidity
@@ -27,6 +26,15 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
     ROBINHOOD_TESTNET_V4_POOL_MANAGER,
     ZERO_ADDRESS,
 )
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -267,7 +275,7 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
     ensure_database_schema(database)
     pool_id = "0x" + "dd" * 32
 
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -282,7 +290,7 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
     )[0]
     assert row["has_liquidity"] is None
 
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -307,7 +315,7 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
     assert row["liquidity"] == str(10**18)
 
     # A later unknown row must not erase the explicit true evidence.
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -324,7 +332,7 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
 
     # A weak false row with no live evidence must not overwrite confirmed
     # evidence. Only an explicit live-state read may prove the pool is empty.
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -340,7 +348,7 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
     assert row["has_liquidity"] == 1
 
     # Explicit live-state evidence is authoritative for a true zero.
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -368,6 +376,17 @@ def test_upsert_liquidity_snapshots_treats_unknown_as_null_and_preserves_known(t
 
 
 def test_import_prefers_index_extsload_over_stale_swap_liquidity_file(tmp_path):
+    """The evidence import seeds the pool index and writes no depth snapshot.
+
+    TASK-172 / AC-221.  The depth snapshot table has exactly one writer, the
+    Rust pool manager.  The evidence channel therefore seeds the pool index
+    and leaves the snapshot to the pool manager -- it never materialises a
+    row, so a stale liquidity file can never reach the snapshot table and
+    never contradicts the pool manager's own measurement.
+
+    The index still wins over the stale liquidity file for the pool *index*
+    row: the index row is the live extsload measurement.
+    """
     root = tmp_path / "runtime"
     database = str(tmp_path / "local.sqlite3")
     ensure_database_schema(database)
@@ -417,6 +436,35 @@ def test_import_prefers_index_extsload_over_stale_swap_liquidity_file(tmp_path):
     assert result["ok"] is True
     assert result["v4PoolCount"] == 1
 
+    # The evidence channel wrote the pool index and nothing else.
+    assert load_v4_pool_liquidity(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+    ) == []
+
+    # The pool manager then materialises the row, and its own measurement is
+    # the only thing that reaches the snapshot table.
+    materialise_depth_snapshot(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": pool_id,
+                "has_liquidity": True,
+                "liquidity": str(10**18),
+                "liquidity_index": 1.0,
+                "estimated_tvl_usd": 6000.0,
+                "depth_status": "deep",
+                "liquidity_read_at": "2026-10-10T00:00:00Z",
+                "liquidity_block_number": 134_757_678,
+                "recent_swap_active": True,
+            }
+        ],
+    )
     row = load_v4_pool_liquidity(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
@@ -426,12 +474,22 @@ def test_import_prefers_index_extsload_over_stale_swap_liquidity_file(tmp_path):
     assert row["pool_id"] == pool_id
     assert row["has_liquidity"] == 1
     assert row["liquidity"] == str(10**18)
-    # The index row does not carry recentSwapActive, so the liquidity file's
-    # explicit true must not be overwritten by an implicit false default.
     assert row["recent_swap_active"] == 1
 
 
 def test_import_keeps_extsload_missing_unknown_not_false_negative(tmp_path):
+    """A read failure stays unknown; only a live zero may prove emptiness.
+
+    TASK-172 / AC-221.  The evidence import writes no depth snapshot, so
+    the tri-state lives with the pool manager, which is the only writer of
+    the snapshot table.  This test locks in the tri-state itself:
+
+    * a pool whose live read failed is **unknown** (``None``), not empty;
+    * a pool whose live read returned a real zero is **empty** (``0``).
+
+    Both facts must survive into the materialised row, because a false
+    negative turns a live pool into a dead one.
+    """
     root = tmp_path / "runtime"
     database = str(tmp_path / "local.sqlite3")
     ensure_database_schema(database)
@@ -465,6 +523,40 @@ def test_import_keeps_extsload_missing_unknown_not_false_negative(tmp_path):
     )
 
     import_existing_json(database, runtime_root=root, network=ROBINHOOD_TESTNET_NETWORK)
+
+    # The evidence channel wrote no depth snapshot row at all.
+    assert load_v4_pool_liquidity(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+    ) == []
+
+    # The pool manager materialises both rows: a read failure stays
+    # unknown, a measured zero stays empty.
+    materialise_depth_snapshot(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": unknown_id,
+                "has_liquidity": None,
+                "liquidity": "",
+                "depth_status": None,
+                "liquidity_read_at": "block:134757678",
+            },
+            {
+                "pool_id": zero_id,
+                "has_liquidity": False,
+                "liquidity": "",
+                "depth_status": "no_liquidity",
+                "liquidity_block_number": 134_757_678,
+                "evidence_source": "pool_manager_extsload_live_state_batch",
+            },
+        ],
+    )
     rows = {
         row["pool_id"]: row
         for row in load_v4_pool_liquidity(

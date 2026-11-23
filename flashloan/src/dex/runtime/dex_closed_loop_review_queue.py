@@ -273,12 +273,33 @@ class FixedRefreshPipeline:
         *,
         refresh_fn: Callable[[ClosedLoopReviewTask], dict[str, Any]],
         queue: ClosedLoopReviewQueue | None = None,
+        native_rust_enabled: Callable[[], bool] | None = None,
     ) -> None:
         self.queue = queue or ClosedLoopReviewQueue()
         self.refresh_fn = refresh_fn
+        self._native_rust_enabled = native_rust_enabled
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()
+
+    def _rust_owns_scheduling(self) -> bool:
+        """Report whether the Rust main thread owns review scheduling.
+
+        The design rule is that both the pending-review queue and its
+        consumer live in Rust.  When the Rust kernel is available it owns
+        the resident per-group workers, so the Python pipeline must not
+        start its own threads: a Python worker would re-run the review
+        (including the auto-broadcast branch) outside the Rust pipeline
+        and outside the Rust review-freshness gate.
+        """
+        if self._native_rust_enabled is None:
+            return False
+        try:
+            return bool(self._native_rust_enabled())
+        except Exception:
+            # A failing capability probe must not silently hand review
+            # scheduling back to Python.
+            return True
 
     def _worker_count(self) -> int:
         raw = os.getenv("DEX_CLOSED_LOOP_GROUP_WORKERS", os.getenv("DEX_CLOSED_LOOP_WORKERS", "3"))
@@ -288,6 +309,10 @@ class FixedRefreshPipeline:
             return 16
 
     def start(self) -> None:
+        if self._rust_owns_scheduling():
+            # Rust owns the review queue and its workers.  Starting Python
+            # threads here would duplicate the review pipeline.
+            return
         with self._lock:
             if any(thread.is_alive() for thread in self._threads):
                 return
@@ -311,6 +336,10 @@ class FixedRefreshPipeline:
                 thread.join(timeout=2.0)
 
     def run_once(self) -> ClosedLoopReviewTask | None:
+        if self._rust_owns_scheduling():
+            # The Rust main thread is the only consumer of the pending-review
+            # queue.  A Python-side pop would steal work from Rust.
+            return None
         task = self.queue.pop_next()
         if task is None:
             return None

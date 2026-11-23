@@ -13,7 +13,8 @@ to a Python-local rule that could disagree with the kernel.
 from __future__ import annotations
 
 import json
-from typing import Any
+import os
+from typing import Any, Mapping
 
 from core.db import pool_depth_keys as _pool_depth_keys
 
@@ -29,8 +30,42 @@ DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE = 1.0
 # A direction is usable as soon as one confirmed-liquidity candidate exists.
 # This is the completion floor for backfill/readiness gates.
 MIN_DIRECTION_CANDIDATE_POOLS = 1
-# This remains an upper bound for recommendation-list truncation only.
-MAX_DIRECTION_CANDIDATE_POOLS = 5
+# The directional candidate capacity is a **capacity knob**, not an admission
+# threshold: it answers "how many pools may one direction keep", never
+# "is this pool qualified".  Changing it changes what the system does, so it
+# belongs in the environment instead of in the source text.  It must never be
+# used as a gate -- a direction with fewer qualified pools keeps fewer pools.
+MAX_DIRECTION_CANDIDATE_POOLS_ENV = "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS"
+DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS = 5
+
+
+def resolve_max_direction_candidate_pools(
+    env: Mapping[str, str] | None = None,
+) -> int:
+    """Resolve the directional candidate capacity from the environment.
+
+    A malformed or non-positive value falls back to the default instead of
+    raising: a capacity knob must never be able to stop the scanner.  The
+    value is read at call time so an operator can turn the knob without a
+    code change; the module level constant below is only the import-time
+    snapshot of it.
+    """
+    source = os.environ if env is None else env
+    raw = source.get(MAX_DIRECTION_CANDIDATE_POOLS_ENV)
+    if raw is None:
+        return DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS
+    if value <= 0:
+        return DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS
+    return value
+
+
+# Import-time snapshot of the capacity knob.  Kept as a module constant so
+# the existing call sites and their defaults keep working unchanged.
+MAX_DIRECTION_CANDIDATE_POOLS = resolve_max_direction_candidate_pools()
 LIVE_STATE_EVIDENCE_SOURCES = {
     "pool_manager_extsload_live_state_batch",
     "pool_manager_extsload_live_state_batch_rust",
@@ -379,7 +414,7 @@ def select_directional_pool_ids(
     token_in: object,
     token_out: object,
     *,
-    limit: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    limit: int | None = None,
     min_usd: float = DEFAULT_MIN_POOL_DEPTH_USD,
     fallback_token_base: float = DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE,
     decimals_by_address: dict[str, object] | None = None,
@@ -397,6 +432,8 @@ def select_directional_pool_ids(
     the score/order, but it must never make one side of the pair look
     "has pools" while the mirror side looks "no pools".
     """
+    if limit is None:
+        limit = resolve_max_direction_candidate_pools()
     if limit <= 0:
         return []
     token_in_norm = _text(token_in)
@@ -451,8 +488,10 @@ def select_directional_pool_ids(
 
 
 __all__ = [
+    "DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS",
     "DEFAULT_MIN_POOL_DEPTH_TOKEN_BASE",
     "DEFAULT_MIN_POOL_DEPTH_USD",
+    "MAX_DIRECTION_CANDIDATE_POOLS_ENV",
     "MIN_DIRECTION_CANDIDATE_POOLS",
     "MAX_DIRECTION_CANDIDATE_POOLS",
     "capacity_binding_raw",
@@ -461,6 +500,7 @@ __all__ = [
     "kernel_admission_verdict",
     "has_confirmed_liquidity",
     "pool_depth_usd",
+    "resolve_max_direction_candidate_pools",
     "score_pool_by_direction",
     "select_directional_pool_ids",
 ]

@@ -1,0 +1,165 @@
+{
+  "report": "TASK-184 测试套件仍写生产主网库（确定缺陷 · 开放）",
+  "task": "TASK-184",
+  "acceptance": "AC-233",
+  "generatedAt": "2026-11-23T03:10:00+00:00",
+  "authority": "statement level probe plus an external read-only PRAGMA data_version sampler; the collector itself only ever opens the live store with mode=ro and PRAGMA query_only=ON; no broadcast",
+  "liveStore": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "chainId": 4663,
+    "openedForWritingByCollector": false
+  },
+  "status": "open",
+  "collector": "plan/runtime_evidence/tools/analyze_task183_184_production_db_writes_20261123.py",
+  "measurements": {
+    "scopedRepro20261123": {
+      "kind": "live measurement",
+      "scope": [
+        "flashloan/app_runtime/tests/functional/page_state/test_page_state_execution_receipts.py",
+        "flashloan/app_runtime/tests/functional/test_control_panel_status.py",
+        "flashloan/app_runtime/tests/integration/cow_flashloan/test_candidate_queue.py"
+      ],
+      "pytestExitCode": 0,
+      "pytestPassed": 51,
+      "pytestElapsedSeconds": 14.81,
+      "dataVersionInitial": 2,
+      "dataVersionFinal": 58,
+      "commitCount": 56,
+      "observationWindowSeconds": 12.498,
+      "connectionsToLiveStore": 111,
+      "statementsTraced": 465,
+      "dmlStatementTotal": 58,
+      "dmlByStatement": {
+        "INSERT INTO kv_entries": 44,
+        "INSERT INTO kv_meta": 8,
+        "INSERT INTO cow_execution_reviews": 3,
+        "DELETE FROM cow_execution_attempts": 3
+      },
+      "dmlKeys": {
+        "INSERT INTO kv_entries": {
+          "parameters": 44
+        },
+        "INSERT INTO kv_meta": {
+          "schema_migrations": 8
+        }
+      }
+    },
+    "fullRun20261123": {
+      "kind": "offline analysis of the captured probe artifacts of a full suite run",
+      "preservedArtifacts": {
+        "probeLog": "plan/runtime_evidence/logs/task184_fullrun_probe_20261123.log.gz",
+        "dataVersion": "plan/runtime_evidence/logs/task184_fullrun_dataversion_20261123.tsv",
+        "silentControl": "plan/runtime_evidence/logs/task184_silent_control_dataversion_20261123.tsv"
+      },
+      "reproduction": "python plan/runtime_evidence/tools/analyze_task183_184_production_db_writes_20261123.py --probe-log plan/runtime_evidence/logs/task184_fullrun_probe_20261123.log.gz --dataversion plan/runtime_evidence/logs/task184_fullrun_dataversion_20261123.tsv --label preserved_full_run --out-json <a.json> --out-md <a.md>",
+      "reproductionVerified": "the preserved artifacts reproduce 185 commits, data_version 2 -> 187, 1632 connections and 362 DML statements with the same per table distribution",
+      "dataVersionInitial": 2,
+      "dataVersionFinal": 187,
+      "commitCount": 185,
+      "observationWindowSeconds": 943.705,
+      "connectionsToLiveStore": 1632,
+      "statementsTraced": 5631,
+      "dmlStatementTotal": 362,
+      "dmlByStatement": {
+        "INSERT INTO kv_entries": 348,
+        "INSERT INTO kv_meta": 8,
+        "INSERT INTO cow_execution_reviews": 3,
+        "DELETE FROM cow_execution_attempts": 3
+      },
+      "dmlKeys": {
+        "INSERT INTO kv_entries": {
+          "parameters": 346,
+          "flash_loan_pool_discovery": 2
+        },
+        "INSERT INTO kv_meta": {
+          "schema_migrations": 8
+        }
+      }
+    },
+    "silentControl": {
+      "kind": "live measurement",
+      "windowSeconds": 150,
+      "commitCount": 0,
+      "purpose": "the same sampler records zero commits while pytest is idle, so the commits observed inside a run window are attributable to the run itself and not to a background writer"
+    }
+  },
+  "rootCauses": [
+    {
+      "id": "RC-1",
+      "statement": "INSERT INTO kv_entries",
+      "count": 348,
+      "keys": [
+        "parameters",
+        "flash_loan_pool_discovery"
+      ],
+      "why": "core.local_kv resolves its default path to the main chain store, so the production read paths under bot/page_state write the control panel page state into the live database",
+      "sites": [
+        "flashloan/src/bot/page_state/store.py:126 set",
+        "flashloan/src/bot/page_state/service.py:42 _state_payload",
+        "flashloan/src/bot/liquidation/execution_state.py:104 record_execution_state"
+      ],
+      "writes": "control panel page state (parameters collection) and the flash loan pool discovery snapshot"
+    },
+    {
+      "id": "RC-2",
+      "statement": "INSERT INTO kv_meta",
+      "count": 8,
+      "keys": [
+        "schema_migrations"
+      ],
+      "why": "the liquidation discovery window writes the schema_migrations record of the main chain store; this is a different key from the one TASK-183 closed",
+      "sites": [
+        "flashloan/app_runtime/web/control_panel_liquidation_discovery.py:156 liquidation_discovery_window",
+        "flashloan/app_runtime/web/control_panel_liquidation_discovery.py:158 liquidation_discovery_window"
+      ]
+    },
+    {
+      "id": "RC-3",
+      "statement": "INSERT INTO cow_execution_reviews / DELETE FROM cow_execution_attempts",
+      "count": 6,
+      "why": "the arbitrage daemon writes its attempt log into the main chain store; core/db/builders.py imports delete_rows by name, which bypasses the conftest guard that watches function names instead of connections",
+      "sites": [
+        "flashloan/src/dex/runtime/cow_attempt_log.py:99 record_cow_attempt_list_safely",
+        "flashloan/src/dex/runtime/cow_arbitrage_daemon.py:115 default_record_attempts",
+        "flashloan/app_runtime/tests/conftest.py:98 _guard_real_chain_databases",
+        "flashloan/src/core/db/builders.py:50"
+      ]
+    }
+  ],
+  "consequences": [
+    "The main store byte comparison cannot be used as evidence while a test run is in flight (the 65th round caveat stands).",
+    "The existing assumption that the test suite does not write to the production store is refuted.",
+    "The live store accumulates test residue: control panel page state rows and cow_execution_* business rows.",
+    "The writes reach the live operation gates, not only cosmetic state: a test run resets the pause guards to their defaults."
+  ],
+  "operationalImpact": {
+    "measuredAt": "2026-11-23",
+    "method": "read-only count of the rows whose updated_at / created_at fall on the day of the test run",
+    "kvEntriesParameters": {
+      "keysWrittenToday": 19,
+      "namespaces": {
+        "cow_submission_pause_guard": 6,
+        "liquidation_pause_guard": 9,
+        "page_state": 4
+      },
+      "valuesWritten": "the defaults: paused=false, order_submission_enabled=true, consecutive_failure_count=0, pause_reason=null",
+      "reading": "a test run therefore resets the live submission gate and the live liquidation gate to their default state; had the live system been paused by a real failure streak, the test run would have cleared that pause",
+      "currentState": "unpaused, which is also the default; no manual restore was needed"
+    },
+    "cowExecutionReviews": {
+      "totalRowsInTable": 49719,
+      "rowsLeftByTheTestRun": 1,
+      "leftoverIdentity": "attempt_key attempt|local|0|aeae9c45a7d284000d87cf3af48c69ae| (chain id 0, empty pair) on 2026-11-23",
+      "reading": "the tests remove most of their own rows with their own DELETE; one row per run survives in a live business table"
+    },
+    "note": "these counts are measured, not estimated; the numbers above come from the same read-only session that produced the residue"
+  },
+  "remainingWork": [
+    "Move the guard from watching function names to watching connections: force mode=ro on every live chain store connection so a write fails inside SQLite instead of being noticed afterwards.",
+    "Make the default path of core.local_kv and bot/page_state injectable so a test never resolves to the main chain store.",
+    "Add a guard that asserts PRAGMA data_version of the main store does not change across a full pytest run."
+  ],
+  "notClaimed": [
+    "This report does not claim that the record layer is already fed: TASK-165 (the Rust production publish path) is still open."
+  ]
+}

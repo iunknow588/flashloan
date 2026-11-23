@@ -1,8 +1,10 @@
-﻿import re
+import re
 import ast
+import sys
 from pathlib import Path
 
 from web.control_panel import app as control_panel_app
+from core.db.storage_business_io import execute
 
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
@@ -577,6 +579,75 @@ def test_dex_opportunity_runtime_layer_boundaries():
         "def _attach_auto_execute_to_attempt",
     ):
         assert name not in engine_source
+
+def test_closed_loop_review_scheduling_stays_in_rust():
+    """The pending-review queue and its consumer belong to Rust.
+
+    Design rule: both the production queue and the consumption queue are
+    implemented in Rust.  Python only presents data.  The Rust kernel owns
+    the resident per-group review workers and the main thread that drains
+    the pending-review queue, so the Python pipeline must not schedule or
+    execute reviews while the Rust kernel is active.
+
+    A Python-side review would additionally run the auto-broadcast branch
+    outside the Rust review-freshness gate.
+    """
+    queue_source = _resolved("dex/runtime/dex_closed_loop_review_queue.py").read_text(
+        encoding="utf-8"
+    )
+    engine_source = _resolved("dex/runtime/dex_opportunity_scanner_engine.py").read_text(
+        encoding="utf-8"
+    )
+
+    # The pipeline must know whether Rust owns scheduling.
+    assert "native_rust_enabled" in queue_source
+    assert "_rust_owns_scheduling" in queue_source
+
+    # The pipeline must refuse to start threads and to pop the queue while
+    # Rust owns scheduling.
+    start_body = queue_source.split("def start(self)", 1)[1].split("def stop(self)", 1)[0]
+    assert "_rust_owns_scheduling()" in start_body
+
+    run_once_body = queue_source.split("def run_once(self)", 1)[1].split("def _loop(self)", 1)[0]
+    assert "_rust_owns_scheduling()" in run_once_body
+
+    # The scanner must wire the capability probe into the pipeline.
+    assert "native_rust_enabled=" in engine_source
+
+    # The Python review supervisor was already gated; keep it gated.
+    assert "not self._native_rust_closed_loop" in engine_source
+
+
+def test_closed_loop_manual_review_and_broadcast_use_rust_only():
+    """UI-triggered manual review and broadcast call Rust and nothing else.
+
+    The Rust side only clears the queued wait time (sets it to zero) and
+    lets the unified worker pipeline handle the rest.  There is no special
+    Python handling path for these two operations.
+    """
+    routes_source = (
+        SRC_ROOT / "web" / "data_routes" / "dex_surface_routes_ops.py"
+    ).read_text(encoding="utf-8")
+
+    manual_review_body = routes_source.split(
+        "def dex_closed_loop_group_manual_review():", 1
+    )[1].split("def dex_closed_loop_group_manual_broadcast():", 1)[0]
+    manual_broadcast_body = routes_source.split(
+        "def dex_closed_loop_group_manual_broadcast():", 1
+    )[1].split("def dex_closed_loop_group_start(", 1)[0]
+
+    for body in (manual_review_body, manual_broadcast_body):
+        # Must dispatch through RuntimeCore, i.e. the Rust side.
+        assert "execute_command(" in body
+        # Must not touch the Python review queue or pipeline.
+        assert "closed_loop_review_queue" not in body
+        assert "closed_loop_review_pipeline" not in body
+        assert "_fixed_refresh_group" not in body
+
+    # The Rust command name is the RuntimeCore contract.
+    assert '"manual_review"' in manual_review_body
+    assert '"manual_broadcast"' in manual_broadcast_body
+
 
 def test_repo_root_keeps_only_intended_config_files():
     allowed_files = {
@@ -1434,6 +1505,72 @@ def test_d9_40_migrated_page_modules_have_no_dead_legacy_submission_sqlite_paths
         )
 
 
+# --- M-6: the tables the Rust managers own ---------------------------------
+#
+# The manager owns the record reads and the record writes; Python only
+# consumes what the manager publishes.  These tuples are the single
+# registration point for that rule.  The guard and its negative assertions
+# all read them, so a table that quietly drops out of here stops being
+# protected -- and the negative assertions are what make that visible.
+#
+# The two directional pool tables are registered **before** the migration
+# lands.  The guard has to be in place on the day the tables appear, not on
+# the day somebody remembers to come back and add them.
+MANAGER_BUSINESS_READ_TABLES = (
+    "manager_v4_reviews",
+    "manager_v4_review_diagnostics",
+    "manager_v4_review_broadcast_requests",
+    "manager_cow_execution_attempts",
+    "manager_broadcast_attempt_diagnostics",
+    "manager_review_library_state",
+    "manager_broadcast_library_state",
+    "manager_v4_closed_loops",
+    "manager_v4_closed_loop_hops",
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
+)
+
+MANAGER_BUSINESS_WRITE_TABLES = (
+    "manager_v4_reviews",
+    "manager_v4_review_diagnostics",
+    "manager_v4_review_broadcast_requests",
+    "manager_cow_execution_attempts",
+    "manager_broadcast_attempt_diagnostics",
+    "manager_review_library_state",
+    "manager_broadcast_library_state",
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
+)
+
+# The directional pool layer (M-6).  It is owned by the Rust directional
+# pool manager: Python must neither query it directly nor re-implement its
+# ordering, de-duplication or materialisation.
+DIRECTIONAL_POOL_MANAGER_TABLES = (
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
+)
+
+_MANAGER_DIRECT_READ_PATTERN = re.compile(
+    r"\b(?:FROM|JOIN)\s+[\"`]?\s*(?:\w+\s*,\s*)?(manager_\w+)",
+    re.IGNORECASE,
+)
+
+
+def _manager_direct_read_offenders(source, tables):
+    """Return (matched_text, table) for every manager table read directly.
+
+    The matcher lives in one place on purpose: the guard and its negative
+    assertions have to exercise the very same code path, otherwise a
+    passing assertion would say nothing about the guard it claims to prove.
+    """
+    offenders = []
+    for match in _MANAGER_DIRECT_READ_PATTERN.finditer(source):
+        table = match.group(1)
+        if table in tables:
+            offenders.append((match.group(0), table))
+    return offenders
+
+
 def test_python_never_clears_the_manager_business_tables_directly():
     """AC-142: clearing the business tables must go through the manager.
 
@@ -1447,15 +1584,6 @@ def test_python_never_clears_the_manager_business_tables_directly():
     fixture databases.
     """
 
-    manager_tables = (
-        "manager_v4_reviews",
-        "manager_v4_review_diagnostics",
-        "manager_v4_review_broadcast_requests",
-        "manager_cow_execution_attempts",
-        "manager_broadcast_attempt_diagnostics",
-        "manager_review_library_state",
-        "manager_broadcast_library_state",
-    )
     write_pattern = re.compile(
         r"\b(?:INSERT\s+INTO|UPDATE\s+\w+|DELETE\s+FROM|REPLACE\s+INTO"
         r"|DROP\s+TABLE|ALTER\s+TABLE)\b",
@@ -1469,7 +1597,7 @@ def test_python_never_clears_the_manager_business_tables_directly():
         source = path.read_text(encoding="utf-8")
         for match in write_pattern.finditer(source):
             window = source[max(0, match.start() - 200) : match.end() + 200]
-            for table in manager_tables:
+            for table in MANAGER_BUSINESS_WRITE_TABLES:
                 if table in window:
                     offenders.append(f"{path}: {match.group(0)} {table}")
 
@@ -1494,36 +1622,180 @@ def test_python_never_reads_the_manager_business_tables_directly():
     own fixture databases.
     """
 
-    manager_tables = (
-        "manager_v4_reviews",
-        "manager_v4_review_diagnostics",
-        "manager_v4_review_broadcast_requests",
-        "manager_cow_execution_attempts",
-        "manager_broadcast_attempt_diagnostics",
-        "manager_review_library_state",
-        "manager_broadcast_library_state",
-        "manager_v4_closed_loops",
-        "manager_v4_closed_loop_hops",
-    )
-    read_pattern = re.compile(
-        r"\b(?:FROM|JOIN)\s+[\"`]?\s*(?:\w+\s*,\s*)?(manager_\w+)",
-        re.IGNORECASE,
-    )
-
     offenders = []
     for path in _python_files():
         if "tests" in path.parts:
             continue
         source = path.read_text(encoding="utf-8", errors="replace")
-        for match in read_pattern.finditer(source):
-            table = match.group(1)
-            if table in manager_tables:
-                offenders.append(f"{path}: {match.group(0)}")
+        for match_text, _table in _manager_direct_read_offenders(
+            source, MANAGER_BUSINESS_READ_TABLES
+        ):
+            offenders.append(f"{path}: {match_text}")
 
     assert offenders == [], (
         "TASK-158: Python must not read the manager business tables directly; "
         "the manager publishes the records and Python only consumes them: "
         + "; ".join(offenders)
+    )
+
+
+_DIRECTIONAL_POOL_QUERY_SNIPPET = """
+def _load_directional_pools(conn):
+    rows = conn.execute(
+        "SELECT directional_pool_id, direction, pair_key_id "
+        "FROM manager_v4_directional_exchange_pools "
+        "WHERE network = ? AND chain_id = ?"
+    ).fetchall()
+    return rows
+"""
+
+
+def test_directional_pool_tables_are_registered_with_the_manager_guards():
+    """M-6: the directional pool layer must be inside the guard registration.
+
+    The migration landed with TASK-167, so the tables are real now; the
+    registration is what keeps them out of the Python read and write paths.
+    """
+    for table in DIRECTIONAL_POOL_MANAGER_TABLES:
+        assert table in MANAGER_BUSINESS_READ_TABLES, (
+            f"M-6: {table} must be registered with the manager read guard"
+        )
+        assert table in MANAGER_BUSINESS_WRITE_TABLES, (
+            f"M-6: {table} must be registered with the manager write guard"
+        )
+
+
+def test_directional_pool_read_guard_rejects_a_direct_query():
+    """T-I-1: a Python SELECT against a directional pool table must be caught.
+
+    The assertion runs the very matcher the guard runs, so a pass here means
+    the guard would really fail on a real offender.
+    """
+    offenders = _manager_direct_read_offenders(
+        _DIRECTIONAL_POOL_QUERY_SNIPPET, MANAGER_BUSINESS_READ_TABLES
+    )
+    assert offenders, (
+        "T-I-1: the manager read guard must reject a direct query against "
+        "manager_v4_directional_exchange_pools"
+    )
+    assert any(
+        table == "manager_v4_directional_exchange_pools"
+        for _text, table in offenders
+    ), (
+        "T-I-1: the guard must name the offending table, got: "
+        + ", ".join(f"{text} -> {table}" for text, table in offenders)
+    )
+
+
+def test_directional_pool_read_guard_is_not_vacuous():
+    """T-I-2: dropping the table from the tuple must break the assertion.
+
+    This is the regression construction for the guard itself.  If the
+    directional pool tables were missing from the registration, the T-I-1
+    assertion would have nothing to catch and would pass for the wrong
+    reason.  Here the same snippet is scanned against a tuple that lacks
+    the directional tables and must come back clean -- which proves the
+    T-I-1 hit came from the registration and not from the matcher.
+    """
+    tables_without_directional = tuple(
+        table
+        for table in MANAGER_BUSINESS_READ_TABLES
+        if table not in DIRECTIONAL_POOL_MANAGER_TABLES
+    )
+    assert _manager_direct_read_offenders(
+        _DIRECTIONAL_POOL_QUERY_SNIPPET, tables_without_directional
+    ) == [], (
+        "T-I-2: without the directional pool registration the same snippet "
+        "must not be flagged, otherwise the T-I-1 assertion is vacuous"
+    )
+    assert _manager_direct_read_offenders(
+        _DIRECTIONAL_POOL_QUERY_SNIPPET, MANAGER_BUSINESS_READ_TABLES
+    ), (
+        "T-I-2: the registration is what makes the directional pool tables "
+        "protected; without it the guard has nothing to catch"
+    )
+
+
+def test_directional_pool_layer_is_wired_into_the_manager_workspace():
+    """AC-216: the directional layer must be a first class manager layer.
+
+    The layer is a projection of the base pools, so it lives beside the
+    other pool layers: its own crate in the tools workspace, its own
+    migration in the manager migration ledger, and its own node in the
+    composite dependency graph.  A layer that is only half wired would let
+    the closed loop read a pool universe that nobody publishes.
+    """
+    tools_root = REPO_ROOT / "flashloan" / "tools"
+    workspace = (tools_root / "Cargo.toml").read_text(encoding="utf-8")
+    assert '"directional_pool_manager"' in workspace, (
+        "AC-216: the directional pool crate must be a member of the tools workspace"
+    )
+    assert (tools_root / "directional_pool_manager" / "src" / "lib.rs").is_file(), (
+        "AC-216: the directional pool crate must have a library source"
+    )
+
+    migrate = (tools_root / "manager_db" / "src" / "migrate.rs").read_text(
+        encoding="utf-8"
+    )
+    assert "DIRECTIONAL_POOL_MIGRATION_ID" in migrate, (
+        "AC-216: the manager migration ledger must name the directional pool migration"
+    )
+    assert "20261123_015_directional_pool_schema" in migrate, (
+        "AC-216: the directional pool migration id must be registered"
+    )
+    for table in DIRECTIONAL_POOL_MANAGER_TABLES:
+        assert table in migrate, (
+            f"AC-216: {table} must be a target table of the manager migration"
+        )
+
+    composite = (tools_root / "composite_manager" / "src" / "lib.rs").read_text(
+        encoding="utf-8"
+    )
+    assert "DirectionalPool" in composite, (
+        "AC-216: the composite dependency graph must carry the directional pool node"
+    )
+    assert '"directional_pool"' in composite, (
+        "AC-216: the directional pool dependency edge must be named in the graph"
+    )
+    composite_manifest = (tools_root / "composite_manager" / "Cargo.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "directional-pool-manager" in composite_manifest, (
+        "AC-216: the composite manager must depend on the directional pool crate"
+    )
+
+
+def test_the_candidate_pool_count_is_a_runtime_configuration_parameter():
+    """AC-216: the candidate pool count is a knob, not a constant.
+
+    The candidate pool count answers "how many do we take", so it is a
+    capacity knob: changing it changes what the system does.  A knob that
+    can only be changed by editing the source is not a knob, so the count
+    has to be resolved from the environment at call time.  The same rule
+    holds on the Rust side.
+    """
+    score = (SPLIT_SRC_ROOT / "core" / "db" / "direction_pool_score.py").read_text(
+        encoding="utf-8"
+    )
+    assert "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS" in score, (
+        "AC-216: the candidate pool count must be configurable through the environment"
+    )
+    assert "resolve_max_direction_candidate_pools" in score, (
+        "AC-216: the candidate pool count must be resolved at call time"
+    )
+
+    builder = (SPLIT_SRC_ROOT / "core" / "db" / "builders.py").read_text(
+        encoding="utf-8"
+    )
+    assert "__getattr__" in builder, (
+        "AC-216: the builder module must expose the candidate limits at call time"
+    )
+
+    rust = (REPO_ROOT / "flashloan" / "rs-src" / "src" / "business_builder.rs").read_text(
+        encoding="utf-8"
+    )
+    assert "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS" in rust, (
+        "AC-216: the Rust side must read the candidate pool count from the environment"
     )
 
 
@@ -1772,4 +2044,311 @@ def test_the_runtime_never_resolves_a_closed_loop_by_its_anchor_alone():
     )
     assert "parts[0] ==" not in resolver, (
         "the resolver must not compare the anchor on its own"
+    )
+
+
+# ---------------------------------------------------------------------------
+# TASK-172 / AC-221: the depth snapshot table has exactly one writer
+# ---------------------------------------------------------------------------
+#
+# The depth snapshot table used to be written by two channels that did not
+# know about each other: the evidence channel wrote the price columns, the
+# pool manager wrote the capacity columns and the single-tick bounds.  One
+# row then carried the price of one on-chain moment next to the boundary of
+# another one.
+#
+# The rule is now a single materialising writer, and the rule is checked
+# here rather than stated in a comment.  The checks live in
+# ``depth_snapshot_single_writer`` so the matcher is one place that both the
+# passing assertion and the negative assertion exercise.
+
+_SINGLE_WRITER_MODULE = Path(__file__).resolve().parent / "depth_snapshot_single_writer"
+if str(_SINGLE_WRITER_MODULE.parent) not in sys.path:
+    sys.path.insert(0, str(_SINGLE_WRITER_MODULE.parent))
+
+from depth_snapshot_single_writer import (  # noqa: E402
+    POOL_MANAGER_WRITER,
+    materialising_statements_in_text,
+    python_offenders,
+    rust_offenders,
+    scope_removal_statements_in_text,
+)
+from depth_snapshot_drift import drifted_rows  # noqa: E402
+
+
+def test_only_the_pool_manager_materialises_the_depth_snapshot_table():
+    """TASK-172: one materialising writer, and it is the pool manager.
+
+    A row of the depth snapshot table describes one on-chain moment, so the
+    whole row has to be written by one statement of one run.  A second
+    materialising writer -- in Rust or in Python -- puts its own columns
+    next to somebody else's and makes the row describe two moments at once.
+
+    Test files are excluded: a test builds its own fixture database, so a
+    test that inserts a snapshot row is a test double, not a writer.
+    """
+    offenders = rust_offenders()
+    materialising = [entry for entry in offenders if entry[1] == "materialising"]
+    writers = sorted({entry[0] for entry in materialising})
+    assert writers == [POOL_MANAGER_WRITER], (
+        "TASK-172: the depth snapshot table must have exactly one "
+        "materialising writer, and it is the Rust pool manager; "
+        f"found {writers}: " + "; ".join(
+            f"{path}: {statement}" for path, _kind, statement in materialising
+        )
+    )
+
+
+def test_python_never_materialises_the_depth_snapshot_table():
+    """TASK-172: Python consumes the snapshot, it never writes one.
+
+    Python has no on-chain measurement of its own: every value it would
+    write is a value it read from somewhere else.  A Python write is
+    therefore always a second opinion about a row somebody else measured,
+    which is exactly the defect the single-writer rule removes.
+
+    The check covers the whole Python tree, including the fallback path
+    that runs when the Rust bridge is not installed.
+    """
+    offenders = python_offenders()
+    materialising = [entry for entry in offenders if entry[1] == "materialising"]
+    assert materialising == [], (
+        "TASK-172: Python must not materialise "
+        "v4_exchange_pool_liquidity_snapshots; the Rust pool manager owns "
+        "the table: " + "; ".join(
+            f"{path}: {statement}" for path, _kind, statement in materialising
+        )
+    )
+
+
+def test_nothing_wipes_a_whole_scope_of_the_depth_snapshot_table():
+    """TASK-172: a scope-wide removal destroys the pool manager's state.
+
+    A removal that names the rows it removes -- ``has_liquidity = 0`` and
+    the like -- is housekeeping, and both the Rust and the Python pruner
+    do it.  A removal that names only the scope takes **every** row of that
+    scope out.  The evidence channel does not materialise rows, so it
+    cannot write them back, and the scope ends up empty until the next
+    pool-manager refresh.
+    """
+    offenders = rust_offenders() + python_offenders()
+    scope_removals = [entry for entry in offenders if entry[1] == "scope_removal"]
+    assert scope_removals == [], (
+        "TASK-172: no scope may wipe v4_exchange_pool_liquidity_snapshots; "
+        "only the pool manager owns those rows: " + "; ".join(
+            f"{path}: {statement}" for path, _kind, statement in scope_removals
+        )
+    )
+
+
+def test_the_depth_snapshot_guard_is_not_vacuous():
+    """The guard has to go red when the defect it protects comes back.
+
+    A check that cannot fail proves nothing, so the offending snippets are
+    fed to the very same matcher the passing assertions use.
+    """
+    assert materialising_statements_in_text(
+        "INSERT INTO v4_exchange_pool_liquidity_snapshots (pool_id) VALUES (?)"
+    ), "the guard has to recognise an inserting writer"
+    assert materialising_statements_in_text(
+        "UPDATE v4_exchange_pool_liquidity_snapshots SET liquidity = ?"
+    ), "the guard has to recognise an updating writer"
+    assert materialising_statements_in_text(
+        "SELECT * FROM v4_exchange_pool_liquidity_snapshots"
+    ) == [], "a read is not a write and must not be reported"
+    assert scope_removal_statements_in_text(
+        "DELETE FROM v4_exchange_pool_liquidity_snapshots "
+        "WHERE network = ? AND chain_id = ? AND protocol = ?"
+    ), "the guard has to recognise a scope-wide removal"
+    assert scope_removal_statements_in_text(
+        "DELETE FROM v4_exchange_pool_liquidity_snapshots "
+        "WHERE network = ? AND has_liquidity = 0"
+    ), "the guard has to recognise a row-scoped removal"
+
+
+#: The pool the drift-guard tests materialise.
+_DRIFT_POOL_ID = "0x" + "ab" * 32
+
+
+def _seed_drift_guard_pool(database):
+    """Seed one pool so the guard has a fee and a tick spacing to work with."""
+    from core.db.storage_schema import ensure_database_schema
+    from core.db.storage_v4_exchange import upsert_v4_exchange_pools
+
+    ensure_database_schema(database)
+    upsert_v4_exchange_pools(
+        database,
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+        pool_rows=[
+            {
+                "pool_id": _DRIFT_POOL_ID,
+                "token0": "0x" + "11" * 32,
+                "token1": "0x" + "22" * 32,
+                "fee": 3000,
+                "tick_spacing": 60,
+            }
+        ],
+    )
+
+
+def _write_snapshot_row(
+    database,
+    *,
+    pool_id,
+    sqrt_price_x96,
+    tick,
+    liquidity,
+    bound_token0,
+    bound_token1,
+    observed_at="2026-11-23T00:00:00Z",
+    refreshed_at="2026-11-23T00:00:00Z",
+    liquidity_read_at="2026-11-23T00:00:00Z",
+):
+    """Write one snapshot row the way the pool manager writes it."""
+    execute(
+        database,
+        """
+        INSERT INTO v4_exchange_pool_liquidity_snapshots (
+            network, chain_id, protocol, pool_id,
+            has_liquidity, liquidity, liquidity_index, estimated_tvl_usd,
+            depth_status, evidence_source, sqrt_price_x96, tick,
+            liquidity_read_at, balances_json, observed_at, refreshed_at,
+            single_tick_max_token0_raw, single_tick_max_token1_raw
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            pool_id,
+            1,
+            liquidity,
+            0.001,
+            None,
+            "liquid",
+            "pool_manager_extsload_live_state_batch_rust",
+            sqrt_price_x96,
+            tick,
+            liquidity_read_at,
+            "{}",
+            observed_at,
+            refreshed_at,
+            bound_token0,
+            bound_token1,
+        ),
+    )
+
+
+def _recompute_for_guard(*, sqrt_price_x96, tick, liquidity):
+    """The guard's own arithmetic, used to build a consistent row."""
+    from depth_snapshot_drift import _recompute_bounds
+
+    return _recompute_bounds(
+        sqrt_price_x96,
+        liquidity,
+        tick,
+        3000,
+        60,
+    )
+
+
+def test_the_depth_snapshot_drift_guard_detects_a_bound_from_another_moment(tmp_path):
+    """TASK-172: a bound that belongs to another moment must be detected.
+
+    This is the defect the whole task is about, expressed as a test: a
+    snapshot row whose published single-tick bound was computed from a
+    *different* price than the one printed next to it.  The row is
+    internally inconsistent, and no consumer may read its bound.
+
+    The guard recomputes the bound from the row's own price columns, so it
+    sees the defect even though the row's timestamps look perfectly fresh.
+    """
+    database = str(tmp_path / "drifted.sqlite3")
+    _seed_drift_guard_pool(database)
+    _write_snapshot_row(
+        database,
+        pool_id=_DRIFT_POOL_ID,
+        sqrt_price_x96=str(2**96),
+        tick=0,
+        liquidity=str(10**18),
+        # A bound computed from a different, much larger liquidity.  It
+        # does not follow from the price stored next to it.
+        bound_token0="4000000000000000000",
+        bound_token1="8000000000000000000",
+    )
+
+    drifted = drifted_rows(database)
+    drifted_ids = {row["poolId"] for row in drifted}
+    assert _DRIFT_POOL_ID in drifted_ids, (
+        "TASK-172: a snapshot row whose stored bound does not follow from "
+        "its own price must be reported as drifted"
+    )
+    row = next(row for row in drifted if row["poolId"] == _DRIFT_POOL_ID)
+    assert row["mismatches"], "the drifted row must name the mismatching columns"
+
+
+def test_the_depth_snapshot_drift_guard_accepts_a_row_of_one_moment(tmp_path):
+    """TASK-172: a row written in one pass is not drift.
+
+    The guard must not report a row whose bound follows from its own
+    price.  A guard that reports everything is a guard that gets switched
+    off, so the negative case has to be tested as carefully as the
+    positive one.
+    """
+    database = str(tmp_path / "consistent.sqlite3")
+    _seed_drift_guard_pool(database)
+    bounds = _recompute_for_guard(
+        sqrt_price_x96=2**96,
+        tick=0,
+        liquidity=10**18,
+    )
+    assert bounds[0] is not None and bounds[1] is not None, (
+        "the guard's arithmetic must be able to produce a bound at all"
+    )
+    _write_snapshot_row(
+        database,
+        pool_id=_DRIFT_POOL_ID,
+        sqrt_price_x96=str(2**96),
+        tick=0,
+        liquidity=str(10**18),
+        bound_token0=str(bounds[0]),
+        bound_token1=str(bounds[1]),
+    )
+
+    assert drifted_rows(database) == [], (
+        "TASK-172: a row whose bound follows from its own price must not be "
+        "reported as drifted"
+    )
+
+
+def test_the_depth_snapshot_drift_guard_does_not_trust_a_timestamp(tmp_path):
+    """TASK-172: freshness is not consistency.
+
+    The old evidence writer rewrote ``refreshed_at`` on every import, so a
+    row could carry a bound from one moment next to a price from another
+    and still look freshly written.  The guard must therefore ignore the
+    timestamps entirely: a row with the newest possible timestamps and a
+    bound from another moment is still drift.
+    """
+    database = str(tmp_path / "fresh_but_drifted.sqlite3")
+    _seed_drift_guard_pool(database)
+    _write_snapshot_row(
+        database,
+        pool_id=_DRIFT_POOL_ID,
+        sqrt_price_x96=str(2**96),
+        tick=0,
+        liquidity=str(10**18),
+        bound_token0="4000000000000000000",
+        bound_token1="8000000000000000000",
+        observed_at="2999-01-01T00:00:00Z",
+        refreshed_at="2999-01-01T00:00:00Z",
+        liquidity_read_at="2999-01-01T00:00:00Z",
+    )
+
+    drifted_ids = {row["poolId"] for row in drifted_rows(database)}
+    assert _DRIFT_POOL_ID in drifted_ids, (
+        "TASK-172: a fresh timestamp must not make a drifted row look "
+        "consistent"
     )

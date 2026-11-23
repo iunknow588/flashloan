@@ -44,6 +44,7 @@ candidate-edge-pool-manager = { path = "../tools/candidate_edge_pool_manager" }
 candidate-exchange-pool-manager = { path = "../tools/candidate_exchange_pool_manager" }
 closed-loop-manager = { path = "../tools/closed_loop_manager" }
 composite-manager = { path = "../tools/composite_manager" }
+directional-pool-manager = { path = "../tools/directional_pool_manager" }
 pool-manager = { path = "../tools/pool_manager" }
 review-manager = { path = "../tools/review_manager" }
 token-manager = { path = "../tools/token_manager" }

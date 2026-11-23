@@ -20,9 +20,10 @@ use candidate_exchange_pool_manager::{
 use closed_loop_manager::{read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopStatus};
 use composite_manager::{
     read_manager_overview_snapshot, read_pipeline_status, BroadcastRef, CandidateEdgeRef,
-    CandidateExchangeRef, ClosedLoopRef, ConsistencyIssue, PipelineSnapshot, PoolScopeRef,
-    ReviewRef, TokenLibraryRef, UpstreamSnapshot,
+    CandidateExchangeRef, ClosedLoopRef, ConsistencyIssue, DirectionalPoolRef,
+    PipelineSnapshot, PoolScopeRef, ReviewRef, TokenLibraryRef, UpstreamSnapshot,
 };
+use directional_pool_manager::{read_directional_pool_status, DirectionalPoolStatus};
 use manager_contracts::TokenAuthorityMode;
 use pool_manager::{read_scope_status, resolve_pool_ids_by_key, PoolKeyIdentity, ScopeStatus};
 use review_manager::{
@@ -291,6 +292,7 @@ pub struct RuntimeReadiness {
 pub struct RuntimeCoreComponents {
     pub token_libraries: BTreeMap<String, Option<TokenLibraryState>>,
     pub pool_scope: ScopeStatus,
+    pub directional_pool: DirectionalPoolStatus,
     pub candidate_edge: CandidateEdgeStatus,
     pub candidate_exchange: CandidateExchangeStatus,
     pub closed_loop: ClosedLoopStatus,
@@ -2143,6 +2145,16 @@ fn read_components(identity: &RuntimeIdentity) -> Result<RuntimeCoreComponents, 
         manager: "pool_manager",
         message: error.to_string(),
     })?;
+    let directional_pool = read_directional_pool_status(
+        &identity.database_path,
+        &identity.network,
+        identity.chain_id,
+        SCOPE_KEY,
+    )
+    .map_err(|error| RuntimeCoreError::ManagerRead {
+        manager: "directional_pool_manager",
+        message: error.to_string(),
+    })?;
     let candidate_edge = read_candidate_status(
         &identity.database_path,
         &identity.network,
@@ -2191,6 +2203,7 @@ fn read_components(identity: &RuntimeIdentity) -> Result<RuntimeCoreComponents, 
     Ok(RuntimeCoreComponents {
         token_libraries,
         pool_scope,
+        directional_pool,
         candidate_edge,
         candidate_exchange,
         closed_loop,
@@ -2290,6 +2303,19 @@ fn upstream_snapshot_from_components(components: &RuntimeCoreComponents) -> Upst
             library_versions: components.pool_scope.library_versions.clone(),
             library_checksums: components.pool_scope.library_checksums.clone(),
             active_pool_count: components.pool_scope.active_pool_count,
+        },
+        directional_pool: DirectionalPoolRef {
+            enabled: components.directional_pool.enabled,
+            version: components.directional_pool.directional_pool_version,
+            checksum: components.directional_pool.materialized_checksum.clone(),
+            pool_scope_version: components.directional_pool.pool_scope_version,
+            pool_scope_checksum: components.directional_pool.pool_scope_checksum.clone(),
+            snapshot_checksum: components.directional_pool.snapshot_checksum.clone(),
+            base_pool_count: components.directional_pool.base_pool_count,
+            directional_pool_count: components.directional_pool.directional_pool_count,
+            direction0_count: components.directional_pool.direction0_count,
+            direction1_count: components.directional_pool.direction1_count,
+            excluded_pool_count: components.directional_pool.excluded_pool_count,
         },
         candidate_edge: CandidateEdgeRef {
             enabled: components.candidate_edge.enabled,
@@ -2403,6 +2429,13 @@ fn component_versions(components: &RuntimeCoreComponents) -> BTreeMap<String, Op
         components.pool_scope.enabled.then_some(0),
     );
     versions.insert(
+        "directionalPool".to_owned(),
+        components
+            .directional_pool
+            .enabled
+            .then_some(components.directional_pool.directional_pool_version),
+    );
+    versions.insert(
         "candidateEdge".to_owned(),
         components
             .candidate_edge
@@ -2459,6 +2492,10 @@ fn component_checksums(components: &RuntimeCoreComponents) -> BTreeMap<String, O
             .materialized_checksum
             .clone()
             .or_else(|| Some(components.pool_scope.live_checksum.clone())),
+    );
+    checksums.insert(
+        "directionalPool".to_owned(),
+        components.directional_pool.materialized_checksum.clone(),
     );
     checksums.insert(
         "candidateEdge".to_owned(),

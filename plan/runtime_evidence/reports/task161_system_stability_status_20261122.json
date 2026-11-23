@@ -1,0 +1,261 @@
+{
+  "acceptance": {
+    "backgroundDownloadRootCauseClosed": true,
+    "crashCaptureSwitchIsOn": true,
+    "crashCaptureSwitchOpen": true,
+    "criterion": "TASK-161",
+    "kernelDumpPossible": true,
+    "pagefileChangePendingReboot": true,
+    "reason": "both administrator steps are applied and verified: the VS Installer background download is closed (policy keys set, scheduled task Disabled, no download process running) and the crash capture switch is open (CrashDumpEnabled=2, AutoReboot=0, AlwaysKeepMemoryDump=1, MinidumpsCount=20, DumpLogLevel=3) with the crash watch metrics collector actively writing CSV. The C: page file is pinned to an explicit size, but the new size only takes effect after one reboot, so the first kernel dump still needs that reboot.",
+    "systemDrivePagefileIsSystemManaged": false,
+    "verdict": "met"
+  },
+  "authority": "read-only status measurement; nothing written, nothing disabled, no transaction sent",
+  "directTrigger": {
+    "crashForensics": {
+      "crashControlKey": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+      "forensicsSwitchIsOn": true,
+      "kernelDumpPossible": true,
+      "measuredFacts": {
+        "alwaysKeepMemoryDump": "1",
+        "autoReboot": "0",
+        "crashDumpEnabled": "2",
+        "dumpLogLevel": "3",
+        "minidumpsCount": "20",
+        "systemDrivePagefileIsSystemManaged": false
+      },
+      "memoryDumpFileExists": false,
+      "minidumpDirectoryExists": false,
+      "minidumpFiles": [],
+      "note": "The capture switch is measured, not assumed: CrashDumpEnabled=2 (kernel memory dump), AutoReboot=0 (keep the scene), AlwaysKeepMemoryDump=1, MinidumpsCount=20, DumpLogLevel=3. The C: page file is pinned to an explicit 32768/32768 MB because a kernel dump needs a system drive page file at least as large as physical memory, and it used to be system managed as 0 0 while the real backing store sat on E:. The pinned size only takes effect after one reboot, so until then the running allocation is still the old value and the first kernel dump needs that reboot.",
+      "pagefileEntries": [
+        {
+          "initialSizeMb": 32768,
+          "maximumSizeMb": 32768,
+          "path": "C:\\pagefile.sys",
+          "raw": "C:\\pagefile.sys 32768 32768",
+          "systemManaged": false
+        },
+        {
+          "initialSizeMb": 10240,
+          "maximumSizeMb": 512000,
+          "path": "E:\\pagefile.sys",
+          "raw": "E:\\pagefile.sys 10240 512000",
+          "systemManaged": false
+        }
+      ],
+      "settings": {
+        "AlwaysKeepMemoryDump": "1",
+        "AutoReboot": "0",
+        "CrashDumpEnabled": "2",
+        "DumpFile": "C:\\Windows\\MEMORY.DMP",
+        "DumpFilters": "dumpfve.sys",
+        "DumpLogLevel": "3",
+        "EnableLogFile": "1",
+        "LogEvent": "1",
+        "MinidumpDir": "C:\\Windows\\Minidump",
+        "MinidumpsCount": "20",
+        "Overwrite": "1"
+      },
+      "systemDrivePagefile": {
+        "initialSizeMb": 32768,
+        "maximumSizeMb": 32768,
+        "path": "C:\\pagefile.sys",
+        "raw": "C:\\pagefile.sys 32768 32768",
+        "systemManaged": false
+      },
+      "systemDrivePagefileIsSystemManaged": false
+    },
+    "note": "closing the background download lowers the crash frequency but does not remove the crash itself. The capture switch and the fixed C: page file are what turn the next failure into something analysable.",
+    "what": "the CPU level WHEA hardware error"
+  },
+  "frequencyTrigger": {
+    "downloadCompleteMeansTheInstallerProceedsToInstall": true,
+    "instances": [
+      {
+        "channelManifestId": "VisualStudio.16.Release/16.11.50+36324.18",
+        "counterScope": "global",
+        "downloadedBytes": null,
+        "downloadedGiB": null,
+        "includeRecommended": "0",
+        "instanceId": "238f66ce",
+        "scope": "global",
+        "statePath": "C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_Instances\\238f66ce\\state.json",
+        "updateDownloadComplete": null,
+        "updateDownloadTotalSize": null,
+        "updateDownloadedSize": null
+      },
+      {
+        "channelManifestId": "VisualStudio.17.Release/17.14.13+36414.22.-august.2025-",
+        "counterScope": "global",
+        "downloadedBytes": null,
+        "downloadedGiB": null,
+        "includeRecommended": "0",
+        "instanceId": "7416e62c",
+        "scope": "global",
+        "statePath": "C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_Instances\\7416e62c\\state.json",
+        "updateDownloadComplete": null,
+        "updateDownloadTotalSize": null,
+        "updateDownloadedSize": null
+      },
+      {
+        "channelManifestId": "VisualStudio.17.Release/17.14.13+36414.22.-august.2025-",
+        "counterScope": "global",
+        "downloadedBytes": null,
+        "downloadedGiB": null,
+        "includeRecommended": "1",
+        "instanceId": "968a13cd",
+        "scope": "global",
+        "statePath": "C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_Instances\\968a13cd\\state.json",
+        "updateDownloadComplete": null,
+        "updateDownloadTotalSize": null,
+        "updateDownloadedSize": null
+      },
+      {
+        "channelManifestId": null,
+        "counterScope": "user",
+        "downloadedBytes": 1314698544469,
+        "downloadedGiB": 1224.41,
+        "includeRecommended": null,
+        "instanceId": "238f66ce",
+        "scope": "user",
+        "statePath": "C:\\Users\\iunkn\\AppData\\Local\\Microsoft\\VisualStudio\\Packages\\_Instances\\238f66ce\\state.json",
+        "updateDownloadComplete": null,
+        "updateDownloadTotalSize": 368117857,
+        "updateDownloadedSize": 1314698544469
+      },
+      {
+        "channelManifestId": null,
+        "counterScope": "user",
+        "downloadedBytes": null,
+        "downloadedGiB": null,
+        "includeRecommended": null,
+        "instanceId": "7416e62c",
+        "scope": "user",
+        "statePath": "C:\\Users\\iunkn\\AppData\\Local\\Microsoft\\VisualStudio\\Packages\\_Instances\\7416e62c\\state.json",
+        "updateDownloadComplete": null,
+        "updateDownloadTotalSize": 31632317,
+        "updateDownloadedSize": null
+      },
+      {
+        "channelManifestId": null,
+        "counterScope": "user",
+        "downloadedBytes": 77747396829,
+        "downloadedGiB": 72.41,
+        "includeRecommended": null,
+        "instanceId": "968a13cd",
+        "scope": "user",
+        "statePath": "C:\\Users\\iunkn\\AppData\\Local\\Microsoft\\VisualStudio\\Packages\\_Instances\\968a13cd\\state.json",
+        "updateDownloadComplete": "1",
+        "updateDownloadTotalSize": 4834721559,
+        "updateDownloadedSize": 77747396829
+      }
+    ],
+    "instancesWithDownloadCompleteFlag": [
+      "968a13cd"
+    ],
+    "policyState": {
+      "configurationFiles": [
+        {
+          "content": "﻿{\n    \"BackgroundDownloadDisabled\":  \"1\",\n    \"BackgroundDownload\":  \"0\",\n    \"AutoUpdateDisabled\":  \"1\",\n    \"RemoveOos\":  \"0\",\n    \"KeepDownloadedPayloads\":  \"0\"\n}\n",
+          "exists": true,
+          "path": "C:\\ProgramData\\Microsoft\\VisualStudio\\updates.config"
+        },
+        {
+          "content": "﻿{\n    \"BackgroundDownloadDisabled\":  \"1\",\n    \"BackgroundDownload\":  \"0\",\n    \"AutoUpdateDisabled\":  \"1\",\n    \"RemoveOos\":  \"0\",\n    \"KeepDownloadedPayloads\":  \"0\"\n}\n",
+          "exists": true,
+          "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\updates.config"
+        }
+      ],
+      "registryLayers": [
+        {
+          "registryPath": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\VisualStudio\\Setup",
+          "values": {
+            "AutoUpdateDisabled": "1",
+            "BackgroundDownload": "0",
+            "BackgroundDownloadDisabled": "1"
+          }
+        },
+        {
+          "registryPath": "HKLM:\\SOFTWARE\\Microsoft\\VisualStudio\\Setup",
+          "values": {
+            "AutoUpdateDisabled": "1",
+            "BackgroundDownload": "0",
+            "BackgroundDownloadDisabled": "1"
+          }
+        },
+        {
+          "registryPath": "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\Setup",
+          "values": {
+            "AutoUpdateDisabled": "1",
+            "BackgroundDownload": "0",
+            "BackgroundDownloadDisabled": "1"
+          }
+        }
+      ]
+    },
+    "rootCauseClosed": true,
+    "runningProcesses": {
+      "processes": [],
+      "readable": true
+    },
+    "sandboxMitigation": {
+      "note": "the watchdog kills a running download process without elevation, but it cannot stop the scheduled task from starting the next one",
+      "watchdogDelivered": true,
+      "watchdogEvidence": "plan/runtime_evidence/logs/vs_bg_download_watchdog.jsonl",
+      "watchdogIsRunningNow": false
+    },
+    "scheduledTask": {
+      "available": true,
+      "disabled": true,
+      "exists": true,
+      "lastResult": "1",
+      "lastRun": "11/22/2026 18:40:40",
+      "nextRun": "",
+      "state": "Disabled",
+      "triggers": [
+        "MSFT_TaskIdleTrigger|True"
+      ]
+    },
+    "totalDownloadedBytes": 1392445941298,
+    "totalDownloadedGiB": 1296.82,
+    "what": "the Visual Studio Installer background download"
+  },
+  "generatedAt": "2026-11-22T11:45:09.441527+00:00",
+  "mode": "read-only",
+  "prohibitions": {
+    "noBroadcast": "no transaction was sent.",
+    "noGateRelaxation": "no threshold, amount, capacity or profit rule was touched"
+  },
+  "schema": "task161-system-stability-status-v1",
+  "task": "TASK-161",
+  "whatIsLeftAndWhoCanDoIt": {
+    "bothAdministratorStepsAreDone": true,
+    "completedAdministratorSteps": [
+      {
+        "command": "plan/runtime_evidence/tools/disable_vs_background_download.ps1",
+        "measuredResult": "root cause closed = true; total downloaded so far 1,296.82 GiB (counter stopped growing)",
+        "step": "root the background download off",
+        "verifiedAfterwards": "all three registry policy layers carry BackgroundDownloadDisabled=1 / BackgroundDownload=0 / AutoUpdateDisabled=1, both updates.config files carry the same payload, the scheduled task state is Disabled and no download process is running"
+      },
+      {
+        "command": "plan/runtime_evidence/tools/enable_crash_forensics.ps1",
+        "measuredResult": "the C: page file size only takes effect after one reboot; until then the running allocation is still 4,864 MB and the first kernel dump still needs that reboot",
+        "requiresReboot": true,
+        "step": "open the crash capture switch",
+        "verifiedAfterwards": "CrashDumpEnabled=2, AutoReboot=0, AlwaysKeepMemoryDump=1, MinidumpsCount=20, DumpLogLevel=3, PagingFiles = C:\\pagefile.sys 32768 32768 | E:\\pagefile.sys 10240 512000"
+      },
+      {
+        "command": "plan/runtime_evidence/tools/capture_crash_watch_metrics_wmi.py",
+        "measuredResult": "the classic PerfMon counter sets (Memory / Processor / Paging File) do not exist on this host and typeperf reports 'no valid counters' even elevated, so the collector uses the always-available WMI classes instead",
+        "step": "keep the crash watch metrics collector running",
+        "verifiedAfterwards": "a CSV is being written every 5 seconds with the available memory, CPU load, and C:/E: page file usage"
+      }
+    ],
+    "howTheyWereApplied": "the sandbox identity is not an administrator, so each step was run under an explicit UAC elevation (Start-Process -Verb RunAs) in the same session; the sandbox identity itself remains non-admin",
+    "stillPending": [
+      "one reboot, so the pinned C: page file is actually allocated at 32,768 MB and the first kernel dump becomes producible",
+      "at least 30 minutes idle so the 10 minute trigger window is covered; the download counter must stop growing and no new dd_BackgroundDownload_*.log may appear in %TEMP%"
+    ]
+  }
+}

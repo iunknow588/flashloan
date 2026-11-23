@@ -31,8 +31,8 @@ from dex.intent_trade.chains.robinhood_common.market_observation_core import (
 )
 from core.db.database_path import absolute_database_path as _testnet_db_path
 from core.db.direction_pool_score import (
-    MAX_DIRECTION_CANDIDATE_POOLS,
     has_confirmed_depth as _testnet_db_has_confirmed_depth,
+    resolve_max_direction_candidate_pools as _testnet_resolve_max_candidate_pools,
     select_directional_pool_ids as _testnet_db_select_directional_pool_ids,
 )
 
@@ -779,11 +779,12 @@ def _testnet_db_bridge_pairs(
         ]
         best_pool_ids: list[str] = []
         seen_best_ids: set[str] = set()
+        capacity = _testnet_resolve_max_candidate_pools()
         for pool_id in _testnet_db_select_directional_pool_ids(
             usable_pools,
             left_address,
             right_address,
-            limit=MAX_DIRECTION_CANDIDATE_POOLS,
+            limit=capacity,
             min_usd=1000.0,
             fallback_token_base=1.0,
         ):
@@ -795,7 +796,7 @@ def _testnet_db_bridge_pairs(
             usable_pools,
             right_address,
             left_address,
-            limit=MAX_DIRECTION_CANDIDATE_POOLS,
+            limit=capacity,
             min_usd=1000.0,
             fallback_token_base=1.0,
         ):
@@ -803,7 +804,7 @@ def _testnet_db_bridge_pairs(
                 continue
             seen_best_ids.add(pool_id)
             best_pool_ids.append(pool_id)
-            if len(best_pool_ids) >= MAX_DIRECTION_CANDIDATE_POOLS:
+            if len(best_pool_ids) >= capacity:
                 break
         pool_by_best_id = {
             str(_pool_id(pool)).lower(): pool
@@ -1003,12 +1004,13 @@ def _testnet_db_observation_rows(
                 continue
             seen_active_ids.add(pool_id_text)
             active_pool_ids.append(pool_id_text)
-        if len(active_pool_ids) < MAX_DIRECTION_CANDIDATE_POOLS:
+        capacity = _testnet_resolve_max_candidate_pools()
+        if len(active_pool_ids) < capacity:
             refreshed_ids = _testnet_db_select_directional_pool_ids(
                 normal_pools,
                 token_x_address,
                 token_y_address,
-                limit=MAX_DIRECTION_CANDIDATE_POOLS,
+                limit=capacity,
                 min_usd=1000.0,
                 fallback_token_base=1.0,
             )
@@ -1020,7 +1022,7 @@ def _testnet_db_observation_rows(
                     continue
                 seen_active_ids.add(refreshed_id)
                 active_pool_ids.append(refreshed_id)
-                if len(active_pool_ids) >= MAX_DIRECTION_CANDIDATE_POOLS:
+                if len(active_pool_ids) >= capacity:
                     break
         for pool_index, pool_id_text in enumerate(active_pool_ids):
             pool = normal_pool_by_id[pool_id_text]

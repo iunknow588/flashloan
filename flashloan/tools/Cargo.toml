@@ -8,6 +8,7 @@ members = [
     "pool_manager",
     "candidate_edge_pool_manager",
     "candidate_exchange_pool_manager",
+    "directional_pool_manager",
     "closed_loop_manager",
     "review_manager",
     "broadcast_manager",

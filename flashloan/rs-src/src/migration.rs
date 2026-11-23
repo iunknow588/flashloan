@@ -465,6 +465,18 @@ pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String
             "evidence_source",
             "TEXT",
         ),
+        // TASK-172 / AC-221: the materialisation batch.  The depth snapshot
+        // table has exactly one writer -- the pool manager -- and it writes
+        // the whole row in one statement, so a row describes one on-chain
+        // moment.  The batch names the run that wrote the row, so "this row
+        // was written in one pass" is checkable rather than assumed.  A row
+        // that predates the column keeps a NULL batch, which is the honest
+        // value: nobody recorded which run wrote it.
+        (
+            "v4_exchange_pool_liquidity_snapshots",
+            "materialization_batch",
+            "TEXT",
+        ),
         (
             "market_observation_liquidity_snapshots",
             "evidence_source",

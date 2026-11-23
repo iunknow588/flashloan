@@ -1086,6 +1086,13 @@ pub const DEPTH_CAPACITY_COLUMNS: &[(&str, &str)] = &[
     // spacing is unknown, so the range could not be located.
     ("single_tick_max_token0_raw", "TEXT"),
     ("single_tick_max_token1_raw", "TEXT"),
+    // TASK-172 / AC-221: the materialisation batch. Every column of a row
+    // is written by one statement of one refresh run, so the batch id is
+    // what makes "this row describes exactly one on-chain moment" a
+    // checkable fact rather than an assumption. A row whose batch differs
+    // from its neighbours' is a row that two runs touched, which is the
+    // defect the drift guard looks for.
+    ("materialization_batch", "TEXT"),
 ];
 
 /// Adds the capacity columns to the liquidity snapshot table when they are
@@ -1914,6 +1921,12 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
         Vec::new()
     };
 
+    // TASK-172 / AC-221: the materialisation batch of this run. It is
+    // stamped on every row the run writes, so "all columns of this row
+    // come from one measurement" becomes a fact the drift guard can read
+    // rather than a claim about the code.
+    let materialization_batch = materialization_batch_id();
+
     let started = std::time::Instant::now();
     let resolved = collect_candidate_pool_ids(
         &connection,
@@ -2130,6 +2143,7 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
                     binding_capacity,
                     token0_decimals,
                     token1_decimals,
+                    &materialization_batch,
                 )?;
                 written += 1;
             }
@@ -2574,6 +2588,26 @@ fn propagate_balances_to_candidate_pools(
     Ok(updated)
 }
 
+/// The materialisation batch of one refresh run (TASK-172 / AC-221).
+///
+/// A batch identifies the **one** measurement pass that produced the rows
+/// it wrote. Every column of a row is written by the same statement of the
+/// same run, so a row carries one batch and one on-chain moment; two rows
+/// that carry different batches were measured at different times, which is
+/// expected, while two **columns** of the same row that carried different
+/// batches would be the defect.
+///
+/// The identifier mixes the run's start time with a random suffix, so two
+/// runs that start inside the same clock tick still get distinct ids.
+fn materialization_batch_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_nanos())
+        .unwrap_or_default();
+    format!("pool-manager-{nanos:032x}")
+}
+
 /// Whether a table carries a column.
 fn table_has_column(connection: &Connection, table: &str, column: &str) -> bool {
     let mut statement = match connection.prepare(&format!("PRAGMA table_info({table})")) {
@@ -2596,6 +2630,7 @@ fn write_depth_snapshot(
     binding_capacity: Option<f64>,
     token0_decimals: Option<i64>,
     token1_decimals: Option<i64>,
+    materialization_batch: &str,
 ) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
     // The `balances` payload is the bridge between the chain read and the
@@ -2658,9 +2693,9 @@ fn write_depth_snapshot(
                 liquidity_read_at = ?11, refreshed_at = ?11, evidence_source = ?12, \
                 capacity_binding_raw = ?13, depth_band_json = ?14, balances_json = ?15, \
                 single_tick_max_token0_raw = ?16, single_tick_max_token1_raw = ?17, \
-                depth_status = ?18{} \
-             WHERE network = ?19 AND chain_id = ?20 AND protocol = 'uniswap_v4' \
-               AND pool_id = ?21",
+                depth_status = ?18{}, materialization_batch = ?19 \
+             WHERE network = ?20 AND chain_id = ?21 AND protocol = 'uniswap_v4' \
+               AND pool_id = ?22",
                 estimated_tvl_assignment
             ),
             rusqlite::params![
@@ -2707,6 +2742,10 @@ fn write_depth_snapshot(
                 // liquidity. The status is part of the measurement, so the
                 // measurement writes it.
                 snapshot_depth_status,
+                // The materialisation batch of this row. It identifies the
+                // refresh run that produced the row, so every column of the
+                // row can be attributed to one measurement pass.
+                materialization_batch,
                 network,
                 chain_id,
                 state.pool_id,
@@ -2867,7 +2906,7 @@ mod tests {
                     evidence_source TEXT, capacity_binding_raw REAL,
                     depth_band_json TEXT, balances_json TEXT,
                     single_tick_max_token0_raw TEXT, single_tick_max_token1_raw TEXT,
-                    depth_status TEXT
+                    depth_status TEXT, materialization_batch TEXT
                 )",
                 [],
             )
@@ -2903,6 +2942,7 @@ mod tests {
             Some(0.0),
             Some(18),
             Some(18),
+            "pool-manager-test-batch",
         )
         .expect("write snapshot");
         let row: (i64, String, Option<String>) = connection
@@ -4814,6 +4854,7 @@ mod tests {
                     single_tick_max_token0_raw TEXT,
                     single_tick_max_token1_raw TEXT,
                     depth_status TEXT,
+                    materialization_batch TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 INSERT INTO v4_exchange_pool_liquidity_snapshots
@@ -4854,6 +4895,7 @@ mod tests {
             Some(0.139_413_914_538_385_64),
             Some(6),
             Some(18),
+            "pool-manager-test-batch",
         )
         .expect("write depth snapshot");
 
@@ -4956,6 +4998,7 @@ mod tests {
                     single_tick_max_token1_raw TEXT,
                     estimated_tvl_usd REAL,
                     depth_status TEXT,
+                    materialization_batch TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 INSERT INTO v4_exchange_pool_liquidity_snapshots
@@ -4995,6 +5038,7 @@ mod tests {
             Some(0.139_413_914_538_385_64),
             Some(6),
             Some(18),
+            "pool-manager-test-batch",
         )
         .expect("write depth snapshot");
 

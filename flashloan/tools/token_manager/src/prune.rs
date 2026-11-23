@@ -84,6 +84,7 @@ pub struct PruneCounts {
     pub closed_loop_optimizations: usize,
     pub exchange_pools: usize,
     pub exchange_pool_liquidity_snapshots: usize,
+    pub directional_pools: usize,
 }
 
 impl PruneCounts {
@@ -104,6 +105,7 @@ impl PruneCounts {
             + self.closed_loop_optimizations
             + self.exchange_pools
             + self.exchange_pool_liquidity_snapshots
+            + self.directional_pools
     }
 }
 
@@ -291,6 +293,15 @@ const POOL_TABLES: &[(&str, &str)] = &[
 
 /// The pool tables that hold the measured state of a pool.
 const POOL_LIQUIDITY_TABLES: &[&str] = &["v4_exchange_pool_liquidity_snapshots"];
+
+/// The directional pool layer and the column that names its base pool.
+///
+/// A directional row is a projection of a base pool onto one of its two
+/// swap directions, so it names the base pool it came from.  It has to go
+/// with that base pool: a directional row whose base pool is gone would
+/// keep describing a pool the store no longer knows.
+const DIRECTIONAL_POOL_TABLES: &[(&str, &str)] =
+    &[("manager_v4_directional_exchange_pools", "base_pool_id")];
 
 /// Whether a table exists in the database.
 ///
@@ -641,6 +652,22 @@ pub fn prune_incomplete_tokens(
                 &affected_pools,
             )?;
         }
+        // The directional rows go with their base pool.  They are removed
+        // after the base pool itself, because the base pool is the row they
+        // describe.
+        for (table, column) in DIRECTIONAL_POOL_TABLES {
+            if !table_exists(&transaction, table)? {
+                continue;
+            }
+            counts.directional_pools += delete_pool_ids_in_column(
+                &transaction,
+                table,
+                column,
+                network,
+                chain_id,
+                &affected_pools,
+            )?;
+        }
     }
     // Then the token-shaped dependants.
     for (table, column) in TOKEN_REFERENCES {
@@ -757,13 +784,33 @@ fn delete_pool_ids(
     chain_id: u64,
     pool_ids: &BTreeSet<String>,
 ) -> Result<usize, PruneError> {
+    delete_pool_ids_in_column(
+        transaction,
+        table,
+        "pool_id",
+        network,
+        chain_id,
+        pool_ids,
+    )
+}
+
+/// Remove the rows of one table that name one of the pools in the given
+/// column.
+fn delete_pool_ids_in_column(
+    transaction: &Transaction<'_>,
+    table: &str,
+    column: &str,
+    network: &str,
+    chain_id: u64,
+    pool_ids: &BTreeSet<String>,
+) -> Result<usize, PruneError> {
     let mut removed = 0usize;
     let id_list: Vec<&str> = pool_ids.iter().map(String::as_str).collect();
     for chunk in id_list.chunks(TOKEN_CHUNK_LIMIT) {
         let mut statement = transaction.prepare(&format!(
             "DELETE FROM {table}
              WHERE network = ?1 AND chain_id = ?2
-               AND pool_id IN ({placeholders})",
+               AND {column} IN ({placeholders})",
             placeholders = placeholders(chunk.len()),
         ))?;
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(chunk.len() + 2);

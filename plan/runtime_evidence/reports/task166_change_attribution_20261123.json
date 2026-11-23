@@ -1,0 +1,1286 @@
+{
+  "acAcceptance": "AC-215",
+  "attribution": {
+    "concentration": {
+      "caliber": "share of all middle-hop change events that fall into the ten (pair, direction) groups with the most events",
+      "changeEvents": 82,
+      "distinctNewPools": 12,
+      "newPoolShareOfUsablePools": 0.13953488372093023,
+      "share": 0.5121951219512195,
+      "topGroupEvents": 42,
+      "topGroupList": [
+        {
+          "changedTriples": 5,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+        },
+        {
+          "changedTriples": 5,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        }
+      ],
+      "topGroups": 10,
+      "usablePoolCount": 86
+    },
+    "description": "Attribution of the middle-hop change: which direction groups carry it, how concentrated it is, what the new pools have in common, and which closed loops have no fallback pool at all.",
+    "directionGroups": {
+      "byDirection": {
+        "0": {
+          "changeEvents": 41,
+          "changedGroups": 14,
+          "groups": 510
+        },
+        "1": {
+          "changeEvents": 41,
+          "changedGroups": 14,
+          "groups": 510
+        }
+      },
+      "caliber": "distinct (pair, direction) groups whose middle-hop pool changed, over all (pair, direction) groups of the market observation",
+      "changedGroupList": [
+        {
+          "changedTriples": 5,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "triples": 5
+        },
+        {
+          "changedTriples": 5,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "triples": 5
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 4,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "triples": 4
+        },
+        {
+          "changedTriples": 3,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "triples": 3
+        },
+        {
+          "changedTriples": 3,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000:robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "triples": 3
+        },
+        {
+          "changedTriples": 3,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "triples": 3
+        },
+        {
+          "changedTriples": 3,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "triples": 3
+        },
+        {
+          "changedTriples": 2,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 2,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786:robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "triples": 2
+        },
+        {
+          "changedTriples": 1,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x02a0bacc642d501422af804a462f98335b2bbf09:robinhood:4663:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "triples": 1
+        },
+        {
+          "changedTriples": 1,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x02a0bacc642d501422af804a462f98335b2bbf09:robinhood:4663:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "triples": 1
+        },
+        {
+          "changedTriples": 1,
+          "direction": 0,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "triples": 1
+        },
+        {
+          "changedTriples": 1,
+          "direction": 1,
+          "pairKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "triples": 1
+        }
+      ],
+      "changedGroups": 28,
+      "changedRate": 0.027450980392156862,
+      "groups": 1020,
+      "unchangedGroups": 992
+    },
+    "loopsWithoutBackup": {
+      "caliber": "closed loops whose middle hop has no backup candidate; a pool change on such a loop cannot fall back",
+      "fateCounts": {
+        "removedByNewCaliber": 4,
+        "retainedUnchanged": 69
+      },
+      "loops": 168,
+      "middleCandidateCountDistribution": {
+        "1": 73,
+        "2": 53,
+        "3": 6,
+        "4": 36
+      },
+      "rows": [
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> WETH -> NVDA -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> SPY -> NVDA -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> SPY -> MU -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> USDG -> MU -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> NVDA -> WETH -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> NVDA -> SPY -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> NVDA -> MU -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> MU -> SPY -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> MU -> USDG -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "ETH -> MU -> NVDA -> ETH"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> ETH -> GOOGL -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> GOOGL -> ETH -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> TSLA -> USDG -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> USDG -> TSLA -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> USDG -> AMD -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> USDG -> AAPL -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> USDG -> MU -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> AMD -> USDG -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> AMD -> NVDA -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> AAPL -> USDG -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> NVDA -> AMD -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> NVDA -> MU -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> MU -> USDG -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPY -> MU -> NVDA -> SPY"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "GOOGL -> ETH -> SPY -> GOOGL"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "GOOGL -> SPY -> ETH -> GOOGL"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPCX -> TSLA -> USDG -> SPCX"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "SPCX -> USDG -> TSLA -> SPCX"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> ETH -> WETH -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> ETH -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> ETH -> GOOGL -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> WETH -> ETH -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPY -> ETH -> USDG"
+        },
+        {
+          "fate": "removedByNewCaliber",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPY -> COIN -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPY -> AMD -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPY -> AAPL -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPY -> MU -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> GOOGL -> ETH -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> TSLA -> SPCX -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> SPCX -> TSLA -> USDG"
+        },
+        {
+          "fate": "removedByNewCaliber",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> COIN -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> PFE -> CRCL -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> AMD -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> AAPL -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> NVDA -> WETH -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> NVDA -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> NVDA -> AMD -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> NVDA -> MU -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> CRCL -> PFE -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> MSTR -> ETH -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "USDG -> MU -> SPY -> USDG"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "AMD -> SPY -> NVDA -> AMD"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "AMD -> NVDA -> SPY -> AMD"
+        },
+        {
+          "fate": "removedByNewCaliber",
+          "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "TZ -> TB -> TA -> TZ"
+        },
+        {
+          "fate": "removedByNewCaliber",
+          "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "TZ -> TA -> TB -> TZ"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "META -> ETH -> SPY -> META"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "META -> SPY -> ETH -> META"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> ETH -> WETH -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> ETH -> SPY -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> WETH -> ETH -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> SPY -> ETH -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> SPY -> AMD -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> SPY -> MU -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> USDG -> AMD -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> USDG -> MU -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> AMD -> SPY -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> AMD -> USDG -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> MU -> SPY -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "NVDA -> MU -> USDG -> NVDA"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "MU -> ETH -> SPY -> MU"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "MU -> SPY -> ETH -> MU"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "MU -> SPY -> NVDA -> MU"
+        },
+        {
+          "fate": "retainedUnchanged",
+          "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "middleCandidateCount": 1,
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": null,
+          "pathText": "MU -> NVDA -> SPY -> MU"
+        }
+      ],
+      "withoutBackup": 73,
+      "withoutBackupRate": 0.43452380952380953
+    },
+    "newPools": {
+      "caliber": "the pools the middle hop moves to, and the features they share; a concentration on one feature class is the signature of a pool class that should not have been selected at all",
+      "count": 12,
+      "featureDistribution": {
+        "depthStatus": {
+          "deep": 2,
+          "medium": 10
+        },
+        "dynamicFee": {
+          "0": 12
+        },
+        "fee": {
+          "1800": 1,
+          "2100": 1,
+          "2120": 1,
+          "2500": 1,
+          "2523": 1,
+          "29": 1,
+          "3000": 1,
+          "310": 1,
+          "500": 3,
+          "5500": 1
+        },
+        "poolStatus": {
+          "active": 12
+        },
+        "specialFee": {
+          "0": 12
+        },
+        "tickSpacing": {
+          "1": 1,
+          "18": 1,
+          "21": 1,
+          "25": 2,
+          "3": 1,
+          "42": 1,
+          "5": 3,
+          "55": 1,
+          "60": 1
+        }
+      },
+      "pools": [
+        {
+          "capacityRaw": "86830935518727479",
+          "changedTriples": 10,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 1800,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 62.17198685,
+          "poolId": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 10017,
+          "tickSpacing": 18
+        },
+        {
+          "capacityRaw": "46817996505225304",
+          "changedTriples": 8,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 500,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 28.93806081,
+          "poolId": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 9508,
+          "tickSpacing": 5
+        },
+        {
+          "capacityRaw": "160973405393",
+          "changedTriples": 8,
+          "depthStatus": "deep",
+          "dynamicFee": 0,
+          "fee": 3000,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.00257251,
+          "poolId": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": -227705,
+          "tickSpacing": 60
+        },
+        {
+          "capacityRaw": "46387798173018242",
+          "changedTriples": 8,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 310,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.00087231,
+          "poolId": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 212936,
+          "tickSpacing": 3
+        },
+        {
+          "capacityRaw": "115401315515787413",
+          "changedTriples": 8,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 500,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 105.6850658,
+          "poolId": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 2088,
+          "tickSpacing": 5
+        },
+        {
+          "capacityRaw": "14502478104796787",
+          "changedTriples": 8,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 2100,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 26.82420684,
+          "poolId": "0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 10630,
+          "tickSpacing": 21
+        },
+        {
+          "capacityRaw": "2011404467614383240",
+          "changedTriples": 6,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 2500,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 295.98437689,
+          "poolId": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 35358,
+          "tickSpacing": 25
+        },
+        {
+          "capacityRaw": "485394941027511658",
+          "changedTriples": 6,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 500,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 63.2755441,
+          "poolId": "0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": 6846,
+          "tickSpacing": 5
+        },
+        {
+          "capacityRaw": "3513386",
+          "changedTriples": 4,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 5500,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.00024354,
+          "poolId": "0x056dbf9e55b6480a8b8134a318c96e59424a6533c935e36ee04d8a6a751a91c1",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": -222766,
+          "tickSpacing": 55
+        },
+        {
+          "capacityRaw": "2286424",
+          "changedTriples": 4,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 2120,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.00045209,
+          "poolId": "0x659e64f089e5d9ea30c4c50d01d365008cfd336b396c05853ea7700af3eb78f5",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": -243575,
+          "tickSpacing": 42
+        },
+        {
+          "capacityRaw": "1416495",
+          "changedTriples": 4,
+          "depthStatus": "medium",
+          "dynamicFee": 0,
+          "fee": 2523,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.00013832,
+          "poolId": "0x93ccaa0dbab753beaef789704d622d05f619eb547039a0220625693ea12a333e",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": -230014,
+          "tickSpacing": 25
+        },
+        {
+          "capacityRaw": "6223793",
+          "changedTriples": 4,
+          "depthStatus": "deep",
+          "dynamicFee": 0,
+          "fee": 29,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "liquidityIndex": 0.24148029,
+          "poolId": "0xa7a475ddd5b32b74b7cd23d715270cd9b3ba65d1d25f1a19b8427c28fd76d566",
+          "poolStatus": "active",
+          "specialFee": 0,
+          "tick": -276329,
+          "tickSpacing": 1
+        }
+      ]
+    },
+    "removedLoops": {
+      "caliber": "the closed loops the new caliber drops, with the gate that drops each of them; a loop without a backup pool has nowhere to fall back to",
+      "count": 4,
+      "reasonCounts": {
+        "noMiddlePool": 4
+      },
+      "rows": [
+        {
+          "anchorTokenKeyId": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "blockingPoolId": null,
+          "hadBackup": false,
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+          "oldMiddlePoolInCore4": null,
+          "oldMiddlePoolInExchange": "active",
+          "oldPoolIds": [
+            "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+            "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+            "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31"
+          ],
+          "rejectedBy": "noMiddlePool",
+          "tokenY": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "tokenZ": "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b"
+        },
+        {
+          "anchorTokenKeyId": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "blockingPoolId": null,
+          "hadBackup": false,
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+          "oldMiddlePoolInCore4": null,
+          "oldMiddlePoolInExchange": "active",
+          "oldPoolIds": [
+            "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31",
+            "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+            "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288"
+          ],
+          "rejectedBy": "noMiddlePool",
+          "tokenY": "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "tokenZ": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+        },
+        {
+          "anchorTokenKeyId": "robinhood:4663:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "blockingPoolId": null,
+          "hadBackup": false,
+          "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "oldMiddlePoolInCore4": null,
+          "oldMiddlePoolInExchange": "active",
+          "oldPoolIds": [
+            "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0",
+            "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+            "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3"
+          ],
+          "rejectedBy": "noMiddlePool",
+          "tokenY": "robinhood:4663:0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "tokenZ": "robinhood:4663:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830"
+        },
+        {
+          "anchorTokenKeyId": "robinhood:4663:0xa8cf7c51eee671646ba440ffa180f970902fd2fb",
+          "blockingPoolId": null,
+          "hadBackup": false,
+          "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09",
+          "newMiddlePoolId": null,
+          "oldMiddlePoolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+          "oldMiddlePoolInCore4": null,
+          "oldMiddlePoolInExchange": "active",
+          "oldPoolIds": [
+            "0x755273fe5314b4e5f909a3877fc0a91ae9c372d63999a8b4ae1f978073fc8fe3",
+            "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
+            "0x936daaa6d0362f066603ab7bce6512b5096b929137beb1f8b6d6a3a49a1c14c0"
+          ],
+          "rejectedBy": "noMiddlePool",
+          "tokenY": "robinhood:4663:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+          "tokenZ": "robinhood:4663:0x02a0bacc642d501422af804a462f98335b2bbf09"
+        }
+      ],
+      "universeCoverage": {
+        "caliber": "whether the middle pool of a dropped loop exists in the target universe at all; a pool that is admitted but absent from the core4 base table is a coverage question, not a selection-order question",
+        "pools": [
+          {
+            "core4Status": null,
+            "droppedLoops": 2,
+            "exchangeStatus": "active",
+            "poolId": "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c"
+          },
+          {
+            "core4Status": null,
+            "droppedLoops": 2,
+            "exchangeStatus": "active",
+            "poolId": "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0"
+          }
+        ]
+      }
+    }
+  },
+  "caliberVerdict": {
+    "attribution": {
+      "changeEvents": 82,
+      "concentration": 0.5121951219512195,
+      "directionGroups": 28,
+      "loopsWithoutBackup": 73
+    },
+    "attributionAvailable": true,
+    "candidateOptions": [
+      "adopt the new order as the default",
+      "adjust the main order before the change is made"
+    ],
+    "decidedByScript": false,
+    "decision": "PENDING_HUMAN_CONFIRMATION",
+    "evidence": [
+      {
+        "caliber": "distinct (pair, direction) groups whose middle-hop pool changed, over all (pair, direction) groups of the market observation",
+        "name": "midChangeRate",
+        "role": "where the change lands (blast radius)",
+        "value": 0.027450980392156862
+      },
+      {
+        "caliber": "(new closed loops - old closed loops) / old closed loops",
+        "name": "loopNetRate",
+        "role": "production loss",
+        "value": 0.0
+      },
+      {
+        "caliber": "the median drop of the effective profit over the affected closed loops",
+        "measured": false,
+        "name": "profitDrop",
+        "role": "economic cost; must be measured once in a live wave",
+        "value": null
+      },
+      {
+        "caliber": "closed loops whose middle hop has no backup candidate; a pool change on such a loop cannot fall back",
+        "name": "loopsWithoutBackup",
+        "role": "where the change has no fallback at all",
+        "value": 0.43452380952380953
+      },
+      {
+        "caliber": "share of all middle-hop change events that fall into the ten (pair, direction) groups with the most events",
+        "name": "changeConcentration",
+        "role": "a concentrated change is a local phenomenon; a spread one questions the main order itself",
+        "value": 0.5121951219512195
+      }
+    ],
+    "note": "The script collects the readings and the attribution and refuses to decide. The former thresholds are now readings: they describe where the change lands, they no longer gate anything. The verdict stays with a human."
+  },
+  "environment": {
+    "busyTimeoutMs": 180000,
+    "chainId": 4663,
+    "dbAbsolutePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "dbPath": "flashloan/db/local_store_4663.sqlite3",
+    "dbSha256": "c90a70a0960bd167005eaec2656b2f560ad1b4560b20ee33cb6bb9b197541049",
+    "dbSizeBytes": 8601968640,
+    "network": "robinhood",
+    "openedWith": "mode=ro",
+    "protocol": "uniswap_v4",
+    "scopeKeys": {
+      "core": "core4",
+      "exchange": "candidate_exchange"
+    }
+  },
+  "generatedAt": "2026-11-23T05:21:40.627231+00:00",
+  "readOnly": true,
+  "readings": {
+    "changeConcentration": {
+      "caliber": "share of all middle-hop change events that fall into the ten (pair, direction) groups with the most events",
+      "denominator": 82,
+      "numerator": 42,
+      "role": "a concentrated change is a local phenomenon; a spread one questions the main order itself",
+      "value": 0.5121951219512195
+    },
+    "loopNetRate": {
+      "caliber": "(new closed loops - old closed loops) / old closed loops",
+      "denominator": 168,
+      "numerator": 0,
+      "role": "production loss",
+      "value": 0.0
+    },
+    "loopsWithoutBackup": {
+      "caliber": "closed loops whose middle hop has no backup candidate; a pool change on such a loop cannot fall back",
+      "denominator": 168,
+      "numerator": 73,
+      "role": "where the change has no fallback at all",
+      "value": 0.43452380952380953
+    },
+    "midChangePoolCount": {
+      "caliber": "the distinct pools the middle hop moves to, over the usable base pools",
+      "denominator": 86,
+      "numerator": 12,
+      "role": "how far the pool universe itself moved",
+      "value": 0.13953488372093023
+    },
+    "midChangeRate": {
+      "caliber": "distinct (pair, direction) groups whose middle-hop pool changed, over all (pair, direction) groups of the market observation",
+      "denominator": 1020,
+      "numerator": 28,
+      "role": "where the change lands (blast radius)",
+      "value": 0.027450980392156862
+    },
+    "profitDrop": {
+      "caliber": "the median drop of the effective profit over the affected closed loops",
+      "measured": false,
+      "reason": "the old profit is unmeasured on 154 of 168 closed loops and the new profit needs the arbiter to run against the new pool path, which a read-only wave may not imitate",
+      "role": "economic cost; must be measured once in a live wave",
+      "value": null
+    }
+  },
+  "sourceReport": {
+    "conclusionDigest": "622cb86e0fe41cabdf667a14142105af456aff75b68d11281ae8046ffcbd58eb",
+    "json": "plan/runtime_evidence/reports/task166_directional_pool_projection_20261123.json",
+    "markdown": "plan/runtime_evidence/reports/task166_directional_pool_projection_20261123.md"
+  },
+  "task": "TASK-166",
+  "title": "Middle-hop change attribution (read-only)"
+}

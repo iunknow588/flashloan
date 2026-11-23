@@ -1,0 +1,28 @@
+{
+  "acAcceptance": "AC-221",
+  "byTable": {
+    "v4_exchange_pools": {
+      "compared": 2486,
+      "consistent": 2486,
+      "drifted": 0,
+      "notRecomputable": 0
+    }
+  },
+  "chainId": 4663,
+  "compared": 2486,
+  "consistent": 2486,
+  "criterion": "The stored single-tick bound is recomputed from the observation **the snapshot row itself carries** (its own sqrt_price_x96, tick and liquidity, with the pool's fee and tick_spacing).  A row whose recomputed bound differs from its stored bound is drifted: its bound belongs to a different moment than its price.  No timestamp is used -- a timestamp says when a row was written, never whether the bound and the price in that row came from the same moment, and the evidence channel rewrote refreshed_at unconditionally.",
+  "database": "C:\\Users\\iunkn\\AppData\\Local\\Temp/task172_live_probe.sqlite3",
+  "driftRate": 0.0,
+  "drifted": 0,
+  "driftedSamples": [],
+  "network": "robinhood",
+  "notRecomputable": 0,
+  "protocol": "uniswap_v4",
+  "readOnly": true,
+  "task": "TASK-172",
+  "verdict": {
+    "detail": "Every snapshot row's stored bound agrees with the bound its own price implies.",
+    "singleWriterHolds": true
+  }
+}

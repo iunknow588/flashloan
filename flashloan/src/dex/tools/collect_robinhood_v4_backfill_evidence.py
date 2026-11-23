@@ -21,7 +21,9 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.db.database_path import absolute_database_path  # noqa: E402
-from core.db.direction_pool_score import MAX_DIRECTION_CANDIDATE_POOLS  # noqa: E402
+from core.db.direction_pool_score import (  # noqa: E402
+    resolve_max_direction_candidate_pools,
+)
 from dex.intent_trade.chains.robinhood_common.chain_config import (  # noqa: E402
     ROBINHOOD_TESTNET_CHAIN_ID,
     ROBINHOOD_TESTNET_NETWORK,
@@ -61,9 +63,12 @@ def _direction_plan(
     chain_id: int,
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
-    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    direction_target: int | None = None,
 ) -> dict[str, Any]:
     from dex.tools.refresh_robinhood_v4_live import _direction_backfill_plan
+
+    if direction_target is None:
+        direction_target = resolve_max_direction_candidate_pools()
 
     plan = _direction_backfill_plan(
         database=database,
@@ -330,11 +335,13 @@ def collect_report(
     pool_manager: str = "",
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
-    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    direction_target: int | None = None,
     chunk_size: int = 500_000,
     min_chunk_size: int = 10_000,
     batch_size: int = 300,
 ) -> dict[str, Any]:
+    if direction_target is None:
+        direction_target = resolve_max_direction_candidate_pools()
     if str(network or "").strip().lower() != ROBINHOOD_TESTNET_NETWORK:
         raise ValueError("this evidence tool is testnet-only; mainnet stays fail-closed")
     resolved_chain_id = int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID)
@@ -542,7 +549,7 @@ def collect_report_from_sqlite(
     chain_id: int | None = None,
     directions: tuple[str, ...] = (),
     limit_directions: int = 0,
-    direction_target: int = MAX_DIRECTION_CANDIDATE_POOLS,
+    direction_target: int | None = None,
 ) -> dict[str, Any]:
     """Build directional backfill evidence from existing SQLite rows only.
 
@@ -552,6 +559,8 @@ def collect_report_from_sqlite(
     the existing index does not have enough pools.  This makes verified
     on-chain conclusions reusable without re-running the same scan.
     """
+    if direction_target is None:
+        direction_target = resolve_max_direction_candidate_pools()
     if str(network or "").strip().lower() != ROBINHOOD_TESTNET_NETWORK:
         raise ValueError("this evidence tool is testnet-only; mainnet stays fail-closed")
     resolved_chain_id = int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID)
@@ -867,7 +876,7 @@ def main() -> int:
     parser.add_argument(
         "--direction-target",
         type=int,
-        default=MAX_DIRECTION_CANDIDATE_POOLS,
+        default=None,
         help="Pools needed per direction before the shortfall is considered satisfied.",
     )
     parser.add_argument("--limit-directions", type=int, default=0)
@@ -885,6 +894,13 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+
+    # The capacity knob is resolved here, at the CLI boundary, so that the
+    # value the operator asked for is the value the collector receives.  The
+    # collector keeps its own ``None`` fallback for library callers, but a
+    # CLI run must not depend on that fallback surviving every call site.
+    if args.direction_target is None:
+        args.direction_target = resolve_max_direction_candidate_pools()
 
     parsed_directions = tuple(
         item.strip()

@@ -1,0 +1,782 @@
+
+running 14 tests
+test runtime::tests::execution_queue_keeps_earliest_verified_at_for_queued_group ... ok
+test runtime::tests::execution_queue_reenqueues_after_done_with_new_verified_at ... ok
+test runtime::tests::waiting_execution_task_wakes_only_once_to_queued ... ok
+test runtime::tests::execution_queue_orders_by_verified_at ... ok
+test runtime::tests::supervisor_owns_bounded_workers_and_terminal_queue_state ... ok
+test tests::only_generated_or_confirmed_requests_are_eligible ... ok
+test tests::a_request_without_hop_price_limits_is_refused ... ok
+test tests::failed_finalization_preserves_rpc_nonce_hash_and_diagnostic ... ok
+test tests::stale_review_version_is_rejected_before_write ... ok
+test tests::submit_dry_run_is_non_persistent_and_apply_is_idempotent ... ok
+test tests::a_finalized_attempt_reaches_the_monthly_trade_store ... ok
+test tests::status_filter_is_applied_before_offset_and_limit ... ok
+test tests::clear_is_dry_run_safe_idempotent_and_rejects_pending_work ... ok
+test tests::success_requires_hash_and_terminal_attempt_cannot_be_finalized_twice ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+
+
+running 14 tests
+test tests::abnormal_pool_is_isolated_from_candidate_recommendations ... ok
+test tests::the_exact_output_ranking_beats_the_marginal_rate_ranking ... ok
+test tests::the_recommendation_basis_records_the_single_tick_exact_output_ordering ... ok
+test tests::comparison_is_read_only_and_reaches_cutover_readiness_for_matching_rows ... ok
+test tests::a_repeated_materialization_is_deterministic ... ok
+test tests::a_pool_without_a_price_never_outranks_a_pool_with_one ... ok
+test tests::extension_ta_and_tb_are_admitted_without_usd_depth_and_rebuild_is_stable ... ok
+test tests::comparison_reports_legacy_pool_field_mismatch_without_writing ... ok
+test tests::the_two_directions_rank_the_same_pools_in_opposite_tick_order ... ok
+test tests::the_selection_basis_is_a_single_label_without_legacy_values ... ok
+test tests::the_tick_ordering_beats_the_float_rate_when_the_rates_are_nearly_equal ... ok
+test tests::upstream_mismatch_rejects_before_writing ... ok
+test tests::two_pools_with_the_same_tick_are_ordered_by_their_price ... ok
+test tests::write_is_idempotent_and_dry_run_does_not_persist_idempotency ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.70s
+
+
+running 7 tests
+test tests::fee_label_ceiling_is_the_admission_ceiling ... ok
+test tests::fee_label_is_not_emitted_for_pools_the_admission_gate_accepts ... ok
+test tests::observes_the_anchor_own_edge_pool_without_a_self_referential_row ... ok
+test tests::write_is_idempotent_and_dry_run_does_not_persist_idempotency ... ok
+test tests::stale_candidate_edge_or_pool_scope_is_rejected_without_writes ... ok
+test tests::rebuilds_candidate_exchange_directions_for_every_anchor ... ok
+test tests::comparison_reports_usd_gate_expansion_and_is_read_only ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+
+running 30 tests
+test tests::a_hop_without_a_published_state_has_no_folded_capacity ... ok
+test tests::a_pool_that_does_not_carry_the_hop_input_token_is_a_topology_error ... ok
+test tests::a_pool_without_a_tick_state_falls_back_to_the_logical_direction ... ok
+test tests::a_hop_with_room_inside_its_tick_range_admits_the_loop ... ok
+test tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self ... ok
+test tests::a_loop_without_tick_states_publishes_no_folded_capacity ... ok
+test tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path ... ok
+test tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path ... ok
+test tests::a_mismatched_expected_scope_checksum_refuses_to_write ... ok
+test tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed ... ok
+test tests::an_unmeasured_hop_does_not_disqualify_the_path ... ok
+test tests::builds_three_token_loop_without_usd_depth_dependency ... ok
+test tests::the_closed_loop_floor_is_the_pool_manager_admission_floor ... ok
+test tests::comparison_reports_exact_legacy_topology ... ok
+test tests::every_hop_above_the_capacity_floor_admits_the_loop ... ok
+test tests::the_path_capacity_is_folded_into_the_anchor_token ... ok
+test tests::the_hop_direction_follows_the_pool_token_order ... ok
+test tests::repairing_the_scope_checksum_is_idempotent ... ok
+test tests::one_anchor_publishes_two_independent_directed_closed_loops ... ok
+test tests::the_closed_loop_layer_publishes_its_own_scope_checksum ... ok
+test tests::stale_observation_candidate_version_is_rejected ... ok
+test usdg_valuation::tests::a_token_without_a_usdg_route_has_no_valuation ... ok
+test usdg_valuation::tests::a_token_without_known_decimals_has_no_valuation ... ok
+test tests::repeated_apply_is_stable_and_idempotent ... ok
+test usdg_valuation::tests::the_usdg_side_of_the_pool_may_be_either_token ... ok
+test tests::the_usdg_path_publishes_a_capacity_when_the_pool_order_is_inverted ... ok
+test usdg_valuation::tests::a_token_paired_with_usdg_at_the_peg_is_worth_one_usdg ... ok
+test tests::the_folded_single_tick_capacity_is_published_on_the_loop ... ok
+test tests::the_path_minimum_is_the_binding_capacity ... ok
+test usdg_valuation::tests::usdg_unit_value_does_not_require_a_self_pair_pool ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.20s
+
+
+running 18 tests
+test overview::tests::route_symbol_windows_do_not_require_usd_legs ... ok
+test overview::tests::usd_pnl_detection_accepts_units_and_stable_currencies ... ok
+test overview::tests::checksum_consistency_reports_downstream_drift ... ok
+test overview::tests::empty_downstream_status_can_fall_back_to_upstream_library_versions ... ok
+test overview::tests::yz_hop_candidates_use_exchange_pool_snapshots ... ok
+test recompute_latency::tests::median_handles_even_and_odd_populations ... ok
+test tests::closed_loop_pool_scope_checksum_is_compared_against_the_core4_scope ... ok
+test recompute_latency::tests::a_version_change_between_steps_is_detected ... ok
+test recompute_latency::tests::a_version_change_seen_only_by_a_middle_step_is_still_detected ... ok
+test recompute_latency::tests::measurement_is_read_only_and_does_not_create_rows ... ok
+test recompute_latency::tests::an_unfinished_run_is_not_reported_as_full_chain ... ok
+test tests::failed_step_can_be_retried_from_its_checkpoint ... ok
+test tests::pipeline_status_reports_current_checkpoint_and_upstream_fingerprint ... ok
+test recompute_latency::tests::retries_are_counted_and_a_failed_step_is_not_full_chain ... ok
+test recompute_latency::tests::a_full_chain_run_reports_per_step_checkpoints_and_total_latency ... ok
+test tests::empty_pipeline_and_successful_step_replay_are_rejected ... ok
+test tests::refresh_dry_run_is_non_persistent_and_apply_is_idempotent ... ok
+test tests::stale_dependency_between_begin_and_complete_is_rejected ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.56s
+
+
+running 6 tests
+test tests::an_unknown_chain_id_is_rejected_by_the_command ... ok
+test tests::an_unknown_chain_id_is_rejected_instead_of_guessed ... ok
+test tests::the_testnet_chain_id_is_not_rejected_as_an_unsupported_chain ... ok
+test tests::the_chain_id_flag_is_required ... ok
+test tests::flag_reads_the_value_after_the_name ... ok
+test tests::network_is_derived_from_the_chain_id ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 14 tests
+test an_unmeasured_capacity_is_not_a_measured_zero ... ok
+test a_dynamic_fee_pool_and_a_hook_pool_are_not_projected ... ok
+test one_base_pool_projects_onto_exactly_two_rows ... ok
+test a_dry_run_writes_nothing ... ok
+test the_capacity_comes_from_the_input_side_of_the_direction ... ok
+test an_expected_upstream_mismatch_stops_the_write ... ok
+test a_reused_idempotency_key_with_a_different_body_is_refused ... ok
+test a_blocked_pool_is_projected_but_it_never_takes_a_rank ... ok
+test the_two_rows_of_one_base_pool_differ_only_in_the_direction_fields ... ok
+test the_materialization_is_idempotent ... ok
+test the_ranks_are_continuous_inside_a_pair_and_a_direction ... ok
+test the_idempotency_key_replays_the_first_result ... ok
+test the_status_reports_what_the_layer_published ... ok
+test the_snapshot_can_be_read_per_direction ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.39s
+
+
+running 33 tests
+test tests::capabilities_describe_m8_pipeline_routes ... ok
+test tests::candidate_edge_comparison_route_is_read_only_and_validates_query ... ok
+test tests::capabilities_report_the_directional_pool_authority_dimension ... ok
+test tests::directional_pool_authority_is_a_separate_dimension_defaulting_to_legacy ... ok
+test tests::directional_pool_write_denial_is_a_403_that_names_the_mode ... ok
+test tests::health_is_available_without_business_state ... ok
+test tests::blank_network_override_is_ignored ... ok
+test tests::network_override_pins_every_route_to_one_namespace ... ok
+test tests::admission_apply_fails_closed_outside_manager_authority ... ok
+test tests::directional_pool_routes_require_explicit_dry_run_and_isolated_authority ... ok
+test tests::candidate_exchange_routes_require_explicit_dry_run_and_isolated_authority ... ok
+test tests::candidate_edge_routes_require_dry_run_and_isolated_authority ... ok
+test tests::closed_loop_routes_require_explicit_dry_run_and_isolated_authority ... ok
+test tests::broadcast_routes_enforce_headers_dry_run_authority_and_terminal_state ... ok
+test tests::pool_baseline_audit_returns_unanchored_extension_token_details ... ok
+test tests::pool_scope_apply_fails_closed_outside_manager_authority ... ok
+test tests::overview_endpoint_publishes_the_broadcast_record_statistics ... ok
+test tests::pool_scope_repair_requires_explicit_dry_run ... ok
+test tests::pool_scope_routes_enforce_headers_dry_run_and_idempotent_rebuild ... ok
+test tests::overview_endpoint_returns_manager_projection_without_legacy_reads ... ok
+test tests::review_clear_endpoint_is_dry_run_safe_and_idempotent ... ok
+test tests::review_run_enforces_headers_dry_run_and_authority ... ok
+test tests::token_admission_dry_run_apply_and_idempotent_replay_are_consistent ... ok
+test tests::token_reads_fail_closed_without_database_configuration ... ok
+test tests::token_admission_requires_headers_and_explicit_dry_run ... ok
+test tests::token_audit_rejects_excessive_recent_event_limit ... ok
+test tests::review_dry_run_apply_and_idempotent_replay_are_consistent ... ok
+test tests::token_audit_reports_counts_duplicates_and_recent_events_without_writing ... ok
+test tests::token_query_reads_persisted_library_without_writing_events ... ok
+test tests::pipeline_routes_enforce_authority_dry_run_idempotency_and_checkpoint ... ok
+test tests::review_query_filters_categories_outcomes_and_paginates_related_rows ... ok
+test tests::token_routes_never_cross_chain_namespaces ... ok
+test tests::token_resolve_reports_unique_and_ambiguous_symbols ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.72s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 16 tests
+test amount::tests::a_json_number_from_an_older_build_is_still_readable ... ok
+test amount::tests::a_missing_amount_stays_missing ... ok
+test authority::tests::authority_modes_are_explicit_and_stable ... ok
+test amount::tests::an_amount_beyond_u64_is_written_as_a_string_and_read_back ... ok
+test directional_pool::tests::a_pool_with_an_inverted_token_order_is_not_projectable ... ok
+test directional_pool::tests::the_direction_mapping_cannot_flip ... ok
+test dto::tests::pool_key_serialization_is_camel_case ... ok
+test directional_pool::tests::the_two_rows_of_one_base_pool_differ_only_in_the_direction_fields ... ok
+test error::tests::error_codes_have_stable_serialization_and_retry_semantics ... ok
+test ids::tests::native_zero_address_is_valid_and_distinct_from_weth ... ok
+test ids::tests::normalizes_address_and_rejects_invalid_values ... ok
+test ids::tests::the_directional_pool_id_carries_the_direction ... ok
+test ids::tests::token_pair_and_route_ids_have_frozen_formats ... ok
+test pool::tests::normalization_and_int24_sign_extension_are_stable ... ok
+test pool::tests::pool_id_matches_mainnet_chain_truth_golden_vector ... ok
+test pool::tests::pool_key_serialization_is_camel_case ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 1 test
+test golden_vectors_are_stable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test incompatible_manager_target_table_blocks_migration_atomically ... ok
+test read_only_preflight_does_not_apply_migration ... ok
+test legacy_candidate_tables_are_not_reused_by_manager_shadow_migration ... ok
+test migration_is_idempotent_and_creates_only_empty_control_schema ... ok
+test existing_foreign_schema_migration_ledger_uses_manager_fallback ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+
+running 163 tests
+test baseline_audit::tests::baseline_audit_rejects_invalid_target_before_opening_database ... ok
+test baseline_audit::tests::the_migration_baseline_serialises_the_camel_case_keys_the_healer_reads ... ok
+test baseline_audit::tests::extension_anchor_requires_direct_core_or_stock_pair ... ok
+test chain::tests::a_pool_with_one_failed_read_is_not_a_complete_measurement ... ok
+test chain::tests::every_chain_has_its_own_network_namespace ... ok
+test baseline_audit::tests::the_missing_migrations_are_the_exact_set_an_apply_would_run ... ok
+test baseline_audit::tests::an_unknown_ledger_entry_is_counted_and_not_treated_as_applied ... ok
+test chain::tests::one_batch_fits_inside_the_nodes_per_second_budget ... ok
+test chain::tests::rpc_host_extracts_the_host_without_credentials_or_path ... ok
+test chain::tests::rpc_port_defaults_by_scheme_and_honours_explicit_ports ... ok
+test chain::tests::the_environment_takes_priority_over_the_chain_configuration ... ok
+test chain::tests::the_chain_configuration_endpoints_are_unique_and_ordered ... ok
+test chain::tests::the_liquidity_slot_is_the_fourth_word_of_the_pool_state ... ok
+test chain::tests::the_chain_configuration_supplies_the_default_robinhood_endpoints ... ok
+test depth::capacity_regression_tests::a_pool_without_liquidity_has_no_capacity ... ok
+test depth::capacity_regression_tests::a_saturated_amount_is_not_reported_as_zero_price_impact ... ok
+test chain::tests::the_rpc_endpoints_belong_to_the_chain_that_is_served ... ok
+test depth::capacity_regression_tests::the_published_exact_input_swap_uses_the_sdk_result ... ok
+test depth::single_tick_tests::a_pool_without_a_tick_has_no_effective_capacity ... ok
+test depth::single_tick_tests::a_swap_that_leaves_the_tick_range_is_reported ... ok
+test depth::single_tick_tests::the_arbiter_version_is_recognised ... ok
+test depth::single_tick_tests::a_price_on_a_boundary_still_has_room_in_both_directions ... ok
+test depth::capacity_regression_tests::the_capacity_bracket_never_exceeds_the_reserve_ceiling ... ok
+test depth::single_tick_tests::the_capacity_publishes_the_tick_range_bound ... ok
+test depth::capacity_regression_tests::the_capacity_of_a_live_pool_is_finite_and_plausible ... ok
+test depth::single_tick_tests::the_single_tick_pricing_matches_the_single_step_arithmetic ... ok
+test depth::single_tick_tests::the_tick_range_is_bounded_by_the_tick_spacing ... ok
+test depth::tests::a_160_bit_price_is_narrowed_without_a_panic ... ok
+test depth::tests::an_amount_that_does_not_fit_in_128_bits_is_an_error_and_not_a_panic ... ok
+test depth_config::tests::band_boundaries_use_the_documented_operator ... ok
+test depth_config::tests::shared_policy_file_is_discoverable ... ok
+test depth_config::tests::compiled_constants_match_the_shared_policy_file ... ok
+test parity_state::tests::a_hexadecimal_snapshot_is_read_as_a_number ... ok
+test parity_state::tests::an_incomplete_live_read_keeps_the_stored_measurement_whole ... ok
+test pool_roles::tests::backup_with_recent_trade_is_kept ... ok
+test pool_roles::tests::a_dynamic_fee_pool_is_never_a_backup ... ok
+test pool_roles::tests::cleanup_window_covers_three_days ... ok
+test chain::tests::dead_endpoint_is_reported_as_skipped ... ok
+test pool_roles::tests::candidate_and_recommendation_are_never_pruned ... ok
+test depth::capacity_regression_tests::the_sdk_and_the_fallback_agree_on_the_exact_input_swap ... ok
+test pool_roles::tests::role_materialisation_keeps_candidates_out_of_backup ... ok
+test pool_roles::tests::the_cleanup_is_off_by_default ... ok
+test pool_roles::tests::swap_topic_matches_known_value ... ok
+test pool_roles::tests::the_cleanup_is_skipped_while_the_startup_gate_is_closed ... ok
+test pool_roles::tests::the_cleanup_is_skipped_when_the_data_is_still_thin ... ok
+test pool_roles::tests::the_cleanup_is_skipped_without_trade_evidence ... ok
+test parity_state::tests::a_text_typed_snapshot_is_read_as_a_number ... ok
+test scope::tests::an_unsupported_token_load_mode_is_rejected ... ok
+test scope::tests::candidate_exchange_scope_admits_every_admitted_token_library ... ok
+test scope::tests::a_narrower_load_mode_removes_the_test_library_anchor ... ok
+test scope::tests::the_depth_verdict_decides_whether_a_pool_enters_a_scope ... ok
+test scope::tests::scope_write_rolls_back_pool_and_config_when_idempotency_insert_fails ... ok
+test chain::tests::fallback_reports_skipped_endpoints ... ok
+test scope::tests::scope_write_replays_persisted_result_and_keeps_one_record ... ok
+test scope::tests::a_test_library_fund_token_is_a_scope_anchor ... ok
+test single_tick_capacity::tests::a_better_price_yields_a_larger_capacity ... ok
+test scope::tests::a_scope_write_can_select_the_token_load_mode ... ok
+test scope::tests::core4_scope_is_edge_any_and_dry_run_matches_apply ... ok
+test single_tick_capacity::tests::a_hop_without_a_tick_spacing_is_rejected ... ok
+test single_tick_capacity::tests::a_hop_without_a_price_is_rejected ... ok
+test single_tick_capacity::tests::a_hop_without_liquidity_is_rejected ... ok
+test single_tick_capacity::tests::an_empty_loop_has_no_capacity ... ok
+test single_tick_capacity::tests::a_second_hop_is_folded_with_the_rate_of_the_first_hop ... ok
+test single_tick_capacity::tests::a_two_hop_loop_folds_the_second_hop_with_the_first_hop_rate ... ok
+test single_tick_capacity::tests::depth_capacity_is_folded_into_anchor_units_before_minimum ... ok
+test single_tick_capacity::tests::the_binding_hop_is_the_smallest_after_the_fold ... ok
+test single_tick_capacity::tests::the_first_hop_capacity_is_already_in_anchor_units ... ok
+test single_tick_capacity::tests::the_capacity_never_exceeds_the_binding_hop_capacity ... ok
+test single_tick_capacity::tests::the_first_hop_must_spend_the_anchor_token ... ok
+test single_tick_capacity::tests::the_mainnet_usdg_loop_publishes_a_folded_capacity ... ok
+test single_tick_capacity::tests::the_fold_applies_the_linear_rate_and_not_the_square_root_rate ... ok
+test single_tick_capacity::tests::the_fold_changes_the_outcome_that_a_raw_minimum_would_give ... ok
+test single_tick_capacity::tests::the_third_hop_uses_the_cumulative_rate_of_the_first_two_hops ... ok
+test state_transition::tests::an_untrusted_expected_capacity_above_the_exact_bound_is_fatal ... ok
+test state_transition::tests::changed_liquidity_forces_an_exact_capacity_recompute ... ok
+test state_transition::tests::a_final_input_above_the_current_exact_capacity_is_blocked ... ok
+test state_transition::tests::a_worse_exact_output_is_adverse ... ok
+test state_transition::tests::crossing_the_expected_tick_range_is_fatal ... ok
+test scope::tests::unsupported_scope_is_rejected_without_writes ... ok
+test state_transition::tests::the_capacity_multiplier_is_hard_capped ... ok
+test state_transition::tests::token0_favorable_move_uses_the_reciprocal_price_factor ... ok
+test state_transition::tests::token1_favorable_move_uses_the_linear_distance_ratio ... ok
+test tests::a_complete_live_read_is_written_as_a_measurement ... ok
+test state_transition::tests::unchanged_state_keeps_the_smaller_exact_capacity ... ok
+test tests::a_pool_is_only_as_deep_as_its_weaker_side ... ok
+test tests::a_chain_scoped_pool_resolves_its_token_pair_without_a_candidate_row ... ok
+test tests::a_refresh_writes_the_measured_depth_status_next_to_the_measurement ... ok
+test scope::tests::the_default_token_load_mode_loads_core_stocks_and_test ... ok
+test tests::a_dynamic_fee_pool_is_excluded_from_the_depth_population ... ok
+test tests::a_usd_reading_outside_the_reference_band_never_disqualifies_a_pool ... ok
+test tests::an_incomplete_live_read_is_never_written_as_a_measurement ... ok
+test tests::candidate_admission_floor_matches_the_shared_shallow_band ... ok
+test tests::capacity_rejects_an_unusable_pool_state ... ok
+test tests::capacity_scales_with_liquidity ... ok
+test tests::capacity_respects_the_price_impact_limit ... ok
+test scope::tests::the_extension_library_is_never_gated_by_the_token_load_mode ... ok
+test tests::d5_depth_apply_propagates_balances_into_the_candidate_table ... ok
+test tests::d5_propagation_leaves_unmeasured_candidates_untouched ... ok
+test tests::add_pair_accepts_positive_onchain_liquidity_without_usd_depth_labels ... ok
+test tests::d6_candidate_balances_adopt_the_measured_snapshot_amounts ... ok
+test tests::depth_band_boundaries_match_the_python_pool_index ... ok
+test tests::cleanup_output_does_not_claim_closed_loop_delete_count ... ok
+test tests::d6_candidate_balances_never_contain_token_addresses ... ok
+test tests::depth_band_json_reflects_capacity_bands ... ok
+test tests::depth_band_rank_orders_depth_labels ... ok
+test tests::depth_scope_parses_only_candidate_and_all ... ok
+test tests::depth_snapshot_writes_token_denominated_balances_payload ... ok
+test tests::depth_resume_skips_pools_that_already_carry_a_read_timestamp ... ok
+test tests::depth_explicit_pool_ids_win_over_scope ... ok
+test tests::depth_snapshot_clears_the_retired_usd_valuation_column ... ok
+test tests::depth_scope_all_covers_every_snapshot_pool ... ok
+test tests::parse_v4_liquidity_word_reads_the_low_128_bits ... ok
+test tests::parse_v4_slot0_words_decodes_the_packed_layout ... ok
+test tests::quality_rejects_pool_without_capacity_even_when_liquidity_index_is_large ... ok
+test tests::raw_to_decimal_string_renders_token_amounts ... ok
+test tests::depth_scope_candidate_is_the_union_of_candidate_tables ... ok
+test tests::quality_flags_stale_out_of_range_tvl_reading_without_disqualifying_the_pool ... ok
+test tests::quality_ignores_usd_depth_labels_but_requires_onchain_liquidity ... ok
+test tests::eligible_raw_pools_admits_on_capacity_and_orders_by_capacity ... ok
+test tests::ensure_indexes_survives_sqlite_text_query_plan_detail ... ok
+test tests::eligible_raw_pools_excludes_pool_without_capacity ... ok
+test tests::eligible_raw_pools_keeps_low_liquidity_index_pool_with_real_depth ... ok
+test tests::rejects_hook_and_high_fee ... ok
+test tests::sdk_and_fallback_maths_agree_on_the_swap_output ... ok
+test tests::the_chain_scoped_pool_table_wins_over_the_candidate_surfaces ... ok
+test tests::the_candidate_surface_carries_the_measured_liquidity_flag ... ok
+test tests::the_depth_document_carries_the_shared_admission_verdict ... ok
+test tests::the_depth_document_keeps_a_missing_liquidity_unresolved ... ok
+test tests::the_depth_document_rejects_a_capacity_below_the_shared_floor ... ok
+test tests::the_depth_document_rejects_an_explicit_zero_liquidity ... ok
+test tests::the_depth_thresholds_have_a_single_source ... ok
+test tests::the_raw_capacity_floor_is_exact_beyond_the_integer_range ... ok
+test tests::v4_pool_state_slots_match_the_python_keccak_layout ... ok
+test tests::val4_8_capacity_conversion_keeps_unknowns_missing ... ok
+test tests::v4_pool_state_slots_reject_malformed_pool_ids ... ok
+test tests::val4_8_the_depth_refresh_adds_the_missing_capacity_columns ... ok
+test tick_swap::tests::the_bitmap_resolves_the_initialized_ticks ... ok
+test tick_swap::tests::the_bitmap_words_surround_the_current_tick ... ok
+test tick_swap::tests::the_candidate_ticks_are_aligned_to_the_tick_spacing ... ok
+test tests::val4_8_an_unvalued_token_produces_no_depth_row ... ok
+test tests::refresh_key_reports_hop_ready_and_does_not_write_closed_loops ... ok
+test tests::val4_8_usdg_depth_is_readable_with_the_token_manager_query ... ok
+test tick_swap::tests::the_packed_tick_word_decodes_gross_and_net ... ok
+test tick_swap::tests::the_tick_compression_follows_the_sdk ... ok
+test tick_swap::tests::the_tick_slots_follow_the_sdk_layout ... ok
+test tests::the_depth_verdict_travels_with_the_measured_payload ... ok
+test tests::the_audit_works_on_a_store_without_the_capacity_columns ... ok
+test tests::the_audit_uses_the_measured_depth_verdict_over_the_stale_candidate_copy ... ok
+test tests::refresh_pair_never_writes_closed_loop_tables ... ok
+test tick_swap::tests::the_measurement_population_excludes_the_dynamic_fee_pools ... ok
+test usdg_depth::tests::a_depth_beyond_the_integer_range_is_not_written ... ok
+test usdg_depth::tests::a_depth_that_cannot_fit_an_integer_stays_unmeasured ... ok
+test tick_swap::tests::the_word_scan_finds_the_next_initialized_tick ... ok
+test usdg_depth::tests::a_missing_measurement_stays_missing ... ok
+test usdg_depth::tests::a_missing_report_is_an_empty_result_not_an_error ... ok
+test usdg_depth::tests::a_placeholder_address_never_becomes_a_row ... ok
+test usdg_depth::tests::a_stored_depth_is_readable_as_an_integer ... ok
+test usdg_depth::tests::remeasuring_a_pool_replaces_the_previous_row ... ok
+test usdg_depth::tests::the_depth_table_round_trips_through_sqlite ... ok
+test usdg_depth::tests::capacity_is_converted_into_usdg_with_integer_arithmetic ... ok
+test tick_swap::tests::the_traversal_crosses_an_initialized_tick ... ok
+test usdg_depth::tests::the_placeholder_address_carries_no_depth_evidence ... ok
+test usdg_depth::tests::a_valuation_report_yields_only_the_routed_tokens ... ok
+
+test result: ok. 163 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.61s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 153 tests
+test parity::equivalence_tests::canonical_fixture_matches_the_python_simulator ... ok
+test parity::evidence_tests::a_fractional_liquidity_index_is_scaled_back_exactly ... ok
+test parity::equivalence_tests::single_hop_output_in_the_other_direction_matches_the_python_simulator ... ok
+test parity::evidence_tests::a_missing_database_is_reported_rather_than_panicking ... ok
+test parity::evidence_tests::a_live_payload_replay_survives_a_missing_live_snapshot ... ok
+test parity::equivalence_tests::single_hop_output_matches_the_python_simulator ... ok
+test parity::evidence_tests::a_live_review_payload_becomes_a_non_persistent_parity_request ... ok
+test parity::evidence_tests::a_live_review_payload_without_review_time_state_is_refused ... ok
+test parity::evidence_tests::a_negative_hexadecimal_amount_keeps_its_sign ... ok
+test parity::evidence_tests::a_payload_without_candidate_pools_yields_no_review_time_state ... ok
+test parity::evidence_tests::a_plain_liquidity_index_is_scaled_back_exactly ... ok
+test parity::evidence_tests::a_pool_without_a_usable_price_is_skipped_rather_than_guessed ... ok
+test parity::evidence_tests::a_positive_and_a_negative_amount_are_both_parsed ... ok
+test parity::evidence_tests::a_revert_without_a_repayment_is_not_decoded ... ok
+test parity::evidence_tests::a_scientific_liquidity_index_is_scaled_back_exactly ... ok
+test parity::evidence_tests::a_short_or_missing_revert_is_not_decoded ... ok
+test parity::evidence_tests::an_unreadable_amount_is_not_a_number ... ok
+test parity::evidence_tests::a_state_that_post_dates_the_review_is_reported_as_such ... ok
+test parity::evidence_tests::an_unreadable_timestamp_yields_no_age ... ok
+test parity::evidence_tests::an_empty_database_replays_nothing_and_blocks_the_gate ... ok
+test parity::evidence_tests::the_chain_live_amounts_are_recovered_from_the_revert ... ok
+test parity::evidence_tests::the_raw_liquidity_wins_over_the_index_when_both_are_present ... ok
+test parity::evidence_tests::the_pool_id_is_matched_regardless_of_its_case ... ok
+test parity::evidence_tests::the_review_time_state_is_read_out_of_the_recorded_payload ... ok
+test parity::evidence_tests::the_state_age_is_measured_against_the_review ... ok
+test parity::tests::a_fee_assumption_is_named_instead_of_being_blamed_on_the_pool_state ... ok
+test parity::tests::a_residual_that_is_exactly_the_legacy_fee_is_recognised ... ok
+test parity::tests::a_residual_that_is_not_the_legacy_fee_is_not_explained ... ok
+test parity::tests::an_impossible_settlement_yields_no_effective_fee ... ok
+test parity::tests::build_hops_derives_the_direction_from_the_pool_pair ... ok
+test parity::tests::build_hops_rejects_a_pool_that_does_not_sit_between_the_route_tokens ... ok
+test parity::evidence_tests::an_attempt_without_a_probe_ladder_is_not_evidence ... ok
+test parity::evidence_tests::the_reviews_of_another_network_are_not_replayed ... ok
+test parity::evidence_tests::two_attempts_of_the_same_route_share_one_route_key ... ok
+test parity::evidence_tests::a_review_time_replay_that_leaves_only_the_legacy_fee_is_explained ... ok
+test parity::evidence_tests::the_review_time_state_is_preferred_over_the_live_snapshot ... ok
+test parity::tests::flash_fee_rounds_up_like_the_contract ... ok
+test parity::tests::parity_attributes_a_deviation_to_stale_local_state_when_the_chain_live_figure_reproduces_the_chain_profit ... ok
+test parity::tests::parity_attributes_a_deviation_to_the_arithmetic_when_the_chain_live_figure_does_not_reproduce_the_chain_profit ... ok
+test parity::tests::parity_reports_a_match_when_the_offchain_and_chain_agree ... ok
+test parity::tests::parity_without_chain_live_figures_is_not_comparable_but_is_still_attributed ... ok
+test parity::tests::parity_without_pool_state_is_not_comparable ... ok
+test parity::tests::simulate_route_rejects_a_route_that_does_not_close ... ok
+test parity::tests::simulate_route_rejects_a_token_discontinuity ... ok
+test parity::tests::the_effective_fee_follows_the_chain_even_when_the_chain_charges_one ... ok
+test parity::tests::the_effective_fee_is_derived_from_the_chain_settlement ... ok
+test parity::evidence_tests::the_whole_history_can_be_replayed_on_request ... ok
+test parity::tests::parity_without_a_chain_profit_is_not_comparable ... ok
+test parity::tests::relative_delta_is_zero_for_equal_amounts_and_one_for_opposite_signs ... ok
+test parity::tests::required_repay_adds_the_fee_to_the_principal ... ok
+test parity::tests::the_default_flash_fee_is_zero_because_the_chain_charges_none ... ok
+test parity::tests::the_fee_check_compares_the_chain_settlement_with_the_simulator ... ok
+test parity::tests::simulate_route_reports_a_signed_shortfall_for_a_losing_route ... ok
+test parity::tests::the_simulation_uses_the_fee_the_chain_charged ... ok
+test parity::tests::without_a_settlement_no_effective_fee_is_derived ... ok
+test records::tests::a_record_belongs_to_the_month_of_its_own_creation ... ok
+test records::tests::a_review_that_left_the_generation_produces_a_removal_line ... ok
+test records::tests::every_closed_loop_gets_a_file_of_its_own ... ok
+test records::tests::only_a_review_that_changed_produces_an_audit_line ... ok
+test parity::evidence_tests::only_the_newest_attempt_of_each_route_is_replayed_by_default ... ok
+test records::tests::a_new_closed_loop_generation_produces_an_audit_line ... ok
+test records::tests::a_scope_that_could_leave_the_record_root_is_refused ... ok
+test records::tests::the_record_trees_sit_next_to_the_main_store ... ok
+test records::tests::the_audit_stream_rolls_over_to_the_day_of_the_line ... ok
+test records::tests::an_expired_day_folder_is_removed_and_a_fresh_one_is_kept ... ok
+test records::tests::the_audit_stream_writes_one_json_object_per_line ... ok
+test records::tests::the_published_lines_reach_the_disk ... ok
+test records::tests::the_signed_profit_survives_the_round_trip_with_every_digit ... ok
+test runtime::tests::runtime_bounds_review_workers_and_reports_lifecycle_counters ... ok
+test runtime::tests::supervisor_owns_main_thread_and_command_channel ... ok
+test shadow::tests::a_difference_between_two_fee_conventions_is_attributed_to_the_fee ... ok
+test shadow::tests::a_difference_between_two_state_versions_is_attributed_to_the_state ... ok
+test shadow::tests::a_chain_side_that_cannot_report_the_field_is_a_field_observability_limit ... ok
+test shadow::tests::a_difference_in_neither_the_state_nor_the_fee_is_unexplained ... ok
+test shadow::tests::a_comparison_carries_the_pool_state_version ... ok
+test shadow::tests::a_memory_deviation_never_produces_an_untrusted_verdict ... ok
+test shadow::tests::a_memory_deviation_never_blocks_an_execution ... ok
+test shadow::tests::a_memory_refusal_against_a_chain_fill_is_the_tick_range_gate ... ok
+test shadow::tests::a_misconfigured_rate_falls_back_to_the_default ... ok
+test shadow::tests::a_quote_with_an_output_is_executable ... ok
+test shadow::tests::a_real_amount_difference_is_not_an_observability_limit ... ok
+test shadow::tests::a_revert_is_a_trustworthy_answer_and_not_a_blocking_reason ... ok
+test shadow::tests::a_short_quote_answer_is_malformed ... ok
+test shadow::tests::a_hop_without_a_local_pool_state_is_skipped_rather_than_reported ... ok
+test shadow::tests::a_stored_snapshot_against_a_live_block_is_a_state_version_difference ... ok
+test shadow::tests::a_zero_output_quote_is_not_executable ... ok
+test shadow::tests::an_amount_difference_beyond_the_tolerance_is_reported ... ok
+test shadow::tests::an_anomaly_records_the_direction_of_the_hop ... ok
+test shadow::tests::an_anomaly_is_recorded_once_and_keeps_its_identity ... ok
+test shadow::tests::an_anomaly_may_not_move_backwards ... ok
+test shadow::tests::an_anomaly_walks_from_unexplained_to_explained_to_fixed ... ok
+test shadow::tests::an_identical_pair_produces_no_difference_at_all ... ok
+test shadow::tests::a_non_zero_hook_pool_is_outside_the_shadow_population ... ok
+test shadow::tests::both_sides_carry_their_own_source_tag ... ok
+test shadow::tests::one_comparison_that_disagrees_on_three_fields_is_one_defect ... ok
+test shadow::tests::only_the_three_named_reasons_may_block ... ok
+test shadow::tests::the_amount_parser_accepts_decimal_and_hexadecimal ... ok
+test shadow::tests::the_quote_calldata_is_the_contract_shape ... ok
+test shadow::tests::the_quote_calldata_rejects_a_malformed_address ... ok
+test shadow::tests::the_ledger_counts_the_unexplained_differences_and_nothing_else ... ok
+test shadow::tests::the_quote_words_decode_keeps_the_amount_and_the_gas_apart ... ok
+test shadow::tests::the_source_tag_and_the_trust_verdict_have_stable_wire_names ... ok
+test shadow::tests::the_two_directions_are_priced_as_two_different_swaps ... ok
+test shadow::tests::the_two_directions_of_a_pool_are_two_different_anomalies ... ok
+test shadow::tests::two_block_versions_agree_only_when_they_are_the_same_block ... ok
+test shadow::tests::two_sides_that_both_refuse_the_swap_are_attributed_to_the_refusal ... ok
+test shadow::tests::two_state_version_namespaces_do_not_contradict_each_other ... ok
+test single_tick::tests::a_cross_tick_route_is_blocked ... ok
+test shadow::tests::the_report_unexplained_count_is_the_ledger_unexplained_count ... ok
+test single_tick::tests::a_drifted_pool_state_version_blocks_the_route ... ok
+test single_tick::tests::a_hop_without_a_tick_spacing_is_blocked ... ok
+test single_tick::tests::a_middle_hop_that_crosses_its_boundary_blocks_the_route ... ok
+test single_tick::tests::a_mismatched_hop_count_blocks_the_route ... ok
+test single_tick::tests::a_single_tick_route_passes_with_a_bound_conclusion_per_hop ... ok
+test single_tick::tests::the_gate_covers_every_hop_of_the_closed_loop ... ok
+test state_transition_gate::tests::a_cross_tick_market_is_fatal ... ok
+test single_tick::tests::every_hop_is_priced_with_its_own_actual_input_amount ... ok
+test state_transition_gate::tests::a_route_without_hops_is_blocked ... ok
+test state_transition_gate::tests::an_adverse_market_blocks_the_route_with_a_stable_reason ... ok
+test state_transition_gate::tests::an_unchanged_market_keeps_the_route_executable ... ok
+test state_transition_gate::tests::every_hop_is_judged ... ok
+test shadow::tests::the_rate_limiter_spaces_requests_out ... ok
+test records::tests::a_month_store_takes_its_schema_from_the_main_store ... ok
+test tests::a_dry_run_never_reaches_the_review_audit_stream ... ok
+test records::tests::the_archived_totals_are_grouped_by_currency ... ok
+test tests::a_cross_tick_route_is_blocked_at_the_review_stage ... ok
+test tests::a_drifted_pool_state_version_blocks_the_route_at_the_review_stage ... ok
+test tests::a_review_without_an_identity_publishes_no_identity ... ok
+test records::tests::a_finished_attempt_reaches_the_month_store_and_the_main_row_shrinks ... ok
+test tests::a_rotation_of_a_directed_cycle_is_a_different_closed_loop ... ok
+test tests::a_signed_profit_without_the_human_amount_is_not_accepted ... ok
+test tests::a_route_without_a_final_input_amount_is_blocked ... ok
+test tests::a_route_without_a_folded_capacity_is_blocked ... ok
+test tests::a_single_tick_route_keeps_its_profit_gas_and_fee_semantics ... ok
+test tests::a_route_without_a_usable_pool_state_is_blocked ... ok
+test tests::a_route_above_the_folded_capacity_is_blocked ... ok
+test tests::clear_review_records_is_dry_run_safe_and_preserves_catalogs ... ok
+test tests::a_written_generation_reaches_the_review_audit_stream ... ok
+test tests::clear_review_records_works_without_manager_write_ledger ... ok
+test shadow::tests::an_unreachable_chain_call_is_untrusted_and_blocks ... ok
+test tests::stale_positive_review_never_generates_automatic_broadcast_request ... ok
+test tests::missing_or_diagnostic_only_pnl_is_data_incomplete ... ok
+test tests::non_positive_completed_review_does_not_generate_broadcast_request ... ok
+test tests::the_broadcast_request_carries_the_proved_capacity ... ok
+test tests::stale_closed_loop_version_is_rejected_without_writes ... ok
+test tests::review_page_classifies_filters_and_keeps_related_rows_on_page ... ok
+test tests::positive_executable_review_generates_broadcast_request_only ... ok
+test tests::the_broadcast_request_carries_the_proved_hop_price_limits ... ok
+test tests::the_kernel_published_evidence_shape_is_accepted ... ok
+test tests::the_review_manager_exposes_no_rotation_capability ... ok
+test tests::write_is_idempotent_and_dry_run_does_not_persist ... ok
+test tests::the_review_manager_publishes_the_diagnosis_of_a_broken_identity ... ok
+test tests::the_review_manager_publishes_the_closed_loop_identity_of_a_review ... ok
+
+test result: ok. 153 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.78s
+
+
+running 148 tests
+test audit::tests::existing_status_changes_and_removals_are_reported ... ok
+test audit::tests::primary_conflicts_are_reported_while_extension_overlap_is_allowed ... ok
+test audit::tests::status_summary_and_diff_are_deterministic ... ok
+test audit::tests::target_schema_absent_is_a_safe_empty_baseline ... ok
+test classification::tests::duplicate_symbol_never_drives_primary_classification ... ok
+test classification::tests::duplicate_symbols_are_reported_after_membership_assignment ... ok
+test classification::tests::extension_membership_uses_core_stock_and_tz_test_anchors ... ok
+test classification::tests::extension_only_tokens_are_not_unclassified ... ok
+test classification::tests::extension_requires_a_liquidity_qualified_direct_pool ... ok
+test classification::tests::liquidity_gate_accepts_positive_raw_liquidity_with_zero_index ... ok
+test classification::tests::liquidity_gate_ignores_usd_depth_labels ... ok
+test classification::tests::liquidity_gate_rejects_unsafe_or_missing_pool_evidence ... ok
+test classification::tests::same_priority_disagreement_is_reported_and_not_classified ... ok
+test classification::tests::source_precedence_merges_one_address_and_extension_can_overlap ... ok
+test classification::tests::stock_membership_uses_stock_metadata_and_extension_overlap ... ok
+test classification::tests::testnet_address_enters_test_without_symbol_lookup ... ok
+test economic_gate::tests::a_core_token_without_a_usdg_path_keeps_its_membership ... ok
+test economic_gate::tests::a_pending_stock_token_never_produces_a_withdrawal_write ... ok
+test economic_gate::tests::a_stock_token_without_a_usdg_path_leaves_the_stock_library ... ok
+test economic_gate::tests::a_valued_stock_token_stays_in_the_stock_library ... ok
+test economic_gate::tests::an_excluded_extension_hop_produces_an_extension_withdrawal_write ... ok
+test economic_gate::tests::an_excluded_stock_token_produces_a_blocked_withdrawal_write ... ok
+test economic_gate::tests::an_extension_hop_that_cannot_carry_a_minimum_position_is_excluded ... ok
+test economic_gate::tests::an_extension_hop_with_unmeasured_depth_is_pending_and_never_excluded ... ok
+test economic_gate::tests::an_unmeasured_stock_token_is_pending_and_never_excluded ... ok
+test economic_gate::tests::only_the_stock_library_requires_a_usdg_exchange_path ... ok
+test economic_gate::tests::the_gate_never_adds_a_membership ... ok
+test admission::tests::missing_token_is_rejected_before_event_creation ... ok
+test audit::tests::migrated_target_schema_is_detected_read_only ... ok
+test admission::tests::dry_run_reports_change_without_persisting_status_version_or_event ... ok
+test audit::tests::migrated_target_rows_are_read_without_duplicating_existing_rows ... ok
+test admission::tests::same_key_with_different_digest_is_rejected ... ok
+test metadata::tests::accepted_and_error_split_is_stable ... ok
+test admission::tests::noop_apply_persists_idempotency_without_incrementing_version ... ok
+test admission::tests::apply_is_atomic_and_same_idempotency_key_replays_first_result ... ok
+test metadata::tests::invalid_address_key_decimals_json_and_flags_are_rejected ... ok
+test metadata::tests::metadata_json_can_fill_placeholder_symbol_name_and_decimals ... ok
+test metadata::tests::metadata_json_symbol_without_decimals_still_fails_cleanly ... ok
+test metadata::tests::native_uses_zero_address_and_remains_distinct_from_weth ... ok
+test metadata::tests::normalization_is_deterministic_and_converts_to_token_write ... ok
+test metadata::tests::placeholder_detection_matches_existing_python_rules ... ok
+test model::tests::storage_keys_are_stable ... ok
+test prune::tests::a_complete_token_is_kept ... ok
+test prune::tests::only_the_essential_metadata_removes_a_token ... ok
+test prune::tests::a_placeholder_symbol_is_not_usable ... ok
+test prune::tests::a_token_without_decimals_is_not_usable ... ok
+test prune::tests::the_dependants_of_a_pruned_token_are_removed_with_it ... ok
+test prune::tests::zero_decimals_is_a_usable_value ... ok
+test manager_audit::tests::audit_rejects_invalid_recent_event_limit ... ok
+test quote_asset::tests::a_floor_that_is_not_a_whole_number_of_major_units_is_refused ... ok
+test prune::tests::the_dry_run_changes_nothing ... ok
+test quote_asset::tests::an_unknown_scope_is_refused_rather_than_defaulting ... ok
+test prune::tests::the_chain_boundary_is_never_crossed ... ok
+test prune::tests::the_prune_removes_the_token_and_its_dependants ... ok
+test quote_asset::tests::mainnet_values_in_usdg_and_keeps_the_shared_floor_verbatim ... ok
+test quote_asset::tests::the_testnet_floor_is_not_the_mainnet_floor_converted ... ok
+test quote_asset::tests::the_testnet_values_in_the_native_coin_because_usdg_has_no_path_there ... ok
+test quote_asset::tests::the_usdg_floor_is_restated_as_the_same_number_of_major_units ... ok
+test sources::tests::core4_allowlist_is_address_based_and_exact ... ok
+test sources::tests::chain_token_and_pool_adapters_preserve_source_locations ... ok
+test query::tests::library_query_filters_status_and_uses_persisted_state ... ok
+test query::tests::missing_symbol_returns_not_found_and_invalid_symbol_is_explicit ... ok
+test sources::tests::core_allowlist_reads_the_addresses_of_the_chain_it_serves ... ok
+test manager_audit::tests::audit_reports_library_state_duplicates_sources_and_recent_events_read_only ... ok
+test sources::tests::stock_registry_adapter_reads_explicit_metadata ... ok
+test query::tests::symbol_resolution_deduplicates_overlap_but_rejects_distinct_addresses ... ok
+test simulation::tests::primary_conflict_fails_the_simulation ... ok
+test store::tests::dry_run_returns_apply_checksum_without_persisting_rows ... ok
+test store::tests::extension_membership_can_overlap_with_all_primary_libraries ... ok
+test store::tests::initial_write_materializes_rows_state_and_events ... ok
+test tests::framework_status_is_read_only_at_the_http_boundary ... ok
+test usdg_economic::tests::a_missing_measurement_is_not_a_missing_path ... ok
+test usdg_economic::tests::a_shallow_pool_is_excluded_even_when_the_token_is_worth_a_lot ... ok
+test store::tests::identical_write_is_idempotent ... ok
+test usdg_economic::tests::a_token_worth_less_than_the_floor_is_a_dust_token ... ok
+test store::tests::inconsistent_token_identity_is_rejected ... ok
+test store::tests::admission_change_increments_version_and_writes_event ... ok
+test usdg_economic::tests::a_token_without_a_usdg_path_cannot_be_valued ... ok
+test simulation::tests::temporary_bootstrap_is_dry_run_safe_and_idempotent ... ok
+test usdg_economic::tests::a_valued_token_with_deep_enough_pool_is_admissible ... ok
+test usdg_economic::tests::an_intermediate_hop_without_a_measured_depth_is_pending ... ok
+test usdg_economic::tests::an_intermediate_hop_needs_capacity_but_not_a_valuation ... ok
+test usdg_economic::tests::an_unmeasured_depth_does_not_exclude_a_valued_token ... ok
+test usdg_economic::tests::an_intermediate_hop_that_cannot_carry_the_position_is_a_dust_hop ... ok
+test usdg_economic::tests::an_unmeasured_token_is_pending_rather_than_excluded ... ok
+test usdg_economic::tests::r11_the_usdg_peg_never_decides_an_admission ... ok
+test usdg_economic::tests::r11_the_usdg_peg_policy_is_declared_with_a_ratio_of_one ... ok
+test usdg_economic::tests::r11_usdg_replaces_usd_as_the_economic_reference ... ok
+test usdg_economic::tests::raw_usdg_amounts_render_as_decimals ... ok
+test store::tests::planned_write_checksum_matches_materialized_library_checksum ... ok
+test usdg_economic::tests::the_extension_library_separates_pending_from_excluded ... ok
+test usdg_economic::tests::r11_a_depegged_usdg_is_rejected ... ok
+test usdg_economic::tests::the_stock_library_excludes_unvaluable_tokens ... ok
+test usdg_evidence::tests::a_live_route_is_recorded_as_a_measured_valuation ... ok
+test store::tests::library_checksum_is_order_independent_and_deterministic ... ok
+test usdg_evidence::tests::a_full_batch_report_is_still_read_from_its_embedded_report ... ok
+test usdg_economic::tests::val4_12_the_economic_floor_comes_from_the_shared_policy_file ... ok
+test usdg_economic::tests::val4_12_the_shared_file_denominates_the_floor_in_usdg ... ok
+test usdg_evidence::tests::a_rendered_cli_report_round_trips_back_into_the_evidence ... ok
+test store::tests::primary_libraries_are_mutually_exclusive ... ok
+test usdg_evidence::tests::a_shallow_hop_is_counted_as_dust ... ok
+test usdg_evidence::tests::an_api_failure_is_unknown_and_never_a_negative ... ok
+test usdg_evidence::tests::no_route_is_a_genuine_negative ... ok
+test usdg_evidence::tests::a_tokens_only_report_is_read_and_its_counters_are_rebuilt ... ok
+test usdg_evidence::tests::the_measured_depths_become_the_extension_evidence ... ok
+test usdg_evidence::tests::the_placeholder_address_is_rejected ... ok
+test usdg_evidence::tests::the_placeholder_address_is_not_a_measured_hop ... ok
+test valuation_freshness::tests::a_fresh_membership_observation_is_usable ... ok
+test valuation_freshness::tests::a_fresh_probe_failure_stays_unknown ... ok
+test valuation_freshness::tests::a_fresh_negative_is_a_real_negative ... ok
+test valuation_freshness::tests::a_future_timestamp_is_stale_not_fresh ... ok
+test valuation_freshness::tests::a_stale_negative_never_remains_a_negative ... ok
+test valuation_freshness::tests::an_unparseable_timestamp_is_unverifiable_and_never_fresh ... ok
+test valuation_freshness::tests::magnitude_expires_far_sooner_than_membership ... ok
+test valuation_freshness::tests::a_stale_positive_never_remains_a_positive ... ok
+test valuation_freshness::tests::membership_survives_for_a_full_day_and_expires_after ... ok
+test valuation_freshness::tests::the_local_approximation_is_rejected ... ok
+test valuation_freshness::tests::the_table_report_separates_fresh_stale_and_unverifiable ... ok
+test valuation_freshness::tests::rfc3339_forms_are_all_parsed ... ok
+test valuation_store::tests::a_missing_table_reads_as_no_observation ... ok
+test valuation_store::tests::a_negative_verdict_stores_no_value ... ok
+test valuation_store::tests::an_unknown_observation_is_recorded_when_nothing_is_known_yet ... ok
+test valuation_tests::tests::a_200_no_route_body_is_a_real_negative ... ok
+test valuation_store::tests::a_landing_round_trips_through_the_database ... ok
+test valuation_store::tests::a_dry_run_writes_nothing ... ok
+test valuation_store::tests::an_unknown_observation_never_overwrites_a_known_one ... ok
+test valuation_tests::tests::a_401_body_is_never_a_no_route_answer ... ok
+test valuation_tests::tests::a_429_body_is_never_a_no_route_answer ... ok
+test valuation_tests::tests::a_404_body_without_a_no_route_signal_stays_unknown ... ok
+test valuation_tests::tests::a_404_no_route_body_is_a_real_negative ... ok
+test valuation_tests::tests::a_sequential_batch_is_still_supported ... ok
+test valuation_tests::tests::batch_summary_keeps_unknowns_separate_from_negatives ... ok
+test valuation_tests::tests::a_concurrent_batch_keeps_the_callers_order ... ok
+test valuation_tests::tests::api_key_is_never_serialized_into_a_report ... ok
+test valuation_tests::tests::explicit_no_route_is_a_real_negative ... ok
+test valuation_tests::tests::malformed_response_is_unknown_and_never_a_negative ... ok
+test valuation_tests::tests::missing_api_key_is_unknown_not_a_negative ... ok
+test valuation_tests::tests::request_body_matches_the_trading_api_contract ... ok
+test valuation_tests::tests::nominal_amount_is_converted_to_raw_units_without_floats ... ok
+test valuation_tests::tests::raw_amounts_render_as_decimals ... ok
+test valuation_tests::tests::route_detail_is_never_retained_in_the_report ... ok
+test valuation_store::tests::a_newer_observation_replaces_the_older_one ... ok
+test valuation_store::tests::a_real_negative_still_replaces_a_real_negative ... ok
+test valuation_tests::tests::successful_quote_reports_a_route_and_a_decimal_usdg_amount ... ok
+test valuation_tests::tests::the_canonical_error_code_alone_is_a_no_route_answer ... ok
+test valuation_tests::tests::verdict_helpers_separate_truth_from_unknown ... ok
+test valuation_store::tests::landing_the_same_report_twice_is_idempotent ... ok
+test valuation_store::tests::the_verdict_vocabulary_is_closed_at_the_schema_level ... ok
+
+test result: ok. 148 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.53s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

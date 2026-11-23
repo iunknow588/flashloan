@@ -1,0 +1,67 @@
+{
+  "report": "TASK-183 KV schema 初始化只读化（已闭合）",
+  "task": "TASK-183",
+  "acceptance": "AC-232",
+  "generatedAt": "2026-11-23T03:10:00+00:00",
+  "authority": "read-only inspection of the source tree plus an in-process statement probe; the live main store was only ever opened read-only (mode=ro + PRAGMA query_only=ON); no broadcast",
+  "defect": {
+    "site": "flashloan/src/core/local_kv.py::_ensure_schema",
+    "before": "an unconditional INSERT OR REPLACE INTO kv_meta (meta_key, value_json) VALUES ('schema_version', ?) followed by connection.commit()",
+    "after": "read first, compare, write only when the stored version differs",
+    "compatibility": "_schema_version_is_current accepts the raw number (1) and the JSON encoded string (\"1\"); stores written by older code generations are therefore not rewritten on every open",
+    "triggerPath": "dex/intent_trade/chains/robinhood/market_observation.py:59 (module level side effect at import time) -> storage_chain_core.load_chain_tokens -> storage_business_io.query -> Database.ensure -> local_kv.ensure_store -> _ensure_schema"
+  },
+  "guards": {
+    "file": "flashloan/app_runtime/tests/unit/test_local_kv_schema_write_guard.py",
+    "command": "python -m pytest flashloan/app_runtime/tests/unit/test_local_kv_schema_write_guard.py -q",
+    "exitCode": 0,
+    "passed": 5,
+    "cases": [
+      "an up to date store is not rewritten",
+      "a fresh store still receives the schema",
+      "a stale schema version is still refreshed",
+      "a store keeping the raw number is not rewritten",
+      "a fresh process reading a store leaves it byte identical"
+    ],
+    "notHollow": "reverting the fix to the unconditional INSERT OR REPLACE reproduces a stable red of 3 cases; restoring the fix turns them green again",
+    "fingerprintScope": "the byte identical case compares the store file AND its write ahead log, because a write that is still in the WAL leaves the database file untouched; that is exactly the failure mode on a live chain store"
+  },
+  "liveObservations": {
+    "scopedRepro": {
+      "date": "2026-11-23",
+      "scope": "3 test files, 14.81 s, 51 passed",
+      "kvMetaInserts": 8,
+      "kvMetaInsertKeys": {
+        "schema_migrations": 8
+      },
+      "schemaVersionInserts": 0,
+      "conclusion": "the guarded write is gone on the live path; the remaining kv_meta writes belong to a different key (schema_migrations)"
+    },
+    "fullRun": {
+      "date": "2026-11-23",
+      "scope": "full suite, 943.705 s observation window",
+      "kvMetaInserts": 8,
+      "kvMetaInsertKeys": {
+        "schema_migrations": 8
+      },
+      "schemaVersionInserts": 0
+    },
+    "silentControl": {
+      "windowSeconds": 150,
+      "commits": 0,
+      "purpose": "a watcher of the same shape records zero commits when pytest is idle, so the commits seen during a run are attributable to the run itself"
+    }
+  },
+  "scopeBoundary": "TASK-183 closes exactly one write path (kv_meta.schema_version). The remaining write paths belong to TASK-184 and stay open. It must not be read as \"the test suite no longer writes to the production store\".",
+  "regression": {
+    "command": "python -m pytest flashloan/app_runtime/tests -q",
+    "passed": 3129,
+    "skipped": 3,
+    "failed": 0,
+    "elapsedSeconds": 987.94,
+    "rerunAt": "2026-11-23T04:30:00+00:00",
+    "note": "the first reading of this round was 1084.82 s; the suite was rerun after a comment-only cleanup in core/local_kv.py and reached the same 3129 / 3 / 0"
+  },
+  "status": "closed",
+  "collector": "plan/runtime_evidence/tools/analyze_task183_184_production_db_writes_20261123.py"
+}

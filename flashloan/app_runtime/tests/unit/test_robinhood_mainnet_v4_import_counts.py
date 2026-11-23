@@ -13,6 +13,15 @@ from core.db.storage_v4_exchange import (
     load_v4_pool_liquidity,
 )
 
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
+
 
 def _write_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,6 +144,55 @@ def test_import_existing_json_writes_mainnet_v4_counts(tmp_path):
     )
     assert len(pools) == 2
     assert {row["pool_id"] for row in pools} == {"0x" + "a1" * 32, "0x" + "b2" * 32}
+    # TASK-172 / AC-221: the depth snapshot table has exactly one writer,
+    # the Rust pool manager.  The evidence import seeds the pool index and
+    # tokens; it never materialises a snapshot row, so the table is still
+    # empty after the import.
+    assert load_v4_pool_liquidity(
+        database,
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+    ) == []
+
+    # The pool manager then materialises the two rows from its own live
+    # measurement, and those are the rows the builders consume.
+    materialise_depth_snapshot(
+        database,
+        network="robinhood",
+        chain_id=4663,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": "0x" + "a1" * 32,
+                "has_liquidity": True,
+                "liquidity": "1000000000000000000000",
+                "liquidity_index": 123.5,
+                "estimated_tvl_usd": 260000.5,
+                "balances": {"tvlUsd": "260000.5"},
+                "depth_status": "deep",
+                "sqrt_price_x96": str(2**96),
+                "tick": 10,
+                "liquidity_read_at": "2026-10-10T00:00:00Z",
+                "liquidity_block_number": 84_000_100,
+                "recent_swap_active": True,
+            },
+            {
+                "pool_id": "0x" + "b2" * 32,
+                "has_liquidity": False,
+                "liquidity": "",
+                "liquidity_index": 0,
+                "estimated_tvl_usd": 0,
+                "balances": {"tvlUsd": 0},
+                "depth_status": "no_liquidity",
+                "sqrt_price_x96": str(2**96),
+                "tick": 10,
+                "liquidity_read_at": "2026-10-10T00:00:00Z",
+                "liquidity_block_number": 84_000_100,
+                "recent_swap_active": False,
+            },
+        ],
+    )
     snapshots = load_v4_pool_liquidity(
         database,
         network="robinhood",

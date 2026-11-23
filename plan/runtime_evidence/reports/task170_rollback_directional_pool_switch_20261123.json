@@ -1,0 +1,237 @@
+{
+  "generatedAt": "2026-11-23T05:11:25+0800",
+  "mode": "rehearse",
+  "writes": false,
+  "library": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "chainId": 4663,
+    "network": "robinhood"
+  },
+  "targets": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "columns": [],
+      "missingColumns": [
+        "directional_pool_id",
+        "hop_direction",
+        "directional_input_token_key_id",
+        "directional_output_token_key_id"
+      ],
+      "state": "no_target_columns",
+      "affectedRows": 0,
+      "statement": null,
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key",
+        "hop_index"
+      ]
+    },
+    {
+      "table": "manager_v4_closed_loops",
+      "columns": [],
+      "missingColumns": [
+        "directional_pool_path_key"
+      ],
+      "state": "no_target_columns",
+      "affectedRows": 0,
+      "statement": null,
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key"
+      ]
+    }
+  ],
+  "p3Restore": [
+    {
+      "table": "manager_dex_candidate_pool_recommendations",
+      "column": "direction_key",
+      "state": "column_present",
+      "restoreStatement": null,
+      "note": "P3 has not degraded this column; nothing to restore"
+    },
+    {
+      "table": "manager_market_observation_yz_pairs",
+      "column": "direction_key",
+      "state": "column_present",
+      "restoreStatement": null,
+      "note": "P3 has not degraded this column; nothing to restore"
+    }
+  ],
+  "durationSeconds": 82.815,
+  "passed": true,
+  "checks": {
+    "closedLoopSetUnchanged": true,
+    "allDirectionalColumnsNulled": true,
+    "secondPassChangedNothing": true,
+    "transactionRolledBack": true,
+    "libraryFileUnchanged": true,
+    "noWalContentWritten": true,
+    "liveLibraryQuiescent": true,
+    "walContentAttributableToRehearsal": true,
+    "libraryFileUnchangedOrExternalWriter": true
+  },
+  "canonicalStatements": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "columns": [
+        "directional_pool_id",
+        "hop_direction",
+        "directional_input_token_key_id",
+        "directional_output_token_key_id"
+      ],
+      "statement": "UPDATE manager_v4_closed_loop_hops SET directional_pool_id = NULL, hop_direction = NULL, directional_input_token_key_id = NULL, directional_output_token_key_id = NULL WHERE directional_pool_id IS NOT NULL OR hop_direction IS NOT NULL OR directional_input_token_key_id IS NOT NULL OR directional_output_token_key_id IS NOT NULL"
+    },
+    {
+      "table": "manager_v4_closed_loops",
+      "columns": [
+        "directional_pool_path_key"
+      ],
+      "statement": "UPDATE manager_v4_closed_loops SET directional_pool_path_key = NULL WHERE directional_pool_path_key IS NOT NULL"
+    }
+  ],
+  "protectedColumns": [
+    "pool_id",
+    "base_pool_id",
+    "loop_key"
+  ],
+  "shadowTargets": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "columns": [
+        "directional_pool_id",
+        "hop_direction",
+        "directional_input_token_key_id",
+        "directional_output_token_key_id"
+      ],
+      "missingColumns": [],
+      "state": "ready",
+      "affectedRows": 504,
+      "statement": "UPDATE manager_v4_closed_loop_hops SET directional_pool_id = NULL, hop_direction = NULL, directional_input_token_key_id = NULL, directional_output_token_key_id = NULL WHERE directional_pool_id IS NOT NULL OR hop_direction IS NOT NULL OR directional_input_token_key_id IS NOT NULL OR directional_output_token_key_id IS NOT NULL",
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key",
+        "hop_index"
+      ]
+    },
+    {
+      "table": "manager_v4_closed_loops",
+      "columns": [
+        "directional_pool_path_key"
+      ],
+      "missingColumns": [],
+      "state": "ready",
+      "affectedRows": 168,
+      "statement": "UPDATE manager_v4_closed_loops SET directional_pool_path_key = NULL WHERE directional_pool_path_key IS NOT NULL",
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key"
+      ]
+    }
+  ],
+  "closedLoopComparison": {
+    "equal": true,
+    "tables": {
+      "manager_v4_closed_loops": {
+        "rowsBefore": 168,
+        "rowsAfter": 168,
+        "equal": true
+      },
+      "manager_v4_closed_loop_hops": {
+        "rowsBefore": 504,
+        "rowsAfter": 504,
+        "equal": true
+      }
+    }
+  },
+  "firstPassChangedRows": {
+    "manager_v4_closed_loop_hops": 504,
+    "manager_v4_closed_loops": 168
+  },
+  "secondPassChangedRows": {
+    "manager_v4_closed_loop_hops": 0,
+    "manager_v4_closed_loops": 0
+  },
+  "directionalCellsBefore": {
+    "manager_v4_closed_loop_hops": 2016,
+    "manager_v4_closed_loops": 168
+  },
+  "directionalCellsAfter": {
+    "manager_v4_closed_loop_hops": 0,
+    "manager_v4_closed_loops": 0
+  },
+  "directionalCellsAfterTransactionRollback": {
+    "manager_v4_closed_loop_hops": 2016,
+    "manager_v4_closed_loops": 168
+  },
+  "fingerprintBefore": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "sizeBytes": 8601968640,
+    "mtimeNs": 1795380761685225700,
+    "sha256": "ad3e56c7bacc50181d22f548668e312d55dfc0e47601b84024c4112441cd1f0f"
+  },
+  "fingerprintAfter": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "sizeBytes": 8601968640,
+    "mtimeNs": 1795380761685225700,
+    "sha256": "ad3e56c7bacc50181d22f548668e312d55dfc0e47601b84024c4112441cd1f0f"
+  },
+  "libraryWatch": {
+    "intervalSeconds": 0.25,
+    "samples": 316,
+    "events": [],
+    "liveFileChangedDuringWindow": false,
+    "siblingFilesChangedDuringWindow": false,
+    "walContentSeenDuringWindow": false,
+    "attributionNote": "A -wal/-shm pair appearing during the window is a side effect of opening a WAL library read-only; it carries no library data and is not charged to an external writer."
+  },
+  "shadow": {
+    "copiedRows": {
+      "manager_v4_closed_loops": 168,
+      "manager_v4_closed_loop_hops": 504
+    },
+    "addedColumns": [
+      "manager_v4_closed_loop_hops.directional_pool_id",
+      "manager_v4_closed_loop_hops.hop_direction",
+      "manager_v4_closed_loop_hops.directional_input_token_key_id",
+      "manager_v4_closed_loop_hops.directional_output_token_key_id",
+      "manager_v4_closed_loops.directional_pool_path_key"
+    ]
+  },
+  "siblingsBefore": [
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+      "sizeBytes": 0,
+      "mtimeNs": 1795381197024210600
+    },
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-shm",
+      "sizeBytes": 32768,
+      "mtimeNs": 1795381720697814600
+    }
+  ],
+  "siblingsAfter": [
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+      "sizeBytes": 0,
+      "mtimeNs": 1795381197024210600
+    },
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-shm",
+      "sizeBytes": 32768,
+      "mtimeNs": 1795381841549049900
+    }
+  ],
+  "siblingNote": "SQLite creates the shared-memory index and the write-ahead log next to a WAL library when it is opened, read-only included. They carry no library data and the log stays zero bytes, so they are not a write to the library; the library file itself is compared byte for byte."
+}

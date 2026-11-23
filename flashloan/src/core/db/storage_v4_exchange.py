@@ -170,19 +170,41 @@ def clear_v4_exchange_evidence(
         """,
         (network, chain_id, protocol),
     )
-    liquidity_count = execute(
-        database_url,
-        """
-        DELETE FROM v4_exchange_pool_liquidity_snapshots
-        WHERE network = ? AND chain_id = ? AND protocol = ?
-        """,
-        (network, chain_id, protocol),
-    )
+    # TASK-172 / AC-221: the depth snapshot table is **not** cleared here.
+    #
+    # The table has a single writer -- the Rust pool manager -- and that
+    # writer materialises a complete row (price columns *and* single-tick
+    # bounds) in one statement.  Clearing the table from the evidence
+    # channel deleted the pool manager's rows and then wrote nothing back,
+    # because the evidence channel no longer materialises rows at all.
+    # The scope therefore ended up empty until the next pool-manager
+    # refresh, and every consumer of the boundary read "no depth" instead
+    # of the measured depth.
+    #
+    # The pool rows are still cleared: the evidence channel owns the pool
+    # index.
+    #
+    # A pool row that still carries a depth snapshot row cannot go.  The
+    # snapshot table carries a foreign key onto the pool table, and the pool
+    # manager -- the only writer of that table -- only ever UPDATEs a
+    # snapshot row, never inserts one.  Without its pool row the manager
+    # could never materialise a measurement for that pool again, so the
+    # pool row has to outlive the clear.  The pool rows that no snapshot
+    # references are removed as before, so the pool index this channel owns
+    # is still reset.
+    liquidity_count = 0
     pool_count = execute(
         database_url,
         """
         DELETE FROM v4_exchange_pools
         WHERE network = ? AND chain_id = ? AND protocol = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM v4_exchange_pool_liquidity_snapshots s
+             WHERE s.network = v4_exchange_pools.network
+               AND s.chain_id = v4_exchange_pools.chain_id
+               AND s.protocol = v4_exchange_pools.protocol
+               AND s.pool_id = v4_exchange_pools.pool_id
+          )
         """,
         (network, chain_id, protocol),
     )

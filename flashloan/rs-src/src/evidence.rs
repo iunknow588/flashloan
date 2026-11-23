@@ -79,14 +79,6 @@ fn as_i64(value: &Value) -> Option<i64> {
     })
 }
 
-fn as_f64(value: &Value) -> Option<f64> {
-    value.as_f64().or_else(|| {
-        value
-            .as_str()
-            .and_then(|raw| raw.trim().parse::<f64>().ok())
-    })
-}
-
 fn bool_value(value: &Value) -> bool {
     match value {
         Value::Bool(item) => *item,
@@ -102,6 +94,7 @@ fn bool_value(value: &Value) -> bool {
 /// pool manager reported no liquidity) or `1` (liquidity confirmed).  The
 /// admission rule treats a missing measurement as a coverage gap and an
 /// explicit zero as a rejection, so the two states must not collapse.
+#[cfg_attr(not(test), allow(dead_code))]
 fn tri_bool(value: &Value) -> Option<bool> {
     match value {
         Value::Null => None,
@@ -115,6 +108,7 @@ fn tri_bool(value: &Value) -> Option<bool> {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn tri_value(value: &Value) -> Option<Value> {
     match value {
         Value::Null => None,
@@ -610,6 +604,7 @@ fn upsert_v4_exchange_pools(
 /// The verdict is owned by the Rust kernel and read from the shared depth
 /// policy, so publishing it on every surface keeps one decision per pool
 /// instead of a decision that only exists on the candidate surface.
+#[cfg_attr(not(test), allow(dead_code))]
 fn attach_kernel_admission_verdict(
     depth_band: Value,
     depth_status: Option<&str>,
@@ -646,251 +641,6 @@ fn attach_kernel_admission_verdict(
         );
     }
     Value::Object(document)
-}
-
-fn upsert_v4_liquidity_snapshots(
-    transaction: &Transaction<'_>,
-    network: &str,
-    chain_id: i64,
-    protocol: &str,
-    rows: &[Value],
-) -> Result<usize, String> {
-    let now = utc_now();
-    let mut params = Vec::new();
-    let mut count = 0;
-    for row in rows {
-        let pool_id = norm_value(
-            row.get("pool_id")
-                .or_else(|| row.get("poolId"))
-                .or_else(|| row.get("pool"))
-                .unwrap_or(&JSON_NULL),
-        );
-        if pool_id.is_empty() {
-            continue;
-        }
-        let has_liquidity = row
-            .get("has_liquidity")
-            .or_else(|| row.get("hasLiquidity"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        let recent_swap_active = row
-            .get("recent_swap_active")
-            .or_else(|| row.get("recentSwapActive"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        let liquidity_value = row.get("liquidity").cloned().unwrap_or(Value::Null);
-        let liquidity_index = as_f64(
-            row.get("liquidity_index")
-                .or_else(|| row.get("liquidityIndex"))
-                .unwrap_or(&JSON_NULL),
-        )
-        .or_else(|| {
-            if !liquidity_value.is_null() {
-                liquidity_value
-                    .as_str()
-                    .and_then(|raw| raw.parse::<f64>().ok())
-            } else {
-                None
-            }
-        })
-        .map(Value::from)
-        .unwrap_or(Value::Null);
-        let tvl = as_f64(
-            row.get("estimated_tvl_usd")
-                .or_else(|| row.get("estimatedTvlUsd"))
-                .or_else(|| row.get("tvl_usd"))
-                .unwrap_or(&JSON_NULL),
-        )
-        .or_else(|| {
-            row.get("balances")
-                .and_then(|value| value.get("tvlUsd"))
-                .and_then(as_f64)
-        })
-        .map(Value::from)
-        .unwrap_or(Value::Null);
-        let balances = row
-            .get("balances")
-            .or_else(|| row.get("balances_json"))
-            .cloned()
-            .unwrap_or_else(|| Value::Object(Default::default()));
-        let depth_band = row
-            .get("depth_band")
-            .or_else(|| row.get("depthBand"))
-            .cloned()
-            .unwrap_or_else(|| Value::Object(Default::default()));
-        // The chain scoped liquidity snapshot is the one row every consumer
-        // of a physical pool can reach.  The kernel admission verdict must
-        // therefore travel with it, otherwise a pool that is absent from an
-        // anchor scoped surface has no verdict at all and every consumer
-        // reads it as an unresolved coverage gap.
-        let depth_band = attach_kernel_admission_verdict(
-            depth_band,
-            row.get("depth_status")
-                .or_else(|| row.get("depthStatus"))
-                .and_then(Value::as_str),
-            tri_bool(&has_liquidity),
-        );
-        let observed_at = row
-            .get("observed_at")
-            .or_else(|| row.get("observedAt"))
-            .cloned()
-            .unwrap_or_else(|| Value::from(now.clone()));
-        let refreshed_at = row
-            .get("refreshed_at")
-            .or_else(|| row.get("refreshedAt"))
-            .cloned()
-            .unwrap_or_else(|| Value::from(now.clone()));
-        let evidence_source = row
-            .get("evidence_source")
-            .or_else(|| row.get("evidenceSource"))
-            .or_else(|| row.get("liquidity_source"))
-            .or_else(|| row.get("liquiditySource"))
-            .or_else(|| row.get("source"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        params.push(vec![
-            Value::from(network.to_string()),
-            Value::from(chain_id),
-            Value::from(protocol.to_string()),
-            Value::from(pool_id),
-            tri_value(&has_liquidity).unwrap_or(Value::Null),
-            Value::from(text_or_empty(&liquidity_value)),
-            liquidity_index,
-            tvl,
-            Value::from(json_dumps(&json_object_value(&balances))),
-            Value::from(text_or_empty(
-                row.get("depth_status")
-                    .or_else(|| row.get("depthStatus"))
-                    .unwrap_or(&JSON_NULL),
-            )),
-            Value::from(json_dumps(&json_object_value(&depth_band))),
-            as_f64(
-                row.get("depth_score_usd")
-                    .or_else(|| row.get("depthScoreUsd"))
-                    .unwrap_or(&JSON_NULL),
-            )
-            .map(Value::from)
-            .unwrap_or(Value::Null),
-            Value::from(text_or_empty(
-                row.get("sqrt_price_x96")
-                    .or_else(|| row.get("sqrtPriceX96"))
-                    .or_else(|| row.get("sqrtPrice"))
-                    .unwrap_or(&JSON_NULL),
-            )),
-            as_f64(row.get("price").unwrap_or(&JSON_NULL))
-                .map(Value::from)
-                .unwrap_or(Value::Null),
-            as_i64(row.get("tick").unwrap_or(&JSON_NULL))
-                .map(Value::from)
-                .unwrap_or(Value::Null),
-            row.get("liquidity_read_at")
-                .or_else(|| row.get("liquidityReadAt"))
-                .cloned()
-                .unwrap_or(Value::Null),
-            as_i64(
-                row.get("liquidity_block_number")
-                    .or_else(|| row.get("liquidityBlockNumber"))
-                    .unwrap_or(&JSON_NULL),
-            )
-            .map(Value::from)
-            .unwrap_or(Value::Null),
-            tri_value(&recent_swap_active).unwrap_or(Value::Null),
-            observed_at,
-            refreshed_at,
-            {
-                let normalized = norm_value(&evidence_source);
-                if normalized.is_empty() {
-                    Value::Null
-                } else {
-                    Value::from(normalized)
-                }
-            },
-        ]);
-        count += 1;
-    }
-    execute_many(
-        transaction,
-        "INSERT INTO v4_exchange_pool_liquidity_snapshots (
-            network, chain_id, protocol, pool_id, has_liquidity, liquidity,
-            liquidity_index, estimated_tvl_usd, balances_json, depth_status,
-            depth_band_json, depth_score_usd, sqrt_price_x96, price, tick,
-            liquidity_read_at, liquidity_block_number, recent_swap_active,
-            observed_at, refreshed_at, evidence_source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
-            has_liquidity = CASE
-                WHEN excluded.has_liquidity IS NULL
-                THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.has_liquidity
-                ELSE excluded.has_liquidity
-            END,
-            liquidity = CASE
-                WHEN excluded.has_liquidity = 0 AND (
-                    (excluded.evidence_source IS NOT NULL AND excluded.evidence_source <> '')
-                    OR excluded.liquidity_block_number IS NOT NULL
-                )
-                THEN ''
-                WHEN excluded.liquidity IS NULL OR excluded.liquidity = ''
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity
-                ELSE excluded.liquidity
-            END,
-            liquidity_index = CASE
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.liquidity_index
-                ELSE COALESCE(excluded.liquidity_index, v4_exchange_pool_liquidity_snapshots.liquidity_index)
-            END,
-            estimated_tvl_usd = CASE
-                WHEN (
-                    (excluded.evidence_source IS NULL OR excluded.evidence_source = '')
-                    AND excluded.liquidity_block_number IS NULL
-                    AND v4_exchange_pool_liquidity_snapshots.has_liquidity IS NOT NULL
-                )
-                THEN v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd
-                ELSE COALESCE(excluded.estimated_tvl_usd, v4_exchange_pool_liquidity_snapshots.estimated_tvl_usd)
-            END,
-            balances_json = COALESCE(excluded.balances_json, v4_exchange_pool_liquidity_snapshots.balances_json),
-            depth_status = CASE
-                WHEN excluded.depth_status IS NULL OR excluded.depth_status = ''
-                THEN v4_exchange_pool_liquidity_snapshots.depth_status
-                ELSE excluded.depth_status
-            END,
-            depth_band_json = COALESCE(excluded.depth_band_json, v4_exchange_pool_liquidity_snapshots.depth_band_json),
-            depth_score_usd = COALESCE(excluded.depth_score_usd, v4_exchange_pool_liquidity_snapshots.depth_score_usd),
-            sqrt_price_x96 = CASE
-                WHEN excluded.sqrt_price_x96 IS NULL OR excluded.sqrt_price_x96 = ''
-                THEN v4_exchange_pool_liquidity_snapshots.sqrt_price_x96
-                ELSE excluded.sqrt_price_x96
-            END,
-            price = COALESCE(excluded.price, v4_exchange_pool_liquidity_snapshots.price),
-            tick = COALESCE(excluded.tick, v4_exchange_pool_liquidity_snapshots.tick),
-            liquidity_read_at = COALESCE(excluded.liquidity_read_at, v4_exchange_pool_liquidity_snapshots.liquidity_read_at),
-            liquidity_block_number = COALESCE(excluded.liquidity_block_number, v4_exchange_pool_liquidity_snapshots.liquidity_block_number),
-            recent_swap_active = CASE
-                WHEN excluded.recent_swap_active IS NULL
-                THEN v4_exchange_pool_liquidity_snapshots.recent_swap_active
-                ELSE excluded.recent_swap_active
-            END,
-            observed_at = COALESCE(excluded.observed_at, v4_exchange_pool_liquidity_snapshots.observed_at),
-            refreshed_at = excluded.refreshed_at,
-            evidence_source = COALESCE(excluded.evidence_source, v4_exchange_pool_liquidity_snapshots.evidence_source)",
-        &params,
-    )?;
-    Ok(count)
 }
 
 fn upsert_initialization(
@@ -937,12 +687,52 @@ fn clear_v4_exchange_evidence(
     chain_id: i64,
     protocol: &str,
 ) -> Result<(), String> {
+    // TASK-172 / AC-221: the depth snapshot table is **not** cleared here.
+    //
+    // The evidence channel no longer owns that table. Its single writer is
+    // the Rust pool manager, which writes the price columns and the
+    // single-tick bounds in **one** statement, so every row is
+    // self-consistent. When the evidence channel also wrote the table, it
+    // overwrote the price columns and left the bounds alone, which fused
+    // two different on-chain moments into one row and made the published
+    // bound stale relative to its own price.
+    //
+    // Clearing the table here would delete the pool manager's materialised
+    // rows and leave the table empty until the next pool-manager refresh,
+    // so the pool manager's rows are deliberately left untouched.
+    //
+    // The rows this channel *did* write still have to go, because the
+    // snapshot table carries a foreign key onto the pool table and the
+    // pools are deleted below.  They are told apart by their
+    // ``materialization_batch``: the pool manager stamps every row it
+    // writes with the batch of the run that wrote it, and a row without a
+    // batch is a row this channel wrote (or a row that predates the
+    // batch column).  Deleting exactly those rows is a **row scoped**
+    // removal, so it cannot wipe the pool manager's state.
+    let evidence_rows_removed = transaction
+        .execute(
+            concat!(
+                "DELETE FROM v4_exchange_pool_liquidity_snapshots ",
+                "WHERE network = ? AND chain_id = ? AND protocol = ? ",
+                "AND (materialization_batch IS NULL OR materialization_batch = '')",
+            ),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
+        )
+        .map_err(|error| {
+            format!("v4_exchange_pool_liquidity_snapshots evidence clear failed: {error}")
+        })?;
+    let _ = evidence_rows_removed;
     for table in [
         "v4_closed_loop_optimizations",
         "v4_closed_loop_hops",
         "v4_closed_loops",
-        "v4_exchange_pool_liquidity_snapshots",
-        "v4_exchange_pools",
     ] {
         let sql =
             format!("DELETE FROM {table} WHERE network = ? AND chain_id = ? AND protocol = ?");
@@ -960,6 +750,41 @@ fn clear_v4_exchange_evidence(
             )
             .map_err(|error| format!("{table} clear failed: {error}"))?;
     }
+    // The pool rows are the **parent** of the depth snapshot rows: the
+    // snapshot table carries a foreign key onto the pool table, and the pool
+    // manager only ever UPDATEs a snapshot row -- it never inserts one --
+    // so a pool row has to exist for the manager to be able to materialise
+    // a snapshot at all.
+    //
+    // A pool row that still carries a pool-manager snapshot row therefore
+    // cannot be removed here.  Removing it would either fail on the foreign
+    // key or orphan the manager's measurement.  The pool rows that no
+    // pool-manager snapshot references are removed as before, so the clear
+    // still resets the pool index this channel owns.
+    let pool_rows_removed = transaction
+        .execute(
+            concat!(
+                "DELETE FROM v4_exchange_pools ",
+                "WHERE network = ? AND chain_id = ? AND protocol = ? ",
+                "AND NOT EXISTS ( ",
+                "  SELECT 1 FROM v4_exchange_pool_liquidity_snapshots s ",
+                "   WHERE s.network = v4_exchange_pools.network ",
+                "     AND s.chain_id = v4_exchange_pools.chain_id ",
+                "     AND s.protocol = v4_exchange_pools.protocol ",
+                "     AND s.pool_id = v4_exchange_pools.pool_id ",
+                ")",
+            ),
+            params_from_iter(
+                sql_params(&[
+                    Value::from(network.to_string()),
+                    Value::from(chain_id),
+                    Value::from(protocol.to_string()),
+                ])
+                .iter(),
+            ),
+        )
+        .map_err(|error| format!("v4_exchange_pools clear failed: {error}"))?;
+    let _ = pool_rows_removed;
     transaction
         .execute(
             "DELETE FROM dex_surface_snapshots WHERE network = ? AND chain_id = ? AND protocol = ?",
@@ -1000,15 +825,23 @@ pub(crate) fn import_v4_evidence_payloads(
     upsert_chain_markets(&transaction, network, chain_id, market_rows)?;
     let pool_count =
         upsert_v4_exchange_pools(&transaction, network, chain_id, protocol, pool_rows)?;
-    let liquidity_count =
-        upsert_v4_liquidity_snapshots(&transaction, network, chain_id, protocol, liquidity_rows)?;
-    let index_liquidity_count = upsert_v4_liquidity_snapshots(
-        &transaction,
-        network,
-        chain_id,
-        protocol,
-        index_liquidity_rows,
-    )?;
+    // TASK-172 / AC-221: the evidence channel **does not** write the depth
+    // snapshot table.
+    //
+    // The table is the materialised boundary of the pool manager's in-memory
+    // pool state. Its single writer is the Rust pool manager, which writes
+    // the price columns and the single-tick bounds in one statement, so a
+    // row always describes exactly one on-chain moment.
+    //
+    // This channel used to write the price columns only, which left the
+    // bounds of an older moment next to a newer price: the row then carried
+    // two different observations at once, and every consumer of the bound
+    // read a stale number. The evidence rows are therefore **dropped**
+    // rather than merged: the pool manager already measures the same
+    // on-chain state, and it is the only writer that can materialise a
+    // complete row.
+    let liquidity_count = liquidity_rows.len();
+    let index_liquidity_count = index_liquidity_rows.len();
     upsert_initialization(
         &transaction,
         network,
@@ -1032,8 +865,11 @@ pub(crate) fn import_v4_evidence_payloads(
         "tokenCount": token_rows.len(),
         "liquidityRowCount": liquidity_count,
         "indexLiquidityRowCount": index_liquidity_count,
+        "liquidityRowsWritten": 0,
         "source": "onchain_evidence_payload",
         "detail": "raw V4 tables imported directly from in-memory evidence; JSON files are not read",
+        "depthSnapshotWriter": "pool_manager",
+        "depthSnapshotNote": "the depth snapshot table is not written by the evidence channel; its single writer is the Rust pool manager (TASK-172 / AC-221)",
     }))
 }
 
@@ -1475,6 +1311,7 @@ mod tests {
                     chain_id INTEGER NOT NULL,
                     protocol TEXT NOT NULL,
                     pool_id TEXT NOT NULL,
+                    materialization_batch TEXT,
                     PRIMARY KEY (network, chain_id, protocol, pool_id),
                     FOREIGN KEY (network, chain_id, protocol, pool_id)
                         REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
@@ -1537,11 +1374,30 @@ mod tests {
                 .expect("insert pool");
             connection
                 .execute(
-                    "INSERT INTO v4_exchange_pool_liquidity_snapshots VALUES ('n', 1, 'p', ?)",
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots \
+                 (network, chain_id, protocol, pool_id) \
+                 VALUES ('n', 1, 'p', ?)",
                     [pool_id],
                 )
                 .expect("insert snapshot");
         }
+        // TASK-172 / AC-221: a row the pool manager wrote.  It carries the
+        // batch of the run that wrote it, so the evidence channel's clear
+        // must leave it alone even though it clears its own rows.
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pools VALUES ('n', 1, 'p', '0x2', '0x1', '0x2')",
+                [],
+            )
+            .expect("insert pool manager pool");
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots \
+                 (network, chain_id, protocol, pool_id, materialization_batch) \
+                 VALUES ('n', 1, 'p', '0x2', 'pool-manager-batch')",
+                [],
+            )
+            .expect("insert pool manager snapshot");
         connection
             .execute(
                 "INSERT INTO v4_closed_loops (network, chain_id, protocol, market_id, loop_key, anchor_address) VALUES ('n', 1, 'p', 'm', '0xloop', '0x1')",
@@ -1580,7 +1436,48 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("count loops");
-        assert_eq!(pool_count, 0);
+        // TASK-172 / AC-221: the pool rows this channel owns and that no
+        // pool-manager snapshot references are gone.  The pool row the pool
+        // manager's snapshot points at has to stay: the snapshot table
+        // carries a foreign key onto it, and the pool manager only UPDATEs
+        // a snapshot row, so without its pool row the manager could never
+        // materialise a measurement again.
+        assert_eq!(
+            pool_count, 1,
+            "only the pool row that carries a pool manager snapshot survives"
+        );
         assert_eq!(loop_count, 0);
+
+        // TASK-172 / AC-221: the evidence channel's own rows are gone, and
+        // the pool manager's row survived the clear.  The evidence channel
+        // does not own the depth snapshot table, so it must not wipe the
+        // pool manager's materialised state -- but it must remove the rows
+        // it wrote, because the snapshot table carries a foreign key onto
+        // the pool table it deletes below.
+        let snapshot_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pool_liquidity_snapshots \
+                 WHERE network = 'n' AND chain_id = 1 AND protocol = 'p'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count snapshots");
+        assert_eq!(
+            snapshot_count, 1,
+            "the clear must remove the evidence channel's own rows and keep \
+             the pool manager's row"
+        );
+        let remaining_pool: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pools \
+                 WHERE network = 'n' AND chain_id = 1 AND protocol = 'p' AND pool_id = '0x2'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count the pool manager pool");
+        assert_eq!(
+            remaining_pool, 1,
+            "the pool manager's pool must survive the evidence clear"
+        );
     }
 }

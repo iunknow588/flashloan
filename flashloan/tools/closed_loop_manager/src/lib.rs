@@ -530,6 +530,13 @@ struct ClosedLoopInput {
     /// A pool that has never been measured is absent from this map. The
     /// absence is a coverage gap of the pool index, not a statement about
     /// the market, so it must not disqualify a loop by itself.
+    ///
+    /// TASK-172 / AC-221: the depth snapshot table has exactly one writer --
+    /// the pool manager -- which writes the price columns and the bounds in
+    /// one statement, so a stored bound always belongs to the price next to
+    /// it. The stored bound is the only evidence about the tick room of a
+    /// pool that publishes no tick state of its own, and a measured zero is
+    /// a measured fact rather than a coverage gap.
     single_tick_bounds_by_pool: BTreeMap<String, (Option<u128>, Option<u128>)>,
     /// The published single-tick state of every pool that carries one.
     ///
@@ -1370,12 +1377,19 @@ fn read_candidate_pool_ids(
 /// The snapshot table stores one row per observation, so the newest row per
 /// pool wins. A pool without a measured capacity is simply absent from the
 /// result: the depth rollout may not have reached it yet.
+
 /// Reads the single-tick bounds of every pool.
 ///
 /// The first arbitrage version constrains every hop to one tick range, so a
 /// position may never be larger than the amount that keeps the price inside
 /// the current range. Pool Manager owns that arithmetic and publishes the
 /// bound with the pool snapshot, so Closed Loop Manager only reads it.
+///
+/// TASK-172 / AC-221: the depth snapshot table has exactly one writer -- the
+/// pool manager -- which writes the price columns and the bounds in **one**
+/// statement. A stored bound therefore always belongs to the price next to
+/// it, and it is the only evidence available about the tick room of a pool
+/// that publishes no tick state of its own.
 ///
 /// A pool without a published bound is absent from the map. That is a
 /// coverage gap of the pool index, not a market conclusion, so such a pool
@@ -1441,7 +1455,6 @@ fn read_single_tick_bounds(
     }
     Ok(bounds)
 }
-
 /// Read the published single-tick state of every candidate pool.
 ///
 /// The state is what lets the path capacity be expressed in the **anchor**
@@ -1677,11 +1690,11 @@ fn path_min_single_tick_bound(
     pool_ids: &[String],
     directions: &[bool],
 ) -> (Option<u128>, Option<String>) {
-    // The bounds of the hops are denominated in the token each hop spends:
-    // the first hop spends the anchor token, the middle hop spends Y and
-    // the third hop spends Z. Taking the minimum of three numbers in three
-    // different units is a **unit error**, so the bounds are folded into
-    // the anchor token before they are compared.
+    // The bounds of the hops are denominated in the token each hop spends: the
+    // first hop spends the anchor token, the middle hop spends Y and the
+    // third hop spends Z. Taking the minimum of three numbers in three
+    // different units is a **unit error**, so the bounds are folded into the
+    // anchor token before they are compared.
     //
     // The fold needs the price of every hop. When every pool publishes a
     // usable state, the folded capacity is the only value the gate uses.
@@ -1693,13 +1706,46 @@ fn path_min_single_tick_bound(
     {
         return (Some(capacity), Some(blocking_pool));
     }
+    // TASK-172 / AC-221: the fallback judges "this direction has no room" by
+    // the **recomputed** bound whenever the pool publishes a tick state, and
+    // by the **stored** bound only when it does not.
+    //
+    // The recomputed bound is the one that is bound to the observation the
+    // loop actually walks: it is derived from the pool's own current price,
+    // liquidity, fee and spacing. The stored bound is the output of the same
+    // arithmetic, but it was published next to the price of the moment it
+    // was measured, so a price that has since moved makes it stale.
+    //
+    // A pool without a tick state cannot be recomputed at all. There the
+    // stored bound is the **only** evidence that exists, and it is not
+    // treated as a market conclusion: a missing bound stays out of the
+    // verdict (a coverage gap is not a rejection), while a bound that was
+    // actually measured as zero is a measured fact and disqualifies the hop.
+    // The stored bound is safe to read for that purpose because the depth
+    // snapshot table now has exactly one writer -- the pool manager -- which
+    // writes the price columns and the bounds in one statement, so a stored
+    // bound always belongs to the price next to it.
     let mut unusable_pool = None;
     for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
-        let Some((token0, token1)) = input.single_tick_bounds_by_pool.get(pool_id) else {
-            continue;
+        let bound = match input.pool_tick_states.get(pool_id) {
+            Some(state) => {
+                let (token0, token1) = pool_manager::depth::recompute_single_tick_bounds(
+                    state.sqrt_price_x96,
+                    state.liquidity,
+                    state.fee_pips,
+                    state.tick_spacing,
+                    state.tick as i64,
+                );
+                if *zero_for_one { token0 } else { token1 }
+            }
+            None => {
+                let Some((token0, token1)) = input.single_tick_bounds_by_pool.get(pool_id) else {
+                    continue;
+                };
+                if *zero_for_one { *token0 } else { *token1 }
+            }
         };
-        let bound = if *zero_for_one { token0 } else { token1 };
-        if *bound == Some(0) {
+        if bound == Some(0) {
             unusable_pool = Some(pool_id.clone());
             break;
         }

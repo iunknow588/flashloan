@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-11-23T05:19:31+0800",
+  "mode": "plan",
+  "writes": false,
+  "library": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "chainId": 4663,
+    "network": "robinhood"
+  },
+  "targets": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "columns": [],
+      "missingColumns": [
+        "directional_pool_id",
+        "hop_direction",
+        "directional_input_token_key_id",
+        "directional_output_token_key_id"
+      ],
+      "state": "no_target_columns",
+      "affectedRows": 0,
+      "statement": null,
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key",
+        "hop_index"
+      ]
+    },
+    {
+      "table": "manager_v4_closed_loops",
+      "columns": [],
+      "missingColumns": [
+        "directional_pool_path_key"
+      ],
+      "state": "no_target_columns",
+      "affectedRows": 0,
+      "statement": null,
+      "keyColumns": [
+        "network",
+        "chain_id",
+        "protocol",
+        "scope_key",
+        "loop_key"
+      ]
+    }
+  ],
+  "p3Restore": [
+    {
+      "table": "manager_dex_candidate_pool_recommendations",
+      "column": "direction_key",
+      "state": "column_present",
+      "restoreStatement": null,
+      "note": "P3 has not degraded this column; nothing to restore"
+    },
+    {
+      "table": "manager_market_observation_yz_pairs",
+      "column": "direction_key",
+      "state": "column_present",
+      "restoreStatement": null,
+      "note": "P3 has not degraded this column; nothing to restore"
+    }
+  ],
+  "durationSeconds": 0.02,
+  "canonicalStatements": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "columns": [
+        "directional_pool_id",
+        "hop_direction",
+        "directional_input_token_key_id",
+        "directional_output_token_key_id"
+      ],
+      "statement": "UPDATE manager_v4_closed_loop_hops SET directional_pool_id = NULL, hop_direction = NULL, directional_input_token_key_id = NULL, directional_output_token_key_id = NULL WHERE directional_pool_id IS NOT NULL OR hop_direction IS NOT NULL OR directional_input_token_key_id IS NOT NULL OR directional_output_token_key_id IS NOT NULL"
+    },
+    {
+      "table": "manager_v4_closed_loops",
+      "columns": [
+        "directional_pool_path_key"
+      ],
+      "statement": "UPDATE manager_v4_closed_loops SET directional_pool_path_key = NULL WHERE directional_pool_path_key IS NOT NULL"
+    }
+  ],
+  "protectedColumns": [
+    "pool_id",
+    "base_pool_id",
+    "loop_key"
+  ],
+  "siblingsBefore": [
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+      "sizeBytes": 0,
+      "mtimeNs": 1795381197024210600
+    },
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-shm",
+      "sizeBytes": 32768,
+      "mtimeNs": 1795382371229079400
+    }
+  ]
+}

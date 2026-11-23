@@ -38,9 +38,9 @@ from core.db.direction_integrity import (
     direction_symmetry_violations as _direction_symmetry_violations,
 )
 from core.db.direction_pool_score import (
-    MAX_DIRECTION_CANDIDATE_POOLS,
     MIN_DIRECTION_CANDIDATE_POOLS,
     has_confirmed_depth,
+    resolve_max_direction_candidate_pools,
     score_pool_by_direction,
 )
 from core.db.pool_depth_keys import (
@@ -95,15 +95,32 @@ ROBINHOOD_TESTNET_TOKEN_ALLOWLIST_PATH = (
 DYNAMIC_FEE_FLAG = 8388608
 MAX_FIXED_FEE = 100_000
 # Each directed hop has exactly one recommended pool.  The candidate table
-# keeps at most five confirmed-liquidity representatives per direction;
+# keeps at most `N_max` confirmed-liquidity representatives per direction;
 # depth is the mandatory membership filter and directional output price is
 # the sort key, so YC and ZC can legitimately choose different pool orders.
-MAX_RECOMMENDATIONS_PER_HOP = MAX_DIRECTION_CANDIDATE_POOLS
-MAX_CANDIDATE_POOLS_PER_PAIR = MAX_DIRECTION_CANDIDATE_POOLS
+#
+# `N_max` is a **capacity knob**, not an admission threshold: it answers
+# "how many pools may one direction keep", never "is this pool qualified".
+# It is configured through the environment
+# (`FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS`), so the two historical module
+# attributes are resolved on every attribute access and a running process
+# always reads the value the operator configured.
 # Backfill/readiness target per direction. One active pool is enough to
 # satisfy a closed-loop direction; the max constant is only a rank cap.
 MIN_CANDIDATE_POOLS_PER_PAIR = MIN_DIRECTION_CANDIDATE_POOLS
 NO_HOOK_ADDRESSES = {"", ZERO_ADDRESS}
+
+
+def __getattr__(name: str) -> int:
+    """Resolve the directional candidate capacity at attribute-access time.
+
+    PEP 562 module ``__getattr__`` only fires for attribute access, so the
+    in-module references call :func:`resolve_max_direction_candidate_pools`
+    directly.
+    """
+    if name in {"MAX_RECOMMENDATIONS_PER_HOP", "MAX_CANDIDATE_POOLS_PER_PAIR"}:
+        return resolve_max_direction_candidate_pools()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _stock_anchor_address_by_symbol(network: str) -> dict[str, str]:
@@ -400,13 +417,16 @@ def _representative_pool_rows(
     *,
     token_in: str | None = None,
     token_out: str | None = None,
-    limit: int = MAX_CANDIDATE_POOLS_PER_PAIR,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """Keep directional representatives, best static output first.
 
     Direction changes the sort key: for A -> B the pool that returns the most
     B ranks first, while the same physical pool may rank last for B -> A.
     """
+    if limit is None:
+        limit = resolve_max_direction_candidate_pools()
+
     def _sort_key(row: dict[str, Any]):
         # ARCH-1a: capacity DESC, price impact ASC, directional price score,
         # pool id. The direction score is no longer the primary key, but it
@@ -485,7 +505,7 @@ def _select_recommendations(
                 token_out,
             ),
         ),
-    )[:MAX_RECOMMENDATIONS_PER_HOP]
+    )[: resolve_max_direction_candidate_pools()]
 
 
 def _candidate_rows(

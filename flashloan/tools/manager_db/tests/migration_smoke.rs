@@ -149,6 +149,8 @@ fn migration_is_idempotent_and_creates_only_empty_control_schema() {
         "manager_pipeline_steps",
         "manager_pipeline_events",
         "manager_events",
+        "manager_v4_directional_exchange_pools",
+        "manager_v4_directional_pool_library_state",
     ] {
         let count: i64 = connection
             .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {

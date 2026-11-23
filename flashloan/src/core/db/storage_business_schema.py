@@ -262,6 +262,13 @@ BUSINESS_DDL: tuple[str, ...] = (
         depth_basis TEXT,
         single_tick_max_token0_raw TEXT,
         single_tick_max_token1_raw TEXT,
+        -- TASK-172 / AC-221: the materialisation batch.  The depth snapshot
+        -- table has exactly one writer -- the Rust pool manager -- and it
+        -- writes the whole row in one statement, so a row describes one
+        -- on-chain moment.  The batch names the run that wrote the row, so
+        -- "this row was written in one pass" is a checkable fact rather
+        -- than an assumption.
+        materialization_batch TEXT,
         PRIMARY KEY (network, chain_id, protocol, pool_id),
         FOREIGN KEY (network, chain_id, protocol, pool_id)
             REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
@@ -871,6 +878,16 @@ def migrate_business_direction_schema(database_url: str) -> dict[str, int]:
                 connection.execute(
                     f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
                 )
+
+        # TASK-172 / AC-221: the depth snapshot table gained the
+        # materialisation batch column.  A store that predates the column
+        # gets it here; the rows that are already there keep a NULL batch,
+        # which is the honest value: nobody recorded which run wrote them.
+        _ensure_column(
+            "v4_exchange_pool_liquidity_snapshots",
+            "materialization_batch",
+            "TEXT",
+        )
 
         for table, columns in {
             "dex_candidate_anchor_tokens": {

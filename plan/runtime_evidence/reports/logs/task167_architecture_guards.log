@@ -1,0 +1,13 @@
+..........................................................F.....         [100%]
+================================== FAILURES ===================================
+_____ test_the_candidate_pool_count_is_a_runtime_configuration_parameter ______
+E:\2026OPC大赛\flashLoan\flashloan\app_runtime\tests\unit\test_architecture_guards.py:1775: in test_the_candidate_pool_count_is_a_runtime_configuration_parameter
+    score = (SRC_ROOT / "core" / "db" / "direction_pool_score.py").read_text(
+C:\PROGRAMDATA\MINICONDA3\Lib\pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+C:\PROGRAMDATA\MINICONDA3\Lib\pathlib.py:1013: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+E   FileNotFoundError: [Errno 2] No such file or directory: 'E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\core\\db\\direction_pool_score.py'
+=========================== short test summary info ===========================
+FAILED flashloan/app_runtime/tests/unit/test_architecture_guards.py::test_the_candidate_pool_count_is_a_runtime_configuration_parameter
+1 failed, 63 passed in 28.91s

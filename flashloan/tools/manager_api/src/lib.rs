@@ -27,6 +27,11 @@ use closed_loop_manager::{
     compare_closed_loops, materialize_closed_loops_write, read_closed_loop_snapshot,
     ClosedLoopError, ClosedLoopWriteRequest, ExpectedUpstream as ClosedLoopExpectedUpstream,
 };
+use directional_pool_manager::{
+    compare_directional_pools, materialize_directional_pools_write,
+    read_directional_pool_snapshot, DirectionalPoolError, DirectionalPoolWriteRequest,
+    ExpectedUpstream as DirectionalPoolExpectedUpstream,
+};
 use composite_manager::{
     begin_pipeline_step_write, complete_pipeline_step_write, read_manager_overview_snapshot,
     read_pipeline_run_snapshot, read_pipeline_runs, read_pipeline_status, refresh_pipeline_write,
@@ -81,6 +86,15 @@ pub struct AppState {
     pub review_authority: TokenAuthorityMode,
     pub broadcast_authority: TokenAuthorityMode,
     pub composite_authority: TokenAuthorityMode,
+    /// Authority for the directional pool layer (M-6).
+    ///
+    /// The directional pool tables have their own writer, so they get their
+    /// own dimension instead of borrowing the closed-loop one: an operator
+    /// who was granted the closed-loop write right must not silently gain
+    /// the directional pool write right as well.  It defaults to `Legacy`,
+    /// which means "writes are denied" -- the same default every other
+    /// dimension uses.
+    pub directional_pool_authority: TokenAuthorityMode,
 }
 
 impl Default for AppState {
@@ -97,6 +111,7 @@ impl Default for AppState {
             review_authority: TokenAuthorityMode::Legacy,
             broadcast_authority: TokenAuthorityMode::Legacy,
             composite_authority: TokenAuthorityMode::Legacy,
+            directional_pool_authority: TokenAuthorityMode::Legacy,
         }
     }
 }
@@ -167,6 +182,11 @@ impl AppState {
         self.composite_authority = authority;
         self
     }
+
+    pub fn with_directional_pool_authority(mut self, authority: TokenAuthorityMode) -> Self {
+        self.directional_pool_authority = authority;
+        self
+    }
 }
 
 pub fn app() -> Router {
@@ -206,6 +226,15 @@ pub fn app_with_state(state: Arc<AppState>) -> Router {
         .route(
             "/v1/candidate-exchange-pools/rebuild",
             post(rebuild_candidate_exchange_pools),
+        )
+        .route("/v1/directional-pools", get(list_directional_pools))
+        .route(
+            "/v1/directional-pools/compare",
+            get(compare_directional_pool_layers),
+        )
+        .route(
+            "/v1/directional-pools/rebuild",
+            post(rebuild_directional_pools),
         )
         .route("/v1/closed-loops", get(list_closed_loops))
         .route("/v1/closed-loops/compare", get(compare_closed_loop_catalog))
@@ -272,6 +301,7 @@ async fn capabilities(State(state): State<Arc<AppState>>) -> impl IntoResponse {
             review_authority_mode: state.review_authority.as_str(),
             broadcast_authority_mode: state.broadcast_authority.as_str(),
             composite_authority_mode: state.composite_authority.as_str(),
+            directional_pool_authority_mode: state.directional_pool_authority.as_str(),
             business_writes_enabled: state.token_database_path.is_some()
                 && state.token_authority.manager_apply_enabled(),
             token_reads_enabled: state.token_database_path.is_some(),
@@ -316,6 +346,9 @@ async fn capabilities(State(state): State<Arc<AppState>>) -> impl IntoResponse {
                 "candidate_exchange.read",
                 "candidate_exchange.compare",
                 "candidate_exchange.rebuild",
+                "pools.directional.read",
+                "pools.directional.compare",
+                "pools.directional.rebuild",
                 "closed_loop.read",
                 "closed_loop.compare",
                 "closed_loop.rebuild",
@@ -849,6 +882,175 @@ async fn rebuild_candidate_exchange_pools(
         }
         Err(error) => failure_with_request_id(
             candidate_exchange_failure(error, request.chain_id, stage),
+            Some(&request_id),
+        ),
+    }
+}
+
+/// The default pool scope of the directional layer.
+///
+/// The closed loop walks the pools of the candidate exchange scope, so that
+/// is the scope the directional layer is projected from unless the caller
+/// asks for another one.
+const DEFAULT_DIRECTIONAL_POOL_SCOPE: &str = "candidate_exchange";
+
+async fn list_directional_pools(
+    State(state): State<Arc<AppState>>,
+    query: Result<Query<DirectionalPoolQuery>, QueryRejection>,
+) -> Response {
+    let stage = "pools.directional.read";
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(rejection) => return failure(invalid_request(rejection.body_text(), stage)),
+    };
+    if query.chain_id == 0 {
+        return failure(invalid_request("chainId must be greater than zero", stage));
+    }
+    let limit = query.limit.unwrap_or(200);
+    if limit == 0 || limit > 1_000 {
+        return failure(invalid_request("limit must be between 1 and 1000", stage));
+    }
+    let scope_key = query
+        .scope_key
+        .as_deref()
+        .unwrap_or(DEFAULT_DIRECTIONAL_POOL_SCOPE);
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure(upstream_unavailable(
+            "MANAGER_DB_PATH is not configured",
+            stage,
+        ));
+    };
+    match read_directional_pool_snapshot(
+        database_path,
+        &state.network_for(query.chain_id),
+        query.chain_id as i64,
+        scope_key,
+        query.direction,
+        limit,
+    ) {
+        Ok(snapshot) => success(query.chain_id, snapshot),
+        Err(error) => failure(directional_pool_failure(error, query.chain_id, stage)),
+    }
+}
+
+async fn compare_directional_pool_layers(
+    State(state): State<Arc<AppState>>,
+    query: Result<Query<DirectionalPoolComparisonQuery>, QueryRejection>,
+) -> Response {
+    let stage = "pools.directional.compare";
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(rejection) => return failure(invalid_request(rejection.body_text(), stage)),
+    };
+    if query.chain_id == 0 {
+        return failure(invalid_request("chainId must be greater than zero", stage));
+    }
+    let sample_limit = query.sample_limit.unwrap_or(200);
+    if sample_limit == 0 || sample_limit > 1_000 {
+        return failure(invalid_request(
+            "sampleLimit must be between 1 and 1000",
+            stage,
+        ));
+    }
+    let scope_key = query
+        .scope_key
+        .as_deref()
+        .unwrap_or(DEFAULT_DIRECTIONAL_POOL_SCOPE);
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure(upstream_unavailable(
+            "MANAGER_DB_PATH is not configured",
+            stage,
+        ));
+    };
+    match compare_directional_pools(
+        database_path,
+        &state.network_for(query.chain_id),
+        query.chain_id as i64,
+        scope_key,
+        sample_limit,
+    ) {
+        Ok(comparison) => success(query.chain_id, comparison),
+        Err(error) => failure(directional_pool_failure(error, query.chain_id, stage)),
+    }
+}
+
+async fn rebuild_directional_pools(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    request: Result<Json<DirectionalPoolHttpRequest>, JsonRejection>,
+) -> Response {
+    let stage = "pools.directional.rebuild";
+    let request_id = match required_write_header_for(&headers, "X-Request-Id", stage) {
+        Ok(value) => value,
+        Err(error) => return failure(error),
+    };
+    let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+        Ok(value) => value,
+        Err(error) => return failure_with_request_id(error, Some(&request_id)),
+    };
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(rejection) => {
+            return failure_with_request_id(
+                invalid_request(rejection.body_text(), stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(dry_run) = request.dry_run else {
+        return failure_with_request_id(
+            invalid_request("dryRun is required and must be true or false", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    if request.chain_id == 0 {
+        return failure_with_request_id(
+            invalid_request("chainId must be greater than zero", stage),
+            Some(&request_id),
+        );
+    }
+    let scope_key = request
+        .scope_key
+        .as_deref()
+        .unwrap_or(DEFAULT_DIRECTIONAL_POOL_SCOPE);
+    // The directional pool layer has its own authority dimension.  The
+    // closed-loop write right does not imply it.
+    if !dry_run && !directional_pool_apply_enabled(&state) {
+        return failure_with_request_id(
+            directional_pool_authority_denied(
+                state.directional_pool_authority,
+                request.chain_id,
+                stage,
+            ),
+            Some(&request_id),
+        );
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure_with_request_id(
+            upstream_unavailable("MANAGER_DB_PATH is not configured", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    match materialize_directional_pools_write(
+        database_path,
+        DirectionalPoolWriteRequest {
+            network: state.network_for(request.chain_id),
+            chain_id: request.chain_id as i64,
+            scope_key: scope_key.to_owned(),
+            operation: stage.to_owned(),
+            request_id: request_id.clone(),
+            idempotency_key,
+            apply: !dry_run,
+            expected_upstream: request.expected_upstream.unwrap_or_default(),
+        },
+    ) {
+        Ok(outcome) => {
+            success_with_request_id(request.chain_id, outcome, Some(request_id.as_str()))
+        }
+        Err(error) => failure_with_request_id(
+            directional_pool_failure(error, request.chain_id, stage),
             Some(&request_id),
         ),
     }
@@ -2496,6 +2698,68 @@ fn candidate_failure(error: CandidateEdgeError, chain_id: u64, stage: &str) -> M
     }
 }
 
+fn directional_pool_failure(
+    error: DirectionalPoolError,
+    chain_id: u64,
+    stage: &str,
+) -> ManagerError {
+    let message = error.to_string();
+    match error {
+        DirectionalPoolError::InvalidRequest(message) => {
+            invalid_request(message, stage).with_details(serde_json::json!({"chainId": chain_id}))
+        }
+        DirectionalPoolError::IdempotencyKeyReused {
+            idempotency_key,
+            existing_request_id,
+            submitted_request_id,
+        } => ManagerError::new(
+            ErrorCode::IdempotencyKeyReused,
+            format!(
+                "Idempotency-Key {idempotency_key} was already used for different request content"
+            ),
+            stage,
+        )
+        .with_details(serde_json::json!({
+            "chainId": chain_id,
+            "idempotencyKey": idempotency_key,
+            "existingRequestId": existing_request_id,
+            "submittedRequestId": submitted_request_id
+        })),
+        DirectionalPoolError::MissingPoolScope(scope_key) => ManagerError::new(
+            ErrorCode::UpstreamUnavailable,
+            format!("pool scope {scope_key} is missing or disabled"),
+            stage,
+        )
+        .with_details(serde_json::json!({
+            "chainId": chain_id,
+            "scopeKey": scope_key
+        })),
+        DirectionalPoolError::MissingSnapshotTable => ManagerError::new(
+            ErrorCode::UpstreamUnavailable,
+            "the liquidity snapshot table does not exist".to_owned(),
+            stage,
+        )
+        .with_details(serde_json::json!({"chainId": chain_id})),
+        DirectionalPoolError::UnsupportedPoolTable(table) => ManagerError::new(
+            ErrorCode::UpstreamUnavailable,
+            format!("pool table {table} is not a directional scope table"),
+            stage,
+        )
+        .with_details(serde_json::json!({
+            "chainId": chain_id,
+            "poolTable": table
+        })),
+        DirectionalPoolError::Sqlite(_) => {
+            ManagerError::new(ErrorCode::InternalError, message, stage)
+                .with_details(serde_json::json!({"chainId": chain_id}))
+        }
+        DirectionalPoolError::Json(_) => {
+            ManagerError::new(ErrorCode::InternalError, message, stage)
+                .with_details(serde_json::json!({"chainId": chain_id}))
+        }
+    }
+}
+
 fn candidate_exchange_failure(
     error: CandidateExchangeError,
     chain_id: u64,
@@ -2826,6 +3090,42 @@ fn composite_authority_denied(
     }))
 }
 
+/// Whether this process may write the directional pool layer.
+///
+/// The directional pool layer is a **separate** authority dimension on
+/// purpose.  Sharing the closed-loop dimension would let an operator who
+/// was granted the closed-loop write right write the directional pool
+/// tables without anybody having granted that right.
+pub fn directional_pool_apply_enabled(state: &AppState) -> bool {
+    state.directional_pool_authority.manager_apply_enabled()
+}
+
+/// The refusal returned when a directional pool write is attempted while
+/// the authority dimension is not `Manager`.
+///
+/// It reuses the shared `TokenAuthorityWriteDenied` code (HTTP 403) and
+/// reports the mode in the details, exactly like the other six dimensions:
+/// the denial is a property of the authority dimension, not of the layer
+/// that asked for the write.
+pub fn directional_pool_authority_denied(
+    authority: TokenAuthorityMode,
+    chain_id: u64,
+    stage: &str,
+) -> ManagerError {
+    ManagerError::new(
+        ErrorCode::TokenAuthorityWriteDenied,
+        format!(
+            "Directional Pool Manager apply is disabled while authority mode is {authority}"
+        ),
+        stage,
+    )
+    .with_details(serde_json::json!({
+        "chainId": chain_id,
+        "authorityMode": authority.as_str(),
+        "dryRun": false,
+    }))
+}
+
 fn default_pipeline_steps() -> Vec<PipelineStepName> {
     vec![
         PipelineStepName::CandidateEdge,
@@ -2907,6 +3207,7 @@ struct CapabilitiesData {
     review_authority_mode: &'static str,
     broadcast_authority_mode: &'static str,
     composite_authority_mode: &'static str,
+    directional_pool_authority_mode: &'static str,
     business_writes_enabled: bool,
     token_reads_enabled: bool,
     pool_reads_enabled: bool,
@@ -3025,6 +3326,32 @@ struct CandidateExchangeHttpRequest {
     chain_id: u64,
     dry_run: Option<bool>,
     expected_upstream: Option<ExchangeExpectedUpstream>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectionalPoolQuery {
+    chain_id: u64,
+    scope_key: Option<String>,
+    direction: Option<i64>,
+    limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectionalPoolComparisonQuery {
+    chain_id: u64,
+    scope_key: Option<String>,
+    sample_limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DirectionalPoolHttpRequest {
+    chain_id: u64,
+    scope_key: Option<String>,
+    dry_run: Option<bool>,
+    expected_upstream: Option<DirectionalPoolExpectedUpstream>,
 }
 
 #[derive(Deserialize)]
@@ -3178,11 +3505,18 @@ struct TokenAdmissionHttpRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::{app, app_with_state, AppState, M8_MIGRATION_ID};
+    use super::{
+        app,
+        app_with_state,
+        directional_pool_apply_enabled,
+        directional_pool_authority_denied,
+        AppState,
+        M8_MIGRATION_ID,
+    };
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
-    use manager_contracts::{TokenAuthorityMode, TokenKeyId, V4PoolKey};
+    use manager_contracts::{ErrorCode, TokenAuthorityMode, TokenKeyId, V4PoolKey};
     use rusqlite::Connection;
     use std::sync::Arc;
     use token_manager::{write_library, AdmissionStatus, LibraryKey, TokenWrite};
@@ -3656,20 +3990,23 @@ mod tests {
             value["data"]["capabilities"][16],
             "candidate_exchange.rebuild"
         );
-        assert_eq!(value["data"]["capabilities"][17], "closed_loop.read");
-        assert_eq!(value["data"]["capabilities"][18], "closed_loop.compare");
-        assert_eq!(value["data"]["capabilities"][19], "closed_loop.rebuild");
-        assert_eq!(value["data"]["capabilities"][20], "review.read");
-        assert_eq!(value["data"]["capabilities"][21], "review.run");
-        assert_eq!(value["data"]["capabilities"][22], "broadcast.read");
-        assert_eq!(value["data"]["capabilities"][23], "broadcast.submit");
-        assert_eq!(value["data"]["capabilities"][24], "broadcast.finalize");
-        assert_eq!(value["data"]["capabilities"][25], "broadcast.clear");
-        assert_eq!(value["data"]["capabilities"][26], "pipeline.read");
-        assert_eq!(value["data"]["capabilities"][27], "pipeline.refresh");
-        assert_eq!(value["data"]["capabilities"][28], "pipeline.step.begin");
-        assert_eq!(value["data"]["capabilities"][29], "pipeline.step.complete");
-        assert_eq!(value["data"]["capabilities"][30], "overview.read");
+        assert_eq!(value["data"]["capabilities"][17], "pools.directional.read");
+        assert_eq!(value["data"]["capabilities"][18], "pools.directional.compare");
+        assert_eq!(value["data"]["capabilities"][19], "pools.directional.rebuild");
+        assert_eq!(value["data"]["capabilities"][20], "closed_loop.read");
+        assert_eq!(value["data"]["capabilities"][21], "closed_loop.compare");
+        assert_eq!(value["data"]["capabilities"][22], "closed_loop.rebuild");
+        assert_eq!(value["data"]["capabilities"][23], "review.read");
+        assert_eq!(value["data"]["capabilities"][24], "review.run");
+        assert_eq!(value["data"]["capabilities"][25], "broadcast.read");
+        assert_eq!(value["data"]["capabilities"][26], "broadcast.submit");
+        assert_eq!(value["data"]["capabilities"][27], "broadcast.finalize");
+        assert_eq!(value["data"]["capabilities"][28], "broadcast.clear");
+        assert_eq!(value["data"]["capabilities"][29], "pipeline.read");
+        assert_eq!(value["data"]["capabilities"][30], "pipeline.refresh");
+        assert_eq!(value["data"]["capabilities"][31], "pipeline.step.begin");
+        assert_eq!(value["data"]["capabilities"][32], "pipeline.step.complete");
+        assert_eq!(value["data"]["capabilities"][33], "overview.read");
     }
 
     #[tokio::test]
@@ -4105,6 +4442,101 @@ mod tests {
         assert_eq!(
             snapshot_value["data"]["yzPairs"].as_array().unwrap().len(),
             0
+        );
+    }
+
+    #[tokio::test]
+    async fn directional_pool_routes_require_explicit_dry_run_and_isolated_authority() {
+        // The directional pool layer has its own writer, so its routes have
+        // their own rules: a read that works without any authority, a write
+        // that needs the explicit dryRun flag, and a write that needs the
+        // directional pool authority dimension -- which no other dimension
+        // implies.
+        let unavailable = app()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/directional-pools?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unavailable.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response_json(unavailable).await["error"]["code"],
+            "UPSTREAM_UNAVAILABLE"
+        );
+
+        let (_directory, _manager_state, path) = temporary_state();
+        let legacy_state = Arc::new(
+            AppState::with_token_database(&path)
+                .with_token_authority(TokenAuthorityMode::Manager)
+                .with_candidate_authority(TokenAuthorityMode::Manager)
+                .with_exchange_authority(TokenAuthorityMode::Manager)
+                .with_closed_loop_authority(TokenAuthorityMode::Manager),
+        );
+        let denied = app_with_state(legacy_state)
+            .oneshot(admission_request(
+                "/v1/directional-pools/rebuild",
+                candidate_write_request(Some(false)),
+                Some("directional-pool-authority-denied"),
+                Some("directional-pool-authority-denied-idem"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        let denied_value = response_json(denied).await;
+        assert_eq!(
+            denied_value["error"]["code"],
+            "TOKEN_AUTHORITY_WRITE_DENIED"
+        );
+        assert_eq!(denied_value["error"]["details"]["authorityMode"], "legacy");
+
+        let manager_state = Arc::new(
+            AppState::with_token_database(&path)
+                .with_directional_pool_authority(TokenAuthorityMode::Manager),
+        );
+        let app = app_with_state(manager_state);
+        let missing_dry_run = app
+            .clone()
+            .oneshot(admission_request(
+                "/v1/directional-pools/rebuild",
+                candidate_write_request(None),
+                Some("directional-pool-missing-dry-run"),
+                Some("directional-pool-missing-dry-run-idem"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(missing_dry_run.status(), StatusCode::BAD_REQUEST);
+
+        let snapshot = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/directional-pools?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(snapshot.status(), StatusCode::OK);
+        let snapshot_value = response_json(snapshot).await;
+        assert_eq!(snapshot_value["data"]["status"]["enabled"], false);
+        assert_eq!(snapshot_value["data"]["rows"].as_array().unwrap().len(), 0);
+
+        let comparison = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/directional-pools/compare?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(comparison.status(), StatusCode::OK);
+        assert_eq!(
+            response_json(comparison).await["data"]["readyForCutover"],
+            false
         );
     }
 
@@ -6153,5 +6585,93 @@ mod tests {
         assert!(summary["reviewFailedCount"].is_number());
         assert!(summary["reviewDataIncompleteCount"].is_number());
         assert!(summary["broadcastRequestCount"].is_number());
+    }
+
+    #[test]
+    fn directional_pool_authority_is_a_separate_dimension_defaulting_to_legacy() {
+        // M-6 / TASK-170: the directional pool layer has its own writer, so
+        // it gets its own authority dimension.  Sharing the closed-loop one
+        // would let an operator who was granted the closed-loop write right
+        // write the directional pool tables without anybody granting it.
+        let default_state = AppState::default();
+        assert_eq!(
+            default_state.directional_pool_authority,
+            TokenAuthorityMode::Legacy,
+        );
+        assert!(!directional_pool_apply_enabled(&default_state));
+
+        // Every other dimension granted is still not enough.
+        let granted_everything_else = AppState::default()
+            .with_token_authority(TokenAuthorityMode::Manager)
+            .with_candidate_authority(TokenAuthorityMode::Manager)
+            .with_exchange_authority(TokenAuthorityMode::Manager)
+            .with_closed_loop_authority(TokenAuthorityMode::Manager)
+            .with_review_authority(TokenAuthorityMode::Manager)
+            .with_broadcast_authority(TokenAuthorityMode::Manager)
+            .with_composite_authority(TokenAuthorityMode::Manager);
+        assert!(
+            !directional_pool_apply_enabled(&granted_everything_else),
+            "the directional pool dimension must not be implied by the other dimensions"
+        );
+
+        // T-I-4: granting the dimension explicitly enables the write path.
+        let granted = granted_everything_else
+            .with_directional_pool_authority(TokenAuthorityMode::Manager);
+        assert!(directional_pool_apply_enabled(&granted));
+    }
+
+    #[test]
+    fn directional_pool_write_denial_is_a_403_that_names_the_mode() {
+        // T-I-3: the refusal is the shared authority-denial shape the other
+        // six dimensions use -- HTTP 403, TOKEN_AUTHORITY_WRITE_DENIED, and
+        // the mode in the details -- so there is exactly one denial
+        // vocabulary in the API.
+        let error = directional_pool_authority_denied(
+            TokenAuthorityMode::Legacy,
+            4663,
+            "directional_pool_rebuild",
+        );
+        assert_eq!(error.code, ErrorCode::TokenAuthorityWriteDenied);
+        assert_eq!(error.code.http_status(), 403);
+        assert_eq!(error.stage, "directional_pool_rebuild");
+        assert_eq!(error.details["authorityMode"], "legacy");
+        assert_eq!(error.details["chainId"], 4663);
+        assert_eq!(error.details["dryRun"], false);
+    }
+
+    #[tokio::test]
+    async fn capabilities_report_the_directional_pool_authority_dimension() {
+        // The dimension has to be visible before the route exists, otherwise
+        // an operator cannot tell whether the directional pool layer is
+        // configured at all.
+        let legacy_state = Arc::new(AppState::default());
+        let response = app_with_state(legacy_state)
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let value = response_json(response).await;
+        assert_eq!(value["data"]["directionalPoolAuthorityMode"], "legacy");
+
+        let manager_state = Arc::new(
+            AppState::default().with_directional_pool_authority(TokenAuthorityMode::Manager),
+        );
+        let response = app_with_state(manager_state)
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let value = response_json(response).await;
+        assert_eq!(value["data"]["directionalPoolAuthorityMode"], "manager");
     }
 }

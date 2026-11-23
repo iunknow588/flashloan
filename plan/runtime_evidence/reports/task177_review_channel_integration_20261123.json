@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-11-23T00:27:28.565253+00:00",
+  "authority": "read-only inspection of the source tree, the lock file and the test results; no chain access; no writes to the main store; no broadcast",
+  "lockFile": {
+    "file": "flashloan/tools/Cargo.lock",
+    "diffExitCode": 0,
+    "diffOutput": "",
+    "byteIdentical": true
+  },
+  "mainStore": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "exists": true,
+    "sizeBytes": 8601968640,
+    "modifiedAt": "2026-11-22T22:07:03.074520+00:00",
+    "openedAtAll": false,
+    "openedForWriting": false
+  },
+  "report": "TASK-177 复核管理器接入与丢弃计数",
+  "task": "TASK-177",
+  "acceptance": "AC-226",
+  "tests": {
+    "reviewManager": {
+      "package": "review-manager",
+      "command": "cargo test --offline -p review-manager --lib",
+      "exitCode": 0,
+      "passed": 153,
+      "failed": 0
+    },
+    "broadcastManager": {
+      "package": "broadcast-manager",
+      "command": "cargo test --offline -p broadcast-manager --lib",
+      "exitCode": 0,
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "reviewManager": {
+    "publishedAfter": "transaction.commit()",
+    "functions": [
+      "publish_review_audit",
+      "read_review_rows_for_diff"
+    ],
+    "source": {
+      "path": "flashloan/tools/review_manager/src/lib.rs",
+      "lines": 4948,
+      "publicFunctions": [
+        "clear_review_records_write",
+        "read_broadcast_requests_on_connection",
+        "read_review_page",
+        "read_review_snapshot",
+        "read_review_status",
+        "read_review_status_on_connection",
+        "run_reviews",
+        "run_reviews_write"
+      ]
+    }
+  },
+  "channel": {
+    "capacity": 10000,
+    "policy": "try_send, drop and count when full",
+    "reason": "the audit stream may be lost, the materialization may not be slowed"
+  },
+  "counters": [
+    "queued",
+    "written",
+    "dropped",
+    "write_errors",
+    "publish_failed"
+  ],
+  "failurePolicy": "A failure of the audit stream never fails the review that was already written."
+}

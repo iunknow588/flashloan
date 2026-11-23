@@ -8,8 +8,16 @@ from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     load_v4_pool_liquidity,
     upsert_v4_exchange_pools,
-    upsert_v4_liquidity_snapshots,
 )
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 NETWORK = "robinhood"
@@ -123,7 +131,7 @@ def test_newer_liquidity_block_updates_dynamic_state_and_old_block_cannot_replac
     database = _database(tmp_path)
     _seed_pool(database)
 
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=NETWORK,
         chain_id=CHAIN_ID,
@@ -143,7 +151,7 @@ def test_newer_liquidity_block_updates_dynamic_state_and_old_block_cannot_replac
             }
         ],
     )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=NETWORK,
         chain_id=CHAIN_ID,
@@ -163,7 +171,7 @@ def test_newer_liquidity_block_updates_dynamic_state_and_old_block_cannot_replac
             }
         ],
     )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=NETWORK,
         chain_id=CHAIN_ID,
@@ -203,7 +211,7 @@ def test_newer_liquidity_block_updates_dynamic_state_and_old_block_cannot_replac
 def test_unknown_rpc_values_do_not_become_false_or_erase_known_state(tmp_path):
     database = _database(tmp_path)
     _seed_pool(database)
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=NETWORK,
         chain_id=CHAIN_ID,
@@ -221,7 +229,7 @@ def test_unknown_rpc_values_do_not_become_false_or_erase_known_state(tmp_path):
             }
         ],
     )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network=NETWORK,
         chain_id=CHAIN_ID,

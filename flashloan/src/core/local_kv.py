@@ -97,14 +97,47 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
-    connection.execute(
-        """
-        INSERT OR REPLACE INTO kv_meta (meta_key, value_json)
-        VALUES ('schema_version', ?)
-        """,
-        (json.dumps(_SCHEMA_VERSION),),
-    )
+    # Only rewrite the schema version when it actually differs.  An
+    # unconditional INSERT OR REPLACE turns every read-only access into a
+    # write transaction, which matters when the store is a live chain
+    # database: opening it would append WAL frames to production data even
+    # though nothing changed.
+    payload = json.dumps(_SCHEMA_VERSION)
+    current = connection.execute(
+        "SELECT value_json FROM kv_meta WHERE meta_key = 'schema_version'"
+    ).fetchone()
+    if not _schema_version_is_current(current):
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO kv_meta (meta_key, value_json)
+            VALUES ('schema_version', ?)
+            """,
+            (payload,),
+        )
     connection.commit()
+
+
+def _schema_version_is_current(row: Any) -> bool:
+    """Tell whether the stored schema version already matches the code.
+
+    Stores written by different code generations carry the same version in
+    different shapes: the raw number (1) or the JSON encoded string ("1").
+    Both decode to the same version, so both count as current; rewriting
+    them would only add a write transaction to a live database.
+    """
+
+    if row is None:
+        return False
+    stored = row[0]
+    if stored == json.dumps(_SCHEMA_VERSION):
+        return True
+    try:
+        decoded = json.loads(stored)
+    except (TypeError, ValueError):
+        return False
+    if decoded == _SCHEMA_VERSION:
+        return True
+    return isinstance(decoded, str) and decoded == str(_SCHEMA_VERSION)
 
 
 def ensure_store(path: str | os.PathLike[str] | None = None) -> Path:

@@ -2,6 +2,7 @@ use broadcast_manager::{read_broadcast_status, BroadcastStatus};
 use candidate_edge_pool_manager::{read_candidate_status, CandidateEdgeStatus};
 use candidate_exchange_pool_manager::{read_candidate_exchange_status, CandidateExchangeStatus};
 use closed_loop_manager::{read_closed_loop_status, ClosedLoopStatus};
+use directional_pool_manager::{read_directional_pool_status, DirectionalPoolStatus};
 use pool_manager::{read_scope_status, ScopeStatus};
 use review_manager::{read_review_status, ReviewStatus};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
@@ -173,6 +174,7 @@ impl From<serde_json::Error> for CompositeError {
 #[serde(rename_all = "snake_case")]
 pub enum PipelineStepName {
     PoolScope,
+    DirectionalPool,
     CandidateEdge,
     CandidateExchange,
     ClosedLoop,
@@ -184,6 +186,7 @@ impl PipelineStepName {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::PoolScope => "pool_scope",
+            Self::DirectionalPool => "directional_pool",
             Self::CandidateEdge => "candidate_edge",
             Self::CandidateExchange => "candidate_exchange",
             Self::ClosedLoop => "closed_loop",
@@ -195,6 +198,7 @@ impl PipelineStepName {
     fn from_storage(value: &str) -> Option<Self> {
         match value {
             "pool_scope" => Some(Self::PoolScope),
+            "directional_pool" => Some(Self::DirectionalPool),
             "candidate_edge" => Some(Self::CandidateEdge),
             "candidate_exchange" => Some(Self::CandidateExchange),
             "closed_loop" => Some(Self::ClosedLoop),
@@ -207,20 +211,30 @@ impl PipelineStepName {
     fn order(self) -> i64 {
         match self {
             Self::PoolScope => 0,
-            Self::CandidateEdge => 1,
-            Self::CandidateExchange => 2,
-            Self::ClosedLoop => 3,
-            Self::Review => 4,
-            Self::Broadcast => 5,
+            Self::DirectionalPool => 1,
+            Self::CandidateEdge => 2,
+            Self::CandidateExchange => 3,
+            Self::ClosedLoop => 4,
+            Self::Review => 5,
+            Self::Broadcast => 6,
         }
     }
 
     fn dependencies(self) -> &'static [&'static str] {
         match self {
             Self::PoolScope => &["token_libraries"],
+            // The directional layer is a projection of the base pools, so it
+            // needs the pool scope and nothing else.  It reads the pool
+            // table and the liquidity snapshots of that scope.
+            Self::DirectionalPool => &["token_libraries", "pool_scope"],
             Self::CandidateEdge => &["token_libraries", "pool_scope"],
             Self::CandidateExchange => &["token_libraries", "pool_scope", "candidate_edge"],
-            Self::ClosedLoop => &["candidate_edge", "candidate_exchange"],
+            // The closed loop selects its pools from the directional layer,
+            // so that layer is part of its upstream.  The dependency is
+            // lenient until the layer is materialized: a store that does
+            // not carry it yet still runs the closed loop on the base
+            // pools alone.
+            Self::ClosedLoop => &["candidate_edge", "candidate_exchange", "directional_pool"],
             Self::Review => &["closed_loop"],
             Self::Broadcast => &["closed_loop", "review"],
         }
@@ -342,6 +356,29 @@ impl PoolScopeRef {
     }
 }
 
+/// The state of the directional pool layer.
+///
+/// The directional layer is a projection of the base pools: every base pool
+/// appears twice, once per swap direction, and the two rows differ only in
+/// the direction dependent quantities.  The layer is optional until it has
+/// been materialized, so `enabled` is false on a store that does not carry
+/// it yet.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPoolRef {
+    pub enabled: bool,
+    pub version: i64,
+    pub checksum: Option<String>,
+    pub pool_scope_version: Option<i64>,
+    pub pool_scope_checksum: Option<String>,
+    pub snapshot_checksum: Option<String>,
+    pub base_pool_count: usize,
+    pub directional_pool_count: usize,
+    pub direction0_count: usize,
+    pub direction1_count: usize,
+    pub excluded_pool_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateEdgeRef {
@@ -419,6 +456,7 @@ pub struct BroadcastRef {
 pub struct UpstreamSnapshot {
     pub token_libraries: BTreeMap<String, TokenLibraryRef>,
     pub pool_scope: PoolScopeRef,
+    pub directional_pool: DirectionalPoolRef,
     pub candidate_edge: CandidateEdgeRef,
     pub candidate_exchange: CandidateExchangeRef,
     pub closed_loop: ClosedLoopRef,
@@ -448,6 +486,8 @@ pub struct UpstreamAssessment {
 pub struct StepDependencySnapshot {
     pub token_libraries: BTreeMap<String, TokenLibraryRef>,
     pub pool_scope: Option<PoolScopeRef>,
+    #[serde(default)]
+    pub directional_pool: Option<DirectionalPoolRef>,
     pub candidate_edge: Option<CandidateEdgeRef>,
     pub candidate_exchange: Option<CandidateExchangeRef>,
     pub closed_loop: Option<ClosedLoopRef>,
@@ -1427,6 +1467,12 @@ fn build_upstream_snapshot_from_path(
             manager: "pool_manager",
             message: error.to_string(),
         })?;
+    let directional_pool = read_directional_pool_status(database_path, network, chain_id, SCOPE_KEY)
+        .map(directional_pool_ref)
+        .map_err(|error| CompositeError::UpstreamRead {
+            manager: "directional_pool_manager",
+            message: error.to_string(),
+        })?;
     let candidate_edge = read_candidate_status(database_path, network, chain_id)
         .map(candidate_edge_ref)
         .map_err(|error| CompositeError::UpstreamRead {
@@ -1460,6 +1506,7 @@ fn build_upstream_snapshot_from_path(
     Ok(UpstreamSnapshot {
         token_libraries,
         pool_scope,
+        directional_pool,
         candidate_edge,
         candidate_exchange,
         closed_loop,
@@ -1486,6 +1533,22 @@ fn pool_scope_ref(status: ScopeStatus) -> PoolScopeRef {
         library_versions: status.library_versions,
         library_checksums: status.library_checksums,
         active_pool_count: status.active_pool_count,
+    }
+}
+
+fn directional_pool_ref(status: DirectionalPoolStatus) -> DirectionalPoolRef {
+    DirectionalPoolRef {
+        enabled: status.enabled,
+        version: status.directional_pool_version,
+        checksum: status.materialized_checksum,
+        pool_scope_version: status.pool_scope_version,
+        pool_scope_checksum: status.pool_scope_checksum,
+        snapshot_checksum: status.snapshot_checksum,
+        base_pool_count: status.base_pool_count,
+        directional_pool_count: status.directional_pool_count,
+        direction0_count: status.direction0_count,
+        direction1_count: status.direction1_count,
+        excluded_pool_count: status.excluded_pool_count,
     }
 }
 
@@ -1824,6 +1887,7 @@ fn capture_step_dependencies(
         }
     }
     let pool_scope = include_pool_scope(dependencies, snapshot)?;
+    let directional_pool = include_directional_pool(dependencies, snapshot)?;
     let candidate_edge = include_candidate_edge(dependencies, snapshot)?;
     let candidate_exchange = include_candidate_exchange(dependencies, snapshot)?;
     let closed_loop = include_closed_loop(dependencies, snapshot)?;
@@ -1835,6 +1899,7 @@ fn capture_step_dependencies(
             BTreeMap::new()
         },
         pool_scope,
+        directional_pool,
         candidate_edge,
         candidate_exchange,
         closed_loop,
@@ -1858,6 +1923,25 @@ fn include_pool_scope(
         ));
     }
     Ok(Some(snapshot.pool_scope.clone()))
+}
+
+/// The directional layer of a step.
+///
+/// The layer is a projection of the base pools and it is optional until it
+/// has been materialized, so a missing layer is not a missing dependency:
+/// the step simply runs against the base pools alone.  That is what keeps
+/// the pipeline running while the direction layer is being rolled out.
+fn include_directional_pool(
+    dependencies: &[&str],
+    snapshot: &UpstreamSnapshot,
+) -> Result<Option<DirectionalPoolRef>, CompositeError> {
+    if !dependencies.contains(&"directional_pool") {
+        return Ok(None);
+    }
+    if !snapshot.directional_pool.enabled || snapshot.directional_pool.checksum.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(snapshot.directional_pool.clone()))
 }
 
 fn include_candidate_edge(
@@ -1938,6 +2022,20 @@ fn validate_step_output(
                 "poolScope.materializedChecksum",
                 true,
                 snapshot.pool_scope.effective_checksum().is_some(),
+            )
+        }
+        PipelineStepName::DirectionalPool => {
+            require_output(
+                step_id,
+                "directionalPool.enabled",
+                true,
+                snapshot.directional_pool.enabled,
+            )?;
+            require_output(
+                step_id,
+                "directionalPool.checksum",
+                true,
+                snapshot.directional_pool.checksum.is_some(),
             )
         }
         PipelineStepName::CandidateEdge => {
@@ -2959,7 +3057,7 @@ mod tests {
     fn closed_loop_pool_scope_checksum_is_compared_against_the_core4_scope() {
         use super::{
             assess_upstream, BroadcastRef, CandidateEdgeRef, CandidateExchangeRef, ClosedLoopRef,
-            PoolScopeRef, ReviewRef, TokenLibraryRef, UpstreamSnapshot,
+            DirectionalPoolRef, PoolScopeRef, ReviewRef, TokenLibraryRef, UpstreamSnapshot,
         };
         use std::collections::BTreeMap;
 
@@ -2998,6 +3096,22 @@ mod tests {
                     library_versions: BTreeMap::new(),
                     library_checksums: BTreeMap::new(),
                     active_pool_count: 14,
+                },
+                // The directional layer is not materialized in this fixture, so it is
+                // reported as disabled -- the same shape the production reader
+                // produces when the layer tables are absent.
+                directional_pool: DirectionalPoolRef {
+                    enabled: false,
+                    version: 0,
+                    checksum: None,
+                    pool_scope_version: None,
+                    pool_scope_checksum: None,
+                    snapshot_checksum: None,
+                    base_pool_count: 0,
+                    directional_pool_count: 0,
+                    direction0_count: 0,
+                    direction1_count: 0,
+                    excluded_pool_count: 0,
                 },
                 candidate_edge: CandidateEdgeRef {
                     enabled: true,

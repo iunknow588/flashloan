@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,12 @@ from core.db.storage_v4_exchange import (
     upsert_v4_liquidity_snapshots,
 )
 from core.db.v4_scan_state import load_v4_scan_state, update_v4_scan_state
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot as _materialise_depth_snapshot
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
     apply_stock_pool_metadata,
 )
@@ -89,7 +96,7 @@ def _seed_testnet_anchor_pair(database: str) -> None:
             }
         ],
     )
-    upsert_v4_liquidity_snapshots(
+    _materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -101,7 +108,6 @@ def _seed_testnet_anchor_pair(database: str) -> None:
                 "liquidity_index": 1000.0,
                 "estimated_tvl_usd": 1_000_000.0,
                 "sqrt_price_x96": str(2**96),
-                "recent_swap_active": True,
             }
         ],
     )
@@ -270,6 +276,33 @@ def test_import_v4_evidence_payloads_imports_from_memory_without_json(tmp_path, 
         (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
     )
     assert len(pools) == 1
+    # TASK-172 / AC-221: the evidence channel writes the **pool index**, and
+    # it does not write the depth snapshot.  The snapshot has exactly one
+    # writer -- the Rust pool manager -- because only the pool manager can
+    # materialise a complete row (price columns *and* single-tick bounds)
+    # and therefore make a row describe exactly one on-chain moment.
+    liquidity = query(
+        database,
+        "SELECT pool_id, has_liquidity, liquidity_index FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ?",
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
+    assert liquidity == []
+
+    # The pool manager's own write then produces the row the consumers read.
+    _materialise_depth_snapshot(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": payloads["index"]["pools"][0]["poolId"],
+                "has_liquidity": True,
+                "liquidity_index": 1000.0,
+                "estimated_tvl_usd": 1_000_000.0,
+            }
+        ],
+    )
     liquidity = query(
         database,
         "SELECT pool_id, has_liquidity, liquidity_index FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ?",
@@ -434,6 +467,31 @@ def test_import_v4_evidence_payloads_skips_index_rows_without_explicit_liquidity
 
     from core.db.storage_business_io import query
 
+    # TASK-172 / AC-221: the evidence channel does not write the depth
+    # snapshot at all, so neither the explicit nor the weak row reaches
+    # the table.  The table only ever carries the pool manager's rows.
+    liquidity = query(
+        database,
+        "SELECT pool_id, has_liquidity, evidence_source FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ?",
+        (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
+    )
+    assert liquidity == []
+
+    # The pool manager publishes the measured row.
+    _materialise_depth_snapshot(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": payloads["index"]["pools"][0]["poolId"],
+                "has_liquidity": True,
+                "liquidity_index": 1000.0,
+                "evidence_source": "pool_manager_extsload_live_state_batch",
+            }
+        ],
+    )
     liquidity = query(
         database,
         "SELECT pool_id, has_liquidity, evidence_source FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ?",
@@ -456,7 +514,9 @@ def test_import_v4_evidence_payloads_replace_clears_stale_zero_rows(tmp_path):
         liquidity_payload=payloads["liquidity"],
     )
     pool_id = payloads["index"]["pools"][0]["poolId"]
-    upsert_v4_liquidity_snapshots(
+    # A stale zero row from an earlier run, as the pool manager would have
+    # written it.
+    _materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -465,8 +525,8 @@ def test_import_v4_evidence_payloads_replace_clears_stale_zero_rows(tmp_path):
             {
                 "pool_id": pool_id,
                 "has_liquidity": False,
-                "liquidity": "",
-                "liquidity_block_number": None,
+                "liquidity_index": 0.0,
+                "depth_status": "live_liquidity_zero",
             }
         ],
     )
@@ -482,14 +542,19 @@ def test_import_v4_evidence_payloads_replace_clears_stale_zero_rows(tmp_path):
 
     from core.db.storage_business_io import query
 
+    # TASK-172 / AC-221: a replace clears the **pool index** of the scope,
+    # and it does not touch the depth snapshot.  The snapshot belongs to
+    # the pool manager, and the pool manager is the only writer that can
+    # put a complete row back.  A channel that cleared the table and could
+    # not refill it would leave the scope with no depth at all.
     liquidity = query(
         database,
         "SELECT pool_id, has_liquidity, liquidity_index FROM v4_exchange_pool_liquidity_snapshots WHERE network = ? AND chain_id = ?",
         (ROBINHOOD_TESTNET_NETWORK, ROBINHOOD_TESTNET_CHAIN_ID),
     )
     assert len(liquidity) == 1
-    assert liquidity[0]["has_liquidity"] == 1
-    assert liquidity[0]["liquidity_index"] == 1000.0
+    assert liquidity[0]["has_liquidity"] == 0
+    assert liquidity[0]["liquidity_index"] == 0.0
 
 
 def test_clear_v4_exchange_evidence_is_scoped(tmp_path):
@@ -525,7 +590,11 @@ def test_clear_v4_exchange_evidence_is_scoped(tmp_path):
         protocol="uniswap_v4",
     )
     assert counts["pools"] >= 1
-    assert counts["liquidity_snapshots"] >= 1
+    # TASK-172 / AC-221: the scope clear no longer wipes the depth
+    # snapshot.  The table belongs to the pool manager, which is the only
+    # writer that can materialise a complete row; a clear here would delete
+    # the pool manager's rows and write nothing back.
+    assert counts["liquidity_snapshots"] == 0
 
     from core.db.storage_business_io import query
 
@@ -591,7 +660,7 @@ def test_prune_v4_non_executable_evidence_removes_only_explicit_zero(tmp_path):
         protocol="uniswap_v4",
         pool_rows=pool_rows,
     )
-    upsert_v4_liquidity_snapshots(
+    _materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
@@ -721,6 +790,24 @@ def test_v4_sqlite_view_loaders_mark_source_as_sqlite(tmp_path):
         ROBINHOOD_TESTNET_NETWORK,
         ROBINHOOD_TESTNET_CHAIN_ID,
         database_url=database,
+    )
+    # TASK-172 / AC-221: the liquidity view reads the depth snapshot, and
+    # the depth snapshot is written by the pool manager.  So the fixture
+    # publishes the row the way the pool manager publishes it, and the
+    # loader then has to read exactly that row.
+    _materialise_depth_snapshot(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        protocol="uniswap_v4",
+        rows=[
+            {
+                "pool_id": payloads["index"]["pools"][0]["poolId"],
+                "has_liquidity": True,
+                "liquidity_index": 1000.0,
+                "estimated_tvl_usd": 1_000_000.0,
+            }
+        ],
     )
     liquidity = load_v4_pool_liquidity_payload(
         ROBINHOOD_TESTNET_NETWORK,
@@ -1406,7 +1493,7 @@ def test_v4_incremental_guard_scopes_missing_and_zero_liquidity_to_eligible_pool
     assert missing_decision["fromBlock"] == 0
     assert missing_decision["forcedFullScan"] is True
 
-    upsert_v4_liquidity_snapshots(
+    _materialise_depth_snapshot(
         database,
         network=ROBINHOOD_TESTNET_NETWORK,
         chain_id=ROBINHOOD_TESTNET_CHAIN_ID,

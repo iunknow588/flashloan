@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 from core.db.database_path import absolute_database_path
 from core.db.direction_pool_score import (
-    MAX_DIRECTION_CANDIDATE_POOLS,
+    resolve_max_direction_candidate_pools,
     select_directional_pool_ids,
 )
 from core.db.page_payload_tokens import (
@@ -142,7 +142,7 @@ def _active_direction_pool_ids(
             scope_pools,
             token_in,
             token_out,
-            limit=MAX_DIRECTION_CANDIDATE_POOLS,
+            limit=resolve_max_direction_candidate_pools(),
         )
     return selections
 

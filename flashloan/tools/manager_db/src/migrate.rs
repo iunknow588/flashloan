@@ -24,6 +24,7 @@ pub const SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID: &str =
 pub const POOL_STATUS_REASON_MIGRATION_ID: &str = "20261119_013_pool_status_reason";
 pub const REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID: &str =
     "20261121_014_review_closed_loop_identity_schema";
+pub const DIRECTIONAL_POOL_MIGRATION_ID: &str = "20261123_015_directional_pool_schema";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -40,8 +41,9 @@ pub const MIGRATION_IDS: &[&str] = &[
     SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID,
     POOL_STATUS_REASON_MIGRATION_ID,
     REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
+    DIRECTIONAL_POOL_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = DIRECTIONAL_POOL_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -112,6 +114,10 @@ const MIGRATIONS: &[MigrationDefinition] = &[
         id: REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
         sql: include_str!("../migrations/20261121_014_review_closed_loop_identity_schema.sql"),
     },
+    MigrationDefinition {
+        id: DIRECTIONAL_POOL_MIGRATION_ID,
+        sql: include_str!("../migrations/20261123_015_directional_pool_schema.sql"),
+    },
 ];
 
 const TARGET_TABLES: &[&str] = &[
@@ -140,6 +146,8 @@ const TARGET_TABLES: &[&str] = &[
     "manager_market_observation_abnormal_yz_pairs",
     "manager_market_observation_abnormal_intermediate_pools",
     "manager_market_observation_liquidity_snapshots",
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
     "manager_v4_closed_loop_library_state",
     "manager_v4_closed_loops",
     "manager_v4_closed_loop_hops",
@@ -192,6 +200,16 @@ const CANDIDATE_EXCHANGE_TABLES: &[&str] = &[
     "manager_market_observation_abnormal_yz_pairs",
     "manager_market_observation_abnormal_intermediate_pools",
     "manager_market_observation_liquidity_snapshots",
+];
+
+/// The tables of the directional pool layer.
+///
+/// The directional layer is a projection of the base pools, so its
+/// compatibility contract is the pair of columns that carry the projection
+/// itself: the direction and the derived direction facts.
+const DIRECTIONAL_POOL_TABLES: &[&str] = &[
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
 ];
 
 const CLOSED_LOOP_TABLES: &[&str] = &[
@@ -633,6 +651,7 @@ fn ensure_migration_tables_compatible(
         SKIPPED_TOKEN_LOCALIZATION_MIGRATION_ID => SKIPPED_TOKEN_REASON_TABLES,
         POOL_STATUS_REASON_MIGRATION_ID => POOL_STATUS_REASON_TABLES,
         REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID => REVIEW_CLOSED_LOOP_IDENTITY_TABLES,
+        DIRECTIONAL_POOL_MIGRATION_ID => DIRECTIONAL_POOL_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {
@@ -751,6 +770,32 @@ fn required_columns(table: &str) -> &'static [&'static str] {
         "manager_market_observation_liquidity_snapshots" => {
             &["anchor_token_key_id", "pool_id", "has_liquidity"]
         }
+        "manager_v4_directional_exchange_pools" => &[
+            "base_pool_id",
+            "direction",
+            "directional_pool_id",
+            "pair_key_id",
+            "input_token_key_id",
+            "output_token_key_id",
+            "zero_for_one",
+            "input_capacity_raw",
+            "input_capacity_measured",
+            "directional_output",
+            "directional_output_measured",
+            "pair_direction_rank",
+            "pool_status",
+        ],
+        "manager_v4_directional_pool_library_state" => &[
+            "directional_pool_version",
+            "materialized_checksum",
+            "pool_scope_version",
+            "pool_scope_checksum",
+            "snapshot_checksum",
+            "base_pool_count",
+            "directional_pool_count",
+            "direction0_count",
+            "direction1_count",
+        ],
         "manager_v4_closed_loop_library_state" => &[
             "closed_loop_version",
             "materialized_checksum",

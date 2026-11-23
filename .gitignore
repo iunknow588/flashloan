@@ -205,6 +205,13 @@ plan/runtime_evidence/reports/arch2b_parity_replay_*_rust.json
 .apply_patch_runner.py
 
 # VS Installer 后台下载看门狗运行时日志（临时产物，不入库）
+# plan/runtime_evidence/logs/ 是**运行时日志目录**：由正在运行的服务进程持有，
+# 内容随进程生命周期变化，不具备可追溯价值 —— 不纳入 git 管理。
+# 受控的运行时证据是 reports/ 与 tools/ 下的产物，不是这里的日志。
+plan/runtime_evidence/logs/*.log
+plan/runtime_evidence/logs/*.log.err
+plan/runtime_evidence/logs/**/*.log
+
 plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log
 plan/runtime_evidence/logs/vs_bg_watchdog_stdout.log.err
 plan/runtime_evidence/logs/vs_bg_download_watchdog.jsonl

@@ -194,3 +194,86 @@ def test_review_queue_mark_stalled_and_requeue_preserves_audit_counts():
     assert queue.summary()["queued"] == 1
     requeued_audit = queue.stale_audit(queued_age_seconds=10)
     assert requeued_audit["staleQueuedCount"] == 0
+
+
+def test_pipeline_refuses_to_start_threads_when_rust_owns_scheduling():
+    """Rust owns the pending-review queue, so Python must not spawn workers."""
+    queue = ClosedLoopReviewQueue()
+    pipeline = FixedRefreshPipeline(
+        queue=queue,
+        refresh_fn=lambda _task: {"routes": []},
+        native_rust_enabled=lambda: True,
+    )
+
+    pipeline.start()
+
+    assert pipeline._threads == []
+
+
+def test_pipeline_does_not_pop_the_queue_when_rust_owns_scheduling():
+    """A Python pop would steal pending work from the Rust main thread."""
+    queue = ClosedLoopReviewQueue()
+    executed = []
+
+    def _refresh(task):
+        executed.append(task.group_key)
+        return {"routes": []}
+
+    pipeline = FixedRefreshPipeline(
+        queue=queue,
+        refresh_fn=_refresh,
+        native_rust_enabled=lambda: True,
+    )
+    task = queue.submit_group(group_key="weth|usdg|nvda")
+
+    assert pipeline.run_once() is None
+    assert executed == []
+    # The task stays queued for Rust to consume.
+    assert queue.get("weth|usdg|nvda") is task
+    assert task.state == "queued"
+
+
+def test_pipeline_still_runs_in_legacy_python_fallback_mode():
+    """Without the Rust kernel the legacy Python pipeline stays functional."""
+    queue = ClosedLoopReviewQueue()
+    executed = []
+
+    def _refresh(task):
+        executed.append(task.group_key)
+        return {"routes": []}
+
+    pipeline = FixedRefreshPipeline(
+        queue=queue,
+        refresh_fn=_refresh,
+        native_rust_enabled=lambda: False,
+    )
+
+    pipeline.start()
+    try:
+        queue.submit_group(group_key="weth|usdg|nvda")
+        deadline = time.time() + 5.0
+        while not executed and time.time() < deadline:
+            time.sleep(0.05)
+    finally:
+        pipeline.stop()
+
+    assert executed == ["weth|usdg|nvda"]
+
+
+def test_pipeline_treats_a_failing_capability_probe_as_rust_owned():
+    """A failing probe must not silently hand review scheduling back to Python."""
+
+    def _boom():
+        raise RuntimeError("probe failed")
+
+    queue = ClosedLoopReviewQueue()
+    pipeline = FixedRefreshPipeline(
+        queue=queue,
+        refresh_fn=lambda _task: {"routes": []},
+        native_rust_enabled=_boom,
+    )
+
+    pipeline.start()
+
+    assert pipeline._threads == []
+    assert pipeline.run_once() is None

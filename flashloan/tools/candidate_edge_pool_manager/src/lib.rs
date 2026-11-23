@@ -389,6 +389,104 @@ pub struct CandidateEdgeComparison {
     pub differences_truncated: bool,
 }
 
+/// The public input of the directional price calculation.
+///
+/// The directional layer needs the same price quality that orders the two
+/// sides of a pair.  Rather than re-implementing the quote, the layer calls
+/// the candidate edge manager and therefore inherits exactly one definition
+/// of "how much does this direction pay".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPriceInput {
+    pub pool_id: String,
+    pub token0_key_id: String,
+    pub token1_key_id: String,
+    pub fee: i64,
+    pub tick_spacing: i64,
+    pub sqrt_price_x96: Option<String>,
+    pub tick: Option<i64>,
+    pub liquidity: Option<String>,
+}
+
+/// The public output of the directional price calculation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPrice {
+    /// The exact output of the reference single-tick trade, decimal
+    /// normalized, per unit of input.
+    pub output_rate: f64,
+    /// The tick ordering rank of this direction inside its pair.
+    pub tick_ordering_rank: Option<i64>,
+}
+
+/// Price one direction of one pool.
+///
+/// The result is `None` when the pool cannot be priced: no price, no
+/// liquidity, a tick range that cannot be located, or a token that is not
+/// one of the pool's two tokens.  A pool that cannot be priced is **not** a
+/// pool that scores zero; the caller keeps the two apart.
+pub fn price_directional_output(
+    pool: &DirectionalPriceInput,
+    token_in_key_id: &str,
+    token_in_decimals: u8,
+    token_out_decimals: u8,
+) -> Option<DirectionalPrice> {
+    let (token0_decimals, token1_decimals) =
+        if token_in_key_id == pool.token0_key_id {
+            (token_in_decimals, token_out_decimals)
+        } else if token_in_key_id == pool.token1_key_id {
+            (token_out_decimals, token_in_decimals)
+        } else {
+            return None;
+        };
+
+    let scope_pool = ScopePool {
+        pool_id: pool.pool_id.clone(),
+        pool_manager: String::new(),
+        pool_key_json: String::new(),
+        token0: String::new(),
+        token1: String::new(),
+        token0_key_id: pool.token0_key_id.clone(),
+        token1_key_id: pool.token1_key_id.clone(),
+        fee: pool.fee,
+        tick_spacing: pool.tick_spacing,
+        hooks: String::new(),
+        pool_status: "active".to_owned(),
+        sqrt_price_x96: pool.sqrt_price_x96.clone(),
+        tick: pool.tick,
+        liquidity: pool.liquidity.clone(),
+        liquidity_index: None,
+        price: None,
+        depth_status: None,
+        liquidity_read_at: None,
+        liquidity_block_number: None,
+        evidence_source: None,
+    };
+
+    let mut catalog = BTreeMap::new();
+    for (token_key_id, decimals) in [
+        (pool.token0_key_id.as_str(), token0_decimals),
+        (pool.token1_key_id.as_str(), token1_decimals),
+    ] {
+        catalog.insert(
+            token_key_id.to_owned(),
+            CatalogToken {
+                token_key_id: token_key_id.to_owned(),
+                token_address: String::new(),
+                token_symbol: String::new(),
+                token_decimals: decimals,
+                library_key: String::new(),
+            },
+        );
+    }
+
+    let output_rate = exact_directional_output(&scope_pool, token_in_key_id, &catalog)?;
+    Some(DirectionalPrice {
+        output_rate,
+        tick_ordering_rank: tick_ordering_rank(&scope_pool, token_in_key_id),
+    })
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PersistedCandidateWrite {

@@ -1350,6 +1350,7 @@ dependencies = [
  "candidate-exchange-pool-manager",
  "chrono",
  "closed-loop-manager",
+ "directional-pool-manager",
  "hex",
  "manager-contracts",
  "pool-manager",
@@ -1697,6 +1698,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "directional-pool-manager"
+version = "0.1.0"
+dependencies = [
+ "candidate-edge-pool-manager",
+ "chrono",
+ "hex",
+ "manager-contracts",
+ "pool-manager",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1924,6 +1940,7 @@ dependencies = [
  "chrono",
  "closed-loop-manager",
  "composite-manager",
+ "directional-pool-manager",
  "hex",
  "k256",
  "manager-contracts",

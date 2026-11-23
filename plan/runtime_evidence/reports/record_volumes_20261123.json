@@ -1,0 +1,231 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "openedWith": "mode=ro",
+  "queryOnly": true,
+  "measuredAt": "2026-11-22T22:51:49Z",
+  "fileBefore": {
+    "sha256": "cfa1704980fdb3c819fcb0cb7a5f44c230a2fa53e21c38d514ed805aaab53522",
+    "sizeBytes": 8601968640,
+    "mtimeNs": 1795385223074519800
+  },
+  "fileAfter": {
+    "sha256": "cfa1704980fdb3c819fcb0cb7a5f44c230a2fa53e21c38d514ed805aaab53522",
+    "sizeBytes": 8601968640,
+    "mtimeNs": 1795385223074519800
+  },
+  "externalWriterActivity": false,
+  "externalWriterNote": "the digest, the size and the mtime are identical before and after the run, so no writer touched the store while it was measured",
+  "siblingRuntimeFiles": [
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-wal",
+      "sizeBytes": 0
+    },
+    {
+      "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3-shm",
+      "sizeBytes": 32768
+    }
+  ],
+  "siblingNote": "SQLite creates -wal/-shm next to a WAL store when it is opened; the files carry no library data and are managed by SQLite itself",
+  "tables": {
+    "manager_review_library_state": {
+      "present": true,
+      "rowCount": 1,
+      "textBytes": 0,
+      "textBytesPerRow": 0.0,
+      "measuredColumns": []
+    },
+    "manager_v4_reviews": {
+      "present": true,
+      "rowCount": 164,
+      "textBytes": 102846,
+      "textBytesPerRow": 627.11,
+      "measuredColumns": [
+        {
+          "column": "path_addresses_json",
+          "bytes": 29684
+        },
+        {
+          "column": "path_symbols_json",
+          "bytes": 4426
+        },
+        {
+          "column": "pool_ids_json",
+          "bytes": 34112
+        },
+        {
+          "column": "static_preview_json",
+          "bytes": 13134
+        },
+        {
+          "column": "run_arbitrage_json",
+          "bytes": 21162
+        },
+        {
+          "column": "hop_sqrt_price_limits_json",
+          "bytes": 328
+        }
+      ]
+    },
+    "manager_v4_review_diagnostics": {
+      "present": true,
+      "rowCount": 164,
+      "textBytes": 328,
+      "textBytesPerRow": 2.0,
+      "measuredColumns": [
+        {
+          "column": "payload_json",
+          "bytes": 328
+        }
+      ]
+    },
+    "manager_v4_review_broadcast_requests": {
+      "present": true,
+      "rowCount": 0,
+      "textBytes": 0,
+      "textBytesPerRow": 0,
+      "measuredColumns": [
+        {
+          "column": "path_addresses_json",
+          "bytes": 0
+        },
+        {
+          "column": "path_symbols_json",
+          "bytes": 0
+        },
+        {
+          "column": "pool_ids_json",
+          "bytes": 0
+        },
+        {
+          "column": "hop_sqrt_price_limits_json",
+          "bytes": 0
+        }
+      ]
+    },
+    "manager_broadcast_library_state": {
+      "present": true,
+      "rowCount": 0,
+      "textBytes": 0,
+      "textBytesPerRow": 0,
+      "measuredColumns": []
+    },
+    "manager_cow_execution_attempts": {
+      "present": true,
+      "rowCount": 0,
+      "textBytes": 0,
+      "textBytesPerRow": 0,
+      "measuredColumns": [
+        {
+          "column": "path_addresses_json",
+          "bytes": 0
+        },
+        {
+          "column": "path_symbols_json",
+          "bytes": 0
+        },
+        {
+          "column": "pool_ids_json",
+          "bytes": 0
+        },
+        {
+          "column": "receipt_json",
+          "bytes": 0
+        },
+        {
+          "column": "evidence_json",
+          "bytes": 0
+        },
+        {
+          "column": "hop_sqrt_price_limits_json",
+          "bytes": 0
+        }
+      ]
+    },
+    "manager_broadcast_attempt_diagnostics": {
+      "present": true,
+      "rowCount": 0,
+      "textBytes": 0,
+      "textBytesPerRow": 0,
+      "measuredColumns": [
+        {
+          "column": "payload_json",
+          "bytes": 0
+        }
+      ]
+    },
+    "manager_write_requests": {
+      "present": true,
+      "rowCount": 48,
+      "textBytes": 0,
+      "textBytesPerRow": 0.0,
+      "measuredColumns": []
+    }
+  },
+  "reviewGeneration": {
+    "present": true,
+    "rows": [
+      {
+        "network": "robinhood",
+        "chainId": 4663,
+        "protocol": "uniswap_v4",
+        "scopeKey": "core4",
+        "reviewVersion": 24,
+        "loopCount": 164,
+        "reviewedCount": 14,
+        "completedCount": 0,
+        "dataIncompleteCount": 150,
+        "notExecutableCount": 14,
+        "failedCount": 0,
+        "broadcastRequestCount": 0,
+        "generatedAt": "2026-11-22T06:21:44.517805600+00:00",
+        "updatedAt": "2026-11-22T06:21:44.517805600+00:00"
+      }
+    ]
+  },
+  "pnlRawFormat": {
+    "present": true,
+    "rowsWithPnl": 14,
+    "rawIsDecimal": 0,
+    "rawIsHexadecimal": 14,
+    "rawOtherShape": 0,
+    "signAgreesWithAmount": 14,
+    "signDisagreesWithAmount": 0,
+    "currencyDistribution": {
+      "WETH": 4,
+      "SPY": 8,
+      "TZ": 2
+    },
+    "observedScales": {
+      "1e+18": 13,
+      "9.999999999999999e+17": 1
+    },
+    "samples": [
+      {
+        "raw": "-0x2ee726109c1",
+        "amount": -3.223144434113e-06,
+        "currency": "WETH"
+      },
+      {
+        "raw": "-0x83d28ee4d5a",
+        "amount": -9.058772733274e-06,
+        "currency": "WETH"
+      },
+      {
+        "raw": "-0x2f07ff79668",
+        "amount": -3.23196233892e-06,
+        "currency": "WETH"
+      },
+      {
+        "raw": "-0x553766c8be67d",
+        "amount": -0.001499142975907453,
+        "currency": "WETH"
+      },
+      {
+        "raw": "-0x3ffd672e0ca",
+        "amount": -4.397349396682e-06,
+        "currency": "SPY"
+      }
+    ],
+    "note": "the raw field carries the sign and is hexadecimal; the human amount is the raw magnitude divided by the token decimals.  A decimal sum over several currencies is meaningless, so the aggregation has to be grouped by currency."
+  }
+}

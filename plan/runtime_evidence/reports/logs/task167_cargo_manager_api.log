@@ -1,0 +1,56 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 19s
+     Running unittests src\lib.rs (target\debug\deps\manager_api-726a5a87de91de4f.exe)
+
+running 33 tests
+test tests::capabilities_describe_m8_pipeline_routes ... ok
+test tests::candidate_edge_comparison_route_is_read_only_and_validates_query ... ok
+test tests::capabilities_report_the_directional_pool_authority_dimension ... ok
+test tests::directional_pool_authority_is_a_separate_dimension_defaulting_to_legacy ... ok
+test tests::directional_pool_write_denial_is_a_403_that_names_the_mode ... ok
+test tests::health_is_available_without_business_state ... ok
+test tests::blank_network_override_is_ignored ... ok
+test tests::network_override_pins_every_route_to_one_namespace ... ok
+test tests::directional_pool_routes_require_explicit_dry_run_and_isolated_authority ... FAILED
+test tests::candidate_edge_routes_require_dry_run_and_isolated_authority ... ok
+test tests::admission_apply_fails_closed_outside_manager_authority ... ok
+test tests::closed_loop_routes_require_explicit_dry_run_and_isolated_authority ... ok
+test tests::candidate_exchange_routes_require_explicit_dry_run_and_isolated_authority ... ok
+test tests::broadcast_routes_enforce_headers_dry_run_authority_and_terminal_state ... ok
+test tests::pool_baseline_audit_returns_unanchored_extension_token_details ... ok
+test tests::overview_endpoint_publishes_the_broadcast_record_statistics ... ok
+test tests::review_clear_endpoint_is_dry_run_safe_and_idempotent ... ok
+test tests::pool_scope_routes_enforce_headers_dry_run_and_idempotent_rebuild ... ok
+test tests::pool_scope_repair_requires_explicit_dry_run ... ok
+test tests::pool_scope_apply_fails_closed_outside_manager_authority ... ok
+test tests::overview_endpoint_returns_manager_projection_without_legacy_reads ... ok
+test tests::token_admission_dry_run_apply_and_idempotent_replay_are_consistent ... ok
+test tests::review_run_enforces_headers_dry_run_and_authority ... ok
+test tests::token_reads_fail_closed_without_database_configuration ... ok
+test tests::token_audit_reports_counts_duplicates_and_recent_events_without_writing ... ok
+test tests::review_dry_run_apply_and_idempotent_replay_are_consistent ... ok
+test tests::token_audit_rejects_excessive_recent_event_limit ... ok
+test tests::token_query_reads_persisted_library_without_writing_events ... ok
+test tests::token_admission_requires_headers_and_explicit_dry_run ... ok
+test tests::pipeline_routes_enforce_authority_dry_run_idempotency_and_checkpoint ... ok
+test tests::token_resolve_reports_unique_and_ambiguous_symbols ... ok
+test tests::token_routes_never_cross_chain_namespaces ... ok
+test tests::review_query_filters_categories_outcomes_and_paginates_related_rows ... ok
+
+failures:
+
+---- tests::directional_pool_routes_require_explicit_dry_run_and_isolated_authority stdout ----
+
+thread 'tests::directional_pool_routes_require_explicit_dry_run_and_isolated_authority' (22348) panicked at manager_api\src\lib.rs:4536:9:
+assertion `left == right` failed
+  left: 503
+ right: 200
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::directional_pool_routes_require_explicit_dry_run_and_isolated_authority
+
+test result: FAILED. 32 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.18s
+
+error: test failed, to rerun pass `-p manager-api --lib`

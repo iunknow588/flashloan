@@ -776,7 +776,7 @@ def _direction_backfill_plan(
     database: str,
     network: str,
     chain_id: int,
-    direction_target: int = builders.MAX_CANDIDATE_POOLS_PER_PAIR,
+    direction_target: int | None = None,
     protocol: str = "uniswap_v4",
     reader: Any | None = None,
     anchors: Iterable[str] | None = None,
@@ -796,6 +796,9 @@ def _direction_backfill_plan(
     considered and a pair with zero candidate pools is invisible.
     """
     from core.db.storage_business_io import query, query_read_only
+
+    if direction_target is None:
+        direction_target = int(builders.MAX_CANDIDATE_POOLS_PER_PAIR)
 
     reader = reader or query
     address_by_symbol = {str(k).upper(): str(v).strip().lower() for k, v in (anchor_addresses or {}).items()}

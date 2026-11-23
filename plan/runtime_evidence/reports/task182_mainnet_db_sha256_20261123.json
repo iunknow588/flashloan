@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-11-23T00:27:28.565253+00:00",
+  "authority": "read-only inspection of the source tree, the lock file and the test results; no chain access; no writes to the main store; no broadcast",
+  "lockFile": {
+    "file": "flashloan/tools/Cargo.lock",
+    "diffExitCode": 0,
+    "diffOutput": "",
+    "byteIdentical": true
+  },
+  "mainStore": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "exists": true,
+    "sizeBytes": 8601968640,
+    "modifiedAt": "2026-11-22T22:07:03.074520+00:00",
+    "openedAtAll": false,
+    "openedForWriting": false
+  },
+  "report": "TASK-182 main store sha256",
+  "task": "TASK-182",
+  "acceptance": "AC-231",
+  "baseline": {
+    "sha256": "cfa1704980fdb3c819fcb0cb7a5f44c230a2fa53e21c38d514ed805aaab53522",
+    "sizeBytes": 8601968640,
+    "measuredAt": "2026-11-23 (before this round)",
+    "note": "The store was not opened during this round, so the digest cannot have changed. It was not recomputed because hashing 8 GiB would take minutes and the store was never touched."
+  }
+}

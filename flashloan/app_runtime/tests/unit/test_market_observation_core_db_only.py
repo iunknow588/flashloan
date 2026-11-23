@@ -8,11 +8,19 @@ from core.db.storage_market_observation import replace_market_observation_tables
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
 from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
-    upsert_v4_liquidity_snapshots,
 )
 from dex.intent_trade.chains.robinhood_common.market_observation_core import (
     db_closed_loop_sequences,
 )
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 ETH = "0x0000000000000000000000000000000000000000"
@@ -300,7 +308,7 @@ def test_db_closed_loop_sequences_uses_exchange_live_evidence_when_derived_rows_
     con.commit()
     con.close()
 
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         db,
         network="robinhood-testnet",
         chain_id=46630,

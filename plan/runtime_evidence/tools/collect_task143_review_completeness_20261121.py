@@ -32,7 +32,67 @@ OUT = os.path.join(
 
 NETWORK = "robinhood"
 CHAIN_ID = 4663
+
+#: The **observation** threshold: how old a stored review may be and still be
+#: reported as "fresh" in this evidence document.
 FRESHNESS_THRESHOLD_SECONDS = 600
+
+#: The **automatic-broadcast** age limit the Review Manager actually enforces.
+#: It is *not* a constant of this script: it is read out of the Rust source so
+#: the evidence can never drift away from the gate that decides whether a
+#: review may become a broadcast request.
+REVIEW_MANAGER_SRC = os.path.join(
+    ROOT, "flashloan", "tools", "review_manager", "src", "lib.rs",
+)
+GATE_CONSTANT = "MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS"
+GATE_SKEW_CONSTANT = "MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS"
+
+
+def read_automatic_broadcast_gate():
+    """Read the broadcast gate thresholds out of the Review Manager source.
+
+    The evidence must not carry a second, hand-copied copy of a gate that the
+    code owns.  Reading the constant back out of the source keeps the report
+    honest: if the gate moves, the report moves with it.
+    """
+    path = REVIEW_MANAGER_SRC
+    if not os.path.exists(path):
+        return {
+            "source": os.path.relpath(path, ROOT).replace("\\", "/"),
+            "available": False,
+            "reason": "the Review Manager source was not found",
+        }
+    text = open(path, "r", encoding="utf-8").read()
+    age = re.search(
+        r"const\s+" + GATE_CONSTANT + r"\s*:\s*i64\s*=\s*(-?\d+)\s*;", text
+    )
+    skew = re.search(
+        r"const\s+" + GATE_SKEW_CONSTANT + r"\s*:\s*i64\s*=\s*(-?\d+)\s*;", text
+    )
+    if age is None:
+        return {
+            "source": os.path.relpath(path, ROOT).replace("\\", "/"),
+            "sourceSha256": sha256_file(path),
+            "available": False,
+            "reason": (
+                "the automatic-broadcast age limit was not found in the "
+                "Review Manager source"
+            ),
+        }
+    return {
+        "source": os.path.relpath(path, ROOT).replace("\\", "/"),
+        "sourceSha256": sha256_file(path),
+        "available": True,
+        "automaticBroadcastAgeLimitSeconds": int(age.group(1)),
+        "automaticBroadcastFutureSkewSeconds": (
+            int(skew.group(1)) if skew else None
+        ),
+        "constantName": GATE_CONSTANT,
+        "meaning": (
+            "the Review Manager only turns a review into a broadcast request "
+            "while the review is at most this many seconds old"
+        ),
+    }
 
 
 def sha256_file(path):
@@ -333,6 +393,12 @@ def main():
 
     reviews = [audit_review(row) for row in raw_reviews]
 
+    # The gate the Review Manager enforces is read out of its source, so the
+    # evidence can never claim a review is "fresh enough to broadcast" while
+    # the code would refuse it.
+    gate = read_automatic_broadcast_gate()
+    gate_limit = gate.get("automaticBroadcastAgeLimitSeconds")
+
     now = datetime.datetime.now(datetime.timezone.utc)
     for review in reviews:
         reviewed = parse_iso(review["reviewedAt"])
@@ -342,6 +408,11 @@ def main():
         review["fresh"] = (
             review["ageSeconds"] is not None
             and review["ageSeconds"] <= FRESHNESS_THRESHOLD_SECONDS
+        )
+        review["withinAutomaticBroadcastAgeLimit"] = (
+            review["ageSeconds"] is not None
+            and gate_limit is not None
+            and review["ageSeconds"] <= gate_limit
         )
 
     # --- completeness ----------------------------------------------------
@@ -378,6 +449,12 @@ def main():
     fresh = [r for r in reviews if r["fresh"]]
     stale = [r for r in reviews if not r["fresh"]]
     ages = [r["ageSeconds"] for r in reviews if r["ageSeconds"] is not None]
+    broadcastable = [
+        r for r in reviews if r.get("withinAutomaticBroadcastAgeLimit")
+    ]
+    not_broadcastable = [
+        r for r in reviews if not r.get("withinAutomaticBroadcastAgeLimit")
+    ]
 
     kernel_audit = healer_source_audit()
 
@@ -502,12 +579,25 @@ def main():
             "name": "E",
             "requirement": (
                 "re-run the reviews and verify the freshness is inside the "
-                "600 second window"
+                "600 second window, and inside the age limit the Review "
+                "Manager actually enforces for automatic broadcast"
             ),
             "observations": {
+                # The observation threshold and the gate threshold are two
+                # different numbers with two different meanings.  Reporting
+                # only the looser one would let a review look broadcastable
+                # while the code refuses it.
                 "freshnessThresholdSeconds": FRESHNESS_THRESHOLD_SECONDS,
+                "freshnessThresholdMeaning": (
+                    "the observation window this document reports against"
+                ),
+                "automaticBroadcastGate": gate,
                 "freshReviews": len(fresh),
                 "staleReviews": len(stale),
+                "reviewsWithinAutomaticBroadcastAgeLimit": len(broadcastable),
+                "reviewsOutsideAutomaticBroadcastAgeLimit": len(
+                    not_broadcastable
+                ),
                 "oldestAgeSeconds": max(ages) if ages else None,
                 "youngestAgeSeconds": min(ages) if ages else None,
                 "oldestAgeDays": (max(ages) / 86400.0) if ages else None,
@@ -517,7 +607,12 @@ def main():
                     "600 second freshness window is NOT met. A fresh review "
                     "run is a WRITE action, so it needs its own explicit "
                     "authorisation and was not performed here. The freshness "
-                    "item is therefore UNMEASURED, not passed."
+                    "item is therefore UNMEASURED, not passed. Note that a "
+                    "review that satisfies the 600 second observation window "
+                    "can still be refused by the automatic-broadcast gate, "
+                    "which is the tighter of the two thresholds; the L3>0 "
+                    "criterion is decided by the gate, not by the observation "
+                    "window."
                 ),
             },
             "met": bool(fresh and not stale),
@@ -539,6 +634,22 @@ def main():
             "openedReadOnly": True,
         },
         "reviewLibraryState": library_state,
+        "freshnessThresholds": {
+            "observation": {
+                "freshnessThresholdSeconds": FRESHNESS_THRESHOLD_SECONDS,
+                "meaning": (
+                    "how old a stored review may be and still be reported as "
+                    "fresh by this document"
+                ),
+            },
+            "automaticBroadcastGate": gate,
+            "theL3CriterionIsDecidedBy": (
+                "automaticBroadcastGate"
+                if gate.get("available")
+                else "unknown - the gate could not be read from the source"
+            ),
+            "theTwoThresholdsAreNotInterchangeable": True,
+        },
         "checklist": items,
         "reviews": reviews,
         "acceptance": {

@@ -1451,6 +1451,34 @@ def test_scanner_start_honors_background_disabled_env(tmp_path):
     scanner.stop()
 
 
+def test_scanner_pipeline_is_gated_by_the_rust_backend(tmp_path, monkeypatch):
+    """The Python review pipeline must not schedule reviews while Rust is active.
+
+    The Rust kernel owns the pending-review queue and its resident workers.
+    The Python pipeline stays only as the legacy fallback.
+    """
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    monkeypatch.setattr(
+        "dex.runtime.dex_opportunity_scanner_engine.native_closed_loop_enabled",
+        lambda: True,
+    )
+    scanner = DexOpportunityScanner(
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        interval_seconds=60.0,
+    )
+
+    assert scanner._native_rust_closed_loop is True
+    # The Python supervisor was already gated by the Rust kernel.
+    assert scanner.closed_loop_review_supervisor is None
+    # The pipeline must refuse to start and must not consume the queue.
+    scanner.closed_loop_review_pipeline.start()
+    assert scanner.closed_loop_review_pipeline._threads == []
+    scanner.closed_loop_review_queue.submit_group(group_key="weth|usdg|nvda")
+    assert scanner.closed_loop_review_pipeline.run_once() is None
+    scanner.closed_loop_review_pipeline.stop()
+
+
 def test_scanner_start_starts_background_threads_when_enabled(tmp_path, monkeypatch):
     from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
 

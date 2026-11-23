@@ -1,0 +1,17 @@
+   Compiling token-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\token_manager)
+   Compiling manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+error[E0063]: missing field `directional_pool` in initializer of `UpstreamSnapshot`
+    --> composite_manager\src\lib.rs:3090:13
+     |
+3090 |             UpstreamSnapshot {
+     |             ^^^^^^^^^^^^^^^^ missing `directional_pool`
+
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+For more information about this error, try `rustc --explain E0063`.
+error: could not compile `composite-manager` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

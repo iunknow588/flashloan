@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 from app_runtime import run as run_module
 
 
@@ -79,3 +83,64 @@ def test_non_dex_runtime_background_is_opt_in_for_full_profile(monkeypatch) -> N
 
 def test_runtime_background_thread_name_is_scope_neutral() -> None:
     assert run_module.RUNTIME_BACKGROUND_THREAD_NAME == "runtime-background-init"
+
+
+_EMPTY_VALUED_VARIABLE = "FLASHLOAN_TEST_EMPTY_VALUED_VARIABLE"
+
+# The probe has to run in a child process.  An empty-valued environment
+# variable cannot be created in the current process on Windows: writing
+# an empty value through the Win32 API deletes the variable.  A child
+# that is started with an explicit environment block can carry one, and
+# a grandchild started without one inherits whatever the child's block
+# holds -- which is how every subprocess in this repository sees it.
+_EMPTY_VALUED_PROBE = """
+import subprocess
+import sys
+
+from app_runtime import run as run_module
+
+key = sys.argv[1]
+
+run_module.load_env_files = lambda *args, **kwargs: None
+with run_module._runtime_environment():
+    pass
+
+survived = subprocess.run(
+    [
+        sys.executable,
+        "-c",
+        "import os, sys; sys.exit(0 if sys.argv[1] in os.environ else 1)",
+        key,
+    ],
+    check=False,
+).returncode == 0
+sys.exit(0 if survived else 1)
+"""
+
+
+def test_runtime_environment_restore_keeps_empty_valued_variables() -> None:
+    """An empty-valued environment variable must survive the runtime block.
+
+    A variable whose value is the empty string is present but empty.  On
+    Windows the Win32 API cannot put that state back -- writing an empty
+    value deletes the variable -- so wiping the environment and writing
+    the snapshot back dropped every empty-valued variable that was there
+    before.  ``os.environ`` kept reporting them, so the loss stayed
+    invisible from Python and only surfaced in a subprocess, which
+    inherits the process environment block: a "git" call reading
+    GIT_CONFIG_VALUE_0 then failed with exit code 128 ("missing config
+    value GIT_CONFIG_VALUE_0") and took two repository guards with it.
+    """
+    env = dict(os.environ)
+    env[_EMPTY_VALUED_VARIABLE] = ""
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+
+    result = subprocess.run(
+        [sys.executable, "-c", _EMPTY_VALUED_PROBE, _EMPTY_VALUED_VARIABLE],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr

@@ -232,6 +232,43 @@ fn single_tick_bounds(
     (down, up)
 }
 
+/// Recomputes the single-tick bounds from a raw pool observation.
+///
+/// TASK-172 / AC-221. The depth snapshot table publishes
+/// `single_tick_max_token0_raw` / `single_tick_max_token1_raw`, but a
+/// consumer that reads a **stored** bound depends on the writer having
+/// measured the bound from the *same* on-chain moment as the price it
+/// published next to it. That was not guaranteed, and a consumer that
+/// materialised the stored bound published a stale number.
+///
+/// This function lets a consumer derive the bound from the observation it
+/// already holds (price, liquidity, tick, fee, spacing) instead of
+/// trusting a stored number. It is the **same** arithmetic the pool manager
+/// used to produce the stored value, so the two agree exactly when the
+/// observation is the one the bound was computed from.
+///
+/// The boundary arithmetic stays in Rust (DPO-10); this is the Rust-side
+/// entry point, not a Python re-implementation.
+///
+/// A `None` bound means the bound could not be located: the tick spacing is
+/// unknown, the tick does not fit an `i32`, or the tick range could not be
+/// computed. That is the same meaning the stored `NULL` carries.
+pub fn recompute_single_tick_bounds(
+    sqrt_price_x96: u128,
+    liquidity: u128,
+    fee_pips: u32,
+    tick_spacing: i32,
+    tick: i64,
+) -> (Option<u128>, Option<u128>) {
+    single_tick_bounds(
+        sqrt_price_x96,
+        liquidity,
+        fee_pips,
+        tick_spacing,
+        tick,
+    )
+}
+
 /// Computes the one-sided capacity for a pool at a given sqrt price.
 ///
 /// This is the pure function behind [`evaluate_capacity`]. It is deliberately

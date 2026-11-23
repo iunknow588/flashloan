@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-11-23T00:27:28.565253+00:00",
+  "authority": "read-only inspection of the source tree, the lock file and the test results; no chain access; no writes to the main store; no broadcast",
+  "lockFile": {
+    "file": "flashloan/tools/Cargo.lock",
+    "diffExitCode": 0,
+    "diffOutput": "",
+    "byteIdentical": true
+  },
+  "mainStore": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "exists": true,
+    "sizeBytes": 8601968640,
+    "modifiedAt": "2026-11-22T22:07:03.074520+00:00",
+    "openedAtAll": false,
+    "openedForWriting": false
+  },
+  "report": "TASK-178 月度套利库（DDL 克隆 / roll-over）",
+  "task": "TASK-178",
+  "acceptance": "AC-227",
+  "tests": {
+    "reviewManager": {
+      "package": "review-manager",
+      "command": "cargo test --offline -p review-manager --lib",
+      "exitCode": 0,
+      "passed": 153,
+      "failed": 0
+    },
+    "broadcastManager": {
+      "package": "broadcast-manager",
+      "command": "cargo test --offline -p broadcast-manager --lib",
+      "exitCode": 0,
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "rules": [
+    "The schema is cloned from the main store, never written by hand.",
+    "A month store never invents a table of its own.",
+    "The month is the UTC month of the record's own created_at.",
+    "Every closed loop of the month shares one SQLite file."
+  ],
+  "implemented": {
+    "functions": [
+      "owning_month",
+      "month_key",
+      "month_from_key",
+      "clone_schema_into",
+      "schema_statements_match",
+      "table_columns",
+      "MonthStore::rotate_to"
+    ],
+    "source": {
+      "path": "flashloan/tools/review_manager/src/records.rs",
+      "lines": 2349,
+      "publicFunctions": [
+        "add_signed_raw",
+        "clone_schema_into",
+        "diff_review_generations",
+        "list_trade_archive_months",
+        "loop_file_stem",
+        "maintenance_record_dir",
+        "month_from_key",
+        "month_key",
+        "note_review_publish_failure",
+        "note_trade_publish_failure",
+        "owning_month",
+        "parse_signed_raw",
+        "parse_utc",
+        "publish_review_records",
+        "publish_trade_archive",
+        "read_review_record_health",
+        "read_trade_archive_health",
+        "read_trade_archive_summary",
+        "reconcile_archive_backlog",
+        "render_signed_raw",
+        "review_day_folder",
+        "review_day_from_folder",
+        "review_day_is_removable",
+        "review_file_path",
+        "review_record_dir",
+        "schema_statements_match",
+        "store_directory_for",
+        "table_columns",
+        "trade_record_dir"
+      ]
+    }
+  }
+}

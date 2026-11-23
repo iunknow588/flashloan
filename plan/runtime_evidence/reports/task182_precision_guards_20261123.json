@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-11-23T00:27:28.565253+00:00",
+  "authority": "read-only inspection of the source tree, the lock file and the test results; no chain access; no writes to the main store; no broadcast",
+  "lockFile": {
+    "file": "flashloan/tools/Cargo.lock",
+    "diffExitCode": 0,
+    "diffOutput": "",
+    "byteIdentical": true
+  },
+  "mainStore": {
+    "path": "flashloan/db/local_store_4663.sqlite3",
+    "exists": true,
+    "sizeBytes": 8601968640,
+    "modifiedAt": "2026-11-22T22:07:03.074520+00:00",
+    "openedAtAll": false,
+    "openedForWriting": false
+  },
+  "report": "TASK-182 精度口径固化 + 守卫 + 证据（部分完成）",
+  "task": "TASK-182",
+  "acceptance": "AC-231",
+  "tests": {
+    "reviewManager": {
+      "package": "review-manager",
+      "command": "cargo test --offline -p review-manager --lib",
+      "exitCode": 0,
+      "passed": 153,
+      "failed": 0
+    },
+    "broadcastManager": {
+      "package": "broadcast-manager",
+      "command": "cargo test --offline -p broadcast-manager --lib",
+      "exitCode": 0,
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "status": "partial",
+  "done": [
+    "The signed profit is kept as a signed hexadecimal string and is never turned into a float (the record layer names no float type at all).",
+    "The aggregation runs on U256 and never in SQL.",
+    "Ten source level guards protect the new code."
+  ],
+  "deferred": [
+    "The fault injection matrix F-1 .. F-10 is deferred by the user: those paths are improbable, and the functional points are kept with an explicit error instead.",
+    "The multi month aggregate fixture matrix is deferred."
+  ],
+  "guards": {
+    "file": "flashloan/app_runtime/tests/unit/test_record_layer_guards.py",
+    "result": {
+      "command": "python -m pytest flashloan/app_runtime/tests/unit/test_record_layer_guards.py -q",
+      "exitCode": 0,
+      "passed": 10
+    }
+  }
+}

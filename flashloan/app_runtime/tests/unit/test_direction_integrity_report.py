@@ -7,10 +7,16 @@ from core.db.storage_dex_candidate import replace_dex_candidate_tables
 from core.db.storage_dex_surface_snapshot import save_dex_overview_snapshot
 from core.db.storage_market_observation import replace_market_observation_tables
 from core.db.storage_v4_closed_loop import replace_v4_closed_loop_tables
-from core.db.storage_v4_exchange import (
-    upsert_v4_exchange_pools,
-    upsert_v4_liquidity_snapshots,
-)
+from core.db.storage_v4_exchange import upsert_v4_exchange_pools
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 ETH = "0x0000000000000000000000000000000000000000"
@@ -91,7 +97,11 @@ def _seed(tmp_path, *, bad_pool: str | None = None, unresolved_middle_symbol: st
         protocol=PROTOCOL,
         pool_rows=raw_pools,
     )
-    upsert_v4_liquidity_snapshots(
+    # TASK-172 / AC-221: the depth snapshot table has exactly one writer,
+    # the Rust pool manager, so the evidence channel cannot arrange a
+    # measured row.  The fixture publishes the row the way the pool manager
+    # publishes it.
+    materialise_depth_snapshot(
         db,
         network=NETWORK,
         chain_id=CHAIN_ID,

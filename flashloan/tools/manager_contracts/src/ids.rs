@@ -10,6 +10,7 @@ pub enum IdError {
     InvalidTokenKeyId,
     InvalidPairKeyId,
     InvalidRouteKeyId,
+    InvalidDirectionalPoolId,
     MixedRouteChains,
     TooFewRouteTokens,
 }
@@ -25,6 +26,7 @@ impl fmt::Display for IdError {
             Self::InvalidTokenKeyId => formatter.write_str("invalid token_key_id"),
             Self::InvalidPairKeyId => formatter.write_str("invalid pair_key_id"),
             Self::InvalidRouteKeyId => formatter.write_str("invalid route_key_id"),
+            Self::InvalidDirectionalPoolId => formatter.write_str("invalid directional_pool_id"),
             Self::MixedRouteChains => formatter.write_str("route tokens must use one chain id"),
             Self::TooFewRouteTokens => {
                 formatter.write_str("route must contain at least two tokens")
@@ -261,6 +263,127 @@ fn normalize_network(value: &str) -> Result<String, IdError> {
     Ok(normalized)
 }
 
+/// The identity of a **directional pool**: a base V4 pool projected onto one
+/// of its two swap directions.
+///
+/// The identity is the base pool identity plus the direction, so the two
+/// rows of one base pool can never collide and a direction can never be
+/// silently swapped: the direction is part of the key, not a payload.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct DirectionalPoolId(String);
+
+impl DirectionalPoolId {
+    pub fn new(
+        network: impl AsRef<str>,
+        chain_id: u64,
+        scope_key: impl AsRef<str>,
+        base_pool_id: impl AsRef<str>,
+        direction: u8,
+    ) -> Result<Self, IdError> {
+        let network = normalize_network(network.as_ref())?;
+        let chain_id = normalize_chain_id(chain_id)?;
+        let scope_key = normalize_scope_key(scope_key.as_ref())?;
+        let base_pool_id = normalize_base_pool_id(base_pool_id.as_ref())?;
+        if direction > 1 {
+            return Err(IdError::InvalidDirectionalPoolId);
+        }
+        Ok(Self(format!(
+            "dpool:v1:{network}:{chain_id}:{scope_key}:{base_pool_id}:{direction}"
+        )))
+    }
+
+    pub fn network(&self) -> &str {
+        self.0.split(':').nth(2).unwrap_or_default()
+    }
+
+    pub fn chain_id(&self) -> u64 {
+        self.0
+            .split(':')
+            .nth(3)
+            .and_then(|value| value.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub fn scope_key(&self) -> &str {
+        self.0.split(':').nth(4).unwrap_or_default()
+    }
+
+    pub fn base_pool_id(&self) -> &str {
+        self.0.split(':').nth(5).unwrap_or_default()
+    }
+
+    /// The stored direction value (`0` or `1`).
+    pub fn direction(&self) -> u8 {
+        self.0
+            .split(':')
+            .nth(6)
+            .and_then(|value| value.parse().ok())
+            .unwrap_or_default()
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for DirectionalPoolId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl FromStr for DirectionalPoolId {
+    type Err = IdError;
+
+    fn from_str(value: &str) -> Result<Self, IdError> {
+        let parts: Vec<_> = value.split(':').collect();
+        if parts.len() != 7
+            || parts[0] != "dpool"
+            || parts[1] != "v1"
+            || normalize_network(parts[2]).ok().as_deref() != Some(parts[2])
+            || normalize_scope_key(parts[4]).ok().as_deref() != Some(parts[4])
+            || normalize_base_pool_id(parts[5]).ok().as_deref() != Some(parts[5])
+            || parts[6] != "0"
+                && parts[6] != "1"
+        {
+            return Err(IdError::InvalidDirectionalPoolId);
+        }
+        let chain_id = parts[3]
+            .parse::<u64>()
+            .map_err(|_| IdError::InvalidDirectionalPoolId)?;
+        if normalize_chain_id(chain_id).is_err() {
+            return Err(IdError::InvalidDirectionalPoolId);
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+
+fn normalize_scope_key(value: &str) -> Result<String, IdError> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty()
+        || !normalized.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+        })
+    {
+        return Err(IdError::InvalidDirectionalPoolId);
+    }
+    Ok(normalized)
+}
+
+/// A base pool id is the keccak256 digest of the encoded pool key, so it is
+/// always `0x` followed by 64 hexadecimal characters.
+fn normalize_base_pool_id(value: &str) -> Result<String, IdError> {
+    let normalized = value.trim().to_ascii_lowercase();
+    let Some(hex) = normalized.strip_prefix("0x") else {
+        return Err(IdError::InvalidDirectionalPoolId);
+    };
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(IdError::InvalidDirectionalPoolId);
+    }
+    Ok(normalized)
+}
+
 fn normalize_chain_id(chain_id: u64) -> Result<u64, IdError> {
     if chain_id == 0 {
         Err(IdError::InvalidChainId)
@@ -282,11 +405,15 @@ pub fn normalize_address(value: &str) -> Result<String, IdError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_address, IdError, PairKeyId, RouteKeyId, TokenKeyId};
+    use super::{
+        normalize_address, DirectionalPoolId, IdError, PairKeyId, RouteKeyId, TokenKeyId,
+    };
     use std::str::FromStr;
 
     const USDG: &str = "0x1111111111111111111111111111111111111111";
     const WETH: &str = "0x2222222222222222222222222222222222222222";
+    const POOL: &str =
+        "0x002eaee43a6c1daa7c29484ee0d44a9abcd65827e72f883a1feb42ab8618ccba";
 
     #[test]
     fn normalizes_address_and_rejects_invalid_values() {
@@ -328,5 +455,32 @@ mod tests {
         )
         .unwrap();
         assert_ne!(native.currency_key(), WETH);
+    }
+
+    #[test]
+    fn the_directional_pool_id_carries_the_direction() {
+        let low = DirectionalPoolId::new("Robinhood", 4663, "candidate_exchange", POOL, 0)
+            .unwrap();
+        let high = DirectionalPoolId::new("robinhood", 4663, "candidate_exchange", POOL, 1)
+            .unwrap();
+
+        // The two rows of one base pool never collide.
+        assert_ne!(low, high);
+        assert_eq!(low.base_pool_id(), high.base_pool_id());
+        assert_eq!(low.direction(), 0);
+        assert_eq!(high.direction(), 1);
+        assert_eq!(low.chain_id(), 4663);
+        assert_eq!(low.scope_key(), "candidate_exchange");
+        assert_eq!(DirectionalPoolId::from_str(low.as_str()).unwrap(), low);
+        // A direction above one is not a direction.
+        assert_eq!(
+            DirectionalPoolId::new("robinhood", 4663, "candidate_exchange", POOL, 2),
+            Err(IdError::InvalidDirectionalPoolId)
+        );
+        // A base pool id that is not a keccak256 digest is rejected.
+        assert_eq!(
+            DirectionalPoolId::new("robinhood", 4663, "candidate_exchange", "0x1234", 0),
+            Err(IdError::InvalidDirectionalPoolId)
+        );
     }
 }

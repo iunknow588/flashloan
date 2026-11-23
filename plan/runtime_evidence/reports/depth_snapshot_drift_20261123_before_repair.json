@@ -1,0 +1,2329 @@
+{
+  "acAcceptance": "AC-221",
+  "byTable": {
+    "v4_exchange_pools": {
+      "compared": 2486,
+      "consistent": 2333,
+      "drifted": 142,
+      "notRecomputable": 11
+    }
+  },
+  "chainId": 4663,
+  "compared": 2486,
+  "consistent": 2333,
+  "criterion": "The stored single-tick bound is recomputed from the observation **the snapshot row itself carries** (its own sqrt_price_x96, tick and liquidity, with the pool's fee and tick_spacing).  A row whose recomputed bound differs from its stored bound is drifted: its bound belongs to a different moment than its price.  No timestamp is used -- a timestamp says when a row was written, never whether the bound and the price in that row came from the same moment, and the evidence channel rewrote refreshed_at unconditionally.",
+  "database": "flashloan/db/local_store_4663.sqlite3",
+  "driftRate": 0.05711987127916331,
+  "drifted": 142,
+  "driftedSamples": [
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "27649479663627316",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 2040454674,
+          "status": "drifted",
+          "stored": 6010042923
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 7924761798951672186,
+          "status": "drifted",
+          "stored": 9436401291674537150
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 6010042923
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 9436401291674537150
+        }
+      ],
+      "poolId": "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "7716320370391925304018052568445369",
+      "table": "v4_exchange_pools",
+      "tick": 229741,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "4850552960502",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 44014,
+          "status": "drifted",
+          "stored": 42014
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 588100638282,
+          "status": "drifted",
+          "stored": 54387513608137
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 42014
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 54387513608137
+        }
+      ],
+      "poolId": "0x0112f42d2da7164a1e224ef55be60c10ef9607cabdadbc003123daa500750358",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "10940577856143654899199124312281367",
+      "table": "v4_exchange_pools",
+      "tick": 236724,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 375,
+      "liquidity": "520797957",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 3,
+          "status": "drifted",
+          "stored": 2
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 905535410,
+          "status": "drifted",
+          "stored": 3135665841
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 3135665841
+        }
+      ],
+      "poolId": "0x0147d1038acac38d1a1c0082f5529d2ca5f6610a952a0ae632b6465306fa3c7d",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3641685695629085309924445058098432",
+      "table": "v4_exchange_pools",
+      "tick": 214723,
+      "tickSpacing": 4,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 100,
+      "liquidity": "54773207779044021846921",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 13731678681981,
+          "status": "drifted",
+          "stored": 72606386485135
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 45340952464695732143723,
+          "status": "drifted",
+          "stored": 25798415684147450543654
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 72606386485135
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 25798415684147450543654
+        }
+      ],
+      "poolId": "0x027b87bd469254ab36336892b865689582a13abae1399ab3837c8aa1889b2159",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "1443448914789090163627485222408000",
+      "table": "v4_exchange_pools",
+      "tick": 196214,
+      "tickSpacing": 1,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 15000,
+      "liquidity": "1049863366",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 578488,
+          "status": "drifted",
+          "stored": 264223
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 17100958,
+          "status": "drifted",
+          "stored": 22314411
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 264223
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 22314411
+        }
+      ],
+      "poolId": "0x04263541986025755033c507d2c02863354abe64236878f3455b7d72ad9cce27",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "208765698311126818827056255436",
+      "table": "v4_exchange_pools",
+      "tick": 19378,
+      "tickSpacing": 150,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9000,
+      "liquidity": "5256311217898044537",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 12465824232926835,
+          "status": "drifted",
+          "stored": 6699630930719554
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 4192641053488227,
+          "status": "drifted",
+          "stored": 21253895292336084
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 6699630930719554
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 21253895292336084
+        }
+      ],
+      "poolId": "0x0517b876fc82b3494abc9c208d5873d4b515d1761351d7d0264840551f56cc48",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "136502906946844218969701260747",
+      "table": "v4_exchange_pools",
+      "tick": 10880,
+      "tickSpacing": 90,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 5500,
+      "liquidity": "243540355045841",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 33074619292858900,
+          "status": "drifted",
+          "stored": 8016320922659654
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 2803258,
+          "status": "drifted",
+          "stored": 8014449
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 8016320922659654
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 8014449
+        }
+      ],
+      "poolId": "0x056dbf9e55b6480a8b8134a318c96e59424a6533c935e36ee04d8a6a751a91c1",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "1152988945565787121143872",
+      "table": "v4_exchange_pools",
+      "tick": -222766,
+      "tickSpacing": 55,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "941851319433465133914",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 48694098511912020,
+          "status": "drifted",
+          "stored": 85461312304133232
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 7151877122141108060,
+          "status": "drifted",
+          "stored": 2279357401517284724
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 85461312304133232
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2279357401517284724
+        }
+      ],
+      "poolId": "0x08683360c101b897136892e5e8e560bee6af7d74685ae86cc31c131b10f604c9",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "938299166949433720971975157090",
+      "table": "v4_exchange_pools",
+      "tick": 49437,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 3000,
+      "liquidity": "16013805082100901873",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 4191952503311944,
+          "status": "drifted",
+          "stored": 287078754913091
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 116825321202306299,
+          "status": "drifted",
+          "stored": 129335914319520570
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 287078754913091
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 129335914319520570
+        }
+      ],
+      "poolId": "0x08b30a03293a77622cd0a3f53a0355aae6a3c5ee832c01db429aed46ddfa328a",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "636715506280330522504359026581",
+      "table": "v4_exchange_pools",
+      "tick": 41681,
+      "tickSpacing": 60,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "2116890009305534854138",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 1201980482361348239,
+          "status": "drifted",
+          "stored": 1311761702132386618
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 1097641374580617279,
+          "status": "drifted",
+          "stored": 715394950105361642
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1311761702132386618
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 715394950105361642
+        }
+      ],
+      "poolId": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "131235625175210064914728528673",
+      "table": "v4_exchange_pools",
+      "tick": 10093,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9000,
+      "liquidity": "17032156097945",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 12649918198,
+          "status": "drifted",
+          "stored": 6719444378
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 115939251951,
+          "status": "drifted",
+          "stored": 20852629180
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 6719444378
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 20852629180
+        }
+      ],
+      "poolId": "0x0d662a58507a46cd6a22632228306dc0d9c26f5fce90c37ced3b8358db33deb3",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "206997153580579840920477861680",
+      "table": "v4_exchange_pools",
+      "tick": 19208,
+      "tickSpacing": 90,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 1800,
+      "liquidity": "62171986845307389525",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 21481744637647980,
+          "status": "drifted",
+          "stored": 13408780420425648
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 33841395031188080,
+          "status": "drifted",
+          "stored": 43559468094797684
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 13408780420425648
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 43559468094797684
+        }
+      ],
+      "poolId": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "131693805841659772315248308498",
+      "table": "v4_exchange_pools",
+      "tick": 10163,
+      "tickSpacing": 18,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 3500,
+      "liquidity": "5414963940151319",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 1066705828177116219,
+          "status": "drifted",
+          "stored": 35600371894671336
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 75313674,
+          "status": "drifted",
+          "stored": 247906894
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 35600371894671336
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 247906894
+        }
+      ],
+      "poolId": "0x106af997d180cf37a574c42c04179f267b9245cf221b1c57fb3e491137915de6",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "983572496604760461378258",
+      "table": "v4_exchange_pools",
+      "tick": -225945,
+      "tickSpacing": 71,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "295984376890885379709",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 6497117844903190,
+          "status": "drifted",
+          "stored": 28664417636810478
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 1952517593697101065,
+          "status": "drifted",
+          "stored": 1578980225995330447
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 28664417636810478
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1578980225995330447
+        }
+      ],
+      "poolId": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "464574427031599015938265686952",
+      "table": "v4_exchange_pools",
+      "tick": 35377,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 4322,
+      "liquidity": "28456722002142478",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 2048537704953,
+          "status": "drifted",
+          "stored": 10007011176861
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 176551696430192,
+          "status": "drifted",
+          "stored": 139099148323762
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 10007011176861
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 139099148323762
+        }
+      ],
+      "poolId": "0x17ebf98139fcd2bd60e20e2f35e73d7a7273de9b9f77f9caca506e784e9d5173",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "171820195828063669826897963790",
+      "table": "v4_exchange_pools",
+      "tick": 15483,
+      "tickSpacing": 60,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "9781746745189612",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 498724884330,
+          "status": "drifted",
+          "stored": 3972080879564
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 22037783566678,
+          "status": "drifted",
+          "stored": 8956446040838
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 3972080879564
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 8956446040838
+        }
+      ],
+      "poolId": "0x1a6d5579d20159a8e16b9ef7d41d7aedffb4198283f091427ec8f4cda8b30e9e",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "154647394813548681358140912409",
+      "table": "v4_exchange_pools",
+      "tick": 13376,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 50,
+      "liquidity": "1394893242746",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 986,
+          "status": "drifted",
+          "stored": 971
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 6745820875,
+          "status": "drifted",
+          "stored": 86365994118
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 971
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 86365994118
+        }
+      ],
+      "poolId": "0x1d6b86ca25e01a320aa392d6b64e68c364245c2071a7315e80e3e0ccb7e87cc3",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "5602499773615623345330513677067584",
+      "table": "v4_exchange_pools",
+      "tick": 223338,
+      "tickSpacing": 1,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "289313413728736445449",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 17284237277847481,
+          "status": "drifted",
+          "stored": 2575484017713299873
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 1294766150402167018,
+          "status": "drifted",
+          "stored": 2210106916721816422
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2575484017713299873
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2210106916721816422
+        }
+      ],
+      "poolId": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "361415317534400273187395692179",
+      "table": "v4_exchange_pools",
+      "tick": 30355,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 1200,
+      "liquidity": "22980302264750356",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 197028559,
+          "status": "drifted",
+          "stored": 167616821
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 47441565880194453,
+          "status": "drifted",
+          "stored": 166412847303743352
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 167616821
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 166412847303743352
+        }
+      ],
+      "poolId": "0x1f2ad5a274a776d8e1408292bde1d92d8fa7b6444acf14ad60b9c3e4e5b66420",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "6715911525045839598435944522361063",
+      "table": "v4_exchange_pools",
+      "tick": 226964,
+      "tickSpacing": 15,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "36799790635194",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 288253,
+          "status": "drifted",
+          "stored": 24712
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 1838565314795520,
+          "status": "drifted",
+          "stored": 3708973136915694
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 24712
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 3708973136915694
+        }
+      ],
+      "poolId": "0x1fb919c02c59434fb4df11765786a75836facdd6cd1648004eaed9d989a9a910",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "6723889277343377985235814458070339",
+      "table": "v4_exchange_pools",
+      "tick": 226988,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 500,
+      "liquidity": "97393500007310525850814",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 1197839654551104772,
+          "status": "drifted",
+          "stored": 3934339996800227359
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 3674011072650041895,
+          "status": "drifted",
+          "stored": 936396203323360622
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 3934339996800227359
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 936396203323360622
+        }
+      ],
+      "poolId": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "79225175255322538457427798593",
+      "table": "v4_exchange_pools",
+      "tick": -1,
+      "tickSpacing": 1,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9000,
+      "liquidity": "22150389465460695",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 918387511285768523,
+          "status": "drifted",
+          "stored": 8670269974982758080
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 609405132,
+          "status": "drifted",
+          "stored": 1585180247
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 8670269974982758080
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1585180247
+        }
+      ],
+      "poolId": "0x237014478f7ef98afbe7412ac35b6a3f96b8fb111de48b7c4dbf49dba4bd9c4b",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "508875830045312362696124",
+      "table": "v4_exchange_pools",
+      "tick": -239125,
+      "tickSpacing": 90,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 100,
+      "liquidity": "12203342133452336",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 269512912652894,
+          "status": "drifted",
+          "stored": 12288546881528204
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 24747011,
+          "status": "drifted",
+          "stored": 7411112
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 12288546881528204
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 7411112
+        }
+      ],
+      "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3272789659045286784520865",
+      "table": "v4_exchange_pools",
+      "tick": -201899,
+      "tickSpacing": 1,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 4322,
+      "liquidity": "30533677489319658",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 10040627712833,
+          "status": "drifted",
+          "stored": 29251160600723
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 154112146511269,
+          "status": "drifted",
+          "stored": 58711820589263
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 29251160600723
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 58711820589263
+        }
+      ],
+      "poolId": "0x246725ccce4359cae5eeaf85389b3b21f0a19a061553f7609a0bd1d7979731d9",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "174515456626188726990511515334",
+      "table": "v4_exchange_pools",
+      "tick": 15794,
+      "tickSpacing": 60,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "7947239215456112",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 705705093,
+          "status": "drifted",
+          "stored": 56873690
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 2067382212639107930,
+          "status": "drifted",
+          "stored": 2117523809087457183
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 56873690
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2117523809087457183
+        }
+      ],
+      "poolId": "0x2707cb88a6a40fa0f948f58958051ba097d6f6a3cf7f87929bd68ccc5becea24",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3094792526426952311908123726593642",
+      "table": "v4_exchange_pools",
+      "tick": 211468,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 500,
+      "liquidity": "28938060810435905581",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 1637517579936868,
+          "status": "drifted",
+          "stored": 2389316432986632
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 7398938769727326,
+          "status": "drifted",
+          "stored": 5457648470406103
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2389316432986632
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 5457648470406103
+        }
+      ],
+      "poolId": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "127153998938172034109405262954",
+      "table": "v4_exchange_pools",
+      "tick": 9461,
+      "tickSpacing": 5,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 500,
+      "liquidity": "12780327839514",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 34990,
+          "status": "drifted",
+          "stored": 28483
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 291393769835557,
+          "status": "drifted",
+          "stored": 331023833564146
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 28483
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 331023833564146
+        }
+      ],
+      "poolId": "0x2d6ec380a3dc18dc4a2067ba6884835b49455cd79c8afa1f7625b6b2f85670a6",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "6882557796182364474426204624468374",
+      "table": "v4_exchange_pools",
+      "tick": 227454,
+      "tickSpacing": 10,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "132211000043191574",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 307773146,
+          "status": "drifted",
+          "stored": 1104975146
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 3300875177909176,
+          "status": "drifted",
+          "stored": 3300870355551995
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1104975146
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 3300870355551995
+        }
+      ],
+      "poolId": "0x2e36f5c99015e1cd1adfd0f4dadaf340bf32522de17c91be169c9f4c39a4e640",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "194861067755107654931856718765",
+      "table": "v4_exchange_pools",
+      "tick": 18000,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 6500,
+      "liquidity": "1676623247827591",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 35078697,
+          "status": "drifted",
+          "stored": 206473373
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 209771818558820874,
+          "status": "drifted",
+          "stored": 376593838257229838
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 206473373
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 376593838257229838
+        }
+      ],
+      "poolId": "0x2e6acf0380143b920c5ce7cf90da73e01d6bb70be9c09004fdd34e713f4a3b7f",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "5257441963109682244309555856825850",
+      "table": "v4_exchange_pools",
+      "tick": 222067,
+      "tickSpacing": 65,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2500,
+      "liquidity": "117872279401080661",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 198732643,
+          "status": "drifted",
+          "stored": 1324334812
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 13894506698598812970,
+          "status": "drifted",
+          "stored": 20687560049175189809
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1324334812
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 20687560049175189809
+        }
+      ],
+      "poolId": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "8748885973661210000000000000000000",
+      "table": "v4_exchange_pools",
+      "tick": 232253,
+      "tickSpacing": 25,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2000,
+      "liquidity": "22089854445576",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 543094,
+          "status": "drifted",
+          "stored": 427639
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 52922561564,
+          "status": "drifted",
+          "stored": 784613340378858
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 427639
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 784613340378858
+        }
+      ],
+      "poolId": "0x33833d86c64846f507e8e862cfc6ed33f029f3d0d679b629e51cea9ad0b25a26",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "6464048170707882542305319187792938",
+      "table": "v4_exchange_pools",
+      "tick": 226199,
+      "tickSpacing": 40,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 500,
+      "liquidity": "45977028599",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 216181089393,
+          "status": "drifted",
+          "stored": 586274071553
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 458,
+          "status": "drifted",
+          "stored": 195
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 586274071553
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 195
+        }
+      ],
+      "poolId": "0x373af02ddc07b764382372fe98f92410d3d70e6eb21f253199a8f458303a8bf2",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "2091200395549125562290051",
+      "table": "v4_exchange_pools",
+      "tick": -210858,
+      "tickSpacing": 10,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 500,
+      "liquidity": "41675661491099637",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 289614630530433211,
+          "status": "drifted",
+          "stored": 237366117670301486
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 367051177,
+          "status": "drifted",
+          "stored": 469221281
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 237366117670301486
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 469221281
+        }
+      ],
+      "poolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3273562245889572701470720",
+      "table": "v4_exchange_pools",
+      "tick": -201895,
+      "tickSpacing": 10,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "199021732387281926032",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 210920778998253659,
+          "status": "drifted",
+          "stored": 91329403789379741
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 4527424969270817614,
+          "status": "drifted",
+          "stored": 5576520966233424741
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 91329403789379741
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 5576520966233424741
+        }
+      ],
+      "poolId": "0x39910df82a4009ea98d01e9df0b9f1b5b01583cc62ea5889c6c8a8e41fbef470",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "286016150733570921739620180842",
+      "table": "v4_exchange_pools",
+      "tick": 25675,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 3000,
+      "liquidity": "14371013459999698",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 431350373,
+          "status": "drifted",
+          "stored": 925065575
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 505881689673952214,
+          "status": "drifted",
+          "stored": 13684383084377446883
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 925065575
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 13684383084377446883
+        }
+      ],
+      "poolId": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "6881582723470191309513140958455783",
+      "table": "v4_exchange_pools",
+      "tick": 227451,
+      "tickSpacing": 60,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "1778065134671767",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 3038544110339491247,
+          "status": "drifted",
+          "stored": 507421340220865493
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 12543141,
+          "status": "drifted",
+          "stored": 77977672
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 507421340220865493
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 77977672
+        }
+      ],
+      "poolId": "0x3d436b4fdc532c61a0bf15d6cae80a66eb8f28ee9daec34dbec4b5bc9964063b",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "406299439475199843183976",
+      "table": "v4_exchange_pools",
+      "tick": -243628,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 350,
+      "liquidity": "6865637039684571728919",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 231036475642859282,
+          "status": "drifted",
+          "stored": 195425773691395991
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 1473867372151161162,
+          "status": "drifted",
+          "stored": 808839261107293898
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 195425773691395991
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 808839261107293898
+        }
+      ],
+      "poolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "111314784695296529419326147229",
+      "table": "v4_exchange_pools",
+      "tick": 6800,
+      "tickSpacing": 4,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9000,
+      "liquidity": "3003234436594764210",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 2553712591449988,
+          "status": "drifted",
+          "stored": 1098698514412385
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 15577732147538867,
+          "status": "drifted",
+          "stored": 19536579027822063
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 1098698514412385
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 19536579027822063
+        }
+      ],
+      "poolId": "0x442d52ecd9f7c69e50ba817c723d1b49a8fd3fd34815b8bfd447f040323633e9",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "130738142415996351341641799210",
+      "table": "v4_exchange_pools",
+      "tick": 10017,
+      "tickSpacing": 90,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9000,
+      "liquidity": "375559419028446",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 15173794,
+          "status": "drifted",
+          "stored": 15173644
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 511287708386,
+          "status": "drifted",
+          "stored": 2413874451613
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 15173644
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 2413874451613
+        }
+      ],
+      "poolId": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "8923958862017426553474101773504531",
+      "table": "v4_exchange_pools",
+      "tick": 232649,
+      "tickSpacing": 90,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 18000,
+      "liquidity": "957783774170858",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 18684862,
+          "status": "drifted",
+          "stored": 201779858
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 439014460439352356,
+          "status": "drifted",
+          "stored": 161914166589227638
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 201779858
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 161914166589227638
+        }
+      ],
+      "poolId": "0x4669f93ee59066abfe3a5234ed5d33f967ebd23d3f72ceb88fd6fbc99f16becc",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "4487782272675081706081116876745005",
+      "table": "v4_exchange_pools",
+      "tick": 218901,
+      "tickSpacing": 180,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 400,
+      "liquidity": "741653599013",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 1793250423562,
+          "status": "drifted",
+          "stored": 288927940043
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 9200,
+          "status": "drifted",
+          "stored": 12035
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 288927940043
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 12035
+        }
+      ],
+      "poolId": "0x4ad1c182c7de2c7a88e25235ce7fba6b07b20081955591a436e980b7117b58fb",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3272295244075385334812838",
+      "table": "v4_exchange_pools",
+      "tick": -201903,
+      "tickSpacing": 8,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 1000,
+      "liquidity": "1204455954517232123586",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 10160028248549603,
+          "status": "drifted",
+          "stored": 298089830207790554
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 912136004588606388,
+          "status": "drifted",
+          "stored": 213917347980205238
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 298089830207790554
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 213917347980205238
+        }
+      ],
+      "poolId": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "123078564874528977221945086320",
+      "table": "v4_exchange_pools",
+      "tick": 8810,
+      "tickSpacing": 10,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "21191475461281267126",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 12561664921793552,
+          "status": "drifted",
+          "stored": 49593589493620290
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 456764110338136923,
+          "status": "drifted",
+          "stored": 387638477842231880
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 49593589493620290
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 387638477842231880
+        }
+      ],
+      "poolId": "0x5182d37e70a1c2e1060f8671739ae929913ceabcf2bd80a1a2a6356eafd4b506",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "197106704272677345764070089286",
+      "table": "v4_exchange_pools",
+      "tick": 18229,
+      "tickSpacing": 200,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 3000,
+      "liquidity": "138344715555109592504",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 36579479840007496,
+          "status": "drifted",
+          "stored": 53562064012158741
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 274403211373581270,
+          "status": "drifted",
+          "stored": 60675388029631208
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 53562064012158741
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 60675388029631208
+        }
+      ],
+      "poolId": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "286781701055025592229863546512",
+      "table": "v4_exchange_pools",
+      "tick": 25729,
+      "tickSpacing": 30,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 460,
+      "liquidity": "11942173274288015",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 29878895716444176,
+          "status": "drifted",
+          "stored": 80794370616569088
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 171153273,
+          "status": "drifted",
+          "stored": 141568428
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 80794370616569088
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 141568428
+        }
+      ],
+      "poolId": "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3273452148567351673766909",
+      "table": "v4_exchange_pools",
+      "tick": -201895,
+      "tickSpacing": 9,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 2057,
+      "liquidity": "53560544359920",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 18481887387019141,
+          "status": "drifted",
+          "stored": 12494391988565292
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 39449,
+          "status": "drifted",
+          "stored": 62868
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 12494391988565292
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 62868
+        }
+      ],
+      "poolId": "0x55f2df399bf61fd758b99848452eaf217ee9d2f98fb9c79deb23fe9a2652bc5a",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "155450118125088130230527",
+      "table": "v4_exchange_pools",
+      "tick": -262844,
+      "tickSpacing": 21,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 9500,
+      "liquidity": "76140549765850",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 8108220101284530,
+          "status": "drifted",
+          "stored": 4021081394372953
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 3846137,
+          "status": "drifted",
+          "stored": 5006591
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 4021081394372953
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 5006591
+        }
+      ],
+      "poolId": "0x578d3e799e888723d7f4292dec70e0e2abe9dc7e3b337a1c53ea16757f18faf2",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "1324982889038643885116414",
+      "table": "v4_exchange_pools",
+      "tick": -219985,
+      "tickSpacing": 95,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 10000,
+      "liquidity": "15078642480273847414",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 8999544921453844,
+          "status": "drifted",
+          "stored": 15409930031066798
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 156592113822864615,
+          "status": "drifted",
+          "stored": 76348390245347650
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 15409930031066798
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 76348390245347650
+        }
+      ],
+      "poolId": "0x57b4e34d106a25580790bec37925bde7a239d40bb964c5236eeeec58fa0482f9",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "277087592287183387956418048717",
+      "table": "v4_exchange_pools",
+      "tick": 25041,
+      "tickSpacing": 100,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 3000,
+      "liquidity": "77042876576264354",
+      "liquidityReadAt": "2026-11-22T10:45:35.910126Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 3753321467,
+          "status": "drifted",
+          "stored": 30560315098
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 3143920649770413775,
+          "status": "drifted",
+          "stored": 12658471125973571815
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 30560315098
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 12658471125973571815
+        }
+      ],
+      "poolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T12:56:35Z",
+      "sqrtPriceX96": "3307905707313114506836727542740853",
+      "table": "v4_exchange_pools",
+      "tick": 212800,
+      "tickSpacing": 60,
+      "undecidable": false
+    },
+    {
+      "drifted": true,
+      "evidenceSource": "pool_manager_extsload_live_state_batch_rust",
+      "fee": 1860,
+      "liquidity": "423694716380229",
+      "liquidityReadAt": "2026-11-22T13:21:12.065080Z",
+      "materializationBatch": null,
+      "observations": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": 36136185553932731,
+          "status": "drifted",
+          "stored": 34969999590326513
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": 382087,
+          "status": "drifted",
+          "stored": 471767
+        }
+      ],
+      "observationsAgainstPoolTable": [
+        {
+          "column": "single_tick_max_token0_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 34969999590326513
+        },
+        {
+          "column": "single_tick_max_token1_raw",
+          "recomputed": null,
+          "status": "not-recomputable",
+          "stored": 471767
+        }
+      ],
+      "poolId": "0x5d3fdc1880b35f9fe20f98bff4e47db44e48f2c293985feea658563fd83b9831",
+      "poolTableLiquidity": null,
+      "poolTableSqrtPriceX96": null,
+      "poolTableTick": null,
+      "refreshedAt": "2026-11-22T13:43:22Z",
+      "sqrtPriceX96": "801655103375857845898276",
+      "table": "v4_exchange_pools",
+      "tick": -230035,
+      "tickSpacing": 19,
+      "undecidable": false
+    }
+  ],
+  "network": "robinhood",
+  "notRecomputable": 11,
+  "protocol": "uniswap_v4",
+  "readOnly": true,
+  "task": "TASK-172",
+  "verdict": {
+    "detail": "142 of 2486 snapshot rows carry a bound that their own price does not imply.  Only the Rust pool manager can repair them; rewrite the whole row with 'pool-manager depth --apply'.",
+    "singleWriterHolds": false
+  }
+}

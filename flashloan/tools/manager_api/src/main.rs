@@ -15,6 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let review_authority = authority_from_env("REVIEW_MANAGER_AUTHORITY")?;
     let broadcast_authority = authority_from_env("BROADCAST_MANAGER_AUTHORITY")?;
     let composite_authority = authority_from_env("COMPOSITE_MANAGER_AUTHORITY")?;
+    let directional_pool_authority = authority_from_env("DIRECTIONAL_POOL_MANAGER_AUTHORITY")?;
     if let Ok(database_path) = env::var("MANAGER_DB_PATH") {
         let mut state = AppState::with_token_database(database_path)
             .with_token_authority(token_authority)
@@ -23,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_closed_loop_authority(closed_loop_authority)
             .with_review_authority(review_authority)
             .with_broadcast_authority(broadcast_authority)
-            .with_composite_authority(composite_authority);
+            .with_composite_authority(composite_authority)
+            .with_directional_pool_authority(directional_pool_authority);
         // The network namespace is part of the row identity of every chain's
         // library. It is resolved per request from the chain id by default,
         // which keeps one process chain-safe. The operator can pin it when

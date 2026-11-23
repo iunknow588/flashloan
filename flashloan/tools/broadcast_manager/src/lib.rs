@@ -937,6 +937,7 @@ fn finalize_impl(
             prepared_write,
         )?;
         transaction.commit()?;
+        publish_trade_archives(database_path, network, chain_id, finalizations);
         Ok(outcome)
     } else {
         finalize_on_connection(
@@ -1076,6 +1077,42 @@ fn finalize_on_connection(
         }
     }
     Ok((result, false))
+}
+
+/// Hand the finished attempts to the trade archive.
+///
+/// The archive writes the row into the monthly store and only then shrinks
+/// the main row, so a failure here leaves the record complete in the main
+/// store where the next reconciliation pass still finds it.  A failure is
+/// counted and never fatal: the broadcast itself already happened, and the
+/// record was not lost.
+fn publish_trade_archives(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    finalizations: &[AttemptFinalizeInput],
+) {
+    if finalizations.is_empty() {
+        return;
+    }
+    let requests = finalizations
+        .iter()
+        .map(|finalization| review_manager::records::ArchiveRequest {
+            network: network.to_owned(),
+            chain_id,
+            protocol: NETWORK_PROTOCOL.to_owned(),
+            scope_key: BROADCAST_SCOPE_KEY.to_owned(),
+            attempt_id: finalization.attempt_id.clone(),
+        })
+        .collect();
+    if let Err(error) = review_manager::records::publish_trade_archive(
+        database_path,
+        network,
+        chain_id,
+        requests,
+    ) {
+        review_manager::records::note_trade_publish_failure(&error);
+    }
 }
 
 pub fn read_broadcast_status(
@@ -2600,9 +2637,27 @@ mod tests {
 
     fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("manager.sqlite3");
-        manager_db::migrate(&path).unwrap();
-        let connection = Connection::open(&path).unwrap();
+        let path = seed_store(&directory.path().join("manager.sqlite3"));
+        (directory, path)
+    }
+
+    /// The same fixture, but with the store inside a `db` directory.
+    ///
+    /// The record layer derives its root from the directory the store lives
+    /// in, so the fixture has to use the layout of the running system: the
+    /// record root then stays inside the fixture instead of next to the
+    /// temporary root.
+    fn database_with_record_root() -> (tempfile::TempDir, std::path::PathBuf) {
+        let directory = tempfile::tempdir().unwrap();
+        let db_directory = directory.path().join("db");
+        std::fs::create_dir_all(&db_directory).unwrap();
+        let path = seed_store(&db_directory.join("manager.sqlite3"));
+        (directory, path)
+    }
+
+    fn seed_store(path: &std::path::Path) -> std::path::PathBuf {
+        manager_db::migrate(path).unwrap();
+        let connection = Connection::open(path).unwrap();
         connection
             .execute(
                 "INSERT INTO manager_review_library_state (
@@ -2651,7 +2706,7 @@ mod tests {
             )
             .unwrap();
         drop(connection);
-        (directory, path)
+        path.to_path_buf()
     }
 
     fn attempt(attempt_id: Option<&str>, nonce: i64) -> AttemptCreateInput {
@@ -3074,5 +3129,72 @@ mod tests {
             error,
             BroadcastError::BroadcastRequestNotEligible { .. }
         ));
+    }
+
+    #[test]
+    fn a_finalized_attempt_reaches_the_monthly_trade_store() {
+        let (directory, path) = database_with_record_root();
+        submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(Some("attempt-1"), 42)],
+            true,
+        )
+        .unwrap();
+        finalize_broadcast_attempts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![failed_finalization()],
+            true,
+        )
+        .unwrap();
+
+        // The archiver runs on its own thread.  The reconciliation answers on
+        // the same queue, so it returns only after the attempt was archived.
+        let report =
+            review_manager::records::reconcile_archive_backlog(&path, NETWORK, CHAIN_ID).unwrap();
+        assert_eq!(report.failed, 0);
+
+        let trades = directory
+            .path()
+            .join("db")
+            .join("broadcast_transaction_db")
+            .join(NETWORK)
+            .join(CHAIN_ID.to_string());
+        let months: Vec<std::path::PathBuf> = std::fs::read_dir(&trades)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.is_dir())
+            .collect();
+        assert_eq!(months.len(), 1, "the monthly trade store was not created");
+        let month = Connection::open(months[0].join("trades.sqlite3")).unwrap();
+        let archived: String = month
+            .query_row(
+                "SELECT attempt_id FROM manager_cow_execution_attempts
+                  WHERE attempt_id = 'attempt-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(archived, "attempt-1");
+        drop(month);
+
+        // The main store keeps the identity of the attempt and gives the
+        // volume columns back.
+        let connection = Connection::open(&path).unwrap();
+        let (path_addresses, receipt): (String, String) = connection
+            .query_row(
+                "SELECT path_addresses_json, receipt_json
+                   FROM manager_cow_execution_attempts
+                  WHERE attempt_id = 'attempt-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(path_addresses, "[]");
+        assert_eq!(receipt, "{}");
     }
 }

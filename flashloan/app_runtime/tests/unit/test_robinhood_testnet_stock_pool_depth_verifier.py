@@ -15,13 +15,21 @@ from core.db.storage_chain_core import seed_chain_tokens
 from core.db.storage_schema import ensure_database_schema
 from core.db.storage_v4_exchange import (
     upsert_v4_exchange_pools,
-    upsert_v4_liquidity_snapshots,
 )
 from dex.tools.verify_robinhood_testnet_stock_pool_liquidity import (
     load_eth_stock_pools_from_sqlite,
     select_eth_stock_pools,
     verify_stock_pool_liquidity,
 )
+
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -222,7 +230,7 @@ def test_load_eth_stock_pools_from_sqlite_merges_stored_liquidity_evidence(tmp_p
             },
         ],
     )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         database,
         network="robinhood-testnet",
         chain_id=46630,

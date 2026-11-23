@@ -9,6 +9,7 @@ axum.workspace = true
 broadcast-manager = { path = "../broadcast_manager" }
 candidate-edge-pool-manager = { path = "../candidate_edge_pool_manager" }
 candidate-exchange-pool-manager = { path = "../candidate_exchange_pool_manager" }
+directional-pool-manager = { path = "../directional_pool_manager" }
 closed-loop-manager = { path = "../closed_loop_manager" }
 composite-manager = { path = "../composite_manager" }
 chrono.workspace = true

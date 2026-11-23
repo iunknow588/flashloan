@@ -5,6 +5,14 @@ from pathlib import Path
 from core.flash_loan_pool_presenter_lite import _protocol_display_name
 from web import flash_loan_pools
 
+import sys
+from pathlib import Path
+
+_SNAPSHOT_FIXTURE_DIR = Path(__file__).resolve().parent
+if str(_SNAPSHOT_FIXTURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SNAPSHOT_FIXTURE_DIR))
+
+from depth_snapshot_fixture import materialise_depth_snapshot
 
 def _write_json(path, payload):
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -725,7 +733,6 @@ def _seed_mainnet_v4_db(tmp_path, *, include_stock=False, include_net=False):
     from core.db.storage_chain_core import seed_chain_tokens
     from core.db.storage_v4_exchange import (
         upsert_v4_exchange_pools,
-        upsert_v4_liquidity_snapshots,
     )
 
     db = str(tmp_path / "mainnet.sqlite3")
@@ -834,7 +841,7 @@ def _seed_mainnet_v4_db(tmp_path, *, include_stock=False, include_net=False):
                 "depth_status": "live_liquid",
             }
         )
-    upsert_v4_liquidity_snapshots(
+    materialise_depth_snapshot(
         db,
         network="robinhood",
         chain_id=4663,

@@ -1,0 +1,34 @@
+{
+  "mode": "rematerialize-reviews",
+  "generatedAt": "2026-11-22T06:16:40Z",
+  "apply": true,
+  "dryRun": false,
+  "evidenceCount": 45,
+  "materialization": {
+    "mode": "materialize-reviews",
+    "generatedAt": "2026-11-22T06:16:40Z",
+    "apply": true,
+    "dryRun": false,
+    "evidenceCount": 45,
+    "submittedEvidenceCount": 45,
+    "droppedWithoutLoopIdentity": 0,
+    "duplicateLoops": 0,
+    "expectedUpstream": {
+      "closedLoopVersion": 14,
+      "closedLoopChecksum": "sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115",
+      "candidateEdgeVersion": 8,
+      "candidateEdgeChecksum": "sha256:945f01fcda2c0192e1e1aefb7e90a20c153e209a85cab59a314e23b95fd63e60",
+      "observationVersion": 11,
+      "observationChecksum": "sha256:13f16e2af721a15dff068d890a93493ff48e206252241e3d902d4d654e3adea2",
+      "poolScopeChecksum": "sha256:3adcebed79acbfc753bdf6976dd88033b7f205c5b6ba0a892c9037cfe270c05b"
+    },
+    "managerReviewRows": 164,
+    "response": {
+      "ok": true,
+      "status": 200,
+      "body": "{\"ok\":true,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-22T06:16:40.127857300+00:00\",\"chainId\":4663,\"requestId\":\"healer-e0c2fd25bd0a41fd811c0336f9af0a4f\",\"data\":{\"network\":\"robinhood\",\"chainId\":4663,\"protocol\":\"uniswap_v4\",\"scopeKey\":\"core4\",\"apply\":true,\"dryRun\":false,\"closedLoopVersion\":14,\"closedLoopChecksum\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\",\"candidateEdgeVersion\":8,\"candidateEdgeChecksum\":\"sha256:945f01fcda2c0192e1e1aefb7e90a20c153e209a85cab59a314e23b95fd63e60\",\"observationVersion\":11,\"observationChecksum\":\"sha256:13f16e2af721a15dff068d890a93493ff48e206252241e3d902d4d654e3adea2\",\"poolScopeChecksum\":\"sha256:3adcebed79acbfc753bdf6976dd88033b7f205c5b6ba0a892c9037cfe270c05b\",\"libraryVersions\":{\"core\":1,\"stocks\":1,\"test\":1},\"libraryChecksums\":{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\",\"test\":\"sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b\"},\"loopCount\":164,\"reviewedCount\":45,\"completedCount\":0,\"dataIncompleteCount\":119,\"notExecutableCount\":45,\"failedCount\":0,\"broadcastRequestCount\":0,\"changedRows\":0,\"reviewVersion\":23,\"materializedChecksum\":\"sha256:853d1529d108702a153aba2bfe4114aad4b3c270081d406c84d7e907d31cf505\",\"consumersNeedRebuild\":false,\"idempotentReplay\":false},\"error\":null}"
+    },
+    "policy": "reviews are materialized into the Manager-authoritative library"
+  },
+  "policy": "the stored reviews are re-filed with the measured best trade amount"
+}
