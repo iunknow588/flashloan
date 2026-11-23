@@ -18,16 +18,24 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def _find_doc_dir() -> Path:
     """专题文档区（方案素材）：优先一级任务的 docs/，回退旧的 plan/池子重构方案/。"""
     for h in sorted((REPO_ROOT / "plan" / "tasks").glob("P-*/docs")):
-        if (h / "未完成任务清单_20261123.md").exists():
+        if list(h.glob("D-*-未完成任务清单_20261123.md")):
             return h
     legacy = REPO_ROOT / "plan" / "池子重构方案"
     return legacy if legacy.is_dir() else REPO_ROOT / "plan"
 
 
+def _find(name: str) -> Path:
+    """按「名字」定位文档 —— 名字段可改，故用通配；编号段 D-nnn 稳定。"""
+    matches = sorted(DOC_DIR.glob("D-*-" + name))
+    if not matches:
+        raise SystemExit("找不到文档：%s（目录 %s）" % (name, DOC_DIR))
+    return matches[0]
+
+
 DOC_DIR = _find_doc_dir()
-TODO_LIST = DOC_DIR / "未完成任务清单_20261123.md"
-CHECK_LIST = DOC_DIR / "check_list_20261123.md"
-PLAN = DOC_DIR / "开发计划_20261123.md"
+TODO_LIST = _find("未完成任务清单_20261123.md")
+CHECK_LIST = _find("check_list_20261123.md")
+PLAN = _find("开发计划_20261123.md")
 
 HEADING_RE = re.compile(r"^#{2,4}\s+(?:§\s*)?([0-9]+(?:\.[0-9a-z]+)*)\b", re.IGNORECASE)
 REFERENCE_RE = re.compile(r"(清单|checklist|开发计划)\s*(?:§\s*)?([0-9]+(?:\.[0-9a-z]+)*)")

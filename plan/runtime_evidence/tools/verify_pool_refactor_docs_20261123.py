@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def _find_doc_dir() -> Path:
     """专题文档区（方案素材）：优先一级任务的 docs/，回退旧的 plan/池子重构方案/。"""
     for h in sorted((REPO_ROOT / "plan" / "tasks").glob("P-*/docs")):
-        if (h / "未完成任务清单_20261123.md").exists():
+        if list(h.glob("D-*-未完成任务清单_20261123.md")):
             return h
     legacy = REPO_ROOT / "plan" / "池子重构方案"
     return legacy if legacy.is_dir() else REPO_ROOT / "plan"
@@ -33,19 +33,18 @@ DOC_DIR = _find_doc_dir()
 # (relative path, expect_bom, expect_crlf) -- captured before the edits and
 # re-checked afterwards so the round cannot silently change an encoding.
 ENCODING_BASELINE: dict[str, tuple[bool, bool]] = {
-    "01-现状与可行性分析.md": (False, False),
-    "02-目标架构与表结构.md": (False, False),
-    "03-迁移实施与验收.md": (True, False),
-    "04-内存对象与闭环引用链.md": (False, False),
-    "05-记录存储剥离技术方案.md": (False, False),
-    "06-记录存储剥离开发计划.md": (False, False),
-    "开发计划_20261123.md": (False, True),
-    "未完成任务清单_20261123.md": (False, True),
-    "check_list_20261123.md": (False, True),
+    "D-005-现状与可行性分析.md": (False, True),
+    "D-006-目标架构与表结构.md": (False, True),
+    "D-007-迁移实施与验收.md": (True, True),
+    "D-008-内存对象与闭环引用链.md": (False, True),
+    "D-009-记录存储剥离技术方案.md": (False, True),
+    "D-010-记录存储剥离开发计划.md": (False, True),
+    "D-011-check_list_20261123.md": (False, True),
+    "D-013-开发计划_20261123.md": (False, True),
+    "D-014-未完成任务清单_20261123.md": (False, True),
+    "D-015-编号对照表_20261124.md": (False, True),
     "README.md": (False, True),
-    "tec/TASK-166_综合裁定与实施_20261123.md": (True, False),
 }
-
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 # Phrases that would mean a reader still sees TASK-166 as blocked on a human

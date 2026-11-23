@@ -70,7 +70,9 @@ def write(path: str, text: str) -> None:
 
 def find_todo_list() -> str:
     """\u4e13\u9898\u6e05\u5355\uff08\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355\uff09\uff1a\u5148\u5728\u4e00\u7ea7\u4efb\u52a1\u7684 docs/ \u91cc\u627e\uff0c\u627e\u4e0d\u5230\u518d\u56de\u9000\u5230 plan/ \u6839\u3002"""
-    for pat in ("plan/tasks/P-*/docs/\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355_*.md",
+    for pat in ("plan/tasks/P-*/docs/D-*\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355_*.md",
+                "plan/*/D-*\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355_*.md",
+                "plan/tasks/P-*/docs/\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355_*.md",
                 "plan/*/\u672a\u5b8c\u6210\u4efb\u52a1\u6e05\u5355_*.md"):
         hits = sorted(glob.glob(os.path.join(REPO_ROOT, pat)))
         if hits:
@@ -78,9 +80,18 @@ def find_todo_list() -> str:
     return ""
 
 
+def _task_file(task_dir: str, name: str) -> str:
+    """任务目录内的文件已带文档编号前缀 `D-nnn-`：定位带号与不带号两种形式。"""
+    direct = os.path.join(task_dir, name)
+    if os.path.exists(direct):
+        return direct
+    hits = sorted(glob.glob(os.path.join(task_dir, "D-*-" + name)))
+    return hits[0] if hits else ""
+
+
 def task_title(task_dir: str) -> str:
-    plan_path = os.path.join(task_dir, "PLAN.md")
-    if not os.path.exists(plan_path):
+    plan_path = _task_file(task_dir, "PLAN.md")
+    if not plan_path or not os.path.exists(plan_path):
         return os.path.basename(task_dir)
     plan = read(plan_path)
     for line in plan.splitlines():

@@ -25,16 +25,33 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def _find_doc_dir() -> Path:
     """专题文档区（方案素材）：优先一级任务的 docs/，回退旧的 plan/池子重构方案/。"""
     for h in sorted((REPO_ROOT / "plan" / "tasks").glob("P-*/docs")):
-        if (h / "未完成任务清单_20261123.md").exists():
+        if list(h.glob("D-*-未完成任务清单_20261123.md")):
             return h
     legacy = REPO_ROOT / "plan" / "池子重构方案"
     return legacy if legacy.is_dir() else REPO_ROOT / "plan"
 
 
+def _find(name: str) -> Path:
+    """按「名字」定位文档 —— 名字段可改，用通配；编号段 D-nnn 稳定。"""
+    hits = sorted(DOC_DIR.glob("D-*-" + name))
+    if not hits:
+        raise SystemExit("找不到文档：%s（目录 %s）" % (name, DOC_DIR))
+    return hits[0]
+
+
+def _numbered(directory: Path, name: str) -> Path | None:
+    """任务目录内文件已带文档编号 `D-nnn-`：定位带号与不带号两种形式。"""
+    direct = directory / name
+    if direct.exists():
+        return direct
+    hits = sorted(directory.glob("D-*-" + name))
+    return hits[0] if hits else None
+
+
 DOC_DIR = _find_doc_dir()
-CHECK_LIST = DOC_DIR / "check_list_20261123.md"
-TODO_LIST = DOC_DIR / "未完成任务清单_20261123.md"
-PLAN = DOC_DIR / "开发计划_20261123.md"
+CHECK_LIST = _find("check_list_20261123.md")
+TODO_LIST = _find("未完成任务清单_20261123.md")
+PLAN = _find("开发计划_20261123.md")
 TASKS_DIR = REPO_ROOT / "plan" / "tasks"
 # 二级任务在 一级任务/tasks/ 下；兼容旧的顶层平铺
 PRIMARY_DIRS = sorted(p for p in TASKS_DIR.glob("P-*") if p.is_dir()) if TASKS_DIR.is_dir() else []
@@ -92,7 +109,9 @@ def main() -> int:
     total_task_done = 0
     for task_dir in SECONDARY_DIRS + LEGACY_DIRS + PRIMARY_DIRS:
         if True:
-            checklist = task_dir / "checklist.md"
+            checklist = _numbered(task_dir, "checklist.md")
+            if checklist is None:
+                continue
             if not checklist.is_file():
                 continue
             rows = survey_sections(checklist)
@@ -133,9 +152,15 @@ def main() -> int:
     for label, pattern in (("T-", NEW_TASK_RE), ("AC-", NEW_AC_RE)):
         seen: dict[str, set[str]] = {}
         sources = [CHECK_LIST, TODO_LIST, PLAN]
-        sources.extend(d / "checklist.md" for d in SECONDARY_DIRS + LEGACY_DIRS)
-        sources.extend(d / "README.md" for d in SECONDARY_DIRS + LEGACY_DIRS)
-        sources.extend(d / "README.md" for d in PRIMARY_DIRS)
+        for d in SECONDARY_DIRS + LEGACY_DIRS:
+            for name in ("checklist.md", "README.md"):
+                hit = _numbered(d, name)
+                if hit is not None:
+                    sources.append(hit)
+        for d in PRIMARY_DIRS:
+            hit = _numbered(d, "README.md")
+            if hit is not None:
+                sources.append(hit)
         for src in sources:
             for match in pattern.finditer(src.read_text(encoding="utf-8-sig")):
                 seen.setdefault(f"{label}{match.group(1)}", set()).add(src.name)
