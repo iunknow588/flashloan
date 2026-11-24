@@ -1065,9 +1065,16 @@ def _confirm_backfill_pool_liquidity(
 ) -> object:
     """Return a callback that marks live candidate pools as liquid or not."""
     if network == ROBINHOOD_TESTNET_NETWORK:
+        from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
+            ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+        )
         from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
             _batch_read_live_pool_states,
         )
+
+        resolved_pool_manager = str(
+            pool_manager or ROBINHOOD_TESTNET_V4_POOL_MANAGER
+        ).strip()
 
         def _confirm(pools: list[dict]) -> set[str]:
             pool_ids = sorted(
@@ -1084,7 +1091,7 @@ def _confirm_backfill_pool_liquidity(
                 chunk = pool_ids[start : start + max(1, int(batch_size))]
                 states = _batch_read_live_pool_states(
                     rpc_url=rpc_url or "",
-                    pool_manager=pool_manager or "",
+                    pool_manager=resolved_pool_manager,
                     pool_ids=chunk,
                 )
                 for pool_id, state in (states or {}).items():
@@ -1099,9 +1106,12 @@ def _confirm_backfill_pool_liquidity(
             return confirmed
 
         return _confirm
+    from dex.intent_trade.chains.robinhood.config import V4_POOL_MANAGER_ADDRESS
     from dex.intent_trade.chains.robinhood.dex_pool_candidates import (
         _batch_read_v4_pool_states,
     )
+
+    resolved_pool_manager = str(pool_manager or V4_POOL_MANAGER_ADDRESS).strip()
 
     def _confirm(pools: list[dict]) -> set[str]:
         pool_ids = sorted(
@@ -1118,7 +1128,7 @@ def _confirm_backfill_pool_liquidity(
             chunk = pool_ids[start : start + max(1, int(batch_size))]
             states = _batch_read_v4_pool_states(
                 rpc_url=rpc_url or "",
-                pool_manager=pool_manager or "",
+                pool_manager=resolved_pool_manager,
                 pool_ids=chunk,
             )
             for pool_id, state in (states or {}).items():

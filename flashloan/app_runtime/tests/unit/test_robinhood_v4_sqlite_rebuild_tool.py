@@ -1863,3 +1863,71 @@ def test_mainnet_batch_refresh_accepts_explicit_zero_liquidity_chunk(monkeypatch
     assert pool["liquidity"] == ""
     assert pool["depthStatus"] == "live_liquidity_zero"
     assert pool["liquidityError"] is None
+
+
+def test_testnet_backfill_liquidity_confirm_defaults_pool_manager(monkeypatch):
+    """Empty ``--pool-manager`` must resolve to the configured PoolManager.
+
+    Regression for the ``T-候编储.01`` step 1 crash: the CLI default for
+    ``--pool-manager`` is the empty string, so the confirm callback used to
+    hand an empty address to ``Web3.to_checksum_address`` and abort the whole
+    refresh with a ``ValueError`` from ``eth_utils.to_normalized_address``.
+    """
+    from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter as quote_adapter
+    from dex.intent_trade.chains.robinhood_testnet.v4_pool_rpc import (
+        ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+    )
+    from dex.tools.refresh_robinhood_v4_live import _confirm_backfill_pool_liquidity
+
+    pool_id = "0x" + "cd" * 32
+    seen: dict = {}
+
+    def fake_batch(**kwargs):
+        seen["kwargs"] = kwargs
+        return {
+            pool_id: {
+                "liquidity": str(10**18),
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+        }
+
+    monkeypatch.setattr(quote_adapter, "_batch_read_live_pool_states", fake_batch)
+    confirm = _confirm_backfill_pool_liquidity(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        rpc_url="https://fake-testnet.example",
+        pool_manager=None,
+        batch_size=100,
+    )
+    confirmed = confirm([{"poolId": pool_id}])
+    assert confirmed == {pool_id}
+    assert seen["kwargs"]["pool_manager"] == ROBINHOOD_TESTNET_V4_POOL_MANAGER
+
+
+def test_mainnet_backfill_liquidity_confirm_defaults_pool_manager(monkeypatch):
+    """The mainnet confirm branch must default the PoolManager the same way."""
+    from dex.intent_trade.chains.robinhood import dex_pool_candidates
+    from dex.intent_trade.chains.robinhood.config import V4_POOL_MANAGER_ADDRESS
+    from dex.tools.refresh_robinhood_v4_live import _confirm_backfill_pool_liquidity
+
+    pool_id = "0x" + "ef" * 32
+    seen: dict = {}
+
+    def fake_batch(**kwargs):
+        seen["kwargs"] = kwargs
+        return {
+            pool_id: {
+                "liquidity": str(10**18),
+                "source": "pool_manager_extsload_live_state_batch_rust",
+            }
+        }
+
+    monkeypatch.setattr(dex_pool_candidates, "_batch_read_v4_pool_states", fake_batch)
+    confirm = _confirm_backfill_pool_liquidity(
+        network="robinhood",
+        rpc_url="https://fake-mainnet.example",
+        pool_manager=None,
+        batch_size=100,
+    )
+    confirmed = confirm([{"poolId": pool_id}])
+    assert confirmed == {pool_id}
+    assert seen["kwargs"]["pool_manager"] == V4_POOL_MANAGER_ADDRESS

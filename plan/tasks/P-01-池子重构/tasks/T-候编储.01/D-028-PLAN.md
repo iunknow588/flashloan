@@ -1,10 +1,10 @@
-# D-028 `T-候编.01`｜测试网候选池与闭环恢复 · 开发计划（**独立 · 自包含**）
+# D-028 `T-候编储.01`｜测试网候选池与闭环恢复 · 开发计划（**独立 · 自包含**）
 
-> **本目录是 T-候编.01 的完整工作单元 —— 独立、自包含、不与其它任务耦合。**
-> **本文件 + `checklist.md` 即 T-候编.01 的全部开发与测试计划。**
+> **本目录是 T-候编储.01 的完整工作单元 —— 独立、自包含、不与其它任务耦合。**
+> **本文件 + `checklist.md` 即 T-候编储.01 的全部开发与测试计划。**
 > 本目录**不引用**其它任务目录的验收内容；需要别的任务先完成时，只写**模块级前置**（§1）。
 >
-> **编号是纯 ID**：`T-候编.01` / `AC-候编.01` **不表达任何功能关联**。
+> **编号是纯 ID**：`T-候编储.01` / `AC-候编储.01` **不表达任何功能关联**。
 > **范围与顺序只按模块编号（`M-n`）表达。**
 
 ---
@@ -16,16 +16,24 @@
 
 | 项 | 值 |
 |---|---|
-| **本任务编号** | **`T-候编.01`** |
-| **本任务验收编号** | **`AC-候编.01`**（与任务编号**同号段**） |
+| **本任务编号** | **`T-候编储.01`** |
+| **本任务验收编号** | **`AC-候编储.01`**（与任务编号**同号段**） |
 | **编号作用域** | **跨模块（组合索引）** |
-| **编号索引** | **`候编`**（`M-5`（候选层（选池宇宙 / 费率标签 / 边界层））、`M-8`（编排层（依赖图 / 路由 / 组合））） |
+| **编号索引** | **`候编储`**（`M-5`（候选层（选池宇宙 / 费率标签 / 边界层））、`M-8`（编排层（依赖图 / 路由 / 组合））、`M-10`（存储层（schema / 迁移 / 记录剥离））） |
 | **序号** | 第 `01` 个（该索引号段内递增，**不复用**） |
 | **同索引其它任务** | **无** |
 
-**为什么是这个组合索引**：本任务**同时改动 2 个模块**（`M-5`、`M-8`）⇒ 按 §1.2 规则取这些模块的索引**按模块号升序拼接** ⇒ 组合索引 **`候编`**。
+**为什么是这个组合索引**：本任务**改动 3 个模块**（`M-5`、`M-8`、`M-10`）⇒ 按 §1.2 规则取这些模块的索引**按模块号升序拼接** ⇒ 组合索引 **`候编储`**。
 
 本任务涉及的每个模块**都是平级改动**（不是被强制牵连）⇒ **全部进入组合索引**。
+
+> **编号变更沿革（2026-11-24 · 因扩范围而变）**：本任务原为 **`T-候编储.01`**
+> （模块集合 = `M-5` ＋ `M-8` ⇒ 索引 `候编`）。
+> 第 ① 步（刷 `core4` 池域深度）的**写入方与落库方**在
+> `flashloan/src/dex/tools/` ＋ `flashloan/src/core/db/` ⇒ 必须扩 `M-10`
+> ⇒ 组合索引变为 **`候编储`** ⇒ 编号**同步**为 **`T-候编储.01`**。
+> **编号只是纯 ID**；本条变更**不表达**任何功能耦合，
+> 只表达「本任务现在**碰**哪些模块」。
 
 **规则**：
 
@@ -55,8 +63,8 @@
 
 | 项 | 值 |
 |---|---|
-| **任务编号（纯 ID）** | **`T-候编.01`** |
-| **验收编号（纯 ID）** | **`AC-候编.01`** |
+| **任务编号（纯 ID）** | **`T-候编储.01`** |
+| **验收编号（纯 ID）** | **`AC-候编储.01`** |
 | **标题** | 测试网候选池与闭环恢复 |
 | **优先级** | P3 |
 | **波次（模块级）** | ⏸ |
@@ -65,15 +73,32 @@
 | **未完成验收项** | **4** |
 | **已闭合验收项** | 0 |
 
-### 1.1 改动模块（**这一列就是 T-候编.01 的回归范围**）
+### 1.1 改动模块（**这一列就是 T-候编储.01 的回归范围**）
 
 | 模块 | 名称 | 代码落点 |
 |---|---|---|
 | `M-8` | 编排层 | `flashloan/tools/composite_manager/` |
 | `M-5` | 候选层 | `flashloan/tools/candidate_edge_pool_manager/` |
+| `M-5` | 候选层 | `flashloan/src/dex/intent_trade/chains/robinhood_testnet/v4_pool_index.py`（**第 ① 步**） |
+| `M-5` | 候选层 | `flashloan/src/dex/intent_trade/chains/robinhood_common/v4_pool_index_core.py`（**第 ① 步**） |
+| `M-5` | 候选层 | `flashloan/src/dex/tools/refresh_robinhood_v4_live.py`（**第 ① 步**） |
+| `M-10` | 存储层 | `flashloan/src/core/db/storage_v4_exchange.py`（**第 ① 步**） |
 
 > **规则**：**只跑**上表模块的独立测试。**未在上表出现的模块，一律不跑。**
 > **不得**以「有新任务」或「功能没变」为由跑全量。
+
+> **⚠️ 2026-11-24 范围扩张（**先扩后跑** · `D-029` §4 的一次执行）**
+>
+> **扩范围理由**：`D-110` 实测确认**链上已有 68 个 `poolId`**（`Initialize` 事件），
+> 而本地库 `v4_exchange_pools_core4` **仍只有 5 个** ⇒ **性质从「等链上」变为「软件侧可刷新」**
+> ⇒ 五步序列的**第 ① 步（刷 `core4` 池域深度）现在有可执行对象**。
+>
+> | 项 | 说明 |
+> |---|---|
+> | **为何必须扩** | 第 ① 步的**写入方**在 `flashloan/src/dex/tools/refresh_robinhood_v4_live.py`<br>（`--database` 参数 ⇒ 可指向**副本**，**不写生产库**），<br>池索引构建在 `robinhood_testnet/v4_pool_index.py` ＋ `robinhood_common/v4_pool_index_core.py`，<br>池行落库在 `core/db/storage_v4_exchange.py` ⇒ **三者都不在**原 §1.1 的两个落点内。 |
+> | **模块归属依据** | `T-证候储.01` 的 `D-025` §1 **已确立**同族落点的归属：<br>`flashloan/src/dex/intent_trade/chains/robinhood/v4_pool_index.py` ＋ `flashloan/src/dex/tools/v4_rust_refresh.py` ⇒ **`M-5`**；<br>`flashloan/src/core/db/storage_*.py` ⇒ **`M-10`**。本次是**同族落点的测试网分支**，**沿用同一归属**，**不新增模块号**。 |
+> | **编号变更** | 模块集合由 `M-5`＋`M-8` 变为 `M-5`＋`M-8`＋`M-10` ⇒ 组合索引按 `M-n` 升序拼接为 **`候编储`**<br>⇒ 任务编号 **`T-候编储.01` → `T-候编储.01`**（**编号四者同步**：本文件、§1.0 编号逻辑、`D-029`、`D-030`、编号册 §4.2/§5.5）。 |
+> | **授权边界** | 第 ① 步**只在副本** `flashloan/db/sandbox/t46630_directional_probe.sqlite3` 上执行<br>⇒ **不写生产库** ⇒ **不需生产库写授权**；**不广播**（只建池域，不生成复核、不生成广播请求）。 |
 
 ### 1.2 回归命令（**逐条可复制执行**）
 
@@ -81,11 +106,15 @@
 |---|---|---|
 | `M-8` | 编排层 | `cargo test --offline -p composite-manager -p manager-api` |
 | `M-5` | 候选层 | `cargo test --offline -p candidate-edge-pool-manager -p candidate-exchange-pool-manager` |
+| `M-10` | 存储层（**扩范围 · 2026-11-24**） | `cargo test --offline -p pool-manager` |
+| `M-5` / `M-10` | 候选层 / 存储层（Python · **扩范围 · 2026-11-24**） | `python -m pytest flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py -q`（**只跑受影响的文件**，见 §2.1 第 3 条） |
 
 ```powershell
-# T-候编.01 的完整回归范围 = 上表所有模块的命令之并集
+# T-候编储.01 的完整回归范围 = 上表所有模块的命令之并集
 cargo test --offline -p composite-manager -p manager-api
 cargo test --offline -p candidate-edge-pool-manager -p candidate-exchange-pool-manager
+cargo test --offline -p pool-manager
+python -m pytest flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py -q
 ```
 
 ---
@@ -126,9 +155,9 @@ cargo test --offline -p candidate-edge-pool-manager -p candidate-exchange-pool-m
 
 ```powershell
 # 打包四文件 ＋ docs/ → plan/archive/，并登记索引，最后删除本目录
-python plan/runtime_evidence/tools/archive_task_20261124.py T-候编.01
+python plan/runtime_evidence/tools/archive_task_20261124.py T-候编储.01
 # 先预演（不落盘、不删除）：
-python plan/runtime_evidence/tools/archive_task_20261124.py T-候编.01 --dry-run
+python plan/runtime_evidence/tools/archive_task_20261124.py T-候编储.01 --dry-run
 ```
 
 工具会自动完成：
