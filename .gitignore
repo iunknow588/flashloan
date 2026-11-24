@@ -221,3 +221,7 @@ plan/runtime_evidence/logs/crash_watch_metrics_*.csv
 
 # WHEA 取证流水线的中间产物（可由 run_whea_forensics.ps1 重新生成）
 plan/runtime_evidence/logs/whea_forensics/
+
+# 临时探针脚本（用完即删）—— 不入库，避免被「整树提交」带上。
+# 约定：plan/runtime_evidence/tools/ 下的 _*.py 是**一次性**探针，不具备可追溯价值。
+plan/runtime_evidence/tools/_*.py
