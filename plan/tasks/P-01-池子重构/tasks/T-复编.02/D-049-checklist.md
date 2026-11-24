@@ -130,9 +130,17 @@
       >
       > **但 `state` 实测是 `partial`，不是 `ready`** —— **根因已定位**：
       > `runtime_core.rs:697-711` 里 `partial` = 「快照**存在**但 `readiness.chain_complete=false`」；
-      > `chain_complete`（`runtime_core.rs:2405-2411`）要求 **8 个组件全部 enabled**，
-      > 实测**唯一**未启用的是 **`broadcast`**（`ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST` 未开启）
-      > ⇒ `state` **恒 `partial`** ⇒ **「`state=ready`」这一条在广播未授权期间不可满足**。
+      > `chain_complete`（`runtime_core.rs:2405-2411`）要求 **7 个条件全部成立**，
+      > 实测**唯一**未成立的是 **`broadcast_enabled`**。
+      >
+      > **归因订正（2026-11-24 20:15）**：曾把它归因为
+      > 「`ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST` 未开启」—— **该闸门现已放开**
+      > （`broadcast_gate_status` 实测 `broadcastAllowed=true` / `reasons=[]`），
+      > 但 `broadcast.enabled` **仍为 `false`** ⇒ `state` **仍 `partial`**。
+      > **真因**：`broadcast_manager::read_broadcast_status()` 的语义 =
+      > 「`manager_broadcast_library_state` **有没有行**」；该表 **0 行** ⇒ `enabled=false`
+      > ⇒ **`state=ready` 结构性不可达**（详见 [`docs/D-104`](./docs/D-104-复核完整性实测.md) §2.8）。
+      > ⇒ **这一条与广播闸门无关**，**归 `M-7`（广播层）**，不在本任务改动模块集合内。
       > ⇒ **本项是「测量口径」问题，不是缺陷**（详见 [`docs/D-108`](./docs/D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md) §2.5）。
       > **待人工裁决**：C3 判定改为「`snapshotAvailable` + `generation>=1` + `lastError` 空」，
       > **或**对 `state=partial` **显式豁免**（注明源于 broadcast 未授权）。

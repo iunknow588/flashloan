@@ -696,6 +696,71 @@ fn best_amount_calculation(route: &Value, decimals: Option<i64>) -> Value {
         .get("bestAmountMeasured")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    // The kernel publishes the diagnosis of a ladder that never probed on
+    // the **ladder payload** (the route's "ladder" member), not on the
+    // route itself: the route carries the measurement, the ladder carries
+    // the reason the measurement does not exist.  A publisher that reads
+    // the route alone therefore cannot tell "the ladder was blocked
+    // before it probed" apart from "the measurement was dropped on the
+    // way in", and the reviewer is sent after a measurement that was
+    // never broken.  The ladder payload is the kernel's own record, so it
+    // is read from there; the flat shape stays a fallback for a payload
+    // that carries the marker on the route itself.
+    let ladder_payload = route.get("ladder").filter(|value| value.is_object());
+    let ladder_blocked = route
+        .get("ladderBlocked")
+        .and_then(Value::as_bool)
+        .or_else(|| {
+            ladder_payload
+                .and_then(|payload| payload.get("ladderBlocked"))
+                .and_then(Value::as_bool)
+        })
+        .unwrap_or(false);
+    let ladder_blocked_reason = route
+        .get("ladderBlockedReason")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .or_else(|| {
+            ladder_payload
+                .and_then(|payload| payload.get("ladderBlockedReason"))
+                .filter(|value| !value.is_null())
+                .cloned()
+        })
+        .unwrap_or(Value::Null);
+    // The ladder's own status says **which** block it was, and the kernel's
+    // repair target says **which manager** publishes what the ladder
+    // needs.  Both travel with the review so the reviewer calls the right
+    // tool instead of the review manager.
+    let ladder_status = ladder_payload
+        .and_then(|payload| payload.get("status"))
+        .filter(|value| !value.is_null())
+        .cloned()
+        .or_else(|| route.get("status").filter(|value| !value.is_null()).cloned())
+        .unwrap_or(Value::Null);
+    let repair_target = ladder_payload
+        .and_then(|payload| payload.get("repairTarget"))
+        .filter(|value| !value.is_null())
+        .cloned()
+        .unwrap_or(Value::Null);
+    // One sentence that says why there is no amount at all.  The block
+    // reason wins, because it names the concrete limit; otherwise the
+    // route's own error (or the run's error) is the next best witness.
+    let missing_reason = if !ladder_blocked_reason.is_null() {
+        Some(ladder_blocked_reason.clone())
+    } else {
+        route
+            .get("error")
+            .filter(|value| !value.is_null())
+            .cloned()
+            .or_else(|| {
+                route
+                    .get("runArbitrage")
+                    .and_then(|run| run.get("error"))
+                    .filter(|value| !value.is_null())
+                    .cloned()
+            })
+            .or_else(|| route.get("errorKind").filter(|value| !value.is_null()).cloned())
+    };
     json!({
         "method": "native_rust_review_ladder",
         "bestAmount": best_amount,
@@ -717,14 +782,11 @@ fn best_amount_calculation(route: &Value, decimals: Option<i64>) -> Value {
         // A route the capacity blocked before it probed anything carries the
         // reason with it, so a reader can tell "the ladder never ran"
         // apart from "the measurement was dropped".
-        "bestAmountLadderBlocked": route
-            .get("ladderBlocked")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
-        "bestAmountLadderBlockedReason": route
-            .get("ladderBlockedReason")
-            .cloned()
-            .unwrap_or(Value::Null),
+        "bestAmountLadderBlocked": ladder_blocked,
+        "bestAmountLadderBlockedReason": ladder_blocked_reason,
+        "bestAmountLadderStatus": ladder_status,
+        "bestAmountRepairTarget": repair_target,
+        "bestAmountMissingReason": missing_reason.unwrap_or(Value::Null),
         "probeCount": ladder.len(),
         "probeRecords": ladder,
     })
@@ -1106,13 +1168,24 @@ mod tests {
     /// missing but empty" cannot tell the two apart, so the missing marker
     /// follows the kernel's own default and the block reason travels with
     /// it.
+    ///
+    /// The fixture uses the **kernel's own shape**: the diagnosis sits on the
+    /// route's "ladder" member, because the route carries the measurement
+    /// and the ladder carries the reason.  A publisher that reads the route
+    /// alone would lose the reason and report a blocked ladder as a dropped
+    /// measurement.
     #[test]
     fn a_route_whose_ladder_never_ran_carries_the_missing_marker() {
         let mut payload = route(LOOP_KEY);
-        payload["status"] = json!("single_tick_capacity_below_min_probe");
         payload["attempts"] = json!([]);
-        payload["ladderBlocked"] = json!(true);
-        payload["ladderBlockedReason"] = json!("single_tick_capacity_below_min_probe");
+        payload["status"] = json!("not_profitable_after_costs");
+        payload["ladder"] = json!({
+            "status": "single_tick_capacity_below_min_probe",
+            "ladderBlocked": true,
+            "ladderBlockedReason": "single_tick_capacity_below_min_probe",
+            "repairTarget": "closed_loop_manager",
+            "attempts": [],
+        });
         let evidence = route_evidence(
             &payload,
             LOOP_KEY,
@@ -1143,6 +1216,77 @@ mod tests {
             calculation.get("bestAmountLadderBlockedReason").and_then(Value::as_str),
             Some("single_tick_capacity_below_min_probe")
         );
+        assert_eq!(
+            calculation.get("bestAmountLadderStatus").and_then(Value::as_str),
+            Some("single_tick_capacity_below_min_probe")
+        );
+        // The kernel names the manager that publishes what the ladder
+        // needs; the reviewer then calls that manager instead of the review
+        // manager, which cannot repair a missing capacity.
+        assert_eq!(
+            calculation.get("bestAmountRepairTarget").and_then(Value::as_str),
+            Some("closed_loop_manager")
+        );
+        assert_eq!(
+            calculation.get("bestAmountMissingReason").and_then(Value::as_str),
+            Some("single_tick_capacity_below_min_probe")
+        );
+    }
+
+    /// **T-11**: a route whose ladder ran but whose chain call reverted
+    /// says why there is no amount, in the amount block itself.
+    ///
+    /// The kernel never measured an amount here, so the review carries no
+    /// amount.  It still has to say **why**: the run reverted on the chain,
+    /// and a reader that only sees "amount missing" cannot tell that apart
+    /// from a dropped measurement.
+    #[test]
+    fn a_route_whose_run_reverted_states_why_there_is_no_amount() {
+        let mut payload = route(LOOP_KEY);
+        payload["status"] = json!("not_profitable_after_costs");
+        payload["attempts"] = json!([]);
+        payload["error"] = json!("execution reverted");
+        payload["runArbitrage"] = json!({
+            "ok": false,
+            "executable": false,
+            "error": "execution reverted",
+            "revertSelector": "0xb20c2204",
+        });
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        );
+        let calculation = evidence
+            .static_preview
+            .get("bestAmountCalculation")
+            .and_then(Value::as_object)
+            .expect("the published review carries the amount calculation");
+        assert_eq!(
+            calculation.get("bestAmountMissing").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            calculation.get("probeCount").and_then(Value::as_u64),
+            Some(0)
+        );
+        // The ladder was not blocked by a capacity; the chain refused the
+        // route.  The reason says so, and it is not a capacity repair.
+        assert_eq!(
+            calculation.get("bestAmountLadderBlocked").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            calculation.get("bestAmountMissingReason").and_then(Value::as_str),
+            Some("execution reverted")
+        );
+        assert!(calculation
+            .get("bestAmountRepairTarget")
+            .unwrap()
+            .is_null());
     }
 
     /// The generation the fixture's library state publishes.

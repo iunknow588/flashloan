@@ -154,6 +154,14 @@ def audit_review(row):
     ladder_blocked_reason = str(
         calculation.get("bestAmountLadderBlockedReason") or ""
     ).strip()
+    # The kernel publishes the ladder's own status and the manager that has
+    # to repair it; both travel with the published amount block.
+    ladder_status = str(calculation.get("bestAmountLadderStatus") or "").strip()
+    repair_target = str(calculation.get("bestAmountRepairTarget") or "").strip()
+    # One sentence that says why the amount is not there.  A missing amount
+    # **with** a reason is a measurement the system made; a missing amount
+    # **without** one is an evidence gap.
+    missing_reason = str(calculation.get("bestAmountMissingReason") or "").strip()
 
     if best_amount is None:
         amount_state = "missing"
@@ -218,6 +226,9 @@ def audit_review(row):
         "bestAmountZeroReason": zero_reason,
         "ladderBlocked": ladder_blocked,
         "ladderBlockedReason": ladder_blocked_reason,
+        "ladderStatus": ladder_status,
+        "repairTarget": repair_target,
+        "missingReason": missing_reason,
         "ladderSize": len(ladder),
         "capacityAnchorRaw": row["single_tick_capacity_anchor_raw"],
         "missingFields": missing_fields,
@@ -345,6 +356,21 @@ def main():
     missing_pnl_published_as_zero = [
         r["loopKey"] for r in missing_pnl if r["pnlAmount"] == 0
     ]
+    # A missing amount that carries **no** reason is the one that is an
+    # evidence gap: nobody can tell a ladder the capacity blocked from a
+    # measurement that was dropped on the way in.  A missing amount that
+    # carries a reason is a measured chain fact.  The two are counted apart
+    # wherever the missing count appears, so the strict verdict and the
+    # refined one are never confused.
+    missing_with_reason = [
+        r for r in missing_amount if r.get("missingReason") or r.get("ladderBlockedReason")
+    ]
+    missing_without_reason = [
+        r for r in missing_amount if not r.get("missingReason") and not r.get("ladderBlockedReason")
+    ]
+    missing_reason_values = sorted({
+        r.get("missingReason") for r in missing_amount if r.get("missingReason")
+    })
 
     fresh = [r for r in reviews if r["fresh"]]
     stale = [r for r in reviews if not r["fresh"]]
@@ -533,15 +559,23 @@ def main():
                 "missingBecauseLadderNeverRan": len(
                     [r for r in missing_amount if r.get("ladderBlocked")]
                 ),
-                "missingWithoutABlockReason": [
-                    r["loopKey"]
-                    for r in missing_amount
-                    if not r.get("ladderBlocked")
+                "missingWithAReason": len(missing_with_reason),
+                # A missing amount with **no** reason at all is the one
+                # that is an evidence gap: nobody can tell a blocked ladder
+                # from a dropped measurement.
+                "missingWithoutAnyReason": [
+                    r["loopKey"] for r in missing_without_reason
                 ][:20],
                 "ladderBlockedReasons": sorted({
                     r.get("ladderBlockedReason")
                     for r in reviews
                     if r.get("ladderBlocked") and r.get("ladderBlockedReason")
+                })[:5],
+                "missingReasons": missing_reason_values[:8],
+                "repairTargets": sorted({
+                    r.get("repairTarget")
+                    for r in reviews
+                    if r.get("repairTarget")
                 })[:5],
             },
             "met": bool(reviews) and not missing_amount and not unconfirmed,
@@ -570,6 +604,9 @@ def main():
                 "bestAmountMissingFlags": sum(1 for r in reviews if r["bestAmountMissing"]),
                 "healerBestAmountMissing": best_amount_layer.get("missing"),
                 "healerBestAmountMissingCurrentLoop": best_amount_layer.get("missingCurrentLoop"),
+                "missingWithAReason": len(missing_with_reason),
+                "missingWithoutAnyReason": len(missing_without_reason),
+                "missingReasons": missing_reason_values[:8],
             },
             "met": not any(r["bestAmountMissing"] for r in reviews),
         },
@@ -649,6 +686,9 @@ def main():
                 "missingBecauseLadderNeverRan": len(
                     [r for r in missing_amount if r.get("ladderBlocked")]
                 ),
+                "missingWithAReason": len(missing_with_reason),
+                "missingWithoutAnyReason": len(missing_without_reason),
+                "missingReasons": missing_reason_values[:8],
                 "healerRowsWithLadder": len(
                     [r for r in reviews if r.get("ladderSize")]
                 ),

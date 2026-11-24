@@ -121,7 +121,7 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 |---|---|
 | 闭环目录发布的方向组数 | **174**（每组恰好 1 个闭环 ⇒ 需 **174** 个 worker） |
 | **overview** 给出的方向组数 | **174**（与目录**完全一致**，缺口 0） |
-| **扫描器 payload** 给出的方向组数 | **104**（**第一层根因放开容量后仍缺 74** ⇒ 见 `1.3.1） |
+| **扫描器 payload** 给出的方向组数 | **104**（**第一层根因放开容量后仍缺 74** ⇒ 见 §1.3.1） |
 | 运行时**常驻 worker** 数 | **16** |
 | 常驻上限的**内联硬顶** | **32**（`DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS` 默认 **16**） |
 | ⇒ **没有 worker 的闭环数** | **158** |
@@ -232,9 +232,9 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 | 25 条的失配位置 | **全部是第 2 跳（bridge）**，形态统一为 §[真, 假, 真]§ |
 | 25 条的路由池组来源 | **全部来自扫描 payload 的「观测池组」**；另外 **74** 条走**候选面回落**的**全部成立** |
 
-**成因**（`flashloan/src/dex/runtime/rust_closed_loop.py::_route_task_config§）：
+**成因**（`flashloan/src/dex/runtime/rust_closed_loop.py::_route_task_config`）：
 
-内核的契约原文（`flashloan/rs-src/src/worker_pool.rs::apply_closed_loop_identity§）：
+内核的契约原文（`flashloan/rs-src/src/worker_pool.rs::apply_closed_loop_identity`）：
 
 > The route prices **every candidate pool** of every hop, while the Manager
 > publishes the **one pool it selected** for each hop and keeps the rest as
