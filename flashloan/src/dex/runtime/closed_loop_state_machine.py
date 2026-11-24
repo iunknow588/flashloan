@@ -2629,8 +2629,24 @@ def reset_loop_for_new_cycle(
 # actually allowed to ask for. Keeping the two apart means the policy can
 # be tightened without touching the kernel's safety guard, and the kernel
 # can keep its guard without dictating the operational limit.
+#
+# The **concurrency** bound is what the runtime may ask the kernel for at
+# once: it is a resource guard, and it is deliberately small.
+#
+# The **resident** bound is a different thing: it says how many directed
+# groups may hold a worker thread at the same time.  The review publisher
+# writes a generation only when the measured evidence covers every
+# published loop, and the Review Manager replaces its rows as one
+# generation: a partially covered catalog would delete the rows of the
+# loops that were not measured.  A resident bound that is lower than the
+# published loop count therefore starves the chain -- the surplus loops
+# never get a worker, so they are never reviewed, so no generation is ever
+# published.  The resident bound therefore follows the kernel's own guard
+# (`worker_pool::CLOSED_LOOP_WORKER_CEILING`), which is the limit that
+# actually protects the process.
 CLOSED_LOOP_WORKER_DEFAULT = 16
 CLOSED_LOOP_WORKER_CEILING = 32
+CLOSED_LOOP_RESIDENT_GROUP_CEILING = 256
 
 # The operator override, read once at the bootstrap boundary. The runtime
 # never consults the environment again: it asks this module, and the
@@ -2669,7 +2685,7 @@ def resident_group_override() -> int | None:
     value = _read_int_env(_RESIDENT_GROUPS_ENV)
     if value is None:
         return None
-    return max(1, min(CLOSED_LOOP_WORKER_CEILING, value))
+    return max(1, min(CLOSED_LOOP_RESIDENT_GROUP_CEILING, value))
 
 
 def new_groups_per_scan_override() -> int | None:
@@ -2688,7 +2704,13 @@ def resolve_resident_group_limit(discovered_group_count: int) -> int:
     override = resident_group_override()
     if override is not None:
         return override
-    return max(1, min(CLOSED_LOOP_WORKER_CEILING, max(0, int(discovered_group_count))))
+    return max(
+        1,
+        min(
+            CLOSED_LOOP_RESIDENT_GROUP_CEILING,
+            max(0, int(discovered_group_count)),
+        ),
+    )
 
 
 def resolve_max_workers(value: str | int | None = None) -> int:
@@ -2759,6 +2781,7 @@ __all__ = [
     "reset_loop_for_new_cycle",
     "CLOSED_LOOP_WORKER_CEILING",
     "CLOSED_LOOP_WORKER_DEFAULT",
+    "CLOSED_LOOP_RESIDENT_GROUP_CEILING",
     "max_workers_override",
     "new_groups_per_scan_override",
     "resident_group_override",

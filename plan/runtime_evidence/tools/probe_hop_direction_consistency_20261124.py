@@ -58,7 +58,7 @@ def main():
 
     hops = []
     for row in connection.execute(
-        "SELECT h.loop_key, h.hop_index, h.pool_id, h.base_pool_id,"
+        "SELECT h.loop_key, h.hop_index, h.pool_id, h.base_pool_id, h.temporary_override,"
         "       h.input_token_key_id, h.output_token_key_id,"
         "       h.directional_pool_id, h.hop_direction, h.directional_scope_key"
         "  FROM manager_v4_closed_loop_hops h"
@@ -78,6 +78,7 @@ def main():
         "i14_direction_token_order_mismatch": 0,
         "pool_id_not_base_pool": 0,
         "missing_direction": 0,
+        "temporary_override_hops": 0,
     }
     samples = []
     for hop in hops:
@@ -102,8 +103,16 @@ def main():
             counters["i14_direction_token_order_mismatch"] += 1
             problems.append("i14-input")
         if row["base_pool_id"] != hop["base_pool_id"]:
-            counters["i11_base_pool_mismatch"] += 1
-            problems.append("i11")
+            # A hop that took over a backup pool walks the **backup's** base
+            # pool, while ``base_pool_id`` keeps naming the primary it
+            # replaced.  The two ids are therefore expected to differ for a
+            # temporary override, and the check only applies to the hops
+            # that kept their primary.
+            if hop["temporary_override"]:
+                counters["temporary_override_hops"] += 1
+            else:
+                counters["i11_base_pool_mismatch"] += 1
+                problems.append("i11")
         if row["direction"] != hop["hop_direction"]:
             counters["i12_direction_mismatch"] += 1
             problems.append("i12")
@@ -113,7 +122,7 @@ def main():
         if hop["input_token_key_id"] != expected_input or hop["output_token_key_id"] != expected_output:
             counters["i14_direction_token_order_mismatch"] += 1
             problems.append("i14")
-        if hop["pool_id"] != hop["base_pool_id"]:
+        if hop["pool_id"] != hop["base_pool_id"] and not hop["temporary_override"]:
             counters["pool_id_not_base_pool"] += 1
             problems.append("pool_id")
         if problems and len(samples) < 10:
@@ -158,7 +167,7 @@ def main():
         "passed": all(
             value == 0
             for name, value in counters.items()
-            if name not in ("hops", "loops")
+            if name not in ("hops", "loops", "temporary_override_hops")
         ),
     }
     print(json.dumps(report, indent=2, ensure_ascii=False))

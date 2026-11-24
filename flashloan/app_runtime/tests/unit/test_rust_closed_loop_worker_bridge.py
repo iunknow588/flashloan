@@ -1798,6 +1798,92 @@ def test_scanner_skips_native_group_when_worker_is_idle_resident(
     assert len(submitted) == 0
 
 
+def test_scanner_resident_limit_covers_every_discovered_group(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The resident limit must cover the group count the chain publishes.
+
+    The review publisher writes a generation only when the measured evidence
+    covers the whole closed-loop catalog, and the Review Manager replaces its
+    rows as one generation.  A resident limit that is lower than the
+    published group count therefore starves the chain: the surplus loops
+    never get a worker, so they are never reviewed, so no generation is ever
+    published.  The limit is derived from the discovered groups for that
+    reason -- it is a fact about the chain, not a fixed policy number.
+    """
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    trusted: dict[str, str] = {}
+
+    def _directed_route(index: int) -> dict[str, Any]:
+        symbols = [f"T{index}A", f"T{index}B", f"T{index}C"]
+        addresses = []
+        for position, symbol in enumerate(symbols):
+            address = "0x" + (f"{index:02x}{position:x}" + "0" * 37)
+            addresses.append(address)
+            trusted[address] = symbol
+        return {
+            "routeSymbols": symbols + [symbols[0]],
+            "routeAddresses": addresses + [addresses[0]],
+            "tokenSymbols": symbols,
+            "quoteStatus": "requires_live_quoter",
+            "poolPathKey": "a|b|c",
+            "pools": [],
+        }
+
+    def fake_trusted_symbol_from_address(address, chain_id=None):
+        return trusted.get(str(address or "").strip().lower())
+
+    monkeypatch.setattr(
+        "market.binance_market.dex_route_helpers.trusted_symbol_from_address",
+        fake_trusted_symbol_from_address,
+    )
+
+    submitted: list[dict[str, Any]] = []
+    monkeypatch.delenv("DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS", raising=False)
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {"workers": []},
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "build_group_task_config",
+        lambda *, chain_id, protocols, routes: (
+            "|".join(str(symbol).lower() for symbol in routes[0]["routeSymbols"][:3]),
+            {"routes": routes},
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "submit_group",
+        lambda **kwargs: submitted.append(kwargs) or {"accepted": True},
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner.auto_execute_enabled = True
+    scanner._native_database_url = lambda chain_id=None: str(tmp_path / "native.sqlite3")
+
+    group_count = 40
+    routes = [_directed_route(index) for index in range(group_count)]
+    submission = rust_mixin.DexOpportunityNativeRustMixin._submit_native_closed_loop_groups(
+        scanner,
+        payload={"routes": routes},
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    capacity = submission["capacity"]
+    assert submission["groupsDiscovered"] == group_count
+    assert capacity["totalGroupLimit"] >= group_count, (
+        "the resident limit must cover the published group count, "
+        f"got {capacity['totalGroupLimit']} for {group_count} groups"
+    )
+    assert capacity["batchLimit"] >= 1
+    assert len(submitted) == capacity["batchLimit"]
+
+
 def test_scanner_caps_total_native_group_workers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

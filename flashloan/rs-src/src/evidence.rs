@@ -599,6 +599,140 @@ fn upsert_v4_exchange_pools(
     Ok(count)
 }
 
+/// Write the recent-swap activity markers into their own table.
+///
+/// The marker is a property of the **swap log**, not of the pool state, so it
+/// does not belong to the depth snapshot row: that row is the materialised
+/// boundary of one on-chain moment, and the swap activity is a window that
+/// was scanned at a different time.
+///
+/// The evidence channel owns the pool index, and the marker is carried by the
+/// pool index rows, so the evidence channel is the natural writer of this
+/// table.  The depth snapshot table keeps its single writer -- the Rust pool
+/// manager -- which reads this table and materialises the marker into
+/// `recent_swap_active` when it writes a snapshot row.
+///
+/// The three states are preserved exactly:
+///
+/// * `Some(1)` -- the pool traded inside the window,
+/// * `Some(0)` -- the window was scanned and the pool did not trade,
+/// * `None`   -- the pool was not measured.
+///
+/// A pool that was not measured is **not** written as `0`: an unmeasured pool
+/// must not look like a dead pool, because the consumer of this marker reads
+/// `0` as "scanned, no trade".
+/// The pool ids that are in the pool library of one network and protocol.
+///
+/// The library admission is a storage rule: a pool whose fee is outside
+/// the library ceiling never enters `v4_exchange_pools`, so it is not a
+/// candidate, not a recommendation and not a backup.  Anything that
+/// references a pool row -- the depth snapshot table and the recent-swap
+/// activity table -- therefore has to follow the same rule.
+fn library_pool_ids(
+    transaction: &Transaction<'_>,
+    network: &str,
+    chain_id: i64,
+    protocol: &str,
+) -> Result<std::collections::BTreeSet<String>, String> {
+    let sql = "SELECT pool_id FROM v4_exchange_pools
+               WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3";
+    let mut statement = transaction
+        .prepare(sql)
+        .map_err(|error| format!("library pool lookup failed: {error}"))?;
+    let rows = statement
+        .query_map(rusqlite::params![network, chain_id, protocol], |row| {
+            Ok(row.get::<_, String>(0)?)
+        })
+        .map_err(|error| format!("library pool lookup failed: {error}"))?;
+    let mut pool_ids = std::collections::BTreeSet::new();
+    for row in rows.flatten() {
+        pool_ids.insert(row.trim().to_lowercase());
+    }
+    Ok(pool_ids)
+}
+
+fn upsert_v4_pool_recent_swap_activity(
+    transaction: &Transaction<'_>,
+    network: &str,
+    chain_id: i64,
+    protocol: &str,
+    rows: &[Value],
+) -> Result<usize, String> {
+    // The marker is published for a pool that is in the library.  The
+    // activity table references `v4_exchange_pools`, and the pool writer
+    // only admits a pool whose fee is inside the library ceiling, so a
+    // marker for a pool outside the library would violate the foreign
+    // key.  Such a pool is not in the library, so it can never be a
+    // candidate, a recommendation or a backup -- there is nothing for
+    // the marker to decide.
+    let library_pools = library_pool_ids(transaction, network, chain_id, protocol)?;
+    let now = utc_now();
+    let mut params = Vec::new();
+    let mut count = 0;
+    for row in rows {
+        let pool_id = norm_value(
+            row.get("pool_id")
+                .or_else(|| row.get("poolId"))
+                .or_else(|| row.get("pool"))
+                .unwrap_or(&JSON_NULL),
+        );
+        if pool_id.is_empty() {
+            continue;
+        }
+        if !library_pools.contains(&pool_id) {
+            continue;
+        }
+        // The marker is tri-state.  A row without the marker carries no
+        // measurement at all, so it is skipped instead of being written as
+        // "no trade".
+        let marker = row
+            .get("recent_swap_active")
+            .or_else(|| row.get("recentSwapActive"))
+            .map(tri_value)
+            .unwrap_or(None);
+        let marker = match marker {
+            Some(value) => value,
+            None => continue,
+        };
+        let lookback_days = row
+            .get("recent_swap_lookback_days")
+            .or_else(|| row.get("recentSwapLookbackDays"))
+            .and_then(as_i64);
+        let scan_block_number = row
+            .get("recent_swap_scan_block_number")
+            .or_else(|| row.get("recentSwapScanBlockNumber"))
+            .and_then(as_i64);
+        params.push(vec![
+            Value::from(network.to_string()),
+            Value::from(chain_id),
+            Value::from(protocol.to_string()),
+            Value::from(pool_id),
+            marker,
+            lookback_days.map(Value::from).unwrap_or(Value::Null),
+            scan_block_number.map(Value::from).unwrap_or(Value::Null),
+            Value::from(now.clone()),
+        ]);
+        count += 1;
+    }
+    if params.is_empty() {
+        return Ok(0);
+    }
+    execute_many(
+        transaction,
+        "INSERT INTO v4_exchange_pool_recent_swap_activity (
+            network, chain_id, protocol, pool_id, recent_swap_active,
+            lookback_days, scan_block_number, scanned_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
+            recent_swap_active = excluded.recent_swap_active,
+            lookback_days = excluded.lookback_days,
+            scan_block_number = excluded.scan_block_number,
+            scanned_at = excluded.scanned_at",
+        &params,
+    )?;
+    Ok(count)
+}
+
 /// Attach the kernel admission verdict to a depth-band document.
 ///
 /// The verdict is owned by the Rust kernel and read from the shared depth
@@ -842,6 +976,16 @@ pub(crate) fn import_v4_evidence_payloads(
     // complete row.
     let liquidity_count = liquidity_rows.len();
     let index_liquidity_count = index_liquidity_rows.len();
+    // The recent-swap marker is written to its own table, not to the depth
+    // snapshot table.  The marker travels with the pool index rows, and the
+    // pool manager -- the single writer of the depth snapshot table -- reads
+    // this table and materialises the marker into `recent_swap_active`.
+    //
+    // The marker is only written for a pool that was actually measured, so a
+    // row that carries no marker is skipped and the previous measurement is
+    // left alone instead of being replaced by "no trade".
+    let recent_swap_activity_count =
+        upsert_v4_pool_recent_swap_activity(&transaction, network, chain_id, protocol, index_liquidity_rows)?;
     upsert_initialization(
         &transaction,
         network,
@@ -866,6 +1010,7 @@ pub(crate) fn import_v4_evidence_payloads(
         "liquidityRowCount": liquidity_count,
         "indexLiquidityRowCount": index_liquidity_count,
         "liquidityRowsWritten": 0,
+        "recentSwapActivityRowCount": recent_swap_activity_count,
         "source": "onchain_evidence_payload",
         "detail": "raw V4 tables imported directly from in-memory evidence; JSON files are not read",
         "depthSnapshotWriter": "pool_manager",
@@ -1186,6 +1331,148 @@ pub(crate) fn prune_v4_non_executable_evidence(
 mod tests {
     use super::*;
     use rusqlite::Connection;
+
+    /// T-候储.01: the swap activity marker is written to its own table.
+    ///
+    /// The marker travels with the pool index rows, and the evidence channel
+    /// owns the pool index, so the evidence channel writes the marker.  The
+    /// depth snapshot table keeps its single writer -- the Rust pool manager
+    /// -- which reads this table and materialises the marker.
+    ///
+    /// The three states are kept apart: a pool that was not measured is not
+    /// written at all, so the previous measurement survives instead of being
+    /// replaced by "no trade".
+    #[test]
+    fn the_swap_activity_marker_is_written_to_its_own_table() {
+        let mut connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE v4_exchange_pool_recent_swap_activity (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+                    pool_id TEXT NOT NULL,
+                    recent_swap_active INTEGER,
+                    lookback_days INTEGER,
+                    scan_block_number INTEGER,
+                    scanned_at TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                 );
+                 CREATE TABLE v4_exchange_pools (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+                    pool_id TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                 );",
+            )
+            .expect("activity table");
+        let transaction = connection.transaction().expect("transaction");
+        // The marker is published only for a pool that is in the
+        // library, because the activity table references the pool table.
+        for pool_id in ["0xtraded", "0xquiet"] {
+            transaction
+                .execute(
+                    "INSERT INTO v4_exchange_pools (network, chain_id, protocol, pool_id)
+                     VALUES ('robinhood', 4663, 'uniswap_v4', ?1)",
+                    [pool_id],
+                )
+                .expect("library pool");
+        }
+
+        let rows = vec![
+            json!({"pool_id": "0xtraded", "recent_swap_active": true}),
+            json!({"pool_id": "0xquiet", "recent_swap_active": false}),
+            json!({"pool_id": "0xunmeasured"}),
+        ];
+        let written = upsert_v4_pool_recent_swap_activity(
+            &transaction,
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            &rows,
+        )
+        .expect("write activity");
+        assert_eq!(written, 2, "only the measured pools are written");
+
+        let traded: Option<i64> = transaction
+            .query_row(
+                "SELECT recent_swap_active FROM v4_exchange_pool_recent_swap_activity
+                 WHERE pool_id = '0xtraded'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read traded");
+        assert_eq!(traded, Some(1), "a traded pool is published as active");
+
+        let quiet: Option<i64> = transaction
+            .query_row(
+                "SELECT recent_swap_active FROM v4_exchange_pool_recent_swap_activity
+                 WHERE pool_id = '0xquiet'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read quiet");
+        assert_eq!(quiet, Some(0), "a scanned pool without a trade is published as zero");
+
+        let count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM v4_exchange_pool_recent_swap_activity
+                 WHERE pool_id = '0xunmeasured'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read unmeasured");
+        assert_eq!(count, 0, "an unmeasured pool is not written at all");
+    }
+
+    /// A marker for a pool outside the library is not published.
+    ///
+    /// The activity table references the pool table, and the pool writer
+    /// only admits a pool whose fee is inside the library ceiling.  A
+    /// marker for a pool outside the library would violate the foreign
+    /// key, and there is nothing for such a marker to decide: the pool
+    /// is not a candidate, not a recommendation and not a backup.
+    #[test]
+    fn a_marker_for_a_pool_outside_the_library_is_not_published() {
+        let mut connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE v4_exchange_pool_recent_swap_activity (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+                    pool_id TEXT NOT NULL,
+                    recent_swap_active INTEGER,
+                    lookback_days INTEGER,
+                    scan_block_number INTEGER,
+                    scanned_at TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                 );
+                 CREATE TABLE v4_exchange_pools (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+                    pool_id TEXT NOT NULL,
+                    PRIMARY KEY (network, chain_id, protocol, pool_id)
+                 );",
+            )
+            .expect("activity table");
+        let transaction = connection.transaction().expect("transaction");
+        let rows = vec![json!({
+            "pool_id": "0xoutside",
+            "recent_swap_active": true
+        })];
+        let written = upsert_v4_pool_recent_swap_activity(
+            &transaction,
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            &rows,
+        )
+        .expect("write activity");
+        assert_eq!(written, 0, "a pool outside the library has no marker");
+    }
 
     /// The pool library only holds pools the orchestrator may trade, so
     /// the fee ceiling is a **storage** rule and not a ranking rule.

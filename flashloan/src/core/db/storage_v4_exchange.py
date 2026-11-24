@@ -541,6 +541,128 @@ def upsert_v4_liquidity_snapshots(
         rows=rows,
     )
 
+def _library_pool_ids(
+    database_url: str,
+    network: str,
+    chain_id: int,
+    protocol: str,
+) -> set[str]:
+    """Return the pool ids that are in the pool library.
+
+    The library admission is a storage rule: a pool whose fee is outside
+    the library ceiling never enters ``v4_exchange_pools``, so it is not
+    a candidate, not a recommendation and not a backup.  Anything that
+    references a pool row -- the depth snapshot table and the recent-swap
+    activity table -- therefore has to follow the same rule.
+    """
+    import sqlite3
+
+    try:
+        connection = sqlite3.connect(database_url)
+    except sqlite3.Error:
+        return set()
+    try:
+        rows = connection.execute(
+            "SELECT pool_id FROM v4_exchange_pools "
+            "WHERE network = ? AND chain_id = ? AND protocol = ?",
+            (network, int(chain_id), protocol),
+        ).fetchall()
+    except sqlite3.Error:
+        return set()
+    finally:
+        connection.close()
+    return {str(row[0] or "").strip().lower() for row in rows}
+
+
+def upsert_v4_pool_recent_swap_activity(
+    database_url: str,
+    *,
+    network: str,
+    chain_id: int,
+    protocol: str,
+    rows: list[dict[str, Any]],
+) -> int:
+    """Write the measured recent-swap activity markers.
+
+    The marker is a property of the swap log, not of the pool state, so it
+    does not belong to the depth snapshot row: that row is the materialised
+    boundary of one on-chain moment.  The marker is published in its own
+    table, and the Rust pool manager -- the single writer of the depth
+    snapshot table -- reads this table and materialises the marker into
+    ``recent_swap_active`` when it writes a snapshot row.
+
+    The three states are kept apart:
+
+    * ``1``  -- the pool traded inside the window,
+    * ``0``  -- the window was scanned and the pool did not trade,
+    * ``None`` -- the pool was not measured.
+
+    A row without a marker is **skipped** rather than written as ``0``: an
+    unmeasured pool must not be published as a pool that was measured and
+    did not trade.
+    """
+    from core.db.database_path import absolute_database_path
+
+    target = str(absolute_database_path(database_url))
+    written = 0
+    now = _stamp()
+    # The marker is published for a pool that is in the library.  The
+    # activity table references ``v4_exchange_pools``, and the pool writer
+    # only admits a pool whose fee is inside the library ceiling, so a
+    # marker for a pool outside the library would violate the foreign
+    # key.  Such a pool is not in the library, so there is nothing for
+    # the marker to decide.
+    library_pools = _library_pool_ids(target, network, chain_id, protocol)
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        pool_id = str(row.get("pool_id") or row.get("poolId") or "").strip()
+        if not pool_id:
+            continue
+        if pool_id.lower() not in library_pools:
+            continue
+        marker = row.get("recent_swap_active")
+        if marker is None:
+            marker = row.get("recentSwapActive")
+        if marker is None:
+            # Not measured: the previous measurement stays untouched.
+            continue
+        marker_value = 1 if bool(marker) else 0
+        lookback_days = row.get("recent_swap_lookback_days")
+        if lookback_days is None:
+            lookback_days = row.get("recentSwapLookbackDays")
+        scan_block_number = row.get("recent_swap_scan_block_number")
+        if scan_block_number is None:
+            scan_block_number = row.get("recentSwapScanBlockNumber")
+        execute_many_upsert(
+            target,
+            """
+            INSERT INTO v4_exchange_pool_recent_swap_activity (
+                network, chain_id, protocol, pool_id, recent_swap_active,
+                lookback_days, scan_block_number, scanned_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(network, chain_id, protocol, pool_id) DO UPDATE SET
+                recent_swap_active = excluded.recent_swap_active,
+                lookback_days = excluded.lookback_days,
+                scan_block_number = excluded.scan_block_number,
+                scanned_at = excluded.scanned_at
+            """,
+            [
+                (
+                    network,
+                    int(chain_id),
+                    protocol,
+                    pool_id,
+                    marker_value,
+                    int(lookback_days) if lookback_days is not None else None,
+                    int(scan_block_number) if scan_block_number is not None else None,
+                    now,
+                )
+            ],
+        )
+        written += 1
+    return written
+
 def load_v4_exchange_pools(
     database_url: str,
     *,

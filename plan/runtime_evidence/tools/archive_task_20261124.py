@@ -185,10 +185,15 @@ def rewrite_inbound_links(task_dir: str, archive_path: str, anchor_map: dict) ->
                 return "[%s](%s)" % (label, rel_to_archive)
 
             new_text = _MD_LINK_RE.sub(_repl, text)
+            # A **back-tick** path in these documents is **repo-root
+            # relative** (``plan/archive/...``), not relative to the file
+            # that holds it.  A markdown link is relative to its own file,
+            # so the two forms must not be rewritten the same way.
+            rel_to_repo_archive = os.path.relpath(archive_path, REPO_ROOT).replace("\\", "/")
             for rel in list(anchor_map):
                 old_full = "%s/%s" % (prefix, rel)
                 if old_full in new_text:
-                    new_text = new_text.replace(old_full, "%s#%s" % (rel_to_archive, anchor_map[rel]))
+                    new_text = new_text.replace(old_full, "%s#%s" % (rel_to_repo_archive, anchor_map[rel]))
             if new_text != text:
                 write(path, new_text)
                 touched.append((path, 1))

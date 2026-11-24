@@ -1,0 +1,192 @@
+# D-047 `T-复编.02`｜Review 金额与利润完整性 · 开发计划（**独立 · 自包含**）
+
+> **本目录是 T-复编.02 的完整工作单元 —— 独立、自包含、不与其它任务耦合。**
+> **本文件 + `checklist.md` 即 T-复编.02 的全部开发与测试计划。**
+> 本目录**不引用**其它任务目录的验收内容；需要别的任务先完成时，只写**模块级前置**（§1）。
+>
+> **编号是纯 ID**：`T-复编.02` / `AC-复编.02` **不表达任何功能关联**。
+> **范围与顺序只按模块编号（`M-n`）表达。**
+
+---
+
+## 1.0 编号逻辑（**本任务的编号从哪来**）
+
+> **本节是固定部分。** 每个任务都必须**自己**声明编号逻辑，
+> 使读者**不看编号册**也能知道「这个编号的索引是什么、序号是多少」。
+
+| 项 | 值 |
+|---|---|
+| **本任务编号** | **`T-复编.02`** |
+| **本任务验收编号** | **`AC-复编.02`**（与任务编号**同号段**） |
+| **编号作用域** | **跨模块（组合索引）** |
+| **编号索引** | **`复编`**（`M-6`（复核层（复核发布 / 金额利润））、`M-8`（编排层）） |
+| **序号** | 第 `02` 个（该索引号段内递增，**不复用**；`.01` = 已归档的 `T-复编.01`） |
+| **同索引其它任务** | `T-复编.01`（已归档） |
+
+
+本任务**改动 2 个模块**（`M-6`、`M-8`）⇒ 按 §1.2 规则取这些模块的索引**按模块号升序拼接** ⇒ 组合索引 **`复编`**。
+
+> **编号变更记录**（2026-11-24）：初始登记的索引是 **`复`**（模块集合 `M-6`）。
+> 实测发现**常驻 worker 容量问题**（扫描器内联了一份「默认 16 / 硬顶 32」的**复制品**）
+> 必须在**编排层 `M-8`**修复 ⇒ 模块集合扩为 `M-6` + `M-8`
+> ⇒ 组合索引合法名只能是 **`复编`** ⇒ 任务编号同步改为 **`T-复编.02`**。
+> 旧号 `T-复.01` **已消费**（不复用）。扩范围的实质内容见 §1.3。
+
+
+
+**规则**：
+
+1. **一个任务只改动一个模块** ⇒ 编号索引 = 该模块索引（模块内编号）。
+2. **一个任务改动多个模块** ⇒ 编号索引 = **各模块索引按模块号升序拼接**（组合索引）。
+   拼接顺序**按模块号 `M-n`**（`M-3` < `M-4` < … < `M-10`），**不按索引字典序** ——
+   否则同一组合会出现两种拼法 ⇒ 编号不可复算。
+3. **模块索引表**见 [`plan/D-001-TASK_REGISTRY.md`](../../../../D-001-TASK_REGISTRY.md) §1.1；
+   **组合索引规则**见同文件 §1.2。
+4. **不同索引的序号互不消耗** —— `方储` 做到 `.09` **不影响** `储` 的 `.04`。
+5. **前置与顺序只按模块号 `M-n` 表达** —— **禁止**写「等 `T-x.yy` 完成」。
+
+**本任务涉及的模块**（**这一列就是本任务的回归范围**）：
+
+| 模块 | 名称 | 索引 |
+|---|---|---|
+| `M-6` | 复核层（复核发布 / 金额利润） | `复` |
+| `M-8` | 编排层 | `编` |
+
+
+**登记**：本任务的号段占用情况登记在
+[`plan/D-001-TASK_REGISTRY.md`](../../../../D-001-TASK_REGISTRY.md) §4.2（**编号唯一真相源**）。
+
+---
+
+## 1. 身份与范围
+
+| 项 | 值 |
+|---|---|
+| **任务编号（纯 ID）** | **`T-复编.02`** |
+| **验收编号（纯 ID）** | **`AC-复编.02`** |
+| **标题** | Review 金额与利润完整性 |
+| **优先级** | P0 |
+| **波次（模块级）** | W-2 |
+| **前置模块**（**不是**前置任务） | M-6 |
+| **需授权** | 是（写库） |
+| **未完成验收项** | **29** |
+| **已闭合验收项** | 0 |
+
+### 1.1 改动模块（**这一列就是 T-复编.02 的回归范围**）
+
+| 模块 | 名称 | 代码落点 |
+|---|---|---|
+| `M-6` | 复核层 | `flashloan/tools/review_manager/` |
+| `M-8` | 编排层（**扩范围 · 事后补记**） | `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`、`flashloan/src/dex/runtime/closed_loop_state_machine.py`、`flashloan/app_runtime/.env.example` |
+
+> **规则**：**只跑**上表模块的独立测试。**未在上表出现的模块，一律不跑。**
+> **不得**以「有新任务」或「功能没变」为由跑全量。
+
+### 1.2 回归命令（**逐条可复制执行**）
+
+| 模块 | 名称 | 命令 |
+|---|---|---|
+| `M-6` | 复核层 | `cargo test --offline -p review-manager` |
+| `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q` |
+
+```powershell
+# T-复编.02 的完整回归范围 = 上表所有模块的命令之并集
+cargo test --offline -p review-manager
+python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q
+```
+
+### 1.3 扩范围登记（**事后补记 · 流程欠账**）
+
+**扩的模块**：`M-8`（编排层）—— `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`、
+`flashloan/src/dex/runtime/closed_loop_state_machine.py`。
+
+**为什么必须扩**：本任务的**复核发布**链路（`T-复编.01` 交付）本身正确，
+但实盘**一次都没有落地**——复核库至今仍是 `review_version=24` / `closed_loop_version=14` /
+164 行 / `reviewed_at='unreported'`。
+
+**实测根因**（只读探针，见 `docs/`）：
+
+| 事实 | 读数 |
+|---|---|
+| 闭环目录发布的方向组数 | **174**（每组恰好 1 个闭环 ⇒ 需 **174** 个 worker） |
+| 扫描器**实际发现**的方向组数 | **174**（与目录**完全一致**，缺口 0） |
+| 运行时**常驻 worker** 数 | **16** |
+| 常驻上限的**内联硬顶** | **32**（`DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS` 默认 **16**） |
+| ⇒ **没有 worker 的闭环数** | **158** |
+
+⇒ 这 158 个闭环**永远拿不到复核证据** ⇒ `covers_catalog()`
+（证据条数 == 目录条数 == 174）**永远不成立** ⇒ `review_publish_block` 永远返回
+`coverage_incomplete` ⇒ **复核代次永不发布**。
+
+**为什么只能在编排层修**：常驻容量是**编排层**的策略（`M-6` 复核层只负责**发布门禁**，
+门禁本身**一字未改**、**不得**放宽）。Python 侧**已有**正确的解析函数
+`closed_loop_state_machine::resolve_resident_group_limit()`（按**已发现组数**解析、
+受 `CLOSED_LOOP_RESIDENT_GROUP_CEILING` 约束），但**扫描器没有调用它**，
+而是内联了一份**默认 16 / 硬顶 32** 的复制品 ⇒ **容量与闭环目录规模脱钩**。
+
+**改了什么**（**最小改动**）：
+
+| 文件 | 改动 |
+|---|---|
+| `closed_loop_state_machine.py` | 把**常驻组**上限与**并发**上限**拆开**：并发上限 `CLOSED_LOOP_WORKER_CEILING=32` **不动**（RPC 资源守卫），新增 `CLOSED_LOOP_RESIDENT_GROUP_CEILING=256`（对齐 Rust 内核 `worker_pool::CLOSED_LOOP_WORKER_CEILING`） |
+| `dex_opportunity_scanner_rust_mixin.py` | 删掉内联的「默认 16 / 硬顶 32」复制品，改调**共享**的 `resolve_resident_group_limit()`；批量坡道改用共享的 `new_groups_per_scan_override()`；并把**仍持有 worker 但本轮未被发现**的组计入上限（否则上限会被一条陈旧线程卡死） |
+| `app_runtime/.env.example` | **钉死值** `DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS=16` 改为**留空**（＝跟随已发现的方向组数）。该模板若被复制到部署环境，会把上面两处修复**原样打回**（常驻组又被压回 16 ⇒ 复核代次永远发布不出来） |
+
+**没改什么**（**门禁一字未动**）：复核发布门禁（覆盖全集 / 上游代际 / 幂等键）、
+`review_manager` 的 `ok && executable` 判定、方向池与固定费率约定、广播门禁。
+
+**缺口如实登记**：`D-014` §0.2 的「M-n 模块表**没有 `rs-src` / Python 运行时归属**」
+仍未闭合 —— 本次沿用 `T-复编.01` 先例把运行时落点登记在 `M-8` 名下，**不**改模块表。
+
+---
+
+## 2. 执行步骤
+
+| 步 | 动作 | 完成判据 |
+|---:|---|---|
+| **1** | 读 `checklist.md`，确认每一条验收项的**当前状态** | 全部条目已知 |
+| **2** | 只改**本任务改动模块**内的代码（§1.1） | 改动文件全部落在 §1.1 的落点内 |
+| **3** | 跑 §1.2 的**本任务回归范围** | 全绿 |
+| **4** | 逐条勾选 `checklist.md` 的 `- [ ]` | 每条都有**实测证据**，不得凭推断勾选 |
+| **5** | 记录读数与诚实边界 | 未实测项写「**未测量**」，**不得**用零冒充 |
+
+### 2.1 三条执行纪律
+
+1. **编译 ≠ 测试**：只改接口签名时，`cargo build --offline --workspace` 足以暴露类型破坏 ⇒
+   **不必**跑全部 crate 的测试。
+2. **跨 crate 的公开接口改动**才需要加跑**调用方**的测试；**内部实现**改动**不需要**。
+3. **Python 侧同理**：`flashloan/app_runtime/tests/unit/` 有 **271** 个文件，
+   **只跑受影响的那几个**。
+
+---
+
+## 3. 完成定义
+
+- [ ] `checklist.md` 中**全部** `- [ ]` 变为 `- [x]`
+- [ ] §1.2 的**全部**回归命令**全绿**
+- [ ] 每条已勾选项都有**可复算的实测读数**
+- [ ] **未放宽**任何既有门禁（金额 / 容量 / 利润口径 / 幂等键 / 回执关联 / 阈值）
+- [ ] **未**因本任务触碰**不属于** §1.1 的模块（若必须触碰 ⇒ **扩范围并重跑**）
+
+---
+
+## 4. 归档
+
+**闭合后必须移出 `plan/tasks/`** —— `plan/tasks/` 只放**未闭合**任务。
+
+```powershell
+# 打包四文件 ＋ docs/ → plan/archive/，并登记索引，最后删除本目录
+python plan/runtime_evidence/tools/archive_task_20261124.py T-复编.02
+# 先预演（不落盘、不删除）：
+python plan/runtime_evidence/tools/archive_task_20261124.py T-复编.02 --dry-run
+```
+
+工具会自动完成：
+1. 四文件 ＋ `docs/` 打包为 `plan/archive/任务归档_T-06_<标题>_<日期>.md`（保留五个小节）；
+2. 在 `plan/archive/README.md` §1 **归档索引**登记一行；
+3. 在**一级任务** README 的二级清单标记「✅ 已闭合 · 已归档」；
+4. **删除** 本目录。
+
+> **归档件内容冻结** —— 更正走新版本 `..._v2.md`，旧版保留。
+> 归档区是**受控文档区**，规则见 `plan/README.md` §1.2 与 `plan/archive/README.md`。
+> **不得**再在本目录追加新任务 —— 新任务**另建目录**。

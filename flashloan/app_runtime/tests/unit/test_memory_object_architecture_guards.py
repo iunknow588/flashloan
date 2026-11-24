@@ -63,18 +63,18 @@ def _active_development_plan() -> Path:
     The plan is renamed whenever the active version advances, so pinning
     one file name here would break the guard on every version bump. The
     active document is the one in the active plan directory whose name
-    starts with ``开发计划_``; a frozen snapshot under ``plan/back/``
-    never matches.
+    carries ``开发计划``; a frozen snapshot under ``plan/archive/`` or
+    ``plan/back/`` never matches.
 
-    The active plan directory is ``plan/池子重构方案/``: the three
-    documents that used to sit directly in ``plan/`` were frozen into
-    ``plan/back/`` and their outstanding work was merged into the
+    The active plan directory is ``plan/tasks/P-01-池子重构/docs/``: the
+    three documents that used to sit directly in ``plan/`` were frozen
+    into ``plan/back/`` and their outstanding work was merged into the
     documents that live in the plan directory.
     """
     plan_root = REPO_ROOT / "plan"
     candidates = sorted(
         path
-        for path in plan_root.glob("*/开发计划_*.md")
+        for path in plan_root.glob("tasks/*/docs/*开发计划*.md")
         if path.is_file()
     )
     if not candidates:
@@ -647,25 +647,30 @@ def test_the_plan_documents_the_memory_object_constraint() -> None:
 
 
 def test_plan_root_keeps_exactly_the_three_active_documents() -> None:
-    """The plan root exposes one plan directory and no loose documents.
+    """The plan root exposes one plan directory and no loose backlog.
 
     The three documents used to sit directly in ``plan/``. They were
     frozen into ``plan/back/`` and their outstanding work was merged
     into the plan directory, which is now the active plan directory.
-    The plan root therefore holds no loose document any more; leaving
-    one there would create a second source of truth for the backlog.
+    The plan root therefore holds no loose backlog document any more;
+    leaving one there would create a second source of truth for it.
+
+    The two documents the plan root **does** hold are the index of the
+    task registry and the index of the plan itself.  Both are indexes,
+    not backlogs: they point at the active plan directory and hold no
+    outstanding work of their own.
     """
     plan_root = REPO_ROOT / "plan"
     active_files = {path.name for path in plan_root.iterdir() if path.is_file()}
-    assert active_files == set()
+    assert active_files == {"D-001-TASK_REGISTRY.md", "README.md"}
 
-    plan_dir = plan_root / "池子重构方案"
+    plan_dir = plan_root / "tasks" / "P-01-池子重构" / "docs"
     assert plan_dir.is_dir(), "the active plan directory is missing"
     documents = {path.name for path in plan_dir.glob("*.md")}
     assert {
-        "开发计划_20261123.md",
-        "未完成任务清单_20261123.md",
-        "check_list_20261123.md",
+        "D-013-开发计划_20261123.md",
+        "D-014-未完成任务清单_20261123.md",
+        "D-011-check_list_20261123.md",
     } <= documents, "the plan directory lost one of the three active documents"
 
 

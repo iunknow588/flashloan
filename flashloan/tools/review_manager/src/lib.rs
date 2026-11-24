@@ -1,5 +1,5 @@
 use closed_loop_manager::{
-    read_closed_loop_snapshot, ClosedLoopError, ClosedLoopRow, ClosedLoopStatus,
+    read_closed_loop_snapshot, ClosedLoopError, ClosedLoopHopRow, ClosedLoopRow, ClosedLoopStatus,
 };
 use pool_manager::{
     read_pool_parity_states, PoolParityState, SingleTickExecutionState,
@@ -20,7 +20,7 @@ pub mod single_tick;
 pub mod state_transition_gate;
 
 pub use parity::{
-    build_hops, chain_fee_matches, decode_chain_live_amounts, default_protocol,
+    build_hop_chain, build_hops, chain_fee_matches, decode_chain_live_amounts, default_protocol,
     effective_flash_fee_bps, evaluate_route_parity, evaluate_route_parity_with_review_time_state,
     evaluate_route_parity_with_states, extract_review_time_pool_states, flash_fee,
     legacy_fee_residual, parity_request_from_review_payload, parse_amount, read_recorded_reviews,
@@ -31,6 +31,7 @@ pub use parity::{
     PoolStateAge, RecordedReview, ReplayOutcome, ReplayReport, ReplaySelection,
     ReviewTimePoolState, RouteResult, CHAIN_MIN_PROFIT_RAW, DEFAULT_FLASH_FEE_BPS,
     DEFAULT_PROFIT_RELATIVE_TOLERANCE, LEGACY_ASSUMED_FLASH_FEE_BPS, LIQUIDITY_INDEX_SCALE,
+    DirectionMismatch, HopChain, HopDirectionList,
 };
 pub use runtime::{
     ReviewPermit, ReviewRuntime, ReviewRuntimeStatus, ReviewSupervisor, ReviewSupervisorCommand,
@@ -652,6 +653,14 @@ struct PersistedReviewClearWrite {
 struct ReviewInput {
     closed_loop: ClosedLoopStatus,
     loops: Vec<ClosedLoopRow>,
+    /// The stored direction of every hop of every closed loop.
+    ///
+    /// The direction is published by the closed-loop Manager, and it is the
+    /// direction the hop walks.  The review reads it instead of deriving
+    /// the direction from the route, and it cross-checks the two: a hop
+    /// whose stored direction contradicts the route is skipped and
+    /// reported, never rewritten.
+    hop_directions: BTreeMap<String, HopDirectionList>,
     /// The measured pool state of every pool the closed loops name.
     ///
     /// The final single-tick gate needs the pool's price, liquidity, tick
@@ -1299,8 +1308,36 @@ fn read_review_input(
     Ok(ReviewInput {
         closed_loop: snapshot.status,
         loops: snapshot.loops,
+        hop_directions: hop_directions_by_loop(&snapshot.hops),
         pool_states,
     })
+}
+
+/// The stored hop directions of every closed loop, in hop order.
+///
+/// The hop rows are the closed-loop Manager's own records, so the
+/// direction is the Manager's number and not one the review derives.
+fn hop_directions_by_loop(hops: &[ClosedLoopHopRow]) -> BTreeMap<String, HopDirectionList> {
+    let mut by_loop: BTreeMap<String, BTreeMap<usize, Option<i64>>> = BTreeMap::new();
+    for hop in hops {
+        // The hop rows number their hops from **one**, the route numbers
+        // them from zero, so the row is moved onto the route's index.
+        let index = hop.hop_index.saturating_sub(1);
+        by_loop
+            .entry(hop.loop_key.trim().to_lowercase())
+            .or_default()
+            .insert(index, hop.hop_direction);
+    }
+    by_loop
+        .into_iter()
+        .map(|(loop_key, hops)| {
+            let length = hops.keys().max().map(|index| index + 1).unwrap_or(0);
+            let directions = (0..length)
+                .map(|index| hops.get(&index).copied().flatten())
+                .collect();
+            (loop_key, directions)
+        })
+        .collect()
 }
 
 fn validate_evidence_membership(
@@ -1358,8 +1395,8 @@ fn validate_evidence_membership(
 /// every hop with the final input amount.
 fn evaluate_final_state_transition_gate(
     input: &ReviewInput,
-    closed_loop: &ClosedLoopRow,
     run: &RunArbitrageEvidence,
+    chain: Option<&HopChain>,
 ) -> RouteTransitionVerdict {
     let amount_in_raw = match final_input_amount_raw(run) {
         Some(amount) if amount > 0 => amount,
@@ -1385,11 +1422,11 @@ fn evaluate_final_state_transition_gate(
         .into_iter()
         .map(|state| (state.pool_id.clone(), state))
         .collect();
-    let Some(hops) = build_hops(
-        &closed_loop.path_addresses,
-        &input.pool_states,
-        &closed_loop.pool_ids,
-    ) else {
+    // The hop chain is built **once** per closed loop, with the stored
+    // direction of every hop and the cross-check against the route.  A hop
+    // whose stored direction contradicts the route is not part of the
+    // chain, so the route can never be proven executable over it.
+    let Some(chain) = chain else {
         return RouteTransitionVerdict {
             broadcast_allowed: false,
             reason: Some("route_state_unavailable".to_string()),
@@ -1397,8 +1434,8 @@ fn evaluate_final_state_transition_gate(
         };
     };
 
-    let mut execution_hops = Vec::with_capacity(hops.len());
-    for hop in hops {
+    let mut execution_hops = Vec::with_capacity(chain.hops.len());
+    for hop in &chain.hops {
         let Some(current) = input.pool_states.get(&hop.pool_id) else {
             return RouteTransitionVerdict {
                 broadcast_allowed: false,
@@ -1488,6 +1525,7 @@ fn evaluate_final_single_tick_gate(
     input: &ReviewInput,
     closed_loop: &ClosedLoopRow,
     run: &RunArbitrageEvidence,
+    chain: Option<&HopChain>,
 ) -> SingleTickRouteVerdict {
     let amount_in_raw = match final_input_amount_raw(run) {
         Some(amount) if amount > 0 => amount,
@@ -1540,18 +1578,17 @@ fn evaluate_final_single_tick_gate(
             hops: Vec::new(),
         };
     }
-    let Some(hops) = build_hops(
-        &closed_loop.path_addresses,
-        &input.pool_states,
-        &closed_loop.pool_ids,
-    ) else {
+    // The hop chain is built **once** per closed loop, with the stored
+    // direction of every hop and the cross-check against the route.
+    let Some(chain) = chain else {
         return SingleTickRouteVerdict {
             executable: false,
             reason: Some("route_state_unavailable".to_string()),
             hops: Vec::new(),
         };
     };
-    let extras: Vec<SingleTickHopState> = hops
+    let extras: Vec<SingleTickHopState> = chain
+        .hops
         .iter()
         .map(|hop| {
             let state = input.pool_states.get(&hop.pool_id);
@@ -1565,7 +1602,7 @@ fn evaluate_final_single_tick_gate(
             }
         })
         .collect();
-    evaluate_route_single_tick(&hops, &extras, amount_in_raw)
+    evaluate_route_single_tick(&chain.hops, &extras, amount_in_raw)
 }
 
 /// The final input amount the chain was asked to execute with.
@@ -1667,6 +1704,32 @@ fn build_review_rows(
         let signed_pnl = run_arbitrage
             .and_then(|value| value.signed_pnl.as_ref())
             .filter(|value| validate_signed_pnl(value));
+        // The hop chain is built **once** per closed loop: the stored
+        // direction of every hop, cross-checked against the route the
+        // kernel measured.
+        //
+        // A hop whose stored direction contradicts the route is **skipped**
+        // and reported.  It is never rewritten, and it never voids the
+        // review of the whole closed loop: the remaining hops are judged
+        // normally, and the route simply cannot be proven executable over
+        // the hop that drifted.
+        let hop_chain = build_hop_chain(
+            &closed_loop.path_addresses,
+            &input.pool_states,
+            &closed_loop.pool_ids,
+            input
+                .hop_directions
+                .get(&closed_loop.loop_key.trim().to_lowercase()),
+        );
+        if let Some(chain) = hop_chain.as_ref() {
+            for mismatch in &chain.direction_mismatches {
+                insert_direction_mismatch_diagnostic(
+                    &mut diagnostics,
+                    &closed_loop.loop_key,
+                    mismatch,
+                )?;
+            }
+        }
         // The final single-tick gate runs **before** the verdict is formed.
         //
         // The upstream `runArbitrage` evidence says the chain accepted the
@@ -1677,7 +1740,9 @@ fn build_review_rows(
         // never becomes a broadcast request.
         let single_tick_verdict = run_arbitrage
             .filter(|run| run.ok && run.executable)
-            .map(|run| evaluate_final_single_tick_gate(input, closed_loop, run));
+            .map(|run| {
+                evaluate_final_single_tick_gate(input, closed_loop, run, hop_chain.as_ref())
+            });
         let single_tick_blocked = single_tick_verdict
             .as_ref()
             .filter(|verdict| !verdict.executable);
@@ -1694,7 +1759,9 @@ fn build_review_rows(
         // never become a broadcast request.
         let transition_verdict = run_arbitrage
             .filter(|run| run.ok && run.executable)
-            .map(|run| evaluate_final_state_transition_gate(input, closed_loop, run));
+            .map(|run| {
+                evaluate_final_state_transition_gate(input, run, hop_chain.as_ref())
+            });
         let transition_blocked = transition_verdict
             .as_ref()
             .filter(|verdict| !verdict.broadcast_allowed);
@@ -2002,6 +2069,51 @@ fn insert_transition_diagnostic(
                 "reason": reason,
                 "broadcastAllowed": verdict.broadcast_allowed,
                 "hops": transition_hop_payload(verdict),
+            }),
+            observed_at: None,
+        },
+    )
+}
+
+/// Records a hop whose stored direction contradicts the route.
+///
+/// The diagnostic names the hop and the pool, so the drift is locatable
+/// from the review library alone: the stored direction, the direction the
+/// route describes and the hop index travel with it.  The hop is skipped
+/// by the gates, so the route cannot be proven executable over it.
+fn insert_direction_mismatch_diagnostic(
+    diagnostics: &mut BTreeMap<String, ReviewDiagnosticRow>,
+    loop_key: &str,
+    mismatch: &DirectionMismatch,
+) -> Result<(), ReviewError> {
+    insert_diagnostic(
+        diagnostics,
+        loop_key,
+        ReviewDiagnosticInput {
+            diagnostic_id: Some(format!(
+                "direction-mismatch:{loop_key}:{}",
+                mismatch.hop_index
+            )),
+            // The diagnostic **table** fixes the set of diagnostic types, so
+            // the precise marker travels in the code, exactly like the two
+            // execution gates do.
+            diagnostic_type: ReviewDiagnosticType::Other,
+            diagnostic_code: Some("DirectionMismatch".to_owned()),
+            message: Some(format!(
+                "the stored direction of hop {} contradicts the route: the catalog \
+                 stores direction {} and the route trades direction {}",
+                mismatch.hop_index,
+                mismatch.stored_direction,
+                mismatch.derived_direction
+            )),
+            hop_index: Some(mismatch.hop_index),
+            pool_id: Some(mismatch.pool_id.clone()),
+            selector: None,
+            payload: serde_json::json!({
+                "hopIndex": mismatch.hop_index,
+                "poolId": mismatch.pool_id,
+                "storedDirection": mismatch.stored_direction,
+                "derivedDirection": mismatch.derived_direction,
             }),
             observed_at: None,
         },
@@ -4261,6 +4373,158 @@ mod tests {
             .get("nextTickDistance")
             .and_then(|v| v.as_i64())
             .is_some());
+    }
+
+    /// The hops of the fixture's closed loop, with the stored direction of
+    /// every hop.
+    ///
+    /// The hop rows are the closed-loop Manager's own records, and the
+    /// direction is the one the hop walks.  The fixture route spends token0
+    /// in every hop, so the route describes direction 1 in all three of
+    /// them; a stored direction of 0 therefore contradicts the route.
+    fn seed_hop_directions(path: &std::path::Path, directions: [i64; 3]) {
+        let connection = Connection::open(path).unwrap();
+        let hops = [
+            (
+                1usize,
+                "yc",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+                "pool-a",
+            ),
+            (
+                2usize,
+                "y-z",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+                "pool-yz",
+            ),
+            (
+                3usize,
+                "zc",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+                "pool-d",
+            ),
+        ];
+        for (index, (hop_index, hop_name, input, output, pool_id)) in
+            hops.iter().enumerate()
+        {
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_closed_loop_hops (
+                        network, chain_id, protocol, scope_key, loop_key,
+                        hop_index, hop_name, input_token_key_id,
+                        output_token_key_id, input_address, output_address,
+                        pool_id, base_pool_id, pool_selection_basis,
+                        temporary_override, created_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?4, ?5, ?6, ?7,
+                               ?8, ?9, ?10, ?10, 'fixture', 0, 'fixture', 'fixture')",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        LOOP_KEY,
+                        *hop_index as i64,
+                        hop_name,
+                        format!("robinhood:4663:{input}"),
+                        format!("robinhood:4663:{output}"),
+                        input,
+                        output,
+                        pool_id,
+                    ],
+                )
+                .unwrap();
+            let _ = index;
+        }
+        // The stored directions are written after the rows exist, so the
+        // fixture can name a direction that contradicts the route.
+        for (hop_index, direction) in [1usize, 2usize, 3usize]
+            .iter()
+            .zip(directions.iter())
+        {
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loop_hops SET hop_direction = ?1 \
+                     WHERE network = ?2 AND chain_id = ?3 AND protocol = 'uniswap_v4' \
+                       AND scope_key = 'core4' AND loop_key = ?4 AND hop_index = ?5",
+                    params![direction, NETWORK, CHAIN_ID, LOOP_KEY, *hop_index as i64],
+                )
+                .unwrap();
+        }
+    }
+
+    /// A hop whose stored direction contradicts the route is skipped and
+    /// reported, and it never becomes a broadcast request.
+    #[test]
+    fn a_direction_mismatch_is_reported_and_blocks_the_broadcast() {
+        let (_directory, path) = database();
+        // The third hop is stored as direction 0 while the route trades it
+        // in direction 1, so the two contradict each other.
+        seed_hop_directions(&path, [1, 1, 0]);
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        // The review of the loop is **not** voided: the row exists and the
+        // measurement is kept.
+        assert_eq!(result.loop_count, 1);
+        assert_eq!(
+            result.broadcast_request_count, 0,
+            "a drifted hop must never become a broadcast request"
+        );
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews.len(), 1);
+        assert_eq!(
+            snapshot.reviews[0].signed_pnl.as_ref().unwrap().amount,
+            12.5
+        );
+        assert!(
+            snapshot.broadcast_requests.is_empty(),
+            "the broadcast manager must not receive a route with a drifted hop"
+        );
+        // The mismatch is recorded and locatable: the hop index and the
+        // pool name travel with it.
+        let diagnostic = snapshot
+            .diagnostics
+            .iter()
+            .find(|row| row.diagnostic_code.as_deref() == Some("DirectionMismatch"))
+            .expect("the drifted hop must record a diagnostic");
+        assert_eq!(diagnostic.hop_index, Some(2));
+        assert_eq!(diagnostic.pool_id.as_deref(), Some("pool-d"));
+        assert_eq!(diagnostic.diagnostic_type, "other");
+        assert_eq!(
+            diagnostic
+                .payload
+                .get("storedDirection")
+                .and_then(|value| value.as_i64()),
+            Some(0)
+        );
+        assert_eq!(
+            diagnostic
+                .payload
+                .get("derivedDirection")
+                .and_then(|value| value.as_i64()),
+            Some(1)
+        );
+    }
+
+    /// A route whose stored directions agree with the route is measured
+    /// normally: the hop chain is complete and the broadcast request is
+    /// produced exactly as before.
+    #[test]
+    fn a_stored_direction_that_agrees_with_the_route_changes_nothing() {
+        let (_directory, path) = database();
+        seed_hop_directions(&path, [1, 1, 1]);
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 1);
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert!(snapshot
+            .diagnostics
+            .iter()
+            .all(|row| row.diagnostic_code.as_deref() != Some("DirectionMismatch")));
     }
 
     /// A route that stays inside every hop's tick range keeps the original

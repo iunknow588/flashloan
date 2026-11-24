@@ -28,6 +28,7 @@ from core.db.storage_v4_exchange import (
     clear_v4_exchange_evidence,
     upsert_v4_exchange_pools,
     upsert_v4_liquidity_snapshots,
+    upsert_v4_pool_recent_swap_activity,
 )
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
     apply_stock_pool_metadata,
@@ -134,6 +135,23 @@ def import_v4_evidence_payloads(
         protocol=protocol,
         rows=index_liquidity_rows,
     )
+    # The recent-swap marker is a property of the swap log, not of the
+    # liquidity measurement, so it travels with every pool the index
+    # measured.  It is published in its own table; the Rust pool manager --
+    # the single writer of the depth snapshot table -- reads that table and
+    # materialises the marker into `recent_swap_active`.
+    activity_rows = [
+        row
+        for row in _liquidity_rows_from_index(index)
+        if row.get("recent_swap_active") is not None
+    ]
+    recent_swap_activity_count = upsert_v4_pool_recent_swap_activity(
+        database_url,
+        network=wanted_network,
+        chain_id=wanted_chain_id,
+        protocol=protocol,
+        rows=activity_rows,
+    )
     upsert_initialization(
         database_url,
         network=wanted_network,
@@ -152,6 +170,7 @@ def import_v4_evidence_payloads(
         "chainId": wanted_chain_id,
         "v4PoolCount": v4_pool_count,
         "tokenCount": len(token_rows),
+        "recentSwapActivityRowCount": recent_swap_activity_count,
         "source": "onchain_evidence_payload",
         "detail": "raw V4 tables imported directly from in-memory evidence; JSON files are not read",
     }

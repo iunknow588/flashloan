@@ -275,6 +275,30 @@ BUSINESS_DDL: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS v4_exchange_pool_recent_swap_activity (
+        network TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        protocol TEXT NOT NULL DEFAULT 'uniswap_v4',
+        pool_id TEXT NOT NULL,
+        -- 1 = the pool produced a Swap event inside the lookback window,
+        -- 0 = the window was scanned and no Swap event was found.
+        -- NULL = the pool was not measured in this pass.
+        --
+        -- The three states are distinct on purpose.  NULL means "not
+        -- measured", 0 means "measured, no trade".  A pass that collapsed
+        -- NULL into 0 would make every unmeasured pool look like a dead pool.
+        recent_swap_active INTEGER,
+        -- The lookback window the measurement used, in days.
+        lookback_days INTEGER,
+        -- The block the window ended at, and when the measurement ran.
+        scan_block_number INTEGER,
+        scanned_at TEXT NOT NULL,
+        PRIMARY KEY (network, chain_id, protocol, pool_id),
+        FOREIGN KEY (network, chain_id, protocol, pool_id)
+            REFERENCES v4_exchange_pools (network, chain_id, protocol, pool_id)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS v4_closed_loops (
         network TEXT NOT NULL,
         chain_id INTEGER NOT NULL,

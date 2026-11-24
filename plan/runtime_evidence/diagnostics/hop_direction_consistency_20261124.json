@@ -1,0 +1,21 @@
+{
+  "store": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "counters": {
+    "hops": 522,
+    "duplicate_directional_ids": 0,
+    "unresolved_directional_id": 0,
+    "i7_output_token_mismatch": 0,
+    "i11_base_pool_mismatch": 0,
+    "i12_direction_mismatch": 0,
+    "i14_direction_token_order_mismatch": 0,
+    "pool_id_not_base_pool": 0,
+    "missing_direction": 0,
+    "temporary_override_hops": 6,
+    "loops": 174,
+    "i16_pool_ids_length_mismatch": 0,
+    "i16_directional_ids_length_mismatch": 0,
+    "i16_directional_ids_not_base_pools": 0
+  },
+  "violation_samples": [],
+  "passed": true
+}

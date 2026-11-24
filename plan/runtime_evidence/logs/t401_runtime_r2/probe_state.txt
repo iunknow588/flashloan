@@ -1,0 +1,300 @@
+{
+  "supervisorsEnabled": false,
+  "supervisorBroadcast": {
+    "mode": "native_rust_manager",
+    "running": false
+  },
+  "supervisorReview": {
+    "mode": "native_rust",
+    "running": false
+  },
+  "pythonFallbackEnabled": false,
+  "rustSummary": {
+    "idle": 55,
+    "running": 9
+  },
+  "rustReviewQueue": {
+    "claimed": 64,
+    "completed": 375,
+    "enabled": true,
+    "failed": 0,
+    "isolated": {
+      "available": false,
+      "reason": "native_isolated_count_not_exposed"
+    },
+    "mainThreadRunning": true,
+    "running": 9,
+    "skipped": {
+      "available": false,
+      "reason": "native_skipped_count_not_exposed"
+    }
+  },
+  "rustMaintenance": {
+    "completedCount": 0,
+    "failedCount": 0,
+    "immediateReviewTriggerCount": 0,
+    "inProgress": true,
+    "lastCompletedAt": null,
+    "lastError": null,
+    "lastImmediateReviewTriggeredAt": null,
+    "lastImmediateReviewWokenGroups": null,
+    "lastStartedAt": "2026-11-24T05:47:21.828324100+00:00",
+    "lastStatus": null,
+    "queuedCount": 0,
+    "registeredScopes": [
+      "robinhood|4663|uniswap_v4"
+    ],
+    "resultSummary": null
+  },
+  "rustContextCache": {
+    "scopeCount": 1,
+    "scopeTtlSeconds": 300,
+    "scopes": [
+      {
+        "liquidityCount": 2486,
+        "loadedAt": "2026-11-24T06:00:39.503244+00:00",
+        "poolCount": 2550,
+        "registryScope": "robinhood|4663|uniswap_v4",
+        "tokenCount": 201
+      }
+    ]
+  },
+  "rustExecutionQueue": {
+    "activeExecutions": 0,
+    "done": 0,
+    "enabled": true,
+    "error": 0,
+    "queued": 0,
+    "recent": [],
+    "running": 0,
+    "skipped": 0,
+    "waiting": 0,
+    "workers": 2
+  }
+}
+scanner                                                                dict   34
+scanner.auto_broadcast_count                                           int    8323
+scanner.auto_execute_callback_configured                               bool   True
+scanner.auto_execute_cooldown_seconds                                  float  600.0
+scanner.auto_execute_count                                             int    8323
+scanner.auto_execute_enabled                                           bool   True
+scanner.auto_execute_log_count                                         int    0
+scanner.chain_id                                                       int    4663
+scanner.closed_loop_review_count                                       int    6696967
+scanner.closed_loop_review_queue                                       dict   18
+scanner.closed_loop_review_queue.backpressure                          int    0
+scanner.closed_loop_review_queue.claimed                               int    0
+scanner.closed_loop_review_queue.completed                             int    0
+scanner.closed_loop_review_queue.done                                  int    0
+scanner.closed_loop_review_queue.error                                 int    0
+scanner.closed_loop_review_queue.executionBackend                      str    rust
+scanner.closed_loop_review_queue.failed                                int    0
+scanner.closed_loop_review_queue.fallback_only                         bool   True
+scanner.closed_loop_review_queue.last_supervisor_watch                 dict   7
+scanner.closed_loop_review_queue.loopStateSummary                      dict   19
+scanner.closed_loop_review_queue.queued                                int    0
+scanner.closed_loop_review_queue.requeued                              int    0
+scanner.closed_loop_review_queue.running                               int    0
+scanner.closed_loop_review_queue.skipped                               int    0
+scanner.closed_loop_review_queue.stalled                               int    0
+scanner.closed_loop_review_queue.stalled_total                         int    0
+scanner.closed_loop_review_queue.stuckExecutionRecovered               int    0
+scanner.closed_loop_review_queue.total                                 int    0
+scanner.closed_loop_rust_workers                                       dict   21
+scanner.closed_loop_rust_workers.active                                int    9
+scanner.closed_loop_rust_workers.activeConcurrency                     int    9
+scanner.closed_loop_rust_workers.binanceCollector                      dict   10
+scanner.closed_loop_rust_workers.completed                             int    0
+scanner.closed_loop_rust_workers.concurrencyLimit                      int    16
+scanner.closed_loop_rust_workers.contextCache                          dict   3
+scanner.closed_loop_rust_workers.createdTotal                          int    64
+scanner.closed_loop_rust_workers.enabled                               bool   True
+scanner.closed_loop_rust_workers.engine                                str    rust_native_closed_loop
+scanner.closed_loop_rust_workers.executionBackend                      str    rust
+scanner.closed_loop_rust_workers.executionQueue                        dict   10
+scanner.closed_loop_rust_workers.idleExits                             int    0
+scanner.closed_loop_rust_workers.maintenance                           dict   13
+scanner.closed_loop_rust_workers.maintenanceWorkers                    dict   6
+scanner.closed_loop_rust_workers.maxWorkers                            int    64
+scanner.closed_loop_rust_workers.pendingTasks                          int    64
+scanner.closed_loop_rust_workers.residentWorkers                       int    64
+scanner.closed_loop_rust_workers.reviewQueue                           dict   8
+scanner.closed_loop_rust_workers.runningGroups                         int    64
+scanner.closed_loop_rust_workers.summary                               dict   2
+scanner.closed_loop_rust_workers.workers                               list   64
+scanner.closed_loop_scan_count                                         int    0
+scanner.closed_loop_supervisors                                        dict   7
+scanner.closed_loop_supervisors.broadcast                              dict   2
+scanner.closed_loop_supervisors.broadcastStallDetected                 bool   False
+scanner.closed_loop_supervisors.enabled                                bool   False
+scanner.closed_loop_supervisors.lastSupervisorWatch                    dict   7
+scanner.closed_loop_supervisors.pythonFallbackEnabled                  bool   False
+scanner.closed_loop_supervisors.review                                 dict   2
+scanner.closed_loop_supervisors.reviewStallDetected                    bool   False
+scanner.evidence_workers                                               int    1
+scanner.execution_backend                                              str    rust
+scanner.interval_seconds                                               float  60.0
+scanner.last_auto_execute_at                                           str    2026-11-10T15:37:43.424437+00:00
+scanner.last_duration_ms                                               int    184517
+scanner.last_error                                                     NoneType None
+scanner.last_error_stack                                               NoneType None
+scanner.last_recording                                                 dict   8
+scanner.last_recording.autoExecuteEnabled                              bool   True
+scanner.last_recording.autoExecuteFailed                               int    0
+scanner.last_recording.autoExecuted                                    int    0
+scanner.last_recording.candidate_count                                 int    57
+scanner.last_recording.error                                           NoneType None
+scanner.last_recording.recorded                                        int    57
+scanner.last_recording.review_count                                    int    57
+scanner.last_recording.source                                          str    native_rust_closed_loop
+scanner.last_scan_finished_at                                          str    2026-11-24T06:00:14.347396+00:00
+scanner.last_scan_started_at                                           str    2026-11-24T05:57:09.828627+00:00
+scanner.max_onchain_evidence_routes                                    int    5
+scanner.max_recordable_routes                                          NoneType None
+scanner.periodic_scan_enabled                                          bool   True
+scanner.queued_scan_count                                              int    0
+scanner.record_cooldown_seconds                                        float  60.0
+scanner.recorded_attempt_count                                         int    6696967
+scanner.running                                                        bool   True
+scanner.scan_count                                                     int    1531
+scanner.session_stats                                                  dict   5
+scanner.session_stats.auto_executed_count                              int    95
+scanner.session_stats.executed_count                                   int    95
+scanner.session_stats.positive_profit_amount                           float  0.0
+scanner.session_stats.positive_profit_count                            int    0
+scanner.session_stats.reset_at                                         str    2026-10-31T19:02:24.979312+00:00
+scanner.snapshot_updated_at                                            str    2026-11-24T05:57:20.244391+00:00
+scanner.testnet_max_onchain_evidence_routes                            int    10
+scanner.watched_chain_keys                                             list   1
+snapshot.summary.auto_executable_closed_loop_count                     int    0
+snapshot.summary.onchain_evidence_reviewed_route_count                 int    36
+{
+  "scannerKeys": [
+    "auto_broadcast_count",
+    "auto_execute_callback_configured",
+    "auto_execute_cooldown_seconds",
+    "auto_execute_count",
+    "auto_execute_enabled",
+    "auto_execute_log_count",
+    "chain_id",
+    "closed_loop_review_count",
+    "closed_loop_review_queue",
+    "closed_loop_rust_workers",
+    "closed_loop_scan_count",
+    "closed_loop_supervisors",
+    "evidence_workers",
+    "execution_backend",
+    "interval_seconds",
+    "last_auto_execute_at",
+    "last_duration_ms",
+    "last_error",
+    "last_error_stack",
+    "last_recording",
+    "last_scan_finished_at",
+    "last_scan_started_at",
+    "max_onchain_evidence_routes",
+    "max_recordable_routes",
+    "periodic_scan_enabled",
+    "queued_scan_count",
+    "record_cooldown_seconds",
+    "recorded_attempt_count",
+    "running",
+    "scan_count",
+    "session_stats",
+    "snapshot_updated_at",
+    "testnet_max_onchain_evidence_routes",
+    "watched_chain_keys"
+  ]
+}
+{
+  "rustWorkerKeys": [
+    "active",
+    "activeConcurrency",
+    "binanceCollector",
+    "completed",
+    "concurrencyLimit",
+    "contextCache",
+    "createdTotal",
+    "enabled",
+    "engine",
+    "executionBackend",
+    "executionQueue",
+    "idleExits",
+    "maintenance",
+    "maintenanceWorkers",
+    "maxWorkers",
+    "pendingTasks",
+    "residentWorkers",
+    "reviewQueue",
+    "runningGroups",
+    "summary",
+    "workers"
+  ]
+}
+{
+  "workerCount": 64
+}
+{"groupKey": "eth|weth|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 3, "queued_count": 3, "updated_at": "2026-11-24T06:01:01.207413700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "eth|weth|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 10, "queued_count": 2, "updated_at": "2026-11-24T06:00:17.218135100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|eth|spy", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 8, "queued_count": 3, "updated_at": "2026-11-24T06:01:06.539988400+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|eth|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 16, "queued_count": 2, "updated_at": "2026-11-24T06:00:32.459080600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|spy|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 18, "queued_count": 2, "updated_at": "2026-11-24T06:00:34.361870600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|spy|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 18, "queued_count": 2, "updated_at": "2026-11-24T06:00:20.252880200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|usdg|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 18, "queued_count": 2, "updated_at": "2026-11-24T06:00:19.635039800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "googl|usdg|spy", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 4, "updated_at": "2026-11-24T06:01:06.543648700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|eth|nvda", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 14, "queued_count": 3, "updated_at": "2026-11-24T06:00:53.762817400+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|eth|spy", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 9, "queued_count": 3, "updated_at": "2026-11-24T06:00:48.725715100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|eth|usdg", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 14, "queued_count": 3, "updated_at": "2026-11-24T06:00:42.792082+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|nvda|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 4, "updated_at": "2026-11-24T06:00:47.764229500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|nvda|spy", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 9, "queued_count": 3, "updated_at": "2026-11-24T06:00:33.235031300+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|nvda|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 4, "updated_at": "2026-11-24T06:00:39.463601100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|spy|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 21, "queued_count": 3, "updated_at": "2026-11-24T06:01:07.937675200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|spy|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 3, "updated_at": "2026-11-24T06:01:07.841498500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|spy|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 32, "queued_count": 4, "updated_at": "2026-11-24T06:00:16.252403100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|usdg|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 25, "queued_count": 5, "updated_at": "2026-11-24T06:01:04.705358800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|usdg|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 25, "queued_count": 5, "updated_at": "2026-11-24T06:01:00.596486700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "mu|usdg|spy", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 7, "updated_at": "2026-11-24T06:00:56.837205200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "pfe|crcl|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 7, "updated_at": "2026-11-24T06:00:54.433699800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "pfe|usdg|crcl", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 7, "updated_at": "2026-11-24T06:00:50.090147900+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spcx|eth|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 40, "queued_count": 4, "updated_at": "2026-11-24T06:00:18.989304500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spcx|tsla|usdg", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 36, "queued_count": 4, "updated_at": "2026-11-24T06:00:19.805614900+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spcx|usdg|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 40, "queued_count": 4, "updated_at": "2026-11-24T06:00:13.366171400+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spcx|usdg|tsla", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 48, "queued_count": 4, "updated_at": "2026-11-24T06:00:35.625342600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|aapl|usdg", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 44, "queued_count": 5, "updated_at": "2026-11-24T06:01:03.331640100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|amd|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 35, "queued_count": 5, "updated_at": "2026-11-24T06:00:53.174966200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|amd|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 35, "queued_count": 5, "updated_at": "2026-11-24T06:00:33.796913400+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|coin|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 7, "updated_at": "2026-11-24T06:00:24.385520300+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|eth|googl", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 40, "queued_count": 5, "updated_at": "2026-11-24T06:01:00.482517100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|eth|meta", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 7, "updated_at": "2026-11-24T06:00:19.808022500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|eth|mu", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 8, "updated_at": "2026-11-24T06:00:16.845908600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|eth|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 45, "queued_count": 5, "updated_at": "2026-11-24T06:00:16.845746500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|eth|usdg", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 55, "queued_count": 6, "updated_at": "2026-11-24T06:00:52.626068800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|googl|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 21, "queued_count": 7, "updated_at": "2026-11-24T06:01:01.269696600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|googl|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 21, "queued_count": 7, "updated_at": "2026-11-24T06:00:53.516585500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|meta|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 9, "updated_at": "2026-11-24T06:00:47.764112900+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|meta|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 9, "updated_at": "2026-11-24T06:00:47.764972+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|mu|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 9, "updated_at": "2026-11-24T06:00:42.607329500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|mu|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 21, "queued_count": 7, "updated_at": "2026-11-24T06:00:38.971272100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|mu|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 21, "queued_count": 7, "updated_at": "2026-11-24T06:00:35.879573700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|nvda|amd", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 54, "queued_count": 6, "updated_at": "2026-11-24T06:00:36.528732700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|nvda|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 9, "updated_at": "2026-11-24T06:00:34.362168100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|nvda|mu", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 48, "queued_count": 7, "updated_at": "2026-11-24T06:01:10.272019200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|nvda|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 9, "updated_at": "2026-11-24T06:00:20.253700700+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|tsla|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 28, "queued_count": 7, "updated_at": "2026-11-24T06:00:24.385861300+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|aapl", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:01:09.590815100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|amd", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:52.509975+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|coin", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 10, "updated_at": "2026-11-24T06:00:39.514733600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:52.674722800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|googl", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:43.697747500+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|meta", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:47.764404600+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|mu", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:31.125153+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:35.956453+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "spy|usdg|tsla", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:19.807552300+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "tz|ta|tb", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 100, "queued_count": 6, "updated_at": "2026-11-24T06:00:47.763626800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "tz|tb|ta", "state": "running", "phase": "reviewing", "review_wait_ready": false, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 95, "queued_count": 6, "updated_at": "2026-11-24T06:00:52.507482100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|eth|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 24, "queued_count": 8, "updated_at": "2026-11-24T06:00:10.663428100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|eth|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 40, "queued_count": 8, "updated_at": "2026-11-24T06:00:54.554807200+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|nvda|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 11, "updated_at": "2026-11-24T06:00:55.815724100+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|nvda|usdg", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 0, "queued_count": 11, "updated_at": "2026-11-24T06:00:50.091365+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|usdg|eth", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 48, "queued_count": 8, "updated_at": "2026-11-24T06:00:39.069302800+00:00", "hasLastResult": false, "lastResultKeys": []}
+{"groupKey": "weth|usdg|nvda", "state": "idle", "phase": "idle", "review_wait_ready": true, "last_review_publish": null, "last_error": null, "last_phase_error": null, "probe_count": 27, "queued_count": 9, "updated_at": "2026-11-24T06:00:52.628122+00:00", "hasLastResult": false, "lastResultKeys": []}

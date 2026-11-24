@@ -1,0 +1,185 @@
+{
+  "overviewBefore": {
+    "state": null,
+    "snapshotAvailable": false,
+    "generation": 0,
+    "instanceId": "runtime-core-21212-4663-1",
+    "snapshotChecksum": null,
+    "upstreamFingerprint": null
+  },
+  "panelRuntimeCore": {
+    "available": true,
+    "broadcastAuthority": "legacy",
+    "candidateAuthority": "legacy",
+    "candidateExchangeAuthority": "legacy",
+    "chainId": 4663,
+    "closed": false,
+    "dataSource": "rust_runtime_core",
+    "databasePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "generation": 0,
+    "instanceId": "runtime-core-21212-4663-1",
+    "lastError": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+    "lastRefreshAt": null,
+    "network": "robinhood",
+    "protocol": "uniswap_v4",
+    "recentEvents": [
+      {
+        "createdAt": "2026-11-24T06:53:32.007725900+00:00",
+        "detail": {
+          "chainId": 4663,
+          "instanceId": "runtime-core-21212-4663-1"
+        },
+        "eventId": "runtime-event-1",
+        "eventType": "runtime_registered",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:56:10.398894700+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-2",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:56:10.531425900+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-3",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:56:42.764871+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-4",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:56:49.075024100+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-5",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:57:00.777555900+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-6",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:57:16.880705+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-7",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:57:49.743706500+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-8",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:58:22.309756200+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-9",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:58:57.808264700+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-10",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:59:32.171698700+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-11",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:59:48.803373300+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-12",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      },
+      {
+        "createdAt": "2026-11-24T06:59:58.316112600+00:00",
+        "detail": {
+          "error": "RuntimeCore rejected a mixed manager snapshot: [{\"component\":\"closed_loop\",\"field\":\"consumersNeedRebuild\",\"expected\":\"false\",\"actual\":\"true\"},{\"component\":\"review\",\"field\":\"closedLoopVersion\",\"expected\":\"19\",\"actual\":\"14\"},{\"component\":\"review\",\"field\":\"closedLoopChecksum\",\"expected\":\"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a\",\"actual\":\"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115\"}]",
+          "previousGeneration": 0
+        },
+        "eventId": "runtime-event-13",
+        "eventType": "snapshot_rejected",
+        "idempotencyKey": null,
+        "requestId": null
+      }
+    ],
+    "registered": true,
+    "schemaVersion": "rust_runtime_core_v1",
+    "snapshotAvailable": false,
+    "state": "error"
+  },
+  "panelScannerRuntimeCore": null,
+  "controlPanelRead": true,
+  "overviewAfter": {
+    "state": null,
+    "snapshotAvailable": false,
+    "generation": 0,
+    "instanceId": "runtime-core-21212-4663-1",
+    "snapshotChecksum": null,
+    "upstreamFingerprint": null
+  }
+}

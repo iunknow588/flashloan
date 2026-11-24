@@ -198,3 +198,15 @@
   P0-2.5 最新通过证据。运行态 `96 -> 192` 方向级 `offchain_pending`，
   旧 96 条符号组状态归档、Testnet 残留 checksum 不变、观察窗口完整且
   生产库未访问。
+
+## 2026-11-24 增量报告索引
+
+- `diagnostics/hop_direction_consistency_20261124.json`：主网只读探针
+  `tools/probe_hop_direction_consistency_20261124.py` 的输出，绑定
+  `flashloan/db/local_store_4663.sqlite3`（`ro` 打开，**零写入**）。
+  结论 `passed = true`：`hops = 522`、`loops = 174`，方向不变量
+  `i7 / i12 / i14 / i16` **全部 0 违规** ⇒ 复核层方向交叉校验的
+  `direction_mismatch` **== 0**。`temporary_override_hops = 6` 单列，
+  **不计入违规** —— 那 **6** 跳是**备用池接管**（`pool_id` = 生效池、
+  `base_pool_id` = 原推荐池，见 `D-001` §7 `T-方闭.01` 迁移记录），
+  探针本轮补上了该分支（原口径会误报 **6** 条）。

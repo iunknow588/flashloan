@@ -487,6 +487,41 @@ fn read_pool_tick_spacings(
     spacings
 }
 
+/// Read the recent-swap activity markers the evidence channel measured.
+///
+/// The marker is tri-state and the three states are kept apart:
+///
+/// * `Some(1)` -- the pool traded inside the window,
+/// * `Some(0)` -- the window was scanned and the pool did not trade,
+/// * `None`   -- the pool was not measured in this pass.
+///
+/// A pool that is missing from the table is **not** treated as `0`.  The
+/// marker is the second liquidity evidence for a pool, so an unmeasured pool
+/// must not be published as a pool that was measured and did not trade.
+fn read_recent_swap_activity(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> BTreeMap<String, Option<i64>> {
+    let mut activity = BTreeMap::new();
+    let sql = "SELECT pool_id, recent_swap_active
+               FROM v4_exchange_pool_recent_swap_activity
+               WHERE network = ?1 AND chain_id = ?2";
+    let Ok(mut statement) = connection.prepare(sql) else {
+        return activity;
+    };
+    let Ok(rows) = statement.query_map(rusqlite::params![network, chain_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?))
+    }) else {
+        return activity;
+    };
+    for row in rows.flatten() {
+        let (pool_id, marker) = row;
+        activity.insert(pool_id.trim().to_lowercase(), marker);
+    }
+    activity
+}
+
 /// Resolves the token decimals of both sides of a pool.
 ///
 /// The pool id is matched case-insensitively against the candidate pool
@@ -1946,6 +1981,10 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
     let token_decimals = read_token_decimals(&connection, &network, chain_id)?;
     let pool_tokens = read_pool_tokens(&connection, &network, chain_id)?;
     let pool_tick_spacings = read_pool_tick_spacings(&connection, &network, chain_id);
+    // The recent-swap markers the evidence channel measured.  The pool
+    // manager is the single writer of the depth snapshot table, so it is the
+    // only channel that may materialise the marker into the snapshot row.
+    let recent_swap_active = read_recent_swap_activity(&connection, &network, chain_id);
 
     // VAL-4-8: the USDG depth evidence is a second product of the same
     // measurement pass. The valuation report is read once, up front, so a
@@ -2144,6 +2183,7 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
                     token0_decimals,
                     token1_decimals,
                     &materialization_batch,
+                    recent_swap_active.get(&state.pool_id.trim().to_lowercase()).copied().flatten(),
                 )?;
                 written += 1;
             }
@@ -2631,6 +2671,7 @@ fn write_depth_snapshot(
     token0_decimals: Option<i64>,
     token1_decimals: Option<i64>,
     materialization_batch: &str,
+    recent_swap_active: Option<i64>,
 ) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
     // The `balances` payload is the bridge between the chain read and the
@@ -2693,9 +2734,10 @@ fn write_depth_snapshot(
                 liquidity_read_at = ?11, refreshed_at = ?11, evidence_source = ?12, \
                 capacity_binding_raw = ?13, depth_band_json = ?14, balances_json = ?15, \
                 single_tick_max_token0_raw = ?16, single_tick_max_token1_raw = ?17, \
-                depth_status = ?18{}, materialization_batch = ?19 \
-             WHERE network = ?20 AND chain_id = ?21 AND protocol = 'uniswap_v4' \
-               AND pool_id = ?22",
+                depth_status = ?18{}, materialization_batch = ?19, \
+                recent_swap_active = ?20 \
+             WHERE network = ?21 AND chain_id = ?22 AND protocol = 'uniswap_v4' \
+               AND pool_id = ?23",
                 estimated_tvl_assignment
             ),
             rusqlite::params![
@@ -2746,6 +2788,15 @@ fn write_depth_snapshot(
                 // refresh run that produced the row, so every column of the
                 // row can be attributed to one measurement pass.
                 materialization_batch,
+                // The swap activity is a window that was scanned at a
+                // different moment than the depth measurement, so it is
+                // materialised into its own column rather than being folded
+                // into the depth measurement.
+                //
+                // NULL means "not measured" and stays NULL.  Writing 0 for a
+                // pool that was never scanned would publish an unmeasured
+                // pool as a pool that was measured and did not trade.
+                recent_swap_active,
                 network,
                 chain_id,
                 state.pool_id,
@@ -2844,6 +2895,239 @@ mod tests {
     use rusqlite::params;
     use tempfile::NamedTempFile;
 
+    /// T-候储.01: the pool manager materialises the measured swap activity
+    /// into the depth snapshot row.
+    ///
+    /// The depth snapshot table has exactly one writer -- the pool manager --
+    /// so the swap activity has to be written there by the pool manager. The
+    /// marker itself is measured by the evidence channel and published in its
+    /// own table, because the swap log is not part of the on-chain pool state
+    /// that the snapshot row materialises.
+    ///
+    /// The regression is chain agnostic: it states the rule of the writer,
+    /// not the state of any chain.
+    #[test]
+    fn the_swap_activity_marker_is_materialised_into_the_snapshot_row() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute(
+                "CREATE TABLE v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    liquidity TEXT,
+                    has_liquidity INTEGER,
+                    tick INTEGER,
+                    sqrt_price_x96 TEXT,
+                    capacity_token0_raw TEXT,
+                    capacity_token1_raw TEXT,
+                    capacity_raw TEXT,
+                    price_impact_bps REAL,
+                    price_impact_limit_bps REAL,
+                    depth_basis TEXT,
+                    liquidity_read_at TEXT,
+                    refreshed_at TEXT,
+                    evidence_source TEXT,
+                    capacity_binding_raw REAL,
+                    depth_band_json TEXT,
+                    balances_json TEXT,
+                    single_tick_max_token0_raw TEXT,
+                    single_tick_max_token1_raw TEXT,
+                    depth_status TEXT,
+                    materialization_batch TEXT,
+                    recent_swap_active INTEGER
+                 )",
+                [],
+            )
+            .expect("snapshot table");
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                    network, chain_id, protocol, pool_id, has_liquidity, liquidity
+                 ) VALUES ('robinhood', 4663, 'uniswap_v4', '0xpool', 1, '42')",
+                [],
+            )
+            .expect("seed row");
+        connection
+            .execute(
+                "CREATE TABLE v4_exchange_pool_recent_swap_activity (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    recent_swap_active INTEGER, lookback_days INTEGER,
+                    scan_block_number INTEGER, scanned_at TEXT
+                 )",
+                [],
+            )
+            .expect("activity table");
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_recent_swap_activity (
+                    network, chain_id, protocol, pool_id, recent_swap_active,
+                    lookback_days, scan_block_number, scanned_at
+                 ) VALUES ('robinhood', 4663, 'uniswap_v4', '0xpool', 1, 60, 84000000, '2026-11-24T00:00:00Z')",
+                [],
+            )
+            .expect("seed activity");
+
+        let activity = read_recent_swap_activity(&connection, "robinhood", 4663);
+        let marker = activity
+            .get("0xpool")
+            .copied()
+            .flatten()
+            .expect("the measured marker is read");
+        assert_eq!(marker, 1, "the measured marker is read back");
+
+        let state = chain::V4PoolState {
+            pool_id: "0xpool".to_string(),
+            sqrt_price_x96: "7".to_string(),
+            tick: 3,
+            liquidity: 42,
+            has_liquidity: true,
+            complete: true,
+            ..Default::default()
+        };
+        let capacity = depth::Capacity {
+            has_liquidity: true,
+            ..Default::default()
+        };
+        write_depth_snapshot(
+            &connection,
+            "robinhood",
+            4663,
+            &state,
+            &capacity,
+            Some(1.0),
+            Some(18),
+            Some(18),
+            "pool-manager-test-batch",
+            Some(marker),
+        )
+        .expect("write snapshot");
+
+        let stored: Option<i64> = connection
+            .query_row(
+                "SELECT recent_swap_active
+                 FROM v4_exchange_pool_liquidity_snapshots WHERE pool_id = '0xpool'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read back");
+        assert_eq!(
+            stored,
+            Some(1),
+            "the measured swap activity is written next to the measurement"
+        );
+    }
+
+    /// T-候储.01: a pool that was never measured must not be published as a
+    /// pool that was measured and did not trade.
+    ///
+    /// `NULL` means "not measured" and `0` means "measured, no trade". A
+    /// writer that collapsed the two would make every unmeasured pool look
+    /// like a dead pool, and the consumer of this marker reads `0` as
+    /// "scanned, no trade".
+    #[test]
+    fn an_unmeasured_pool_keeps_its_null_marker() {
+        let connection = Connection::open_in_memory().expect("in-memory database");
+        connection
+            .execute(
+                "CREATE TABLE v4_exchange_pool_liquidity_snapshots (
+                    network TEXT NOT NULL,
+                    chain_id INTEGER NOT NULL,
+                    protocol TEXT NOT NULL,
+                    pool_id TEXT NOT NULL,
+                    liquidity TEXT,
+                    has_liquidity INTEGER,
+                    tick INTEGER,
+                    sqrt_price_x96 TEXT,
+                    capacity_token0_raw TEXT,
+                    capacity_token1_raw TEXT,
+                    capacity_raw TEXT,
+                    price_impact_bps REAL,
+                    price_impact_limit_bps REAL,
+                    depth_basis TEXT,
+                    liquidity_read_at TEXT,
+                    refreshed_at TEXT,
+                    evidence_source TEXT,
+                    capacity_binding_raw REAL,
+                    depth_band_json TEXT,
+                    balances_json TEXT,
+                    single_tick_max_token0_raw TEXT,
+                    single_tick_max_token1_raw TEXT,
+                    depth_status TEXT,
+                    materialization_batch TEXT,
+                    recent_swap_active INTEGER
+                 )",
+                [],
+            )
+            .expect("snapshot table");
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                    network, chain_id, protocol, pool_id, has_liquidity, liquidity
+                 ) VALUES ('robinhood', 4663, 'uniswap_v4', '0xpool', 1, '42')",
+                [],
+            )
+            .expect("seed row");
+        connection
+            .execute(
+                "CREATE TABLE v4_exchange_pool_recent_swap_activity (
+                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+                    recent_swap_active INTEGER, lookback_days INTEGER,
+                    scan_block_number INTEGER, scanned_at TEXT
+                 )",
+                [],
+            )
+            .expect("activity table");
+
+        // The pool is not in the activity table: it was never measured.
+        let activity = read_recent_swap_activity(&connection, "robinhood", 4663);
+        assert!(
+            !activity.contains_key("0xpool"),
+            "an unmeasured pool is not in the activity table"
+        );
+
+        let state = chain::V4PoolState {
+            pool_id: "0xpool".to_string(),
+            sqrt_price_x96: "7".to_string(),
+            tick: 3,
+            liquidity: 42,
+            has_liquidity: true,
+            complete: true,
+            ..Default::default()
+        };
+        let capacity = depth::Capacity {
+            has_liquidity: true,
+            ..Default::default()
+        };
+        write_depth_snapshot(
+            &connection,
+            "robinhood",
+            4663,
+            &state,
+            &capacity,
+            Some(1.0),
+            Some(18),
+            Some(18),
+            "pool-manager-test-batch",
+            activity.get("0xpool").copied().flatten(),
+        )
+        .expect("write snapshot");
+
+        let stored: Option<i64> = connection
+            .query_row(
+                "SELECT recent_swap_active
+                 FROM v4_exchange_pool_liquidity_snapshots WHERE pool_id = '0xpool'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read back");
+        assert_eq!(
+            stored, None,
+            "an unmeasured pool keeps the null marker, it is not written as zero"
+        );
+    }
+
     /// CORE-R34-02: a pool whose live read was only half successful must
     /// never replace a stored measurement.
     ///
@@ -2906,7 +3190,8 @@ mod tests {
                     evidence_source TEXT, capacity_binding_raw REAL,
                     depth_band_json TEXT, balances_json TEXT,
                     single_tick_max_token0_raw TEXT, single_tick_max_token1_raw TEXT,
-                    depth_status TEXT, materialization_batch TEXT
+                    depth_status TEXT, materialization_batch TEXT,
+                    recent_swap_active INTEGER
                 )",
                 [],
             )
@@ -2943,6 +3228,7 @@ mod tests {
             Some(18),
             Some(18),
             "pool-manager-test-batch",
+            None,
         )
         .expect("write snapshot");
         let row: (i64, String, Option<String>) = connection
@@ -4855,6 +5141,7 @@ mod tests {
                     single_tick_max_token1_raw TEXT,
                     depth_status TEXT,
                     materialization_batch TEXT,
+                    recent_swap_active INTEGER,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 INSERT INTO v4_exchange_pool_liquidity_snapshots
@@ -4896,6 +5183,7 @@ mod tests {
             Some(6),
             Some(18),
             "pool-manager-test-batch",
+            None,
         )
         .expect("write depth snapshot");
 
@@ -4999,6 +5287,7 @@ mod tests {
                     estimated_tvl_usd REAL,
                     depth_status TEXT,
                     materialization_batch TEXT,
+                    recent_swap_active INTEGER,
                     PRIMARY KEY (network, chain_id, protocol, pool_id)
                 );
                 INSERT INTO v4_exchange_pool_liquidity_snapshots
@@ -5039,6 +5328,7 @@ mod tests {
             Some(6),
             Some(18),
             "pool-manager-test-batch",
+            None,
         )
         .expect("write depth snapshot");
 

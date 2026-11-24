@@ -232,8 +232,31 @@ def _liquidity_rows(v4_liquidity: dict[str, Any]) -> list[dict[str, Any]]:
         }
         if raw.get("recentSwapActive") is not None:
             row["recent_swap_active"] = raw.get("recentSwapActive")
+            _carry_recent_swap_window(row, v4_liquidity)
         rows.append(row)
     return rows
+
+
+def _carry_recent_swap_window(
+    row: dict[str, Any],
+    payload: dict[str, Any],
+) -> None:
+    """Attach the measured swap window to the marker row.
+
+    The window the marker was measured with travels with the marker, so a
+    stored marker can be re-read with the window it belongs to.  A marker
+    without its window is a number nobody can interpret.
+    """
+    lookback_days = payload.get("recentSwapLookbackDays")
+    if lookback_days is None:
+        lookback_days = payload.get("recent_swap_lookback_days")
+    if lookback_days is not None:
+        row["recent_swap_lookback_days"] = lookback_days
+    scan_block_number = payload.get("recentSwapScanBlockNumber")
+    if scan_block_number is None:
+        scan_block_number = payload.get("recent_swap_scan_block_number")
+    if scan_block_number is not None:
+        row["recent_swap_scan_block_number"] = scan_block_number
 
 
 def _liquidity_rows_from_index(index: dict[str, Any]) -> list[dict[str, Any]]:
@@ -289,6 +312,9 @@ def _liquidity_rows_from_index(index: dict[str, Any]) -> list[dict[str, Any]]:
         }
         if raw.get("recentSwapActive") is not None:
             row["recent_swap_active"] = raw.get("recentSwapActive")
+            # The swap window is a property of the index scan, so it is
+            # read from the index envelope that carries the marker.
+            _carry_recent_swap_window(row, index)
         rows.append(row)
     return rows
 

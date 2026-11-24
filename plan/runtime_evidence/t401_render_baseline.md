@@ -1,0 +1,107 @@
+### 3.1 采集器一次性输出（**23** 项）
+
+采集时间：`2026-11-24T07:08:02.063146+00:00`；判定口径：`read-only`；存储：`{'path': 'flashloan/db/local_store_4663.sqlite3', 'sha256': 'fd74f65bda800f67614f76d6474f8febb5f2551cfc91e2e7159e6005de23f1c3', 'openedReadOnly': True, 'queryOnly': True}`
+
+| 项 | 验收要求 | 判定 | 实测观测 |
+|---|---|---|---|
+| `A1` | no stored review misses a required field | **未通过** | `complete`=14、`incomplete`=150、`incompleteLoopKeys`=0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd …… 共 **20** 条、`reviews`=164 |
+| `A2` | the amount state is 'measured' (missing=0, unconfirmed=0) | **未通过** | `measured`=14、`missing`=150、`unconfirmed`=0 |
+| `A3` | no review misses its signed profit | **未通过** | `missing`=150、`missingLoopKeys`=0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd …… 共 **20** 条、`pnlStates`=`measured_zero`=0、`missing`=150、`negative`=14、`positive`=0 |
+| `A4` | the bestAmountMissing flag is never raised | **通过** | `bestAmountMissingFlags`=0、`healerBestAmountMissing`=150、`healerBestAmountMissingCurrentLoop`=146 |
+| `A5` | a measured zero amount carries its zero reason and its ladder rows | **未通过** | `measuredAmountZeros`=14、`measuredAmountZerosWithoutLadderRows`=0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000、0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000、0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000、0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3 …… 共 **14** 条、`measuredAmountZerosWithoutReason`=、`missingAmountPublishedAsZero`=、`missingPnlPublishedAsZero`=、`zeroReasonSamples`=the amount ladder measured 1 size(s) and none of them was profitable、the amount ladder measured 19 size(s) and none of them was profitable、the amount ladder measured 20 size(s) and none of them was profitable、the amount ladder measured 3 size(s) and none of them was profitable、the amount ladder measured 5 size(s) and none of them was profitable |
+| `A6` | the Manager loop keys are unique, staleOrUnmatched=0 and currentDistinctLoops equals the current closed-loop count | **未通过** | `catalogLoopsWithoutReview`=0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35、0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35、0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c、0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09 …… 共 **14** 条、`distinctManagerLoops`=164、`duplicatedLoopKeys`=、`healerCurrentDistinctLoops`=160、`healerStaleOrUnmatched`=4、`publishedLoopRows`=174、`reviewRowsNotInCatalog`=0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b、0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168、0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c |
+| `A7` | the healer survives a missing hop table: the match is exact and ordered, and an unmatched loop is not guessed | **通过** | `auditReviewsSucceeded`=True、`healerSourceAudit`=True、`hopTableRead`=manager_v4_closed_loop_hops |
+| `A8` | the read-only healer agrees: missing=0, ladderIncomplete=0, failClosed=True | **未通过** | `confirmed`=14、`failClosed`=True、`ladderIncomplete`=150、`ladderIncompleteCurrentLoop`=146、`missing`=150、`missingCurrentLoop`=146、`total`=164 |
+| `B1` | the 600 second observation window has a measured distribution | **未通过** | `freshReviews`=0、`freshnessThresholdSeconds`=600、`oldestAgeSeconds`=175661.889913、`staleReviews`=164、`youngestAgeSeconds`=175608.50923 |
+| `B2` | the automatic-broadcast gate (read out of the Rust source) has a measured verdict for the fresh reviews | **未通过** | `gate`=`automaticBroadcastAgeLimitSeconds`=120、`automaticBroadcastFutureSkewSeconds`=30、`available`=True、`constantName`=MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS、`meaning`=the Review Manager only turns a review into a broadcast request while the review is at most this many seconds old、`source`=flashloan/tools/review_manager/src/lib.rs、`sourceSha256`=efbdcdb12b250487e9ab0c82969d572b1f90b103648e9f6a0da81b5f25f6ae22、`reviewsOutsideAutomaticBroadcastAgeLimit`=164、`reviewsWithinAutomaticBroadcastAgeLimit`=0 |
+| `B3` | both thresholds are reported, not only the looser one | **通过** | `gateWindowReported`=True、`observationWindowReported`=True |
+| `B4` | the report states that passing the observation window is not passing the gate | **通过** | `gateWindowSeconds`=120、`observationWindowSeconds`=600、`statement`=a review inside the 600 second observation window can still be refused by the automatic-broadcast gate, which is the tighter of the two thresholds; the broadcas……（截断）、`theGateIsTheTighterWindow`=True |
+| `B5` | the gate threshold is read out of the Rust source | **通过** | `constantName`=MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS、`hardcodedInThisScript`=False、`source`=flashloan/tools/review_manager/src/lib.rs、`sourceSha256`=efbdcdb12b250487e9ab0c82969d572b1f90b103648e9f6a0da81b5f25f6ae22 |
+| `B6` | a gate refusal is recorded as 'no broadcast request is generated', never as a failed review | **通过** | `broadcastRequests`=0、`reviewStatusCounts`=`data_incomplete`=150、`not_executable`=14、`statement`=a review the gate refuses stays a measured review; the gate only decides whether a broadcast request is generated |
+| `C1` | the review library names the same upstream generation the closed-loop Manager publishes now | **未通过** | `candidateEdgeChecksumMatches`=False、`candidateEdgeVersionMatches`=False、`closedLoopChecksumMatches`=False、`closedLoopVersionMatches`=False、`consumersNeedRebuild`=1、`consumersNeedRebuildCleared`=False、`poolScopeChecksumMatches`=False、`publishedLoopRows`=174、`reviewCandidateEdgeVersion`=8、`reviewClosedLoopChecksum`=sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115、`reviewClosedLoopVersion`=14、`reviewLoopCount`=164、`reviewPoolScopeChecksum`=sha256:3adcebed79acbfc753bdf6976dd88033b7f205c5b6ba0a892c9037cfe270c05b、`upstreamCandidateEdgeVersion`=9、`upstreamClosedLoopChecksum`=sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a、`upstreamClosedLoopVersion`=19、`upstreamLoopCount`=174、`upstreamPoolScopeChecksum`=sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6 |
+| `C2` | consumers_need_rebuild cleared on its own (== 0) | **未通过** | `consumersNeedRebuild`=1、`note`=the flag belongs to the closed-loop Manager's own self-healing path; no task writes it by hand、`writtenByThisTask`=False |
+| `C3` | the runtime_core snapshot was accepted: state=ok, snapshotAvailable=true, generation>=1 | **未通过** | `accepted`=False、`generation`=0、`measured`=True、`panelRuntimeCore`=`available`=True、`broadcastAuthority`=legacy、`candidateAuthority`=legacy、`candidateExchangeAuthority`=legacy、`chainId`=4663、`closed`=False、`dataSource`=rust_runtime_core、`databasePath`=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3、`generation`=0、`instanceId`=runtime-core-21212-4663-1、`lastError`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`lastRefreshAt`=None、`network`=robinhood、`protocol`=uniswap_v4、`recentEvents`=`createdAt`=2026-11-24T06:53:32.007725900+00:00、`detail`=`chainId`=4663、`instanceId`=runtime-core-21212-4663-1、`eventId`=runtime-event-1、`eventType`=runtime_registered、`idempotencyKey`=None、`requestId`=None、`createdAt`=2026-11-24T06:56:10.398894700+00:00、`detail`=`error`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`previousGeneration`=0、`eventId`=runtime-event-2、`eventType`=snapshot_rejected、`idempotencyKey`=None、`requestId`=None、`createdAt`=2026-11-24T06:56:10.531425900+00:00、`detail`=`error`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`previousGeneration`=0、`eventId`=runtime-event-3、`eventType`=snapshot_rejected、`idempotencyKey`=None、`requestId`=None、`createdAt`=2026-11-24T06:56:42.764871+00:00、`detail`=`error`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`previousGeneration`=0、`eventId`=runtime-event-4、`eventType`=snapshot_rejected、`idempotencyKey`=None、`requestId`=None、`createdAt`=2026-11-24T06:56:49.075024100+00:00、`detail`=`error`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`previousGeneration`=0、`eventId`=runtime-event-5、`eventType`=snapshot_rejected、`idempotencyKey`=None、`requestId`=None、`createdAt`=2026-11-24T06:57:00.777555900+00:00、`detail`=`error`=RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"revi……（截断）、`previousGeneration`=0、`eventId`=runtime-event-6、`eventType`=snapshot_rejected、`idempotencyKey`=None、`requestId`=None …… 共 **19** 条、`registered`=True、`schemaVersion`=rust_runtime_core_v1、`snapshotAvailable`=False、`state`=error、`raw`=`chainId`=4663、`databasePath`=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3、`generation`=0、`instanceId`=runtime-core-21212-4663-1、`network`=robinhood、`protocol`=uniswap_v4、`snapshotAvailable`=False、`snapshotChecksum`=None、`upstreamFingerprint`=None、`snapshotAvailable`=False、`source`=http://127.0.0.1:5000/api/dex/overview、`state`=error、`stateVocabulary`=`acceptedValue`=ready、`note`=the Rust lifecycle has no 'ok' state; 'ready' is the state that means the snapshot exists and the chain is complete、`source`=flashloan/rs-src/src/runtime_core.rs (RuntimeCore::status)、`values`=ready、partial、registered、error、closed |
+| `C4` | closedLoops and reviews are both gone from the blockers | **未通过** | `blockers`=closedLoops、reviews、broadcast、`layerValidity`=`broadcast`=False、`cascadeMatrix`=False、`closedLoops`=False、`pools`=True、`reviews`=False、`tokens`=True |
+| `C5` | the directional layer version and checksum recorded by the closed-loop layer match the directional layer itself (I-15) | **未通过** | `checksumMatches`=False、`closedLoopDirectionalPoolChecksum`=sha256:84cf7aef56554c5e140522b989e43701a911bc6ab03d061135df3d1b6b42f9cf、`closedLoopDirectionalPoolVersion`=2、`directionalLayerPoolChecksum`=sha256:f6836f97aa22a3c79381d951be1256a650ef8d01f503886550d7140dd7520f3d、`directionalLayerPoolVersion`=2、`versionMatches`=True |
+| `D1` | the Manager review library was not backfilled from a history or a live table; every row was measured again | **未通过** | `closedLoopVersionsInLibrary`=14、`distinctReviewedAt`=15、`note`=the reviews are filed by the Rust production publisher; this task neither wrote nor injected a review row、`reviewRows`=164、`unreportedRows`=150 |
+| `D2` | no historical depth or business data was injected | **通过** | `mode`=read-only、`queryOnly`=True、`storeOpenedReadOnly`=True、`writesByThisTask`=0 |
+| `D3` | positive=0 is reported as a business conclusion, not as a defect | **未通过** | `measuredZero`=0、`negative`=14、`positive`=0、`statement`=a measured zero or negative profit is a complete measurement; it is never downgraded to a missing value |
+| `D4` | the readings were taken again; no earlier round was reused | **通过** | `collectedAt`=2026-11-24T07:08:02.063146+00:00、`earlierRoundReadingReused`=False |
+
+### 3.2 上下游一致性（**复核库 vs 上游管理器**）
+
+| 字段 | 上游 | 复核库 | 一致 |
+|---|---|---|---|
+| 闭环代次 | `19` | `14` | **否** |
+| 闭环校验和 | `sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a` | `sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115` | **否** |
+| 候选边代次 | `9` | `8` | **否** |
+| 候选边校验和 | `—` | `—` | **否** |
+| 池域校验和 | `sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6` | `sha256:3adcebed79acbfc753bdf6976dd88033b7f205c5b6ba0a892c9037cfe270c05b` | **否** |
+| 闭环数 | 174 | 164 | **否** |
+
+- `consumers_need_rebuild` = **1**（自然清除：**否**）
+
+### 3.3 `runtime_core` 快照
+
+| 字段 | 读数 |
+|---|---|
+| `measured` | `True` |
+| `state` | `error` |
+| `snapshotAvailable` | `False` |
+| `generation` | `0` |
+| `accepted` | `False` |
+| `source` | `http://127.0.0.1:5000/api/dex/overview` |
+
+> **状态词汇（源码核对）**：来源 `flashloan/rs-src/src/runtime_core.rs (RuntimeCore::status)`；取值 `ready、partial、registered、error、closed`；**没有 `ok`**；`ready` 才是「快照存在且链条完整」的取值。
+
+> **`lastError`（原文）**：`RuntimeCore rejected a mixed manager snapshot: [{"component":"closed_loop","field":"consumersNeedRebuild","expected":"false","actual":"true"},{"component":"review","field":"closedLoopVersion","expected":"19","actual":"14"},{"component":"review","field":"closedLoopChecksum","expected":"sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a","actual":"sha256:ed2534ae34dd1ce8190db1400eeaed901d45f6b9d4f41a0e2a299449dde98115"}]`
+
+### 3.4 新鲜度双阈值（**两个都测**）
+
+| 阈值 | 来源 | 秒 | 读数 | 判定 |
+|---|---|---:|---|---|
+| 观测阈值 | 观测口径 | 600 | fresh=None / stale=None | — |
+| 自动广播门禁 | Rust 常量 `MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS` | None |  | **未通过** |
+
+> **两者不可互换**：600s 是**观测与报告口径**，120s 是**自动广播门禁**；**广播与否由门禁判定**，不由观测阈值判定。
+
+### 3.5 边界与诊断
+
+- 诊断分布：``EvidenceMissing`=150、`quote_failed`=14`
+- 广播请求数：**0**
+- 方向层（`directional`）：``checksumMatches`=False、`closedLoopDirectionalPoolChecksum`=sha256:84cf7aef56554c5e140522b989e43701a911bc6ab03d061135df3d1b6b42f9cf、`closedLoopDirectionalPoolVersion`=2、`directionalLayerPoolChecksum`=sha256:f6836f97aa22a3c79381d951be1256a650ef8d01f503886550d7140dd7520f3d、`directionalLayerPoolVersion`=2、`versionMatches`=True`
+- healer：``auditLoops`=`library`=`consumers_need_rebuild`=1、`generated_at`=None、`hop_count`=522、`loop_count`=174、`materialized_checksum`=sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a、`runtime`=`count`=174、`state`=ready_for_review、`valid`=False、`auditReviews`=`bestAmount`=`code`=best_amount_missing、`confirmed`=14、`currentLoopConfirmed`=14、`currentLoopTotal`=160、`failClosed`=True、`ladderIncomplete`=150、`ladderIncompleteCurrentLoop`=146、`missing`=150、`missingCurrentLoop`=146、`reason`=every completed review must carry a concrete best trade amount; a missing amount is an upstream review failure and stops execution、`reasons`=`count`=150、`reason`=best amount unresolved、`retryable`=False、`samples`=`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`=、`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`=、`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`=、`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`=、`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`=、`currentLoop`=True、`initialProbeAmount`=None、`ladderIncomplete`=True、`loopKey`=0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd、`probeCount`=0、`reason`=best amount unresolved、`requestedSymbol`=None、`reviewFailureKind`=、`reviewId`=None、`status`= …… 共 **10** 条、`total`=164、`legacy`=`bestAmountConfirmed`=14、`bestAmountLadderIncomplete`=150、`bestAmountLadderIncompleteCurrentLoop`=146、`bestAmountMissing`=150、`bestAmountMissingCurrentLoop`=146、`currentDistinctLoops`=160、`currentLoopMatched`=160、`currentLoopStats`=`bestAmountConfirmed`=14、`bestAmountMissing`=146、`missingValue`=146、`nonPositive`=14、`positive`=0、`positiveAmount`=0、`sum`=-3.3747028931906913、`total`=160、`valued`=14、`latestReviewAt`=None、`matchedMissingPnl`=146、`staleOrUnmatched`=4、`stats`=`byCurrency`=`SPY`=-0.00020903298204566002、`TZ`=-3.372979203353232、`WETH`=-0.0015146568554137599、`confirmedSum`=0.0、`estimatedProfitOnlyCount`=0、`maximum`=-3.223144434113e-06、`minimum`=-3.2561716427541647、`missingValue`=150、`nonPositive`=14、`positive`=0、`positiveAmount`=0、`positiveEstimateOnly`=0、`sum`=-3.3747028931906913、`total`=164、`withValue`=14、`unmatchedMissingPnl`=4、`windowHours`=24、`manager`=`reviews`=164、`missingClassifications`=`code`=other、`count`=146、`currentLoop`=True、`retryable`=False、`sampleReviewIds`=None、None、None、None、None、`code`=other、`count`=4、`currentLoop`=False、`retryable`=False、`sampleReviewIds`=None、None、None、None、`missingReasons`=`count`=150、`reason`=data_incomplete:runArbitrage evidence is missing、`valid`=False、`blockers`=closedLoops、reviews、broadcast、`healerPath`=scripts/mainnet_arbitrage_healer.py、`healerSha256`=7f7e36ae4ba84da9ebd555e72683c99c44a23f41c4072f04aac6b5e558c35b9d、`layerValidity`=`broadcast`=False、`cascadeMatrix`=False、`closedLoops`=False、`pools`=True、`reviews`=False、`tokens`=True、`safeToAutoBroadcast`=False`
+
+**采集器总裁定**：`not_met`；未通过项：A1、A2、A3、A5、A6、A8、B1、B2、C1、C2、C3、C4、C5、D1、D3
+
+### 3.6 与发布前基线的逐项对照
+
+基线（复核库停在闭环 v14 / 164 闭环）：`2026-11-24T07:08:02.063146+00:00`
+
+| 项 | 发布前基线 | 本次读数 | 变化 |
+|---|---|---|---|
+| `A1` | **未通过** | **未通过** | — |
+| `A2` | **未通过** | **未通过** | — |
+| `A3` | **未通过** | **未通过** | — |
+| `A4` | 通过 | 通过 | — |
+| `A5` | **未通过** | **未通过** | — |
+| `A6` | **未通过** | **未通过** | — |
+| `A7` | 通过 | 通过 | — |
+| `A8` | **未通过** | **未通过** | — |
+| `B1` | **未通过** | **未通过** | — |
+| `B2` | **未通过** | **未通过** | — |
+| `B3` | 通过 | 通过 | — |
+| `B4` | 通过 | 通过 | — |
+| `B5` | 通过 | 通过 | — |
+| `B6` | 通过 | 通过 | — |
+| `C1` | **未通过** | **未通过** | — |
+| `C2` | **未通过** | **未通过** | — |
+| `C3` | **未通过** | **未通过** | — |
+| `C4` | **未通过** | **未通过** | — |
+| `C5` | **未通过** | **未通过** | — |
+| `D1` | **未通过** | **未通过** | — |
+| `D2` | 通过 | 通过 | — |
+| `D3` | **未通过** | **未通过** | — |
+| `D4` | 通过 | 通过 | — |
+
+> 共 **0** 项判定发生变化。

@@ -696,37 +696,45 @@ class DexOpportunityNativeRustMixin:
             worker_group_key, loop_key = key
             groups.setdefault(worker_group_key, []).append((route, loop_key))
         submission["groupsDiscovered"] = len(groups)
+        # The number of groups the chain **publishes** is a fact about the
+        # chain, not a policy choice.  It is read before the preferred-group
+        # narrowing below, because that narrowing is a request for one
+        # group and must not shrink the chain's published size.
+        discovered_group_count = len(groups)
+        discovered_group_keys = set(groups)
         preferred = str(preferred_group_key or "").strip().lower()
         if preferred and preferred not in groups:
             submission["error"] = "closed_loop_group_not_found"
             return submission
         if preferred:
             groups = {preferred: groups[preferred]}
-        try:
-            batch_limit = max(
-                1,
-                int(
-                    os.getenv("DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN", "16")
-                    or "16"
-                ),
-            )
-        except (TypeError, ValueError):
-            batch_limit = 16
-        try:
-            total_group_limit = max(
-                1,
-                min(
-                    32,
-                    int(
-                        os.getenv("DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS", "16")
-                        or "16"
-                    ),
-                ),
-            )
-        except (TypeError, ValueError):
-            total_group_limit = 16
         resident_keys = self._native_resident_group_keys(chain_id)
         worker_group_count = self._native_worker_group_count(chain_id)
+        from dex.runtime.closed_loop_state_machine import (
+            new_groups_per_scan_override,
+            resolve_resident_group_limit,
+        )
+
+        # The per-scan batch is a **ramp** control: how many groups may
+        # become resident in one scan.  The resident limit is a **coverage**
+        # control: how many groups may be resident at all.  The second one
+        # has to be able to cover the published catalog, otherwise the loops
+        # beyond the limit never get a worker, never get reviewed, and the
+        # review generation is never published at all.
+        #
+        # A group that still holds a worker but was not discovered in this
+        # scan keeps its thread, so it also needs room in the limit.  It is
+        # counted here instead of being ignored, because ignoring it would
+        # let the limit shrink below the number of groups that hold a
+        # worker and freeze the ramp on a stale thread.
+        stale_resident_count = max(
+            0,
+            worker_group_count - len(resident_keys & discovered_group_keys),
+        )
+        total_group_limit = resolve_resident_group_limit(
+            discovered_group_count + stale_resident_count
+        )
+        batch_limit = max(1, int(new_groups_per_scan_override() or 16))
         batch_limit = min(
             batch_limit,
             max(0, total_group_limit - worker_group_count),

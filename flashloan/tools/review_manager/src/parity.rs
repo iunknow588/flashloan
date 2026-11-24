@@ -786,6 +786,66 @@ pub fn build_hops(
     pool_states: &BTreeMap<String, PoolParityState>,
     pool_ids: &[String],
 ) -> Option<Vec<HopState>> {
+    build_hop_chain(route_addresses, pool_states, pool_ids, None).map(|chain| chain.hops)
+}
+
+/// The stored direction of every hop of a closed loop, in hop order.
+///
+/// The value is `None` for a hop the closed-loop catalog published no
+/// direction for.  A hop without a direction is **not** a mismatch: the
+/// catalog has nothing to say about it, and the route's own token order is
+/// then the only description of the hop.
+pub type HopDirectionList = Vec<Option<i64>>;
+
+/// A hop whose stored direction contradicts the route it was measured on.
+///
+/// The mismatch is a fact about the catalog and the route, not about the
+/// market, so it is reported and never repaired: rewriting the direction
+/// would hide the drift between the two.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectionMismatch {
+    /// The hop the mismatch belongs to.
+    pub hop_index: usize,
+    /// The base pool the hop walks.
+    pub pool_id: String,
+    /// The direction the closed-loop catalog stored for the hop.
+    pub stored_direction: i64,
+    /// The direction the route and the pool's token order describe.
+    pub derived_direction: i64,
+}
+
+/// The hops of a route and the hops that were dropped for a mismatch.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HopChain {
+    /// The hops the route is made of.
+    pub hops: Vec<HopState>,
+    /// The hops whose stored direction contradicts the route.
+    pub direction_mismatches: Vec<DirectionMismatch>,
+}
+
+/// Builds the simulator's hop states for a route, cross-checking the
+/// **stored** direction of every hop.
+///
+/// The direction of a hop is the one the closed-loop Manager published for
+/// the directional pool the hop walks, and it is the source of the hop's
+/// swap direction.  The route's own token order is the **cross-check**: a
+/// hop that spends token0 trades the lower address into the higher one
+/// (direction 1), and a hop that spends token1 trades the higher address
+/// into the lower one (direction 0).
+///
+/// A hop whose stored direction says otherwise is **skipped** and reported
+/// in `direction_mismatches`.  The remaining hops are built normally, so a
+/// single drifted hop does not void the whole review.
+///
+/// `None` is returned when the route cannot be expressed as a chain of pools
+/// with usable state. That is a legitimate outcome, not an error: the caller
+/// reports it as "not comparable".
+pub fn build_hop_chain(
+    route_addresses: &[String],
+    pool_states: &BTreeMap<String, PoolParityState>,
+    pool_ids: &[String],
+    hop_directions: Option<&HopDirectionList>,
+) -> Option<HopChain> {
     let addresses: Vec<String> = route_addresses
         .iter()
         .map(|address| address.trim().to_lowercase())
@@ -803,12 +863,12 @@ pub fn build_hops(
         return None;
     }
 
-    let mut hops = Vec::with_capacity(pools.len());
+    let mut chain = HopChain::default();
     for (index, pool_id) in pools.iter().enumerate() {
         let state = pool_states.get(pool_id)?;
         let token_in = addresses[index].clone();
         let token_out = addresses[index + 1].clone();
-        let zero_for_one = if state.token0 == token_in && state.token1 == token_out {
+        let derived_zero_for_one = if state.token0 == token_in && state.token1 == token_out {
             true
         } else if state.token1 == token_in && state.token0 == token_out {
             false
@@ -817,7 +877,43 @@ pub fn build_hops(
             // route and the pool selection disagree.
             return None;
         };
-        hops.push(HopState {
+        // The direction the route describes: the hop spends token0, so it
+        // trades the lower address into the higher one (direction 1), and
+        // it spends token1, so it trades the higher into the lower one
+        // (direction 0).
+        let derived_direction = if derived_zero_for_one { 1 } else { 0 };
+        let stored_direction = hop_directions
+            .and_then(|directions| directions.get(index).copied().flatten());
+        let zero_for_one = match stored_direction {
+            // The catalog published no direction for this hop, so the
+            // route's own token order is the only description of it.
+            None => derived_zero_for_one,
+            Some(0) => false,
+            Some(1) => true,
+            // A direction that is neither 0 nor 1 cannot be trusted, so
+            // the hop is skipped and reported like a mismatch.
+            Some(stored) => {
+                chain.direction_mismatches.push(DirectionMismatch {
+                    hop_index: index,
+                    pool_id: pool_id.clone(),
+                    stored_direction: stored,
+                    derived_direction,
+                });
+                continue;
+            }
+        };
+        if let Some(stored) = stored_direction {
+            if stored != derived_direction {
+                chain.direction_mismatches.push(DirectionMismatch {
+                    hop_index: index,
+                    pool_id: pool_id.clone(),
+                    stored_direction: stored,
+                    derived_direction,
+                });
+                continue;
+            }
+        }
+        chain.hops.push(HopState {
             pool_id: pool_id.clone(),
             token_in,
             token_out,
@@ -827,7 +923,7 @@ pub fn build_hops(
             zero_for_one,
         });
     }
-    Some(hops)
+    Some(chain)
 }
 
 /// Runs the off-chain simulation over a pool-state map and compares it with
@@ -1092,10 +1188,11 @@ pub fn default_protocol() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_hops, chain_fee_matches, effective_flash_fee_bps, evaluate_route_parity_with_states,
-        flash_fee, legacy_fee_residual, relative_delta, required_repay, signed_offchain_profit,
-        simulate_route, HopState, ParityAttribution, ParityRequest, ParityState,
-        CHAIN_MIN_PROFIT_RAW, DEFAULT_FLASH_FEE_BPS, LEGACY_ASSUMED_FLASH_FEE_BPS,
+        build_hop_chain, build_hops, chain_fee_matches, effective_flash_fee_bps,
+        evaluate_route_parity_with_states, flash_fee, legacy_fee_residual, relative_delta,
+        required_repay, signed_offchain_profit, simulate_route, HopState, ParityAttribution,
+        ParityRequest, ParityState, CHAIN_MIN_PROFIT_RAW, DEFAULT_FLASH_FEE_BPS,
+        LEGACY_ASSUMED_FLASH_FEE_BPS,
     };
     use pool_manager::PoolParityState;
     use std::collections::BTreeMap;
@@ -1220,6 +1317,76 @@ mod tests {
             &["pool-1".to_string()],
         )
         .is_none());
+    }
+
+    #[test]
+    fn the_stored_direction_decides_the_hop_and_agrees_with_the_route() {
+        // The route spends token0 in both hops, so the route describes
+        // direction 1 (the lower address into the higher one) in both.
+        let mut states = BTreeMap::new();
+        states.insert("pool-1".to_string(), pool("pool-1", TOKEN_A, TOKEN_B));
+        states.insert("pool-2".to_string(), pool("pool-2", TOKEN_B, TOKEN_C));
+        let chain = build_hop_chain(
+            &[
+                TOKEN_A.to_string(),
+                TOKEN_B.to_string(),
+                TOKEN_C.to_string(),
+            ],
+            &states,
+            &["pool-1".to_string(), "pool-2".to_string()],
+            Some(&vec![Some(1), Some(1)]),
+        )
+        .expect("the route is expressible");
+        assert_eq!(chain.hops.len(), 2);
+        assert!(chain.direction_mismatches.is_empty());
+        assert!(chain.hops[0].zero_for_one);
+        assert!(chain.hops[1].zero_for_one);
+    }
+
+    #[test]
+    fn a_stored_direction_that_contradicts_the_route_skips_the_hop() {
+        // The second hop is stored as direction 0 while the route spends
+        // token0 in it, so the two disagree. The hop is skipped and
+        // reported; the first hop is judged normally, and the review of
+        // the whole loop is not voided by it.
+        let mut states = BTreeMap::new();
+        states.insert("pool-1".to_string(), pool("pool-1", TOKEN_A, TOKEN_B));
+        states.insert("pool-2".to_string(), pool("pool-2", TOKEN_B, TOKEN_C));
+        let chain = build_hop_chain(
+            &[
+                TOKEN_A.to_string(),
+                TOKEN_B.to_string(),
+                TOKEN_C.to_string(),
+            ],
+            &states,
+            &["pool-1".to_string(), "pool-2".to_string()],
+            Some(&vec![Some(1), Some(0)]),
+        )
+        .expect("the route is expressible");
+        assert_eq!(chain.hops.len(), 1, "the drifted hop is not part of the chain");
+        assert_eq!(chain.hops[0].pool_id, "pool-1");
+        assert_eq!(chain.direction_mismatches.len(), 1);
+        let mismatch = &chain.direction_mismatches[0];
+        assert_eq!(mismatch.hop_index, 1);
+        assert_eq!(mismatch.pool_id, "pool-2");
+        assert_eq!(mismatch.stored_direction, 0);
+        assert_eq!(mismatch.derived_direction, 1);
+    }
+
+    #[test]
+    fn a_hop_without_a_stored_direction_is_not_a_mismatch() {
+        let mut states = BTreeMap::new();
+        states.insert("pool-1".to_string(), pool("pool-1", TOKEN_A, TOKEN_B));
+        let chain = build_hop_chain(
+            &[TOKEN_A.to_string(), TOKEN_B.to_string()],
+            &states,
+            &["pool-1".to_string()],
+            Some(&vec![None]),
+        )
+        .expect("the route is expressible");
+        assert_eq!(chain.hops.len(), 1);
+        assert!(chain.direction_mismatches.is_empty());
+        assert!(chain.hops[0].zero_for_one);
     }
 
     /// The production route borrows straight from the Uniswap V4 PoolManager,

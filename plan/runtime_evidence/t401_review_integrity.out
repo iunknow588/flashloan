@@ -1,0 +1,25 @@
+wrote: plan/runtime_evidence/t401_review_integrity.json
+  A1  completeness NOT MET
+  A2  completeness NOT MET
+  A3  completeness NOT MET
+  A4  completeness MET
+  A5  completeness NOT MET
+  A6  completeness NOT MET
+  A7  completeness MET
+  A8  completeness NOT MET
+  B1  freshness  NOT MET
+  B2  freshness  NOT MET
+  B3  freshness  MET
+  B4  freshness  MET
+  B5  freshness  MET
+  B6  freshness  MET
+  C1  upstream   NOT MET
+  C2  upstream   NOT MET
+  C3  upstream   NOT MET
+  C4  upstream   NOT MET
+  C5  upstream   NOT MET
+  D1  boundaries NOT MET
+  D2  boundaries MET
+  D3  boundaries NOT MET
+  D4  boundaries MET
+reviews analysed: 164 | verdict: not_met

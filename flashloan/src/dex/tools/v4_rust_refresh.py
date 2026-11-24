@@ -67,10 +67,17 @@ def prepare_v4_evidence_rows(
         chain_id=wanted_chain_id,
     )
     liquidity_rows = _liquidity_rows(liquidity)
+    # The recent-swap marker is a property of the swap log, not of the
+    # liquidity measurement, so it travels with every pool the index
+    # measured.  A pool whose depth read failed still has a swap
+    # measurement, and dropping it here would lose that measurement.
+    #
+    # The rows that carry neither a depth measurement nor a swap
+    # measurement are dropped: they carry no evidence at all.
     index_liquidity_rows = [
         row
         for row in _liquidity_rows_from_index(index)
-        if row.get("has_liquidity") is not None
+        if row.get("has_liquidity") is not None or row.get("recent_swap_active") is not None
     ]
     return {
         "network": wanted_network,
