@@ -29,7 +29,7 @@
 |---|---|---|
 | `M-3` | `flashloan/tools/directional_pool_manager/examples/materialize_directional_pools.rs`<br>`flashloan/tools/directional_pool_manager/src/lib.rs`<br>`flashloan/tools/directional_pool_manager/tests/directional_pools.rs` | `flashloan/tools/directional_pool_manager/examples/materialize_directional_pools.rs`<br>↔ 与 T-方储.01 同文件<br>`flashloan/tools/directional_pool_manager/src/lib.rs`<br>↔ 与 T-方储.01 同文件<br>`flashloan/tools/directional_pool_manager/tests/directional_pools.rs`<br>↔ 与 T-方储.01 同文件 |
 | `M-4` | `flashloan/tools/closed_loop_manager/examples/materialize_closed_loops.rs`<br>`flashloan/tools/closed_loop_manager/src/lib.rs`<br>`flashloan/tools/closed_loop_manager/src/usdg_valuation.rs` | **无**（本任务独占） |
-| `M-10` | `flashloan/src/core/db/storage_business_schema.py` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-证候储.01 / T-储.01 / T-储.02 / T-方储.01 同文件 |
+| `M-10` | `flashloan/src/core/db/storage_business_schema.py` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-储.01 / T-储.02 / T-方储.01 / T-证候储.01 同文件 |
 
 **判定规则**：
 

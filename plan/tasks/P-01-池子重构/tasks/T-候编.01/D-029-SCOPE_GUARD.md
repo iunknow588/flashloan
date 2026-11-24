@@ -26,8 +26,8 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-5` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs`<br>↔ 与 T-候.01 / T-候.02 同文件 |
-| `M-8` | `flashloan/tools/composite_manager/examples/p0_4_recompute_latency_probe.rs`<br>`flashloan/tools/composite_manager/src/lib.rs`<br>`flashloan/tools/composite_manager/src/main.rs`<br>`flashloan/tools/composite_manager/src/overview.rs`<br>`flashloan/tools/composite_manager/src/recompute_latency.rs` | `flashloan/tools/composite_manager/examples/p0_4_recompute_latency_probe.rs`<br>↔ 与 T-复编.01 / T-编.01 同文件<br>`flashloan/tools/composite_manager/src/lib.rs`<br>↔ 与 T-复编.01 / T-编.01 同文件<br>`flashloan/tools/composite_manager/src/main.rs`<br>↔ 与 T-复编.01 / T-编.01 同文件<br>`flashloan/tools/composite_manager/src/overview.rs`<br>↔ 与 T-复编.01 / T-编.01 同文件<br>`flashloan/tools/composite_manager/src/recompute_latency.rs`<br>↔ 与 T-复编.01 / T-编.01 同文件 |
+| `M-5` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs`<br>↔ 与 T-候.01 同文件 |
+| `M-8` | `flashloan/tools/composite_manager/examples/p0_4_recompute_latency_probe.rs`<br>`flashloan/tools/composite_manager/src/lib.rs`<br>`flashloan/tools/composite_manager/src/main.rs`<br>`flashloan/tools/composite_manager/src/overview.rs`<br>`flashloan/tools/composite_manager/src/recompute_latency.rs` | `flashloan/tools/composite_manager/examples/p0_4_recompute_latency_probe.rs`<br>↔ 与 T-编.01 同文件<br>`flashloan/tools/composite_manager/src/lib.rs`<br>↔ 与 T-编.01 同文件<br>`flashloan/tools/composite_manager/src/main.rs`<br>↔ 与 T-编.01 同文件<br>`flashloan/tools/composite_manager/src/overview.rs`<br>↔ 与 T-编.01 同文件<br>`flashloan/tools/composite_manager/src/recompute_latency.rs`<br>↔ 与 T-编.01 同文件 |
 
 **判定规则**：
 

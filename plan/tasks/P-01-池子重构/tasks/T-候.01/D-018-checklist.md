@@ -6,7 +6,30 @@
 
       ETH / WETH 两个独立 Currency；USDG identity 36/36 闭环命中；TZ 缺价格 → **fail-closed**。
 
-- [ ] **第 4 项**（测试网 `loops>0`）：⏸ **随测试网任务暂停**。
+- [ ] **第 4 项**（测试网 `loops>0`）：**根因已定位，判据仍不成立** —— 读数见
+      `docs/D-107-测试网闭环0环根因链与可恢复性实测_20261124.md`。
+
+      **0 环的四层根因（副本实测）**：
+
+      | 层 | 事实 | 读数 |
+      |---|---|---|
+      | 1 迁移缺口 | 测试网**缺 3 个迁移**（`014` / `015` / `016`）⇒ `manager_v4_directional_exchange_pools` **表都不存在** | 主网 **692** 行 / 测试网 **无表** |
+      | 2 池宇宙 | `core4` 只有 **5** 个池（主网 **488**）；全链池索引 28 池中 **28 个带钩子** | 可用无钩子池 **4~5** |
+      | 3 YZ 观测 | `manager_market_observation_yz_pairs` 仅 **20** 行（主网 **1420**），**4** 条 `no_reachable_v4_pool` | 缺失对：**AMD↔ETH**、**AMZN↔TSLA** |
+      | 4 复核代次 | 8 条复核全 `not_executable`，且挂在 **v2 旧代**（当前代 v10 = 0 环）⇒ **8/8 的 `loop_key` 不在目录里** | 复核覆盖 = **旧代残留** |
+
+      **副本实测**：迁移 014/015/016 全 `appliedNow`（纯 schema）；方向池物化两个作用域各 **10** 行
+      （d0=5 / d1=5 / 可用对 8 / 已测容量 10 / 已测输出 10）；**闭环物化仍 `loopCount=0`**
+      ⇒ **0 环的根因在第 2/3 层（链上事实），不在第 1 层**。
+
+      **第 4 项里可测的那一半已测且通过**（副本上的采集器读数）：
+      `signedPnl.rawToHuman` **8 met / 0 notMet**、`currencyMatchesLibrary` **8/0**、`gas.separateFromPnl` **8/0**、
+      `fee.unit` **7 met / 0 notMet / 1 unmeasured**；
+      `ladderRows.rawToHuman` / `borrowPrincipal.unit` / `borrowToken.usdgValuation` = **8 条全部 `unmeasured`**
+      （字段未发布 ⇒ **不是 `notMet`**，**不得**记为不合规，**不得**用零冒充）。
+
+      **结论**：测试网要 `loops>0`，**必须先在链上出现 `AMD↔ETH` / `AMZN↔TSLA` 的可达 V4 池**（或扩充池宇宙）
+      ⇒ **链上/环境侧动作，不是软件缺陷** ⇒ 本项**维持未测量**、**不排期、不改判为完成**。
 
 - [x] **主网侧复核 1/2/3/5 重取**（不沿用旧读数）—— 读数见 `docs/D-105-主网重取读数与语义判定_20261124.md`。
 
@@ -32,5 +55,8 @@
       （新增方向池级联清理，**无语义改动**）。
 
 > **诚实边界**：第 4 项（测试网 `loops>0`）、阶梯行、`borrowPrincipal.requestedAmount`
-> 三项**未测量** —— 前者因测试网 Manager 未发布闭环（`loopCount=0`），
+> 三项**未测量** —— 前者因**链上无可达中间跳池**（根因见 `D-107`，非软件缺陷），
 > 后两者因字段未发布 ⇒ **判据结构上不成立**。**不排期、不改判为完成。**
+>
+> **活库零写入** —— 本轮全部变更**只发生在副本** `flashloan/db/sandbox/t46630_directional_probe.sqlite3` 上；
+> 活库 `flashloan/db/local_store_46630.sqlite3` **字节未变**；主网读数未变（`164` / `174`）。

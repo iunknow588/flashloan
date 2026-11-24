@@ -77,7 +77,7 @@
 | 模块 | 名称 | 代码落点 |
 |---|---|---|
 | `M-6` | 复核层 | `flashloan/tools/review_manager/` |
-| `M-8` | 编排层（**扩范围 · 事后补记**） | `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`、`flashloan/src/dex/runtime/closed_loop_state_machine.py`、`flashloan/app_runtime/.env.example` |
+| `M-8` | 编排层（**扩范围 · 事后补记**） | `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`、`flashloan/src/dex/runtime/closed_loop_state_machine.py`、`flashloan/src/dex/runtime/rust_closed_loop.py`、`flashloan/app_runtime/.env.example` |
 
 > **规则**：**只跑**上表模块的独立测试。**未在上表出现的模块，一律不跑。**
 > **不得**以「有新任务」或「功能没变」为由跑全量。
@@ -87,13 +87,18 @@
 | 模块 | 名称 | 命令 |
 |---|---|---|
 | `M-6` | 复核层 | `cargo test --offline -p review-manager` |
-| `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q` |
+| `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q` |
 
 ```powershell
 # T-复编.02 的完整回归范围 = 上表所有模块的命令之并集
 cargo test --offline -p review-manager
-python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q
+python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q
 ```
+
+> **`M-8` 回归命令在 2026-11-24 增补 3 个文件**（§1.3.2 的修复落在
+> `flashloan/src/dex/runtime/rust_closed_loop.py`，该文件的直接调用方是这 3 个测试文件）：
+> `test_dex_route_test.py`、`test_d4_capacity_informed_ladder.py`、
+> `test_manager_overview_closed_loop_identity.py`。
 
 ### 1.3 扩范围登记（**事后补记 · 流程欠账**）
 
@@ -202,6 +207,82 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 扫描器独有的 4 组**不在已发布闭环目录内** ⇒ 内核 `apply_closed_loop_identity()`
 找不到对应 identity ⇒ 只写 `closedLoopIdentityStatus = "mismatch"`、**不写** `closedLoopKey`
 ⇒ **不产出复核证据** ⇒ 证据条数仍为 **174**（= 目录条数）⇒ 门禁成立。
+
+---
+
+### 1.3.2 第三层根因：闭环身份的「**池子那一半**」对不上（**25 条闭环**）
+
+> §1.3.1 补齐了**方向组全集**，但**组齐了 ≠ 身份齐了**。
+> 内核的闭环身份有**两半**：**有序地址路径**（funding anchor）＋
+> **逐跳发布的有向池**。**两半都对上，身份才成立**；
+> 缺哪一半，内核都**不写** `closedLoopKey`。
+
+| 事实 | 读数 |
+|---|---|
+| 闭环目录发布的闭环数 | **174** |
+| 目录给出的**逐跳发布池**（`pool_ids_json`） | 每条闭环 **3** 个（每跳 **1** 个）；备用池在 `backup_pool_ids_json` |
+| **身份成立**的闭环数（离线复现**生产函数**） | **149 / 174** |
+| ⇒ **身份不成立**的闭环数 | **25** |
+| 25 条的失配位置 | **全部是第 2 跳（bridge）**，形态统一为 §[真, 假, 真]§ |
+| 25 条的路由池组来源 | **全部来自扫描 payload 的「观测池组」**；另外 **74** 条走**候选面回落**的**全部成立** |
+
+**成因**（`flashloan/src/dex/runtime/rust_closed_loop.py::_route_task_config§）：
+
+内核的契约原文（`flashloan/rs-src/src/worker_pool.rs::apply_closed_loop_identity§）：
+
+> The route prices **every candidate pool** of every hop, while the Manager
+> publishes the **one pool it selected** for each hop and keeps the rest as
+> backups.
+
+⇒ 内核假定**路由给每一跳定价全部候选池**。但 Python 侧**优先**用
+**市场观测的池组**（每跳 **1** 个池），**候选面**只作**回落**：
+
+§§§python
+    if route_groups:
+        for raw_group in route_groups:
+            ...
+            groups.append(normalized_group)
+        if not groups:
+            groups = candidate_groups      # ← 只在没有观测池组时才用候选面
+    else:
+        groups = candidate_groups
+§§§
+
+⇒ 当**观测选的池 ≠ 闭环管理器发布的池**时（25 条闭环的第 2 跳），
+路由**根本没定价**管理器发布的那个池 ⇒ 内核
+§manager_pools_are_priced_by_route()§ 判**失配** ⇒ 只写
+§closedLoopIdentityStatus = "mismatch"§、**不写 §closedLoopKey§**、
+**不发布 §singleTickCapacityRaw§** ⇒ 阶梯以
+§single_tick_capacity_unavailable§ 被挡 ⇒ **不产出复核证据**
+⇒ 证据条数**封顶在 149** < 目录条数 **174** ⇒
+§covers_catalog()§ **永不成立** ⇒ 复核代次**依然永不发布**。
+
+**改了什么**（**最小改动** · 仍在 §M-8§ 内 ⇒ 无需再扩模块）：
+
+| 文件 | 改动 |
+|---|---|
+| §flashloan/src/dex/runtime/rust_closed_loop.py§ | 新增模块级 helper §_merge_pool_key_groups()§：按 **PoolKey 身份**合并两组「池键组」（观测组在前、候选面组在后；已存在的不重复加入）；§_route_task_config()§ 改为**观测组与候选面组取并集**，不再「优先观测、回落候选」 |
+
+**没改什么**：闭环目录本身**一字未改**（仍是 **174** 条 / v19 / 校验和
+§sha256:6927d8d6…§）；**内核的身份门禁一字未改**（仍然要求「路由定价的池
+**包含**管理器发布的池」）；方向池与固定费率约定不变；广播门禁不变；
+**没有新增任何 Python 侧的数据处理** —— 候选面**本来就是 Python 侧已经读到的**，
+这次只是**不再把它丢掉**。
+
+**为什么并集是对的**：候选面是**池管理器自己**给出的每跳候选池清单，
+而**管理器发布的池就在其中**（实测：**174 / 174** 条闭环的发布池
+都能在候选面里找到）。并集之后，**每一跳定价的池** = 候选面里该跳的池
+∪ 观测选的池（观测选的池**本来就在候选面里**，否则那一组根本不会被采纳）
+⇒ 与内核注释里写的契约**一致** ⇒ 身份**必然成立**。
+
+**实测（离线复现**生产函数** §_route_task_config§，同一库、同一目录）**：
+
+| 口径 | 读数 |
+|---|---|
+| 修复前：路由定价的池 ∋ 发布的池 | **149 / 174** |
+| 修复后 | **174 / 174** |
+
+**回归**：§M-8§ 的 7 个测试文件 → **209 passed**（§1.2）。
 
 ---
 

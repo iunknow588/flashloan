@@ -11,7 +11,7 @@
 | 模块 | 名称 | 代码落点 | 是否改 |
 |---|---|---|---|
 | `M-6` | 复核层 | ``flashloan/tools/review_manager/`` | 是 |
-| `M-8` | 编排层（**扩范围 · 事后补记**） | ``flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py``<br>``flashloan/src/dex/runtime/closed_loop_state_machine.py``<br>``flashloan/app_runtime/.env.example`` | 是 |
+| `M-8` | 编排层（**扩范围 · 事后补记**） | ``flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py``<br>``flashloan/src/dex/runtime/closed_loop_state_machine.py``<br>``flashloan/src/dex/runtime/rust_closed_loop.py``<br>``flashloan/app_runtime/.env.example`` | 是 |
 
 > **扩范围原因（`D-047` §1.3 同步登记）**：本任务的**复核发布**链路本身正确，
 > 但它在实盘**一次都没有落地**。实测根因在**编排层**的**常驻方向组容量**：
@@ -37,9 +37,7 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-6` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 / T-复编.01 同文件 |
-| `M-6`（**本任务新增**） | `flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs` | **无**（本任务新建，与其它任务无同文件争用） |
-| `M-8`（扩范围） | `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`<br>`flashloan/src/dex/runtime/closed_loop_state_machine.py`<br>`flashloan/app_runtime/.env.example` | **无**（本任务改动，与其它任务无同文件争用） |
+| `M-6` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件 |
 
 **判定规则**：
 
@@ -60,12 +58,12 @@
 | 模块 | 名称 | 命令 |
 |---|---|---|
 | — | — | `cargo test --offline -p review-manager` |
-| `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q` |
+| `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q` |
 
 ```powershell
 # 本任务的完整回归范围 = 上表所有模块的命令之并集
 cargo test --offline -p review-manager
-python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py -q
+python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q
 ```
 
 > **只跑上面这些。** 未改动模块**不重跑**。

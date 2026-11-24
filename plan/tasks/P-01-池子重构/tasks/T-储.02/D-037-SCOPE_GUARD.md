@@ -25,7 +25,7 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-10` | `flashloan/src/core/db/storage_business_schema.py` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-证候储.01 / T-储.01 / T-方储.01 / T-方闭储.01 同文件 |
+| `M-10` | `flashloan/src/core/db/storage_business_schema.py` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-储.01 / T-方储.01 / T-方闭储.01 / T-证候储.01 同文件 |
 
 **判定规则**：
 

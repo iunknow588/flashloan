@@ -44,10 +44,7 @@
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
 | `M-5` | `flashloan/src/dex/intent_trade/chains/robinhood/v4_pool_index.py`<br>`flashloan/src/dex/tools/v4_rust_refresh.py` | **无**（本任务独占） |
-| `M-2` | `flashloan/rs-src/src/evidence.rs`<br>`flashloan/rs-src/schema/business_schema.sql` | `flashloan/rs-src/src/evidence.rs`<br>↔ 与 T-复编.01 同文件（**不同位置** ⇒ 须错开提交） |
-| `M-10` | `flashloan/tools/pool_manager/src/lib.rs` | **无**（本任务独占） |
-| `M-10` | `flashloan/src/core/db/storage_business_schema.py` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-储.01 / T-储.02 / T-方储.01 / T-方闭储.01 同文件 |
-| `M-10` | `flashloan/src/core/db/storage_v4_exchange.py`<br>`flashloan/src/core/db/import_v4_evidence.py`<br>`flashloan/src/core/db/import_existing_json.py` | **无**（本任务独占） |
+| `M-10` | `flashloan/src/core/db/storage_business_schema.py`<br>`flashloan/tools/pool_manager/src/lib.rs` | `flashloan/src/core/db/storage_business_schema.py`<br>↔ 与 T-储.01 / T-储.02 / T-方储.01 / T-方闭储.01 同文件 |
 
 **判定规则**：
 
@@ -64,11 +61,7 @@
 >
 > - `flashloan/src/dex/intent_trade/chains/robinhood/v4_pool_index.py`
 > - `flashloan/src/dex/tools/v4_rust_refresh.py`
-> - `flashloan/rs-src/schema/business_schema.sql`
 > - `flashloan/tools/pool_manager/src/lib.rs`
-> - `flashloan/src/core/db/storage_v4_exchange.py`
-> - `flashloan/src/core/db/import_v4_evidence.py`
-> - `flashloan/src/core/db/import_existing_json.py`
 ## 2. 逐模块回归命令（**可逐条复制执行**）
 
 | 模块 | 名称 | 命令 |

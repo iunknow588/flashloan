@@ -3508,6 +3508,45 @@ def _normalize_route_pool_key_group(
     return normalized
 
 
+def _merge_pool_key_groups(
+    groups: list[list[dict[str, Any]]],
+    extra_groups: list[list[dict[str, Any]]],
+) -> list[list[dict[str, Any]]]:
+    """Union two pool-key group lists, keeping the first occurrence.
+
+    The order is the order of the caller: the market observation's own
+    group comes first and the pool manager's candidate groups follow.  A
+    group that is already present is not added twice, so the per-hop
+    candidate arrays stay as small as the pools really are.
+
+    The union is what lets the route price the pool the closed-loop Manager
+    published for a hop: the Manager picks one pool per hop and keeps the
+    rest as backups, and the kernel's identity check compares the published
+    pool with the pools the route prices.  A route that prices only one of
+    the two lists misses the published pool whenever the two lists differ.
+    """
+    merged: list[list[dict[str, Any]]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for group in [*groups, *extra_groups]:
+        if not group:
+            continue
+        signature: list[Any] = []
+        for key in group:
+            identity = _candidate_pool_key_tuple(key)
+            if identity is None:
+                signature = []
+                break
+            signature.append(identity)
+        if not signature:
+            continue
+        marker = tuple(signature)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        merged.append(group)
+    return merged
+
+
 def _route_capacity_gate(
     route: dict[str, Any],
     input_symbol: str,
@@ -3642,10 +3681,20 @@ def _route_task_config(
                 )
             ):
                 groups.append(normalized_group)
-        if not groups:
-            groups = candidate_groups
-    else:
-        groups = candidate_groups
+    # The route must price **every candidate pool of every hop**.
+    #
+    # The closed-loop Manager publishes **one** pool per hop and keeps the
+    # rest as backups, so the kernel's identity check expects the route's
+    # hop candidate list to *contain* the published pool.  A route that
+    # prices only the market observation's pick prices a pool the Manager
+    # never published: the identity mismatches, the loop is filed under no
+    # closed loop at all, and the review produces neither a capacity nor a
+    # ladder nor an evidence block.  The candidate surface is the pool
+    # manager's own list of candidate pools per hop, and it holds the
+    # published pool of every hop; the observation's pick is kept as well,
+    # because it is one more priced pool of the same hop and not a
+    # replacement for it.
+    groups = _merge_pool_key_groups(groups, candidate_groups)
     if not groups:
         if diagnostics is not None:
             _fill_refresh_required_diagnostics(
