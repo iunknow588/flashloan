@@ -1,0 +1,1031 @@
+{
+  "byModule": {
+    "-": 1,
+    "M-1": 2,
+    "M-10": 22,
+    "M-2": 9,
+    "M-3": 1,
+    "M-4": 1,
+    "M-5": 37,
+    "M-6": 3,
+    "M-7": 1,
+    "M-8": 1,
+    "M-9": 14
+  },
+  "columnInventory": {
+    "optimal_pool_id": [
+      {
+        "rows": 1560,
+        "table": "market_observation_yz_pairs"
+      },
+      {
+        "rows": 258,
+        "table": "market_observation_abnormal_yz_pairs"
+      },
+      {
+        "rows": 1420,
+        "table": "manager_market_observation_yz_pairs"
+      }
+    ],
+    "pool_ids_json": [
+      {
+        "rows": 104,
+        "table": "v4_closed_loops"
+      },
+      {
+        "rows": 1560,
+        "table": "market_observation_yz_pairs"
+      },
+      {
+        "rows": 258,
+        "table": "market_observation_abnormal_yz_pairs"
+      },
+      {
+        "rows": 1420,
+        "table": "manager_market_observation_yz_pairs"
+      },
+      {
+        "rows": 180,
+        "table": "manager_market_observation_abnormal_yz_pairs"
+      },
+      {
+        "rows": 174,
+        "table": "manager_v4_closed_loops"
+      },
+      {
+        "rows": 174,
+        "table": "manager_v4_reviews"
+      },
+      {
+        "rows": 0,
+        "table": "manager_v4_review_broadcast_requests"
+      },
+      {
+        "rows": 0,
+        "table": "manager_cow_execution_attempts"
+      }
+    ],
+    "rank": [
+      {
+        "rows": 232,
+        "table": "dex_candidate_pool_recommendations"
+      },
+      {
+        "rows": 340,
+        "table": "manager_dex_candidate_pool_recommendations"
+      }
+    ]
+  },
+  "fileCount": 92,
+  "files": {
+    "flashloan/app_runtime/tests/unit/test_architecture_guards.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_direction_candidate_limits.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_direction_integrity_report.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_direction_pool_model.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_direction_schema_migration.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_market_observation_core_db_only.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_pool_candidates.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_robinhood_mainnet_v4_index_refresh.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_robinhood_v4_backfill_evidence.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_robinhood_v4_sqlite_rebuild_tool.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_rs_execution_bridge.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_v4_scope_indexer.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/app_runtime/tests/unit/test_verify_robinhood_v4_zero_liquidity_vs_candidates.py": {
+      "module": "M-9",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/schema/business_schema.sql": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/business_builder.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/closed_loop_identity.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/execution.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/migration.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/review_publish.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/runtime_core.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/sqlite_read.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/rs-src/src/worker_pool.rs": {
+      "module": "M-2",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/core/db/builders.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/core/db/builders_candidate_abnormal.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id"
+      ]
+    },
+    "flashloan/src/core/db/direction_integrity.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/core/db/import_existing_json.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/src/core/db/page_payloads.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/core/db/storage_business_schema.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/core/db/storage_dex_candidate.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/core/db/storage_market_observation.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/core/db/storage_v4_closed_loop.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/core/db/v4_scan_state.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/intent_trade/chains/robinhood_common/market_observation_core.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/intent_trade/chains/robinhood_testnet/market_observation.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/runtime/robinhood_v4_idle_maintenance.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/runtime/v4_dynamic_pool_discovery.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/runtime/v4_scope_indexer.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/dex/tools/build_robinhood_mainnet_yc_zc_token_cache.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id"
+      ]
+    },
+    "flashloan/src/dex/tools/collect_robinhood_v4_backfill_evidence.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "flashloan/src/dex/tools/refresh_robinhood_v4_live.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/src/market/binance_market/dex_surfaces.py": {
+      "module": "M-5",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/broadcast_manager/src/lib.rs": {
+      "module": "M-7",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/candidate_edge_pool_manager/src/lib.rs": {
+      "module": "M-5",
+      "roles": [
+        "consumer",
+        "producer"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "optimal_pool_id",
+        "pool_ids_json",
+        "recommend_direction"
+      ]
+    },
+    "flashloan/tools/candidate_exchange_pool_manager/src/lib.rs": {
+      "module": "M-5",
+      "roles": [
+        "consumer",
+        "producer"
+      ],
+      "symbols": [
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score"
+      ]
+    },
+    "flashloan/tools/closed_loop_manager/src/lib.rs": {
+      "module": "M-4",
+      "roles": [
+        "consumer",
+        "producer"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/directional_pool_manager/tests/directional_pools.rs": {
+      "module": "M-3",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "recommend_direction"
+      ]
+    },
+    "flashloan/tools/manager_api/src/lib.rs": {
+      "module": "M-8",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261104_001_candidate_edge_schema.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261104_002_candidate_exchange_schema.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261104_003_closed_loop_schema.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261104_004_review_schema.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261104_005_broadcast_schema.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/migrations/20261124_016_closed_loop_directional_wiring.sql": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/src/migrate.rs": {
+      "module": "M-10",
+      "roles": [
+        "schema"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/manager_db/tests/migration_smoke.rs": {
+      "module": "M-10",
+      "roles": [
+        "test"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "flashloan/tools/pool_manager/src/baseline_audit.rs": {
+      "module": "M-1",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "flashloan/tools/pool_manager/src/lib.rs": {
+      "module": "M-1",
+      "roles": [
+        "consumer",
+        "producer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs": {
+      "module": "M-6",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/review_manager/src/lib.rs": {
+      "module": "M-6",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/review_manager/src/records.rs": {
+      "module": "M-6",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "flashloan/tools/token_manager/src/prune.rs": {
+      "module": "-",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "optimal_pool_id",
+        "pool_ids_json"
+      ]
+    },
+    "plan/back/probe_20261124/equiv_direction_rank.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id"
+      ]
+    },
+    "plan/back/probe_20261124/equiv_direction_reason.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations"
+      ]
+    },
+    "plan/back/归档_第72轮_apply_pool_refactor_doc_edits_20261123.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "plan/back/归档_第72轮_apply_pool_refactor_doc_edits_phase2_20261123.py": {
+      "module": "M-10",
+      "roles": [
+        "consumer"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "plan/runtime_evidence/tools/_tmp_api_patch6.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/_tmp_api_patch8.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/clone_closed_loop_slice_20261125.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "plan/runtime_evidence/tools/collect_legacy_order_consumers_20261125.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score",
+        "recommend_direction"
+      ]
+    },
+    "plan/runtime_evidence/tools/collect_task145_valuation_units_20261121.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/collect_task147_testnet_prerequisite_20261121.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "plan/runtime_evidence/tools/collect_task147_testnet_root_cause_chain_20261121.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "plan/runtime_evidence/tools/collect_task149_ac214_evidence_20261121.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/compare_closed_loop_directional_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/compare_directional_pool_projection_20261123.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json",
+        "recommend_direction"
+      ]
+    },
+    "plan/runtime_evidence/tools/compare_directional_primary_order_20261125.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "optimal_pool_id",
+        "pool_ids_json",
+        "pool_score",
+        "recommend_direction"
+      ]
+    },
+    "plan/runtime_evidence/tools/compare_directional_primary_order_effect_20261125.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/compare_task186_fee_label_universe_20261123.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_score"
+      ]
+    },
+    "plan/runtime_evidence/tools/measure_record_volumes_20261123.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_backup_capacity_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_backup_pool_wiring_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_capacity_gate_rescue_candidates_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs",
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_directional_group_coverage_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_hop_direction_consistency_20261124.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/probe_legacy_cutover_comparison_20261125.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "plan/runtime_evidence/tools/rollback_directional_pool_switch_20261123.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "manager_dex_candidate_pool_recommendations",
+        "manager_market_observation_yz_pairs"
+      ]
+    },
+    "plan/runtime_evidence/tools/verify_task150_pool_set_20261121.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "scripts/mainnet_arbitrage_healer.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "scripts/tests/test_mainnet_arbitrage_healer.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "scripts/verify_candidate_pool_quality.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    },
+    "scripts/verify_robinhood_v4_zero_liquidity_vs_candidates.py": {
+      "module": "M-5",
+      "roles": [
+        "tool"
+      ],
+      "symbols": [
+        "pool_ids_json"
+      ]
+    }
+  },
+  "legacySymbols": [
+    "recommend_direction",
+    "pool_score",
+    "optimal_pool_id",
+    "pool_ids_json"
+  ],
+  "legacyTables": [
+    "manager_dex_candidate_pool_recommendations",
+    "manager_market_observation_yz_pairs"
+  ],
+  "repo": "E:\\2026OPC大赛\\flashLoan",
+  "store": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "storeReadings": {
+    "manager_dex_candidate_pool_recommendations": {
+      "maxUpdatedAt": "2026-11-24T08:41:55.837653+00:00",
+      "rankRange": [
+        1,
+        4
+      ],
+      "rows": 340,
+      "scopes": {
+        "core4": 340
+      }
+    },
+    "manager_market_observation_yz_pairs": {
+      "maxUpdatedAt": "2026-11-22T12:33:58.783619100+00:00",
+      "rows": 1420,
+      "scopes": {
+        "candidate_exchange": 1420
+      }
+    },
+    "manager_v4_closed_loop_hops": {
+      "maxUpdatedAt": "2026-11-24T01:06:24.995144+00:00",
+      "rows": 522
+    },
+    "manager_v4_closed_loop_optimizations": {
+      "maxUpdatedAt": "2026-11-24T01:06:24.995144+00:00",
+      "rows": 472
+    },
+    "manager_v4_closed_loops": {
+      "maxUpdatedAt": "2026-11-24T01:06:24.995144+00:00",
+      "rows": 174
+    },
+    "manager_v4_directional_exchange_pools": {
+      "maxUpdatedAt": "2026-11-23T22:46:22.591455600+00:00",
+      "rows": 692
+    }
+  }
+}
